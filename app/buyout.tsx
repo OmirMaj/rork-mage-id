@@ -20,8 +20,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable,
-  Alert, Platform, TextInput, Modal, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, Platform, TextInput, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -43,6 +42,7 @@ import {
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
   open: '#FF6A1A',
@@ -174,11 +174,11 @@ export default function BuyoutScreen() {
 
   const handleCreatePackage = useCallback(() => {
     if (!project) {
-      Alert.alert('Pick a project first');
+      showAlert('Pick a project first');
       return;
     }
     if (!newPkgName.trim()) {
-      Alert.alert('Name required', 'Give the package a name like "Plumbing rough-in".');
+      showAlert('Name required', 'Give the package a name like "Plumbing rough-in".');
       return;
     }
     const budget = Number(newPkgBudget) || 0;

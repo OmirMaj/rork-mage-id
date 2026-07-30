@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -38,6 +37,7 @@ import { Tokens } from '@/constants/designTokens';
 
 import { generateUUID } from '@/utils/generateId';
 import { billedAmountForLine } from '@/utils/invoiceBilling';
+import { showAlert } from '@/utils/alert';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -232,7 +232,7 @@ export default function BillFromEstimateScreen() {
     setBillingHint(null);
     const activeRows = rows.filter(r => selected[r.key] && (amountsByKey[r.key] ?? 0) > 0);
     if (activeRows.length === 0) {
-      Alert.alert('Nothing to Bill', 'Select at least one line item and enter a billing percent greater than zero.');
+      showAlert('Nothing to Bill', 'Select at least one line item and enter a billing percent greater than zero.');
       return;
     }
 

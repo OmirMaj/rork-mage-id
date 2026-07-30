@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList,
-  Alert, Platform, Modal, KeyboardAvoidingView, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, Platform, Modal, KeyboardAvoidingView, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -21,6 +20,7 @@ import type { Contact, ContactRole } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { showAlert } from '@/utils/alert';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -128,7 +128,7 @@ export default function ContactsScreen() {
 
   const handleSave = useCallback(() => {
     if (!firstName.trim() && !lastName.trim() && !companyName.trim()) {
-      Alert.alert('Missing Info', 'Please enter at least a name or company.');
+      showAlert('Missing Info', 'Please enter at least a name or company.');
       return;
     }
 
@@ -171,7 +171,7 @@ export default function ContactsScreen() {
   }, [firstName, lastName, companyName, role, email, phone, address, notes, editingContact, addContact, updateContact, resetForm]);
 
   const handleDelete = useCallback((contact: Contact) => {
-    Alert.alert('Delete Contact', `Remove ${contact.firstName} ${contact.lastName}?`, [
+    showAlert('Delete Contact', `Remove ${contact.firstName} ${contact.lastName}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: () => {

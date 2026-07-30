@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  Alert, TextInput, Keyboard,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -30,6 +29,7 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { wipPeriodToCSV, shareWipPeriodPdf } from '@/utils/wipExport';
 import { copyToClipboard } from '@/utils/clipboard';
 import type { WipRowInput, WipSnapshotRow, Project } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
@@ -200,14 +200,14 @@ function WipReportScreenInner() {
     const periodEndDate = new Date().toISOString().slice(0, 10);
     addPeriod({ periodEndDate, rows: liveRows, portfolioTotals: portfolio });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Period saved', `WIP snapshot for ${periodEndDate} created. Lock it to freeze for CPA/bank review.`);
+    showAlert('Period saved', `WIP snapshot for ${periodEndDate} created. Lock it to freeze for CPA/bank review.`);
   }, [addPeriod, liveRows, portfolio]);
 
   const handleLock = useCallback(() => {
     const target = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periods[0];
-    if (!target) { Alert.alert('No period', 'Save a period snapshot first, then lock it.'); return; }
-    if (target.lockedAt) { Alert.alert('Already locked', 'This period is immutable. Create a new period to make changes.'); return; }
-    Alert.alert('Lock period?', `Locking freezes ${target.periodEndDate}. It can no longer be edited.`, [
+    if (!target) { showAlert('No period', 'Save a period snapshot first, then lock it.'); return; }
+    if (target.lockedAt) { showAlert('Already locked', 'This period is immutable. Create a new period to make changes.'); return; }
+    showAlert('Lock period?', `Locking freezes ${target.periodEndDate}. It can no longer be edited.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Lock', style: 'destructive', onPress: () => { lockPeriod(target.id); void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } },
     ]);
@@ -227,13 +227,13 @@ function WipReportScreenInner() {
     const csv = wipPeriodToCSV(exportPeriod);
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(ok ? 'CSV copied' : 'Copy failed', ok ? 'Paste into Excel / QuickBooks / Sage.' : 'Could not copy CSV.');
+    showAlert(ok ? 'CSV copied' : 'Copy failed', ok ? 'Paste into Excel / QuickBooks / Sage.' : 'Could not copy CSV.');
   }, [exportPeriod]);
 
   const handleExportPdf = useCallback(async () => {
     if (!exportPeriod) return;
     try { await shareWipPeriodPdf(exportPeriod, 'MAGE ID'); }
-    catch { Alert.alert('Export failed', 'Could not generate the WIP PDF.'); }
+    catch { showAlert('Export failed', 'Could not generate the WIP PDF.'); }
   }, [exportPeriod]);
 
   return (
@@ -252,7 +252,7 @@ function WipReportScreenInner() {
 
       <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]}>
         {/* Portfolio totals */}
-        <View style={styles.card}>
+        <View style={[styles.card, isDesktop && styles.cardDesktop]}>
           <Text style={styles.sectionTitle}>Portfolio</Text>
           <Row label="Revised contract" value={money(portfolio.revisedContract)} styles={styles} />
           <Row label="Earned revenue" value={money(portfolio.earnedRevenue)} styles={styles} />
@@ -264,7 +264,7 @@ function WipReportScreenInner() {
         </View>
 
         {/* Period selector */}
-        <View style={styles.card}>
+        <View style={[styles.card, isDesktop && styles.cardDesktop]}>
           <Text style={styles.sectionTitle}>Periods</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             <TouchableOpacity
@@ -302,7 +302,7 @@ function WipReportScreenInner() {
         </View>
 
         {/* Per-project rows (live) */}
-        <View style={styles.card}>
+        <View style={[styles.card, isDesktop && styles.cardFullDesktop]}>
           <Text style={styles.sectionTitle}>Projects</Text>
           {liveRows.length === 0 ? (
             <Text style={styles.muted}>No active projects.</Text>
@@ -404,7 +404,16 @@ function Row({ label, value, styles }: { label: string; value: string; styles: R
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // WIP is a financial table — wide on desktop.
+  // Desktop: Portfolio + Periods sit side by side and the Projects table spans
+  // the full row, instead of three cards stacked in a narrow middle column.
+  contentDesktop: {
+    width: '100%', maxWidth: 1400, alignSelf: 'center' as const,
+    flexDirection: 'row' as const, flexWrap: 'wrap' as const,
+    alignItems: 'flex-start' as const, gap: 16,
+  },
+  cardDesktop: { flexGrow: 1, flexBasis: 420, marginBottom: 0 },
+  cardFullDesktop: { flexBasis: '100%' as const, marginBottom: 0 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingBottom: 12,

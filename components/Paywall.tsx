@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  ActivityIndicator,
-  Alert,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +14,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { showAlert } from '@/utils/alert';
 
 // App Store / Play Store deep links — used by the web paywall to bounce
 // users to mobile. App Store ID 6762229238 is from eas.json submit.production.
@@ -185,7 +178,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
         await purchasePro(period);
       }
       track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: requiredTier, period });
-      Alert.alert(`Welcome to ${tierLabel}!`, 'Your subscription is now active.');
+      showAlert(`Welcome to ${tierLabel}!`, 'Your subscription is now active.');
       onClose();
     } catch (err: unknown) {
       const isCancelled =
@@ -208,12 +201,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
         !tierPackageAvailable ||
         /not configured|not available|no packages|unavailable/i.test(rawMsg);
       if (isUnavailable) {
-        Alert.alert(
+        showAlert(
           `${tierLabel} isn’t available yet`,
           `The ${tierLabel} plan isn’t purchasable on your device right now. This usually means the plan is still being set up in the App Store. Try a lower tier, or email support@mageid.app and we’ll sort it out.`,
         );
       } else {
-        Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+        showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
       }
     }
   }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, feature, onClose, tierPackageAvailable]);

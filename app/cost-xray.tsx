@@ -13,8 +13,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Image, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -45,6 +44,7 @@ import type {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
+import { showAlert } from '@/utils/alert';
 
 // A captured photo (id === the saved ProjectPhoto.id so tell provenance lines up).
 interface CapturedPhoto { id: string; uri: string; timestamp: string }
@@ -156,18 +156,18 @@ export default function CostXrayScreen() {
   }, [project, addProjectPhoto, resetScan]);
 
   const capture = useCallback(async (source: 'camera' | 'library') => {
-    if (!project) { Alert.alert('Pick a project', 'Choose which project this scan is for.'); return; }
-    if (photos.length >= MAX_PHOTOS) { Alert.alert('Limit reached', `Up to ${MAX_PHOTOS} photos per scan.`); return; }
+    if (!project) { showAlert('Pick a project', 'Choose which project this scan is for.'); return; }
+    if (photos.length >= MAX_PHOTOS) { showAlert('Limit reached', `Up to ${MAX_PHOTOS} photos per scan.`); return; }
     try {
       if (source === 'camera') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Camera access needed', 'Grant camera access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Camera access needed', 'Grant camera access in Settings.'); return; }
         const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
         if (res.canceled || !res.assets[0]) return;
         addCaptured(res.assets[0].uri);
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Photo access needed', 'Grant photo access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Photo access needed', 'Grant photo access in Settings.'); return; }
         const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
         if (res.canceled || !res.assets[0]) return;
         addCaptured(res.assets[0].uri);
@@ -217,7 +217,7 @@ export default function CostXrayScreen() {
       // 15-30 s only to get a 413 back.
       const payloadBytes = inline.reduce((s, p) => s + p.base64.length, 0);
       if (payloadBytes > MAX_PAYLOAD_BYTES) {
-        Alert.alert(
+        showAlert(
           'Photos too large',
           `Your photos are too large to analyze (${(payloadBytes / 1024 / 1024).toFixed(1)} MB). Try fewer photos or use the camera option — it captures at a smaller file size. Max batch size is 8 MB.`,
         );
@@ -288,7 +288,7 @@ export default function CostXrayScreen() {
     const pricedAccepted = accepted.filter(r => r.route === 'price');
     if (pricedAccepted.length > 0) {
       if (!project.linkedEstimate) {
-        Alert.alert(
+        showAlert(
           'No estimate yet',
           "This project has no linked estimate to add lines to. The field-verify tasks will still be created.",
         );
@@ -364,7 +364,7 @@ export default function CostXrayScreen() {
     const parts: string[] = [];
     if (pricedCount > 0) parts.push(`${pricedCount} hidden-condition line${pricedCount === 1 ? '' : 's'} (+${formatMoney(totalAdded)}) added to your estimate.`);
     if (verifyOnlyCount > 0) parts.push(`${verifyOnlyCount} field-verify task${verifyOnlyCount === 1 ? '' : 's'} created.`);
-    Alert.alert(
+    showAlert(
       `${accepted.length} condition${accepted.length === 1 ? '' : 's'} applied`,
       parts.join(' '),
       [{ text: 'Done', onPress: () => router.back() }],

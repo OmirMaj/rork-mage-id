@@ -164,7 +164,7 @@ function ProfitLeakHistoryInner() {
   }, [router]);
 
   const contentStyle = isDesktop
-    ? [styles.scrollContent, { maxWidth: 760, alignSelf: 'center' as const, width: '100%' as const }]
+    ? [styles.scrollContent, { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as const }]
     : styles.scrollContent;
 
   return (

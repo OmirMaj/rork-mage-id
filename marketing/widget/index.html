@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Instant Estimate Widget — Put a price calculator on your own website | MAGE ID</title>
+<link rel="canonical" href="https://mageid.app/widget/" />
+<meta name="description" content="A free embeddable instant estimate widget for contractors. One script tag on your own site gives homeowners a real ballpark price range in seconds — and drops the lead straight into your MAGE ID pipeline." />
+<meta name="theme-color" content="#0B0D10" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Instant Estimate Widget for Contractors" />
+<meta property="og:description" content="One script tag. Homeowners get a ballpark price on your website in ten seconds — you get a qualified lead. Free with MAGE ID." />
+<meta property="og:url" content="https://mageid.app/widget/" />
+<meta property="og:site_name" content="MAGE ID" />
+<meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<!-- PostHog — same project key as the rest of the site so this page's pageview
+     + copy-snippet event join the unified marketing funnel. The widget itself
+     ships NO analytics; we don't install trackers on a customer's website. -->
+<script>
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+    api_host: 'https://us.i.posthog.com',
+    capture_pageview: true,
+    capture_pageleave: true,
+    autocapture: false,
+    persistence: 'localStorage+cookie',
+  });
+</script>
+<style>
+  /* Brand-aligned palette (ink + amber + cream), matching mageid.app. */
+  :root{
+    --navy:#0B0D10; --navyd:#14181D; --amber:#FF6A1A; --amber-l:#FFF1E6;
+    --ink:#1c2530; --muted:#5b6775; --line:#E8DFCD; --bg:#FAF7F0; --card:#ffffff;
+    --ff-serif:'Fraunces',Georgia,serif;
+    --ff-sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --ff-mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--ff-sans);
+    background:var(--bg); color:var(--ink); line-height:1.5;
+    padding:24px 16px 60px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-family:var(--ff-serif);font-size:30px;line-height:1.15;color:var(--navyd);text-align:center;margin-bottom:10px;letter-spacing:-.015em}
+  .sub{text-align:center;color:var(--muted);font-size:16px;margin:0 auto 28px;max-width:560px}
+  h2{font-family:var(--ff-serif);font-size:21px;color:var(--navyd);margin:0 0 12px;letter-spacing:-.01em}
+  h3{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 6px}
+  p{margin-bottom:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 1px 2px rgba(11,13,16,.04),0 8px 24px rgba(11,13,16,.06)}
+  .section{margin-top:34px}
+  .demo{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  @media(max-width:720px){.demo{grid-template-columns:1fr}}
+  .demo-frame{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 1px 2px rgba(11,13,16,.04),0 8px 24px rgba(11,13,16,.06)}
+  .demo-chrome{display:flex;align-items:center;gap:6px;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+  .demo-chrome i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+  .demo-chrome span{margin-left:8px;font-size:11.5px;color:var(--muted);font-family:var(--ff-mono)}
+  .steps{list-style:none;counter-reset:s}
+  .steps li{counter-increment:s;position:relative;padding-left:38px;margin-bottom:18px}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .steps p{font-size:14px;color:var(--muted);margin:0}
+  pre{background:var(--navy);color:#EDE7DC;border-radius:12px;padding:16px 18px;overflow-x:auto;font-family:var(--ff-mono);font-size:12.5px;line-height:1.7;position:relative;-webkit-overflow-scrolling:touch}
+  pre .tag{color:#FFB37A}
+  pre .atr{color:#9EC5FF}
+  pre .val{color:#B7E1A1}
+  pre .cmt{color:#7C8794}
+  .copy{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:var(--ff-sans);font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer}
+  .copy:hover{background:var(--amber);border-color:var(--amber)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:10px 12px;text-align:left;border-top:1px solid var(--line);vertical-align:top}
+  th{background:var(--bg);color:var(--navy);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+  td code,p code,li code{font-family:var(--ff-mono);font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--navyd);white-space:nowrap}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .note{background:var(--amber-l);border-left:5px solid var(--amber);border-radius:8px;padding:14px 16px;font-size:14px;color:var(--navyd)}
+  .note b{color:var(--amber)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:600px){.grid2{grid-template-columns:1fr}}
+  .stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+  .stat .lbl{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+  .stat .val{font-size:14px;font-weight:600;color:var(--ink)}
+  details{margin-top:12px;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+  summary{cursor:pointer;padding:14px 16px;font-weight:600;font-size:14px;color:var(--navy);list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"＋";float:right;color:var(--amber);font-weight:700}
+  details[open] summary::after{content:"－"}
+  details .body{padding:0 16px 16px}
+  .cta{margin-top:34px;background:var(--navy);border:1px solid rgba(255,106,26,0.35);border-radius:14px;padding:24px;color:#fff;text-align:center}
+  .cta h3{font-family:var(--ff-serif);font-size:19px;margin-bottom:6px;color:#fff}
+  .cta p{font-size:14px;opacity:.9;margin-bottom:14px}
+  .cta a{display:inline-block;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:9px;font-size:15px}
+  .cta a.cta-primary{background:var(--amber);color:#fff}
+  .cta a.cta-secondary{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.25);margin-top:10px;font-weight:600}
+  /* Site nav — matches the ink/amber brand, sized for this light page */
+  .sitenav{max-width:760px;margin:0 auto 22px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .sitenav .brand{display:flex;align-items:center;gap:8px;text-decoration:none}
+  .sitenav .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+  .sitenav .brand span{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy);text-transform:uppercase}
+  .sitenav .nav-r{display:flex;align-items:center;gap:16px}
+  .sitenav .nav-r a{text-decoration:none;font-size:13px;font-weight:600;color:var(--muted)}
+  .sitenav .nav-r a:hover{color:var(--navy)}
+  .sitenav .nav-r a.start{color:var(--amber);border:1px solid rgba(255,106,26,0.5);border-radius:999px;padding:6px 14px}
+  .sitenav .nav-r a.start:hover{background:var(--amber);color:#fff}
+  @media(max-width:480px){.sitenav .nav-r a:not(.start){display:none}}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
+  .foot a{color:var(--muted)}
+  .footnav{max-width:760px;margin:28px auto 0;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center}
+  .footnav a{text-decoration:none;font-size:12.5px;font-weight:600;color:var(--muted)}
+  .footnav a:hover{color:var(--navy)}
+  @media(max-width:420px){h1{font-size:24px}}
+</style>
+</head>
+<body>
+<nav class="sitenav" aria-label="Primary">
+  <a href="/" class="brand"><span class="dot"></span><span>MAGE ID</span></a>
+  <div class="nav-r">
+    <a href="/playbook.html">How it works</a>
+    <a href="/pricing.html">Pricing</a>
+    <a href="/demo.html">Demo</a>
+    <a href="https://app.mageid.app" class="start">Start free</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <h1>Answer “what will this cost?” on your own website.</h1>
+  <p class="sub">One script tag. A homeowner picks a project, a size and a ZIP and sees a real ballpark range in ten seconds — and the lead lands in your MAGE ID pipeline, already qualified.</p>
+
+  <!-- ── Live demo ─────────────────────────────────────────────────── -->
+  <div class="demo">
+    <div class="demo-frame">
+      <div class="demo-chrome">
+        <i></i><i></i><i></i><span>yourcompany.com/estimate</span>
+      </div>
+      <!-- This is the real widget, mounted with the real embed script. -->
+      <div data-mage-estimate
+           data-mage-contractor="demo"
+           data-mage-demo="1"
+           data-mage-name="Ridgeline Builders"
+           data-mage-title="Get an instant ballpark"
+           data-mage-subtitle="Tell us about the project and we'll show you what jobs like yours run around here."></div>
+    </div>
+
+    <div>
+      <h2>What your visitor gets</h2>
+      <ol class="steps">
+        <li>
+          <h3>A number, not a contact form</h3>
+          <p>Every competitor answers this question with “fill this out and we'll call you.” You answer it before they leave the page.</p>
+        </li>
+        <li>
+          <h3>An honest range</h3>
+          <p>The widget shows a band, names every assumption it made, and refuses outright when the scope is too odd to price. It never pretends to be a quote.</p>
+        </li>
+        <li>
+          <h3>A reason to give you their name</h3>
+          <p>They hand over contact details to see the number. You get a lead that already knows roughly what the job costs — no more “I had no idea it was that much” three calls in.</p>
+        </li>
+      </ol>
+      <div class="note">
+        <b>It lands in MAGE.</b> The lead drops straight into your Pipeline as a new lead, with the project type, size, ZIP and the exact range the homeowner was shown recorded on it.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── The snippet ───────────────────────────────────────────────── -->
+  <div class="section">
+    <h2>Copy this into your website</h2>
+    <p style="color:var(--muted);font-size:14.5px">Paste it wherever you want the estimator to appear — a page builder HTML block, a WordPress custom-HTML widget, Squarespace code block, or straight into your template. Replace <code>your-company-slug</code> with your MAGE company slug.</p>
+    <pre id="snippet"><button class="copy" id="copyBtn" type="button">Copy</button><code><span class="cmt">&lt;!-- MAGE ID Instant Estimate --&gt;</span>
+<span class="tag">&lt;script</span> <span class="atr">src</span>=<span class="val">"https://mageid.app/widget/embed.js"</span>
+        <span class="atr">data-mage-contractor</span>=<span class="val">"your-company-slug"</span>
+        <span class="atr">data-mage-name</span>=<span class="val">"Your Company"</span>
+        <span class="atr">defer</span><span class="tag">&gt;&lt;/script&gt;</span></code></pre>
+    <p style="color:var(--muted);font-size:13.5px;margin-top:10px">That's the whole install. The widget renders right where you drop the tag. If you'd rather place it somewhere specific, put an empty <code>&lt;div data-mage-estimate&gt;&lt;/div&gt;</code> anywhere on the page and the script will mount into it instead.</p>
+  </div>
+
+  <!-- ── Options ───────────────────────────────────────────────────── -->
+  <div class="section">
+    <h2>Options</h2>
+    <p style="color:var(--muted);font-size:14.5px">All optional except the first. Set them on the <code>&lt;script&gt;</code> tag, or per-widget on a <code>[data-mage-estimate]</code> element if you run more than one.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Attribute</th><th>Default</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>data-mage-contractor</code></td><td>—</td><td><b>Required.</b> Your MAGE company slug (or user id). Routes the lead to you.</td></tr>
+          <tr><td><code>data-mage-name</code></td><td><code>us</code></td><td>Your company name, used in the widget's copy (“we send a copy to …”).</td></tr>
+          <tr><td><code>data-mage-title</code></td><td>Get an instant ballpark</td><td>Headline above the form.</td></tr>
+          <tr><td><code>data-mage-subtitle</code></td><td>A few details and…</td><td>Supporting line under the headline.</td></tr>
+          <tr><td><code>data-mage-cta</code></td><td><code>Continue</code></td><td>Label on the first button.</td></tr>
+          <tr><td><code>data-mage-accent</code></td><td><code>#FF6A1A</code></td><td>Accent colour — set it to your brand colour.</td></tr>
+          <tr><td><code>data-mage-target</code></td><td>—</td><td>CSS selector to mount into, instead of in-place.</td></tr>
+          <tr><td><code>data-mage-demo</code></td><td>off</td><td>Prices for real but skips the contact step and records no lead. Used by the demo above.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <details>
+      <summary>Mounting it yourself (single-page apps, React, Vue)</summary>
+      <div class="body">
+        <p style="color:var(--muted);font-size:14px">The script exposes exactly one global, <code>window.MageInstantEstimate</code>. Call it after your framework has rendered the container:</p>
+        <pre><code>MageInstantEstimate.mount('#quote-box', {
+  contractorId: 'your-company-slug',
+  contractorName: 'Your Company',
+  accent: '#0F766E'
+});</code></pre>
+        <p style="color:var(--muted);font-size:13.5px;margin:0">It also exports <code>MageInstantEstimate.projectTypes</code> and <code>.qualities</code> if you want to build your own front end against the same API.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── How the number is worked out ──────────────────────────────── -->
+  <div class="section">
+    <h2>How the number is worked out</h2>
+    <p style="color:var(--muted);font-size:14.5px">A typical published cost range for that scope, adjusted three ways, then floored at what it actually takes to mobilise the job.</p>
+    <div class="grid2">
+      <div class="stat"><div class="lbl">Size</div><div class="val">Bigger jobs cost more in total but less per square foot. A 4,000 sq ft remodel is not double a 2,000 sq ft one.</div></div>
+      <div class="stat"><div class="lbl">Finish level</div><div class="val">Budget, standard, premium or luxury — because a luxury kitchen buys different cabinets <em>and</em> a longer schedule <em>and</em> more trades.</div></div>
+      <div class="stat"><div class="lbl">Region</div><div class="val">ZIP resolves to a regional cost factor, with the high-cost metros handled separately.</div></div>
+      <div class="stat"><div class="lbl">Honesty</div><div class="val">Every input the homeowner leaves blank visibly widens the band. Scopes outside the model get refused, not guessed.</div></div>
+    </div>
+    <div class="note" style="margin-top:14px">
+      <b>It is a ballpark, and it says so.</b> The widget prints “this is not a quote” on every result and lists what it assumed. That protects you: the homeowner arrives with a realistic expectation and a written record of how coarse it was, instead of a number they think you promised.
+    </div>
+  </div>
+
+  <!-- ── API ───────────────────────────────────────────────────────── -->
+  <div class="section">
+    <h2>The API underneath</h2>
+    <p style="color:var(--muted);font-size:14.5px">The widget is a thin front end over one public endpoint. Call it directly if you'd rather build your own.</p>
+    <pre><code><span class="cmt">POST https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/widget-estimate</span>
+{
+  <span class="atr">"contractorId"</span>: <span class="val">"your-company-slug"</span>,
+  <span class="atr">"projectType"</span>:  <span class="val">"kitchen_remodel"</span>,
+  <span class="atr">"sizeSqft"</span>:     <span class="val">220</span>,
+  <span class="atr">"quality"</span>:      <span class="val">"premium"</span>,
+  <span class="atr">"zip"</span>:          <span class="val">"30301"</span>,
+  <span class="atr">"name"</span>:         <span class="val">"Dana Reyes"</span>,
+  <span class="atr">"email"</span>:        <span class="val">"dana@example.com"</span>
+}
+
+<span class="cmt">→ { ok, estimate: { range: { low, likely, high }, perSqft,
+    confidence, assumptions[], cannotPriceReason }, leadCaptured }</span></code></pre>
+    <p style="color:var(--muted);font-size:13.5px"><code>GET</code> the same URL for the list of project types and finish levels. Rate-limited per IP and per contractor; a honeypot field is accepted and silently discarded.</p>
+  </div>
+
+  <div class="cta">
+    <h3>Your website should be closing leads while you're on a roof.</h3>
+    <p>MAGE ID gives you the estimator, the pipeline it feeds, and the price book that turns those leads into bids priced off your own finished jobs.</p>
+    <a href="https://app.mageid.app" class="cta-primary">Get your embed snippet → Start free</a>
+    <a href="/" class="cta-secondary">See how MAGE ID works</a>
+  </div>
+
+  <p class="foot">The demo above is live — it calls the same endpoint your site would, with a demo contractor id, so no lead is recorded.<br/>Free with MAGE ID · <a href="/">mageid.app</a></p>
+
+  <nav class="footnav" aria-label="Footer">
+    <a href="/">Home</a>
+    <a href="/playbook.html">How it works</a>
+    <a href="/calculator.html">Markup calculator</a>
+    <a href="/costs/">Price Index</a>
+    <a href="/demo.html">Demo</a>
+    <a href="/pricing.html">Pricing</a>
+    <a href="/support.html">Support</a>
+    <a href="/privacy.html">Privacy</a>
+    <a href="/terms.html">Terms</a>
+  </nav>
+  <p class="foot">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
+</div>
+
+<!-- The live demo: the real embed script, exactly as a contractor would use it. -->
+<script src="/widget/embed.js" defer></script>
+
+<script>
+  // Keep the footer year current site-wide.
+  (function () {
+    var y = document.getElementById("year");
+    if (y) y.textContent = new Date().getFullYear();
+  })();
+
+  // Copy-to-clipboard for the embed snippet — the one action this page exists for.
+  (function () {
+    var btn = document.getElementById("copyBtn");
+    if (!btn) return;
+    var SNIPPET = [
+      '<!-- MAGE ID Instant Estimate -->',
+      '<script src="https://mageid.app/widget/embed.js"',
+      '        data-mage-contractor="your-company-slug"',
+      '        data-mage-name="Your Company"',
+      '        defer><\/script>'
+    ].join("\n");
+    btn.addEventListener("click", function () {
+      var done = function () {
+        btn.textContent = "Copied";
+        setTimeout(function () { btn.textContent = "Copy"; }, 1800);
+        if (window.posthog) posthog.capture("widget_snippet_copied");
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(SNIPPET).then(done, function () { btn.textContent = "Press ⌘C"; });
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = SNIPPET; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) { btn.textContent = "Press ⌘C"; }
+        document.body.removeChild(ta);
+      }
+    });
+  })();
+
+  // Funnel: measure widget docs → CTA click.
+  document.querySelectorAll('a[href="https://app.mageid.app"]').forEach(function (a) {
+    a.addEventListener("click", function () {
+      if (window.posthog) {
+        posthog.capture("widget_cta_clicked", { href: "https://app.mageid.app" });
+      }
+    });
+  });
+</script>
+  <script src="/motion.js" defer></script>
+</body>
+</html>

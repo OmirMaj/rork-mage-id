@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Platform,
-  ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -22,6 +21,7 @@ import {
   type DataExportOptions, type DataExportSummary,
 } from '@/utils/dataExport';
 import { displayText } from '@/utils/formatters';
+import { showAlert } from '@/utils/alert';
 
 type Scope = 'all' | 'project';
 
@@ -59,7 +59,7 @@ export default function DataExportScreen() {
   // homeowner / accountant might want).
   const applyArchivePreset = useCallback(() => {
     if (scope !== 'project' || !projectId) {
-      Alert.alert('Pick a project first', 'The archive preset bundles a single project. Switch scope to "Single project" and pick one above.');
+      showAlert('Pick a project first', 'The archive preset bundles a single project. Switch scope to "Single project" and pick one above.');
       return;
     }
     setFormat('both');
@@ -110,7 +110,7 @@ export default function DataExportScreen() {
 
   const handleGenerate = useCallback(async () => {
     if (scope === 'project' && !projectId) {
-      Alert.alert('Pick a project', 'Select which project to export first.');
+      showAlert('Pick a project', 'Select which project to export first.');
       return;
     }
     try {
@@ -122,14 +122,14 @@ export default function DataExportScreen() {
       if (result.fileUris.length === 1) {
         await shareExportedFile(result.fileUris[0], 'MAGE ID Data Export');
       } else {
-        Alert.alert(
+        showAlert(
           'Export ready',
           `${summarizeExport(result)}\n\nTap a file below to share it.`,
         );
       }
     } catch (err) {
       console.error('[DataExport] failed', err);
-      Alert.alert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      showAlert('Export failed', err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setGenerating(false);
     }

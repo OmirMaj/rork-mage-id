@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, Alert,
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationFeed, type NotificationFeedItem } from '@/hooks/useNotificationFeed';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Friendly metadata for every event that can land in the inbox. Keep
 // the eyebrow labels SHORT (≤16 chars) so they fit on narrow screens
@@ -272,7 +273,7 @@ export default function NotificationsInboxScreen() {
   }, [feed, router]);
 
   const handleClearAll = useCallback(() => {
-    Alert.alert(
+    showAlert(
       'Clear all notifications?',
       'This will dismiss every notification in your inbox. Push and email history is unaffected.',
       [

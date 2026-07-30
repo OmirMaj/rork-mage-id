@@ -15,7 +15,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +36,7 @@ import {
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   open: '#FF6A1A',
@@ -128,7 +129,7 @@ export default function WorkOrderScreen() {
 
   const handleDelete = useCallback(() => {
     if (!wo) return;
-    Alert.alert('Delete work order?', `"${wo.title}" will be removed. This can't be undone.`, [
+    showAlert('Delete work order?', `"${wo.title}" will be removed. This can't be undone.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => { deleteWorkOrder(wo.id); router.back(); } },
     ]);

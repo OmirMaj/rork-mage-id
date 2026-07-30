@@ -6,7 +6,7 @@
 // revenue MAGE found actually gets billed. Self-hides when nothing's waiting.
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FileSignature, ChevronRight, Banknote } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +22,7 @@ import { useBrainGrading } from '@/hooks/useBrainGrading';
 import { supabase } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const MAX_VISIBLE = 4;
 
@@ -71,14 +72,14 @@ export default function ReadyToBillCard() {
           .upsert({ user_id: user.id, event_key: 'revenue.factoring.altline' }, { onConflict: 'user_id,event_key' });
       }
       setAdvanceState('done');
-      Alert.alert(
+      showAlert(
         'Advance requested',
         `We've noted your interest in advancing up to ${formatMoney(advanceTotal)} against this work. ` +
           'Funding runs through a lending partner — we\'ll reach out as soon as it opens in your state.',
       );
     } catch {
       setAdvanceState('idle');
-      Alert.alert('Could not save', 'Please try again in a moment.');
+      showAlert('Could not save', 'Please try again in a moment.');
     }
   };
 

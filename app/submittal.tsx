@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, Pressable,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -29,6 +28,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { showAlert } from '@/utils/alert';
 
 // Formats the required-date value for the picker button. Falls back to the
 // raw value if it isn't a parseable date (e.g. a voice-prefilled fragment),
@@ -134,7 +134,7 @@ function SubmittalScreenInner() {
 
   const handleSharePDF = useCallback(async () => {
     if (!project || !existingSubmittal) {
-      Alert.alert('Save First', 'Please save the submittal before exporting.');
+      showAlert('Save First', 'Please save the submittal before exporting.');
       return;
     }
     const branding = settings?.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
@@ -144,14 +144,14 @@ function SubmittalScreenInner() {
       nailIt(`Submittal #${existingSubmittal.number} shared`);
     } catch (err) {
       console.error('[Submittal] Share PDF failed:', err);
-      Alert.alert('Error', 'Could not generate the submittal PDF.');
+      showAlert('Error', 'Could not generate the submittal PDF.');
     }
   }, [project, existingSubmittal, settings]);
 
   const handleSendEmail = useCallback(async () => {
     if (!project || !existingSubmittal) return;
     if (!emailRecipient.trim()) {
-      Alert.alert('Email Required', 'Please enter the reviewer email.');
+      showAlert('Email Required', 'Please enter the reviewer email.');
       return;
     }
     setSending(true);
@@ -191,7 +191,7 @@ function SubmittalScreenInner() {
       });
       if (!result.success) {
         if (result.error === 'cancelled') return;
-        Alert.alert('Could Not Send', result.error || 'Email failed.');
+        showAlert('Could Not Send', result.error || 'Email failed.');
         return;
       }
       // Auto-create a new review cycle so the submittal status reflects
@@ -209,7 +209,7 @@ function SubmittalScreenInner() {
       nailIt(`Submittal sent to ${emailRecipientName.trim() || emailRecipient.trim()}`);
     } catch (err) {
       console.error('[Submittal] Email send failed:', err);
-      Alert.alert('Error', 'Failed to send email.');
+      showAlert('Error', 'Failed to send email.');
     } finally {
       setSending(false);
     }
@@ -220,7 +220,7 @@ function SubmittalScreenInner() {
 
   const handleSave = useCallback(() => {
     if (!title.trim()) {
-      Alert.alert('Missing Title', 'Please enter a title.');
+      showAlert('Missing Title', 'Please enter a title.');
       return;
     }
 
@@ -252,7 +252,7 @@ function SubmittalScreenInner() {
   const handleAddCycle = useCallback(() => {
     if (!existingSubmittal) return;
     if (!newReviewer.trim()) {
-      Alert.alert('Missing Reviewer', 'Please enter a reviewer name.');
+      showAlert('Missing Reviewer', 'Please enter a reviewer name.');
       return;
     }
 

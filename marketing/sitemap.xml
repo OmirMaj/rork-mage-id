@@ -190,5 +190,20 @@
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
+  <!-- The Price Index: free public cost data. Highest priority + weekly crawl —
+       this is the page built to be cited by search and AI answer engines. -->
+  <url>
+    <loc>https://mageid.app/costs/</loc>
+    <lastmod>2026-07-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://mageid.app/widget/</loc>
+    <lastmod>2026-07-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
 
 </urlset>

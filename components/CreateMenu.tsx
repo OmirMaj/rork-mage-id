@@ -18,8 +18,7 @@
 
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Platform, Alert,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -39,6 +38,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface CreateOption {
   /** Human label (plain English). */
@@ -210,7 +210,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
       if (projects.length === 0) {
         handleClose();
         setTimeout(() => {
-          Alert.alert(
+          showAlert(
             'Create a project first',
             `Add a project, then you can attach a ${opt.label.toLowerCase()} to it.`,
             [

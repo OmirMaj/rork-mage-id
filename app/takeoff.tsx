@@ -17,8 +17,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Alert, Platform, Image, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image, TextInput,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,6 +58,7 @@ import { TakeoffFieldVerifyButton } from '@/components/TakeoffFieldVerifyButton'
 import { TakeoffAccuracyPanel } from '@/components/TakeoffAccuracyPanel';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 import type {
   TakeoffResult, TakeoffConfidence, TakeoffWall, TakeoffFloorArea,
   TakeoffDoor, TakeoffWindow, TakeoffFinish, TakeoffFixture, TakeoffBulkMaterial,
@@ -521,7 +521,7 @@ function TakeoffInner() {
 
   const handleCreateAllBuyouts = useCallback(async () => {
     if (!buyoutDrafts || !pickedProjectId) {
-      Alert.alert(
+      showAlert(
         'Pick a project first',
         'Buyout packages need to attach to a specific project. Pick one above and try again.',
       );
@@ -544,7 +544,7 @@ function TakeoffInner() {
         created++;
       }
       setBuyoutDrafts(null);
-      Alert.alert(
+      showAlert(
         'Packages created',
         `${created} buyout package${created === 1 ? '' : 's'} drafted. Open Buyout to add bidders + send out for sub bids.`,
         [
@@ -554,7 +554,7 @@ function TakeoffInner() {
       );
     } catch (e) {
       console.warn('[Takeoff] buyout create failed', e);
-      Alert.alert('Could not create packages', String((e as Error).message ?? e));
+      showAlert('Could not create packages', String((e as Error).message ?? e));
     } finally {
       setBuyoutBusy(false);
     }

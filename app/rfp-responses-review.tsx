@@ -13,8 +13,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +33,7 @@ import { supabaseWrite } from '@/utils/offlineQueue';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface ResponseRow {
   id: string;
@@ -153,14 +153,14 @@ export default function RfpResponsesReviewScreen() {
       if (error) throw new Error(error.message);
       if (!data?.success) throw new Error(data?.error ?? 'Award failed.');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Awarded!',
         'The contractor has been notified and the project + client portal are set up. They\'ll reach out to schedule kickoff.',
         [{ text: 'OK', onPress: () => { void queryClient.invalidateQueries({ queryKey: ['rfp-responses', bidId] }); void queryClient.invalidateQueries({ queryKey: ['rfp-header', bidId] }); } }],
       );
     } catch (e) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Could not award', String((e as Error).message ?? e));
+      showAlert('Could not award', String((e as Error).message ?? e));
     } finally {
       setBusyId(null);
     }
@@ -173,7 +173,7 @@ export default function RfpResponsesReviewScreen() {
   const handleAward = useCallback((response: ResponseRow) => {
     const companyName = response.company_name ?? 'this contractor';
     const amountText = response.bid_amount != null ? formatMoney(response.bid_amount) : null;
-    Alert.alert(
+    showAlert(
       'Award this contractor?',
       `${response.company_name ?? 'This contractor'} will be notified, the project will be set up in their MAGE ID account, and your client portal will be created. All other bidders will be politely declined.\n\nThis can't be undone.`,
       [
@@ -183,7 +183,7 @@ export default function RfpResponsesReviewScreen() {
           style: 'default',
           onPress: () => {
             // Second, distinct confirmation naming the exact commitment.
-            Alert.alert(
+            showAlert(
               'Confirm award',
               amountText
                 ? `Award this project to ${companyName} for ${amountText}? Every other bid will be declined and this cannot be undone.`

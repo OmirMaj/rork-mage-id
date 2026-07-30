@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,
-  Platform, KeyboardAvoidingView, ActivityIndicator, Alert, FlatList,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, KeyboardAvoidingView, ActivityIndicator, FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -40,6 +39,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Gemini occasionally swaps shapes — returning strings where objects are expected
 // or vice versa. These preprocess coercers normalize the payload so the UI never
@@ -386,7 +386,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         feature: 'cashFlowForecaster',
       });
       if (!aiResult.success) {
-        Alert.alert('AI Unavailable', aiResult.error || 'Try again.');
+        showAlert('AI Unavailable', aiResult.error || 'Try again.');
         return;
       }
       setAiAnalysis(aiResult.data);
@@ -394,7 +394,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[CashFlow] AI analysis failed:', err);
-      Alert.alert('AI Unavailable', 'Cash flow analysis is unavailable right now. Try again in a moment.');
+      showAlert('AI Unavailable', 'Cash flow analysis is unavailable right now. Try again in a moment.');
     } finally {
       setAiLoading(false);
     }
@@ -1074,7 +1074,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // Chart + ledger rows — wide reads better than a narrow column.
+  contentDesktop: { width: '100%', maxWidth: 1320, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   heroCard: {
     marginHorizontal: 16,

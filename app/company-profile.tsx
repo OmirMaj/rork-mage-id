@@ -13,8 +13,7 @@
 
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, Alert, Modal, Dimensions,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal, Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
@@ -33,6 +32,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import SignaturePad from '@/components/SignaturePad';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -105,7 +105,7 @@ export default function CompanyProfileScreen() {
       }
     } catch (e) {
       console.error('[CompanyProfile] Logo pick error:', e);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      showAlert('Error', 'Failed to pick image. Please try again.');
     }
   }, [autoSave]);
 
@@ -120,7 +120,7 @@ export default function CompanyProfileScreen() {
     setShowSignatureModal(false);
     autoSave({ sig: paths });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Saved', 'Your signature has been saved.');
+    showAlert('Saved', 'Your signature has been saved.');
   }, [autoSave]);
 
   const handleClearSignature = useCallback(() => {
@@ -143,7 +143,7 @@ export default function CompanyProfileScreen() {
       },
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Saved', 'Your company info has been updated.');
+    showAlert('Saved', 'Your company info has been updated.');
   }, [updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData]);
 
   const sigPadWidth = Math.min(SCREEN_WIDTH - 80, 340);

@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, Pressable,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -31,6 +30,7 @@ import { extractMemoryDocs, answerFromMemorySemantic } from '@/utils/projectMemo
 import { rfiBlockStatus, overdueCalendarDays } from '@/utils/delayScan/rfiBlocking';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAlert } from '@/utils/alert';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -181,11 +181,11 @@ function RFIScreenInner() {
 
   const handleSave = useCallback(() => {
     if (!subject.trim()) {
-      Alert.alert('Missing Subject', 'Please enter a subject for this RFI.');
+      showAlert('Missing Subject', 'Please enter a subject for this RFI.');
       return;
     }
     if (!question.trim()) {
-      Alert.alert('Missing Question', 'Please enter the RFI question.');
+      showAlert('Missing Question', 'Please enter the RFI question.');
       return;
     }
 
@@ -282,7 +282,7 @@ function RFIScreenInner() {
     if (!existingRFI || !project) return;
     const to = sendEmail_To.trim();
     if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      Alert.alert('Invalid email', 'Enter a valid recipient email address.');
+      showAlert('Invalid email', 'Enter a valid recipient email address.');
       return;
     }
     setSending(true);
@@ -322,7 +322,7 @@ function RFIScreenInner() {
         attachments: existingRFI.attachments?.length ? existingRFI.attachments : undefined,
       });
       if (!result.success) {
-        Alert.alert('Send failed', result.error || 'Could not send the RFI. Try again.');
+        showAlert('Send failed', result.error || 'Could not send the RFI. Try again.');
         return;
       }
       // Shift the ball-in-court to the architect. The GC held it until
@@ -344,11 +344,11 @@ function RFIScreenInner() {
       // architect responds. ballInCourt is the live signal of "who's
       // holding it right now."
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('RFI Sent', `Sent to ${to}. Their reply will come to your email${settings?.branding?.email ? ` (${settings.branding.email})` : ''}.`);
+      showAlert('RFI Sent', `Sent to ${to}. Their reply will come to your email${settings?.branding?.email ? ` (${settings.branding.email})` : ''}.`);
       setShowSendModal(false);
     } catch (err) {
       console.error('[RFI] Send failed:', err);
-      Alert.alert('Send failed', err instanceof Error ? err.message : 'Could not send RFI.');
+      showAlert('Send failed', err instanceof Error ? err.message : 'Could not send RFI.');
     } finally {
       setSending(false);
     }
@@ -487,7 +487,7 @@ function RFIScreenInner() {
               onAdvance={(next) => {
                 setStatus(next);
                 if (next === 'answered' && !response) {
-                  Alert.alert(
+                  showAlert(
                     'Mark as answered',
                     'Add the response below before saving so the audit trail captures who said what.',
                     [{ text: 'OK' }],

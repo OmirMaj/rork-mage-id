@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Alert, Platform, useWindowDimensions,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -24,6 +23,7 @@ import { legacyEvmMetrics, buildCashFlow } from '@/utils/scheduleEarnedValue';
 import { mageAI } from '@/utils/mageAI';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const CHART_HEIGHT = 200;
 const CHART_PADDING = 40;
@@ -138,14 +138,14 @@ Be specific and actionable. Use construction industry terminology.`;
 
       const aiResult = await mageAI({ prompt, tier: 'fast', feature: 'fullBudgetDashboard' });
       if (!aiResult.success) {
-        Alert.alert('AI Unavailable', aiResult.error || 'Try again.');
+        showAlert('AI Unavailable', aiResult.error || 'Try again.');
         return;
       }
       setForecast(aiResult.data ?? aiResult.raw ?? '');
       console.log('[EVM] AI forecast generated');
     } catch (err) {
       console.log('[EVM] Forecast generation failed:', err);
-      Alert.alert('Error', 'Could not generate forecast. Please try again.');
+      showAlert('Error', 'Could not generate forecast. Please try again.');
     } finally {
       setForecastLoading(false);
     }
@@ -332,7 +332,7 @@ Be specific and actionable. Use construction industry terminology.`;
         <Text style={styles.sectionTitle}>EVM Metrics</Text>
         <View style={styles.metricsGrid}>
           {metricCards.map((card) => (
-            <View key={card.label} style={[styles.metricCard, { borderLeftColor: card.color }]}>
+            <View key={card.label} style={[styles.metricCard, isDesktop && styles.metricCardDesktop, { borderLeftColor: card.color }]}>
               <View style={styles.metricHeader}>
                 <card.icon size={16} color={card.color} />
                 <Text style={styles.metricLabel}>{card.label}</Text>
@@ -405,7 +405,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: t.bg,
   },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // Budget dashboard — bars + cost-code rows benefit from the extra width.
+  contentDesktop: { width: '100%', maxWidth: 1320, alignSelf: 'center' as const },
   center: {
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
@@ -505,6 +506,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 10,
     marginBottom: 24,
   },
+  // Desktop: pack the metric cards across the wider column rather than two
+  // 600px-wide cards per row.
+  metricCardDesktop: { width: 'auto' as any, flexBasis: 220, flexGrow: 1, maxWidth: 340 },
   metricCard: {
     width: '48%' as any,
     backgroundColor: t.surface,

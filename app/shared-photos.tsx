@@ -223,7 +223,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 16,
-    maxWidth: 1100,
+    maxWidth: 1400,
     width: '100%' as const,
     alignSelf: 'center' as const,
   },

@@ -119,6 +119,7 @@ import { supabase } from '@/lib/supabase';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Desktop/tablet-landscape breakpoint. Below this we send users to the
 // classic mobile experience — the grid is genuinely unusable under 900px.
@@ -475,7 +476,7 @@ function ScheduleProScreenInner() {
 
   const handleCleanupStaleRefs = useCallback(() => {
     if (!project?.linkedEstimate || staleEstimateRefCount === 0) return;
-    Alert.alert(
+    showAlert(
       'Clean up stale estimate references?',
       `${staleEstimateRefCount} reference${staleEstimateRefCount === 1 ? '' : 's'} on schedule tasks point to estimate items that no longer exist. Cleaning up will remove the dead IDs from each task's linkedEstimateItems. The tasks themselves keep working — they just won't carry budget from those missing items.`,
       [
@@ -954,7 +955,7 @@ function ScheduleProScreenInner() {
     if (Platform.OS === 'web') {
       if (typeof window !== 'undefined' && window.confirm(confirmMsg)) go();
     } else {
-      Alert.alert(
+      showAlert(
         'Load demo schedule',
         confirmMsg,
         [
@@ -1116,7 +1117,7 @@ function ScheduleProScreenInner() {
     if (withActuals.length === 0) {
       const msg = 'No tasks have actual start dates logged yet. Log an actual on at least one task, then reflow to cascade the delta to downstream work.';
       if (Platform.OS === 'web') window.alert?.(msg);
-      else Alert.alert('Nothing to reflow', msg);
+      else showAlert('Nothing to reflow', msg);
       return;
     }
     const next = reflowFromActuals(workingTasks);
@@ -1126,7 +1127,7 @@ function ScheduleProScreenInner() {
       ? 'Everything is on track — no downstream shifts needed.'
       : `Pushed ${changedCount} task${changedCount === 1 ? '' : 's'} based on actuals. Undo if this looks off.`;
     if (Platform.OS === 'web') window.alert?.(msg);
-    else Alert.alert('Reflow complete', msg);
+    else showAlert('Reflow complete', msg);
   }, [workingTasks, commit]);
 
   // Critical-path / conflict summary — moved out of the toolbar into the
@@ -1166,7 +1167,7 @@ function ScheduleProScreenInner() {
       // heatmap can still show resource-capacity overloads the leveler doesn't
       // act on (those are resolved by reassigning or rescheduling manually).
       const msg = 'Nothing to auto-level — leveling shifts overlapping crew and subcontractor work, and none was found to move.';
-      if (Platform.OS === 'web') window.alert?.(msg); else Alert.alert('Fix overloads', msg);
+      if (Platform.OS === 'web') window.alert?.(msg); else showAlert('Fix overloads', msg);
       return;
     }
     setLevelingPreview({ summary, leveled, finishDelta: leveledResult.projectFinish - cpm.projectFinish });
@@ -1210,7 +1211,7 @@ function ScheduleProScreenInner() {
     } else {
       // Native: pop the CSV into an alert so the user can at least grab it
       // via long-press. A real share-sheet flow comes later.
-      Alert.alert('CSV ready', `Copy the text below:\n\n${csv.slice(0, 600)}${csv.length > 600 ? '…' : ''}`);
+      showAlert('CSV ready', `Copy the text below:\n\n${csv.slice(0, 600)}${csv.length > 600 ? '…' : ''}`);
     }
   }, [workingTasks, projectStartDate, project?.name]);
 
@@ -1243,11 +1244,11 @@ function ScheduleProScreenInner() {
         warranties: [],
       });
       if (Platform.OS === 'web') {
-        Alert.alert('Calendar ready', `Downloaded a .ics file with ${result.eventCount} event(s). Open it to import into Apple/Google/Outlook Calendar.`);
+        showAlert('Calendar ready', `Downloaded a .ics file with ${result.eventCount} event(s). Open it to import into Apple/Google/Outlook Calendar.`);
       }
       // Native already opens the share sheet from inside exportProjectIcs.
     } catch (err) {
-      Alert.alert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      showAlert('Export failed', err instanceof Error ? err.message : 'Unknown error');
     }
   }, [project, workingTasks]);
 
@@ -1275,7 +1276,7 @@ function ScheduleProScreenInner() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (Platform.OS === 'web') window.alert?.(`PDF export failed: ${msg}`);
-      else Alert.alert('PDF export failed', msg);
+      else showAlert('PDF export failed', msg);
     }
   }, [project?.name, project?.schedule?.startDate, rolledTasks, cpm]);
 
@@ -1289,7 +1290,7 @@ function ScheduleProScreenInner() {
       then(yes ? 'arch_d' : 'a3');
       return;
     }
-    Alert.alert(
+    showAlert(
       'Paper size',
       'Pick the paper size for this PDF.',
       [
@@ -1305,7 +1306,7 @@ function ScheduleProScreenInner() {
 
   const handleExportPdf = useCallback(async () => {
     if (!canAccess('schedule_gantt_pdf')) {
-      Alert.alert('Pro feature', 'PDF export is available on the Pro plan. Upgrade to unlock it.');
+      showAlert('Pro feature', 'PDF export is available on the Pro plan. Upgrade to unlock it.');
       return;
     }
     if (namedBaselines.length === 0) {
@@ -1323,7 +1324,7 @@ function ScheduleProScreenInner() {
       await promptPaperSize(size => { void runPdfExport(yes ? recent[0] : undefined, size); });
       return;
     }
-    Alert.alert(
+    showAlert(
       'Export PDF',
       'Include baseline variance in the export?',
       [
@@ -1374,7 +1375,7 @@ function ScheduleProScreenInner() {
         .select('id')
         .single();
       if (error || !data) {
-        Alert.alert(
+        showAlert(
           'Could not save snapshot',
           `Schedule has ${workingTasks.length} tasks (URL fallback). ${error?.message ?? 'Network error — try again in a moment.'}`,
         );
@@ -1391,7 +1392,7 @@ function ScheduleProScreenInner() {
         window.prompt?.('Copy this share link:', url);
       }
     } else {
-      Alert.alert(
+      showAlert(
         'Share link',
         `Open this URL in a laptop browser:\n\n${url}`,
       );

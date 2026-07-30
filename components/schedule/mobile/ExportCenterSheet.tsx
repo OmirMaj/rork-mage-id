@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
+import {
+  Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, FileText, Hammer, FileStack, Sheet, Share as ShareIcon, CalendarPlus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -15,6 +17,7 @@ import {
 } from '@/utils/scheduleReportModel';
 import { renderScheduleReportHtml } from '@/utils/scheduleReportHtml';
 import { generateScheduleReportPdf, shareScheduleCsv, buildScheduleShareUrl } from '@/utils/scheduleReportExport';
+import { showAlert } from '@/utils/alert';
 
 const ALL_SECTIONS: ReportSectionKey[] = ['kpis','critPath','risks','lookahead','milestones','gantt','slippages','phaseProgress','weather'];
 const SIZES: { key: ReportPaperSize | 'auto'; label: string }[] = [
@@ -62,14 +65,14 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
       await generateScheduleReportPdf(html, `${project.name} — Schedule Report`);
       onClose();
     } catch (e) {
-      Alert.alert('Export failed', e instanceof Error ? e.message : 'Please try again.');
+      showAlert('Export failed', e instanceof Error ? e.message : 'Please try again.');
     } finally { setBusy(false); }
   };
 
-  const runCsv = async () => { if (busy) return; setBusy(true); try { await shareScheduleCsv(tasks, new Date(startDateIso), project.name); onClose(); } catch (e) { Alert.alert('Export failed', e instanceof Error ? e.message : 'Try again.'); } finally { setBusy(false); } };
+  const runCsv = async () => { if (busy) return; setBusy(true); try { await shareScheduleCsv(tasks, new Date(startDateIso), project.name); onClose(); } catch (e) { showAlert('Export failed', e instanceof Error ? e.message : 'Try again.'); } finally { setBusy(false); } };
   const runShare = async () => {
     const url = buildScheduleShareUrl(project.name, new Date(startDateIso), tasks);
-    if (!url) { Alert.alert('Schedule too large', 'This schedule is too large for a quick link — export a PDF instead.'); return; }
+    if (!url) { showAlert('Schedule too large', 'This schedule is too large for a quick link — export a PDF instead.'); return; }
     try { const { Share } = await import('react-native'); await Share.share({ message: `${project.name} schedule: ${url}`, url }); onClose(); } catch { /* cancelled */ }
   };
 

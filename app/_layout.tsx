@@ -27,6 +27,8 @@ import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { NailItToastHost } from "@/components/animations/NailItToast";
+import AlertHost from "@/components/AlertHost";
+import { useQuickActionRouting } from "expo-quick-actions/router";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -34,16 +36,14 @@ import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
 import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
-import { patchAlertForWeb } from "@/utils/webAlertPolyfill";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
 import * as Sentry from '@sentry/react-native';
 
-// Patch react-native's Alert.alert at module load so every existing call
-// site works on web. RN-Web's native Alert is a no-op for multi-button
-// alerts, which silently breaks every Cancel/Confirm flow (sign out,
-// delete, etc.). Routing through window.confirm restores the behavior.
-patchAlertForWeb();
+// NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
+// goes through utils/alert.ts showAlert/showPrompt, which renders a real
+// themed modal on web (<AlertHost/> below) instead of window.confirm — and
+// unlike the patch it supports 3 buttons and prompts.
 
 // Silence LogBox's on-screen notification toasts in dev (e.g. the RevenueCat
 // "Error fetching offerings" sim-only network warning, and the "Open debugger
@@ -441,6 +441,11 @@ function RootLayoutNav() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
 
+  // Home-screen quick actions (long-press the app icon) route via the `href`
+  // param declared on each action in app.json. Requires a native build —
+  // quick actions cannot ship over OTA.
+  useQuickActionRouting();
+
   useEffect(() => {
     if (authLoading || projectLoading || hasSeenOnboarding === null) return;
 
@@ -612,6 +617,8 @@ function RootLayoutNav() {
       <Stack.Screen name="track-record" options={{ headerShown: false }} />
       <Stack.Screen name="auto-bids" options={{ headerShown: false }} />
       <Stack.Screen name="waiting-on" options={{ headerShown: false }} />
+      <Stack.Screen name="home-passport" options={{ headerShown: false }} />
+      <Stack.Screen name="sub-profile" options={{ headerShown: false }} />
       <Stack.Screen name="week-close" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
@@ -623,7 +630,10 @@ function RootLayoutNav() {
       <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt' }} />
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
       <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
-      <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
+      {/* gestureEnabled:false — the wizard holds an unsaved multi-task draft.
+          A swipe-down (iOS) discarded it with no prompt; the in-app back
+          button's confirm can't intercept the gesture. */}
+      <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal', gestureEnabled: false }} />
       <Stack.Screen name="schedule-builder" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="copilot" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="copilot-hub" options={{ headerShown: false, presentation: 'modal' }} />
@@ -1445,6 +1455,9 @@ export default Sentry.wrap(function RootLayout() {
                               <RootLayoutNav />
                               <BrainSurface />
                               <SearchHotkeyListener />
+                              {/* Renders alerts on web, where RN's Alert is a
+                                  no-op. Must stay mounted app-wide. */}
+                              <AlertHost />
                               <NailItToastHost />
                               <ConfettiHost />
                             </SearchProvider>

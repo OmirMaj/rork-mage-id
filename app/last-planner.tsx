@@ -15,7 +15,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, Share, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -49,6 +49,7 @@ import { sendEmail } from '@/utils/emailService';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const haptic = () => { if (Platform.OS !== 'web') void Haptics.selectionAsync(); };
 
@@ -88,7 +89,9 @@ function LastPlannerInner() {
   const [constraintFor, setConstraintFor] = useState<ScheduleTask | null>(null);
   const [reviewFor, setReviewFor] = useState<ScheduleTask | null>(null);
 
-  const contentWidth = layout.isDesktop ? 960 : layout.contentMaxWidth;
+  // Lookahead / weekly-commitment grids are data-dense — on desktop use the
+  // full content width (1400) rather than a 960 column.
+  const contentWidth = layout.contentMaxWidth;
 
   // ── Project picker / empty states ──
   const Header = (
@@ -335,7 +338,7 @@ function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, comm
           onDispatched(g.key, weekStart, 'email');
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } else {
-          Alert.alert('Could not email', res.error || 'Try again, or share instead.');
+          showAlert('Could not email', res.error || 'Try again, or share instead.');
         }
       } else {
         await Share.share({ message: buildCrewMessage(g, ctx) });
@@ -344,7 +347,7 @@ function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, comm
       }
     } catch {
       // Web/native share can reject (dismissed or unsupported) — surface the text to copy.
-      Alert.alert('Send manually', buildCrewMessage(g, ctx));
+      showAlert('Send manually', buildCrewMessage(g, ctx));
     } finally {
       setSending(null);
     }

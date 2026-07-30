@@ -18,8 +18,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -49,6 +48,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
   open: '#FF6A1A',
@@ -120,7 +120,7 @@ export default function BuyoutPackageScreen() {
   const handleAddBid = useCallback(() => {
     if (!pkg) return;
     if (!newVendor.trim() || !newAmount) {
-      Alert.alert('Missing info', 'Vendor name and amount are both required.');
+      showAlert('Missing info', 'Vendor name and amount are both required.');
       return;
     }
     addBidPackageBid({
@@ -141,7 +141,7 @@ export default function BuyoutPackageScreen() {
   // ── AI leveling ─────────────────────────────────────────────
   const handleLevel = useCallback(async () => {
     if (!pkg || bids.length < 2) {
-      Alert.alert('Need 2+ bids', 'Add at least two bids before running AI leveling.');
+      showAlert('Need 2+ bids', 'Add at least two bids before running AI leveling.');
       return;
     }
     // Bid Leveling is a Pro+ feature — too compute-expensive to give away
@@ -172,12 +172,12 @@ export default function BuyoutPackageScreen() {
       // silently worked. Empty summary + every adjustment at confidence 0
       // is the failure signature.
       if (result.summary === '' && result.adjustments.every(a => a.confidence === 0)) {
-        Alert.alert('AI leveling unavailable', 'The AI is offline right now. Try again in a minute, or compare bids manually.');
+        showAlert('AI leveling unavailable', 'The AI is offline right now. Try again in a minute, or compare bids manually.');
       } else {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
-      Alert.alert('Leveling failed', String((err as Error)?.message || err));
+      showAlert('Leveling failed', String((err as Error)?.message || err));
     } finally {
       setLeveling(false);
     }
@@ -251,7 +251,7 @@ export default function BuyoutPackageScreen() {
     };
 
     if (!isRisky) {
-      Alert.alert(
+      showAlert(
         'Award this bid?',
         lines.join('\n'),
         [
@@ -260,7 +260,7 @@ export default function BuyoutPackageScreen() {
         ],
       );
     } else {
-      Alert.alert(
+      showAlert(
         'Compliance risk — review before award',
         [
           ...lines,
@@ -275,7 +275,7 @@ export default function BuyoutPackageScreen() {
           {
             text: 'Review override',
             style: 'destructive',
-            onPress: () => Alert.alert(
+            onPress: () => showAlert(
               'Confirm risk override',
               `Award ${bid.vendorName ?? sub?.companyName ?? 'this sub'} despite:\n\n${blockers.map(b => '• ' + b).join('\n')}\n\nThis is the GC's compliance risk and will be recorded.`,
               [
@@ -298,7 +298,7 @@ export default function BuyoutPackageScreen() {
     if (!pkg || !pkg.awardedBidId || !project) return;
     const winningBid = bids.find(b => b.id === pkg.awardedBidId);
     if (!winningBid) {
-      Alert.alert('No awarded bid', 'Award a bid before generating the subcontract.');
+      showAlert('No awarded bid', 'Award a bid before generating the subcontract.');
       return;
     }
     const branding = settings?.branding ?? { companyName: 'MAGE ID', address: '', phone: '', email: '', licenseNumber: '', tagline: '', contactName: '' };
@@ -342,13 +342,13 @@ export default function BuyoutPackageScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[Buyout] A401 generate failed:', err);
-      Alert.alert('Could not generate subcontract', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Could not generate subcontract', err instanceof Error ? err.message : 'Try again.');
     }
   }, [pkg, bids, project, settings]);
 
   const handleDeletePackage = useCallback(() => {
     if (!pkg) return;
-    Alert.alert(
+    showAlert(
       'Delete package?',
       'This deletes the package and all its bids. Cannot be undone.',
       [

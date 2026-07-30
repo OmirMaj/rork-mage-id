@@ -8,8 +8,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput,
-  Platform, Alert, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +28,7 @@ import {
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   open: '#FF6A1A',
@@ -106,7 +106,7 @@ export default function ManagedPropertyScreen() {
   }, [eName, eAddress, eType, eOwner, eOwnerPhone, propertyId, updateProperty]);
 
   const handleDelete = useCallback(() => {
-    Alert.alert(
+    showAlert(
       'Delete property?',
       `This removes "${property?.name}" and its ${workOrders.length} work order${workOrders.length === 1 ? '' : 's'}. This can't be undone.`,
       [

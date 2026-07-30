@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
-  ActivityIndicator, Platform, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,6 +26,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { displayText } from '@/utils/formatters';
+import { showAlert } from '@/utils/alert';
 
 export default function ClientUpdateScreen() {
   const { colors: themeColors } = useTheme();
@@ -65,7 +65,7 @@ export default function ClientUpdateScreen() {
 
   const handleDraft = useCallback(async () => {
     if (!project) {
-      Alert.alert('Pick a project', 'Select a project first.');
+      showAlert('Pick a project', 'Select a project first.');
       return;
     }
     try {
@@ -112,7 +112,7 @@ export default function ClientUpdateScreen() {
   const handleSend = useCallback(async () => {
     if (!draft) return;
     if (recipients.length === 0) {
-      Alert.alert('Add a recipient', 'Add at least one email address to send this update.');
+      showAlert('Add a recipient', 'Add at least one email address to send this update.');
       return;
     }
     try {
@@ -160,17 +160,17 @@ export default function ClientUpdateScreen() {
       if (sent > 0) {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const tail = failed.length > 0 ? ` (${failed.length} could not be delivered)` : '';
-        Alert.alert(
+        showAlert(
           'Sent',
           `Weekly update sent to ${sent} ${sent === 1 ? 'recipient' : 'recipients'}${tail}.`,
           [{ text: 'OK', onPress: () => router.back() }],
         );
       } else {
-        Alert.alert('Send failed', failed[0]?.error ?? 'Could not send the update. Check your connection and try again.');
+        showAlert('Send failed', failed[0]?.error ?? 'Could not send the update. Check your connection and try again.');
       }
     } catch (err) {
       console.error('[ClientUpdate] send failed', err);
-      Alert.alert('Send failed', err instanceof Error ? err.message : 'Unknown error');
+      showAlert('Send failed', err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setSending(false);
     }
@@ -179,7 +179,7 @@ export default function ClientUpdateScreen() {
   const addRecipient = useCallback(() => {
     const e = newEmail.trim().toLowerCase();
     if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
-      Alert.alert('Invalid email', 'Enter a valid email address.');
+      showAlert('Invalid email', 'Enter a valid email address.');
       return;
     }
     if (recipients.includes(e)) {

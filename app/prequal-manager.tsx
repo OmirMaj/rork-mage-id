@@ -12,8 +12,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
-  Modal, TextInput, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -34,6 +33,7 @@ import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 import {
   reviewPrequalPacket, generatePrequalToken, computePrequalExpiry, renewalBucket,
   type PrequalReviewResult,
@@ -387,7 +387,7 @@ function InviteModal({ sub, onClose, onSend }: {
             <TouchableOpacity
               onPress={() => {
                 if (!email.trim() || !email.includes('@')) {
-                  Alert.alert('Email needed', 'Enter the sub\'s email address.');
+                  showAlert('Email needed', 'Enter the sub\'s email address.');
                   return;
                 }
                 onSend(email.trim());
@@ -453,7 +453,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                   onPress={async () => {
                     const link = `${PRIMARY_SCHEME}prequal-form?token=${packet.inviteToken}`;
                     const ok = await copyToClipboard(link);
-                    Alert.alert(
+                    showAlert(
                       ok ? 'Copied' : 'Copy failed',
                       ok ? 'Magic link copied to clipboard.' : 'Could not copy the link.',
                     );

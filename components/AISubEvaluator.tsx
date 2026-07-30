@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
-  Platform,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { HelpCircle, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
@@ -21,6 +20,7 @@ import type { Subcontractor } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface Props {
   sub: Subcontractor;
@@ -63,7 +63,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Sub] Evaluation failed:', err);
-      Alert.alert('AI Error', 'Could not evaluate this subcontractor. Try again.');
+      showAlert('AI Error', 'Could not evaluate this subcontractor. Try again.');
     } finally {
       setIsLoading(false);
     }

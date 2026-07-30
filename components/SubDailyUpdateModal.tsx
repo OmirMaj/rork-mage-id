@@ -15,8 +15,7 @@
 
 import React, { memo, useCallback, useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput,
-  Image, Platform, Linking, Alert, KeyboardAvoidingView,
+  View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, Image, Platform, Linking, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -32,6 +31,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export interface SubDailyUpdateModalProps {
   visible: boolean;
@@ -99,7 +99,7 @@ function SubDailyUpdateModalImpl({
 
   const handleAddPhoto = useCallback(async (source: 'camera' | 'library') => {
     if (Platform.OS === 'web' && source === 'camera') {
-      Alert.alert('Camera unavailable on web', 'Use Library instead.');
+      showAlert('Camera unavailable on web', 'Use Library instead.');
       return;
     }
     try {

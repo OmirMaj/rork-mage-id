@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView, ActivityIndicator, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, ActivityIndicator, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
@@ -30,6 +29,7 @@ import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified, type C
 import { scanGovernmentId, sendClaimInvite, type IdScanResult } from '@/utils/crewScan';
 import { uploadWorkerIdImage } from '@/utils/storage';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAlert } from '@/utils/alert';
 
 export default function CrewScreen() {
   const router = useRouter();
@@ -110,7 +110,7 @@ function SelfEditCard({
       isPublic,
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Saved', 'Your profile has been updated.');
+    showAlert('Saved', 'Your profile has been updated.');
   }, [member.id, phone, email, tradesText, isPublic, onSave]);
 
   return (
@@ -222,7 +222,7 @@ function CrewScreenInner() {
     // catch below surfaces — do NOT branch on a daily counter to "fix" this.
     const limit = await checkAILimit(tier, 'smart', 'scanCredential');
     if (!limit.allowed) {
-      Alert.alert('Scan limit reached', limit.message ?? 'Upgrade to keep scanning.');
+      showAlert('Scan limit reached', limit.message ?? 'Upgrade to keep scanning.');
       return;
     }
     setScanStage('scanning');
@@ -232,7 +232,7 @@ function CrewScreenInner() {
       setScanFields(fields);
       setScanStage('review');
     } catch (e) {
-      Alert.alert('Scan failed', e instanceof Error ? e.message : 'Try a clearer, well-lit photo.');
+      showAlert('Scan failed', e instanceof Error ? e.message : 'Try a clearer, well-lit photo.');
       setScanStage('capture');
     }
   }, [subscription]);
@@ -240,7 +240,7 @@ function CrewScreenInner() {
   const handleTakeIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Camera access needed', 'Grant camera permission in Settings.');
+      showAlert('Camera access needed', 'Grant camera permission in Settings.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true });
@@ -253,7 +253,7 @@ function CrewScreenInner() {
   const handleChooseIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Photo access needed', 'Grant photo access in Settings to pick a photo.');
+      showAlert('Photo access needed', 'Grant photo access in Settings to pick a photo.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -294,7 +294,7 @@ function CrewScreenInner() {
   }, [scanTargetId, scanFields, retainImage, capturedUri, auth, updateCrewMember]);
 
   const handleAdd = useCallback(() => {
-    if (!fullName.trim()) { Alert.alert('Name required'); return; }
+    if (!fullName.trim()) { showAlert('Name required'); return; }
     const now = new Date().toISOString();
     addCrewMember({
       id: generateUUID(),
@@ -325,21 +325,21 @@ function CrewScreenInner() {
 
   const handleInvite = useCallback(async () => {
     if (!member) return;
-    if (!member.email) { Alert.alert('Email needed', 'Add an email to this crew member before inviting.'); return; }
+    if (!member.email) { showAlert('Email needed', 'Add an email to this crew member before inviting.'); return; }
     const token = startClaimInvite(member.id);
-    if (!token) { Alert.alert('Could not start invite'); return; }
+    if (!token) { showAlert('Could not start invite'); return; }
     try {
       await sendClaimInvite(member.email, token);
-      Alert.alert('Invite sent', `${member.fullName} can now claim their profile from their email.`);
+      showAlert('Invite sent', `${member.fullName} can now claim their profile from their email.`);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      Alert.alert('Invite failed', e instanceof Error ? e.message : 'Try again.');
+      showAlert('Invite failed', e instanceof Error ? e.message : 'Try again.');
     }
   }, [member, startClaimInvite]);
 
   const handleDelete = useCallback(() => {
     if (!member) return;
-    Alert.alert('Delete crew member', `Remove ${member.fullName} from your roster? Any attached ID is purged.`, [
+    showAlert('Delete crew member', `Remove ${member.fullName} from your roster? Any attached ID is purged.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

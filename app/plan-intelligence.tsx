@@ -18,8 +18,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image,
-  Modal, Platform, Alert, KeyboardAvoidingView, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Modal, Platform, KeyboardAvoidingView, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -52,6 +51,7 @@ import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import AskPlansPanel from '@/components/plans/AskPlansPanel';
+import { showAlert } from '@/utils/alert';
 
 export default function PlanIntelligenceScreen() {
   const router = useRouter();
@@ -149,7 +149,7 @@ function PlanIntelligenceInner() {
 
   const pickFromLibrary = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo library access to pick a plan image.'); return; }
+    if (!perm.granted) { showAlert('Permission needed', 'Allow photo library access to pick a plan image.'); return; }
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
     if (res.canceled || !res.assets?.[0]?.uri) return;
     const a = res.assets[0];

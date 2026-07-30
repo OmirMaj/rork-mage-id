@@ -8,7 +8,9 @@
 // or the static portal.
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, Alert, ScrollView, TextInput, } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, ScrollView, TextInput,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -27,6 +29,7 @@ import type { PhotoMarkup } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 type Tool = 'arrow' | 'circle' | 'freehand' | 'text';
 type AnnotationColor = 'red' | 'yellow' | 'green';
@@ -169,7 +172,7 @@ function PhotoAnnotatorInner() {
   }, []);
 
   const handleClear = useCallback(() => {
-    Alert.alert('Clear all markup?', 'This will remove every annotation on this photo. This cannot be undone.', [
+    showAlert('Clear all markup?', 'This will remove every annotation on this photo. This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: () => setMarkups([]) },
     ]);
@@ -183,7 +186,7 @@ function PhotoAnnotatorInner() {
     // or punch item. This is the connector that turns a "thing I saw"
     // into a "thing I escalated." If the user just wants to save and
     // go, the Done option preserves the old behavior.
-    Alert.alert(
+    showAlert(
       'Saved',
       'Your markup is saved. Want to use this photo for something?',
       [

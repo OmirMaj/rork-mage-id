@@ -14,8 +14,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Image, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -44,6 +43,7 @@ import type { MaterialReceipt, MaterialReceiptLine } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
+import { showAlert } from '@/utils/alert';
 
 export default function MaterialReceiptScreen() {
   const router = useRouter();
@@ -92,13 +92,13 @@ function MaterialReceiptInner() {
     try {
       if (source === 'camera') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Camera access needed', 'Grant camera access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Camera access needed', 'Grant camera access in Settings.'); return; }
         const res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
         if (res.canceled || !res.assets[0]) return;
         setImageUri(res.assets[0].uri);
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Photo access needed', 'Grant photo access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Photo access needed', 'Grant photo access in Settings.'); return; }
         const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
         if (res.canceled || !res.assets[0]) return;
         setImageUri(res.assets[0].uri);
@@ -113,7 +113,7 @@ function MaterialReceiptInner() {
 
   const extract = useCallback(async () => {
     if (!imageUri || busy) return;
-    if (!projectId) { Alert.alert('Pick a project', 'Choose which project this material is for.'); return; }
+    if (!projectId) { showAlert('Pick a project', 'Choose which project this material is for.'); return; }
     const limit = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!limit.allowed) { showAILimitAlert({ limit, router, monthly: true }); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -171,7 +171,7 @@ function MaterialReceiptInner() {
 
   const save = useCallback(() => {
     if (!draft) return;
-    if (draft.lines.length === 0) { Alert.alert('Nothing to save', 'Add at least one line item.'); return; }
+    if (draft.lines.length === 0) { showAlert('Nothing to save', 'Add at least one line item.'); return; }
     const toSave: MaterialReceipt = {
       ...draft,
       projectId,

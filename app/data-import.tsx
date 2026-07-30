@@ -7,7 +7,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,6 +24,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 import {
   parseMageExport, partitionNew, IMPORTABLE_COLLECTIONS, DEFERRED_COLLECTIONS,
   type ParsedImport, type ImportableKey,
@@ -92,14 +93,14 @@ export default function DataImportScreen() {
       const res = parseMageExport(text);
       if (!res.ok) {
         setParsed(null);
-        Alert.alert('Could not read that file', res.error);
+        showAlert('Could not read that file', res.error);
         return;
       }
       setParsed(res.result);
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
     } catch (err) {
       console.error('[DataImport] pick failed', err);
-      Alert.alert('Import error', err instanceof Error ? err.message : 'Could not open that file.');
+      showAlert('Import error', err instanceof Error ? err.message : 'Could not open that file.');
     } finally {
       setBusy(false);
     }
@@ -107,7 +108,7 @@ export default function DataImportScreen() {
 
   const runImport = useCallback(() => {
     if (!parsed || totalToAdd === 0) return;
-    Alert.alert(
+    showAlert(
       'Import these records?',
       `${totalToAdd} new record(s) will be added. Nothing already in your account is changed or removed.`,
       [
@@ -127,7 +128,7 @@ export default function DataImportScreen() {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (err) {
               console.error('[DataImport] import failed', err);
-              Alert.alert('Import failed', err instanceof Error ? err.message : 'Please try again.');
+              showAlert('Import failed', err instanceof Error ? err.message : 'Please try again.');
             } finally {
               setImporting(false);
             }

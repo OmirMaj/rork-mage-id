@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -21,6 +20,7 @@ import { generateUUID } from '@/utils/generateId';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { scoreInspection, inspectionItemsFromTemplate, hazardFromFailedItem } from '@/utils/safety/inspectionScore';
 import type { SafetyInspection, InspectionItem, SafetyFormTemplate } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 const RESULTS: InspectionItem['result'][] = ['pass', 'fail', 'na'];
 const RESULT_LABEL: Record<InspectionItem['result'], string> = { pass: 'Pass', fail: 'Fail', na: 'N/A' };
@@ -147,11 +147,11 @@ function SafetyInspectionsInner() {
     );
     addHazard(hz);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Hazard logged', `"${item.prompt || 'Failed item'}" was added to the Hazard Log for follow-up.`);
+    showAlert('Hazard logged', `"${item.prompt || 'Failed item'}" was added to the Hazard Log for follow-up.`);
   }, [editing, loggedItemIds, addHazard, userId]);
 
   const handleSave = useCallback(() => {
-    if (!title.trim()) { Alert.alert('Missing title', 'Give the inspection a title.'); return; }
+    if (!title.trim()) { showAlert('Missing title', 'Give the inspection a title.'); return; }
     const cleaned = items.map((it) => ({ ...it, prompt: it.prompt.trim() })).filter((it) => it.prompt);
     const score = scoreInspection(cleaned).score;
     if (editing) {
@@ -170,7 +170,7 @@ function SafetyInspectionsInner() {
   }, [title, date, inspector, items, templateId, editing, projectId, userId, addInspection, updateInspection, resetForm]);
 
   const handleDelete = useCallback((inspection: SafetyInspection) => {
-    Alert.alert('Delete inspection', `Delete "${inspection.title}"?`, [
+    showAlert('Delete inspection', `Delete "${inspection.title}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteInspection(inspection.id) },
     ]);
@@ -355,7 +355,9 @@ function SafetyInspectionsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Record lists (certs / incidents / inspections / forms) — desktop gets the
+  // viewport rather than a 760px column stranded in the middle.
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   card: { marginHorizontal: 20, marginTop: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   cardTop: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
   cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },

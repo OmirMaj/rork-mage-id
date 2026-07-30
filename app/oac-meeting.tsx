@@ -42,6 +42,7 @@ import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 import {
   buildAgendaFromProjectState, mergeAgenda, generateMinutesFromTranscript,
 } from '@/utils/oacEngine';
@@ -123,7 +124,7 @@ function OACMeetingInner() {
     if (!active) return;
     const name = newAttendeeName.trim();
     if (!name) {
-      Alert.alert('Name required', "Enter the attendee's name.");
+      showAlert('Name required', "Enter the attendee's name.");
       return;
     }
     const email = newAttendeeEmail.trim();
@@ -174,7 +175,7 @@ function OACMeetingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] New meeting failed:', err);
-      Alert.alert('Could not create meeting', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Could not create meeting', err instanceof Error ? err.message : 'Try again.');
     } finally {
       setGeneratingAgenda(false);
     }
@@ -239,7 +240,7 @@ function OACMeetingInner() {
   const handleUploadAudio = useCallback(async () => {
     if (!active) return;
     if (Platform.OS === 'web') {
-      Alert.alert('Mobile only', 'Audio file upload is only supported on the iOS / Android app.');
+      showAlert('Mobile only', 'Audio file upload is only supported on the iOS / Android app.');
       return;
     }
     try {
@@ -259,7 +260,7 @@ function OACMeetingInner() {
       const MAX_BYTES = 40 * 1024 * 1024;
       if (asset.size && asset.size > MAX_BYTES) {
         const mb = (asset.size / 1024 / 1024).toFixed(1);
-        Alert.alert(
+        showAlert(
           'File too large',
           `That file is ${mb} MB. The transcriber tops out around 40 MB. Split a long meeting into chunks (e.g. by hour) and upload them one at a time — the transcripts get appended.`,
         );
@@ -288,13 +289,13 @@ function OACMeetingInner() {
       }
       handleTranscript(transcribed);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Audio added',
         `Added ${transcribed.length.toLocaleString()} characters of transcript. Tap "Generate minutes" to draft the meeting record.`,
       );
     } catch (err) {
       console.error('[OAC] upload-audio failed', err);
-      Alert.alert(
+      showAlert(
         'Could not transcribe',
         err instanceof Error ? err.message : 'Check the file and try again.',
       );
@@ -306,7 +307,7 @@ function OACMeetingInner() {
   const handleGenerateMinutes = useCallback(async () => {
     if (!active || !project) return;
     if (!active.transcript || active.transcript.trim().length < 50) {
-      Alert.alert(
+      showAlert(
         'Need a transcript first',
         'Tap the mic to capture the meeting discussion before generating minutes. Even a 60-second summary at the end works.',
       );
@@ -343,7 +344,7 @@ function OACMeetingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] Generate minutes failed:', err);
-      Alert.alert('Could not generate minutes', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Could not generate minutes', err instanceof Error ? err.message : 'Try again.');
     } finally {
       setGeneratingMinutes(false);
     }
@@ -352,12 +353,12 @@ function OACMeetingInner() {
   const handleDistribute = useCallback(async () => {
     if (!active || !project) return;
     if (!active.minutes || active.minutes.trim().length < 20) {
-      Alert.alert('No minutes yet', 'Generate or paste minutes before distributing.');
+      showAlert('No minutes yet', 'Generate or paste minutes before distributing.');
       return;
     }
     const recipients = active.attendees.filter(a => a.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email));
     if (recipients.length === 0) {
-      Alert.alert('No emails', 'Add email addresses to the attendees so they receive the minutes.');
+      showAlert('No emails', 'Add email addresses to the attendees so they receive the minutes.');
       return;
     }
     setDistributing(true);
@@ -383,11 +384,11 @@ function OACMeetingInner() {
         updatedAt: new Date().toISOString(),
       });
       const okCount = log.filter(l => l.ok).length;
-      Alert.alert('Minutes distributed', `Sent to ${okCount} of ${recipients.length} attendees.`);
+      showAlert('Minutes distributed', `Sent to ${okCount} of ${recipients.length} attendees.`);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] Distribute failed:', err);
-      Alert.alert('Distribution failed', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Distribution failed', err instanceof Error ? err.message : 'Try again.');
     } finally {
       setDistributing(false);
     }

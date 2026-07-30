@@ -10,8 +10,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, ActivityIndicator,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +30,7 @@ import { generateUUID } from '@/utils/generateId';
 import type { PunchItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Standard 11-month walk items. Curated from NAHB's homeowner-walk
 // checklist plus what residential GCs actually call back about. Phase
@@ -138,7 +138,7 @@ export default function WarrantyWalkScreen() {
       }
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Walk logged',
         `${totals.checkedCount} item${totals.checkedCount === 1 ? '' : 's'} checked${
           createdPunchCount > 0
@@ -148,7 +148,7 @@ export default function WarrantyWalkScreen() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (err) {
-      Alert.alert('Save failed', (err as Error).message ?? 'Try again.');
+      showAlert('Save failed', (err as Error).message ?? 'Try again.');
     } finally {
       setCompleting(false);
     }
@@ -161,7 +161,7 @@ export default function WarrantyWalkScreen() {
       .filter(i => (i.email ?? '').includes('@'))
       .map(i => ({ email: i.email!.trim(), name: i.name }));
     if (recipients.length === 0) {
-      Alert.alert(
+      showAlert(
         'No homeowner email on file',
         'Add the homeowner as a portal invite (Project → Portal → Invites) so we can email them the walk summary.',
       );
@@ -215,9 +215,9 @@ export default function WarrantyWalkScreen() {
       const sentCount = results.filter(r => r.success).length;
       if (sentCount > 0) {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Summary sent', `Sent to ${sentCount} recipient${sentCount === 1 ? '' : 's'}.`);
+        showAlert('Summary sent', `Sent to ${sentCount} recipient${sentCount === 1 ? '' : 's'}.`);
       } else {
-        Alert.alert('Send failed', 'No emails went out — check your network and try again.');
+        showAlert('Send failed', 'No emails went out — check your network and try again.');
       }
     } finally {
       setEmailing(false);

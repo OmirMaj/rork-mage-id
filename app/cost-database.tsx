@@ -8,10 +8,10 @@
 // ledger — pure aggregation over utils/costDatabase, no network.
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Globe } from 'lucide-react-native';
 import { MageCostDb, MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -77,7 +77,7 @@ function CostDatabaseInner() {
     () => db.entries.map((e) => ({ trade: e.trade, unit: e.unit, personalRate: e.personalRate })),
     [db.entries],
   );
-  const { statsFor } = useCostBenchmark(benchInputs);
+  const { statsFor, publicOptIn, setPublicOptIn } = useCostBenchmark(benchInputs);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = useCallback((key: string) => {
@@ -121,6 +121,28 @@ function CostDatabaseInner() {
         />
       ) : (
         <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 40 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+          {/* Public Price Index opt-in. OFF by default and stated plainly —
+              your rates stay private unless you choose to publish, and even
+              then only an anonymous median across 5+ contractors is shown. */}
+          <View style={styles.publicIndexCard}>
+            <View style={styles.publicIndexTop}>
+              <Globe size={15} color={t.accent} strokeWidth={2} />
+              <Text style={styles.publicIndexTitle}>Public Price Index</Text>
+              <Switch
+                value={publicOptIn === true}
+                onValueChange={(v) => { void setPublicOptIn(v); }}
+                disabled={publicOptIn === null}
+                trackColor={{ false: t.line, true: t.accent }}
+                testID="cost-public-index-toggle"
+              />
+            </View>
+            <Text style={styles.publicIndexBody}>
+              {publicOptIn
+                ? 'Your rates help build the only public index of what construction actually costs. Only an anonymous median across 5+ contractors is ever published — never your numbers, never your name.'
+                : 'Off. Your rates stay private. Turn this on to contribute an anonymous median (5+ contractors minimum) to the free public price index — the data RSMeans charges thousands for.'}
+            </Text>
+          </View>
+
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Trades</Text>
@@ -252,7 +274,9 @@ function CostDatabaseInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Cost tables: data-dense, so desktop gets the viewport rather than a
+  // 760px column. 1400 matches contentMaxWidth in useResponsiveLayout.
+  contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const },
   header: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,
@@ -263,6 +287,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
   headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
 
+  publicIndexCard: {
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.panel,
+    padding: 14,
+    marginBottom: 14,
+  },
+  publicIndexTop: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  publicIndexTitle: { ...Type.subheadEmphasized, color: t.text, flex: 1 },
+  publicIndexBody: { ...Type.caption1, color: t.textSecondary, lineHeight: 17, marginTop: 8 },
   kpiRow: { flexDirection: 'row' as const, gap: 12, marginBottom: 14 },
   kpiCard: {
     flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.panel,

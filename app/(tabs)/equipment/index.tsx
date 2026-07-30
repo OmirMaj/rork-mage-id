@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal,
-  TextInput, Alert, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,6 +23,7 @@ import { EQUIPMENT_CATEGORIES } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 type FilterType = 'all' | 'available' | 'in_use' | 'maintenance';
 
@@ -68,7 +68,7 @@ export default function EquipmentScreen() {
 
   const handleAdd = useCallback(() => {
     if (!newName.trim()) {
-      Alert.alert('Missing Name', 'Please enter an equipment name.');
+      showAlert('Missing Name', 'Please enter an equipment name.');
       return;
     }
     addEquipment({

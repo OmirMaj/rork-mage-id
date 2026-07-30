@@ -14,7 +14,7 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Share, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -37,6 +37,7 @@ import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function SmartProposalScreen() {
   const router = useRouter();
@@ -185,7 +186,7 @@ function SmartProposalInner() {
 
   const handleDecline = () => {
     if (!built) return;
-    Alert.alert(
+    showAlert(
       'Mark declined',
       'What was the dealbreaker? Tagging price-driven losses sharpens the next recommendation.',
       [

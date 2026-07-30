@@ -1,14 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Alert,
-  Platform,
+  View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +22,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 /**
  * What-If Scenarios manager.
@@ -74,7 +67,7 @@ export default function ScenariosModal({
   const handleCreate = useCallback(() => {
     const name = newName.trim();
     if (!name) {
-      Alert.alert('Missing Name', 'Scenarios need a name so you can tell them apart.');
+      showAlert('Missing Name', 'Scenarios need a name so you can tell them apart.');
       return;
     }
     const scenario: ScheduleScenario = {
@@ -108,7 +101,7 @@ export default function ScenariosModal({
 
   const handleRestore = useCallback(
     (scenario: ScheduleScenario) => {
-      Alert.alert(
+      showAlert(
         'Restore this plan?',
         `This replaces the current ${schedule.tasks.length} task(s) with the ${scenario.tasks.length} task(s) saved in "${scenario.name}". Your current plan is snapshotted first, so you can undo.`,
         [
@@ -144,7 +137,7 @@ export default function ScenariosModal({
 
   const handleDelete = useCallback(
     (scenarioId: string) => {
-      Alert.alert(
+      showAlert(
         'Delete Scenario?',
         'The baseline plan is unaffected. This only removes the saved scenario.',
         [

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The MAGE Price Index — What construction actually costs, from real jobs | MAGE ID</title>
+<link rel="canonical" href="https://mageid.app/costs/" />
+<meta name="description" content="Free construction cost data from real, completed jobs — not catalog averages. Median paid rates by trade, contributed anonymously by working contractors. No signup, no paywall." />
+<meta name="theme-color" content="#0B0D10" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="The MAGE Price Index — what construction actually costs" />
+<meta property="og:description" content="Real paid rates from completed jobs, published free. The cost data the industry sells for thousands." />
+<meta property="og:url" content="https://mageid.app/costs/" />
+<meta property="og:site_name" content="MAGE ID" />
+<meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+
+<!-- Structured data: this page exists to be CITED. Dataset tells crawlers and
+     AI answer engines what the data is and how it was produced; FAQPage gives
+     them extractable answers to the questions people actually ask. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "MAGE Price Index",
+  "description": "Median unit costs actually paid by working construction contractors, by trade and unit, aggregated anonymously from completed jobs. Distinct from catalog cost books, which publish periodic regional averages that exclude contractor margin.",
+  "url": "https://mageid.app/costs/",
+  "license": "https://mageid.app/terms.html",
+  "isAccessibleForFree": true,
+  "creator": { "@type": "Organization", "name": "MAGE ID", "url": "https://mageid.app" },
+  "measurementTechnique": "Anonymized aggregation of contractor-reported paid unit rates from completed jobs. Contribution is opt-in. A trade/unit is published only once at least five independent contractors have contributed, and only median and interquartile values are released — never an individual contractor's price.",
+  "variableMeasured": [
+    { "@type": "PropertyValue", "name": "median", "description": "Median paid unit cost across contributing contractors" },
+    { "@type": "PropertyValue", "name": "p25", "description": "25th percentile paid unit cost" },
+    { "@type": "PropertyValue", "name": "p75", "description": "75th percentile paid unit cost" },
+    { "@type": "PropertyValue", "name": "n", "description": "Number of independent contractors contributing" }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Where does the MAGE Price Index data come from?",
+      "acceptedAnswer": { "@type": "Answer", "text": "From completed jobs. Contractors using MAGE ID build a price book from what their work actually cost — real invoices, receipts, sub commitments and labor hours. Those learned rates are aggregated anonymously into the index. Contributing is opt-in and off by default." }
+    },
+    {
+      "@type": "Question",
+      "name": "How is this different from RSMeans or other construction cost books?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Cost books publish periodic regional averages and generally exclude contractor margin, and they are sold by subscription — commonly thousands of dollars per user per year. The MAGE Price Index is built from prices contractors actually paid on real jobs, and it is free to read with no account." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is an individual contractor's pricing ever exposed?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. Only medians and quartiles are published, and only once at least five independent contractors have contributed to that trade and unit. Below that threshold nothing is published at all. No contractor, company or job is ever identified." }
+    },
+    {
+      "@type": "Question",
+      "name": "Why do real construction costs vary so much by region?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Labor is typically the largest share of a construction budget, and skilled-trade wages differ sharply between markets. Material logistics, permitting timelines and local demand add further variation, which is why a national average is a poor predictor of any specific job's cost." }
+    }
+  ]
+}
+</script>
+
+<script>
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+    api_host: 'https://us.i.posthog.com',
+    capture_pageview: true, capture_pageleave: true, autocapture: false,
+    persistence: 'localStorage+cookie',
+  });
+</script>
+
+<style>
+  :root{
+    --navy:#0B0D10; --navyd:#14181D; --amber:#FF6A1A; --amber-l:#FFF1E6;
+    --ink:#1c2530; --muted:#5b6775; --line:#E8DFCD; --bg:#FAF7F0; --card:#ffffff;
+    --ff-serif:'Fraunces',Georgia,serif;
+    --ff-sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --ff-mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--ff-sans);background:var(--bg);color:var(--ink);line-height:1.55;
+    padding:24px 16px 72px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto}
+  .brandbar{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:26px}
+  .brandbar a{display:flex;align-items:center;gap:8px;text-decoration:none}
+  .brandbar .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+  .brandbar span{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy);text-transform:uppercase}
+  .eyebrow{font-family:var(--ff-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--amber);text-align:center;margin-bottom:10px}
+  h1{font-family:var(--ff-serif);font-size:38px;line-height:1.12;color:var(--navyd);
+    text-align:center;margin-bottom:12px;letter-spacing:-.02em}
+  .sub{text-align:center;color:var(--muted);font-size:17px;max-width:560px;margin:0 auto 30px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;
+    box-shadow:0 1px 2px rgba(11,13,16,.04),0 8px 24px rgba(11,13,16,.06);margin-bottom:22px}
+  h2{font-family:var(--ff-serif);font-size:23px;color:var(--navyd);margin-bottom:12px;letter-spacing:-.01em}
+  h3{font-size:15px;font-weight:700;color:var(--navy);margin:18px 0 6px}
+  p{margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:15px}
+  th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;padding:0 0 10px;border-bottom:1px solid var(--line)}
+  th.num,td.num{text-align:right;font-family:var(--ff-mono);font-variant-numeric:tabular-nums}
+  td{padding:13px 0;border-bottom:1px solid var(--line)}
+  tbody tr:last-child td{border-bottom:0}
+  .trade{font-weight:600;color:var(--navyd);text-transform:capitalize}
+  .unit{color:var(--muted);font-size:13px}
+  .med{font-weight:700;color:var(--navyd)}
+  .state{text-align:center;padding:30px 10px;color:var(--muted)}
+  .state strong{display:block;font-family:var(--ff-serif);font-size:20px;color:var(--navyd);margin-bottom:6px}
+  .note{font-size:13px;color:var(--muted);margin-top:14px}
+  .ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+  .btn{flex:1;min-width:220px;text-align:center;text-decoration:none;padding:14px 18px;border-radius:11px;
+    font-weight:700;font-size:15px}
+  .btn.primary{background:var(--navy);color:#fff}
+  .btn.ghost{background:var(--card);color:var(--navy);border:1.5px solid var(--line)}
+  .foot{text-align:center;color:var(--muted);font-size:13px;margin-top:26px}
+  .foot a{color:var(--navy)}
+  @media(max-width:560px){h1{font-size:30px}.sub{font-size:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brandbar">
+    <a href="/"><span class="dot"></span><span>MAGE ID</span></a>
+  </div>
+
+  <div class="eyebrow">The MAGE Price Index</div>
+  <h1>What construction actually costs</h1>
+  <p class="sub">
+    Real unit prices from completed jobs — contributed anonymously by working contractors,
+    published free. Not catalog averages. Not a national guess.
+  </p>
+
+  <div class="card">
+    <h2>Median paid rates</h2>
+    <div id="index-body">
+      <div class="state" id="loading">Loading the index…</div>
+    </div>
+    <p class="note" id="meta"></p>
+  </div>
+
+  <div class="card">
+    <h2>Why this exists</h2>
+    <p>
+      Every estimate in this industry gets priced off the same thing: a cost book of periodic
+      regional averages that excludes the contractor's own margin — sold by subscription, commonly
+      for thousands of dollars per user each year. Contractors will tell you those numbers can be
+      well off in their market.
+    </p>
+    <p>
+      The only genuinely accurate cost data is what contractors actually paid on real jobs. Nobody
+      published it, because nobody had it. MAGE ID's cost engine learns exactly that from every job
+      our contractors close — so we're giving the aggregate away.
+    </p>
+
+    <h3>How the numbers are made</h3>
+    <p>
+      Contractors build a private price book from their real invoices, receipts, sub commitments and
+      labor hours. If they choose to contribute — it's off by default — their learned rate joins the
+      index anonymously.
+    </p>
+    <h3>What's protected</h3>
+    <p>
+      A trade only appears once <strong>five or more independent contractors</strong> have
+      contributed, and only the median and quartiles are ever released. No individual price, no
+      contractor, no company, no job is identified — and below that threshold nothing is published
+      at all.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Get a number for your job</h2>
+    <div class="ctas">
+      <a class="btn primary" href="https://app.mageid.app/" id="cta-quote">I'm planning a project</a>
+      <a class="btn ghost" href="https://app.mageid.app/" id="cta-contractor">I'm a contractor</a>
+    </div>
+    <p class="note">
+      Homeowners: get a real quote from a contractor who prices off their own history.
+      Contractors: your price book is free, and it's built from your jobs — not a catalog.
+    </p>
+  </div>
+
+  <p class="foot">
+    <a href="/">MAGE ID</a> · <a href="/pricing.html">Pricing</a> · <a href="/privacy.html">Privacy</a>
+  </p>
+</div>
+
+<script>
+  // Live read of the public index. The endpoint only ever returns
+  // k-anonymized medians of contractors who opted in.
+  var API = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/public-cost-index';
+  var money = function (n) {
+    if (n == null) return '—';
+    return '$' + (n >= 100 ? Math.round(n).toLocaleString('en-US')
+                           : n.toFixed(2).replace(/\.00$/, ''));
+  };
+  fetch(API)
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var rows = (d && d.rows) || [];
+      var host = document.getElementById('index-body');
+      if (!rows.length) {
+        // Honest cold start — we don't invent numbers to look populated.
+        host.innerHTML =
+          '<div class="state"><strong>The index is still building.</strong>' +
+          'Trades appear here once five or more contractors have contributed their real rates. ' +
+          'If you run jobs, you can be one of them — your price book is free either way.</div>';
+        return;
+      }
+      var html = '<table><thead><tr><th>Trade</th><th class="num">Low</th>' +
+                 '<th class="num">Median</th><th class="num">High</th><th class="num">Pros</th>' +
+                 '</tr></thead><tbody>';
+      rows.forEach(function (r) {
+        html += '<tr><td><span class="trade">' + String(r.category).replace(/[<>]/g, '') +
+                '</span> <span class="unit">/ ' + String(r.unit).replace(/[<>]/g, '') + '</span></td>' +
+                '<td class="num">' + money(r.p25) + '</td>' +
+                '<td class="num med">' + money(r.median) + '</td>' +
+                '<td class="num">' + money(r.p75) + '</td>' +
+                '<td class="num">' + r.n + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      host.innerHTML = html;
+      var meta = document.getElementById('meta');
+      if (meta && d.updated) {
+        meta.textContent = 'Updated ' + new Date(d.updated).toLocaleDateString('en-US',
+          { month: 'long', day: 'numeric', year: 'numeric' }) +
+          ' · medians across contributing contractors, minimum ' + (d.minimumContributors || 5) + ' per trade.';
+      }
+    })
+    .catch(function () {
+      document.getElementById('index-body').innerHTML =
+        '<div class="state"><strong>Couldn\'t load the index.</strong>Please try again in a moment.</div>';
+    });
+
+  ['cta-quote', 'cta-contractor'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('click', function () {
+      if (window.posthog) posthog.capture('price_index_cta', { cta: id });
+    });
+  });
+</script>
+</body>
+</html>

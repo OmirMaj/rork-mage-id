@@ -1,5 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { CalendarDays, Link2 } from 'lucide-react-native';
@@ -13,6 +15,7 @@ import { generateScheduleFromEstimate } from '@/utils/autoScheduleFromEstimate';
 import type { Project, LinkedEstimate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface AIAutoScheduleButtonProps {
   project: Project;
@@ -31,7 +34,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
   const handlePress = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (project.schedule && project.schedule.tasks.length > 0) {
-      Alert.alert(
+      showAlert(
         'Schedule Exists',
         'This project already has a schedule. Generating will replace it. Continue?',
         [
@@ -52,7 +55,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
       const result = await generateScheduleFromEstimate(project, estimate, projects);
       onScheduleCreated(result.schedule);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Schedule Generated',
         `Created ${result.tasks.length} tasks across ${new Set(result.tasks.map(t => t.phase)).size} phases. ${result.linkedItemCount} estimate items linked to tasks.`,
         [
@@ -62,7 +65,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
       );
     } catch (err: any) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Generation Failed', err?.message || 'Could not build a schedule from this estimate. Please try again.');
+      showAlert('Generation Failed', err?.message || 'Could not build a schedule from this estimate. Please try again.');
     } finally {
       setLoading(false);
     }

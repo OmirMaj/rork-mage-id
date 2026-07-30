@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput,
-  KeyboardAvoidingView, Platform, Alert,
+  View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Plus, ChevronLeft, CheckCircle2, Trash2 } from 'lucide-react-native';
@@ -14,6 +13,7 @@ import { Tokens } from '@/constants/designTokens';
 import { LABOR_RATES } from '@/constants/laborRates';
 import type { RateOverride } from '@/utils/rateOverrides';
 import { generateUUID } from '@/utils/generateId';
+import { showAlert } from '@/utils/alert';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ function RateOverrideModalImpl({
 
   // ── Delete with confirm ───────────────────────────────────────────────────
   const handleDelete = useCallback((id: string, displayLabel: string) => {
-    Alert.alert(
+    showAlert(
       'Delete Override',
       `Remove the override for "${displayLabel}"?`,
       [

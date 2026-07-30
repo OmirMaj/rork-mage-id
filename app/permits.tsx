@@ -20,8 +20,7 @@
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert, Modal, Pressable, TextInput, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Pressable, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,6 +44,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection', 'other'];
 
@@ -349,22 +349,22 @@ function PermitsScreenInner() {
       }
     } catch (e) {
       console.error('[Permits] Attach error:', e);
-      Alert.alert('Could not attach', 'Try again or pick a different file.');
+      showAlert('Could not attach', 'Try again or pick a different file.');
     }
   }, []);
 
   const handleSave = useCallback(() => {
     if (!form.projectId) {
-      Alert.alert('Pick a project', 'Permits are tracked per project — pick which one this belongs to.');
+      showAlert('Pick a project', 'Permits are tracked per project — pick which one this belongs to.');
       return;
     }
     if (!form.jurisdiction.trim()) {
-      Alert.alert('Missing jurisdiction', 'Add the issuing jurisdiction (e.g. "City of Phoenix, AZ").');
+      showAlert('Missing jurisdiction', 'Add the issuing jurisdiction (e.g. "City of Phoenix, AZ").');
       return;
     }
     const project = projects.find(p => p.id === form.projectId);
     if (!project) {
-      Alert.alert('Project not found', 'Pick a project from the list.');
+      showAlert('Project not found', 'Pick a project from the list.');
       return;
     }
     const fee = Number(form.fee.replace(/[^0-9.]/g, '')) || 0;
@@ -401,7 +401,7 @@ function PermitsScreenInner() {
 
   const handleDelete = useCallback(() => {
     if (!editingPermit) return;
-    Alert.alert(
+    showAlert(
       'Delete permit?',
       `This will remove ${editingPermit.jurisdiction} permit ${editingPermit.permitNumber ? `#${editingPermit.permitNumber}` : ''} from this project. This cannot be undone.`,
       [

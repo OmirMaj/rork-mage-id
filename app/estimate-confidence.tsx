@@ -10,7 +10,9 @@
 // Pure read over utils/estimateConfidence + utils/costDatabase. No network.
 
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ShieldCheck, AlertTriangle, HelpCircle, CheckCircle2, Info, Wand2 } from 'lucide-react-native';
@@ -31,6 +33,7 @@ import { computeEstimateConfidence, type EstimateLineCheck, type PriceFlag } fro
 import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 function formatRate(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
@@ -92,7 +95,7 @@ function EstimateConfidenceInner() {
   const onApplyCalibration = useCallback(() => {
     if (!project?.linkedEstimate || !calibPreview || calibPreview.changedCount === 0) return;
     const delta = calibPreview.newGrandTotal - calibPreview.oldGrandTotal;
-    Alert.alert(
+    showAlert(
       'Apply your cost corrections?',
       `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be re-priced from your job history.\n\n${formatMoney(calibPreview.oldGrandTotal)} → ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
       [

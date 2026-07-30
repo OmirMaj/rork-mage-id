@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal,
-  Alert, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking, Share,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -25,6 +24,7 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { getLicenseLookupTarget } from '@/utils/licenseBoardLookup';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { showAlert } from '@/utils/alert';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -90,7 +90,7 @@ function LicenseVerificationCard({
 
   const openLookup = async () => {
     if (!target) {
-      Alert.alert(
+      showAlert(
         'Need license # + state',
         'Add the license number and the state it was issued in to verify against the official board.',
       );
@@ -101,7 +101,7 @@ function LicenseVerificationCard({
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Could not open', 'Try copying the URL manually.');
+      showAlert('Could not open', 'Try copying the URL manually.');
     }
   };
 
@@ -252,7 +252,7 @@ export default function SubsScreen() {
   const handleSave = useCallback(() => {
     const name = companyName.trim();
     if (!name) {
-      Alert.alert('Missing Name', 'Please enter the company name.');
+      showAlert('Missing Name', 'Please enter the company name.');
       return;
     }
 
@@ -264,7 +264,7 @@ export default function SubsScreen() {
         taxIdLast4: taxIdLast4.trim() || undefined,
         legalName: legalName.trim() || undefined,
       });
-      Alert.alert('Updated', `${name} has been updated.`);
+      showAlert('Updated', `${name} has been updated.`);
     } else {
       const sub: Subcontractor = {
         id: createId('sub'), companyName: name, contactName: contactName.trim(),
@@ -276,7 +276,7 @@ export default function SubsScreen() {
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       addSubcontractor(sub);
-      Alert.alert('Added', `${name} has been added.`);
+      showAlert('Added', `${name} has been added.`);
     }
 
     setShowForm(false);
@@ -285,7 +285,7 @@ export default function SubsScreen() {
   }, [companyName, contactName, phone, email, address, trade, licenseNumber, licenseExpiry, coiExpiry, w9OnFile, taxIdLast4, legalName, notes, editingSub, addSubcontractor, updateSubcontractor, resetForm]);
 
   const handleDelete = useCallback((sub: Subcontractor) => {
-    Alert.alert('Delete Subcontractor', `Delete ${sub.companyName}? This cannot be undone.`, [
+    showAlert('Delete Subcontractor', `Delete ${sub.companyName}? This cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -635,7 +635,7 @@ export default function SubsScreen() {
                 <TouchableOpacity
                   onPress={async () => {
                     if (!editingSub) {
-                      Alert.alert('Save first', 'Save the sub before uploading their W-9, so we can attach the file to their record.');
+                      showAlert('Save first', 'Save the sub before uploading their W-9, so we can attach the file to their record.');
                       return;
                     }
                     setUploadingW9(true);
@@ -664,9 +664,9 @@ export default function SubsScreen() {
                         ...{ w9DocPath: path } as Partial<Subcontractor>,
                       });
                       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      Alert.alert('W-9 uploaded', 'Stored in your private sub-documents bucket. Visible only to your account.');
+                      showAlert('W-9 uploaded', 'Stored in your private sub-documents bucket. Visible only to your account.');
                     } catch (err) {
-                      Alert.alert('Upload failed', (err as Error).message ?? 'Try again.');
+                      showAlert('Upload failed', (err as Error).message ?? 'Try again.');
                     } finally {
                       setUploadingW9(false);
                     }

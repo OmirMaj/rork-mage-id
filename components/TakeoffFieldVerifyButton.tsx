@@ -9,7 +9,9 @@
 // silently.
 
 import React, { memo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, TextInput, Modal } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, Modal,
+} from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -22,6 +24,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { TakeoffFieldVerification } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export interface TakeoffFieldVerifyButtonProps {
   rowKey: string;
@@ -58,7 +61,7 @@ function TakeoffFieldVerifyButtonImpl({
 
   const open = useCallback(async () => {
     if (Platform.OS === 'web') {
-      Alert.alert(
+      showAlert(
         'Mobile-only feature',
         'Field verification needs the device camera + GPS. Use the iOS or Android app on site.',
       );
@@ -68,7 +71,7 @@ function TakeoffFieldVerifyButtonImpl({
     try {
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
       if (!camPerm.granted) {
-        Alert.alert('Camera access needed', 'Open Settings → MAGE ID → Camera to enable.');
+        showAlert('Camera access needed', 'Open Settings → MAGE ID → Camera to enable.');
         setBusy(false);
         return;
       }

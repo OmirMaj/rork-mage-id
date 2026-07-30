@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Alert, Platform, Image,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +29,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
 
@@ -151,10 +151,10 @@ function DrawingAnalyzerInner() {
   const handleUseAsEstimate = useCallback(() => {
     if (!result) return;
     if (!pickedProjectId) {
-      Alert.alert('Pick a project', 'Choose which project to drop these line items into first.');
+      showAlert('Pick a project', 'Choose which project to drop these line items into first.');
       return;
     }
-    Alert.alert(
+    showAlert(
       'Use as starting point?',
       'This hydrates the project\'s estimate with the AI-found line items so you can edit before sending. You\'ll review every line item before it\'s final.',
       [

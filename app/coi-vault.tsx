@@ -13,8 +13,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, ActivityIndicator, Image,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, ActivityIndicator, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -38,6 +37,7 @@ import { validateCOIImage, recomputeValidation } from '@/utils/coiValidator';
 import type { CertificateOfInsurance, COIValidationResult, Subcontractor } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function COIVaultScreen() {
   const { colors: themeColors } = useTheme();
@@ -161,12 +161,12 @@ function COIVaultInner() {
       }
     } catch (err) {
       console.error('[COI] Upload failed:', err);
-      Alert.alert('Upload failed', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Upload failed', err instanceof Error ? err.message : 'Try again.');
     }
   }, [activeSub, ctx]);
 
   const handleDeleteCoi = useCallback((id: string) => {
-    Alert.alert(
+    showAlert(
       'Delete this COI?',
       'This removes the file from the vault. The sub still exists.',
       [

@@ -38,6 +38,7 @@ import { fetchQboStatus, type QboStatus } from '@/utils/qboSync';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert, showPrompt } from '@/utils/alert';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -257,7 +258,7 @@ export default function SettingsScreen() {
       }
     } catch (e) {
       console.error('[Settings] Logo pick error:', e);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      showAlert('Error', 'Failed to pick image. Please try again.');
     }
   }, [autoSaveBranding]);
 
@@ -272,7 +273,7 @@ export default function SettingsScreen() {
     setShowSignatureModal(false);
     autoSaveBranding({ sig: paths });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Saved', 'Your signature has been saved.');
+    showAlert('Saved', 'Your signature has been saved.');
   }, [autoSaveBranding]);
 
   const handleClearSignature = useCallback(() => {
@@ -284,11 +285,11 @@ export default function SettingsScreen() {
     const tax = parseFloat(taxRate);
     const cont = parseFloat(contingency);
     if (isNaN(tax) || tax < 0 || tax > 30) {
-      Alert.alert('Invalid Tax Rate', 'Please enter a rate between 0 and 30%.');
+      showAlert('Invalid Tax Rate', 'Please enter a rate between 0 and 30%.');
       return;
     }
     if (isNaN(cont) || cont < 0 || cont > 50) {
-      Alert.alert('Invalid Contingency', 'Please enter a rate between 0 and 50%.');
+      showAlert('Invalid Contingency', 'Please enter a rate between 0 and 50%.');
       return;
     }
     const themePreset = THEME_PRESETS.find(t => t.id === selectedTheme);
@@ -309,11 +310,11 @@ export default function SettingsScreen() {
       setCustomColors(themePreset.primary, themePreset.accent);
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Saved', 'Your settings have been updated. Theme changes will fully apply after restarting the app.');
+    showAlert('Saved', 'Your settings have been updated. Theme changes will fully apply after restarting the app.');
   }, [location, taxRate, contingency, updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, selectedTheme, biometricsEnabled, pdfNaming]);
 
   const handleClearAll = useCallback(() => {
-    Alert.alert('Clear All Data', 'This will permanently delete all projects and estimates. This cannot be undone.', [
+    showAlert('Clear All Data', 'This will permanently delete all projects and estimates. This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete Everything', style: 'destructive',
@@ -367,7 +368,7 @@ export default function SettingsScreen() {
           }
 
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert('Done', 'All data has been cleared.');
+          showAlert('Done', 'All data has been cleared.');
         },
       },
     ]);
@@ -381,7 +382,7 @@ export default function SettingsScreen() {
   // (2) typed-confirm step ("DELETE") so a misclick doesn't nuke a
   //     real account.
   const handleDeleteAccount = useCallback(() => {
-    Alert.alert(
+    showAlert(
       'Delete account',
       'This permanently removes your MAGE ID account, every project, and all uploaded files. This cannot be undone.\n\nIf you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions on iOS or Google Play → Subscriptions on Android. Deleting your account does NOT cancel your subscription.',
       [
@@ -390,12 +391,12 @@ export default function SettingsScreen() {
           text: 'I understand, continue',
           style: 'destructive',
           onPress: () => {
-            // On web `prompt` works; native uses Alert.prompt (iOS only),
+            // On web `prompt` works; native uses showPrompt(iOS only),
             // and Android falls back to a plain confirm Alert. We use
             // Alert.prompt where available and a plain "are you ABSOLUTELY
             // sure?" yes/no on Android since prompt isn't available there.
             if (Platform.OS === 'ios') {
-              Alert.prompt(
+              showPrompt(
                 'Type DELETE to confirm',
                 'Account deletion is permanent. Type the word DELETE in all caps below to confirm.',
                 [
@@ -405,7 +406,7 @@ export default function SettingsScreen() {
                     style: 'destructive',
                     onPress: async (input?: string) => {
                       if (input !== 'DELETE') {
-                        Alert.alert('Confirmation didn\'t match', 'Type DELETE in all caps to confirm.');
+                        showAlert('Confirmation didn\'t match', 'Type DELETE in all caps to confirm.');
                         return;
                       }
                       await runDeleteAccount();
@@ -415,7 +416,7 @@ export default function SettingsScreen() {
                 'plain-text',
               );
             } else {
-              Alert.alert(
+              showAlert(
                 'Final confirmation',
                 'Are you ABSOLUTELY sure? This deletes everything and cannot be undone.',
                 [
@@ -438,11 +439,11 @@ export default function SettingsScreen() {
     try {
       await deleteAccount();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('Account deleted', 'Your MAGE ID account and all data have been removed.', [
+      showAlert('Account deleted', 'Your MAGE ID account and all data have been removed.', [
         { text: 'OK', onPress: () => router.replace('/login' as never) },
       ]);
     } catch (err) {
-      Alert.alert('Could not delete account', err instanceof Error ? err.message : String(err));
+      showAlert('Could not delete account', err instanceof Error ? err.message : String(err));
     }
   }, [deleteAccount, router]);
 
@@ -516,7 +517,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 style={styles.profileSignOutBtn}
                 onPress={() => {
-                  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                  showAlert('Sign Out', 'Are you sure you want to sign out?', [
                     { text: 'Cancel', style: 'cancel' },
                     {
                       text: 'Sign Out',
@@ -1344,7 +1345,7 @@ export default function SettingsScreen() {
                   onPress={() => {
                     if (isActive) return;
                     if (plan.id === 'free') {
-                      Alert.alert(
+                      showAlert(
                         'Contact Support',
                         'To downgrade to Free, manage your subscription in the App Store (Settings → Apple ID → Subscriptions) or contact support@mageid.app.',
                       );
@@ -1411,7 +1412,7 @@ export default function SettingsScreen() {
                     : 'https://apps.apple.com/account/subscriptions';
                 if (Platform.OS !== 'web') void Haptics.selectionAsync();
                 Linking.openURL(url).catch(() => {
-                  Alert.alert(
+                  showAlert(
                     'Manage Subscription',
                     Platform.OS === 'ios'
                       ? 'Open Settings → Apple ID → Subscriptions to manage your MAGE ID plan.'
@@ -1467,7 +1468,7 @@ export default function SettingsScreen() {
               const body = encodeURIComponent(bodyLines.join('\n'));
               const url = `mailto:support@mageid.app?subject=MAGE%20ID%20Support&body=${body}`;
               Linking.openURL(url).catch(() =>
-                Alert.alert('Could not open mail', 'Email us at support@mageid.app')
+                showAlert('Could not open mail', 'Email us at support@mageid.app')
               );
             }}
             activeOpacity={0.6}
@@ -1549,7 +1550,7 @@ export default function SettingsScreen() {
             style={styles.row}
             onPress={() => {
               Linking.openURL('https://mageid.app/privacy').catch(() => {
-                Alert.alert('Could not open', 'Visit mageid.app/privacy in your browser.');
+                showAlert('Could not open', 'Visit mageid.app/privacy in your browser.');
               });
             }}
             activeOpacity={0.6}
@@ -1568,7 +1569,7 @@ export default function SettingsScreen() {
             style={styles.row}
             onPress={() => {
               Linking.openURL('https://mageid.app/terms').catch(() => {
-                Alert.alert('Could not open', 'Visit mageid.app/terms in your browser.');
+                showAlert('Could not open', 'Visit mageid.app/terms in your browser.');
               });
             }}
             activeOpacity={0.6}
@@ -1587,7 +1588,7 @@ export default function SettingsScreen() {
             style={styles.row}
             onPress={() => {
               Linking.openURL('https://mageid.app/do-not-sell').catch(() => {
-                Alert.alert('Could not open', 'Visit mageid.app/do-not-sell in your browser.');
+                showAlert('Could not open', 'Visit mageid.app/do-not-sell in your browser.');
               });
             }}
             activeOpacity={0.6}
@@ -1837,11 +1838,11 @@ export default function SettingsScreen() {
                     const name = supCompanyName.trim();
                     const email = supEmail.trim();
                     if (!name) {
-                      Alert.alert('Missing Name', 'Please enter your company name.');
+                      showAlert('Missing Name', 'Please enter your company name.');
                       return;
                     }
                     if (!email || !email.includes('@')) {
-                      Alert.alert('Missing Email', 'Please enter a valid email address.');
+                      showAlert('Missing Email', 'Please enter a valid email address.');
                       return;
                     }
                     const profile = {
@@ -1862,7 +1863,7 @@ export default function SettingsScreen() {
                     updateSettings({ supplierProfile: profile });
                     setShowSupplierForm(false);
                     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    Alert.alert('Saved', 'Your supplier profile has been saved. Your materials will appear on the Marketplace.');
+                    showAlert('Saved', 'Your supplier profile has been saved. Your materials will appear on the Marketplace.');
                     console.log('[Settings] Supplier profile saved:', profile.companyName);
                   }}
                   activeOpacity={0.85}
@@ -1884,7 +1885,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: themeColors.bg,
   },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' },
+  // Settings rows are label-left / control-right — a cap keeps them legible,
+  // but 760 wasted the desktop viewport.
+  contentDesktop: { width: '100%', maxWidth: 960, alignSelf: 'center' },
   rowHover: { backgroundColor: themeColors.surface },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,

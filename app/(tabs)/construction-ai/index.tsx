@@ -21,8 +21,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, Animated, Easing,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Animated, Easing,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +48,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, scopeSummary } from '@/utils/permitRoadmap';
 import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
 import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -379,7 +379,7 @@ function ConstructionAIScreenInner() {
       // counter on success — no client-side increment needed.
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      Alert.alert('Plan review failed', e instanceof Error ? e.message : 'Please try again.');
+      showAlert('Plan review failed', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setPlanLoading(false);
     }
@@ -402,7 +402,7 @@ function ConstructionAIScreenInner() {
     const res = await generateRoadmap(roadmapProject, { forceFresh: isRegen });
     setRoadmapLoading(false);
     if (!res.ok) {
-      Alert.alert('Roadmap failed', res.error);
+      showAlert('Roadmap failed', res.error);
       return;
     }
     // On regen: carry over status by title
@@ -496,7 +496,7 @@ Be specific to the cited location if possible. If the location is not in the US,
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey);
       if (!res.success || !res.data) {
         setLoading(false);
-        Alert.alert('Code check failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
+        showAlert('Code check failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
         return;
       }
       setResult(res.data as CodeCheckResult);
@@ -511,7 +511,7 @@ Be specific to the cited location if possible. If the location is not in the US,
       setTimeout(() => setResultOpen(true), openDelay);
     } catch (err) {
       setLoading(false);
-      Alert.alert('Code check failed', err instanceof Error ? err.message : 'Unknown error.');
+      showAlert('Code check failed', err instanceof Error ? err.message : 'Unknown error.');
     }
   }, [canSubmit, category, dailyCap, location, scenario, user?.id]);
 

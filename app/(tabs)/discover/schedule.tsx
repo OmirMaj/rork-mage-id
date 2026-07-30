@@ -1,14 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform, KeyboardAvoidingView, Modal, Pressable,
+  ActivityIndicator, Platform, KeyboardAvoidingView, Modal, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  CalendarDays, ChevronRight, FileText, X,
-  CheckCircle2, Clock, Plus, Folder, FolderPlus,
+  ChevronRight, FileText, X, CheckCircle2, Clock, Plus,
 } from 'lucide-react-native';
 import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -36,21 +35,30 @@ export default function DiscoverScheduleTool() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAILoading, setIsAILoading] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'ai' | 'template' | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  // Action-sheet state for the "tap a template" flow. Replaces the
-  // 3-button Alert.alert which silently no-ops on React Native Web.
-  // When set, we render a custom Modal asking "New Project" vs
-  // "Existing Project" vs "Cancel".
-  const [templateActionFor, setTemplateActionFor] = useState<ScheduleTemplate | null>(null);
+  // Inline status instead of Alert.alert. react-native-web ships
+  // `class Alert { static alert() {} }` — a literal no-op — so every failure
+  // AND every success on this screen was invisible on web: you tapped
+  // Generate, waited, and nothing appeared to happen.
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const projectsWithSchedules = projects.filter(p => p.schedule && p.schedule.tasks.length > 0);
 
+  /** Open a project's schedule. The classic schedule defaults to projects[0]
+   *  and only honours an explicit projectId plus a `focus` nonce, so omitting
+   *  either dropped the user on the WRONG project's schedule. */
+  const openSchedule = useCallback((projectId: string) => {
+    router.replace({
+      pathname: '/(tabs)/schedule',
+      params: { projectId, focus: String(Date.now()) },
+    } as any);
+  }, [router]);
+
   const handleAIGenerate = useCallback(async (targetProject?: Project | null) => {
     if (!aiPrompt.trim()) {
-      Alert.alert('Describe your project', 'Enter a description to generate a schedule.');
+      setAiError('Describe the project first — a sentence or two is enough.');
       return;
     }
+    setAiError(null);
     setIsAILoading(true);
     try {
       const responseSchema = z.object({
@@ -83,7 +91,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       });
 
       if (!aiResult.success) {
-        Alert.alert('AI Unavailable', aiResult.error || 'Try again.');
+        setAiError(aiResult.error || 'MAGE AI is unavailable right now. Try again in a moment.');
         setIsAILoading(false);
         return;
       }
@@ -103,7 +111,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             parsed = JSON.parse(cleaned.trim());
           } catch {
             console.log('[Discover Schedule] Could not parse AI string response');
-            Alert.alert('Generation Failed', 'AI returned invalid data. Please try again.');
+            setAiError('The generator returned something we could not read. Try again.');
             setIsAILoading(false);
             return;
           }
@@ -123,7 +131,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       console.log('[Discover Schedule] Parsed tasks count:', taskArray?.length);
 
       if (!taskArray || taskArray.length === 0) {
-        Alert.alert('Generation Failed', 'AI returned no tasks. Please try a more detailed description.');
+        setAiError('No tasks came back. Add more detail — scope, size, and the trades involved.');
         setIsAILoading(false);
         return;
       }
@@ -176,7 +184,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         tasks[i].dependencies = tasks[i].dependencyLinks!.map((l: DependencyLink) => l.taskId);
       }
 
+      let createdProjectId: string;
       if (targetProject) {
+        createdProjectId = targetProject.id;
         const scheduleName = `${targetProject.name} Schedule`;
         const schedule = buildScheduleFromTasks(scheduleName, targetProject.id, tasks, undefined, { startDate: new Date().toISOString().slice(0, 10) });
         updateProject(targetProject.id, {
@@ -202,87 +212,44 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         const schedule = buildScheduleFromTasks(scheduleName, newProject.id, tasks, undefined, { startDate: now.slice(0, 10) });
         newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
         addProject(newProject);
+        createdProjectId = newProject.id;
       }
 
       setAiPrompt('');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        'Schedule Created!',
-        `Generated ${tasks.length} tasks. View it now?`,
-        [
-          { text: 'Later', style: 'cancel' },
-          { text: 'View Schedule', onPress: () => router.replace('/(tabs)/schedule' as any) },
-        ]
-      );
+      // Go straight to the schedule that was just generated. The old
+      // "View it now?" Alert was invisible on web (so the schedule appeared
+      // never to have been created) AND its navigation omitted the projectId,
+      // which landed you on projects[0] rather than this one.
+      openSchedule(createdProjectId);
     } catch (err) {
       console.log('[Discover Schedule] AI generation failed:', err);
-      Alert.alert('Generation Failed', 'Could not generate schedule. Please try again.');
+      setAiError('Could not generate the schedule. Check your connection and try again.');
     } finally {
       setIsAILoading(false);
     }
-  }, [aiPrompt, addProject, updateProject, router]);
+  }, [aiPrompt, addProject, updateProject, openSchedule]);
 
-  const handleTemplateSelect = useCallback((template: ScheduleTemplate, targetProject?: Project | null) => {
-    const tasks: ScheduleTask[] = [];
-    const idMap = new Map<string, string>();
-
-    template.tasks.forEach(tt => {
-      const newId = createId('task');
-      idMap.set(tt.id, newId);
-    });
-
-    template.tasks.forEach(tt => {
-      const newId = idMap.get(tt.id)!;
-      const depLinks: DependencyLink[] = tt.predecessorIds
-        .filter(pid => idMap.has(pid))
-        .map(pid => ({ taskId: idMap.get(pid)!, type: 'FS' as DependencyType, lagDays: 0 }));
-
-      tasks.push({
-        id: newId, title: tt.name, phase: tt.phase,
-        durationDays: tt.isMilestone ? 0 : Math.max(1, tt.duration),
-        startDay: 1, progress: 0, crew: 'Crew', crewSize: tt.crewSize || 1,
-        dependencies: depLinks.map(l => l.taskId), dependencyLinks: depLinks,
-        notes: '', status: 'not_started', isMilestone: tt.isMilestone,
-        isCriticalPath: tt.isCriticalPath, isWeatherSensitive: false,
-      });
-    });
-
-    if (targetProject) {
-      const scheduleName = `${targetProject.name} Schedule`;
-      const schedule = buildScheduleFromTasks(scheduleName, targetProject.id, tasks, undefined, { startDate: new Date().toISOString().slice(0, 10) });
-      updateProject(targetProject.id, {
-        schedule: { ...schedule, projectId: targetProject.id, updatedAt: new Date().toISOString() },
-      });
-    } else {
-      const now = new Date().toISOString();
-      const newProject: Project = {
-        id: createId('project'),
-        name: template.name,
-        type: 'renovation',
-        location: 'United States',
-        squareFootage: 0,
-        quality: 'standard',
-        description: `Created from ${template.name} template`,
-        createdAt: now,
-        updatedAt: now,
-        estimate: null,
-        status: 'draft',
-      };
-      const schedule = buildScheduleFromTasks(template.name, newProject.id, tasks, undefined, { startDate: now.slice(0, 10) });
-      newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
-      addProject(newProject);
-    }
-
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
-      'Schedule Created!',
-      `Created from "${template.name}" template with ${tasks.length} tasks.`,
-      [
-        { text: 'Later', style: 'cancel' },
-        { text: 'View Schedule', onPress: () => router.replace('/(tabs)/schedule' as any) },
-      ]
-    );
-  }, [addProject, updateProject, router]);
+  /**
+   * Templates now open the SCHEDULE WIZARD with that template preloaded
+   * rather than committing a schedule on the spot.
+   *
+   * What this replaces, and why:
+   *   - "Create as new project" fabricated a Project named after the template
+   *     with location "United States" and 0 sq ft — the same junk-project
+   *     problem the Blank path was already fixed for.
+   *   - "Add to existing project" silently REPLACED that project's schedule
+   *     with no preview and no undo.
+   *   - Both then reported success through Alert.alert, which is a literal
+   *     no-op on React Native Web, so on web a template tap appeared to do
+   *     nothing at all.
+   * The wizard already does this properly: pick the real project, see the
+   * tasks, edit them, see the timeline, then commit.
+   */
+  const handleTemplateSelect = useCallback((template: ScheduleTemplate) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push({ pathname: '/schedule-wizard', params: { template: template.id } } as any);
+  }, [router]);
 
   /**
    * Create a brand-new project with an EMPTY schedule (no tasks). The
@@ -290,39 +257,23 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
    * when none of the templates fit and the AI generator's output is
    * over-engineered for a small job.
    */
+  // "Blank schedule" hands off to the schedule wizard on its from-scratch path.
+  // Previously this silently created a throwaway project named "New Schedule"
+  // and router.replace'd onto the schedule tab — so you got a junk project in
+  // your list, no way back, and never an actual build-it-yourself flow. The
+  // wizard already does this properly: step 1 picks the REAL project, step 2
+  // opens on an empty task list with "Add task".
   const handleStartFromScratch = useCallback(() => {
-    const now = new Date().toISOString();
-    const newProject: Project = {
-      id: createId('project'),
-      name: 'New Schedule',
-      type: 'renovation',
-      location: 'United States',
-      squareFootage: 0,
-      quality: 'standard',
-      description: 'Schedule built from scratch',
-      createdAt: now,
-      updatedAt: now,
-      estimate: null,
-      status: 'draft',
-    };
-    const schedule = buildScheduleFromTasks('New Schedule', newProject.id, [], undefined, { startDate: now.slice(0, 10) });
-    newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
-    addProject(newProject);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace('/(tabs)/schedule' as any);
-  }, [addProject, router]);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push('/schedule-wizard?scratch=1' as any);
+  }, [router]);
 
+  // The picker now only serves the AI path — templates go through the wizard,
+  // which has its own project step.
   const handleProjectSelected = useCallback((project: Project) => {
     setShowProjectPicker(false);
-    if (pendingAction === 'ai') {
-      handleAIGenerate(project);
-    } else if (pendingAction === 'template' && selectedTemplateId) {
-      const template = SCHEDULE_TEMPLATES.find(t => t.id === selectedTemplateId);
-      if (template) handleTemplateSelect(template, project);
-    }
-    setPendingAction(null);
-    setSelectedTemplateId(null);
-  }, [pendingAction, selectedTemplateId, handleAIGenerate, handleTemplateSelect]);
+    handleAIGenerate(project);
+  }, [handleAIGenerate]);
 
   return (
     <View style={s.container}>
@@ -337,9 +288,12 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={s.heroIconWrap}>
               <MageSchedule size={28} color="#FF6A1A" />
             </View>
-            <Text style={s.heroTitle}>Quick Schedule Builder</Text>
+            <Text style={s.heroTitle}>Schedule Maker</Text>
+            {/* The old copy promised "no project required", which stopped being
+                true when Blank and Template started routing through the wizard
+                (both now pick a real project instead of fabricating one). */}
             <Text style={s.heroDesc}>
-              Create a construction schedule in seconds — no project required.
+              Describe the job and let AI draft it, or build it task by task.
             </Text>
           </View>
 
@@ -383,10 +337,10 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   style={[s.aiBtnSecondary, isAILoading && s.aiBtnDisabled]}
                   onPress={() => {
                     if (!aiPrompt.trim()) {
-                      Alert.alert('Describe your project first.');
+                      setAiError('Describe the project first — a sentence or two is enough.');
                       return;
                     }
-                    setPendingAction('ai');
+                    setAiError(null);
                     setShowProjectPicker(true);
                   }}
                   activeOpacity={0.85}
@@ -396,6 +350,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 </TouchableOpacity>
               )}
             </View>
+            {aiError ? (
+              <Text style={s.aiError} testID="discover-schedule-ai-error">{aiError}</Text>
+            ) : null}
           </View>
 
           <View style={s.divider}>
@@ -416,22 +373,21 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </View>
             <View style={s.templateInfo}>
               <Text style={s.templateName}>Blank schedule</Text>
-              <Text style={s.templateMeta}>Build it your way — start with no tasks and add them one by one.</Text>
+              <Text style={s.templateMeta}>Pick your project, then build it task by task — no template.</Text>
             </View>
             <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
           <Text style={[s.sectionTitle, { marginTop: 24 }]}>Start from Template</Text>
+          <Text style={s.sectionHint}>
+            Opens the builder with these tasks loaded — pick your project, edit
+            the list, then save.
+          </Text>
           {SCHEDULE_TEMPLATES.map(template => (
             <TouchableOpacity
               key={template.id}
               style={s.templateCard}
-              onPress={() => {
-                // Web-safe: Alert.alert with 3+ buttons no-ops on React
-                // Native Web. Show a custom in-app Modal action sheet
-                // instead — works identically on iOS / Android / web.
-                setTemplateActionFor(template);
-              }}
+              onPress={() => handleTemplateSelect(template)}
               activeOpacity={0.7}
               testID={`schedule-template-${template.id}`}
             >
@@ -453,7 +409,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <TouchableOpacity
                   key={project.id}
                   style={s.existingCard}
-                  onPress={() => router.replace('/(tabs)/schedule' as any)}
+                  onPress={() => openSchedule(project.id)}
                   activeOpacity={0.7}
                 >
                   <View style={s.existingIconWrap}>
@@ -511,86 +467,6 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         </Pressable>
       </Modal>
 
-      {/* Template action sheet — replaces the broken Alert.alert. Renders
-          when a user taps a template card. Three actions:
-            • New Project — create a fresh project with this template
-            • Existing Project — pick an existing project to merge into
-              (only shown if there ARE existing projects)
-            • Cancel
-          Works identically on iOS / Android / web. */}
-      <Modal
-        visible={templateActionFor !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTemplateActionFor(null)}
-      >
-        <Pressable style={s.modalOverlay} onPress={() => setTemplateActionFor(null)}>
-          <Pressable style={s.actionSheet} onPress={() => undefined}>
-            <View style={s.actionSheetHandle} />
-            <Text style={s.actionSheetTitle}>{templateActionFor?.name ?? ''}</Text>
-            <Text style={s.actionSheetSub}>
-              {templateActionFor
-                ? `${templateActionFor.tasks.length} tasks · ${templateActionFor.tasks.filter(t => t.isMilestone).length} milestones`
-                : ''}
-            </Text>
-
-            <TouchableOpacity
-              style={s.actionRow}
-              onPress={() => {
-                const t = templateActionFor;
-                setTemplateActionFor(null);
-                if (t) handleTemplateSelect(t, null);
-              }}
-              activeOpacity={0.7}
-              testID="template-action-new"
-            >
-              <View style={[s.actionIcon, { backgroundColor: Colors.primary + '15' }]}>
-                <FolderPlus size={20} color={Colors.primary} strokeWidth={1.75} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.actionTitle}>Create as new project</Text>
-                <Text style={s.actionSub}>Spin up a fresh project named after this template</Text>
-              </View>
-              <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
-
-            {projects.length > 0 && (
-              <TouchableOpacity
-                style={s.actionRow}
-                onPress={() => {
-                  const t = templateActionFor;
-                  setTemplateActionFor(null);
-                  if (t) {
-                    setPendingAction('template');
-                    setSelectedTemplateId(t.id);
-                    setShowProjectPicker(true);
-                  }
-                }}
-                activeOpacity={0.7}
-                testID="template-action-existing"
-              >
-                <View style={[s.actionIcon, { backgroundColor: Colors.success + '15' }]}>
-                  <Folder size={20} color={Colors.success} strokeWidth={1.75} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.actionTitle}>Add to existing project</Text>
-                  <Text style={s.actionSub}>Pick a project — schedule will replace its current one</Text>
-                </View>
-                <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={s.actionCancel}
-              onPress={() => setTemplateActionFor(null)}
-              activeOpacity={0.7}
-              testID="template-action-cancel"
-            >
-              <Text style={s.actionCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -666,6 +542,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14,
   },
   aiBtnSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  aiError: { marginTop: 12, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.danger, lineHeight: 18 },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -684,6 +561,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
+  sectionHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, paddingHorizontal: 20, marginTop: -4, marginBottom: 10, lineHeight: 17 },
   scratchCard: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -697,52 +575,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: Colors.warning + '40',
     borderStyle: 'dashed' as const,
   },
-  // Action sheet that replaces the broken Alert.alert template picker.
-  actionSheet: {
-    backgroundColor: t.surface,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    padding: 16,
-    paddingBottom: 28,
-    width: '100%' as const,
-    maxWidth: 480,
-    alignSelf: 'flex-end' as const,
-  },
-  actionSheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: t.line,
-    alignSelf: 'center' as const,
-    marginBottom: 12,
-  },
-  actionSheetTitle: { fontSize: 19, fontWeight: '800' as const, color: t.text, marginBottom: 4, paddingHorizontal: 6, letterSpacing: -0.3 },
-  actionSheetSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 18, paddingHorizontal: 6 },
-  actionRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 6,
-    borderRadius: Tokens.radius.card,
-  },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Tokens.radius.md,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  actionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 2 },
-  actionSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
-  actionCancel: {
-    marginTop: 8,
-    paddingVertical: 14,
-    alignItems: 'center' as const,
-    borderRadius: Tokens.radius.card,
-    backgroundColor: t.surfaceAlt,
-  },
-  actionCancelText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.textSecondary },
   templateCard: {
     flexDirection: 'row',
     alignItems: 'center',

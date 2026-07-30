@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
-  ActivityIndicator, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
@@ -18,6 +17,8 @@ import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { showAlert } from '@/utils/alert';
 
 interface FeatureRow {
   label: string;
@@ -106,6 +107,7 @@ export default function PaywallScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isDesktop } = useResponsiveLayout();
   const {
     tier, purchasePro, purchaseBusiness, purchaseEnterprise, restorePurchases,
     isLoading, isPurchasing, proPackage, businessPackage, enterprisePackage,
@@ -126,7 +128,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchasePro();
-      Alert.alert('Welcome to Pro!', 'You now have access to all Pro features.');
+      showAlert('Welcome to Pro!', 'You now have access to all Pro features.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -135,7 +137,7 @@ export default function PaywallScreen() {
         return;
       }
       console.log('[Paywall] Purchase Pro failed:', err);
-      Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+      showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
     }
   }, [purchasePro, router]);
 
@@ -143,7 +145,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchaseBusiness();
-      Alert.alert('Welcome to Business!', 'You now have access to all features.');
+      showAlert('Welcome to Business!', 'You now have access to all features.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -152,7 +154,7 @@ export default function PaywallScreen() {
         return;
       }
       console.log('[Paywall] Purchase Business failed:', err);
-      Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+      showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
     }
   }, [purchaseBusiness, router]);
 
@@ -160,7 +162,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchaseEnterprise();
-      Alert.alert('Welcome to Enterprise!', "You're on the highest plan with the highest AI usage caps.");
+      showAlert('Welcome to Enterprise!', "You're on the highest plan with the highest AI usage caps.");
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -172,7 +174,7 @@ export default function PaywallScreen() {
       // a help-friendly message rather than the generic "purchase failed."
       const msg = err instanceof Error ? err.message : 'Could not complete the purchase. Please try again.';
       console.log('[Paywall] Purchase Enterprise failed:', err);
-      Alert.alert('Enterprise unavailable', msg);
+      showAlert('Enterprise unavailable', msg);
     }
   }, [purchaseEnterprise, router]);
 
@@ -187,10 +189,10 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await restorePurchases();
-      Alert.alert('Restored', 'Your purchases have been restored.');
+      showAlert('Restored', 'Your purchases have been restored.');
     } catch (err) {
       console.log('[Paywall] Restore failed:', err);
-      Alert.alert('Restore Failed', 'Could not restore purchases. Please try again.');
+      showAlert('Restore Failed', 'Could not restore purchases. Please try again.');
     }
   }, [restorePurchases]);
 
@@ -261,7 +263,10 @@ export default function PaywallScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, isDesktop && styles.scrollContentDesktop]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Why MAGE — lead the conversion moment with the moat, not just the price grid.
             Copy source: docs/positioning-playbook.md (every claim maps to a shipped feature). */}
         <View style={styles.hero}>
@@ -279,7 +284,7 @@ export default function PaywallScreen() {
             iterations used a horizontal flex:1 row of 3 cards which would
             squeeze each card to ~78px when a 4th joined. */}
         <View style={styles.plansGrid}>
-          <View style={[styles.planCard, tier === 'free' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'free' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Zap} tone="neutral" size="md" />
             </View>
@@ -293,7 +298,7 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.planCard, styles.planCardHighlight, tier === 'pro' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, styles.planCardHighlight, tier === 'pro' && styles.planCardActive]}>
             <View style={styles.popularTag}>
               <Text style={styles.popularTagText}>POPULAR</Text>
             </View>
@@ -315,7 +320,7 @@ export default function PaywallScreen() {
               <Button
                 label="Subscribe"
                 onPress={() => {
-                  if (isFallbackPricing) { Alert.alert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                  if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
                   void handlePurchasePro();
                 }}
                 disabled={isPurchasing}
@@ -327,7 +332,7 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.planCard, tier === 'business' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'business' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Building2} tone="accent" size="md" />
             </View>
@@ -346,7 +351,7 @@ export default function PaywallScreen() {
               <Button
                 label="Subscribe"
                 onPress={() => {
-                  if (isFallbackPricing) { Alert.alert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                  if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
                   void handlePurchaseBusiness();
                 }}
                 disabled={isPurchasing}
@@ -358,7 +363,7 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.planCard, tier === 'enterprise' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'enterprise' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Rocket} tone="accent" size="md" />
             </View>
@@ -377,7 +382,7 @@ export default function PaywallScreen() {
               <Button
                 label="Subscribe"
                 onPress={() => {
-                  if (isFallbackPricing) { Alert.alert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                  if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
                   void handlePurchaseEnterprise();
                 }}
                 disabled={isPurchasing}
@@ -772,6 +777,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  // Pricing page. Uncapped it stretched the four tier cards to ~800px each
+  // and smeared the comparison tables across the whole monitor. Capped +
+  // centred, with all four tiers on one row (see planCardDesktop).
+  scrollContentDesktop: {
+    width: '100%',
+    maxWidth: 1120,
+    alignSelf: 'center' as const,
+    paddingHorizontal: 24,
+  },
+  planCardDesktop: { width: 'auto' as const, flexBasis: 220, flexGrow: 1 },
   hero: {
     backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,

@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
-  ScrollView, ActivityIndicator, Animated, Platform, Alert, KeyboardAvoidingView,
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, ActivityIndicator, Animated, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -24,6 +23,7 @@ import { LABOR_RATES, type LaborRate } from '@/constants/laborRates';
 import { ASSEMBLIES, type AssemblyItem } from '@/constants/assemblies';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface CartItem {
   material: MaterialItem;
@@ -148,7 +148,7 @@ export default React.memo(function AIQuickEstimate({
 
   const handleGenerate = useCallback(async () => {
     if (!description.trim()) {
-      Alert.alert('Describe Your Project', 'Tell us what you\'re building so AI can generate an accurate estimate.');
+      showAlert('Describe Your Project', 'Tell us what you\'re building so AI can generate an accurate estimate.');
       return;
     }
 
@@ -285,7 +285,7 @@ export default React.memo(function AIQuickEstimate({
     onApplyEstimate(materialItems, laborItems, assemblyItems);
     handleClose();
 
-    Alert.alert(
+    showAlert(
       'Estimate Generated',
       `Added ${materialItems.length} materials, ${laborItems.length} labor items, and ${assemblyItems.length} assemblies to your estimate.`,
     );

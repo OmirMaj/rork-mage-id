@@ -20,16 +20,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  Alert,
-  Easing,
-  Pressable,
-  Dimensions,
-  AccessibilityInfo,
+  View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Pressable, Dimensions, AccessibilityInfo,
 } from 'react-native';
 import PersonaSwitchOverlay from '@/components/PersonaSwitchOverlay';
 import { continuousCorners, Tokens } from '@/constants/designTokens';
@@ -41,6 +32,7 @@ import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-nativ
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { Type } from '@/constants/typography';
 import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
+import { showAlert } from '@/utils/alert';
 import {
   USER_ROLE_LABELS,
   USER_ROLE_BLURB,
@@ -181,9 +173,9 @@ export default function PersonaSelectScreen() {
     } catch (err) {
       console.warn('[persona-select] failed to set role:', err);
       setSubmitting(null);
-      // Web-safe via patchAlertForWeb() in app/_layout.tsx — new-user
-      // flow must never silent-fail on first tap.
-      Alert.alert(
+      // showAlert renders on web too — the new-user flow must never
+      // silent-fail on first tap.
+      showAlert(
         "Couldn't save your choice",
         'Please tap your role again.',
       );
@@ -340,7 +332,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  centerWrap: { width: '100%', alignSelf: 'center', maxWidth: 680 },
+  centerWrap: { width: '100%', alignSelf: 'center', maxWidth: 900 },
 
   eyebrow: {
     fontSize: Type.caption1.fontSize,

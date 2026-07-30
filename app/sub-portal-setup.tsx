@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput,
-  Alert, Platform, Share,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +32,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const SUB_PORTAL_BASE_URL = 'https://mageid.app/sub-portal';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
@@ -189,7 +189,7 @@ function SubPortalSetupScreenInner() {
   const handleCopy = useCallback(async () => {
     const ok = await copyToClipboard(portalUrl);
     if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
+    showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok ? 'The sub portal link has been copied.' : 'Could not copy the link.',
     );
@@ -210,7 +210,7 @@ function SubPortalSetupScreenInner() {
     if (!sub || !project) return;
     const recipientEmail = (sub.email ?? '').trim();
     if (!recipientEmail || !recipientEmail.includes('@')) {
-      Alert.alert(
+      showAlert(
         'No email on file',
         `${sub.companyName} doesn't have an email saved. Edit the sub from the Subs tab to add one, then try again.`,
       );
@@ -265,13 +265,13 @@ function SubPortalSetupScreenInner() {
       if (result.success) {
         persist({ lastSharedAt: new Date().toISOString() });
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Invite sent', `${sub.companyName} should see the email within a minute.`);
+        showAlert('Invite sent', `${sub.companyName} should see the email within a minute.`);
       } else {
-        Alert.alert('Could not send', result.error || 'The email did not go out. Try again or use Send link to message it manually.');
+        showAlert('Could not send', result.error || 'The email did not go out. Try again or use Send link to message it manually.');
       }
     } catch (err) {
       console.error('[sub-portal-setup] email failed', err);
-      Alert.alert('Could not send', 'Unexpected error. Try again or use Send link.');
+      showAlert('Could not send', 'Unexpected error. Try again or use Send link.');
     } finally {
       setEmailing(false);
     }
@@ -321,7 +321,7 @@ function SubPortalSetupScreenInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
     if (guard) {
-      Alert.alert(
+      showAlert(
         'Overpayment risk',
         `Approving this would push ${guard.subName} over their commitment.\n\n` +
         `Commitment value: ${formatMoney(guard.commitmentTotal)}\n` +
@@ -351,7 +351,7 @@ function SubPortalSetupScreenInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
     if (guard) {
-      Alert.alert(
+      showAlert(
         'Overpayment risk',
         `Paying this invoice would push ${guard.subName} ${formatMoney(guard.overage)} over their commitment of ${formatMoney(guard.commitmentTotal)}. Update the commitment with a change order first, or pay anyway.`,
         [

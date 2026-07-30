@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, FlatList,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -57,6 +56,7 @@ function mapCOStatus(s: ChangeOrderStatus): ChangeOrderStatus {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { showAlert } from '@/utils/alert';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -232,7 +232,7 @@ function ChangeOrderInner() {
   const handleAddNewItem = useCallback(() => {
     const name = newItemName.trim();
     if (!name) {
-      Alert.alert('Missing Name', 'Please enter an item name.');
+      showAlert('Missing Name', 'Please enter an item name.');
       return;
     }
     const qty = parseFloat(newItemQty) || 0;
@@ -320,11 +320,11 @@ function ChangeOrderInner() {
   const handleSave = useCallback((status: 'draft' | 'submitted', recipientName?: string, recipientEmail?: string) => {
     if (!projectId) return;
     if (!description.trim()) {
-      Alert.alert('Missing Description', 'Please enter a description for this change order.');
+      showAlert('Missing Description', 'Please enter a description for this change order.');
       return;
     }
     if (lineItems.length === 0) {
-      Alert.alert('No Items', 'Please add at least one line item.');
+      showAlert('No Items', 'Please add at least one line item.');
       return;
     }
 
@@ -346,7 +346,7 @@ function ChangeOrderInner() {
         scheduleImpactDays: impactDays,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
+      showAlert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
     } else {
       const co: ChangeOrder = {
         id: createId('co'),
@@ -384,10 +384,10 @@ function ChangeOrderInner() {
   const handleIssueAsCcd = useCallback(() => {
     if (!project) return;
     if (!description.trim()) {
-      Alert.alert('Add a description', 'A CCD needs a clear description of the work being directed.');
+      showAlert('Add a description', 'A CCD needs a clear description of the work being directed.');
       return;
     }
-    Alert.alert(
+    showAlert(
       'Issue as Construction Change Directive?',
       'A CCD directs the contractor to start work before final pricing is agreed. Pick how payment will be calculated:',
       [
@@ -424,13 +424,13 @@ function ChangeOrderInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[CCD] Generate failed:', err);
-      Alert.alert('Could not generate', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Could not generate', err instanceof Error ? err.message : 'Try again.');
     }
   }, [project, settings, description, lineItems, nextCoNumber]);
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
-      Alert.alert('Email Required', 'Please enter a recipient email address.');
+      showAlert('Email Required', 'Please enter a recipient email address.');
       return;
     }
     setShowSendRecipient(false);
@@ -477,7 +477,7 @@ function ChangeOrderInner() {
           return;
         }
         console.warn('[ChangeOrder] Email send failed:', result.error);
-        Alert.alert('Email Notice', `Change order saved but email could not be sent: ${result.error}`);
+        showAlert('Email Notice', `Change order saved but email could not be sent: ${result.error}`);
         return;
       } else {
         console.log('[ChangeOrder] Email sent successfully');
@@ -1162,7 +1162,8 @@ const pipelineWrapStyle = { paddingHorizontal: 16, marginTop: 12, marginBottom: 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   pipelineWrap: pipelineWrapStyle,
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Document-style form — cap kept, widened for desktop.
+  contentDesktop: { width: '100%', maxWidth: 1040, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
   backBtn: { backgroundColor: themeColors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },

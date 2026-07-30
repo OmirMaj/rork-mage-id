@@ -73,6 +73,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { showAlert, showPrompt } from '@/utils/alert';
 
 const ESTIMATE_REASON_LABEL: Record<EstimateChangeReason, string> = {
   manual: 'Manual save',
@@ -642,7 +643,7 @@ export default function ProjectDetailScreen() {
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     };
     if (isBackward) {
-      Alert.alert(
+      showAlert(
         `Move back to ${label}?`,
         `This regresses "${project.name}" to an earlier stage. Downstream stages will be treated as incomplete and some later-stage tools may be hidden.`,
         [
@@ -651,7 +652,7 @@ export default function ProjectDetailScreen() {
         ],
       );
     } else {
-      Alert.alert(
+      showAlert(
         'Move project stage?',
         `Mark "${project.name}" as ${label}?`,
         [
@@ -666,7 +667,7 @@ export default function ProjectDetailScreen() {
     if (!id) return;
     const name = editName.trim();
     if (!name) {
-      Alert.alert('Missing Name', 'Please enter a project name.');
+      showAlert('Missing Name', 'Please enter a project name.');
       return;
     }
     const sqft = parseFloat(editSquareFootage) || 0;
@@ -693,12 +694,12 @@ export default function ProjectDetailScreen() {
       await generateAndSharePDF(project, branding, 'share');
     } catch (e) {
       console.error('[ProjectDetail] PDF share error:', e);
-      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+      showAlert('Error', 'Failed to generate PDF. Please try again.');
     }
   }, [project, branding]);
 
   // Copy the client-portal share link to the clipboard. The previous
-  // version of the inline portal section called Alert.alert('Copied', …)
+  // version of the inline portal section called showAlert('Copied', …)
   // WITHOUT ever calling the clipboard API — users saw a "Copied" toast
   // over an empty clipboard. This hooks the real clipboard util and
   // gives a meaningful "Copy failed" path so silent failures can't
@@ -710,7 +711,7 @@ export default function ProjectDetailScreen() {
     const url = `https://mageid.app/portal/${portalId}`;
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
+    showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok ? 'Portal link copied to clipboard.' : 'Could not copy the link. Long-press the URL above to select it manually.',
     );
@@ -727,7 +728,7 @@ export default function ProjectDetailScreen() {
     const body = buildEstimateTextForEmail(project, branding);
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     Linking.openURL(mailtoUrl).catch(() => {
-      Alert.alert('Unable to open email', 'Please check your email app is configured.');
+      showAlert('Unable to open email', 'Please check your email app is configured.');
     });
   }, [project, branding]);
 
@@ -759,7 +760,7 @@ export default function ProjectDetailScreen() {
       ? `sms:&body=${encodeURIComponent(body)}`
       : `sms:?body=${encodeURIComponent(body)}`;
     Linking.openURL(url).catch(() => {
-      Alert.alert('Unable to open messages', 'Please check your messaging app.');
+      showAlert('Unable to open messages', 'Please check your messaging app.');
     });
   }, [project, branding]);
 
@@ -770,7 +771,7 @@ export default function ProjectDetailScreen() {
       await generateAndSharePDF(project, branding, 'share');
     } catch (e) {
       console.error('[ProjectDetail] Schedule PDF share error:', e);
-      Alert.alert('Error', 'Failed to generate schedule PDF.');
+      showAlert('Error', 'Failed to generate schedule PDF.');
     }
   }, [project, branding]);
 
@@ -782,7 +783,7 @@ export default function ProjectDetailScreen() {
   const handleExportRFILog = useCallback(async () => {
     if (!project) return;
     if (projectRFIs.length === 0) {
-      Alert.alert('No RFIs', 'There are no RFIs to export on this project yet.');
+      showAlert('No RFIs', 'There are no RFIs to export on this project yet.');
       return;
     }
     try {
@@ -791,7 +792,7 @@ export default function ProjectDetailScreen() {
       nailIt(`RFI log exported · ${projectRFIs.length} ${projectRFIs.length === 1 ? 'RFI' : 'RFIs'}`);
     } catch (e) {
       console.error('[ProjectDetail] RFI log PDF error:', e);
-      Alert.alert('Error', 'Failed to generate RFI log PDF.');
+      showAlert('Error', 'Failed to generate RFI log PDF.');
     }
   }, [project, projectRFIs, branding]);
 
@@ -826,17 +827,17 @@ export default function ProjectDetailScreen() {
           // without an Alert that blocks the share sheet.
           nailIt('Closeout packet built and shared.');
         } else {
-          Alert.alert('Closeout Packet', 'Could not generate the closeout packet. Please try again.');
+          showAlert('Closeout Packet', 'Could not generate the closeout packet. Please try again.');
         }
       } catch (err) {
         console.error('[ProjectDetail] Closeout packet error:', err);
-        Alert.alert('Error', 'Failed to generate closeout packet.');
+        showAlert('Error', 'Failed to generate closeout packet.');
       } finally {
         setGeneratingCloseout(false);
       }
     };
     if (warn.length > 0) {
-      Alert.alert(
+      showAlert(
         'Generate Closeout Packet?',
         `Heads up — this project still has ${warn.join(' and ')}. Generate anyway?`,
         [
@@ -859,7 +860,7 @@ export default function ProjectDetailScreen() {
         warranties: projectWarranties,
       });
       if (result.eventCount === 0) {
-        Alert.alert(
+        showAlert(
           'Calendar Feed',
           'No schedule tasks, invoice due dates, or warranty expirations found for this project yet. Add items to the schedule to populate the feed.',
         );
@@ -868,11 +869,11 @@ export default function ProjectDetailScreen() {
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert('Calendar Feed', `Downloaded ${result.eventCount} event${result.eventCount === 1 ? '' : 's'} to your calendar file. Open it to import.`);
+        showAlert('Calendar Feed', `Downloaded ${result.eventCount} event${result.eventCount === 1 ? '' : 's'} to your calendar file. Open it to import.`);
       }
     } catch (err) {
       console.error('[ProjectDetail] Calendar export error:', err);
-      Alert.alert('Calendar Feed', 'Could not generate the calendar feed. Please try again.');
+      showAlert('Calendar Feed', 'Could not generate the calendar feed. Please try again.');
     }
   }, [project, projectInvoices, projectWarranties]);
 
@@ -883,17 +884,17 @@ export default function ProjectDetailScreen() {
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const result = await exportProjectAccountingCsv({ format, project, invoices: projectInvoices });
         if (result.rowCount === 0) {
-          Alert.alert('Nothing to export', 'No billable invoices on this project yet (draft invoices are excluded).');
+          showAlert('Nothing to export', 'No billable invoices on this project yet (draft invoices are excluded).');
           return;
         }
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         nailIt(`Exported ${result.rowCount} line${result.rowCount === 1 ? '' : 's'} · ${format === 'xero' ? 'Xero' : 'QuickBooks'}`);
       } catch (err) {
         console.error('[ProjectDetail] Accounting export error:', err);
-        Alert.alert('Error', 'Could not export the accounting CSV. Please try again.');
+        showAlert('Error', 'Could not export the accounting CSV. Please try again.');
       }
     };
-    Alert.alert('Export to accounting', 'Choose the format your bookkeeper imports.', [
+    showAlert('Export to accounting', 'Choose the format your bookkeeper imports.', [
       { text: 'QuickBooks Online', onPress: () => { void run('quickbooks'); } },
       { text: 'Xero', onPress: () => { void run('xero'); } },
       { text: 'Cancel', style: 'cancel' },
@@ -911,11 +912,11 @@ export default function ProjectDetailScreen() {
       let result: ImagePicker.ImagePickerResult;
       if (source === 'library' || Platform.OS === 'web') {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Permission Required', 'Photo library access is needed to add photos.'); return; }
+        if (!perm.granted) { showAlert('Permission Required', 'Photo library access is needed to add photos.'); return; }
         result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Permission Required', 'Camera access is needed to take photos.'); return; }
+        if (!perm.granted) { showAlert('Permission Required', 'Camera access is needed to take photos.'); return; }
         result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
       }
       if (result.canceled || !result.assets[0]) return;
@@ -938,14 +939,14 @@ export default function ProjectDetailScreen() {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (err) {
       console.log('[project-detail] Photo capture error:', err);
-      Alert.alert('Could not add photo', 'Something went wrong capturing that photo. Please try again.');
+      showAlert('Could not add photo', 'Something went wrong capturing that photo. Please try again.');
     }
   }, [project, addProjectPhoto]);
 
   const handleSharePhotoTimeline = useCallback(async () => {
     if (!project) return;
     if (projectPhotos.length === 0) {
-      Alert.alert('Photo timeline', 'No photos to share yet. Take some jobsite photos first.');
+      showAlert('Photo timeline', 'No photos to share yet. Take some jobsite photos first.');
       return;
     }
     const { payload, droppedLocal, droppedExcess } = buildPhotoSharePayload(
@@ -954,7 +955,7 @@ export default function ProjectDetailScreen() {
       { gcName: settings?.branding?.companyName },
     );
     if (payload.photos.length === 0) {
-      Alert.alert(
+      showAlert(
         'Photo timeline',
         droppedLocal > 0
           ? 'These photos haven’t synced yet. Wait until the offline-sync pill shows "Synced," then try again.'
@@ -973,9 +974,9 @@ export default function ProjectDetailScreen() {
     if (droppedExcess > 0) extras.push(`oldest ${droppedExcess} trimmed (cap ${PHOTO_SHARE_MAX})`);
     const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
     if (ok) {
-      Alert.alert('Photo timeline copied', `Link copied to clipboard. Paste it into a text, email, or client portal.${detail}`);
+      showAlert('Photo timeline copied', `Link copied to clipboard. Paste it into a text, email, or client portal.${detail}`);
     } else {
-      Alert.alert('Photo timeline link', `${url}${detail}`);
+      showAlert('Photo timeline link', `${url}${detail}`);
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, projectPhotos, settings?.branding?.companyName]);
@@ -986,7 +987,7 @@ export default function ProjectDetailScreen() {
   // shows the loading state, not a "Project not found" flash.
   const deletingRef = useRef(false);
   const handleDelete = useCallback(() => {
-    Alert.alert(
+    showAlert(
       'Delete Project',
       'Are you sure you want to delete this project? This cannot be undone.',
       [
@@ -1334,7 +1335,7 @@ export default function ProjectDetailScreen() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={stackScreenOptions} />
       <ScrollView
-        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]}
         showsVerticalScrollIndicator={false}
       >
         {/* The hero card unrolls like a blueprint when the project opens. */}
@@ -1712,6 +1713,8 @@ export default function ProjectDetailScreen() {
           const tileByKey = new Map<SectionKey, Tile>(allTiles.map(t => [t.key, t]));
 
           const renderTile = (tile: Tile) => {
+            // Desktop lays the tiles out as a wrapping grid; phone keeps the
+            // one-per-row stack.
             const TileIcon = tile.icon;
             const isLocked = lockedTileKeys.has(tile.key);
             // VoiceOver label: name + item count + locked state, so a
@@ -1723,7 +1726,7 @@ export default function ProjectDetailScreen() {
             return (
               <HardHatTap
                 key={tile.key}
-                style={styles.sectionTile}
+                style={layout.isDesktop ? [styles.sectionTile, styles.sectionTileDesktop] : styles.sectionTile}
                 hatColor={tile.color}
                 accessibilityRole="button"
                 accessibilityLabel={a11yLabel}
@@ -1807,7 +1810,7 @@ export default function ProjectDetailScreen() {
                         at opacity 0 after collapse, leaving phantom height
                         ("the gap that won't go away"). */}
                     {!collapsed && (
-                      <View style={styles.tileGroupBody}>
+                      <View style={[styles.tileGroupBody, layout.isDesktop && styles.tileGroupBodyDesktop]}>
                         {groupTiles.map(renderTile)}
                       </View>
                     )}
@@ -1984,11 +1987,11 @@ export default function ProjectDetailScreen() {
                     updateProject(project.id, patch);
                     nailIt('Revision saved');
                   } else {
-                    Alert.alert('No Changes', 'This estimate is identical to the latest revision.');
+                    showAlert('No Changes', 'This estimate is identical to the latest revision.');
                   }
                 };
                 if (Platform.OS === 'ios') {
-                  Alert.prompt(
+                  showPrompt(
                     'Save Revision',
                     'Add an optional note for this revision:',
                     [
@@ -2067,7 +2070,7 @@ export default function ProjectDetailScreen() {
                   router.push({ pathname: '/contract' as any, params: { projectId: id, fromRevision: versions[0].id } });
                   return;
                 }
-                Alert.alert(
+                showAlert(
                   'Create Proposal',
                   'Choose a revision to base the proposal on:',
                   [
@@ -2524,7 +2527,7 @@ export default function ProjectDetailScreen() {
                       const scheduleLine = shouldApplyImpact
                         ? ` and add ${impactDays} day${impactDays === 1 ? '' : 's'} to the schedule`
                         : '';
-                      Alert.alert(
+                      showAlert(
                         `Approve CO #${co.number}?`,
                         `This commits ${formatMoney(co.changeAmount)} to the contract${scheduleLine}. This can't be undone with a tap.`,
                         [
@@ -2549,7 +2552,7 @@ export default function ProjectDetailScreen() {
                                 updateProject(project.id, { schedule: nextSchedule });
                               }
                               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                              Alert.alert(
+                              showAlert(
                                 'Approved',
                                 shouldApplyImpact
                                   ? `CO #${co.number} has been approved. Schedule extended by ${impactDays} day${impactDays === 1 ? '' : 's'}.`
@@ -2567,7 +2570,7 @@ export default function ProjectDetailScreen() {
                   <TouchableOpacity
                     style={styles.coRejectBtn}
                     onPress={() => {
-                      Alert.alert(
+                      showAlert(
                         `Reject CO #${co.number}?`,
                         'This marks the change order rejected. You can reopen it later from the change-order screen.',
                         [
@@ -3990,7 +3993,7 @@ export default function ProjectDetailScreen() {
                 <TouchableOpacity
                   style={styles.revRestoreBtn}
                   onPress={() => {
-                    Alert.alert(
+                    showAlert(
                       `Restore Rev ${selectedRevision.revNumber}?`,
                       'Your current estimate is saved as a revision first. Existing contracts/invoices are not changed — regenerate them if needed.',
                       [
@@ -4805,6 +4808,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   tileGroupBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
   tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
   tileGroupBody: { gap: 8 },
+  // Desktop: a full-width 1400px row per tile wastes the viewport — wrap them
+  // into columns instead. flexBasis picks the column count.
+  tileGroupBodyDesktop: { flexDirection: 'row' as const, flexWrap: 'wrap' as const },
+  sectionTileDesktop: { flexGrow: 1, flexBasis: 240, maxWidth: 400 },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
   sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },

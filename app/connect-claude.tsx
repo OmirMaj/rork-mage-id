@@ -8,8 +8,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
-  ActivityIndicator, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -28,6 +27,7 @@ import { useRouter } from 'expo-router';
 import { supabase, SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const MCP_URL = `${SUPABASE_FUNCTIONS_URL}/mcp`;
 
@@ -64,7 +64,7 @@ export default function ConnectClaudeScreen() {
       setTokens(Array.isArray(data?.tokens) ? data.tokens : []);
     } catch (err) {
       console.error('[ConnectClaude] list failed', err);
-      Alert.alert('Could not load tokens', err instanceof Error ? err.message : 'Please try again.');
+      showAlert('Could not load tokens', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -94,14 +94,14 @@ export default function ConnectClaudeScreen() {
       await load();
     } catch (err) {
       console.error('[ConnectClaude] create failed', err);
-      Alert.alert('Could not create token', err instanceof Error ? err.message : 'Please try again.');
+      showAlert('Could not create token', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setCreating(false);
     }
   }, [name, load]);
 
   const revokeToken = useCallback((row: TokenRow) => {
-    Alert.alert(
+    showAlert(
       'Revoke this token?',
       `Any Claude connection using "${row.name || row.token_prefix}" will stop working immediately. This cannot be undone.`,
       [
@@ -119,7 +119,7 @@ export default function ConnectClaudeScreen() {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               await load();
             } catch (err) {
-              Alert.alert('Could not revoke', err instanceof Error ? err.message : 'Please try again.');
+              showAlert('Could not revoke', err instanceof Error ? err.message : 'Please try again.');
             }
           },
         },

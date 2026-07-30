@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
@@ -13,6 +13,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { makeRedirectUri } from 'expo-auth-session';
 import type { Session, User } from '@supabase/supabase-js';
+import { showAlert } from '@/utils/alert';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -858,7 +859,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       }
     } catch (err) {
       console.error('[Auth] Google sign-in error:', err);
-      Alert.alert('Sign In Failed', 'Could not sign in with Google. Please try again.');
+      showAlert('Sign In Failed', 'Could not sign in with Google. Please try again.');
       throw err;
     }
   }, [queryClient]);
@@ -968,7 +969,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return;
       }
       console.error('[Auth] Apple sign-in error:', err);
-      Alert.alert('Sign In Failed', 'Could not sign in with Apple. Please try again.');
+      showAlert('Sign In Failed', 'Could not sign in with Apple. Please try again.');
       throw err;
     }
   }, [queryClient]);

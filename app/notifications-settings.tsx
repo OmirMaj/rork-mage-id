@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, ActivityIndicator, Alert, Linking, Platform,
+  View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, ActivityIndicator, Linking, Platform,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ import { useAutonomy, type AutonomyPreferences } from '@/hooks/useAutonomy';
 import { DID_FOR_YOU_KEY, parseDidForYouEntries, type DidForYouEntry } from '@/utils/brain/didForYou';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Notification preferences mirror the four event-types the notify edge
 // function dispatches today. Defaults flip everything ON until the user
@@ -317,7 +318,7 @@ export default function NotificationsSettingsScreen() {
       });
       if (error) throw error;
       const sent = data?.sent === true;
-      Alert.alert(
+      showAlert(
         sent ? 'Preview sent' : 'No projects to digest',
         sent
           ? 'Check your inbox in a few seconds. The digest reads what you have right now — set up a project with a location to see weather and tasks.'
@@ -325,7 +326,7 @@ export default function NotificationsSettingsScreen() {
       );
     } catch (err) {
       console.log('[NotificationsSettings] preview failed', err);
-      Alert.alert(
+      showAlert(
         'Preview failed',
         'We could not send your preview digest. Check your connection and try again.',
       );
@@ -395,7 +396,7 @@ export default function NotificationsSettingsScreen() {
       // If the user previously denied, the system won't re-prompt;
       // bounce them to Settings instead.
       if (pushPermStatus === 'denied') {
-        Alert.alert(
+        showAlert(
           'Notifications are disabled',
           'Open iOS Settings and turn on notifications for MAGE ID.',
           [

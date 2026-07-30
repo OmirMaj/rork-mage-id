@@ -18,8 +18,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Image, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -52,6 +51,7 @@ import type {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
+import { showAlert } from '@/utils/alert';
 
 // ── Types ────────────────────────────────────────────────────────
 interface Capture { uri: string; base64: string; mimeType: string }
@@ -156,18 +156,18 @@ function ScanInner() {
   // ── Capture ──────────────────────────────────────────────────
   const addCapture = useCallback(async (source: 'camera' | 'library') => {
     if (captures.length >= MAX_CAPTURES) {
-      Alert.alert('Max captures', `Up to ${MAX_CAPTURES} images per scan.`);
+      showAlert('Max captures', `Up to ${MAX_CAPTURES} images per scan.`);
       return;
     }
     try {
       let res: ImagePicker.ImagePickerResult;
       if (source === 'camera') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Camera access needed', 'Grant camera access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Camera access needed', 'Grant camera access in Settings.'); return; }
         res = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true });
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Photo access needed', 'Grant photo access in Settings.'); return; }
+        if (!perm.granted) { showAlert('Photo access needed', 'Grant photo access in Settings.'); return; }
         res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
       }
       if (res.canceled || !res.assets[0]?.base64) return;
@@ -189,7 +189,7 @@ function ScanInner() {
   // ── Scan (edge fn) ───────────────────────────────────────────
   const runScan = useCallback(async () => {
     if (busy || captures.length === 0) return;
-    if (!projectId) { Alert.alert('Pick a project', 'Choose which project this document belongs to.'); return; }
+    if (!projectId) { showAlert('Pick a project', 'Choose which project this document belongs to.'); return; }
     // Meter the vision call against the same monthly photoAnalysis budget every
     // other vision surface uses (material-receipt / photo-triage). The server is
     // still the authority (see FLAG below) — this is the client pre-check so the

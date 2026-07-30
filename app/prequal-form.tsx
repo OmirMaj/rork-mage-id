@@ -14,8 +14,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  Switch, Alert, Platform, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -33,6 +32,7 @@ import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 import type {
   PrequalPacket, PrequalFinancials, PrequalSafetyRecord,
   PrequalInsurance, PrequalLicense,
@@ -135,11 +135,11 @@ export default function PrequalFormScreen() {
     });
     if (error) {
       console.warn('[prequal-form] save RPC failed:', error.message);
-      Alert.alert('Save failed', error.message);
+      showAlert('Save failed', error.message);
       return;
     }
     if (data !== true) {
-      Alert.alert(
+      showAlert(
         'Couldn\'t save',
         'The packet may have been approved or the invite link expired. Ask the GC to send a fresh link.',
       );
@@ -234,7 +234,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       && !['cg_20_10', 'cg_20_37', 'w9', 'workers_comp', 'cgl_per_occurrence', 'cgl_aggregate'].includes(f.criterion)
     );
     if (hardFail) {
-      Alert.alert('Can\'t submit yet',
+      showAlert('Can\'t submit yet',
         'Some criteria cannot be auto-approved. Review the checklist above — the GC may still accept with context in the notes, but you\'ll need to reach out directly.');
       return;
     }
@@ -247,7 +247,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       updatedAt: now,
     };
     onSave(next);
-    Alert.alert('Submitted',
+    showAlert('Submitted',
       'Your prequalification packet has been sent to the GC. They\'ll review it within a day or two and follow up if anything\'s missing.',
       [{ text: 'Done', onPress: onExit }],
     );

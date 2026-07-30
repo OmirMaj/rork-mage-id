@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Linking,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -20,6 +19,7 @@ import { MOCK_INTEGRATIONS, INTEGRATION_CATEGORIES } from '@/mocks/integrations'
 import type { Integration, IntegrationCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (item: Integration) => void }) {
   const { colors: themeColors } = useTheme();
@@ -120,7 +120,7 @@ export default function IntegrationsScreen() {
     // is a follow-up when real integrations ship.
 
     if (item.status === 'connected') {
-      Alert.alert(
+      showAlert(
         `Disconnect ${item.name}?`,
         'This will remove the connection. You can reconnect anytime.',
         [
@@ -142,7 +142,7 @@ export default function IntegrationsScreen() {
 
     if (item.externalUrl) {
       Linking.openURL(item.externalUrl).catch(() => {
-        Alert.alert('Error', 'Could not open the link.');
+        showAlert('Error', 'Could not open the link.');
       });
       return;
     }
@@ -154,7 +154,7 @@ export default function IntegrationsScreen() {
       // Sage / Foundation / etc., tapping a Connect button surfaces the
       // honest "join the waitlist" message. The screen-level Preview
       // banner reinforces that nothing here actually transacts.
-      Alert.alert(
+      showAlert(
         `${item.name} not yet available`,
         'Direct integration is in development. Want to be notified when it ships? We can email you at the address on your account.',
         [
@@ -163,7 +163,7 @@ export default function IntegrationsScreen() {
             text: 'Notify me',
             onPress: () => {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Got it', `We'll email you when ${item.name} sync goes live.`);
+              showAlert('Got it', `We'll email you when ${item.name} sync goes live.`);
             },
           },
         ]

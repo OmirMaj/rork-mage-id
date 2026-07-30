@@ -17,7 +17,7 @@
 // Tapping just shows a Toast/Alert with the friendly explanation.
 
 import React, { useCallback } from 'react';
-import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CloudOff } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -26,6 +26,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useOfflineQueueDepth } from '@/hooks/useOfflineQueueDepth';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface Props {
   /** Optional: visual variant. 'compact' shows just the icon + number; 'full' adds the word "queued". */
@@ -39,7 +40,7 @@ export default function OfflineSyncPill({ variant = 'compact' }: Props) {
 
   const onPress = useCallback(() => {
     if (depth === 0) return;
-    Alert.alert(
+    showAlert(
       `${depth} change${depth === 1 ? '' : 's'} queued`,
       Platform.OS === 'web'
         ? 'These changes are saved on this device and will sync to the cloud when you\u2019re back online.'

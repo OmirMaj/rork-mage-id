@@ -15,9 +15,7 @@
 
 import React, { useCallback, useMemo, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Image, Modal, TextInput, Alert, Platform,
-  GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, TextInput, Platform, GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -41,6 +39,7 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
 
@@ -286,7 +285,7 @@ function PlanViewerScreenInner() {
             const dy = (next[1].y - next[0].y) * imgLayout.h;
             const px = Math.sqrt(dx * dx + dy * dy);
             if (px < MIN_CALIBRATION_PX) {
-              Alert.alert('Points too close', 'Tap two points that are further apart — the longer the reference, the more accurate the scale.');
+              showAlert('Points too close', 'Tap two points that are further apart — the longer the reference, the more accurate the scale.');
               return [];
             }
             setCalibrationInput({ distanceFt: '', visible: true });
@@ -367,7 +366,7 @@ function PlanViewerScreenInner() {
     if (!sheet || pointBuffer.length !== 2 || !calibrationInput) return;
     const ft = Number(calibrationInput.distanceFt.replace(/[^0-9.]/g, ''));
     if (!Number.isFinite(ft) || ft <= 0) {
-      Alert.alert('Enter a distance', 'Type the real-world distance between the two points, in feet.');
+      showAlert('Enter a distance', 'Type the real-world distance between the two points, in feet.');
       return;
     }
     upsertPlanCalibration({
@@ -669,7 +668,7 @@ function PlanViewerScreenInner() {
               // Calibrate must happen first — switch to calibrate mode and
               // hint the user (mirrors area-takeoff.tsx:472 pattern).
               switchMode('calibrate');
-              Alert.alert(
+              showAlert(
                 'Set sheet scale first',
                 'Tap Calibrate, then tap two points a known distance apart (e.g. a door = 3 ft). Measure unlocks once the scale is set.',
                 [{ text: 'OK' }],
@@ -701,7 +700,7 @@ function PlanViewerScreenInner() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.toolBtn} onPress={() => {
           if (markups.length === 0) return;
-          Alert.alert('Clear markup', 'Remove all strokes on this sheet?', [
+          showAlert('Clear markup', 'Remove all strokes on this sheet?', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Clear', style: 'destructive', onPress: () => markups.forEach(m => deletePlanMarkup(m.id)) },
           ]);
@@ -734,7 +733,7 @@ function PlanViewerScreenInner() {
         onAddPhoto={async () => {
           if (!selectedPin) return;
           const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (perm.status !== 'granted') { Alert.alert('Permission needed', 'Camera access is required.'); return; }
+          if (perm.status !== 'granted') { showAlert('Permission needed', 'Camera access is required.'); return; }
           const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
           if (result.canceled || !result.assets?.[0]) return;
           const uri = result.assets[0].uri;
@@ -932,7 +931,7 @@ function PinDetailModal({
               )}
 
               <TouchableOpacity style={styles.deleteBtn} onPress={() => {
-                Alert.alert('Delete pin', 'Remove this pin?', [
+                showAlert('Delete pin', 'Remove this pin?', [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Delete', style: 'destructive', onPress: onDelete },
                 ]);

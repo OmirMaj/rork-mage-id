@@ -1,17 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Animated,
-  ActivityIndicator,
-  Alert,
-  Switch,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Animated, ActivityIndicator, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -26,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 
@@ -94,7 +84,7 @@ export default function LoginScreen() {
 
   const handleBiometricLogin = useCallback(async () => {
     if (!hasStoredCredentials) {
-      Alert.alert(
+      showAlert(
         'No Stored Credentials',
         'Please log in with your email and password first. After a successful login with "Remember me" enabled, you can use biometrics next time.'
       );
@@ -112,7 +102,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Biometric auth failed:', err);
       const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
-      Alert.alert('Authentication Failed', msg);
+      showAlert('Authentication Failed', msg);
     } finally {
       setIsBiometricLoading(false);
     }
@@ -501,19 +491,19 @@ export default function LoginScreen() {
             style={styles.forgotButton}
             onPress={async () => {
               if (!email.trim()) {
-                Alert.alert('Enter Email', 'Please enter your email address first, then tap Forgot Password.');
+                showAlert('Enter Email', 'Please enter your email address first, then tap Forgot Password.');
                 return;
               }
               if (!EMAIL_REGEX.test(email.trim())) {
-                Alert.alert('Check Your Email', 'That email address looks off — please double-check it.');
+                showAlert('Check Your Email', 'That email address looks off — please double-check it.');
                 return;
               }
               try {
                 await resetPassword(email.trim());
-                Alert.alert('Check Your Email', 'A password reset link has been sent to ' + email.trim());
+                showAlert('Check Your Email', 'A password reset link has been sent to ' + email.trim());
               } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : 'Failed to send reset email';
-                Alert.alert('Error', msg);
+                showAlert('Error', msg);
               }
             }}
             testID="login-forgot"
@@ -653,6 +643,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   formContainer: {
     padding: 24,
     paddingTop: 32,
+    // Auth form: a cap is correct. No-op on phone (< 480 content width), stops
+    // the inputs stretching edge-to-edge across a desktop browser.
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center' as const,
   },
   errorBanner: {
     backgroundColor: Colors.errorLight,

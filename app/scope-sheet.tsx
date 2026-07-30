@@ -10,8 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Platform, Share, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Share,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +32,7 @@ import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimi
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScopeSheet, ScopeSheetItem } from '@/types';
+import { showAlert } from '@/utils/alert';
 import {
   generateScopeSheet, loadScopeSheet, saveScopeSheet, scopeSheetToText, estimateTotalOf,
 } from '@/utils/scopeSheet';
@@ -111,7 +111,7 @@ export default function ScopeSheetScreen() {
       if (s.source === 'ai') void recordAIUsage('smart', 'aiEstimateWizard');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      Alert.alert('Could not generate', err instanceof Error ? err.message : 'Please try again.');
+      showAlert('Could not generate', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setGenerating(false);
     }
@@ -151,7 +151,7 @@ export default function ScopeSheetScreen() {
     if (!sheet) return;
     await Clipboard.setStringAsync(scopeSheetToText(sheet, project?.name));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    Alert.alert('Copied', 'Scope sheet copied to clipboard.');
+    showAlert('Copied', 'Scope sheet copied to clipboard.');
   }, [sheet, project?.name]);
 
   const shareAll = useCallback(async () => {

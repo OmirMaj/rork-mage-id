@@ -559,5 +559,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 12, alignItems: 'center' as const,
   },
   resetBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.accent },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
 });

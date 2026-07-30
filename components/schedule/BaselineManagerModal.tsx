@@ -19,8 +19,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Platform, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform,
 } from 'react-native';
 import {
   Plus, Bookmark, Trash2, X, Check, GitCompare, Pencil, ChevronRight,
@@ -32,6 +31,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScheduleTask } from '@/types';
+import { showAlert } from '@/utils/alert';
 import {
   captureBaseline,
   applyBaselineToTasks,
@@ -139,7 +139,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
     if (Platform.OS === 'web') {
       if (!window.confirm?.(confirmMsg)) return;
     } else {
-      Alert.alert('Delete baseline', confirmMsg, [
+      showAlert('Delete baseline', confirmMsg, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',

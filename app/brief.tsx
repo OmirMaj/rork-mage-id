@@ -11,8 +11,9 @@
 // Opening the brief stamps BRIEF_LAST_SEEN_KEY with today's local date,
 // which hides the pinned home card for the rest of the day.
 //
-// Anti-slop: Colors/Type/Tokens only. Desktop: content column capped at
-// 640 and centered.
+// Anti-slop: Colors/Type/Tokens only. Desktop: the three sections sit
+// side-by-side in a grid inside a 1280 content column (see contentDesktop);
+// phone keeps the single stacked column.
 
 import React, { useEffect, useMemo } from 'react';
 import {
@@ -36,6 +37,7 @@ import {
   BRIEF_LAST_SEEN_KEY, briefIsEmpty, localDateISO, QUIET_MORNING_LINE,
   type BriefItem, type BriefSeverity,
 } from '@/utils/brief/composeBrief';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -73,6 +75,7 @@ function BriefInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { brief } = useMorningBrief();
+  const { isDesktop } = useResponsiveLayout();
 
   // Opening the brief counts as "seen today" — hides the pinned home card.
   useEffect(() => {
@@ -129,7 +132,7 @@ function BriefInner() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
+        <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           {/* Dated header */}
           <View style={styles.header}>
             <View style={styles.headerIcon}>
@@ -148,9 +151,10 @@ function BriefInner() {
             </View>
           ) : (
             <>
+              <View style={isDesktop ? styles.sectionGrid : undefined}>
               {/* NEEDS YOU */}
               {brief.needsYou.length > 0 && (
-                <View style={styles.section}>
+                <View style={[styles.section, isDesktop && styles.sectionDesktop]}>
                   <View style={styles.sectionHeader}>
                     <AlertCircle size={14} color={t.danger} strokeWidth={2} />
                     <Text style={styles.sectionLabel}>Needs you</Text>
@@ -161,7 +165,7 @@ function BriefInner() {
 
               {/* WATCHING */}
               {brief.watching.length > 0 && (
-                <View style={styles.section}>
+                <View style={[styles.section, isDesktop && styles.sectionDesktop]}>
                   <View style={styles.sectionHeader}>
                     <Eye size={14} color={t.accent} strokeWidth={2} />
                     <Text style={styles.sectionLabel}>Watching</Text>
@@ -172,7 +176,7 @@ function BriefInner() {
 
               {/* DID FOR YOU — the brain's own lines; first person lives here */}
               {brief.didForYou.length > 0 && (
-                <View style={styles.section}>
+                <View style={[styles.section, isDesktop && styles.sectionDesktop]}>
                   <View style={styles.sectionHeader}>
                     <MageAIMark size={14} color={t.accent} />
                     <Text style={styles.sectionLabel}>Did for you</Text>
@@ -180,6 +184,7 @@ function BriefInner() {
                   {renderRows(brief.didForYou, false)}
                 </View>
               )}
+              </View>
 
               {brief.needsYou.length === 0 && brief.watching.length === 0 && (
                 <Text style={styles.quietNote}>{QUIET_MORNING_LINE}.</Text>
@@ -212,9 +217,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   scrollContent: { paddingBottom: 24 },
   content: {
-    width: '100%', maxWidth: 640, alignSelf: 'center',
+    width: '100%', alignSelf: 'center',
     paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.lg,
   },
+  contentDesktop: { maxWidth: 1280, paddingHorizontal: Tokens.spacing.lg },
 
   header: { marginBottom: Tokens.spacing.lg },
   headerIcon: {
@@ -227,6 +233,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headline: { ...Type.title2, color: t.text, marginTop: 2 },
 
   section: { marginBottom: Tokens.spacing.lg },
+  // Desktop: the three brief sections read as columns rather than one long
+  // scroll. flexBasis picks the column count; sections wrap when they don't fit.
+  sectionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.lg },
+  sectionDesktop: { flexGrow: 1, flexBasis: 340, maxWidth: 520, marginBottom: 0 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     marginBottom: Tokens.spacing.xs,

@@ -17,8 +17,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import {
@@ -41,6 +40,7 @@ import {
   type ProjectFile,
 } from '@/utils/projectFiles';
 import { openSavedDocument } from '@/utils/projectDocuments';
+import { showAlert } from '@/utils/alert';
 
 interface Props {
   projectId: string;
@@ -124,14 +124,14 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       await refreshFiles();
       await refreshCounts();
     } catch (err) {
-      Alert.alert('Upload failed', err instanceof Error ? err.message : String(err));
+      showAlert('Upload failed', err instanceof Error ? err.message : String(err));
     } finally {
       setUploading(false);
     }
   }, [projectId, activeFolder, refreshFiles, refreshCounts]);
 
   const handleDelete = useCallback((file: ProjectFile) => {
-    Alert.alert(
+    showAlert(
       'Delete file?',
       `Permanently delete "${file.name}"? This can't be undone.`,
       [
@@ -145,7 +145,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
               await refreshFiles();
               await refreshCounts();
             } catch (err) {
-              Alert.alert('Delete failed', err instanceof Error ? err.message : String(err));
+              showAlert('Delete failed', err instanceof Error ? err.message : String(err));
             }
           },
         },

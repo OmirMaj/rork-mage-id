@@ -8,7 +8,9 @@
 // Anti-slop: Colors/Type/Tokens + lucide only.
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Platform, Alert } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Platform,
+} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -19,8 +21,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useCoreData, useDocsData, useFinancialsData } from '@/contexts/ProjectContext';
 import { buildChaseList, chaseSummary, type ChaseItem, type ChaseKind } from '@/utils/systemOfAction';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const KIND_ICON: Record<ChaseKind, typeof FileQuestion> = {
   rfi: FileQuestion,
@@ -36,6 +40,7 @@ export default function WaitingOnScreen() {
   const { projects } = useCoreData();
   const { rfis, submittals } = useDocsData();
   const { changeOrders } = useFinancialsData();
+  const { isDesktop } = useResponsiveLayout();
   const [sent, setSent] = useState<Set<string>>(new Set());
 
   const items = useMemo(
@@ -57,7 +62,7 @@ export default function WaitingOnScreen() {
       await Share.share({ message: item.nudge });
       setSent((prev) => new Set(prev).add(item.id));
     } catch {
-      Alert.alert('Could not open share', 'Copy the follow-up from the item instead.');
+      showAlert('Could not open share', 'Copy the follow-up from the item instead.');
     }
   };
 
@@ -85,7 +90,7 @@ export default function WaitingOnScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+        <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>Parked with someone else</Text>
             {summary.total > 0 ? (
@@ -116,12 +121,13 @@ export default function WaitingOnScreen() {
               <Text style={styles.emptyText}>Nothing to chase. Go build.</Text>
             </View>
           ) : (
-            items.map((item) => {
+            <View style={isDesktop ? styles.cardGrid : undefined}>
+            {items.map((item) => {
               const Icon = KIND_ICON[item.kind];
               const sc = severityColor(item.severity);
               const wasSent = sent.has(item.id);
               return (
-                <View key={`${item.kind}-${item.id}`} style={styles.card}>
+                <View key={`${item.kind}-${item.id}`} style={[styles.card, isDesktop && styles.cardDesktop]}>
                   <TouchableOpacity
                     style={styles.cardTop}
                     activeOpacity={0.8}
@@ -168,7 +174,8 @@ export default function WaitingOnScreen() {
                   </TouchableOpacity>
                 </View>
               );
-            })
+            })}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -194,11 +201,14 @@ const makeStyles = (t: ThemeColors) =>
     scroll: { paddingBottom: 40 },
     content: {
       width: '100%',
-      maxWidth: 640,
       alignSelf: 'center',
       paddingHorizontal: Tokens.spacing.md,
       paddingTop: Tokens.spacing.lg,
     },
+    // Desktop: a chase LIST, not prose. Use the viewport and grid the cards.
+    contentDesktop: { maxWidth: 1400, paddingHorizontal: Tokens.spacing.lg },
+    cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.sm },
+    cardDesktop: { flexGrow: 1, flexBasis: 380, maxWidth: 520, marginBottom: 0 },
     hero: { marginBottom: Tokens.spacing.lg },
     eyebrow: {
       ...Type.caption1,

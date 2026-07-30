@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
+import {
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -24,6 +26,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Redesigned estimate REVIEW — the approved ink+amber summary view reading the
 // live material cart. Non-destructive: the catalog/cart estimator at
@@ -117,7 +120,7 @@ export default function EstimateReviewScreen() {
     const url = `${base}/shared-estimate?t=${token}`;
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
+    showAlert(
       ok ? 'Proposal link copied' : 'Proposal link',
       ok
         ? 'Client-safe link copied to your clipboard. Paste it into a text or email — no login needed, and it shows no costs, markups or margin.'
@@ -136,7 +139,10 @@ export default function EstimateReviewScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + (cart.length > 0 && mode === 'contractor' ? 88 : 40) }}
+        contentContainerStyle={[
+          { padding: 16, paddingBottom: insets.bottom + (cart.length > 0 && mode === 'contractor' ? 88 : 40) },
+          isDesktop && styles.scrollDesktop,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {cart.length === 0 ? (
@@ -224,7 +230,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   hero: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden' },
   heroEyebrow: { color: '#FF8533', fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 1.4, marginBottom: 4 },
-  heroTitle: { color: '#F4EFE6', fontSize: Type.title1.fontSize, fontWeight: '800' },
+  // Fraunces display face — same hero band as the estimate hub + wizard.
+  heroTitle: { ...Type.serifTitle, color: '#F4EFE6' },
   heroSub: { color: '#C9C3B8', fontSize: Type.subhead.fontSize, marginTop: 4 },
   toggle: { flexDirection: 'row', gap: 4, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, padding: 4, marginBottom: 16 },
   seg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: Tokens.radius.sm },
@@ -235,7 +242,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   desktopRow: { flexDirection: 'row', gap: 16, marginTop: 12, alignItems: 'flex-start' },
   desktopMain: { flex: 1.7, minWidth: 0 },
   desktopRail: { width: 340 },
-  clientDesktopWrap: { maxWidth: 640, alignSelf: 'center', width: '100%' },
+  // Desktop page column. The contractor view is a division TABLE + rail, so it
+  // wants width; the client proposal reads as a document, so it keeps a cap —
+  // just a far less cramped one than the old 640.
+  scrollDesktop: { width: '100%', maxWidth: 1500, alignSelf: 'center', paddingHorizontal: 24 },
+  clientDesktopWrap: { maxWidth: 900, alignSelf: 'center', width: '100%' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
   shareBtnText: { color: t.surface, fontSize: 15, fontWeight: '800' },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },

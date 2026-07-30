@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
@@ -23,6 +22,7 @@ import { generateUUID } from '@/utils/generateId';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { certStatus } from '@/utils/safety/certStatus';
 import type { Certification, CertificationStatus, CrewMember } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 // Quick-pick common certification types. Free text is still allowed.
 const TYPE_QUICKPICKS = ['OSHA 10', 'OSHA 30', 'SST', 'CPR', 'First Aid'];
@@ -133,18 +133,18 @@ function SafetyCertificationsInner() {
 
   const handleSave = useCallback(() => {
     const holder = holderName.trim();
-    if (!workerId && !holder) { Alert.alert('Missing info', 'Pick a crew member or enter a holder name.'); return; }
-    if (!type.trim()) { Alert.alert('Missing info', 'Certification type is required.'); return; }
+    if (!workerId && !holder) { showAlert('Missing info', 'Pick a crew member or enter a holder name.'); return; }
+    if (!type.trim()) { showAlert('Missing info', 'Certification type is required.'); return; }
     // Reject an unparseable date rather than silently storing it (certStatus would
     // otherwise flag it 'expired'; catch the typo at entry so the user can fix it).
     const expTrim = expiresDate.trim();
     if (expTrim && Number.isNaN(Date.parse(expTrim))) {
-      Alert.alert('Invalid expiry date', 'Enter the expiry as YYYY-MM-DD (e.g. 2026-12-31).');
+      showAlert('Invalid expiry date', 'Enter the expiry as YYYY-MM-DD (e.g. 2026-12-31).');
       return;
     }
     const issTrim = issuedDate.trim();
     if (issTrim && Number.isNaN(Date.parse(issTrim))) {
-      Alert.alert('Invalid issued date', 'Enter the issued date as YYYY-MM-DD (e.g. 2025-01-15).');
+      showAlert('Invalid issued date', 'Enter the issued date as YYYY-MM-DD (e.g. 2025-01-15).');
       return;
     }
     const status = certStatus(expiresDate || undefined, today);
@@ -165,14 +165,14 @@ function SafetyCertificationsInner() {
   }, [workerId, holderName, type, subId, issuedDate, expiresDate, documentUrl, today, editing, userId, addCertification, updateCertification, resetForm]);
 
   const handleDelete = useCallback((cert: Certification) => {
-    Alert.alert('Delete certification', `Delete "${cert.type}" for ${displayName(cert)}?`, [
+    showAlert('Delete certification', `Delete "${cert.type}" for ${displayName(cert)}?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteCertification(cert.id) },
     ]);
   }, [deleteCertification, displayName]);
 
   const openDocument = useCallback((url: string) => {
-    void Linking.openURL(url).catch(() => Alert.alert('Cannot open', 'This document link could not be opened.'));
+    void Linking.openURL(url).catch(() => showAlert('Cannot open', 'This document link could not be opened.'));
   }, []);
 
   const filterChips: { key: StatusFilter; label: string }[] = [
@@ -402,7 +402,9 @@ function SafetyCertificationsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Record lists (certs / incidents / inspections / forms) — desktop gets the
+  // viewport rather than a 760px column stranded in the middle.
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   banner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, borderWidth: 1 },
   bannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   filterRow: { paddingHorizontal: 20, gap: 6, marginTop: 14, marginBottom: 4 },

@@ -30,6 +30,7 @@ import { formatMoney } from '@/utils/formatters';
 import { fetchBidQuestions, askBidQuestion, answerBidQuestion, type BidQuestion } from '@/utils/bidQuestionsEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface RfpRow {
   id: string;
@@ -119,7 +120,7 @@ export default function RfpDetailScreen() {
   const [submittingQ, setSubmittingQ] = useState(false);
   const handleAsk = useCallback(async () => {
     if (!bidId || !newQuestion.trim() || newQuestion.trim().length < 8) {
-      Alert.alert('Question too short', 'Add a few more words so the homeowner has something to answer.');
+      showAlert('Question too short', 'Add a few more words so the homeowner has something to answer.');
       return;
     }
     setSubmittingQ(true);
@@ -129,7 +130,7 @@ export default function RfpDetailScreen() {
         setNewQuestion('');
         void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
       } else {
-        Alert.alert('Could not post', 'Try again in a moment.');
+        showAlert('Could not post', 'Try again in a moment.');
       }
     } finally {
       setSubmittingQ(false);
@@ -142,9 +143,9 @@ export default function RfpDetailScreen() {
       try {
         const ok = await answerBidQuestion(q.id, text);
         if (ok) void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
-        else Alert.alert('Could not post', 'Try again in a moment.');
+        else showAlert('Could not post', 'Try again in a moment.');
       } catch (e) {
-        Alert.alert('Could not post', e instanceof Error ? e.message : 'Try again.');
+        showAlert('Could not post', e instanceof Error ? e.message : 'Try again.');
       }
     };
     if (Platform.OS === 'web' || !(Alert as any).prompt) {
@@ -175,7 +176,7 @@ export default function RfpDetailScreen() {
   }, [bidId, router]);
 
   const openAttachment = useCallback((url: string) => {
-    Linking.openURL(url).catch(() => Alert.alert('Could not open', 'The attachment link is broken.'));
+    Linking.openURL(url).catch(() => showAlert('Could not open', 'The attachment link is broken.'));
   }, []);
 
   if (isLoading || !rfp) {

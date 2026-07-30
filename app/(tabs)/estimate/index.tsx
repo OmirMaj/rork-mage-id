@@ -15,6 +15,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { entriesForGroup, type HubEntry } from '@/utils/estimateHubEntries';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 // iconKey → lucide component. Lives in the SCREEN so the entry list stays RN-free.
 const ICONS: Record<string, LucideIcon> = {
@@ -25,6 +26,7 @@ export default function EstimateHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
 
   const go = useCallback((entry: HubEntry) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -40,7 +42,7 @@ export default function EstimateHubScreen() {
         onPress={() => go(entry)}
         accessibilityLabel={entry.label}
         testID={`estimate-hub-${entry.id}`}
-        style={styles.card}
+        style={[styles.card, isDesktop && styles.cardDesktop]}
       >
         <View style={styles.cardRow}>
           <IconWrapper icon={Icon} tone={entry.tone} size="md" />
@@ -65,14 +67,21 @@ export default function EstimateHubScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={[
+          { padding: 16, paddingBottom: insets.bottom + 32 },
+          isDesktop && styles.contentDesktop,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.sectionLabel}>CREATE</Text>
-        {entriesForGroup('create').map(renderCard)}
+        <View style={isDesktop ? styles.cardGrid : undefined}>
+          {entriesForGroup('create').map(renderCard)}
+        </View>
 
         <Text style={[styles.sectionLabel, { marginTop: 20 }]}>INSIGHTS</Text>
-        {entriesForGroup('insights').map(renderCard)}
+        <View style={isDesktop ? styles.cardGrid : undefined}>
+          {entriesForGroup('insights').map(renderCard)}
+        </View>
       </ScrollView>
     </View>
   );
@@ -92,10 +101,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     letterSpacing: 1.5,
     marginBottom: 4,
   },
+  // Fraunces display face — matches PageHeader, the wizard hero, and the
+  // Card.Title serif used by the cards directly below this band.
   heroTitle: {
+    ...Type.serifTitle,
     color: '#F4EFE6',
-    fontSize: Type.title1.fontSize,
-    fontWeight: '800',
   },
   heroSubtitle: {
     color: '#C9C3B8',
@@ -111,6 +121,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginBottom: 10,
   },
   card: { marginBottom: 10 },
+  // Desktop: the hub is a launcher, not a document. Cap the column and lay the
+  // entry cards out in a grid instead of one full-bleed card per row.
+  contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const, paddingHorizontal: 24 },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  cardDesktop: { flexGrow: 1, flexBasis: 320, maxWidth: 460, marginBottom: 0 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   cardText: { flex: 1 },
 });
