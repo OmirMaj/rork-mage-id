@@ -58,6 +58,9 @@ const LOCAL_USER_CACHE_KEYS = [
   // All three are per-user and must wipe on tenant switch (G12).
   'mageid_week_close_last_seen',
   'mageid_leakco_drafted',
+  // Schedule-wizard autosave. Per-user in-progress draft — must wipe on
+  // tenant switch or the next person on a shared device resumes your file.
+  'mageid_schedule_draft',
   'mageid_autonomy_gate_state',
   // Universal Search: the last 5 search queries (components/UniversalSearch).
   // Queries are per-user (project names, client names) — wipe on tenant switch.
