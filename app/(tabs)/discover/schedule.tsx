@@ -252,17 +252,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
   }, [router]);
 
   /**
-   * Create a brand-new project with an EMPTY schedule (no tasks). The
-   * user fills it in from scratch on the schedule editor screen. Useful
-   * when none of the templates fit and the AI generator's output is
-   * over-engineered for a small job.
+   * "New schedule" — the primary action on this screen, and the one the
+   * founder asked for verbatim: *"click new schedule and it creates a file and
+   * then you add tasks inside of it."*
+   *
+   * `scratch=1` opens the builder's DOCUMENT path: no template strip, an empty
+   * task row already waiting, and the project step skipped entirely when
+   * there's only one project to choose. Templates are still one tap away from
+   * a text link under the list — they're just no longer the toll gate.
+   *
+   * (This used to silently create a throwaway project named "New Schedule" and
+   * router.replace onto the schedule tab, which left junk in your project list
+   * and no way back.)
    */
-  // "Blank schedule" hands off to the schedule wizard on its from-scratch path.
-  // Previously this silently created a throwaway project named "New Schedule"
-  // and router.replace'd onto the schedule tab — so you got a junk project in
-  // your list, no way back, and never an actual build-it-yourself flow. The
-  // wizard already does this properly: step 1 picks the REAL project, step 2
-  // opens on an empty task list with "Add task".
   const handleStartFromScratch = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     router.push('/schedule-wizard?scratch=1' as any);
@@ -293,8 +295,34 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 true when Blank and Template started routing through the wizard
                 (both now pick a real project instead of fabricating one). */}
             <Text style={s.heroDesc}>
-              Describe the job and let AI draft it, or build it task by task.
+              Start an empty schedule and add tasks, let AI draft one, or open
+              a template.
             </Text>
+          </View>
+
+          {/* Primary action, first thing under the hero. Templates and the AI
+              generator are alternatives BELOW it, not a gate in front of it —
+              "new schedule" has to mean an empty file you type into. */}
+          <TouchableOpacity
+            style={s.primaryCta}
+            onPress={handleStartFromScratch}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="New schedule — create an empty schedule and add tasks"
+            testID="discover-schedule-new"
+          >
+            <Plus size={19} color={Colors.textOnAccent} strokeWidth={2.4} />
+            <Text style={s.primaryCtaText}>New schedule</Text>
+          </TouchableOpacity>
+          <Text style={s.primaryCtaHint}>
+            Creates an empty schedule on one of your projects, then you add
+            tasks inside it. No template needed.
+          </Text>
+
+          <View style={s.divider}>
+            <View style={s.dividerLine} />
+            <Text style={s.dividerText}>OR</Text>
+            <View style={s.dividerLine} />
           </View>
 
           <View style={s.aiSection}>
@@ -354,29 +382,6 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               <Text style={s.aiError} testID="discover-schedule-ai-error">{aiError}</Text>
             ) : null}
           </View>
-
-          <View style={s.divider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerText}>OR</Text>
-            <View style={s.dividerLine} />
-          </View>
-
-          <Text style={s.sectionTitle}>Start from Scratch</Text>
-          <TouchableOpacity
-            style={s.scratchCard}
-            onPress={handleStartFromScratch}
-            activeOpacity={0.7}
-            testID="discover-schedule-scratch"
-          >
-            <View style={[s.templateIconWrap, { backgroundColor: Colors.warning + '15' }]}>
-              <Plus size={22} color={Colors.warning} strokeWidth={2.2} />
-            </View>
-            <View style={s.templateInfo}>
-              <Text style={s.templateName}>Blank schedule</Text>
-              <Text style={s.templateMeta}>Pick your project, then build it task by task — no template.</Text>
-            </View>
-            <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
-          </TouchableOpacity>
 
           <Text style={[s.sectionTitle, { marginTop: 24 }]}>Start from Template</Text>
           <Text style={s.sectionHint}>
@@ -562,18 +567,32 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginBottom: 10,
   },
   sectionHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, paddingHorizontal: 20, marginTop: -4, marginBottom: 10, lineHeight: 17 },
-  scratchCard: {
+  // The screen's one primary button. Full-width, accent-filled, above every
+  // alternative — the visual weight has to match the fact that this is what
+  // most people came here to do.
+  primaryCta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
     marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: t.surface,
+    paddingVertical: 16,
     borderRadius: Tokens.radius.lg,
-    padding: 14,
-    gap: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.warning + '40',
-    borderStyle: 'dashed' as const,
+    backgroundColor: t.accent,
+  },
+  primaryCtaText: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.textOnAccent,
+    letterSpacing: -0.2,
+  },
+  primaryCtaHint: {
+    fontSize: Type.caption1.fontSize,
+    color: t.textMuted,
+    textAlign: 'center' as const,
+    paddingHorizontal: 32,
+    marginTop: 8,
+    lineHeight: 17,
   },
   templateCard: {
     flexDirection: 'row',

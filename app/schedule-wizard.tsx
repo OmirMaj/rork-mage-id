@@ -1,20 +1,37 @@
-// app/schedule-wizard.tsx — first-time schedule builder.
+// app/schedule-wizard.tsx — schedule builder.
 //
-// Route: /schedule-wizard?projectId=<id>
+// Routes:
+//   /schedule-wizard                  → template path (pick a starting point)
+//   /schedule-wizard?template=<id>    → that template preloaded
+//   /schedule-wizard?scratch=1        → DOCUMENT path (see below)
+//   …&projectId=<id>                  → project pre-chosen, project step skipped
 //
 // Why this exists alongside /schedule-pro:
 //   • schedule-pro is the operational view — dense Gantt, CPM, baseline,
 //     drag/resize, AI assistant, weather closures. Power users live there.
-//   • schedule-wizard is the on-ramp — 4 step setup (Project → Tasks →
-//     Schedule → Review) modeled on the Apple-app wizard pattern from the
-//     UX mock. Once a schedule exists, the wizard hands the user off to
-//     schedule-pro for ongoing work.
+//   • schedule-wizard is the on-ramp. Once a schedule exists, it hands the
+//     user off to schedule-pro for ongoing work.
 //
-// The split keeps the operational view from being polluted with onboarding
-// chrome, and lets first-time users pick a template + fill a few fields
-// without confronting the full Gantt.
+// ── The document path (`scratch=1`) ───────────────────────────────────────
+// Founder feedback, verbatim: *"when just wanting to create a schedule it
+// forces templates to be used. i want you to click new schedule and it creates
+// a file and then you add tasks inside of it."*
+//
+// That was fair. The blank path still opened on "Choose a starting point" with
+// a strip of template cards as the first thing on the screen, so even the
+// build-it-yourself route read as template-first. The fix is structural, not
+// cosmetic:
+//   1. `scratch=1` never renders the template strip. The task list IS the
+//      screen. Templates survive as one quiet text link under the list.
+//   2. The list opens with one empty row already in it — the "file" exists
+//      the moment you arrive; you type into it.
+//   3. A schedule still has to belong to a project (data model), but with
+//      exactly ONE project there is nothing to ask, so the project step is
+//      skipped outright. With several, it's one question — "which job is this
+//      for?" — and picking answers it and moves on in the same tap.
+// The template path is untouched for people who want it.
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Platform, Modal, Pressable, useWindowDimensions,
@@ -26,7 +43,7 @@ import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check,
   Calendar as CalendarIcon, Building2, Hammer, Trees, Home as HomeIcon,
   Plus, Minus, Trash2, MapPin, PencilRuler, X, CornerDownRight, GitBranch,
-  Flag, FolderPlus,
+  Flag, FolderPlus, GripVertical, LayoutTemplate, GitMerge, Square, CheckSquare,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -36,9 +53,11 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   SCHEDULE_TEMPLATES, repairChain, moveTask, removeTaskAt, insertTaskAt,
-  readLinkMode, cycleLinkMode, setTaskDuration,
+  readLinkMode, setTaskDuration, setPredecessors, predecessorOptions,
+  dropTargetIndex,
 } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate, TemplateTask } from '@/constants/scheduleTemplates';
+import TaskRowDrag, { type TaskDragHandle } from '@/components/schedule/TaskRowDrag';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { runCpm } from '@/utils/cpm';
 import { generateUUID } from '@/utils/generateId';
@@ -85,6 +104,10 @@ const WIZARD_WORKING_DAYS_PER_WEEK = 5;
 // send the wizard's completed hand-off straight to the classic schedule
 // instead of routing through a screen that immediately redirects again.
 const GRID_BREAKPOINT = 900;
+
+// Vertical gap between task rows. Shared by the styles below and the
+// drag-drop math, which needs real geometry to decide where a row lands.
+const TASK_ROW_GAP = 8;
 
 function toIsoDate(d: Date): string {
   const yyyy = d.getFullYear();
@@ -133,7 +156,30 @@ function nextMonday(from: Date): Date {
   return d;
 }
 
-/** Human sentence for a row's sequencing, shown on the tappable link chip. */
+function taskName(t: TemplateTask | undefined): string {
+  return t?.name.trim() || 'Untitled task';
+}
+
+/** A fresh, unnamed row. The document path opens with one already in the list
+ *  so there is something to type into the moment the screen appears. */
+function blankTask(): TemplateTask {
+  return {
+    id: `custom-${generateUUID()}`,
+    name: '',
+    phase: 'General',
+    duration: 1,
+    predecessorIds: [],
+    isMilestone: false,
+    isCriticalPath: false,
+    crewSize: 1,
+  };
+}
+
+/** Human sentence for a row's sequencing, shown on the tappable link chip.
+ *
+ *  Must stay TRUTHFUL now that a row can wait on several upstream tasks:
+ *  a chip can't hold four trade names, but "After 3 tasks" is honest, and the
+ *  full list is spelled out in the accessibility label + the picker sheet. */
 function sequenceLabel(tasks: readonly TemplateTask[], index: number): string {
   if (index === 0) return 'Starts day 1';
   const mode = readLinkMode(tasks, index);
@@ -141,8 +187,21 @@ function sequenceLabel(tasks: readonly TemplateTask[], index: number): string {
   if (mode === 'after') return `After ${prevName}`;
   if (mode === 'with') return `Alongside ${prevName}`;
   if (mode === 'start') return 'Starts day 1';
-  const n = tasks[index].predecessorIds.length;
-  return `After ${n} task${n === 1 ? '' : 's'}`;
+  // 'custom' — either several predecessors, or a single one that isn't the row
+  // directly above. Name it when there's exactly one; count it otherwise.
+  const preds = tasks[index].predecessorIds;
+  if (preds.length === 1) return `After ${taskName(tasks.find(t => t.id === preds[0]))}`;
+  return `After ${preds.length} tasks`;
+}
+
+/** The same sentence, unabbreviated — for screen readers and the picker's
+ *  live summary, where there's room to say what "3 tasks" actually means. */
+function sequenceDetail(tasks: readonly TemplateTask[], ids: readonly string[]): string {
+  if (ids.length === 0) return 'Starts on day 1';
+  const names = tasks.filter(t => ids.includes(t.id)).map(taskName);
+  if (names.length === 1) return `Starts when ${names[0]} finishes`;
+  if (names.length === 2) return `Starts when ${names[0]} and ${names[1]} have both finished`;
+  return `Starts when all ${names.length} of ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have finished`;
 }
 
 export default function ScheduleWizardScreen() {
@@ -157,14 +216,19 @@ export default function ScheduleWizardScreen() {
   // wizard's value is available to every tier, and free users shouldn't finish
   // the flow only to hit a full-screen paywall.
   const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
-  // `scratch=1` opens the wizard already on the blank path (Discover →
-  // "Blank schedule" routes here) instead of seeding a template's tasks.
-  // `template=<id>` opens it with that template's tasks preloaded (Discover →
-  // "Start from Template"), so both entry points land in the SAME builder
-  // instead of one of them silently creating a project behind your back.
+  // `scratch=1` opens the DOCUMENT path (Discover → "New schedule" routes
+  // here): no template strip, one empty task row waiting, project step skipped
+  // when there's nothing to ask. `template=<id>` opens with that template's
+  // tasks preloaded (Discover → "Start from Template"), so both entry points
+  // land in the SAME builder instead of one of them silently creating a
+  // project behind your back.
   const { projectId, scratch, template: templateParam } =
     useLocalSearchParams<{ projectId?: string; scratch?: string; template?: string }>();
   const startScratch = scratch === '1' || scratch === 'true';
+  // Derived from the ENTRY, not from the currently-selected template. If the
+  // user later takes the quiet "start from a template" link the layout must
+  // not suddenly re-arrange itself around a template strip they demoted.
+  const documentMode = startScratch;
   const seedTemplateId = useMemo(() => {
     if (startScratch) return SCRATCH_ID;
     if (templateParam && SCHEDULE_TEMPLATES.some(t => t.id === templateParam)) return templateParam;
@@ -188,12 +252,15 @@ export default function ScheduleWizardScreen() {
 
   // Editable copy of the template tasks, so the user can tune in step 2
   // without mutating the source template.
+  // The document path opens with ONE empty row already present, so "new
+  // schedule" produces a file you type into rather than a call to action.
   const [tasks, setTasks] = useState<TemplateTask[]>(
-    () => (startScratch ? [] : repairChain(template.tasks.map(t => ({ ...t })))),
+    () => (startScratch ? [blankTask()] : repairChain(template.tasks.map(t => ({ ...t })))),
   );
   // True once the user has touched the task list. Gates the "you'll lose your
   // edits" confirmation on template switch / exit — asking on an untouched
-  // template is nagging, not safety.
+  // template (or on the seeded blank row, which the user never asked for) is
+  // nagging, not safety.
   const [edited, setEdited] = useState(false);
   // The row that should own the keyboard. Set when a task is created so you
   // can type straight into it instead of hunting for the new row.
@@ -203,7 +270,14 @@ export default function ScheduleWizardScreen() {
   // overwrite guard used to make the Save button do NOTHING on web.
   const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
   const [phaseFor, setPhaseFor] = useState<number | null>(null);
+  // Row whose predecessors are being edited. The multi-predecessor picker is
+  // a sheet because the row is already dense — four chips and five buttons.
+  const [predFor, setPredFor] = useState<number | null>(null);
+  // Secondary, opt-in template browser for the document path.
+  const [templateSheetOpen, setTemplateSheetOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  // A drag owns the vertical gesture; the ScrollView must not also consume it.
+  const [dragging, setDragging] = useState(false);
 
   /** Every task-list write goes through here so `edited` can't drift. */
   const updateTasks = useCallback((next: TemplateTask[] | ((prev: TemplateTask[]) => TemplateTask[])) => {
@@ -218,13 +292,16 @@ export default function ScheduleWizardScreen() {
     setPickedTemplateId(id);
     setEdited(false);
     if (id === SCRATCH_ID) {
-      setTasks([]); // blank canvas — the user builds it with "Add task".
+      // Blank canvas. On the document path that means an empty ROW, not an
+      // empty screen — backing out of the template browser should put you
+      // back where you started, with something to type into.
+      setTasks(documentMode ? [blankTask()] : []);
     } else {
       const t = SCHEDULE_TEMPLATES.find(x => x.id === id);
       if (t) setTasks(repairChain(t.tasks.map(x => ({ ...x }))));
     }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, []);
+  }, [documentMode]);
 
   const handlePickTemplate = useCallback((id: string) => {
     if (id === pickedTemplateId) return;
@@ -240,6 +317,26 @@ export default function ScheduleWizardScreen() {
     }
     applyTemplate(id);
   }, [pickedTemplateId, edited, tasks.length, applyTemplate]);
+
+  // ── Skip the project step when there is nothing to ask ─────────
+  // A schedule has to belong to a project — that's the data model, not a
+  // preference. But asking "which project?" when the answer is forced is pure
+  // ceremony standing between "new schedule" and typing a task. So: if the
+  // caller named a project, or the user has exactly one, select it and open
+  // straight on the task list. Step 1 stays tappable in the indicator, so
+  // changing your mind is one tap, not a re-run of the wizard.
+  //
+  // Runs as an effect rather than a useState initialiser because projects
+  // hydrate from AsyncStorage — on first paint `projects` is still empty.
+  const skippedProjectStep = useRef(false);
+  React.useEffect(() => {
+    if (skippedProjectStep.current || step !== 0) return;
+    const forced = projectId || (projects.length === 1 ? projects[0].id : '');
+    if (!forced) return;
+    skippedProjectStep.current = true;
+    setPickedProjectId(forced);
+    setStep(1);
+  }, [projects, projectId, step]);
 
   // Day 1 of the schedule. This USED to be hard-coded to project.createdAt,
   // which silently dated a brand-new schedule to whenever the project record
@@ -292,17 +389,32 @@ export default function ScheduleWizardScreen() {
   );
 
   // ── Step navigation ────────────────────────────────────────────
+  // At least one task with a NAME. The document path seeds an empty row so
+  // there's something to type into; that row must not double as a free pass
+  // to the timeline, or you'd save a plan whose only entry is "Untitled task".
+  const namedTaskCount = useMemo(
+    () => tasks.filter(t => t.name.trim().length > 0).length,
+    [tasks],
+  );
+
   const canAdvance = useMemo(() => {
     if (step === 0) return !!pickedProjectId;
-    if (step === 1) return tasks.length > 0;
+    if (step === 1) return namedTaskCount > 0;
     return true;
-  }, [step, pickedProjectId, tasks.length]);
+  }, [step, pickedProjectId, namedTaskCount]);
 
-  function blockReason(s: StepIndex): string {
-    if (s === 0) return 'Pick a project to continue.';
-    if (s === 1) return 'Add at least one task first.';
+  // Memoised rather than a plain function: it now reads `tasks`, and handleNext
+  // captures it — as a bare declaration the captured copy would go stale and
+  // show the wrong reason (deleting the last row still said "name a task").
+  const blockReason = useMemo(() => {
+    if (step === 0) return 'Pick a project to continue.';
+    if (step === 1) {
+      return tasks.length === 0
+        ? 'Add at least one task first.'
+        : 'Give at least one task a name first.';
+    }
     return '';
-  }
+  }, [step, tasks.length]);
 
   // Completed steps are tappable — going back to fix a task shouldn't cost
   // three presses of a back arrow.
@@ -316,12 +428,12 @@ export default function ScheduleWizardScreen() {
   // Clear the hint whenever the blocking condition resolves.
   React.useEffect(() => {
     if (canAdvance) setBlockHint(null);
-  }, [pickedProjectId, tasks.length, canAdvance]);
+  }, [pickedProjectId, namedTaskCount, canAdvance]);
 
   const handleNext = useCallback(() => {
     if (!canAdvance) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setBlockHint(blockReason(step));
+      setBlockHint(blockReason);
       return;
     }
     setBlockHint(null);
@@ -329,7 +441,7 @@ export default function ScheduleWizardScreen() {
       setStep((step + 1) as StepIndex);
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
     }
-  }, [step, canAdvance]);
+  }, [step, canAdvance, blockReason]);
 
   const handleBack = useCallback(() => {
     if (step === 0) {
@@ -454,7 +566,7 @@ export default function ScheduleWizardScreen() {
         <TouchableOpacity onPress={handleBack} style={styles.topBarBackBtn} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Create Schedule</Text>
+        <Text style={styles.topBarTitle}>{documentMode ? 'New schedule' : 'Create Schedule'}</Text>
         {step === 3 ? (
           <TouchableOpacity onPress={onSavePressed} style={styles.topBarSaveBtn} accessibilityRole="button" accessibilityLabel="Save schedule">
             <Text style={styles.topBarSaveText}>Save</Text>
@@ -513,12 +625,25 @@ export default function ScheduleWizardScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="none"
+        // A row being dragged owns the vertical gesture. Leaving the
+        // ScrollView live means the list scrolls under the finger and the
+        // drop lands nowhere near where it was aimed.
+        scrollEnabled={!dragging}
       >
         {step === 0 && (
           <ProjectStep
             projects={projects}
             pickedId={pickedProjectId}
-            onPick={setPickedProjectId}
+            // On the document path picking the job IS the whole step, so
+            // answering it advances — no "Next" to hunt for.
+            onPick={(id) => {
+              setPickedProjectId(id);
+              if (documentMode) {
+                setStep(1);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }
+            }}
+            documentMode={documentMode}
             startDate={startDate}
             projectEndDate={projectEndDate}
             totalDays={totalDays}
@@ -532,6 +657,11 @@ export default function ScheduleWizardScreen() {
             activeId={pickedTemplateId}
             templates={SCHEDULE_TEMPLATES}
             onPickTemplate={handlePickTemplate}
+            documentMode={documentMode}
+            documentTitle={project ? `${project.name} schedule` : 'New schedule'}
+            startDate={startDate}
+            onEditProject={() => goToStep(0)}
+            onBrowseTemplates={() => setTemplateSheetOpen(true)}
             tasks={tasks}
             setTasks={updateTasks}
             totalDays={totalDays}
@@ -539,6 +669,8 @@ export default function ScheduleWizardScreen() {
             focusTaskId={focusTaskId}
             setFocusTaskId={setFocusTaskId}
             onOpenPhasePicker={setPhaseFor}
+            onOpenPredecessors={setPredFor}
+            onDraggingChange={setDragging}
           />
         )}
         {step === 2 && (
@@ -578,6 +710,36 @@ export default function ScheduleWizardScreen() {
           setPhaseFor(null);
           if (idx === null) return;
           updateTasks(prev => prev.map((x, i) => (i === idx ? { ...x, phase } : x)));
+        }}
+      />
+
+      {/* Mounted only while open so its draft selection is seeded from props
+          at mount — no effect syncing state to props, no stale checkboxes. */}
+      {predFor !== null && (
+        <PredecessorSheet
+          key={`pred-${predFor}`}
+          index={predFor}
+          tasks={tasks}
+          onClose={() => setPredFor(null)}
+          onApply={(ids) => {
+            const idx = predFor;
+            setPredFor(null);
+            if (idx === null) return;
+            // setPredecessors ends in repairChain, exactly like every other
+            // write — the picker gets no special dispensation.
+            updateTasks(prev => setPredecessors(prev, idx, ids));
+          }}
+        />
+      )}
+
+      <TemplateSheet
+        visible={templateSheetOpen}
+        templates={SCHEDULE_TEMPLATES}
+        activeId={pickedTemplateId}
+        onClose={() => setTemplateSheetOpen(false)}
+        onPick={(id) => {
+          setTemplateSheetOpen(false);
+          handlePickTemplate(id);
         }}
       />
 
@@ -628,10 +790,17 @@ export default function ScheduleWizardScreen() {
 }
 
 // ── Step 1: Pick the project + set day 1 ──────────────────────────
+//
+// On the document path this step is usually SKIPPED entirely (one project ⇒
+// nothing to ask). When it does appear it's a single question — "which job is
+// this for?" — and answering it advances, so it reads as a question rather
+// than a gate. Start date moves to the document header on the task list, where
+// it's visible while you work instead of buried behind a step you walked past.
 function ProjectStep(props: {
   projects: ReturnType<typeof useProjects>['projects'];
   pickedId: string;
   onPick: (id: string) => void;
+  documentMode: boolean;
   startDate: Date;
   projectEndDate: Date;
   totalDays: number;
@@ -642,10 +811,63 @@ function ProjectStep(props: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const {
-    projects, pickedId, onPick, startDate, projectEndDate, totalDays,
+    projects, pickedId, onPick, documentMode, startDate, projectEndDate, totalDays,
     onEditStartDate, onQuickStart, onCreateProject,
   } = props;
   const picked = projects.find(p => p.id === pickedId);
+
+  if (documentMode) {
+    return (
+      <View style={styles.stepContent}>
+        <Text style={styles.askTitle}>Which job is this for?</Text>
+        <Text style={styles.helper}>
+          A schedule lives on a project. Pick one and start adding tasks — you
+          can change the start date from the task list.
+        </Text>
+        <View style={{ gap: 8, marginTop: 4 }}>
+          {projects.map(p => (
+            <TouchableOpacity
+              key={p.id}
+              style={[styles.projectRow, p.id === pickedId && styles.projectRowActive]}
+              onPress={() => onPick(p.id)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Build a schedule for ${p.name}`}
+              testID={`wizard-project-${p.id}`}
+            >
+              <View style={[styles.projectDot, p.id === pickedId && { backgroundColor: themeColors.accent }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.projectName} numberOfLines={1}>{p.name}</Text>
+                <Text style={styles.projectSub} numberOfLines={1}>
+                  {displayText(p.location, 'No location')} · {p.type}
+                </Text>
+              </View>
+              <ChevronRight size={17} color={themeColors.textMuted} strokeWidth={2} />
+            </TouchableOpacity>
+          ))}
+          {projects.length === 0 && (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No projects yet</Text>
+              <Text style={styles.helper}>
+                A schedule belongs to a job. Create the project first — this
+                builder will be waiting under Schedule.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyBtn}
+                onPress={onCreateProject}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                testID="wizard-create-project"
+              >
+                <FolderPlus size={16} color={Colors.textOnAccent} strokeWidth={2} />
+                <Text style={styles.emptyBtnText}>Create a project</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.stepContent}>
@@ -783,11 +1005,23 @@ function StartDateField(props: {
   );
 }
 
-// ── Step 2: Pick a template, tune the task list ───────────────────
+// ── Step 2: The task list ─────────────────────────────────────────
+//
+// Two layouts, one component:
+//   • template mode — "Choose a starting point" strip, then the list. The
+//     original screen, unchanged.
+//   • document mode (`scratch=1`) — the list IS the screen. No strip; the
+//     document title, an empty row waiting for a name, and Add task. Templates
+//     survive as a single text link BELOW the list, easy to ignore.
 function TasksStep(props: {
   activeId: string;
   templates: ScheduleTemplate[];
   onPickTemplate: (id: string) => void;
+  documentMode: boolean;
+  documentTitle: string;
+  startDate: Date;
+  onEditProject: () => void;
+  onBrowseTemplates: () => void;
   tasks: TemplateTask[];
   setTasks: (next: TemplateTask[] | ((prev: TemplateTask[]) => TemplateTask[])) => void;
   totalDays: number;
@@ -795,36 +1029,105 @@ function TasksStep(props: {
   focusTaskId: string | null;
   setFocusTaskId: (id: string | null) => void;
   onOpenPhasePicker: (index: number) => void;
+  onOpenPredecessors: (index: number) => void;
+  onDraggingChange: (dragging: boolean) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { width } = useWindowDimensions();
   const {
-    activeId, templates, onPickTemplate, tasks, setTasks, totalDays, endDate,
-    focusTaskId, setFocusTaskId, onOpenPhasePicker,
+    activeId, templates, onPickTemplate, documentMode, documentTitle, startDate,
+    onEditProject, onBrowseTemplates, tasks, setTasks, totalDays, endDate,
+    focusTaskId, setFocusTaskId, onOpenPhasePicker, onOpenPredecessors,
+    onDraggingChange,
   } = props;
   const scratchActive = activeId === SCRATCH_ID;
   const wrapTemplates = width >= WRAP_TEMPLATES_WIDTH;
+  const activeTemplate = templates.find(t => t.id === activeId);
 
   /** Insert a task below `index` (or at the end when index is null) and hand
-   *  it the keyboard, so Add → type → Enter → type is one unbroken rhythm. */
+   *  it the keyboard, so Add → type → Enter → type is one unbroken rhythm.
+   *  Unnamed on purpose: a placeholder beats a literal "New Task" you have to
+   *  delete before you can type. */
   const addTask = useCallback((index: number | null) => {
-    const fresh: TemplateTask = {
-      id: `custom-${generateUUID()}`,
-      name: 'New Task',
-      phase: 'General',
-      duration: 1,
-      predecessorIds: [],
-      isMilestone: false,
-      isCriticalPath: false,
-      crewSize: 1,
-    };
+    const fresh = blankTask();
     setTasks(prev => insertTaskAt(prev, index === null ? prev.length : index + 1, fresh));
     setFocusTaskId(fresh.id);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [setTasks, setFocusTaskId]);
 
-  const templateCards = (
+  // ── Drag-to-reorder ────────────────────────────────────────────
+  // Heights live in a ref, keyed by task ID rather than by row position:
+  //   • a ref, because onLayout fires constantly and re-rendering the list to
+  //     record a height it already had would fight the keyboard;
+  //   • keyed by ID, because a reorder renumbers every row below the move, and
+  //     a positional cache would then hand the NEXT drag the wrong geometry.
+  const heightsRef = useRef<Record<string, number>>({});
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const dragFromRef = useRef<number | null>(null);
+  const dragToRef = useRef<number | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [dragHeight, setDragHeight] = useState(0);
+
+  /** Current heights in list order — what the drop math wants. */
+  const rowHeights = useCallback(
+    () => tasksRef.current.map(t => heightsRef.current[t.id] ?? 0),
+    [],
+  );
+
+  React.useEffect(() => {
+    const live = new Set(tasks.map(t => t.id));
+    for (const id of Object.keys(heightsRef.current)) {
+      if (!live.has(id)) delete heightsRef.current[id];
+    }
+  }, [tasks]);
+
+  const handleMeasure = useCallback((i: number, h: number) => {
+    const id = tasksRef.current[i]?.id;
+    if (id) heightsRef.current[id] = h;
+  }, []);
+
+  const handleGrab = useCallback((i: number) => {
+    dragFromRef.current = i;
+    dragToRef.current = i;
+    setDragIndex(i);
+    setDropIndex(i);
+    setDragHeight(rowHeights()[i] ?? 0);
+    onDraggingChange(true);
+  }, [onDraggingChange, rowHeights]);
+
+  const handleDrag = useCallback((dy: number) => {
+    const from = dragFromRef.current;
+    if (from === null) return;
+    const next = dropTargetIndex(from, dy, rowHeights(), TASK_ROW_GAP);
+    if (next === dragToRef.current) return;
+    dragToRef.current = next;
+    setDropIndex(next);
+    // A tick each time the row crosses a boundary — the drop is then something
+    // you feel land rather than something you have to watch.
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [rowHeights]);
+
+  const handleDrop = useCallback(() => {
+    const from = dragFromRef.current;
+    const to = dragToRef.current;
+    dragFromRef.current = null;
+    dragToRef.current = null;
+    setDragIndex(null);
+    setDropIndex(null);
+    onDraggingChange(false);
+    if (from === null || to === null || from === to) return;
+    // moveTask → repairChain. A drag is the up/down arrows, just faster: it
+    // cannot reach a state the arrows can't, so the mid-list move that used to
+    // orphan every successor of the moved row can't come back through here.
+    setTasks(prev => moveTask(prev, from, to));
+  }, [setTasks, onDraggingChange]);
+
+  // Built only on the template path — the document path never renders the
+  // strip, and there's no point constructing nine cards to throw away.
+  const templateCards = documentMode ? null : (
     <>
       {/* From scratch — a blank task list the user builds themselves. */}
       <TouchableOpacity
@@ -869,23 +1172,47 @@ function TasksStep(props: {
 
   return (
     <View style={styles.stepContent}>
-      <Text style={styles.sectionLabel}>Choose a starting point</Text>
-      {wrapTemplates ? (
-        // Desktop web: a horizontal ScrollView can't be dragged with a mouse
-        // and doesn't take the wheel, so everything past the third card was
-        // simply unreachable. Wrap instead.
-        <View style={styles.templateWrap}>{templateCards}</View>
+      {documentMode ? (
+        // The "file" header. Says what this document is and which job it
+        // belongs to, without asking anything.
+        <View style={styles.docHead}>
+          <Text style={styles.docTitle} numberOfLines={2}>{documentTitle}</Text>
+          <View style={styles.docMetaRow}>
+            <CalendarIcon size={12} color={themeColors.textMuted} strokeWidth={1.9} />
+            <Text style={styles.docMeta}>Starts {fmtShort(startDate)}</Text>
+            <Text style={styles.docMeta}>·</Text>
+            <TouchableOpacity
+              onPress={onEditProject}
+              hitSlop={{ top: 8, right: 8, bottom: 8, left: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel="Change the project or start date for this schedule"
+              testID="wizard-doc-settings"
+            >
+              <Text style={styles.docMetaLink}>Change project or date</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.templateScrollContent}
-        >
-          {templateCards}
-        </ScrollView>
+        <>
+          <Text style={styles.sectionLabel}>Choose a starting point</Text>
+          {wrapTemplates ? (
+            // Desktop web: a horizontal ScrollView can't be dragged with a
+            // mouse and doesn't take the wheel, so everything past the third
+            // card was simply unreachable. Wrap instead.
+            <View style={styles.templateWrap}>{templateCards}</View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.templateScrollContent}
+            >
+              {templateCards}
+            </ScrollView>
+          )}
+        </>
       )}
 
-      <View style={styles.tasksHeadRow}>
+      <View style={[styles.tasksHeadRow, documentMode && styles.tasksHeadRowTight]}>
         <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Tasks ({tasks.length})</Text>
         {tasks.length > 0 && (
           <Text style={styles.tasksHeadTotal}>
@@ -896,7 +1223,7 @@ function TasksStep(props: {
 
       {tasks.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>Start with your first task</Text>
+          <Text style={styles.emptyTitle}>This schedule is empty</Text>
           <Text style={styles.helper}>
             List the work in the order it happens — Demo, then Rough Plumbing,
             then Drywall. Each task chains onto the one above it, and you can
@@ -911,34 +1238,49 @@ function TasksStep(props: {
             testID="wizard-add-first-task"
           >
             <Plus size={16} color={Colors.textOnAccent} strokeWidth={2} />
-            <Text style={styles.emptyBtnText}>Add first task</Text>
+            <Text style={styles.emptyBtnText}>Add a task</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <Text style={styles.helper}>
-          Tap a name to rename · type or step the days · 0 days makes it a
-          milestone · tap the sequence chip to run a task alongside the one
-          above instead of after it
+          Type a name, press return for the next row · type or step the days ·
+          0 days makes it a milestone · drag the handle (or use the arrows) to
+          reorder · tap the sequence chip to choose which tasks it waits on
         </Text>
       )}
 
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: TASK_ROW_GAP }}>
         {tasks.map((t, idx) => (
-          <TaskRow
+          <TaskRowDrag
             key={t.id}
-            task={t}
             index={idx}
-            tasks={tasks}
-            autoFocus={t.id === focusTaskId}
-            onFocused={() => setFocusTaskId(null)}
-            onRename={(name) => setTasks(prev => prev.map((x, i) => (i === idx ? { ...x, name } : x)))}
-            onDuration={(days) => setTasks(prev => setTaskDuration(prev, idx, days))}
-            onCycleLink={() => setTasks(prev => cycleLinkMode(prev, idx))}
-            onOpenPhase={() => onOpenPhasePicker(idx)}
-            onMove={(delta) => setTasks(prev => moveTask(prev, idx, idx + delta))}
-            onRemove={() => setTasks(prev => removeTaskAt(prev, idx))}
-            onSubmit={() => addTask(idx)}
-          />
+            activeIndex={dragIndex}
+            targetIndex={dropIndex}
+            activeHeight={dragHeight}
+            gap={TASK_ROW_GAP}
+            onMeasure={handleMeasure}
+            onGrab={handleGrab}
+            onDrag={handleDrag}
+            onDrop={handleDrop}
+          >
+            {(handle) => (
+              <TaskRow
+                task={t}
+                index={idx}
+                tasks={tasks}
+                dragHandle={handle}
+                autoFocus={t.id === focusTaskId}
+                onFocused={() => setFocusTaskId(null)}
+                onRename={(name) => setTasks(prev => prev.map((x, i) => (i === idx ? { ...x, name } : x)))}
+                onDuration={(days) => setTasks(prev => setTaskDuration(prev, idx, days))}
+                onOpenPredecessors={() => onOpenPredecessors(idx)}
+                onOpenPhase={() => onOpenPhasePicker(idx)}
+                onMove={(delta) => setTasks(prev => moveTask(prev, idx, idx + delta))}
+                onRemove={() => setTasks(prev => removeTaskAt(prev, idx))}
+                onSubmit={() => addTask(idx)}
+              />
+            )}
+          </TaskRowDrag>
         ))}
         {tasks.length > 0 && (
           <TouchableOpacity
@@ -954,6 +1296,25 @@ function TasksStep(props: {
           </TouchableOpacity>
         )}
       </View>
+
+      {documentMode && (
+        // Deliberately the LAST thing on the screen, in body-text weight, with
+        // no card around it. Templates are available; they are not the offer.
+        <TouchableOpacity
+          style={styles.templateLink}
+          onPress={onBrowseTemplates}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          testID="wizard-template-link"
+        >
+          <LayoutTemplate size={14} color={themeColors.textMuted} strokeWidth={1.9} />
+          <Text style={styles.templateLinkText}>
+            {scratchActive
+              ? 'or start from a template'
+              : `Started from ${activeTemplate?.name ?? 'a template'} — change`}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -963,11 +1324,12 @@ function TaskRow(props: {
   task: TemplateTask;
   index: number;
   tasks: TemplateTask[];
+  dragHandle: TaskDragHandle;
   autoFocus: boolean;
   onFocused: () => void;
   onRename: (name: string) => void;
   onDuration: (days: number) => void;
-  onCycleLink: () => void;
+  onOpenPredecessors: () => void;
   onOpenPhase: () => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
@@ -976,29 +1338,44 @@ function TaskRow(props: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const {
-    task: t, index: idx, tasks, autoFocus, onFocused, onRename, onDuration,
-    onCycleLink, onOpenPhase, onMove, onRemove, onSubmit,
+    task: t, index: idx, tasks, dragHandle, autoFocus, onFocused, onRename,
+    onDuration, onOpenPredecessors, onOpenPhase, onMove, onRemove, onSubmit,
   } = props;
   const phaseColor = PHASE_COLORS[t.phase] ?? PHASE_COLORS.General;
   const mode = readLinkMode(tasks, idx);
-  const LinkIcon = mode === 'after' ? CornerDownRight : mode === 'start' ? Flag : GitBranch;
+  const LinkIcon =
+    mode === 'after' ? CornerDownRight :
+    mode === 'start' ? Flag :
+    mode === 'with' ? GitBranch :
+    GitMerge; // 'custom' — waits on a set of upstream tasks
   const first = idx === 0;
   const last = idx === tasks.length - 1;
 
   return (
-    <View style={styles.taskRow}>
+    <View style={[styles.taskRow, dragHandle.dragging && styles.taskRowDragging]}>
       <View style={styles.taskTopRow}>
-        <View style={[styles.taskIndex, { backgroundColor: phaseColor + '22', borderColor: phaseColor }]}>
-          <Text style={[styles.taskIndexText, { color: phaseColor }]}>{idx + 1}</Text>
+        {/* Grab area. The number badge doubles as the grip so the row doesn't
+            grow a sixth control; PanResponder is scoped to THIS view so the
+            name field and the page scroll keep working normally. */}
+        <View
+          {...dragHandle.panHandlers}
+          style={[styles.dragHandle, dragHandle.webStyle]}
+          accessible
+          accessibilityLabel={`Task ${idx + 1} of ${tasks.length}. Drag to reorder.`}
+          testID={`task-drag-${idx}`}
+        >
+          <GripVertical size={14} color={themeColors.textMuted} strokeWidth={1.9} />
+          <View style={[styles.taskIndex, { backgroundColor: phaseColor + '22', borderColor: phaseColor }]}>
+            <Text style={[styles.taskIndexText, { color: phaseColor }]}>{idx + 1}</Text>
+          </View>
         </View>
         <TextInput
           value={t.name}
           onChangeText={onRename}
           onFocus={onFocused}
           autoFocus={autoFocus}
-          // Only the just-created row select-alls, so typing replaces the
-          // "New Task" placeholder. Doing it on every focus would make one
-          // stray keystroke wipe a name the user already typed.
+          // Only the just-created row select-alls. Doing it on every focus
+          // would make one stray keystroke wipe a name the user already typed.
           selectTextOnFocus={autoFocus}
           onSubmitEditing={onSubmit}
           returnKeyType="next"
@@ -1013,7 +1390,7 @@ function TaskRow(props: {
           disabled={first}
           hitSlop={{ top: 10, right: 4, bottom: 10, left: 4 }}
           accessibilityRole="button"
-          accessibilityLabel={`Move ${t.name} up`}
+          accessibilityLabel={`Move ${taskName(t)} up`}
           testID={`task-up-${idx}`}
         >
           <ChevronUp size={17} color={first ? themeColors.line : themeColors.textSecondary} strokeWidth={2.25} />
@@ -1023,7 +1400,7 @@ function TaskRow(props: {
           disabled={last}
           hitSlop={{ top: 10, right: 4, bottom: 10, left: 4 }}
           accessibilityRole="button"
-          accessibilityLabel={`Move ${t.name} down`}
+          accessibilityLabel={`Move ${taskName(t)} down`}
           testID={`task-down-${idx}`}
         >
           <ChevronDown size={17} color={last ? themeColors.line : themeColors.textSecondary} strokeWidth={2.25} />
@@ -1032,7 +1409,7 @@ function TaskRow(props: {
           onPress={onRemove}
           hitSlop={{ top: 10, right: 8, bottom: 10, left: 6 }}
           accessibilityRole="button"
-          accessibilityLabel={`Remove ${t.name}`}
+          accessibilityLabel={`Remove ${taskName(t)}`}
           testID={`task-remove-${idx}`}
         >
           <Trash2 size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1060,7 +1437,7 @@ function TaskRow(props: {
             onPress={() => onDuration(t.duration - 1)}
             hitSlop={{ top: 10, right: 6, bottom: 10, left: 10 }}
             accessibilityRole="button"
-            accessibilityLabel={`Shorten ${t.name}`}
+            accessibilityLabel={`Shorten ${taskName(t)}`}
             testID={`task-minus-${idx}`}
           >
             <Minus size={15} color={t.duration === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={2.25} />
@@ -1070,20 +1447,28 @@ function TaskRow(props: {
             onPress={() => onDuration(t.duration + 1)}
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 6 }}
             accessibilityRole="button"
-            accessibilityLabel={`Lengthen ${t.name}`}
+            accessibilityLabel={`Lengthen ${taskName(t)}`}
             testID={`task-plus-${idx}`}
           >
             <Plus size={15} color={themeColors.text} strokeWidth={2.25} />
           </TouchableOpacity>
         </View>
 
+        {/* Sequence chip. Used to cycle blindly through three fixed states on
+            tap; it now opens the picker, which can express those three AND any
+            set of earlier tasks — the real shape of "Rough Inspection waits on
+            plumbing, electrical and HVAC". */}
         <TouchableOpacity
           style={[styles.linkChip, first && styles.linkChipStatic]}
-          onPress={onCycleLink}
+          onPress={onOpenPredecessors}
           disabled={first}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel={`${sequenceLabel(tasks, idx)}. Tap to change how this task is sequenced.`}
+          accessibilityLabel={
+            first
+              ? 'This is the first task, so it starts on day 1.'
+              : `${sequenceDetail(tasks, t.predecessorIds)}. Tap to choose which tasks this one waits on.`
+          }
           testID={`task-link-${idx}`}
         >
           <LinkIcon size={13} color={themeColors.textSecondary} strokeWidth={2} />
@@ -1165,6 +1550,207 @@ function PhasePickerSheet(props: {
                 >
                   <View style={[styles.taskDot, { backgroundColor: PHASE_COLORS[p] ?? PHASE_COLORS.General }]} />
                   <Text style={[styles.phaseOptionText, active && { color: themeColors.accent }]}>{p}</Text>
+                  {active && <Check size={16} color={themeColors.accent} strokeWidth={2.5} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// ── Multi-predecessor picker ──────────────────────────────────────
+//
+// The row's chip could only ever say "after the row above", "alongside the row
+// above" or "day 1". Real jobs aren't chains: Rough Inspection waits on
+// plumbing AND electrical AND HVAC, and a chain forces you to pick one and lie
+// about the other two — which then quietly under-runs the schedule.
+//
+// The invariant survives because this sheet only ever OFFERS earlier tasks
+// (`predecessorOptions`) and only ever COMMITS through `setPredecessors`,
+// which ends in `repairChain` like everything else. The three old modes are
+// still one tap — they're presets over the same selection — so nothing that
+// worked before got slower.
+function PredecessorSheet(props: {
+  index: number;
+  tasks: TemplateTask[];
+  onClose: () => void;
+  onApply: (ids: string[]) => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { index, tasks, onClose, onApply } = props;
+  const task = tasks[index];
+  const options = useMemo(() => predecessorOptions(tasks, index), [tasks, index]);
+  // Seeded once, at mount — the parent mounts this only while it's open, so
+  // there's no props-to-state sync to drift.
+  const [selected, setSelected] = useState<string[]>(() => task?.predecessorIds ?? []);
+
+  const prev = index > 0 ? tasks[index - 1] : null;
+  const toggle = (id: string) => {
+    setSelected(cur => (cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  };
+
+  // The three states the old one-tap chip could reach, as shortcuts over the
+  // same selection. "Alongside" is omitted when the row above starts on day 1,
+  // because there it means the identical thing as "Starts day 1" and two lit
+  // chips saying different words is worse than one.
+  const presets: { label: string; ids: string[] }[] = prev
+    ? [
+      { label: 'After the task above', ids: [prev.id] },
+      ...(prev.predecessorIds.length > 0
+        ? [{ label: 'Alongside it', ids: [...prev.predecessorIds] }]
+        : []),
+      { label: 'Starts day 1', ids: [] },
+    ]
+    : [];
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={() => undefined}>
+          <View style={styles.sheetHead}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sheetTitle}>Sequence</Text>
+              <Text style={styles.sheetSub} numberOfLines={1}>{taskName(task)}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
+              <X size={19} color={themeColors.textMuted} strokeWidth={1.9} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.presetRow}>
+            {presets.map((p, pi) => {
+              const active = p.ids.length === selected.length && p.ids.every(id => selected.includes(id));
+              return (
+                <TouchableOpacity
+                  key={p.label}
+                  style={[styles.presetChip, active && styles.presetChipActive]}
+                  onPress={() => setSelected(p.ids)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  testID={`pred-preset-${pi}`}
+                >
+                  <Text style={[styles.presetChipText, active && styles.presetChipTextActive]} numberOfLines={1}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.sectionLabel, { marginTop: 14 }]}>Waits for</Text>
+          <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+            {options.map((o, i) => {
+              const on = selected.includes(o.id);
+              const Box = on ? CheckSquare : Square;
+              return (
+                <TouchableOpacity
+                  key={o.id}
+                  style={[styles.predOption, on && styles.predOptionActive]}
+                  onPress={() => toggle(o.id)}
+                  activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={taskName(o)}
+                  testID={`pred-option-${i}`}
+                >
+                  <Box size={18} color={on ? themeColors.accent : themeColors.textMuted} strokeWidth={2} />
+                  <View style={[styles.taskDot, { backgroundColor: PHASE_COLORS[o.phase] ?? PHASE_COLORS.General }]} />
+                  <Text style={[styles.predOptionText, on && { color: themeColors.text }]} numberOfLines={1}>
+                    {i + 1}. {taskName(o)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            {options.length === 0 && (
+              <Text style={styles.helper}>
+                Nothing runs before this task, so it starts on day 1.
+              </Text>
+            )}
+          </ScrollView>
+
+          <Text style={[styles.helper, { marginTop: 12 }]} testID="pred-summary">
+            {sequenceDetail(tasks, selected)}
+          </Text>
+          <TouchableOpacity
+            style={[styles.confirmBtn, { marginTop: 12 }]}
+            onPress={() => onApply(selected)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            testID="pred-apply"
+          >
+            <Text style={styles.confirmBtnText}>Done</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// ── Template browser (document path, opt-in) ──────────────────────
+// The template strip used to be the first thing on this step even when the
+// user explicitly asked for a blank schedule. It lives here now: reachable in
+// one tap from a text link under the list, invisible until asked for.
+function TemplateSheet(props: {
+  visible: boolean;
+  templates: ScheduleTemplate[];
+  activeId: string;
+  onClose: () => void;
+  onPick: (id: string) => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { visible, templates, activeId, onClose, onPick } = props;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={() => undefined}>
+          <View style={styles.sheetHead}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sheetTitle}>Start from a template</Text>
+              <Text style={styles.sheetSub}>Replaces the tasks you have now</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
+              <X size={19} color={themeColors.textMuted} strokeWidth={1.9} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+            <TouchableOpacity
+              style={[styles.predOption, activeId === SCRATCH_ID && styles.predOptionActive]}
+              onPress={() => onPick(SCRATCH_ID)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              testID="template-option-scratch"
+            >
+              <PencilRuler size={17} color={activeId === SCRATCH_ID ? themeColors.accent : themeColors.textMuted} strokeWidth={1.9} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.predOptionText}>Empty schedule</Text>
+                <Text style={styles.templateSub}>Build your own</Text>
+              </View>
+              {activeId === SCRATCH_ID && <Check size={16} color={themeColors.accent} strokeWidth={2.5} />}
+            </TouchableOpacity>
+            {templates.map(tpl => {
+              const Icon = TEMPLATE_ICONS[tpl.id] ?? Hammer;
+              const active = tpl.id === activeId;
+              return (
+                <TouchableOpacity
+                  key={tpl.id}
+                  style={[styles.predOption, active && styles.predOptionActive]}
+                  onPress={() => onPick(tpl.id)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  testID={`template-option-${tpl.id}`}
+                >
+                  <Icon size={17} color={active ? themeColors.accent : themeColors.textMuted} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.predOptionText}>{tpl.name}</Text>
+                    <Text style={styles.templateSub}>{tpl.taskCount} tasks · {tpl.typicalDuration}</Text>
+                  </View>
                   {active && <Check size={16} color={themeColors.accent} strokeWidth={2.5} />}
                 </TouchableOpacity>
               );
@@ -1483,6 +2069,41 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textMuted,
     lineHeight: 19,
   },
+  // "Which job is this for?" — a question, not a step header. Used only on
+  // the document path, where this screen is the single thing being asked.
+  askTitle: {
+    fontSize: Type.title3.fontSize,
+    fontWeight: '700' as const,
+    color: t.text,
+    letterSpacing: -0.3,
+  },
+
+  // ── Document header ───────────────────────────────────────────
+  // Stands in for the whole project step once it's been skipped: says what
+  // this file is, which job owns it, and when it starts — all editable, none
+  // of it blocking.
+  docHead: { gap: 4, marginBottom: 4 },
+  docTitle: {
+    fontSize: Type.title2.fontSize,
+    fontWeight: '800' as const,
+    color: t.text,
+    letterSpacing: -0.5,
+  },
+  docMetaRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    flexWrap: 'wrap' as const,
+    gap: 6,
+  },
+  docMeta: {
+    fontSize: Type.caption1.fontSize,
+    color: t.textMuted,
+  },
+  docMetaLink: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: t.accent,
+  },
 
   heroCard: {
     flexDirection: 'row' as const,
@@ -1657,6 +2278,24 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between' as const,
     marginTop: 24,
   },
+  // No template strip above it on the document path, so the list starts high.
+  tasksHeadRowTight: { marginTop: 8 },
+  // Templates as a footnote, not an offer: text weight, no card, last thing
+  // on the screen.
+  templateLink: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  templateLinkText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
+    color: t.textMuted,
+    textDecorationLine: 'underline' as const,
+  },
   // Live totals while editing — you shouldn't have to advance a step to find
   // out whether the plan you just built is six weeks or six months.
   tasksHeadTotal: {
@@ -1671,6 +2310,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: t.line,
+  },
+  // Lifted off the list while dragged, so it's obvious which row is moving.
+  taskRowDragging: {
+    borderColor: t.accent,
+    backgroundColor: t.surfaceAlt,
+  },
+  // The grip + number badge, together, are the grab area. Vertical padding
+  // makes it a real touch target without changing the row's height.
+  dragHandle: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 2,
+    paddingVertical: 6,
+    paddingRight: 2,
   },
   taskTopRow: {
     flexDirection: 'row' as const,
@@ -1857,6 +2510,51 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.text,
     letterSpacing: -0.3,
+  },
+  sheetSub: {
+    fontSize: Type.caption1.fontSize,
+    color: t.textMuted,
+    marginTop: 2,
+  },
+
+  // ── Predecessor picker ────────────────────────────────────────
+  // Presets first (the three states the old one-tap chip could reach), then
+  // the full set. Tapping a preset moves the CHECKBOXES, so the relationship
+  // between "after the task above" and "this specific row" is visible rather
+  // than something you have to be told.
+  presetRow: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 6,
+  },
+  presetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1, borderColor: t.line,
+  },
+  presetChipActive: { borderColor: t.accent, backgroundColor: t.accent + '12' },
+  presetChipText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: t.textSecondary,
+  },
+  presetChipTextActive: { color: t.accent, fontWeight: '700' as const },
+  predOption: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 10,
+    borderRadius: Tokens.radius.md,
+  },
+  predOptionActive: { backgroundColor: t.accent + '10' },
+  predOptionText: {
+    flex: 1,
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600' as const,
+    color: t.textSecondary,
   },
   phaseOption: {
     flexDirection: 'row' as const,
