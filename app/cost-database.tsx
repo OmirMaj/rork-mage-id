@@ -24,6 +24,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { buildCostDatabase, type CostBookEntry } from '@/utils/costDatabase';
+import { useCostBenchmark } from '@/hooks/useCostBenchmark';
+import CostTruthChip from '@/components/CostTruthChip';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useBrainGrading } from '@/hooks/useBrainGrading';
@@ -68,6 +70,14 @@ function CostDatabaseInner() {
     () => buildCostDatabase(projects, commitments, receipts, laborSamples),
     [projects, commitments, receipts, laborSamples],
   );
+
+  // Cost Truth: contribute my learned rates + read the cross-contractor
+  // regional benchmark (aggregate-only, k-anonymized).
+  const benchInputs = useMemo(
+    () => db.entries.map((e) => ({ trade: e.trade, unit: e.unit, personalRate: e.personalRate })),
+    [db.entries],
+  );
+  const { statsFor } = useCostBenchmark(benchInputs);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = useCallback((key: string) => {
@@ -160,6 +170,7 @@ function CostDatabaseInner() {
           {db.entries.map(e => {
             const isOpen = expanded.has(e.key);
             const cc = confColor(e.confidence);
+            const bench = statsFor(e.trade, e.unit);
             const bidsLow = e.bidBias > 0.02;
             const bidsHigh = e.bidBias < -0.02;
             return (
@@ -176,6 +187,11 @@ function CostDatabaseInner() {
                       per {e.unit} · {e.jobCount} job{e.jobCount === 1 ? '' : 's'}
                       <Text style={{ color: cc }}> · {e.confidence}</Text>
                     </Text>
+                    {bench ? (
+                      <View style={{ marginTop: 5 }}>
+                        <CostTruthChip stats={bench} rate={e.personalRate} />
+                      </View>
+                    ) : null}
                   </View>
                   <View style={styles.rateBox}>
                     <Text style={styles.rateVal}>{formatRate(e.suggestedRate)}</Text>
