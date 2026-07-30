@@ -92,10 +92,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     letterSpacing: 1.5,
     marginBottom: 4,
   },
+  // Fraunces display face — matches PageHeader, the wizard hero, and the
+  // Card.Title serif used by the cards directly below this band.
   heroTitle: {
+    ...Type.serifTitle,
     color: '#F4EFE6',
-    fontSize: Type.title1.fontSize,
-    fontWeight: '800',
   },
   heroSubtitle: {
     color: '#C9C3B8',

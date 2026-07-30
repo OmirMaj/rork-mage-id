@@ -224,7 +224,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   hero: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden' },
   heroEyebrow: { color: '#FF8533', fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 1.4, marginBottom: 4 },
-  heroTitle: { color: '#F4EFE6', fontSize: Type.title1.fontSize, fontWeight: '800' },
+  // Fraunces display face — same hero band as the estimate hub + wizard.
+  heroTitle: { ...Type.serifTitle, color: '#F4EFE6' },
   heroSub: { color: '#C9C3B8', fontSize: Type.subhead.fontSize, marginTop: 4 },
   toggle: { flexDirection: 'row', gap: 4, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, padding: 4, marginBottom: 16 },
   seg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: Tokens.radius.sm },

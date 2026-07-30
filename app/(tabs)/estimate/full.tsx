@@ -3904,11 +3904,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 6,
   },
+  // Fraunces display face at the shared page-title size — matches PageHeader
+  // (every primary tab) instead of a one-off 32px system-font title.
   headerTitle: {
-    fontSize: 32,
-    fontWeight: '700' as const,
+    ...Type.serifTitle,
     color: themeColors.text,
-    letterSpacing: -0.5,
   },
   liveRow: {
     flexDirection: 'row',
