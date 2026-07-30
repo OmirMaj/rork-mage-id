@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { MapPin, DollarSign, Clock, Briefcase, Award, ChevronRight, Send, Building2 } from 'lucide-react-native';
@@ -13,6 +13,7 @@ import { useHire, HIRE_ENABLED } from '@/contexts/HireContext';
 import { getTradeLabel } from '@/constants/trades';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const JOB_TYPE_LABELS: Record<string, string> = {
   full_time: 'Full-Time', part_time: 'Part-Time', contract: 'Contract', per_diem: 'Per Diem',
@@ -65,7 +66,7 @@ export default function JobDetailScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     applyToJob(job.id);
     setApplied(true);
-    Alert.alert('Applied!', 'Your application has been submitted.');
+    showAlert('Applied!', 'Your application has been submitted.');
   };
 
   const handleMessage = () => {

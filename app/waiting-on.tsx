@@ -8,7 +8,9 @@
 // Anti-slop: Colors/Type/Tokens + lucide only.
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Platform, Alert } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Platform,
+} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +24,7 @@ import { buildChaseList, chaseSummary, type ChaseItem, type ChaseKind } from '@/
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const KIND_ICON: Record<ChaseKind, typeof FileQuestion> = {
   rfi: FileQuestion,
@@ -59,7 +62,7 @@ export default function WaitingOnScreen() {
       await Share.share({ message: item.nudge });
       setSent((prev) => new Set(prev).add(item.id));
     } catch {
-      Alert.alert('Could not open share', 'Copy the follow-up from the item instead.');
+      showAlert('Could not open share', 'Copy the follow-up from the item instead.');
     }
   };
 

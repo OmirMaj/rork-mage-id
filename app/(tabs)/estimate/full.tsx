@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  TextInput, Animated, Platform, FlatList, Modal, KeyboardAvoidingView, Pressable,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Animated, Platform, FlatList, Modal, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,6 +61,7 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
+import { showAlert } from '@/utils/alert';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -360,7 +360,7 @@ export default function EstimateScreen() {
   const handleAddCustomMaterial = useCallback(() => {
     const price = parseLenientNumber(customPrice);
     if (!customName.trim() || price === null || price <= 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid name and price.');
+      showAlert('Invalid Input', 'Please enter a valid name and price.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -554,7 +554,7 @@ export default function EstimateScreen() {
     const hours = parseLenientNumber(laborHoursInput);
     const rate = parseLenientNumber(laborRateInput);
     if (hours === null || hours <= 0 || rate === null || rate <= 0) {
-      Alert.alert('Invalid Input', 'Please enter valid hours and rate.');
+      showAlert('Invalid Input', 'Please enter valid hours and rate.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -597,7 +597,7 @@ export default function EstimateScreen() {
     if (!selectedAssembly) return;
     const qty = parseLenientNumber(assemblyQtyInput);
     if (qty === null || qty <= 0) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
+      showAlert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -668,7 +668,7 @@ export default function EstimateScreen() {
       const costs = calculateAssemblyCost(assembly, ta.defaultQuantity);
       newAssemblies.push({ assembly, quantity: ta.defaultQuantity, ...costs });
     }
-    Alert.alert(
+    showAlert(
       `Load ${template.name}?`,
       `This will add ${newAssemblies.length} assemblies to your estimate. ${template.priceRange}`,
       [
@@ -753,7 +753,7 @@ export default function EstimateScreen() {
     if (!selectedMaterial) return;
     const qty = parseLenientNumber(itemQty);
     if (qty === null || qty <= 0) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
+      showAlert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -888,7 +888,7 @@ export default function EstimateScreen() {
 
   const handleSelectProject = useCallback(() => {
     if (!selectedProjectId) {
-      Alert.alert('Select a project', 'Please choose a project to attach this estimate to.');
+      showAlert('Select a project', 'Please choose a project to attach this estimate to.');
       return;
     }
     const proj = projects.find(p => p.id === selectedProjectId);
@@ -925,7 +925,7 @@ export default function EstimateScreen() {
     setPendingLinkProject(null);
     const projId = pendingLinkProject.id;
     const projName = pendingLinkProject.name;
-    Alert.alert('Estimate Linked', `Your estimate has been ${mode === 'merge' ? 'merged into' : 'linked to'} "${projName}".`, [
+    showAlert('Estimate Linked', `Your estimate has been ${mode === 'merge' ? 'merged into' : 'linked to'} "${projName}".`, [
       { text: 'View Project', onPress: () => router.push({ pathname: '/project-detail', params: { id: projId } }) },
       { text: 'OK' },
     ]);
@@ -988,12 +988,12 @@ export default function EstimateScreen() {
       });
 
       if (result.success) {
-        Alert.alert('Email Sent', `Estimate emailed to ${options.recipient}`);
+        showAlert('Email Sent', `Estimate emailed to ${options.recipient}`);
       } else if (result.error === 'cancelled') {
         return;
       } else {
         console.warn('[Estimate] Email send failed:', result.error);
-        Alert.alert(
+        showAlert(
           'Email Issue',
           'Could not send via email. Would you like to share the PDF using another app instead?',
           [
@@ -1041,7 +1041,7 @@ export default function EstimateScreen() {
       }, 'share');
     } catch (e) {
       console.error('[Estimate] PDF share error:', e);
-      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+      showAlert('Error', 'Failed to generate PDF. Please try again.');
     }
   }, [cart, settings, buildLinkedEstimate, cartTotal, isFree]);
 
@@ -1068,7 +1068,7 @@ export default function EstimateScreen() {
     const subject = settings.branding?.companyName ? `${settings.branding.companyName} - Estimate` : 'MAGE ID Estimate';
     const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
     Linking.openURL(url).catch(() => {
-      Alert.alert('Unable to open email', 'Please check your email app is configured.');
+      showAlert('Unable to open email', 'Please check your email app is configured.');
     });
   }, [cart, cartBaseTotal, cartTotal, markupTotal, settings]);
 
@@ -1080,7 +1080,7 @@ export default function EstimateScreen() {
       ? `sms:&body=${encodeURIComponent(body)}`
       : `sms:?body=${encodeURIComponent(body)}`;
     Linking.openURL(url).catch(() => {
-      Alert.alert('Unable to open messages', 'Please check your messaging app.');
+      showAlert('Unable to open messages', 'Please check your messaging app.');
     });
   }, [cart, cartTotal, settings]);
 
@@ -1907,7 +1907,7 @@ export default function EstimateScreen() {
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: Colors.error + '12' }}
                 onPress={() => {
-                  Alert.alert(
+                  showAlert(
                     'Delete assembly?',
                     `Remove "${item.name}" from your custom assemblies?`,
                     [
@@ -2308,7 +2308,7 @@ export default function EstimateScreen() {
                             <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primary }}>Edit</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => Alert.alert(
+                            onPress={() => showAlert(
                               'Delete assembly?',
                               `Remove "${item.name}" from your custom assemblies?`,
                               [

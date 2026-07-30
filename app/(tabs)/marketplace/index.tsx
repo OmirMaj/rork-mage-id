@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Pressable, Alert, Platform, FlatList, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, Platform, FlatList, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +25,7 @@ import { MOCK_SUPPLIERS, MOCK_LISTINGS, SUPPLIER_CATEGORIES } from '@/mocks/supp
 import type { Supplier, SupplierListing } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 type ViewMode = 'suppliers' | 'listings';
 
@@ -83,18 +83,18 @@ export default function MarketplaceScreen() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (method === 'email') {
       const url = `mailto:${supplier.email}?subject=Inquiry from MAGE ID —${supplier.companyName}`;
-      Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email client.'));
+      Linking.openURL(url).catch(() => showAlert('Error', 'Could not open email client.'));
     } else if (method === 'phone') {
-      Linking.openURL(`tel:${supplier.phone}`).catch(() => Alert.alert('Error', 'Could not open phone.'));
+      Linking.openURL(`tel:${supplier.phone}`).catch(() => showAlert('Error', 'Could not open phone.'));
     } else {
-      Linking.openURL(`https://${supplier.website}`).catch(() => Alert.alert('Error', 'Could not open browser.'));
+      Linking.openURL(`https://${supplier.website}`).catch(() => showAlert('Error', 'Could not open browser.'));
     }
   }, []);
 
   const handleRequestQuote = useCallback((listing: SupplierListing) => {
     const qty = parseInt(orderQty, 10);
     if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
+      showAlert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
     const supplier = getSupplier(listing.supplierId);
@@ -106,7 +106,7 @@ export default function MarketplaceScreen() {
     const subject = `Quote request —${listing.name}`;
     const body = `Hi ${supplier.contactName},\n\nI'd like to request a quote for:\n\nItem: ${listing.name}\nQuantity: ${qty} ${listing.unit}\nUnit Price: $${unitPrice.toFixed(2)}${usesBulk ? ' (bulk rate)' : ''}\nEstimated Total: $${total.toFixed(2)}\n\nPlease confirm availability and delivery timeline.\n\nThank you,\nSent via MAGE ID`;
     const url = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email client.'));
+    Linking.openURL(url).catch(() => showAlert('Error', 'Could not open email client.'));
     setSelectedListing(null);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [orderQty, getSupplier]);

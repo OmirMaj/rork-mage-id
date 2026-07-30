@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { ChevronDown, X } from 'lucide-react-native';
@@ -20,6 +20,7 @@ import { generateUUID } from '@/utils/generateId';
 import { parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const BID_TYPES: { id: BidType; label: string }[] = [
   { id: 'federal', label: 'Federal' }, { id: 'state', label: 'State' },
@@ -99,7 +100,7 @@ export default function PostBidScreen() {
       } else {
         // Business/enterprise at cap — no higher tier to sell. Alert fired
         // HERE, in the event handler (never as a side effect during render).
-        Alert.alert(
+        showAlert(
           'Monthly limit reached',
           `Your ${tier} plan includes ${monthlyLimit} community posts per month. Contact support to discuss higher limits.`,
         );
@@ -108,7 +109,7 @@ export default function PostBidScreen() {
     }
 
     if (!title.trim() || !agency.trim() || !city.trim() || !estimatedValue || !bondRequired || !deadline || !contactEmail.trim()) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields.');
+      showAlert('Missing Fields', 'Please fill in all required fields.');
       return;
     }
 
@@ -118,7 +119,7 @@ export default function PostBidScreen() {
     // uncomputable deadline out of the feed's daysLeft math downstream.
     const deadlineDate = new Date(deadline.trim());
     if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline.trim()) || isNaN(deadlineDate.getTime())) {
-      Alert.alert('Invalid Deadline', 'Enter the deadline as YYYY-MM-DD (e.g. 2026-06-01).');
+      showAlert('Invalid Deadline', 'Enter the deadline as YYYY-MM-DD (e.g. 2026-06-01).');
       return;
     }
 
@@ -152,7 +153,7 @@ export default function PostBidScreen() {
     // the relevant company's opportunities — it is NOT broadcast into the
     // homeowner-RFP "near you" feed (that feed filters is_homeowner_rfp), so
     // we don't imply it will show up there.
-    Alert.alert(
+    showAlert(
       'Bid Posted',
       'Your solicitation is saved. Contractors whose bond capacity and certifications match will see it in their matching opportunities.',
       [{ text: 'OK', onPress: () => router.back() }],

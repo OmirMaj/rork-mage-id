@@ -9,7 +9,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ import { buildTax1099Dataset, tax1099DatasetToCsv, type Tax1099Row } from '@/uti
 import type { SubSubmittedInvoice } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function Tax1099ExportScreen() {
   const { colors: themeColors } = useTheme();
@@ -148,7 +149,7 @@ export default function Tax1099ExportScreen() {
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      Alert.alert('Export failed', (err as Error).message ?? 'Could not generate CSV.');
+      showAlert('Export failed', (err as Error).message ?? 'Could not generate CSV.');
     } finally {
       setGenerating(false);
     }

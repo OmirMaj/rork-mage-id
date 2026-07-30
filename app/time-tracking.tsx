@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert, Modal, Share, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Share, TextInput,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -27,6 +26,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useCrew } from '@/contexts/CrewContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 function getElapsedHours(clockIn: string): string {
   const diff = Date.now() - new Date(clockIn).getTime();
@@ -358,7 +358,7 @@ function TimeTrackingScreenInner() {
       doClockOut(entry.id);
       // Brief confirmation. The hook computes totalHours/overtimeHours
       // server-side-compatible and updates the row.
-      Alert.alert('Clocked Out', `${entry.workerName} clocked out.`);
+      showAlert('Clocked Out', `${entry.workerName} clocked out.`);
     }
   }, [startBreak, resumeFromBreak, doClockOut]);
 
@@ -386,7 +386,7 @@ function TimeTrackingScreenInner() {
   // sheet on mobile / clipboard on web.
   const handleExportCSV = useCallback(async () => {
     if (entries.length === 0) {
-      Alert.alert('No entries', 'Clock in some crew before exporting.');
+      showAlert('No entries', 'Clock in some crew before exporting.');
       return;
     }
     const csv = buildTimeEntriesCSV(entries);
@@ -396,9 +396,9 @@ function TimeTrackingScreenInner() {
         // under the hood) and avoids the deprecated react-native Clipboard
         // module that the previous implementation pulled in.
         await Clipboard.setStringAsync(csv);
-        Alert.alert('Copied', `${entries.length} entries copied as CSV. Paste into Excel / QuickBooks / Sage.`);
+        showAlert('Copied', `${entries.length} entries copied as CSV. Paste into Excel / QuickBooks / Sage.`);
       } catch {
-        Alert.alert('Export failed', 'Could not copy CSV to clipboard.');
+        showAlert('Export failed', 'Could not copy CSV to clipboard.');
       }
       return;
     }

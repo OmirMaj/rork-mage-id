@@ -34,6 +34,7 @@ import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import type { SelectionCategory, SelectionOption } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert, showPrompt } from '@/utils/alert';
 
 export default function SelectionsScreen() {
   const { colors: themeColors } = useTheme();
@@ -79,7 +80,7 @@ export default function SelectionsScreen() {
       setAddModal(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
-      Alert.alert('Save failed', 'Could not save the category.');
+      showAlert('Save failed', 'Could not save the category.');
     }
   }, [projectId, categories.length]);
 
@@ -92,7 +93,7 @@ export default function SelectionsScreen() {
         budget: cat.budget,
       });
       if (options.length === 0) {
-        Alert.alert('No options', 'AI didn\'t return any options. Try a more specific style brief.');
+        showAlert('No options', 'AI didn\'t return any options. Try a more specific style brief.');
         return;
       }
       // Resolve a product photo for each option (og:image from the AI's product
@@ -103,13 +104,13 @@ export default function SelectionsScreen() {
       })));
       const ok = await saveCuratedOptions(cat.id, withImages);
       if (!ok) {
-        Alert.alert('Save failed', 'Generated options but could not save them.');
+        showAlert('Save failed', 'Generated options but could not save them.');
         return;
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refresh();
     } catch (e) {
-      Alert.alert('Curation failed', e instanceof Error ? e.message : 'Try again in a moment.');
+      showAlert('Curation failed', e instanceof Error ? e.message : 'Try again in a moment.');
     } finally {
       setCurating(null);
     }
@@ -119,13 +120,13 @@ export default function SelectionsScreen() {
   // iOS-only (Alert.prompt is iOS-only); other platforms re-curate to refresh.
   const onSetOptionPhoto = useCallback((option: SelectionOption, category: string) => {
     if (Platform.OS !== 'ios') {
-      Alert.alert('Paste a link', 'Setting a photo from a link is available on iOS. On other platforms, re-curate to refresh photos.');
+      showAlert('Paste a link', 'Setting a photo from a link is available on iOS. On other platforms, re-curate to refresh photos.');
       return;
     }
-    Alert.prompt('Set photo from link', "Paste the product page URL — we'll pull its photo.", async (url?: string) => {
+    showPrompt('Set photo from link', "Paste the product page URL — we'll pull its photo.", async (url?: string) => {
       if (!url || !url.trim()) return;
       const imageUrl = await resolveSelectionImage({ url: url.trim() });
-      if (!imageUrl) { Alert.alert('No image found', "Couldn't find a photo at that link."); return; }
+      if (!imageUrl) { showAlert('No image found', "Couldn't find a photo at that link."); return; }
       await saveSelectionOption({ id: option.id, categoryId: option.categoryId, productName: option.productName, unitPrice: option.unitPrice, productUrl: url.trim(), imageUrl });
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
       await refresh();
@@ -141,7 +142,7 @@ export default function SelectionsScreen() {
   }, [refresh]);
 
   const handleDelete = useCallback((cat: SelectionCategory) => {
-    Alert.alert(
+    showAlert(
       `Delete "${cat.category}"?`,
       'This removes the category and all AI-generated options. The homeowner won\'t see it anymore.',
       [
@@ -462,11 +463,11 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
     const trimmedCat = category.trim();
     const numericBudget = Number(budget);
     if (!trimmedCat) {
-      Alert.alert('Category required', 'Pick a category like "Kitchen Cabinets" or "Bath Tile".');
+      showAlert('Category required', 'Pick a category like "Kitchen Cabinets" or "Bath Tile".');
       return;
     }
     if (!isFinite(numericBudget) || numericBudget <= 0) {
-      Alert.alert('Allowance required', 'Set an allowance greater than $0 so AI can curate options at the right price point.');
+      showAlert('Allowance required', 'Set an allowance greater than $0 so AI can curate options at the right price point.');
       return;
     }
     onAdd({ category: trimmedCat, budget: numericBudget, styleBrief: styleBrief.trim() });

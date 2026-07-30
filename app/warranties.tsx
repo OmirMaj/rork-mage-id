@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Alert, Platform, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +19,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { showAlert } from '@/utils/alert';
 
 const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'general', label: 'General' },
@@ -150,17 +150,17 @@ export default function WarrantiesScreen() {
   }, []);
 
   const handleSave = useCallback(() => {
-    if (!title.trim()) { Alert.alert('Missing Title', 'Please enter a warranty title.'); return; }
-    if (!formProjectId) { Alert.alert('Missing Project', 'Please select a project.'); return; }
+    if (!title.trim()) { showAlert('Missing Title', 'Please enter a warranty title.'); return; }
+    if (!formProjectId) { showAlert('Missing Project', 'Please select a project.'); return; }
     const months = parseInt(durationMonths, 10);
-    if (!Number.isFinite(months) || months <= 0) { Alert.alert('Invalid Duration', 'Enter months as a positive integer.'); return; }
+    if (!Number.isFinite(months) || months <= 0) { showAlert('Invalid Duration', 'Enter months as a positive integer.'); return; }
     // Guard the start date before deriving start/end. new Date('garbage')
     // yields Invalid Date, whose toISOString() throws — and addMonths would
     // otherwise silently fall back to "today + N months", saving dates the GC
     // never intended with no warning.
     const startParsed = new Date(startDate);
     if (Number.isNaN(startParsed.getTime())) {
-      Alert.alert('Invalid Start Date', 'Enter the start date as YYYY-MM-DD (e.g. 2026-07-14).');
+      showAlert('Invalid Start Date', 'Enter the start date as YYYY-MM-DD (e.g. 2026-07-14).');
       return;
     }
     const proj = projects.find(p => p.id === formProjectId);
@@ -190,7 +190,7 @@ export default function WarrantiesScreen() {
   }, [title, formProjectId, durationMonths, projects, startDate, category, description, provider, coverage, editingId, updateWarranty, addWarranty, resetForm]);
 
   const handleDelete = useCallback((w: Warranty) => {
-    Alert.alert('Delete Warranty', `Remove "${w.title}"?`, [
+    showAlert('Delete Warranty', `Remove "${w.title}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteWarranty(w.id) },
     ]);

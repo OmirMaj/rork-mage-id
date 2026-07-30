@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -23,6 +22,7 @@ import type { ToolboxTalk, SafetyAttendee } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { showAlert } from '@/utils/alert';
 
 export default function SafetyToolboxScreen() {
   const router = useRouter();
@@ -94,7 +94,7 @@ function SafetyToolboxInner() {
       // A recorded signature is immutable — signed attendees can't be pulled
       // off the sheet. Unsigned rows are still free to remove.
       if (prev[idx]?.signedAt) {
-        Alert.alert('Signed in — locked', 'A signed attendee is part of the record and can\'t be removed.');
+        showAlert('Signed in — locked', 'A signed attendee is part of the record and can\'t be removed.');
         return prev;
       }
       return prev.filter((_, i) => i !== idx);
@@ -107,7 +107,7 @@ function SafetyToolboxInner() {
       // Signing is append-only: once signed, it stays signed. Only an unsigned
       // attendee can be signed in.
       if (a.signedAt) {
-        Alert.alert('Signed in — locked', 'A signature can\'t be undone once recorded.');
+        showAlert('Signed in — locked', 'A signature can\'t be undone once recorded.');
         return a;
       }
       return { ...a, signedAt: new Date().toISOString() };
@@ -127,7 +127,7 @@ function SafetyToolboxInner() {
 
   const handleSave = useCallback(() => {
     const tp = topic.trim();
-    if (!tp) { Alert.alert('Missing topic', 'What was the talk about?'); return; }
+    if (!tp) { showAlert('Missing topic', 'What was the talk about?'); return; }
     const now = new Date().toISOString();
     if (editingTalk) {
       updateToolboxTalk(editingTalk.id, { topic: tp, date, presenter: presenter.trim(), notes: notes.trim(), attendees });
@@ -145,10 +145,10 @@ function SafetyToolboxInner() {
   const handleDelete = useCallback((id: string) => {
     const talk = items.find(x => x.id === id);
     if (talk && talk.attendees.some(a => !!a.signedAt)) {
-      Alert.alert('Signed — locked', 'A toolbox talk with signed attendees is part of the safety record and can\'t be deleted.');
+      showAlert('Signed — locked', 'A toolbox talk with signed attendees is part of the safety record and can\'t be deleted.');
       return;
     }
-    Alert.alert('Delete toolbox talk', 'Delete this toolbox talk?', [
+    showAlert('Delete toolbox talk', 'Delete this toolbox talk?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteToolboxTalk(id) },
     ]);

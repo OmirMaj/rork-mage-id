@@ -14,7 +14,7 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Share, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -32,6 +32,7 @@ import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface DraftLine {
   /** Stable key for the row (not persisted). */
@@ -109,11 +110,11 @@ export default function QuickQuoteScreen() {
       .filter(l => l.amount > 0);
 
     if (!name) {
-      Alert.alert('Add a client name', 'A quote needs a client name before you can send it.');
+      showAlert('Add a client name', 'A quote needs a client name before you can send it.');
       return;
     }
     if (priced.length === 0) {
-      Alert.alert('Add a line item', 'Add at least one line item with an amount above $0.');
+      showAlert('Add a line item', 'Add at least one line item with an amount above $0.');
       return;
     }
 
@@ -138,7 +139,7 @@ export default function QuickQuoteScreen() {
       console.warn('[quickQuote] share failed:', err);
     }
 
-    Alert.alert('Quote saved', `${formatMoney(quote.tiers[0]?.price ?? 0)} quote for ${name} is in Recent quotes below.`);
+    showAlert('Quote saved', `${formatMoney(quote.tiers[0]?.price ?? 0)} quote for ${name} is in Recent quotes below.`);
 
     // Reset the form for the next quick quote.
     setClientName('');

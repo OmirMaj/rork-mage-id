@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, Share,
-  ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Share, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -71,6 +69,7 @@ import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { safeJsonParse } from '@/utils/safeJson';
 import { progressSubtotal, netBalanceDue, markupInclusiveUnitPrice } from '@/utils/invoiceBilling';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showAlert } from '@/utils/alert';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -347,7 +346,7 @@ function InvoiceInner() {
   const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string) => {
     if (!projectId) return;
     if (lineItems.length === 0) {
-      Alert.alert('No Items', 'Please add at least one line item.');
+      showAlert('No Items', 'Please add at least one line item.');
       return;
     }
 
@@ -379,7 +378,7 @@ function InvoiceInner() {
         ...(totalChanged ? { payLinkUrl: undefined, payLinkId: undefined } : {}),
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
+      showAlert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
     } else {
       const inv = buildNewInvoice(status);
       addInvoice(inv);
@@ -396,12 +395,12 @@ function InvoiceInner() {
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
-      Alert.alert('Email Required', 'Please enter a recipient email address.');
+      showAlert('Email Required', 'Please enter a recipient email address.');
       return;
     }
     if (!projectId) return;
     if (lineItems.length === 0) {
-      Alert.alert('No Items', 'Please add at least one line item.');
+      showAlert('No Items', 'Please add at least one line item.');
       return;
     }
     setShowSendRecipient(false);
@@ -531,7 +530,7 @@ function InvoiceInner() {
       if (createdNew) updateInvoice(workingInvoice.id, { status: 'draft' });
       if (result.error === 'cancelled') return;
       console.warn('[Invoice] Email send failed:', result.error);
-      Alert.alert('Email Notice', `Invoice ${createdNew ? 'saved as draft' : 'saved'} but email could not be sent: ${result.error}`);
+      showAlert('Email Notice', `Invoice ${createdNew ? 'saved as draft' : 'saved'} but email could not be sent: ${result.error}`);
       return;
     }
     console.log('[Invoice] Email sent successfully');
@@ -564,7 +563,7 @@ function InvoiceInner() {
     const stripeNudgeSeen = await AsyncStorage.getItem('mageid_stripe_nudge_seen').catch(() => null);
     if (stripeNotConnected && totalDue > 0 && stripeNudgeSeen !== '1') {
       void AsyncStorage.setItem('mageid_stripe_nudge_seen', '1');
-      Alert.alert(
+      showAlert(
         'Invoice sent — no Pay button included',
         "You haven't connected Stripe yet, so this invoice was emailed without a one-tap Pay button. Set up Stripe in Payments to add Pay buttons to future invoices.",
         [
@@ -656,11 +655,11 @@ function InvoiceInner() {
       });
 
       if (result.success) {
-        Alert.alert('Email Sent', `Invoice emailed to ${options.recipient}`);
+        showAlert('Email Sent', `Invoice emailed to ${options.recipient}`);
       } else if (result.error === 'cancelled') {
         return;
       } else {
-        Alert.alert(
+        showAlert(
           'Email Issue',
           'Could not send via email. Would you like to share the PDF using another app instead?',
           [
@@ -694,14 +693,14 @@ function InvoiceInner() {
       });
     } catch (e) {
       console.error('[Invoice] PDF share error:', e);
-      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+      showAlert('Error', 'Failed to generate PDF. Please try again.');
     }
   }, [project, existingInvoice, settings, updateInvoice]);
 
   const handleMarkPaid = useCallback(() => {
     const amt = parseFloat(paymentAmount) || 0;
     if (amt <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid payment amount.');
+      showAlert('Invalid Amount', 'Please enter a valid payment amount.');
       return;
     }
     if (!existingInvoice) return;
@@ -731,7 +730,7 @@ function InvoiceInner() {
     setShowPaymentModal(false);
     setPaymentAmount('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Payment Recorded', `${formatCurrency(amt)} payment recorded. Status: ${newStatus.replace('_', ' ')}`);
+    showAlert('Payment Recorded', `${formatCurrency(amt)} payment recorded. Status: ${newStatus.replace('_', ' ')}`);
     router.back();
   }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, updateInvoice, router]);
 
@@ -742,7 +741,7 @@ function InvoiceInner() {
   const handleGeneratePayLink = useCallback(async () => {
     if (!existingInvoice || !project) return;
     if (balanceDue <= 0) {
-      Alert.alert('Nothing Due', 'This invoice has no outstanding balance.');
+      showAlert('Nothing Due', 'This invoice has no outstanding balance.');
       return;
     }
 
@@ -755,11 +754,11 @@ function InvoiceInner() {
       if (user?.id) {
         const status = await fetchStripeConnectStatus(user.id);
         if (!status.success) {
-          Alert.alert('Connection Check Failed', status.error ?? 'Could not verify your payment setup.');
+          showAlert('Connection Check Failed', status.error ?? 'Could not verify your payment setup.');
           return;
         }
         if (!status.chargesEnabled) {
-          Alert.alert(
+          showAlert(
             'Set Up Payments First',
             'You need to connect your bank to receive payments. Set it up now?',
             [
@@ -794,7 +793,7 @@ function InvoiceInner() {
       });
 
       if (!res.success || !res.url || !res.id) {
-        Alert.alert('Could Not Create Payment Link', res.error ?? 'Unknown error from Stripe.');
+        showAlert('Could Not Create Payment Link', res.error ?? 'Unknown error from Stripe.');
         return;
       }
 
@@ -804,13 +803,13 @@ function InvoiceInner() {
       });
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Payment Link Ready',
         'A Stripe payment link has been generated and attached to this invoice. Your client will see a Pay Now button in the portal.',
       );
     } catch (err) {
       console.error('[Invoice] Generate pay link failed:', err);
-      Alert.alert('Error', 'Failed to generate payment link. Please try again.');
+      showAlert('Error', 'Failed to generate payment link. Please try again.');
     } finally {
       setGeneratingPayLink(false);
     }
@@ -820,7 +819,7 @@ function InvoiceInner() {
     if (!existingInvoice?.payLinkUrl) return;
     const ok = await copyToClipboard(existingInvoice.payLinkUrl);
     if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
+    showAlert(
       ok ? 'Copied' : 'Copy Failed',
       ok ? 'Payment link copied to clipboard.' : 'Could not copy to clipboard.',
     );
@@ -848,11 +847,11 @@ function InvoiceInner() {
     if (!existingInvoice) return;
     const amt = parseFloat(retentionReleaseAmount) || 0;
     if (amt <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid release amount.');
+      showAlert('Invalid Amount', 'Please enter a valid release amount.');
       return;
     }
     if (amt > retentionPending + 0.001) {
-      Alert.alert('Exceeds Pending', `Only ${formatCurrency(retentionPending)} of retention is pending. Reduce the amount.`);
+      showAlert('Exceeds Pending', `Only ${formatCurrency(retentionPending)} of retention is pending. Reduce the amount.`);
       return;
     }
     const release: RetentionRelease = {
@@ -871,7 +870,7 @@ function InvoiceInner() {
     setRetentionReleaseAmount('');
     setRetentionReleaseNote('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Retention Released', `${formatCurrency(amt)} marked as released.`);
+    showAlert('Retention Released', `${formatCurrency(amt)} marked as released.`);
   }, [existingInvoice, retentionReleaseAmount, retentionReleaseMethod, retentionReleaseNote, retentionPending, retentionReleased, updateInvoice]);
 
   if (!project) {

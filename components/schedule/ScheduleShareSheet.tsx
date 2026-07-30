@@ -1,15 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  Pressable,
-  Alert,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
+  View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
@@ -24,6 +15,7 @@ import { Colors } from '@/constants/colors';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 import {
   formatShortDate,
   getPhaseColor,
@@ -154,14 +146,14 @@ function ScheduleShareSheet({
           UTI: 'com.adobe.pdf',
         });
       } else {
-        Alert.alert('Sharing not available', 'Sharing is not supported on this device.');
+        showAlert('Sharing not available', 'Sharing is not supported on this device.');
       }
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose();
     } catch (err) {
       console.log('[ScheduleShare] Error generating PDF:', err);
-      Alert.alert('Error', 'Failed to generate schedule PDF.');
+      showAlert('Error', 'Failed to generate schedule PDF.');
     } finally {
       setIsGenerating(false);
     }

@@ -1,5 +1,7 @@
 import React, { useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
+import {
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform,
+} from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { CheckCircle2, CircleDot, Circle, ChevronDown, ChevronRight, Plus, Check, Trash2, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +11,7 @@ import type { ThemeColors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface MobileScheduleListProps {
   tasks: ScheduleTask[];
@@ -86,7 +89,7 @@ export function MobileScheduleList({
     onUpdateTask({ ...t, status: nowDone ? 'in_progress' : 'done', progress: nowDone ? (t.progress ?? 0) : 100 });
   };
   const confirmDelete = (t: ScheduleTask) => {
-    Alert.alert('Delete task?', `"${t.title}" will be removed from the schedule.`, [
+    showAlert('Delete task?', `"${t.title}" will be removed from the schedule.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => { if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); onDeleteTask(t.id); } },
     ]);

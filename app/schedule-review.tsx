@@ -7,7 +7,9 @@
 // "Use this schedule". Nothing is written to the project until then.
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert, useWindowDimensions } from 'react-native';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -37,6 +39,7 @@ import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { useAutonomy } from '@/hooks/useAutonomy';
 import { computePreApplyPlan, type PreApplyDecision } from '@/utils/pace/preApplyPlan';
 import { recordDidForYou } from '@/utils/brain/didForYou';
+import { showAlert } from '@/utils/alert';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -315,7 +318,7 @@ export default function ScheduleReviewScreen() {
     try {
       const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate, projects);
       if (fresh.tasks.length === 0) {
-        Alert.alert('Couldn\'t regenerate', 'The generator returned no tasks. Your current draft is unchanged.');
+        showAlert('Couldn\'t regenerate', 'The generator returned no tasks. Your current draft is unchanged.');
         return;
       }
       setTasks(fresh.tasks);
@@ -326,7 +329,7 @@ export default function ScheduleReviewScreen() {
       await recordAIUsage('smart', 'scheduleBuilder');
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Something went wrong while regenerating the schedule.';
-      Alert.alert('Couldn\'t regenerate', message);
+      showAlert('Couldn\'t regenerate', message);
     } finally {
       setRegenerating(false);
     }

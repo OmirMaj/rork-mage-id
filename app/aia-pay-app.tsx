@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform,
-  ActivityIndicator, Modal,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, ActivityIndicator, Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,6 +41,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { showAlert } from '@/utils/alert';
 
 export default function AIAPayAppScreen() {
   const router = useRouter();
@@ -242,14 +242,14 @@ function AIAPayAppScreenInner() {
   // accuracy when the GC has bound SOV lines to schedule tasks.
   const handleSyncFromSchedule = useCallback(() => {
     if (isLocked) {
-      Alert.alert(
+      showAlert(
         'Period locked',
         'This pay application has been generated with a payment link. Create the next period to revise.'
       );
       return;
     }
     if (!project?.schedule || !project.linkedEstimate || !app) {
-      Alert.alert(
+      showAlert(
         'No schedule data',
         'Link a schedule with a linked estimate to use this action.'
       );
@@ -259,7 +259,7 @@ function AIAPayAppScreenInner() {
     const projectPct = Math.round(metrics.percentComplete);
     const anyLinked = app.lines.some(l => l.linkedTaskId);
     if (projectPct <= 0 && !anyLinked) {
-      Alert.alert(
+      showAlert(
         'No progress yet',
         'Schedule shows 0% complete. Update task progress first.'
       );
@@ -279,7 +279,7 @@ function AIAPayAppScreenInner() {
       }
     });
     if (appliedCount === 0) {
-      Alert.alert(
+      showAlert(
         'No progress yet',
         'Neither project EV nor any linked task has progress > 0.'
       );
@@ -341,7 +341,7 @@ function AIAPayAppScreenInner() {
 
   const handleSave = useCallback(async () => {
     if (isLocked) {
-      Alert.alert(
+      showAlert(
         'Period locked',
         'This pay application has already been generated and a payment link is active. To revise the numbers, create the next period instead.'
       );
@@ -411,7 +411,7 @@ function AIAPayAppScreenInner() {
     // real choice: set up Stripe, or accept that AIA goes out without
     // one-tap pay.
     if (stripeNotConnected && due > 0) {
-      Alert.alert(
+      showAlert(
         'Saved — but no Pay button',
         'You haven\'t connected Stripe yet, so this AIA pay application was saved without a one-tap Pay button on the client portal. Set up Stripe to add Pay buttons to AIA apps and invoices going forward.',
         [
@@ -420,7 +420,7 @@ function AIAPayAppScreenInner() {
         ],
       );
     } else if (stripeFailureReason && due > 0) {
-      Alert.alert(
+      showAlert(
         'Saved — Pay button could not be attached',
         `Stripe didn't reach us when generating the payment link (${stripeFailureReason}). The AIA is saved; you can re-share later when Stripe is reachable to attach a Pay button.`,
         [{ text: 'OK', style: 'default' }],
@@ -433,7 +433,7 @@ function AIAPayAppScreenInner() {
   // generate.
   const requestGenerate = useCallback(() => {
     if (isLocked) {
-      Alert.alert(
+      showAlert(
         'Period locked',
         'This pay application has already been generated. Create the next period to produce a new PDF + pay link.'
       );
@@ -454,7 +454,7 @@ function AIAPayAppScreenInner() {
       await handleSave();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      Alert.alert('Error', 'Could not generate the pay application PDF.');
+      showAlert('Error', 'Could not generate the pay application PDF.');
     } finally {
       setGenerating(false);
     }

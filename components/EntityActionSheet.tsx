@@ -16,8 +16,7 @@
 
 import React, { useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, Pressable,
-  ActionSheetIOS, Platform, Share, Alert,
+  View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, ActionSheetIOS, Platform, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -39,6 +38,7 @@ import type { EntityStore } from '@/utils/entityResolver';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export interface EntityActionSheetProps {
   /** The ref to act on. Pass `null` to hide the sheet. */
@@ -97,7 +97,7 @@ export default function EntityActionSheet({
       case 'copyLink': {
         const link = getEntityDeepLink(entityRef);
         if (!link) {
-          Alert.alert('No link', 'This item doesn\u2019t have a shareable link yet.');
+          showAlert('No link', 'This item doesn\u2019t have a shareable link yet.');
           return;
         }
         const ok = await copyToClipboard(link);
@@ -105,7 +105,7 @@ export default function EntityActionSheet({
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         if (!ok) {
-          Alert.alert('Copy failed', 'Could not copy link to clipboard.');
+          showAlert('Copy failed', 'Could not copy link to clipboard.');
         }
         return;
       }
@@ -118,7 +118,7 @@ export default function EntityActionSheet({
               await (navigator as any).share({ title, text: body });
             } else {
               const ok = await copyToClipboard(body);
-              Alert.alert(
+              showAlert(
                 ok ? 'Copied' : 'Copy failed',
                 ok ? 'Share text copied to clipboard.' : 'Could not copy share text.',
               );

@@ -15,8 +15,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,6 +59,7 @@ import { loadBakedPassport, saveBakedPassport } from '@/utils/passport/passportS
 import { syncMemoryEmbeddings, answerFromMemory, type MemoryDoc } from '@/utils/projectMemory';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { showAlert } from '@/utils/alert';
 
 type BinderStatus = CloseoutBinder['status'];
 
@@ -159,10 +159,10 @@ export default function CloseoutBinderScreen() {
         setBinderId(saved.id);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert('Save failed', 'Could not save the binder. Check your connection and try again.');
+        showAlert('Save failed', 'Could not save the binder. Check your connection and try again.');
       }
     } catch (e) {
-      Alert.alert('Save failed', e instanceof Error ? e.message : 'Try again.');
+      showAlert('Save failed', e instanceof Error ? e.message : 'Try again.');
     } finally {
       setSaving(false);
     }
@@ -201,7 +201,7 @@ export default function CloseoutBinderScreen() {
         generatedAt,
       });
       if (passport.docs.length === 0) {
-        Alert.alert(
+        showAlert(
           'Nothing to index yet',
           'The passport is assembled from selections, warranties, commitments, photos, and the maintenance schedule. Add some of those to this project first.',
         );
@@ -240,7 +240,7 @@ export default function CloseoutBinderScreen() {
     } catch (e) {
       // Non-blocking by design — the binder flow is untouched.
       console.warn('[home-passport] generation failed:', e);
-      Alert.alert('Passport not generated', 'The binder is unaffected. Check your connection and tap Generate again.');
+      showAlert('Passport not generated', 'The binder is unaffected. Check your connection and tap Generate again.');
     } finally {
       setPassportBusy(false);
       setPassportStep('');
@@ -248,7 +248,7 @@ export default function CloseoutBinderScreen() {
   }, [project, passportBusy, canAccess, router, commitments, warranties, projectPhotos, selections, subcontractors, maintenance]);
 
   const handleFinalize = useCallback(() => {
-    Alert.alert(
+    showAlert(
       'Finalize binder?',
       'You can still tweak the note and maintenance items, but the binder will be marked ready to deliver. Continue?',
       [
@@ -268,7 +268,7 @@ export default function CloseoutBinderScreen() {
                 // Never blocks or fails the finalize itself.
                 void runPassportGeneration();
               } else {
-                Alert.alert('Failed', 'Could not finalize. Try again.');
+                showAlert('Failed', 'Could not finalize. Try again.');
               }
             } finally {
               setSaving(false);
@@ -285,7 +285,7 @@ export default function CloseoutBinderScreen() {
     const message = sentAt
       ? 'The homeowner already received this binder. We\'ll re-send the email and refresh the portal copy. Continue?'
       : 'The binder will appear in the homeowner\'s portal under the Closeout section, and we\'ll send them an email so they know where to find it. Continue?';
-    Alert.alert(title, message, [
+    showAlert(title, message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Deliver', onPress: async () => {
@@ -294,7 +294,7 @@ export default function CloseoutBinderScreen() {
             const now = new Date().toISOString();
             const saved = await persistBinder({ status: 'sent', sentAt: now });
             if (!saved) {
-              Alert.alert('Failed', 'Could not deliver. Try again.');
+              showAlert('Failed', 'Could not deliver. Try again.');
               return;
             }
             setBinderId(saved.id);
@@ -321,7 +321,7 @@ export default function CloseoutBinderScreen() {
             // delivery (e.g., warranty work, punch follow-ups).
             const wasFirstDeliver = !sentAt;
             if (wasFirstDeliver && project.status !== 'closed' && project.status !== 'completed') {
-              Alert.alert(
+              showAlert(
                 'Mark project as closed?',
                 'Now that the binder is delivered, do you want to mark the whole project as closed? You can still come back to it for warranty work, punch follow-ups, or invoice tracking.',
                 [
@@ -335,7 +335,7 @@ export default function CloseoutBinderScreen() {
                 ],
               );
             } else {
-              Alert.alert('Delivered', 'The homeowner can see it in their portal now.');
+              showAlert('Delivered', 'The homeowner can see it in their portal now.');
             }
           } finally {
             setDelivering(false);
@@ -376,7 +376,7 @@ export default function CloseoutBinderScreen() {
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      Alert.alert('Export failed', e instanceof Error ? e.message : 'Try again.');
+      showAlert('Export failed', e instanceof Error ? e.message : 'Try again.');
     } finally {
       setExporting(false);
     }
@@ -388,7 +388,7 @@ export default function CloseoutBinderScreen() {
   }, []);
   const removeMaintenance = useCallback((id: string) => {
     const m = maintenance.find(x => x.id === id);
-    Alert.alert(
+    showAlert(
       'Remove maintenance item?',
       m?.task ? `"${m.task}" will be removed from the binder.` : 'This will remove the item from the binder.',
       [
@@ -505,7 +505,7 @@ export default function CloseoutBinderScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[AIA Forms] Generate failed:', err);
-      Alert.alert('Could not generate', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Could not generate', err instanceof Error ? err.message : 'Try again.');
     }
   }, [project, branding, getPunchItemsForProject, getChangeOrdersForProject]);
 

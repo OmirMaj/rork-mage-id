@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 
@@ -16,6 +16,7 @@ import type { JobListing, TradeCategory, JobType, ExperienceLevel } from '@/type
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const JOB_TYPES: { id: JobType; label: string }[] = [
   { id: 'full_time', label: 'Full-Time' }, { id: 'part_time', label: 'Part-Time' },
@@ -47,7 +48,7 @@ export default function PostJobScreen() {
 
   const handleSubmit = useCallback(() => {
     if (!title.trim() || !city.trim() || !payMin || !payMax || !startDate) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields.');
+      showAlert('Missing Fields', 'Please fill in all required fields.');
       return;
     }
 
@@ -74,7 +75,7 @@ export default function PostJobScreen() {
 
     addJob(job);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Job Saved', 'Your job listing has been saved to this device.', [
+    showAlert('Job Saved', 'Your job listing has been saved to this device.', [
       { text: 'OK', onPress: () => router.back() },
     ]);
   }, [title, trade, city, state, payMin, payMax, payType, jobType, expLevel, description, startDate, licenses, addJob, router]);

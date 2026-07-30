@@ -13,8 +13,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform, Modal,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Modal,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,6 +66,7 @@ const CONTRACT_PIPELINE_STAGES: PipelineStage<ContractStatus>[] = [
 ];
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Gate: contracts are a Pro billing tool alongside invoices, change orders,
 // and AIA pay apps — all of which hard-gate behind Pro. Previously the
@@ -179,7 +179,7 @@ function ContractScreenInner() {
   const removeMilestone = useCallback((id: string) => {
     const m = contract?.paymentSchedule.find(x => x.id === id);
     const amount = m?.amount;
-    Alert.alert(
+    showAlert(
       'Remove this milestone?',
       m?.label
         ? `"${m.label}"${amount ? ` — $${amount.toLocaleString()}` : ''} will be removed from the payment schedule.`
@@ -235,7 +235,7 @@ function ContractScreenInner() {
         setContract(saved);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert('Save failed', 'Could not save the contract. Check your connection.');
+        showAlert('Save failed', 'Could not save the contract. Check your connection.');
       }
     } finally {
       setSaving(false);
@@ -246,7 +246,7 @@ function ContractScreenInner() {
   const handleSignAndSend = useCallback(async (signaturePaths: string[], typedName: string) => {
     if (!contract) return;
     if (!typedName.trim()) {
-      Alert.alert('Name required', 'Type your full legal name to sign the contract.');
+      showAlert('Name required', 'Type your full legal name to sign the contract.');
       return;
     }
     setSigning(true);
@@ -272,7 +272,7 @@ function ContractScreenInner() {
       // Save first to get an id.
       const saved = await saveContract({ ...contract, id: contract.id || undefined });
       if (!saved) {
-        Alert.alert('Save failed', 'Could not save the contract before signing.');
+        showAlert('Save failed', 'Could not save the contract before signing.');
         return;
       }
       // Then attach the GC signature + flip status to 'sent'.
@@ -285,7 +285,7 @@ function ContractScreenInner() {
         },
       });
       if (!ok) {
-        Alert.alert('Send failed', 'Saved as draft but could not mark as sent.');
+        showAlert('Send failed', 'Saved as draft but could not mark as sent.');
         return;
       }
       const refreshed = await fetchActiveContract(saved.projectId);
@@ -388,7 +388,7 @@ function ContractScreenInner() {
 
       setSignatureModal(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Contract sent',
         (createdCount > 0
           ? `The homeowner can review and counter-sign in their portal. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
@@ -421,11 +421,11 @@ function ContractScreenInner() {
       nailIt(`Sealed · ${result.documentHash.slice(0, 12)}…`);
     } catch (err) {
       if (err instanceof SealAlreadyExistsError) {
-        Alert.alert('Already sealed', 'This contract has already been sealed.');
+        showAlert('Already sealed', 'This contract has already been sealed.');
         return;
       }
       console.error('[Contract] Seal error:', err);
-      Alert.alert('Seal failed', err instanceof Error ? err.message : 'Could not seal the contract. Please try again.');
+      showAlert('Seal failed', err instanceof Error ? err.message : 'Could not seal the contract. Please try again.');
     }
   }, [project, contract, user?.id, settings?.branding]);
 
@@ -436,7 +436,7 @@ function ContractScreenInner() {
       await downloadSealedContractPdf({ contract, userId: user.id, supabase });
     } catch (err) {
       console.error('[Contract] Download sealed PDF error:', err);
-      Alert.alert('Download failed', err instanceof Error ? err.message : 'Could not download the sealed PDF.');
+      showAlert('Download failed', err instanceof Error ? err.message : 'Could not download the sealed PDF.');
     }
   }, [contract, user?.id]);
 

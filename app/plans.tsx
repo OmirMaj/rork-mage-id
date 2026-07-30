@@ -15,8 +15,7 @@
 
 import React, { useCallback, useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Alert, Image, Platform, TextInput, Modal, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform, TextInput, Modal, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -44,6 +43,7 @@ import { useUsageStatus } from '@/hooks/useUsageStatus';
 import type { PlanSheet } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
@@ -80,7 +80,7 @@ export default function PlansScreen() {
   const handleImport = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access is required to import plan sheets.');
+      showAlert('Permission needed', 'Photo library access is required to import plan sheets.');
       return;
     }
     setImporting(true);
@@ -120,7 +120,7 @@ export default function PlansScreen() {
       // server-side, but stopping a 500 MB upload before it leaves the device
       // saves the user a long progress bar that ends in failure.
       if (asset.size && asset.size > 500 * 1024 * 1024) {
-        Alert.alert('PDF too large', 'Plan PDFs must be under 500 MB. Try splitting it by discipline.');
+        showAlert('PDF too large', 'Plan PDFs must be under 500 MB. Try splitting it by discipline.');
         return;
       }
 
@@ -168,13 +168,13 @@ export default function PlansScreen() {
       // Refresh the usage badge so the user sees the new "X of Y pages
       // remaining" reflecting the just-charged pages without remounting.
       refreshQuota();
-      Alert.alert(
+      showAlert(
         'PDF imported',
         `${pages.length} sheet${pages.length === 1 ? '' : 's'} added. Open one to start dropping pins.`,
       );
     } catch (err) {
       const msg = (err as Error).message || 'Could not import that PDF.';
-      Alert.alert('Import failed', msg);
+      showAlert('Import failed', msg);
     } finally {
       setPdfImporting(false);
       setPdfStatus('');
@@ -183,7 +183,7 @@ export default function PlansScreen() {
 
   const confirmImport = useCallback(() => {
     if (!newSheet || !newSheet.name.trim() || !projectId) {
-      Alert.alert('Name required', 'Give the sheet a name before saving.');
+      showAlert('Name required', 'Give the sheet a name before saving.');
       return;
     }
     const created = addPlanSheet({
@@ -200,7 +200,7 @@ export default function PlansScreen() {
   }, [newSheet, projectId, addPlanSheet, router]);
 
   const handleDelete = useCallback((sheet: PlanSheet) => {
-    Alert.alert('Delete sheet', `Remove \u201C${sheet.name}\u201D? All pins and markup on this sheet will also be removed.`, [
+    showAlert('Delete sheet', `Remove \u201C${sheet.name}\u201D? All pins and markup on this sheet will also be removed.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deletePlanSheet(sheet.id) },
     ]);

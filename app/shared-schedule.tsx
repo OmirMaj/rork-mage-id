@@ -18,8 +18,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, ScrollView,
-  Linking, Platform, Modal, TextInput, Alert,
+  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, ScrollView, Linking, Platform, Modal, TextInput,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +46,7 @@ import { supabase } from '@/lib/supabase';
 import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function SharedScheduleScreen() {
   const { colors: themeColors } = useTheme();
@@ -177,14 +177,14 @@ export default function SharedScheduleScreen() {
       } else {
         // Composer not available — show the body the user can paste.
         const { subject, body } = composeSubReply(args);
-        Alert.alert(
+        showAlert(
           'Couldn\'t open mail / SMS',
           `Copy this text into your messaging app:\n\nTo: ${payload.gc?.email ?? payload.gc?.phone ?? '(GC contact)'}\n\nSubject: ${subject}\n\n${body}`,
         );
       }
     } catch {
       const { subject, body } = composeSubReply(args);
-      Alert.alert('Reply', `${subject}\n\n${body}`);
+      showAlert('Reply', `${subject}\n\n${body}`);
     }
   }, [payload, subName, taskDateRange]);
 

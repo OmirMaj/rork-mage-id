@@ -14,8 +14,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Platform, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +31,7 @@ import { parseImportBlob, draftToLeadInput, type ImportedLeadDraft } from '@/uti
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 type Mode = 'paste' | 'contacts';
 
@@ -61,7 +61,7 @@ export default function ImportPipelineScreen() {
   const handleParse = useCallback(() => {
     const parsed = parseImportBlob(blob);
     if (parsed.length === 0) {
-      Alert.alert('Nothing to import', 'Paste one client per line — name first, then phone, email, project, or budget in any order.');
+      showAlert('Nothing to import', 'Paste one client per line — name first, then phone, email, project, or budget in any order.');
       return;
     }
     setDrafts(parsed);
@@ -79,7 +79,7 @@ export default function ImportPipelineScreen() {
     try {
       for (const d of drafts) addLead(draftToLeadInput(d));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Pipeline imported',
         `${drafts.length} client${drafts.length === 1 ? '' : 's'} added to your pipeline as Qualified leads. Open any one to draft an Instant Bid.`,
         [{ text: 'View pipeline', onPress: () => router.replace('/leads' as never) }],

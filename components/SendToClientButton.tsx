@@ -3,7 +3,7 @@
 // state. Calls into ProjectContext for the actual send/recall mutations.
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Send, RotateCcw, Eye } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -11,6 +11,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PortalState, SendableItemKind } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 interface Props {
   kind: SendableItemKind;
@@ -44,12 +45,12 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
     if (busy) return;
     setBusy(true);
     try { await sendToClientPortal({ kind, itemId, projectId }); }
-    catch (e) { Alert.alert('Send failed', e instanceof Error ? e.message : 'Try again.'); }
+    catch (e) { showAlert('Send failed', e instanceof Error ? e.message : 'Try again.'); }
     finally { setBusy(false); }
   }, [busy, kind, itemId, projectId, sendToClientPortal]);
 
   const doRecall = useCallback(() => {
-    Alert.alert(
+    showAlert(
       'Recall from client?',
       'The client will see a message saying this item was removed. You can re-send later.',
       [
@@ -57,7 +58,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
         { text: 'Recall', style: 'destructive', onPress: async () => {
           setBusy(true);
           try { await recallFromClientPortal({ kind, itemId, projectId }); }
-          catch (e) { Alert.alert('Recall failed', e instanceof Error ? e.message : 'Try again.'); }
+          catch (e) { showAlert('Recall failed', e instanceof Error ? e.message : 'Try again.'); }
           finally { setBusy(false); }
         }},
       ],

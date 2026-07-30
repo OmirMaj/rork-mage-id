@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView, Image,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -24,6 +23,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
+import { showAlert } from '@/utils/alert';
 
 // Top-level row IDs (punch items) become Supabase PKs and MUST be UUIDs —
 // the punch_items.id column rejects anything else with "invalid input syntax
@@ -136,7 +136,7 @@ function PunchListScreenInner() {
     }
     setShowTemplates(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
+    showAlert(
       'Template applied',
       `Added ${added} item${added === 1 ? '' : 's'} from "${template.label}". Edit or remove any that don't apply to this project.`,
     );
@@ -211,7 +211,7 @@ function PunchListScreenInner() {
   const handleSave = useCallback(() => {
     const desc = description.trim();
     if (!desc) {
-      Alert.alert('Missing Description', 'Please describe the punch item.');
+      showAlert('Missing Description', 'Please describe the punch item.');
       return;
     }
     const linkedTaskName = linkedTask?.title;
@@ -259,7 +259,7 @@ function PunchListScreenInner() {
         // Defer past the current render so the badge animation doesn't
         // fight the alert pop-in.
         setTimeout(() => {
-          Alert.alert(
+          showAlert(
             'All punch items closed',
             `Nice — ${project.name}'s punch list is wrapped. Close the project so it stops showing in your active list?`,
             [
@@ -305,17 +305,17 @@ function PunchListScreenInner() {
 
   const handleCloseProject = useCallback(() => {
     if (!allClosed) {
-      Alert.alert('Cannot Close', 'All punch items must be resolved before closing the project.');
+      showAlert('Cannot Close', 'All punch items must be resolved before closing the project.');
       return;
     }
-    Alert.alert('Close Project', 'Mark this project as closed? This will archive it.', [
+    showAlert('Close Project', 'Mark this project as closed? This will archive it.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Close Project',
         onPress: () => {
           updateProject(projectId ?? '', { status: 'closed', closedAt: new Date().toISOString() });
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert('Project Closed', 'This project has been archived.');
+          showAlert('Project Closed', 'This project has been archived.');
           router.back();
         },
       },
@@ -511,7 +511,7 @@ function PunchListScreenInner() {
                   </>
                 )}
                 <TouchableOpacity style={styles.punchDeleteBtn} onPress={() => {
-                  Alert.alert('Delete', 'Delete this punch item?', [
+                  showAlert('Delete', 'Delete this punch item?', [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Delete', style: 'destructive', onPress: () => deletePunchItem(item.id) },
                   ]);

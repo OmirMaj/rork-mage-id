@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Switch, Alert, Platform, KeyboardAvoidingView } from 'react-native';
+import {
+  View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Switch, Platform, KeyboardAvoidingView,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Layers, Minus, Plus, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -12,6 +14,7 @@ import { Tokens } from '@/constants/designTokens';
 import { TaskChecklist } from './TaskChecklist';
 import { FourDComingSoon } from './FourDComingSoon';
 import { PercentSlider } from './PercentSlider';
+import { showAlert } from '@/utils/alert';
 
 interface TaskDetailSheetProps {
   visible: boolean;
@@ -115,7 +118,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
     onUpdateTask({ ...task, checklist: [...checklist, { id: createId('chk'), label, done: false }] });
 
   const handleDelete = () => {
-    Alert.alert('Delete task?', `"${task.title}" will be removed from the schedule.`, [
+    showAlert('Delete task?', `"${task.title}" will be removed from the schedule.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => { haptic('warn'); onDeleteTask(task.id); } },
     ]);

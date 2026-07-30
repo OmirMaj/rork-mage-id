@@ -31,8 +31,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,6 +61,7 @@ import { mageAI } from '@/utils/mageAI';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 interface PricedLine {
   id: string;
@@ -401,7 +401,7 @@ function TakeoffEstimateInner() {
 
   const handleRegenerate = useCallback(() => {
     if (!takeoff) return;
-    Alert.alert(
+    showAlert(
       'Regenerate priced estimate?',
       'This will replace your current line items with a fresh AI-generated set. Any edits will be lost.',
       [
@@ -459,13 +459,13 @@ function TakeoffEstimateInner() {
       };
       updateProject(project.id, commitEstimatePatch(project, linkedEstimate, { reason: 'pre_overwrite' }));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Estimate saved',
         `${lines.length} priced lines saved to ${project.name}. Grand total: ${formatMoney(totals.grandTotal)}.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
-      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
+      showAlert('Save failed', e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -495,13 +495,13 @@ function TakeoffEstimateInner() {
       };
       updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Appended from AI takeoff' }));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Lines appended',
         `${lines.length} priced lines added to ${project.name}. New grand total: ${formatMoney(next.grandTotal)}.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
-      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
+      showAlert('Save failed', e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -509,11 +509,11 @@ function TakeoffEstimateInner() {
 
   const handleSave = useCallback(() => {
     if (!project) {
-      Alert.alert('No project linked', 'Run the takeoff against a project first to save the estimate.');
+      showAlert('No project linked', 'Run the takeoff against a project first to save the estimate.');
       return;
     }
     if (lines.length === 0) {
-      Alert.alert('Nothing to save', 'Add at least one line before saving.');
+      showAlert('Nothing to save', 'Add at least one line before saving.');
       return;
     }
     // If the project already has a real estimate, never silently overwrite it.
@@ -521,7 +521,7 @@ function TakeoffEstimateInner() {
     // matching the semantics area-takeoff and cost-xray already use.
     const existing = project.linkedEstimate;
     if (existing && existing.items.length > 0) {
-      Alert.alert(
+      showAlert(
         'This project already has an estimate',
         `${project.name} has a ${formatMoney(existing.grandTotal ?? 0)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). Replace it, or append these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} to it?`,
         [

@@ -12,8 +12,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Linking, Platform, Alert, KeyboardAvoidingView, Modal,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Platform, KeyboardAvoidingView, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -55,6 +54,7 @@ function mapLeadStage(s: LeadStage): LeadStage {
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function LeadDetailScreen() {
   const { colors: themeColors } = useTheme();
@@ -124,7 +124,7 @@ export default function LeadDetailScreen() {
 
   const saveAndExit = useCallback(() => {
     if (!canSave) {
-      Alert.alert('Missing name', 'Add a name for this lead.');
+      showAlert('Missing name', 'Add a name for this lead.');
       return;
     }
     const payload = buildPayload();
@@ -166,7 +166,7 @@ export default function LeadDetailScreen() {
 
   const handleConvert = useCallback(() => {
     if (!existing) return;
-    Alert.alert(
+    showAlert(
       'Convert to project?',
       `This will mark "${existing.name}" as Won and create a new project carrying over the contact info, scope, and budget.`,
       [
@@ -197,7 +197,7 @@ export default function LeadDetailScreen() {
 
   const handleDelete = useCallback(() => {
     if (!existing) return;
-    Alert.alert(
+    showAlert(
       'Delete this lead?',
       'This cannot be undone.',
       [

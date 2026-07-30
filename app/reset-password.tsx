@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
@@ -14,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function ResetPasswordScreen() {
   const { colors: themeColors } = useTheme();
@@ -40,7 +40,7 @@ export default function ResetPasswordScreen() {
       }).then(async ({ error }) => {
         if (error) {
           console.log('[ResetPassword] Failed to set session:', error.message);
-          Alert.alert('Error', 'Invalid or expired reset link. Please request a new one.');
+          showAlert('Error', 'Invalid or expired reset link. Please request a new one.');
         } else {
           await onNewSessionEstablished();
         }
@@ -50,11 +50,11 @@ export default function ResetPasswordScreen() {
 
   const handleSubmit = useCallback(async () => {
     if (!newPassword.trim() || newPassword.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters.');
+      showAlert('Error', 'Password must be at least 8 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match.');
+      showAlert('Error', 'Passwords do not match.');
       return;
     }
 
@@ -67,7 +67,7 @@ export default function ResetPasswordScreen() {
       }, 2000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update password.';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setIsSubmitting(false);
     }

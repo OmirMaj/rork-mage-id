@@ -5,8 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, ActivityIndicator,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +36,7 @@ import type { TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Free/Pro contractors get a monthly cap on marketplace bid responses;
 // Business+ (the 'unlimited_bid_responses' FeatureKey) is uncapped. There
@@ -243,7 +243,7 @@ export default function SubmitBidResponseScreen() {
       setUsedThisMonth(used);
       if (used >= FREE_MONTHLY_BID_RESPONSES) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert(
+        showAlert(
           'Monthly bid limit reached',
           `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. Upgrade to Business for unlimited marketplace bidding.`,
           [
@@ -354,7 +354,7 @@ export default function SubmitBidResponseScreen() {
       }
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Bid submitted',
         viewSiteFirst
           ? 'The homeowner will see your site-visit request and reach out if they want to schedule. We added it to your Leads pipeline.'

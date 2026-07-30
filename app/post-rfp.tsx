@@ -18,9 +18,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Image, ActivityIndicator, Animated, Easing,
-  KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Image, ActivityIndicator, Animated, Easing, KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,6 +46,7 @@ import type { BidCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useClientPaywall } from '@/hooks/useClientPaywall';
+import { showAlert } from '@/utils/alert';
 
 interface PickedAttachment {
   uri: string;
@@ -204,7 +203,7 @@ export default function PostRfpScreen() {
   const verifyAddress = useCallback(async () => {
     setError(null);
     if (!address.trim()) {
-      Alert.alert('Address Required', 'Enter the property address before verifying.');
+      showAlert('Address Required', 'Enter the property address before verifying.');
       return;
     }
     if (Platform.OS === 'web') {
@@ -212,14 +211,14 @@ export default function PostRfpScreen() {
       // submission without coordinates — contractors can still see the
       // address text, they just won't get distance-based matching.
       setAddressVerified(false);
-      Alert.alert('Heads up', 'Address auto-verification only runs on the iOS/Android app. You can still post; nearby-contractor matching may be less precise.');
+      showAlert('Heads up', 'Address auto-verification only runs on the iOS/Android app. You can still post; nearby-contractor matching may be less precise.');
       return;
     }
     try {
       setGeocoding(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Location permission is needed to verify the address. You can still post without verification.');
+        showAlert('Permission needed', 'Location permission is needed to verify the address. You can still post without verification.');
         return;
       }
       const results = await Location.geocodeAsync(address.trim());
@@ -231,7 +230,7 @@ export default function PostRfpScreen() {
       } else {
         setAddressVerified(false);
         setLatLng(null);
-        Alert.alert('Address not found', 'We couldn\'t locate that address. Double-check it — contractors won\'t see your post in nearby-RFP feeds without coordinates.');
+        showAlert('Address not found', 'We couldn\'t locate that address. Double-check it — contractors won\'t see your post in nearby-RFP feeds without coordinates.');
       }
     } catch (e) {
       console.warn('[post-rfp] geocode failed', e);
@@ -244,7 +243,7 @@ export default function PostRfpScreen() {
   const pickPhotos = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access is required to attach project photos.');
+      showAlert('Permission needed', 'Photo library access is required to attach project photos.');
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -298,7 +297,7 @@ export default function PostRfpScreen() {
   // mount is a follow-up.
   const saveDraft = useCallback(async () => {
     if (!user?.id) {
-      Alert.alert('Sign in needed', 'Sign in to save drafts so you can come back to them later.');
+      showAlert('Sign in needed', 'Sign in to save drafts so you can come back to them later.');
       return;
     }
     try {
@@ -311,10 +310,10 @@ export default function PostRfpScreen() {
       };
       await AsyncStorage.setItem(DRAFT_PREFIX + user.id, JSON.stringify(payload));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Draft saved', 'You can pick this back up next time you open Post a project.');
+      showAlert('Draft saved', 'You can pick this back up next time you open Post a project.');
     } catch (e) {
       console.warn('[post-rfp] saveDraft failed', e);
-      Alert.alert('Couldn\'t save draft', 'Try again in a moment.');
+      showAlert('Couldn\'t save draft', 'Try again in a moment.');
     } finally {
       setSavingDraft(false);
     }
@@ -394,7 +393,7 @@ export default function PostRfpScreen() {
       try { await AsyncStorage.removeItem(DRAFT_PREFIX + user.id); } catch {}
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Posted!',
         `Your project is live. Contractors near ${cityState.city || 'your location'} who match the requirements will be notified.`,
         [{ text: 'See my RFPs', onPress: () => router.replace('/my-rfps' as never) }],

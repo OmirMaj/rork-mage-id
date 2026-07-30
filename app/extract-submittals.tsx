@@ -13,8 +13,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
-  Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Platform, ActivityIndicator,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +43,7 @@ import type { Submittal } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
+import { showAlert } from '@/utils/alert';
 
 interface PickItem extends AiSubmittalCandidate {
   // Local key for the review list.
@@ -79,7 +79,7 @@ export default function ExtractSubmittalsScreen() {
   // ── Pick + analyze ─────────────────────────────────────────────
   const handlePickAndAnalyze = useCallback(async () => {
     setError(null);
-    if (!project) { Alert.alert('No project'); return; }
+    if (!project) { showAlert('No project'); return; }
 
     // Pro-tier gate (vision API spend).
     const limit = await checkAILimit(tier, 'smart', 'specBookExtract');
@@ -148,7 +148,7 @@ export default function ExtractSubmittalsScreen() {
   // ── Bulk save selected → submittal log ─────────────────────────
   const handleSave = useCallback(async () => {
     if (!project) return;
-    if (selectedCount === 0) { Alert.alert('Nothing selected'); return; }
+    if (selectedCount === 0) { showAlert('Nothing selected'); return; }
     setSaving(true);
     try {
       const today = new Date();
@@ -175,14 +175,14 @@ export default function ExtractSubmittalsScreen() {
       addSubmittals(toAdd);
       const added = toAdd.length;
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Submittals added',
         `${added} submittal${added === 1 ? '' : 's'} logged. Open the project's submittal section to attach files and route them.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
       console.warn('[extract-submittals] save failed', e);
-      Alert.alert('Save failed', String((e as Error).message ?? e));
+      showAlert('Save failed', String((e as Error).message ?? e));
     } finally {
       setSaving(false);
     }

@@ -27,6 +27,7 @@ import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { NailItToastHost } from "@/components/animations/NailItToast";
+import AlertHost from "@/components/AlertHost";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -1448,6 +1449,9 @@ export default Sentry.wrap(function RootLayout() {
                               <RootLayoutNav />
                               <BrainSurface />
                               <SearchHotkeyListener />
+                              {/* Renders alerts on web, where RN's Alert is a
+                                  no-op. Must stay mounted app-wide. */}
+                              <AlertHost />
                               <NailItToastHost />
                               <ConfettiHost />
                             </SearchProvider>

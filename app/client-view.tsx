@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  Dimensions, TextInput, Platform, Modal, Alert, FlatList,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, TextInput, Platform, Modal, FlatList,
 } from 'react-native';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -39,6 +38,7 @@ import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
 import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { showAlert } from '@/utils/alert';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -395,15 +395,15 @@ export default function ClientViewScreen() {
   const submitApproval = useCallback(async () => {
     if (!approvalCO || !project) return;
     if (!approverName.trim()) {
-      Alert.alert('Name Required', 'Please enter your name as it appears on the contract.');
+      showAlert('Name Required', 'Please enter your name as it appears on the contract.');
       return;
     }
     if (approvalMode === 'approve' && signaturePaths.length === 0) {
-      Alert.alert('Signature Required', 'Please sign above to approve this change order.');
+      showAlert('Signature Required', 'Please sign above to approve this change order.');
       return;
     }
     if (approvalMode === 'reject' && !rejectionReason.trim()) {
-      Alert.alert('Reason Required', 'Please briefly explain why you are rejecting this change order.');
+      showAlert('Reason Required', 'Please briefly explain why you are rejecting this change order.');
       return;
     }
 
@@ -500,7 +500,7 @@ export default function ClientViewScreen() {
     const tail = serverPersisted
       ? 'Your response has been recorded and will appear in your contractor\'s dashboard.'
       : 'We saved your response locally. If you don\'t hear back within a day, please contact the contractor directly.';
-    Alert.alert(
+    showAlert(
       approvalMode === 'approve' ? 'Approved' : 'Rejected',
       `Change Order #${approvalCO.number} has been ${verb}. ${tail}`,
       [{ text: 'OK', onPress: closeApprovalFlow }]

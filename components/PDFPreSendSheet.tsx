@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
-  ScrollView, Platform, KeyboardAvoidingView, Pressable, Switch, Alert,
+  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, Platform, KeyboardAvoidingView, Pressable, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -16,6 +15,7 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import type { Contact, PDFNamingSettings } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export type PDFDocumentType = 'estimate' | 'invoice' | 'change_order' | 'schedule' | 'daily_report' | 'status_report' | 'closeout';
 
@@ -196,7 +196,7 @@ export default function PDFPreSendSheet({
 
   const handleSend = useCallback((method: 'share' | 'email') => {
     if (!fileName.trim()) {
-      Alert.alert('Missing Name', 'Please enter a file name.');
+      showAlert('Missing Name', 'Please enter a file name.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

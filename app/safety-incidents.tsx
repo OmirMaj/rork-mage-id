@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -30,6 +29,7 @@ import { generateUUID } from '@/utils/generateId';
 import { isOshaRecordable } from '@/utils/safety/osha';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAlert } from '@/utils/alert';
 
 const TYPE_OPTIONS: { value: SafetyIncidentType; label: string }[] = [
   { value: 'injury', label: 'Injury' },
@@ -207,9 +207,9 @@ function SafetyIncidentsInner() {
   }, []);
 
   const handleDraftAI = useCallback(async () => {
-    if (!draftNotes.trim()) { Alert.alert('Add notes', 'Type or dictate what happened first.'); return; }
+    if (!draftNotes.trim()) { showAlert('Add notes', 'Type or dictate what happened first.'); return; }
     const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { Alert.alert('AI limit reached', check.message ?? 'Daily AI limit reached.'); return; }
+    if (!check.allowed) { showAlert('AI limit reached', check.message ?? 'Daily AI limit reached.'); return; }
     setDrafting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -219,7 +219,7 @@ function SafetyIncidentsInner() {
         body: JSON.stringify({ voiceTranscript: draftNotes, notes: draftNotes }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) { Alert.alert('AI unavailable', json.error ?? 'Fill the incident manually.'); return; }
+      if (!res.ok || !json.success) { showAlert('AI unavailable', json.error ?? 'Fill the incident manually.'); return; }
       // Only apply AI enums when they match the union — otherwise keep the
       // current/default so a hallucinated value can't corrupt the pickers.
       if (isValidType(json.data.type)) setType(json.data.type);
@@ -229,7 +229,7 @@ function SafetyIncidentsInner() {
       await recordAIUsage('smart');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      Alert.alert('AI unavailable', 'Network issue — fill the incident manually.');
+      showAlert('AI unavailable', 'Network issue — fill the incident manually.');
     } finally {
       setDrafting(false);
     }
@@ -237,7 +237,7 @@ function SafetyIncidentsInner() {
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
-    if (!desc) { Alert.alert('Missing description', 'Describe what happened.'); return; }
+    if (!desc) { showAlert('Missing description', 'Describe what happened.'); return; }
     const now = new Date().toISOString();
     const recordable = isOshaRecordable({
       type, treatment,
@@ -273,7 +273,7 @@ function SafetyIncidentsInner() {
   }, [updateIncident]);
 
   const handleDelete = useCallback((id: string) => {
-    Alert.alert('Delete incident', 'Delete this incident report?', [
+    showAlert('Delete incident', 'Delete this incident report?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteIncident(id) },
     ]);

@@ -14,16 +14,7 @@
 
 import React, { useCallback, useState } from 'react';
 import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  Linking,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -37,6 +28,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 import {
   CLIENT_PRICING,
   formatClientPrice,
@@ -151,14 +143,14 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
         onUnlocked('rfp_post_fee');
       } else {
         onClose();
-        Alert.alert(
+        showAlert(
           'Payment processing',
           'If you completed payment, tap Post again in a moment to publish your project.',
         );
       }
     } catch (err) {
       console.warn('[ClientPaywall] pay-per-post failed:', err);
-      Alert.alert('Checkout unavailable', 'Could not start payment. Please try again.');
+      showAlert('Checkout unavailable', 'Could not start payment. Please try again.');
     } finally {
       setBusy(null);
     }

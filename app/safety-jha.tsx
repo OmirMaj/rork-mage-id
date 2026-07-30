@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -25,6 +24,7 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAlert } from '@/utils/alert';
 
 function getStatusConfig(t: ThemeColors, status: JHAStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -137,9 +137,9 @@ function SafetyJhaInner() {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (!taskDescription.trim()) { Alert.alert('Add a task', 'Describe the task first so AI can analyze it.'); return; }
+    if (!taskDescription.trim()) { showAlert('Add a task', 'Describe the task first so AI can analyze it.'); return; }
     const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { Alert.alert('AI limit reached', check.message ?? 'Daily AI limit reached.'); return; }
+    if (!check.allowed) { showAlert('AI limit reached', check.message ?? 'Daily AI limit reached.'); return; }
     setGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -153,7 +153,7 @@ function SafetyJhaInner() {
         body: JSON.stringify({ trade, taskDescription, projectContext: project?.name ?? '' }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) { Alert.alert('AI unavailable', json.error ?? 'Could not generate. Fill the JHA manually.'); return; }
+      if (!res.ok || !json.success) { showAlert('AI unavailable', json.error ?? 'Could not generate. Fill the JHA manually.'); return; }
       const aiSteps: JHAStep[] = (json.data.steps ?? []).map((s: { step: string; hazards: string[]; controls: string[] }) => ({
         id: generateUUID(), step: s.step, hazards: s.hazards ?? [], controls: s.controls ?? [],
       }));
@@ -164,7 +164,7 @@ function SafetyJhaInner() {
       await recordAIUsage('smart');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      Alert.alert('AI unavailable', 'Network issue — fill the JHA manually.');
+      showAlert('AI unavailable', 'Network issue — fill the JHA manually.');
     } finally {
       setGenerating(false);
     }
@@ -173,11 +173,11 @@ function SafetyJhaInner() {
   const handleSave = useCallback(() => {
     // Immutable once signed — a signed JHA can only be archived, never edited.
     if (editingJha && editingJha.signOffs.length > 0) {
-      Alert.alert('Signed — locked', 'This JHA has sign-offs and can no longer be edited. Archive it instead.');
+      showAlert('Signed — locked', 'This JHA has sign-offs and can no longer be edited. Archive it instead.');
       return;
     }
     const t = title.trim();
-    if (!t) { Alert.alert('Missing title', 'Give this JHA a title.'); return; }
+    if (!t) { showAlert('Missing title', 'Give this JHA a title.'); return; }
     const now = new Date().toISOString();
     const ppe = requiredPPE.map(p => p.trim()).filter(Boolean);
     if (editingJha) {
@@ -211,10 +211,10 @@ function SafetyJhaInner() {
   const handleDelete = useCallback((id: string) => {
     const jha = items.find(x => x.id === id);
     if (jha && jha.signOffs.length > 0) {
-      Alert.alert('Signed — locked', 'A JHA with recorded sign-offs is part of the safety record and can\'t be deleted. Archive it instead.');
+      showAlert('Signed — locked', 'A JHA with recorded sign-offs is part of the safety record and can\'t be deleted. Archive it instead.');
       return;
     }
-    Alert.alert('Delete JHA', 'Delete this job hazard analysis?', [
+    showAlert('Delete JHA', 'Delete this job hazard analysis?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteJha(id) },
     ]);
@@ -224,7 +224,7 @@ function SafetyJhaInner() {
     const jha = items.find(x => x.id === signOffFor);
     if (!jha) { setSignOffFor(null); return; }
     const name = sigName.trim();
-    if (!name) { Alert.alert('Missing name', 'Enter who is signing off.'); return; }
+    if (!name) { showAlert('Missing name', 'Enter who is signing off.'); return; }
     const sig: SafetySignoff = { name, role: sigRole.trim(), signedAt: new Date().toISOString() };
     updateJha(jha.id, { signOffs: [...jha.signOffs, sig] });
     setSignOffFor(null); setSigName(''); setSigRole('');

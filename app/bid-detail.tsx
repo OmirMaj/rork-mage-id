@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Platform,
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
@@ -23,6 +23,7 @@ import AIBidScorecard from '@/components/AIBidScorecard';
 import type { PublicBid } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const TRACKED_BIDS_KEY = 'mageid_tracked_bids';
 
@@ -190,7 +191,7 @@ export default function BidDetailScreen() {
 
   const handleToggleSave = useCallback(() => {
     if (trackedBid) {
-      Alert.alert('Remove Bid', 'Remove this bid from your tracked bids?', [
+      showAlert('Remove Bid', 'Remove this bid from your tracked bids?', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Remove', style: 'destructive', onPress: () => void saveTracking(null) },
       ]);

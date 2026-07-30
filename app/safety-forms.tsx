@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
@@ -20,6 +19,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import type { SafetyFormTemplate, SafetyFormField, SafetyFormFieldType } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 const FIELD_TYPES: SafetyFormFieldType[] = ['text', 'checkbox', 'select', 'signature', 'photo'];
 
@@ -119,7 +119,7 @@ function SafetyFormsInner() {
       ...f, label: f.label.trim(),
       options: f.type === 'select' ? (f.options ?? []).filter(Boolean) : undefined,
     }));
-    if (!name.trim() || cleaned.length === 0) { Alert.alert('Incomplete', 'A form needs a name and at least one labeled field.'); return; }
+    if (!name.trim() || cleaned.length === 0) { showAlert('Incomplete', 'A form needs a name and at least one labeled field.'); return; }
     if (editing) {
       updateTemplate(editing.id, { name: name.trim(), category, fields: cleaned });
     } else {
@@ -135,7 +135,7 @@ function SafetyFormsInner() {
   }, [name, category, fields, editing, userId, addTemplate, updateTemplate, resetForm]);
 
   const handleDelete = useCallback((tpl: SafetyFormTemplate) => {
-    Alert.alert('Delete form', `Delete "${tpl.name}"?`, [
+    showAlert('Delete form', `Delete "${tpl.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteTemplate(tpl.id) },
     ]);

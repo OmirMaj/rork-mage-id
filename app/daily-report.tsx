@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, Image, Pressable,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Image, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -66,6 +65,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mageAI } from '@/utils/mageAI';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { recordDidForYou } from '@/utils/brain/didForYou';
+import { showAlert } from '@/utils/alert';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -336,7 +336,7 @@ export default function DailyReportScreen() {
       }
     } catch (err) {
       console.log('[DFR] Weather fetch failed:', err);
-      Alert.alert('Weather Unavailable', 'Could not fetch weather data. Please enter manually.');
+      showAlert('Weather Unavailable', 'Could not fetch weather data. Please enter manually.');
     } finally {
       setWeatherLoading(false);
     }
@@ -406,7 +406,7 @@ export default function DailyReportScreen() {
   const handleAddManpower = useCallback(() => {
     const trade = mpTrade.trim();
     if (!trade) {
-      Alert.alert('Missing Trade', 'Please enter a trade name.');
+      showAlert('Missing Trade', 'Please enter a trade name.');
       return;
     }
     const entry: ManpowerEntry = {
@@ -428,7 +428,7 @@ export default function DailyReportScreen() {
   const handleRemoveManpower = useCallback((id: string) => {
     const entry = manpower.find(m => m.id === id);
     const label = entry ? `${entry.headcount} ${entry.trade}${entry.company ? ' · ' + entry.company : ''}` : 'this entry';
-    Alert.alert(
+    showAlert(
       'Remove crew entry?',
       `Remove ${label} from today's report?`,
       [
@@ -450,7 +450,7 @@ export default function DailyReportScreen() {
 
   const handleRemoveMaterial = useCallback((idx: number) => {
     const item = materialsDelivered[idx];
-    Alert.alert(
+    showAlert(
       'Remove material?',
       item ? `Remove "${item}" from today's deliveries?` : 'Remove this material?',
       [
@@ -465,7 +465,7 @@ export default function DailyReportScreen() {
 
   const handlePickPhoto = useCallback(async () => {
     if (photos.length >= 10) {
-      Alert.alert('Limit Reached', 'Maximum 10 photos per report.');
+      showAlert('Limit Reached', 'Maximum 10 photos per report.');
       return;
     }
     try {
@@ -493,7 +493,7 @@ export default function DailyReportScreen() {
 
   const handleTakePhoto = useCallback(async () => {
     if (photos.length >= 10) {
-      Alert.alert('Limit Reached', 'Maximum 10 photos per report.');
+      showAlert('Limit Reached', 'Maximum 10 photos per report.');
       return;
     }
     try {
@@ -507,7 +507,7 @@ export default function DailyReportScreen() {
       } else {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          Alert.alert('Permission Required', 'Camera access is needed to take photos.');
+          showAlert('Permission Required', 'Camera access is needed to take photos.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -545,7 +545,7 @@ export default function DailyReportScreen() {
   const handleGenerateHomeownerSummary = useCallback(async () => {
     if (!project) return;
     if (!workPerformed.trim() && !manpower.length && !issuesAndDelays.trim()) {
-      Alert.alert(
+      showAlert(
         'Not enough to summarize yet',
         'Fill in at least the work performed, crew, or any issues — then I can write a homeowner-friendly version.',
       );
@@ -580,7 +580,7 @@ export default function DailyReportScreen() {
       setHsPublished(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (e) {
-      Alert.alert('Could not generate', e instanceof Error ? e.message : 'Try again in a moment.');
+      showAlert('Could not generate', e instanceof Error ? e.message : 'Try again in a moment.');
     } finally {
       setHsGenerating(false);
     }
@@ -598,11 +598,11 @@ export default function DailyReportScreen() {
   const handleLeakScan = useCallback(async () => {
     if (!project) return;
     if (!project.linkedEstimate?.items?.length) {
-      Alert.alert('No estimate to compare against', 'The scan flags work outside your estimate scope. Link an estimate to this project first.');
+      showAlert('No estimate to compare against', 'The scan flags work outside your estimate scope. Link an estimate to this project first.');
       return;
     }
     if (!workPerformed.trim() && !issuesAndDelays.trim()) {
-      Alert.alert('Nothing to scan yet', "Fill in the work performed (or issues) first — that's the text the scan reads.");
+      showAlert('Nothing to scan yet', "Fill in the work performed (or issues) first — that's the text the scan reads.");
       return;
     }
     // Set scanning state synchronously before any await so a double-tap finds
@@ -627,7 +627,7 @@ export default function DailyReportScreen() {
         cacheHours: 720,
       });
       if (!res.success) {
-        Alert.alert('Scan failed', res.error ?? 'Try again in a moment.');
+        showAlert('Scan failed', res.error ?? 'Try again in a moment.');
         return;
       }
       const items = coerceLeakResult(res.data);
@@ -694,7 +694,7 @@ export default function DailyReportScreen() {
     });
 
     if (unpricedItems.length > 0) {
-      Alert.alert(
+      showAlert(
         `${unpricedItems.length} flagged item${unpricedItems.length === 1 ? '' : 's'} have no learned price`,
         'Add their prices in the change order before sending. They are marked "NEEDS PRICE" in the description.',
         [
@@ -762,7 +762,7 @@ export default function DailyReportScreen() {
   const handleDelayScan = useCallback(async () => {
     if (!project?.schedule || scheduleTasks.length === 0) return;
     if (!issuesAndDelays.trim()) {
-      Alert.alert('Nothing to scan yet', "Note the delay under Issues & Delays first — that's the text the scan reads.");
+      showAlert('Nothing to scan yet', "Note the delay under Issues & Delays first — that's the text the scan reads.");
       return;
     }
     // Re-entry guard + busy state BEFORE the first await: checkAILimit is a
@@ -786,7 +786,7 @@ export default function DailyReportScreen() {
       if (!res.success) {
         // Keep the previous rows AND the applied indication intact — a failed
         // re-scan must not present an un-applied state for an applied ripple.
-        Alert.alert('Scan failed', res.error ?? 'Try again in a moment.');
+        showAlert('Scan failed', res.error ?? 'Try again in a moment.');
         return;
       }
       const scannedHash = hashDelayText(issuesAndDelays);
@@ -998,7 +998,7 @@ export default function DailyReportScreen() {
         });
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
+      showAlert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
     } else {
       const report: DailyFieldReport = {
         id: stableReportId,  // stable id — also used as the PDF filename
@@ -1055,7 +1055,7 @@ export default function DailyReportScreen() {
     // recipient.
     const wantsEmail = sendRecipientEmail.trim().length > 0;
     if (!wantsEmail && !saveToProjectFiles) {
-      Alert.alert(
+      showAlert(
         'Pick a destination',
         'Either enter a recipient email, toggle "Save to project files", or both.',
       );
@@ -1099,7 +1099,7 @@ export default function DailyReportScreen() {
           return;
         }
         console.warn('[DailyReport] Email send failed:', result.error);
-        Alert.alert('Email Notice', `Report saved but email could not be sent: ${result.error}`);
+        showAlert('Email Notice', `Report saved but email could not be sent: ${result.error}`);
         return;
       } else {
         console.log('[DailyReport] Email sent successfully');
@@ -1148,7 +1148,7 @@ export default function DailyReportScreen() {
         // below. The user gets a non-fatal toast so they know the
         // shared-drive copy didn't land and can retry.
         console.warn('[DailyReport] Save to project files failed:', err);
-        Alert.alert('Project files notice', `Sent, but the project-files copy didn't land: ${(err as Error).message}`);
+        showAlert('Project files notice', `Sent, but the project-files copy didn't land: ${(err as Error).message}`);
       }
     }
 
@@ -1281,7 +1281,7 @@ export default function DailyReportScreen() {
                   console.log('[DFR] Voice auto-fill complete');
                 } catch (err) {
                   console.log('[DFR] Voice parse error:', err);
-                  Alert.alert(
+                  showAlert(
                     'Could not understand the recording',
                     'The transcription service may be slow or down. Try recording again, or fill in the report by hand.',
                   );

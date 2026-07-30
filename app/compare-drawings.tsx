@@ -11,8 +11,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +38,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { PlanSheet } from '@/types';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
+import { showAlert } from '@/utils/alert';
 
 type Step = 'pickOld' | 'pickNew' | 'analyzing' | 'review';
 
@@ -106,7 +106,7 @@ export default function CompareDrawingsScreen() {
         // current Plans pipeline already pushes to storage on upload, so
         // this branch is unusual; keep it simple: tell the user.
         if (!asset.uri.startsWith('http')) {
-          Alert.alert(
+          showAlert(
             'Need a public URL',
             'Upload your new revision as a PDF — the AI compare runs server-side and needs a public image URL. PDF uploads are auto-rendered.',
           );

@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView, Image, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -27,6 +26,7 @@ import { computeRiskScore, riskBand, type RiskBand } from '@/utils/safety/risk';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { showAlert } from '@/utils/alert';
 
 const SCALE_OPTIONS: HazardScale[] = [1, 2, 3, 4, 5];
 
@@ -130,7 +130,7 @@ function SafetyHazardsInner() {
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
-    if (!desc) { Alert.alert('Missing description', 'Describe the hazard.'); return; }
+    if (!desc) { showAlert('Missing description', 'Describe the hazard.'); return; }
     const now = new Date().toISOString();
     const score = computeRiskScore(severity, likelihood);
     if (editingHazard) {
@@ -161,7 +161,7 @@ function SafetyHazardsInner() {
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert(
+      showAlert(
         source === 'camera' ? 'Camera access needed' : 'Photo access needed',
         `Grant ${source === 'camera' ? 'camera' : 'photo'} access in Settings to scan a site photo.`,
       );
@@ -180,14 +180,14 @@ function SafetyHazardsInner() {
     const localUri = pickedUri?.trim();
     const url = photoUrl.trim();
     if (!localUri && !url) {
-      Alert.alert('Add a photo', 'Take or pick a site photo (or paste a URL) to scan for hazards.');
+      showAlert('Add a photo', 'Take or pick a site photo (or paste a URL) to scan for hazards.');
       return;
     }
     // Hazard scan is a vision call — meter it under the shared 'photoAnalysis'
     // feature key so it draws from the same monthly ceiling as AI Punch /
     // Photo Triage rather than the generic text bucket.
     const check = await checkAILimit(tier, 'smart', 'photoAnalysis');
-    if (!check.allowed) { Alert.alert('AI limit reached', check.message ?? 'Monthly photo analysis limit reached.'); return; }
+    if (!check.allowed) { showAlert('AI limit reached', check.message ?? 'Monthly photo analysis limit reached.'); return; }
     setDetecting(true);
     setScanNote(null);
     try {
@@ -237,7 +237,7 @@ function SafetyHazardsInner() {
   }, [updateHazard]);
 
   const handleDelete = useCallback((id: string) => {
-    Alert.alert('Delete hazard', 'Delete this hazard from the log?', [
+    showAlert('Delete hazard', 'Delete this hazard from the log?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteHazard(id) },
     ]);

@@ -17,8 +17,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -47,6 +46,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Same trade mapping used in ai-punch.tsx — funnels the loose AI string
 // to the strict SubTrade enum without losing signal.
@@ -148,7 +148,7 @@ function PhotoTriageInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        Alert.alert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
+        showAlert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
@@ -158,11 +158,11 @@ function PhotoTriageInner() {
   const handlePickFromCameraRoll = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Photo access needed', 'Grant photo access in Settings.');
+      showAlert('Photo access needed', 'Grant photo access in Settings.');
       return;
     }
     const remaining = 12 - pickedPhotos.length;
-    if (remaining <= 0) { Alert.alert('Max 12 photos'); return; }
+    if (remaining <= 0) { showAlert('Max 12 photos'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
@@ -179,8 +179,8 @@ function PhotoTriageInner() {
 
   const handleTakePhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Camera access needed'); return; }
-    if (pickedPhotos.length >= 12) { Alert.alert('Max 12 photos'); return; }
+    if (!perm.granted) { showAlert('Camera access needed'); return; }
+    if (pickedPhotos.length >= 12) { showAlert('Max 12 photos'); return; }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
     setPickedPhotos(prev => [...prev, { id: `cam-${generateUUID()}`, uri: result.assets[0].uri }]);
@@ -188,7 +188,7 @@ function PhotoTriageInner() {
 
   // ── Run triage ─────────────────────────────────────────────────
   const handleAnalyze = useCallback(async () => {
-    if (pickedPhotos.length === 0) { Alert.alert('Pick at least one photo first'); return; }
+    if (pickedPhotos.length === 0) { showAlert('Pick at least one photo first'); return; }
     const limit = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!limit.allowed) {
       showAILimitAlert({ limit, router, monthly: true });
@@ -234,7 +234,7 @@ function PhotoTriageInner() {
   }, [reviewEntries]);
 
   const handleApply = useCallback(async () => {
-    if (!project) { Alert.alert('No project selected'); return; }
+    if (!project) { showAlert('No project selected'); return; }
     if (applying || applied) return;
     setApplying(true);
 
@@ -354,7 +354,7 @@ function PhotoTriageInner() {
         rfiAdded > 0 ? `${rfiAdded} RFI${rfiAdded === 1 ? '' : 's'}` : null,
         dfrAdded > 0 ? `${dfrAdded} DFR observation${dfrAdded === 1 ? '' : 's'}` : null,
       ].filter(Boolean).join(', ');
-      Alert.alert(
+      showAlert(
         'Triage applied',
         summary
           ? `${summary}. Review them on the project screen.`
@@ -362,7 +362,7 @@ function PhotoTriageInner() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (err) {
-      Alert.alert('Apply failed', (err as Error).message ?? 'Could not save records.');
+      showAlert('Apply failed', (err as Error).message ?? 'Could not save records.');
     } finally {
       setApplying(false);
     }

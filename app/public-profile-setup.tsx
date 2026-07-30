@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, Switch,
-  TouchableOpacity, Alert, Platform, Share,
+  View, Text, StyleSheet, ScrollView, TextInput, Switch, TouchableOpacity, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +22,7 @@ import { formatMoney } from '@/utils/formatters';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const PUBLIC_BASE = 'https://mageid.app/builders';
 
@@ -73,7 +73,7 @@ export default function PublicProfileSetupScreen() {
     if (!publicUrl) return;
     const ok = await copyToClipboard(publicUrl);
     if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
+    showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok ? 'The public profile link has been copied.' : 'Could not copy the link.',
     );

@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -21,6 +20,7 @@ import AIEquipmentAdvice from '@/components/AIEquipmentAdvice';
 import type { EquipmentCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   available: { label: 'Available', color: "#2E7D44" },
@@ -68,7 +68,7 @@ export default function EquipmentDetailScreen() {
 
   const handleSave = useCallback(() => {
     if (!equip || !editName.trim()) {
-      Alert.alert('Missing Name', 'Please enter an equipment name.');
+      showAlert('Missing Name', 'Please enter an equipment name.');
       return;
     }
     updateEquipment(equip.id, {
@@ -83,12 +83,12 @@ export default function EquipmentDetailScreen() {
       currentProjectId: editProjectId || undefined,
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Saved', 'Equipment updated successfully.');
+    showAlert('Saved', 'Equipment updated successfully.');
   }, [equip, editName, editMake, editModel, editDailyRate, editStatus, editCategory, editSerialNumber, editNotes, editProjectId, updateEquipment]);
 
   const handleDelete = useCallback(() => {
     if (!equip) return;
-    Alert.alert('Delete Equipment', `Delete ${equip.name}? This cannot be undone.`, [
+    showAlert('Delete Equipment', `Delete ${equip.name}? This cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -104,7 +104,7 @@ export default function EquipmentDetailScreen() {
     if (!equip) return;
     const hours = parseFloat(logHours) || 0;
     if (hours <= 0) {
-      Alert.alert('Invalid Hours', 'Please enter valid hours.');
+      showAlert('Invalid Hours', 'Please enter valid hours.');
       return;
     }
     logUtilization({

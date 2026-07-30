@@ -12,8 +12,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Image, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -41,6 +40,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Expanded per code-review #8 to cover the trades
@@ -168,7 +168,7 @@ function AiPunchScreenInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        Alert.alert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
+        showAlert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
@@ -178,12 +178,12 @@ function AiPunchScreenInner() {
   const handlePickFromCameraRoll = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Photo access needed', 'Grant photo access in Settings to pick photos.');
+      showAlert('Photo access needed', 'Grant photo access in Settings to pick photos.');
       return;
     }
     const remaining = 12 - pickedPhotos.length;
     if (remaining <= 0) {
-      Alert.alert('Max 12 photos', 'Remove a photo before adding more.');
+      showAlert('Max 12 photos', 'Remove a photo before adding more.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -203,11 +203,11 @@ function AiPunchScreenInner() {
   const handleTakePhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Camera access needed', 'Grant camera permission in Settings.');
+      showAlert('Camera access needed', 'Grant camera permission in Settings.');
       return;
     }
     if (pickedPhotos.length >= 12) {
-      Alert.alert('Max 12 photos', 'Remove a photo before taking more.');
+      showAlert('Max 12 photos', 'Remove a photo before taking more.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -218,7 +218,7 @@ function AiPunchScreenInner() {
   // ── Step 2: analyze ──────────────────────────────────────────
   const handleAnalyze = useCallback(async () => {
     if (pickedPhotos.length === 0) {
-      Alert.alert('Pick at least one photo first');
+      showAlert('Pick at least one photo first');
       return;
     }
     // Photo Analysis is a Pro+ feature — vision API calls are 2-3x the cost
@@ -336,7 +336,7 @@ function AiPunchScreenInner() {
   const handleSaveOne = useCallback(async (item: ReviewableItem, presetStamp?: PhotoGeoStamp | null) => {
     if (!project || item.saved) return;
     if (!item.editedDescription.trim()) {
-      Alert.alert('Description required');
+      showAlert('Description required');
       return;
     }
     let stamp: PhotoGeoStamp | null = null;
@@ -377,7 +377,7 @@ function AiPunchScreenInner() {
       setReviewItems(prev => prev.map(r => savedIds.has(r.id) ? { ...r, saved: true } : r));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const saved = items.length;
-      Alert.alert(
+      showAlert(
         `Saved ${saved} punch item${saved === 1 ? '' : 's'}`,
         'They’re now in the punch list.',
         [{

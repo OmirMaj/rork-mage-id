@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  Alert, TextInput, Keyboard,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -30,6 +29,7 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { wipPeriodToCSV, shareWipPeriodPdf } from '@/utils/wipExport';
 import { copyToClipboard } from '@/utils/clipboard';
 import type { WipRowInput, WipSnapshotRow, Project } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
@@ -200,14 +200,14 @@ function WipReportScreenInner() {
     const periodEndDate = new Date().toISOString().slice(0, 10);
     addPeriod({ periodEndDate, rows: liveRows, portfolioTotals: portfolio });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Period saved', `WIP snapshot for ${periodEndDate} created. Lock it to freeze for CPA/bank review.`);
+    showAlert('Period saved', `WIP snapshot for ${periodEndDate} created. Lock it to freeze for CPA/bank review.`);
   }, [addPeriod, liveRows, portfolio]);
 
   const handleLock = useCallback(() => {
     const target = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periods[0];
-    if (!target) { Alert.alert('No period', 'Save a period snapshot first, then lock it.'); return; }
-    if (target.lockedAt) { Alert.alert('Already locked', 'This period is immutable. Create a new period to make changes.'); return; }
-    Alert.alert('Lock period?', `Locking freezes ${target.periodEndDate}. It can no longer be edited.`, [
+    if (!target) { showAlert('No period', 'Save a period snapshot first, then lock it.'); return; }
+    if (target.lockedAt) { showAlert('Already locked', 'This period is immutable. Create a new period to make changes.'); return; }
+    showAlert('Lock period?', `Locking freezes ${target.periodEndDate}. It can no longer be edited.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Lock', style: 'destructive', onPress: () => { lockPeriod(target.id); void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } },
     ]);
@@ -227,13 +227,13 @@ function WipReportScreenInner() {
     const csv = wipPeriodToCSV(exportPeriod);
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(ok ? 'CSV copied' : 'Copy failed', ok ? 'Paste into Excel / QuickBooks / Sage.' : 'Could not copy CSV.');
+    showAlert(ok ? 'CSV copied' : 'Copy failed', ok ? 'Paste into Excel / QuickBooks / Sage.' : 'Could not copy CSV.');
   }, [exportPeriod]);
 
   const handleExportPdf = useCallback(async () => {
     if (!exportPeriod) return;
     try { await shareWipPeriodPdf(exportPeriod, 'MAGE ID'); }
-    catch { Alert.alert('Export failed', 'Could not generate the WIP PDF.'); }
+    catch { showAlert('Export failed', 'Could not generate the WIP PDF.'); }
   }, [exportPeriod]);
 
   return (

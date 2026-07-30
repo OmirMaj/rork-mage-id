@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Modal, Alert, Platform,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +29,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { parseLenientNumber } from '@/utils/formatters';
+import { showAlert } from '@/utils/alert';
 
 const PAGE_SIZE = 30;
 
@@ -121,7 +121,7 @@ export default function CategoryDetailScreen() {
     if (!alertModal) return;
     const price = parseLenientNumber(alertPrice);
     if (price === null || price <= 0) {
-      Alert.alert('Invalid Price', 'Please enter a valid target price.');
+      showAlert('Invalid Price', 'Please enter a valid target price.');
       return;
     }
     const alert: PriceAlert = {
@@ -139,7 +139,7 @@ export default function CategoryDetailScreen() {
     setAlertModal(null);
     setAlertPrice('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Alert Set', `You'll be notified when ${alertModal.name} goes ${alertDirection} $${price.toFixed(2)}.`);
+    showAlert('Alert Set', `You'll be notified when ${alertModal.name} goes ${alertDirection} $${price.toFixed(2)}.`);
   }, [alertModal, alertPrice, alertDirection, addPriceAlert]);
 
   const renderItem = useCallback(({ item }: { item: MaterialItem }) => {

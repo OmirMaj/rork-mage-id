@@ -64,6 +64,7 @@ import {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { showAlert } from '@/utils/alert';
 
 const ESTIMATE_THINKING_STEPS = [
   'Reading your scope…',
@@ -313,7 +314,7 @@ function EstimateWizardScreenInner() {
     try {
       const res = await mageAISmart(prompt, estimateSchema, cacheKey);
       if (!res.success || !res.data) {
-        Alert.alert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
+        showAlert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
       } else {
         // NEVER trust AI arithmetic in a client-facing PDF or saved
         // project financials. Deterministically recompute every number
@@ -339,7 +340,7 @@ function EstimateWizardScreenInner() {
         // $0 estimate — do NOT render/save it or overwrite the project.
         // (An AI error kind is already handled by the !res.success guard.)
         if (lineItems.length === 0 || total <= 0) {
-          Alert.alert('Estimate failed', 'The AI returned an empty or invalid estimate. Please try again.');
+          showAlert('Estimate failed', 'The AI returned an empty or invalid estimate. Please try again.');
           return;
         }
 
@@ -387,7 +388,7 @@ function EstimateWizardScreenInner() {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
-      Alert.alert('Estimate failed', err instanceof Error ? err.message : 'Unknown error.');
+      showAlert('Estimate failed', err instanceof Error ? err.message : 'Unknown error.');
     } finally {
       setLoading(false);
     }
@@ -421,7 +422,7 @@ function EstimateWizardScreenInner() {
       };
       await shareQuickEstimatePDF(result, answers, branding);
     } catch (err) {
-      Alert.alert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
+      showAlert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
     } finally {
       setSharingPdf(false);
     }
@@ -472,7 +473,7 @@ function EstimateWizardScreenInner() {
     if (!result) return;
     const name = newProjectName.trim();
     if (!name) {
-      Alert.alert('Name required', 'Give this project a name so you can find it later.');
+      showAlert('Name required', 'Give this project a name so you can find it later.');
       return;
     }
     const now = new Date().toISOString();

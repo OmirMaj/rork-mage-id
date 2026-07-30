@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +19,7 @@ import { Tokens } from '@/constants/designTokens';
 import { buildOsha300Log, OSHA_CLASS_LABEL } from '@/utils/safety/oshaLog';
 import { exportOsha300Pdf, shareOsha300Csv } from '@/utils/safety/oshaExport';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { showAlert } from '@/utils/alert';
 
 export default function SafetyOshaScreen() {
   const router = useRouter();
@@ -85,7 +88,7 @@ function SafetyOshaInner() {
     try {
       await exportOsha300Pdf(scopedIncidents, est);
     } catch {
-      Alert.alert('Export failed', 'Could not generate the OSHA 300 PDF. Please try again.');
+      showAlert('Export failed', 'Could not generate the OSHA 300 PDF. Please try again.');
     }
   }, [scopedIncidents, est]);
 
@@ -94,7 +97,7 @@ function SafetyOshaInner() {
     try {
       await shareOsha300Csv(scopedIncidents, est);
     } catch {
-      Alert.alert('Export failed', 'Could not generate the OSHA 300 CSV. Please try again.');
+      showAlert('Export failed', 'Could not generate the OSHA 300 CSV. Please try again.');
     }
   }, [scopedIncidents, est]);
 

@@ -18,7 +18,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -43,6 +43,7 @@ import { runCpm } from '@/utils/cpm';
 import { captureBaseline } from '@/utils/scheduleOps';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { nailIt, oops } from '@/components/animations/NailItToast';
+import { showAlert } from '@/utils/alert';
 import type {
   ScheduleImportResult, ScheduleImportField, ProjectResource, ProjectSchedule, ScheduleScenario,
 } from '@/types';
@@ -134,7 +135,7 @@ export default function ScheduleImportScreen() {
       const isXlsx = lower.endsWith('.xlsx');
       const isXml = lower.endsWith('.xml');
       if (!isXlsx && !isXml) {
-        Alert.alert('Unsupported file', 'Pick an Excel (.xlsx) or MS Project (.xml) schedule.');
+        showAlert('Unsupported file', 'Pick an Excel (.xlsx) or MS Project (.xml) schedule.');
         return;
       }
       setFileName(name);
@@ -163,7 +164,7 @@ export default function ScheduleImportScreen() {
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
     } catch (err) {
       console.error('[ScheduleImport] pick/parse failed', err);
-      Alert.alert('Could not read that schedule', err instanceof Error ? err.message : 'Please try again.');
+      showAlert('Could not read that schedule', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setBusy(false);
     }
@@ -300,7 +301,7 @@ export default function ScheduleImportScreen() {
       if (cpm.conflicts.length > 0) {
         setImporting(false);
         const conflictLine = `${cpm.conflicts.length} cycle/anchor conflict(s) were found. You can import anyway and fix them in Schedule Pro.`;
-        Alert.alert(
+        showAlert(
           existingCount > 0 ? 'Replace schedule with conflicts?' : 'Schedule has conflicts',
           existingCount > 0 ? `${replaceLine}\n\n${conflictLine}` : conflictLine,
           [
@@ -317,7 +318,7 @@ export default function ScheduleImportScreen() {
 
       if (existingCount > 0) {
         setImporting(false);
-        Alert.alert(
+        showAlert(
           'Replace current schedule?',
           replaceLine,
           [
@@ -335,7 +336,7 @@ export default function ScheduleImportScreen() {
       commit();
     } catch (err) {
       console.error('[ScheduleImport] import failed', err);
-      Alert.alert('Import failed', err instanceof Error ? err.message : 'Please try again.');
+      showAlert('Import failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setImporting(false);
     }

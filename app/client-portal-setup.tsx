@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
-  TextInput, Alert, Platform, Share,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
@@ -44,6 +43,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
@@ -431,14 +431,14 @@ function ClientPortalSetupScreenInner() {
   const handleSave = useCallback(async () => {
     if (!id) return;
     if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < 4)) {
-      Alert.alert('Passcode Required', 'Please enter a passcode of at least 4 characters, or disable passcode protection.');
+      showAlert('Passcode Required', 'Please enter a passcode of at least 4 characters, or disable passcode protection.');
       return;
     }
     setIsSaving(true);
     try {
       updateProject(id, { clientPortal: portal });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Saved', 'Portal settings updated.');
+      showAlert('Saved', 'Portal settings updated.');
     } finally {
       setIsSaving(false);
     }
@@ -463,7 +463,7 @@ function ClientPortalSetupScreenInner() {
   // invite goes out — matching the on-screen "share it separately" guidance.
   const promptPasscodeSeparately = useCallback(() => {
     if (!portal.requirePasscode || !portal.passcode) return;
-    Alert.alert(
+    showAlert(
       'Now share the passcode separately',
       `Your portal is passcode-protected. Text or tell your client the passcode over a different channel than the link:\n\nPasscode: ${portal.passcode}`,
     );
@@ -503,12 +503,12 @@ function ClientPortalSetupScreenInner() {
     // silently failed in non-secure contexts) and the user saw "Copied"
     // over an empty clipboard.
     if (linkPending) {
-      Alert.alert('Finalizing secure link', 'Your portal’s secure link is still syncing — try again in a moment.');
+      showAlert('Finalizing secure link', 'Your portal’s secure link is still syncing — try again in a moment.');
       return;
     }
     const ok = await copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
+    showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok
         ? 'Portal link copied to clipboard.'
@@ -587,7 +587,7 @@ function ClientPortalSetupScreenInner() {
         // Passcode intentionally not in the email — prompt out-of-band delivery.
         promptPasscodeSeparately();
       } else {
-        Alert.alert('Sent', `Invitation sent to ${invite.email}.`);
+        showAlert('Sent', `Invitation sent to ${invite.email}.`);
       }
       return;
     }
@@ -609,7 +609,7 @@ function ClientPortalSetupScreenInner() {
       isHtml: false,
     });
     if (!fallback.success && fallback.error && fallback.error !== 'cancelled') {
-      Alert.alert('Email Not Sent', fallback.error);
+      showAlert('Email Not Sent', fallback.error);
     }
   }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately]);
 
@@ -618,9 +618,9 @@ function ClientPortalSetupScreenInner() {
       const digits = Math.floor(1000 + Math.random() * 9000).toString();
       setPortal(p => ({ ...p, passcode: digits, requirePasscode: true }));
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      Alert.alert('New Passcode', `New passcode: ${digits}\n\nRemember to tap Save and re-share it with clients.`);
+      showAlert('New Passcode', `New passcode: ${digits}\n\nRemember to tap Save and re-share it with clients.`);
     };
-    Alert.alert(
+    showAlert(
       'Reset Passcode',
       'Generate a new 4-digit passcode? Existing clients will need the new code before they can view the portal.',
       [
@@ -638,11 +638,11 @@ function ClientPortalSetupScreenInner() {
     // can't get past Resend's validator should be caught here.
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!email || !EMAIL_REGEX.test(email)) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address — like name@example.com.');
+      showAlert('Invalid Email', 'Please enter a valid email address — like name@example.com.');
       return;
     }
     if (portal.invites?.some(i => i.email === email)) {
-      Alert.alert('Already Invited', 'This email has already been invited.');
+      showAlert('Already Invited', 'This email has already been invited.');
       return;
     }
     const invite: ClientPortalInvite = {
@@ -659,7 +659,7 @@ function ClientPortalSetupScreenInner() {
   }, [inviteEmail, inviteName, portal.invites]);
 
   const handleRemoveInvite = useCallback((inviteId: string) => {
-    Alert.alert('Remove Access', 'Remove this client\'s access?', [
+    showAlert('Remove Access', 'Remove this client\'s access?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove', style: 'destructive', onPress: () => {
@@ -670,7 +670,7 @@ function ClientPortalSetupScreenInner() {
   }, []);
 
   const handleDisablePortal = useCallback(() => {
-    Alert.alert('Disable Portal', 'This will revoke all client access. Continue?', [
+    showAlert('Disable Portal', 'This will revoke all client access. Continue?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Disable', style: 'destructive', onPress: () => {
@@ -975,14 +975,14 @@ function ClientPortalSetupScreenInner() {
                 });
                 if (error) throw error;
                 const sent = (data as { sent?: number } | null)?.sent ?? 0;
-                Alert.alert(
+                showAlert(
                   sent > 0 ? 'Preview sent' : 'No invites yet',
                   sent > 0
                     ? `Sent the recap to ${sent} portal invite${sent === 1 ? '' : 's'}. Check your inbox or your client's.`
                     : 'Add a portal invite (with their email) before previewing the weekly recap.',
                 );
               } catch (err) {
-                Alert.alert('Preview failed', (err as Error).message ?? 'Could not send preview.');
+                showAlert('Preview failed', (err as Error).message ?? 'Could not send preview.');
               }
             }}
             activeOpacity={0.85}

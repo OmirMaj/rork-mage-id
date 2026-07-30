@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import {
+  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -12,6 +14,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PortalState, SendableItemKind } from '@/types';
+import { showAlert } from '@/utils/alert';
 
 type OutboxRow = {
   kind: SendableItemKind;
@@ -159,9 +162,9 @@ export default function ClientOutboxScreen() {
         items: drafts.map(d => ({ kind: d.kind, itemId: d.itemId })),
         projectId,
       });
-      Alert.alert('Sent', `${sent} item${sent === 1 ? '' : 's'} sent to your client.`);
+      showAlert('Sent', `${sent} item${sent === 1 ? '' : 's'} sent to your client.`);
     } catch (e) {
-      Alert.alert('Send failed', e instanceof Error ? e.message : 'Try again.');
+      showAlert('Send failed', e instanceof Error ? e.message : 'Try again.');
     } finally {
       setBusy(false);
     }

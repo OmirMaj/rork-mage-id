@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import {
+  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Users, Package, FileText, DollarSign, Shield, Receipt } from 'lucide-react-native';
@@ -13,6 +15,7 @@ import { QboSuccessCheckmark } from '@/components/QboSuccessCheckmark';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useQboCostLines } from '@/hooks/useQboCostLines';
+import { showAlert } from '@/utils/alert';
 
 export default function QboSetupScreen() {
   // Client-side tier gate BEFORE the OAuth browser can open. The server
@@ -83,7 +86,7 @@ function QboSetupScreenInner() {
     const r = await connectQuickBooks();
     setBusy(false);
     if (!r.ok) {
-      Alert.alert('Connect failed', r.error ?? 'Try again.');
+      showAlert('Connect failed', r.error ?? 'Try again.');
       return;
     }
     // Server write happens AFTER browser closes. Poll briefly.

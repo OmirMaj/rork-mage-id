@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
+import {
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -24,6 +26,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Redesigned estimate REVIEW — the approved ink+amber summary view reading the
 // live material cart. Non-destructive: the catalog/cart estimator at
@@ -117,7 +120,7 @@ export default function EstimateReviewScreen() {
     const url = `${base}/shared-estimate?t=${token}`;
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
+    showAlert(
       ok ? 'Proposal link copied' : 'Proposal link',
       ok
         ? 'Client-safe link copied to your clipboard. Paste it into a text or email — no login needed, and it shows no costs, markups or margin.'

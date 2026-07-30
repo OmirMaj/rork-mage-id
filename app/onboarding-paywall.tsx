@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
@@ -32,6 +24,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 /**
  * Onboarding-style paywall — single-screen, trial-narrative, big-CTA
@@ -198,7 +191,7 @@ export default function OnboardingPaywallScreen() {
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      Alert.alert(
+      showAlert(
         'Welcome to MAGE ID ' + (selectedPlan === 'pro' ? 'Pro' : 'Business') + '!',
         'Your subscription is active.',
       );
@@ -211,7 +204,7 @@ export default function OnboardingPaywallScreen() {
         (err as { userCancelled: boolean }).userCancelled;
       if (cancelled) return;
       console.log('[OnboardingPaywall] purchase failed', err);
-      Alert.alert(
+      showAlert(
         'Purchase Failed',
         'Something went wrong. Please try again, or tap Restore if you already purchased.',
       );
@@ -221,11 +214,11 @@ export default function OnboardingPaywallScreen() {
   const handleRestore = useCallback(async () => {
     try {
       await restorePurchases();
-      Alert.alert('Restored', 'Your purchases have been restored.');
+      showAlert('Restored', 'Your purchases have been restored.');
       router.replace('/(tabs)/summary' as any);
     } catch (err) {
       console.log('[OnboardingPaywall] restore failed', err);
-      Alert.alert('Nothing to Restore', 'We couldn\'t find an active subscription.');
+      showAlert('Nothing to Restore', 'We couldn\'t find an active subscription.');
     }
   }, [restorePurchases, router]);
 

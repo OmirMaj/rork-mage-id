@@ -14,8 +14,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
-  Modal, TextInput, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -46,6 +45,7 @@ import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck'
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // ─────────────────────────────────────────────────────────────
 // Root
@@ -113,7 +113,7 @@ function JobCostingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     };
     if (Platform.OS === 'web') { if (confirm('Remove this commitment?')) exec(); return; }
-    Alert.alert('Remove commitment?', 'This cannot be undone.', [
+    showAlert('Remove commitment?', 'This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: exec },
     ]);
@@ -535,7 +535,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
   const handleSave = () => {
     const amt = Number(amount) || 0;
     if (!description.trim() || amt <= 0) {
-      Alert.alert('Missing info', 'Add a description and an amount.');
+      showAlert('Missing info', 'Add a description and an amount.');
       return;
     }
     const now = new Date().toISOString();

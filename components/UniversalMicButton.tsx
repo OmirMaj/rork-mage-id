@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator,
-  Platform, Alert,
+  View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +29,7 @@ import { generateUUID } from '@/utils/generateId';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Floating "speak anywhere" button. Opens a modal with the project picker
 // + voice recorder; after the AI parses intent, drafts the appropriate
@@ -279,7 +279,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
           updatedAt: new Date().toISOString(),
         } as never);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Note saved', 'Saved as a daily-report draft you can finish later.', [{
+        showAlert('Note saved', 'Saved as a daily-report draft you can finish later.', [{
           text: 'OK', onPress: handleClose,
         }]);
       } else if (parsed.kind === 'punch') {
@@ -448,7 +448,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         if (materials.length > 0) summaryParts.push(`${materials.length} material${materials.length > 1 ? 's' : ''} noted`);
 
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
+        showAlert(
           'Field update saved',
           `${summaryParts.join(' · ') || 'Draft daily report created'}. Saved as a daily-report draft you can finish anytime.`,
           [{ text: 'OK', onPress: handleClose }],

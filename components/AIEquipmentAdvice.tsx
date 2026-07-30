@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
-  Platform,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { RefreshCw, TrendingUp, ArrowRight, Tag, ClipboardList } from 'lucide-react-native';
@@ -21,6 +20,7 @@ import type { Equipment } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface Props {
   equipment: Equipment;
@@ -72,7 +72,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Equipment] Analysis failed:', err);
-      Alert.alert('AI Error', 'Could not analyze equipment. Try again.');
+      showAlert('AI Error', 'Could not analyze equipment. Try again.');
     } finally {
       setIsLoading(false);
     }

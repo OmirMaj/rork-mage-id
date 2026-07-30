@@ -1,20 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Switch,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-  Image,
-  FlatList,
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Switch, KeyboardAvoidingView, ActivityIndicator, Image, FlatList,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
@@ -105,6 +91,7 @@ import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { runCpm } from '@/utils/cpm';
 import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
+import { showAlert } from '@/utils/alert';
 
 interface TaskDraft {
   title: string;
@@ -446,11 +433,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const setProjectStartDate = useCallback((isoYYYYMMDD: string) => {
     // Validate YYYY-MM-DD
     const m = /^\d{4}-\d{2}-\d{2}$/.exec(isoYYYYMMDD.trim());
-    if (!m) { Alert.alert('Invalid date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).'); return; }
+    if (!m) { showAlert('Invalid date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).'); return; }
     const parsed = new Date(isoYYYYMMDD + 'T12:00:00');
-    if (Number.isNaN(parsed.getTime())) { Alert.alert('Invalid date'); return; }
+    if (Number.isNaN(parsed.getTime())) { showAlert('Invalid date'); return; }
     if (!activeSchedule) {
-      Alert.alert('No schedule', 'Add at least one task before setting a project start date.');
+      showAlert('No schedule', 'Add at least one task before setting a project start date.');
       return;
     }
     // First explicit anchor on a dateless schedule: its startDay values are
@@ -538,10 +525,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
   const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null) => {
     const title = draft.title.trim();
-    if (!title) { Alert.alert('Missing task name'); return; }
+    if (!title) { showAlert('Missing task name'); return; }
     const durationDays = parseInt(draft.durationDays, 10);
     if (Number.isNaN(durationDays) || durationDays < 0 || durationDays > 365) {
-      Alert.alert('Invalid duration', 'Enter 0-365 days.'); return;
+      showAlert('Invalid duration', 'Enter 0-365 days.'); return;
     }
     const crewSize = parseInt(draft.crewSize, 10) || 1;
     const depLinks = draft.dependencyLinks;
@@ -553,15 +540,15 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const rawStartDate = draft.startDateOverride.trim();
     if (rawStartDate) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(rawStartDate)) {
-        Alert.alert('Invalid start date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).');
+        showAlert('Invalid start date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).');
         return;
       }
       const picked = new Date(rawStartDate + 'T12:00:00');
-      if (Number.isNaN(picked.getTime())) { Alert.alert('Invalid start date'); return; }
+      if (Number.isNaN(picked.getTime())) { showAlert('Invalid start date'); return; }
       const ms = picked.getTime() - projectStartDate.getTime();
       const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
       if (dayOffset < 1) {
-        Alert.alert('Start date too early', `Pick a date on or after the project start (${projectStartDate.toLocaleDateString()}).`);
+        showAlert('Start date too early', `Pick a date on or after the project start (${projectStartDate.toLocaleDateString()}).`);
         return;
       }
       startDayFromDate = dayOffset;
@@ -748,7 +735,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [activeSchedule, saveSchedule, selectedProject, sortedTasks]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
-    Alert.alert('Delete Task', 'Remove this task?', [
+    showAlert('Delete Task', 'Remove this task?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: () => {
@@ -772,12 +759,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const baseline = saveBaseline(activeSchedule);
     const updated = { ...activeSchedule, baseline };
     saveSchedule(updated, selectedProject);
-    Alert.alert('Baseline Saved', 'Current schedule saved as baseline for comparison.');
+    showAlert('Baseline Saved', 'Current schedule saved as baseline for comparison.');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [activeSchedule, saveSchedule, selectedProject]);
 
   const handleAIGenerate = useCallback(async () => {
-    if (!aiPrompt.trim()) { Alert.alert('Describe your project first.'); return; }
+    if (!aiPrompt.trim()) { showAlert('Describe your project first.'); return; }
     setIsAILoading(true);
     try {
       const taskItemSchema = z.object({
@@ -812,7 +799,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       });
 
       if (!aiResult.success) {
-        Alert.alert('AI Unavailable', aiResult.error || 'Try again.');
+        showAlert('AI Unavailable', aiResult.error || 'Try again.');
         setIsAILoading(false);
         return;
       }
@@ -832,7 +819,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             parsed = JSON.parse(cleaned.trim());
           } catch {
             console.log('[Schedule] Could not parse AI string response');
-            Alert.alert('Generation Failed', 'AI returned invalid data. Please try again.');
+            showAlert('Generation Failed', 'AI returned invalid data. Please try again.');
             setIsAILoading(false);
             return;
           }
@@ -909,11 +896,11 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         console.log('[Schedule] AI returned empty or no tasks');
-        Alert.alert('Generation Failed', 'AI returned no tasks. Please try a more detailed description.');
+        showAlert('Generation Failed', 'AI returned no tasks. Please try a more detailed description.');
       }
     } catch (err) {
       console.log('[Schedule] AI generation failed:', err);
-      Alert.alert('Generation Failed', 'Could not generate schedule. Please try again.');
+      showAlert('Generation Failed', 'Could not generate schedule. Please try again.');
     } finally {
       setIsAILoading(false);
     }
@@ -953,7 +940,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
   const handleBuildFromEstimate = useCallback(() => {
     if (!selectedProject?.estimate && !selectedProject?.linkedEstimate) {
-      Alert.alert('No Estimate', 'This project needs an estimate first.');
+      showAlert('No Estimate', 'This project needs an estimate first.');
       return;
     }
 

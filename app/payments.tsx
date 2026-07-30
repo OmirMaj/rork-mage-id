@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +19,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Total deduction on a successful card payment, matched to what payments-setup
 // tells the GC: "A 1% platform fee plus standard Stripe processing (2.9% +
@@ -251,7 +251,7 @@ export default function PaymentsScreen() {
     // No invoice anchor (shouldn't happen with real data, but belt-and-braces
     // so we never leave the user staring at a dead press).
     const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
-    Alert.alert(
+    showAlert(
       'Payment Details',
       `${formatMoney(payment.amount)} • ${providerInfo.label}\n${payment.description}`,
     );
@@ -274,7 +274,7 @@ export default function PaymentsScreen() {
       .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
 
     if (outstanding.length === 0) {
-      Alert.alert(
+      showAlert(
         'Nothing to Collect',
         'No outstanding invoices right now. Create or send an invoice to request payment.',
       );
@@ -292,7 +292,7 @@ export default function PaymentsScreen() {
     const othersNote = outstanding.length > 1
       ? ` It's the oldest of ${outstanding.length} outstanding invoices — collect the rest from each project.`
       : '';
-    Alert.alert(
+    showAlert(
       'Collect oldest unpaid',
       `Opening ${targetLabel} so you can send a pay link or record payment.${othersNote}`,
       [

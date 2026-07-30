@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Alert, Platform, useWindowDimensions,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -24,6 +23,7 @@ import { legacyEvmMetrics, buildCashFlow } from '@/utils/scheduleEarnedValue';
 import { mageAI } from '@/utils/mageAI';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const CHART_HEIGHT = 200;
 const CHART_PADDING = 40;
@@ -138,14 +138,14 @@ Be specific and actionable. Use construction industry terminology.`;
 
       const aiResult = await mageAI({ prompt, tier: 'fast', feature: 'fullBudgetDashboard' });
       if (!aiResult.success) {
-        Alert.alert('AI Unavailable', aiResult.error || 'Try again.');
+        showAlert('AI Unavailable', aiResult.error || 'Try again.');
         return;
       }
       setForecast(aiResult.data ?? aiResult.raw ?? '');
       console.log('[EVM] AI forecast generated');
     } catch (err) {
       console.log('[EVM] Forecast generation failed:', err);
-      Alert.alert('Error', 'Could not generate forecast. Please try again.');
+      showAlert('Error', 'Could not generate forecast. Please try again.');
     } finally {
       setForecastLoading(false);
     }

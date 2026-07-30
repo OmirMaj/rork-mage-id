@@ -9,8 +9,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +37,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import type { CompanyBranding } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 type Tab = 'wip' | 'profit' | 'aging';
 
@@ -86,7 +86,7 @@ export default function ReportsScreen() {
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      Alert.alert('PDF failed', err instanceof Error ? err.message : 'Could not generate PDF.');
+      showAlert('PDF failed', err instanceof Error ? err.message : 'Could not generate PDF.');
     } finally {
       setGenerating(false);
     }
@@ -100,7 +100,7 @@ export default function ReportsScreen() {
     if (!csv) return;
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
+    showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok ? 'CSV is on your clipboard. Paste into Excel/QuickBooks/Sage.' : 'Could not copy CSV.',
     );

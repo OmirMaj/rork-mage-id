@@ -33,8 +33,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, Alert, Modal, PanResponder, Pressable,
+  View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, PanResponder, Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle as SvgCircle, G as SvgG } from 'react-native-svg';
@@ -56,6 +55,7 @@ import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, 
 import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // ---------------------------------------------------------------------------
 // Column definition — single source of truth for widths, alignment, editability
@@ -1178,7 +1178,7 @@ export default function GridPane({
               if (Platform.OS === 'web') {
                 if (window.confirm?.(`Delete "${task.title}"?`)) onDeleteTask(task.id);
               } else {
-                Alert.alert('Delete task?', `"${task.title}" will be removed.`, [
+                showAlert('Delete task?', `"${task.title}" will be removed.`, [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Delete', style: 'destructive', onPress: () => onDeleteTask(task.id) },
                 ]);
@@ -1237,7 +1237,7 @@ export default function GridPane({
     if (Platform.OS === 'web') {
       if (window.confirm?.(confirmMsg)) go();
     } else {
-      Alert.alert('Delete tasks', confirmMsg, [
+      showAlert('Delete tasks', confirmMsg, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: go },
       ]);

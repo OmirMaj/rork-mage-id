@@ -8,8 +8,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform, Modal,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Modal,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +35,7 @@ import { statusPillStyle } from '@/utils/statusPill';
 import type { LienWaiver, LienWaiverType, CompanyBranding } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert, showPrompt } from '@/utils/alert';
 
 export default function LienWaiversScreen() {
   const router = useRouter();
@@ -155,7 +155,7 @@ function LienWaiversScreenInner() {
       setAddModal(false);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
-      Alert.alert('Save failed', 'Could not save the waiver.');
+      showAlert('Save failed', 'Could not save the waiver.');
     }
   }, [projectId, prefillSeed]);
 
@@ -165,7 +165,7 @@ function LienWaiversScreenInner() {
       await shareLienWaiverPDF(w, branding, project?.name ?? 'Project', project?.location);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      Alert.alert('Export failed', e instanceof Error ? e.message : 'Could not generate PDF.');
+      showAlert('Export failed', e instanceof Error ? e.message : 'Could not generate PDF.');
     } finally {
       setExporting(null);
     }
@@ -180,7 +180,7 @@ function LienWaiversScreenInner() {
     const persist = async (rawName: string) => {
       const name = rawName.trim();
       if (!name || name.length < 2) {
-        Alert.alert('Name required', 'Type the subcontractor\'s legal name to confirm signature.');
+        showAlert('Name required', 'Type the subcontractor\'s legal name to confirm signature.');
         return;
       }
       try {
@@ -194,19 +194,16 @@ function LienWaiversScreenInner() {
           setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         } else {
-          Alert.alert('Save failed', 'Could not mark this waiver as signed. Try again.');
+          showAlert('Save failed', 'Could not mark this waiver as signed. Try again.');
         }
       } catch (e) {
-        Alert.alert('Save failed', e instanceof Error ? e.message : 'Try again.');
+        showAlert('Save failed', e instanceof Error ? e.message : 'Try again.');
       }
     };
-    if (Platform.OS === 'web' || !(Alert as any).prompt) {
-      const name = window.prompt(`Type the subcontractor's name to confirm they've signed the waiver in person:`, w.subName);
-      if (name == null) return;
-      void persist(name);
-      return;
-    }
-    Alert.prompt(
+    // showPrompt covers every platform now (native Alert.prompt on iOS, the
+    // themed modal on Android + web), so the old hand-rolled window.prompt
+    // fallback this file carried for web is no longer needed.
+    showPrompt(
       'Mark as signed',
       `Type the subcontractor's name to confirm they've signed the waiver:`,
       (name) => { if (name != null) void persist(name); },
@@ -216,7 +213,7 @@ function LienWaiversScreenInner() {
   }, []);
 
   const handleDelete = useCallback((w: LienWaiver) => {
-    Alert.alert(
+    showAlert(
       `Delete waiver for ${w.subName}?`,
       'This is permanent.',
       [
@@ -460,15 +457,15 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
     const trimmedEmail = subEmail.trim();
     const numericAmount = Number(amount);
     if (!trimmedName) {
-      Alert.alert('Sub name required', 'Type the subcontractor\'s legal company or person name.');
+      showAlert('Sub name required', 'Type the subcontractor\'s legal company or person name.');
       return;
     }
     if (!isFinite(numericAmount) || numericAmount <= 0) {
-      Alert.alert('Amount required', 'Enter the dollar amount paid through this date.');
+      showAlert('Amount required', 'Enter the dollar amount paid through this date.');
       return;
     }
     if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      Alert.alert('Email looks off', 'Either fix the email or leave it blank.');
+      showAlert('Email looks off', 'Either fix the email or leave it blank.');
       return;
     }
     onCreate({

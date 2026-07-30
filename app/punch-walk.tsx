@@ -21,8 +21,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  Alert, Platform, Modal, Image, KeyboardAvoidingView,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Image, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -49,6 +48,7 @@ import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/ty
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Anything not recognized falls back to 'General'.
@@ -238,7 +238,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     } else {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Camera access needed', 'Grant camera permission in Settings to attach punch photos.');
+        showAlert('Camera access needed', 'Grant camera permission in Settings to attach punch photos.');
         return;
       }
       result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
@@ -278,7 +278,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
   const handleSave = useCallback(() => {
     if (!draft.description.trim()) {
-      Alert.alert('Nothing to save', 'Dictate or type a description first.');
+      showAlert('Nothing to save', 'Dictate or type a description first.');
       return;
     }
     const now = new Date().toISOString();

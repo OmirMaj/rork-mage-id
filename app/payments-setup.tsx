@@ -22,8 +22,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Linking, ActivityIndicator,
-  TextInput, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking, ActivityIndicator, TextInput, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -49,6 +48,7 @@ import {
 import { nailIt } from '@/components/animations/NailItToast';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function PaymentsSetupScreen() {
   const { colors: themeColors } = useTheme();
@@ -76,15 +76,15 @@ export default function PaymentsSetupScreen() {
   const saveFinancing = useCallback((enabled: boolean) => {
     const url = finUrl.trim();
     if (enabled && !/^https:\/\//i.test(url)) {
-      Alert.alert('Invalid URL', "The partner's prequalification link must start with https://.");
+      showAlert('Invalid URL', "The partner's prequalification link must start with https://.");
       return;
     }
     if (finApr.trim() && !Number.isFinite(Number(finApr))) {
-      Alert.alert('Invalid number', 'Example APR must be a number (e.g. 9.99).');
+      showAlert('Invalid number', 'Example APR must be a number (e.g. 9.99).');
       return;
     }
     if (finTerm.trim() && !Number.isFinite(Number(finTerm))) {
-      Alert.alert('Invalid number', 'Example term must be a whole number of months (e.g. 60).');
+      showAlert('Invalid number', 'Example term must be a whole number of months (e.g. 60).');
       return;
     }
     const cfg: FinancingConfig = {
@@ -121,7 +121,7 @@ export default function PaymentsSetupScreen() {
 
   const handleStart = useCallback(async () => {
     if (!user?.id || !user?.email) {
-      Alert.alert('Sign In Required', 'Please sign in to set up payments.');
+      showAlert('Sign In Required', 'Please sign in to set up payments.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -151,7 +151,7 @@ export default function PaymentsSetupScreen() {
           nailIt('Payments already connected');
           return;
         }
-        Alert.alert('Could Not Start Setup', res.error ?? 'Stripe is unreachable.');
+        showAlert('Could Not Start Setup', res.error ?? 'Stripe is unreachable.');
         return;
       }
 
@@ -174,14 +174,14 @@ export default function PaymentsSetupScreen() {
       } else if (post.status === 'pending') {
         // No-op — we'll show the pending card.
       } else if (post.status === 'incomplete') {
-        Alert.alert(
+        showAlert(
           'Setup Not Finished',
           'You can come back any time and pick up where you left off.',
         );
       }
     } catch (err) {
       console.error('[PaymentsSetup] start failed:', err);
-      Alert.alert('Setup Failed', 'Please try again.');
+      showAlert('Setup Failed', 'Please try again.');
     } finally {
       setStarting(false);
     }

@@ -18,7 +18,7 @@
 // regular projects.
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, Redirect } from 'expo-router';
@@ -50,6 +50,7 @@ import { saveLienWaiver } from '@/utils/lienWaiverEngine';
 import { saveCloseoutBinder, DEFAULT_MAINTENANCE } from '@/utils/closeoutBinderEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 export default function DevSeederScreen() {
   const { colors: themeColors } = useTheme();
@@ -1070,14 +1071,14 @@ export default function DevSeederScreen() {
       router.replace({ pathname: '/project-detail' as any, params: { id: projectId } });
     } catch (err) {
       console.error('[DevSeeder] Failed to seed:', err);
-      Alert.alert('Seed Failed', String(err));
+      showAlert('Seed Failed', String(err));
     } finally {
       setSeeding(false);
     }
   }, [seeding, addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, addPermit, savePermitRoadmap, addPlanSheet, savePlanReview, addPlanZone, addWarranty, addWarrantyClaim, addSubmittal, addAIAPayApp, addEquipment, addCOI, addPortalMessage, addCommitment, addSubcontractor, addContact, router]);
 
   const wipeAllProjects = useCallback(() => {
-    Alert.alert(
+    showAlert(
       'Wipe ALL Projects?',
       `This will delete all ${projects.length} projects and their data. This is owner-only and intended for resetting demo state. Continue?`,
       [

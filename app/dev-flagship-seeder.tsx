@@ -16,7 +16,7 @@
 // level: each press creates a brand-new project id, so repeats don't collide.
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, Redirect } from 'expo-router';
@@ -50,6 +50,7 @@ import type { CuratedOption } from '@/utils/selectionsEngine';
 import { resolveSelectionImage } from '@/utils/ogImage';
 import { saveLienWaiver } from '@/utils/lienWaiverEngine';
 import { saveCloseoutBinder, DEFAULT_MAINTENANCE } from '@/utils/closeoutBinderEngine';
+import { showAlert } from '@/utils/alert';
 import {
   FLAGSHIP_IDENTITY, FLAGSHIP_ESTIMATE_ITEMS, FLAGSHIP_MARKUP_PCT, FLAGSHIP_TASKS,
   FLAGSHIP_START_DAYS_AGO, FLAGSHIP_CONTRACT_VALUE, FLAGSHIP_FEE_PERCENT,
@@ -1291,7 +1292,7 @@ export default function DevFlagshipSeederScreen() {
       router.replace({ pathname: '/project-detail' as any, params: { id: projectId } });
     } catch (err) {
       console.error('[FlagshipSeeder] Failed to seed:', err);
-      Alert.alert('Seed Failed', String(err));
+      showAlert('Seed Failed', String(err));
     } finally {
       setSeeding(false);
     }

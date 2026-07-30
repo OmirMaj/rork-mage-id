@@ -1,7 +1,6 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, Pressable, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -68,6 +67,7 @@ import BrainWatchCard from '@/components/home/BrainWatchCard';
 import ReadyToBillCard from '@/components/home/ReadyToBillCard';
 import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
+import { showAlert } from '@/utils/alert';
 
 // Canonical 1-indexed, working-day-aware "which schedule day is today" — the
 // exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
@@ -396,7 +396,7 @@ export default function HomeScreen() {
   const handleCreateProject = useCallback(() => {
     const name = projectName.trim();
     if (!name) {
-      Alert.alert('Missing Name', 'Please enter a project name.');
+      showAlert('Missing Name', 'Please enter a project name.');
       return;
     }
     const now = new Date().toISOString();

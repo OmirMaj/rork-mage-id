@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Animated, AppState, Alert, Platform, ScrollView,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Animated, AppState, Platform, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +25,7 @@ import { REGIONS, CITY_ADJUSTMENTS, getRegionForState } from '@/constants/region
 import type { PricingRegion } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_META);
 
@@ -108,7 +108,7 @@ export default function MaterialsScreen() {
         : mat.baseRetailPrice >= alert.targetPrice;
       if (triggered) {
         updatePriceAlert(alert.id, { isTriggered: true, currentPrice: mat.baseRetailPrice });
-        Alert.alert('Price Alert', `${alert.materialName} is now $${mat.baseRetailPrice.toFixed(2)} — ${alert.direction === 'below' ? 'below' : 'above'} your $${alert.targetPrice.toFixed(2)} target.`);
+        showAlert('Price Alert', `${alert.materialName} is now $${mat.baseRetailPrice.toFixed(2)} — ${alert.direction === 'below' ? 'below' : 'above'} your $${alert.targetPrice.toFixed(2)} target.`);
       } else {
         updatePriceAlert(alert.id, { currentPrice: mat.baseRetailPrice });
       }

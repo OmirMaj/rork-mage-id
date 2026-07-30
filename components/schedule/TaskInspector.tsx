@@ -16,7 +16,9 @@
 // matches a phone's portrait so it acts like a full-screen drawer.
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInput, Alert, Modal, Pressable } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInput, Modal, Pressable,
+} from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +32,7 @@ import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { TRADE_KEYS, tradeKeyForTask, tradeLabel, type TradeKey } from '@/utils/scheduleColors';
+import { showAlert } from '@/utils/alert';
 
 interface TaskInspectorProps {
   task: ScheduleTask | null;
@@ -68,7 +71,7 @@ export default function TaskInspector({
   const handleAddPhoto = useCallback(async (source: 'camera' | 'library') => {
     if (!task) return;
     if (Platform.OS === 'web' && source === 'camera') {
-      Alert.alert('Camera unavailable on web', 'Use the library picker instead.');
+      showAlert('Camera unavailable on web', 'Use the library picker instead.');
       return;
     }
     try {

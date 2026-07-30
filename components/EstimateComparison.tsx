@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Platform, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -11,6 +11,7 @@ import type { LaborRate } from '@/constants/laborRates';
 import type { AssemblyItem } from '@/constants/assemblies';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 interface CartItem {
   material: MaterialItem;
@@ -100,7 +101,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
   const handleSaveCurrentVersion = useCallback(async () => {
     if (currentGrandTotal <= 0) {
-      Alert.alert('Nothing to Save', 'Add items to your estimate first.');
+      showAlert('Nothing to Save', 'Add items to your estimate first.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -134,7 +135,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
     } catch (err) {
       console.error('[EstimateComparison] Failed to save version:', err);
     }
-    Alert.alert('Saved', `Estimate saved as "${version.name}"`);
+    showAlert('Saved', `Estimate saved as "${version.name}"`);
   }, [currentCart, currentLaborCart, currentAssemblyCart, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, savedVersions]);
 
   const handleDeleteVersion = useCallback(async (id: string) => {

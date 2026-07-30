@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
-  ScrollView, Modal, Platform,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -23,6 +22,7 @@ import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { displayText } from '@/utils/formatters';
+import { showAlert } from '@/utils/alert';
 
 interface Props {
   project: Project;
@@ -70,7 +70,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Report] Generation failed:', err);
-      Alert.alert('AI Error', 'Could not generate report. Try again.');
+      showAlert('AI Error', 'Could not generate report. Try again.');
     } finally {
       setIsLoading(false);
     }

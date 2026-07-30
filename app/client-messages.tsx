@@ -14,8 +14,7 @@
 // filtered by portal_id (the column BOTH ends always populate).
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform,
-  KeyboardAvoidingView, Alert, Animated, Easing, Pressable,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Animated, Easing, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -31,6 +30,7 @@ import { usePortalThread } from '@/hooks/usePortalThread';
 import type { PortalMessage } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { showAlert } from '@/utils/alert';
 
 // Anything older than this gap from the previous message gets a fresh
 // timestamp pill above it AND breaks the bubble-run grouping.
@@ -306,7 +306,7 @@ export default function ClientMessagesScreen() {
 
   const showMessageActions = useCallback((messageBody: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
-    Alert.alert(
+    showAlert(
       'Message actions',
       undefined,
       [
