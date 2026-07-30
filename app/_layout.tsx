@@ -623,7 +623,10 @@ function RootLayoutNav() {
       <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt' }} />
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
       <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
-      <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
+      {/* gestureEnabled:false — the wizard holds an unsaved multi-task draft.
+          A swipe-down (iOS) discarded it with no prompt; the in-app back
+          button's confirm can't intercept the gesture. */}
+      <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal', gestureEnabled: false }} />
       <Stack.Screen name="schedule-builder" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="copilot" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="copilot-hub" options={{ headerShown: false, presentation: 'modal' }} />
