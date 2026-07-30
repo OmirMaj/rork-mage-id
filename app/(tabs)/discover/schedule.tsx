@@ -290,27 +290,16 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
    * when none of the templates fit and the AI generator's output is
    * over-engineered for a small job.
    */
+  // "Blank schedule" hands off to the schedule wizard on its from-scratch path.
+  // Previously this silently created a throwaway project named "New Schedule"
+  // and router.replace'd onto the schedule tab — so you got a junk project in
+  // your list, no way back, and never an actual build-it-yourself flow. The
+  // wizard already does this properly: step 1 picks the REAL project, step 2
+  // opens on an empty task list with "Add task".
   const handleStartFromScratch = useCallback(() => {
-    const now = new Date().toISOString();
-    const newProject: Project = {
-      id: createId('project'),
-      name: 'New Schedule',
-      type: 'renovation',
-      location: 'United States',
-      squareFootage: 0,
-      quality: 'standard',
-      description: 'Schedule built from scratch',
-      createdAt: now,
-      updatedAt: now,
-      estimate: null,
-      status: 'draft',
-    };
-    const schedule = buildScheduleFromTasks('New Schedule', newProject.id, [], undefined, { startDate: now.slice(0, 10) });
-    newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
-    addProject(newProject);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace('/(tabs)/schedule' as any);
-  }, [addProject, router]);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push('/schedule-wizard?scratch=1' as any);
+  }, [router]);
 
   const handleProjectSelected = useCallback((project: Project) => {
     setShowProjectPicker(false);
@@ -416,7 +405,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </View>
             <View style={s.templateInfo}>
               <Text style={s.templateName}>Blank schedule</Text>
-              <Text style={s.templateMeta}>Build it your way — start with no tasks and add them one by one.</Text>
+              <Text style={s.templateMeta}>Pick your project, then build it task by task — no template.</Text>
             </View>
             <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>

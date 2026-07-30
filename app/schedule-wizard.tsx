@@ -24,7 +24,7 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Check, Calendar as CalendarIcon,
-  Building2, Hammer, Trees, Home as HomeIcon, Plus, Trash2, MapPin, PencilRuler,
+  Building2, Hammer, Trees, Home as HomeIcon, Plus, Minus, Trash2, MapPin, PencilRuler,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -48,6 +48,14 @@ type StepIndex = 0 | 1 | 2 | 3;
 // Sentinel template id for the "build it yourself" path — starts the task
 // list empty instead of seeding a template's tasks.
 const SCRATCH_ID = '__scratch__';
+
+// Phases you can cycle through by tapping a task's colour dot. Ordered roughly
+// the way a job runs, so tapping forward walks the build sequence.
+const PHASE_CYCLE = [
+  'General', 'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
+  'Plumbing', 'Electrical', 'HVAC', 'Insulation', 'Drywall',
+  'Interior', 'Finishes', 'Landscaping', 'Inspections',
+];
 
 // The wizard commits a 5-day work week and hands off to Schedule Pro, which
 // runs CPM in CALENDAR mode (weekend-aware) whenever a startDate is present.
@@ -103,7 +111,10 @@ export default function ScheduleWizardScreen() {
   // wizard's value is available to every tier, and free users shouldn't finish
   // the flow only to hit a full-screen paywall.
   const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
-  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  // `scratch=1` opens the wizard already on the blank path (Discover →
+  // "Blank schedule" routes here) instead of seeding a template's tasks.
+  const { projectId, scratch } = useLocalSearchParams<{ projectId?: string; scratch?: string }>();
+  const startScratch = scratch === '1' || scratch === 'true';
   const { projects, getProject, updateProject } = useProjects();
 
   const [step, setStep] = useState<StepIndex>(0);
@@ -114,7 +125,7 @@ export default function ScheduleWizardScreen() {
     [pickedProjectId, getProject],
   );
 
-  const [pickedTemplateId, setPickedTemplateId] = useState<string>('kitchen-remodel');
+  const [pickedTemplateId, setPickedTemplateId] = useState<string>(startScratch ? SCRATCH_ID : 'kitchen-remodel');
   const template = useMemo(
     () => SCHEDULE_TEMPLATES.find(t => t.id === pickedTemplateId) ?? SCHEDULE_TEMPLATES[0],
     [pickedTemplateId],
@@ -122,7 +133,9 @@ export default function ScheduleWizardScreen() {
 
   // Editable copy of the template tasks, so the user can tune in step 2
   // without mutating the source template.
-  const [tasks, setTasks] = useState<TemplateTask[]>(() => template.tasks.map(t => ({ ...t })));
+  const [tasks, setTasks] = useState<TemplateTask[]>(
+    () => (startScratch ? [] : template.tasks.map(t => ({ ...t }))),
+  );
 
   // Re-seed tasks when the template changes.
   const handlePickTemplate = useCallback((id: string) => {
@@ -556,15 +569,32 @@ function TasksStep(props: {
       </ScrollView>
 
       <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Tasks ({tasks.length})</Text>
-      {tasks.length === 0 && (
+      {tasks.length === 0 ? (
         <Text style={styles.helper}>No tasks yet — add your first below, or pick a template above.</Text>
+      ) : (
+        <Text style={styles.helper}>
+          Tap a name to rename · − / + sets the days · tap the colour dot to change phase · 0 days = milestone
+        </Text>
       )}
       <View style={{ gap: 8 }}>
         {tasks.map((t, idx) => {
           const phaseColor = PHASE_COLORS[t.phase] ?? PHASE_COLORS.General;
           return (
             <View key={t.id} style={styles.taskRow}>
-              <View style={[styles.taskDot, { backgroundColor: phaseColor }]} />
+              {/* Tap the dot to cycle the phase — no picker modal to fight. */}
+              <TouchableOpacity
+                onPress={() => setTasks(prev => prev.map((x, i) => {
+                  if (i !== idx) return x;
+                  const at = PHASE_CYCLE.indexOf(x.phase);
+                  return { ...x, phase: PHASE_CYCLE[(at + 1) % PHASE_CYCLE.length] };
+                }))}
+                hitSlop={{ top: 12, right: 8, bottom: 12, left: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Phase: ${t.phase}. Tap to change.`}
+                testID={`task-phase-${idx}`}
+              >
+                <View style={[styles.taskDot, { backgroundColor: phaseColor }]} />
+              </TouchableOpacity>
               <View style={{ flex: 1 }}>
                 <TextInput
                   value={t.name}
@@ -576,14 +606,47 @@ function TasksStep(props: {
                   placeholderTextColor={themeColors.textMuted}
                 />
                 <Text style={styles.taskMeta}>
-                  {t.phase} · {t.duration === 0 ? 'milestone' : `${t.duration}d`}
+                  {t.phase} · {t.duration === 0 ? 'milestone' : `${t.duration} day${t.duration === 1 ? '' : 's'}`}
                 </Text>
               </View>
+
+              {/* Duration stepper. 0 days = milestone (the model's convention),
+                  so stepping down to 0 turns the task into one. */}
+              <View style={styles.durBox}>
+                <TouchableOpacity
+                  onPress={() => setTasks(prev => prev.map((x, i) => {
+                    if (i !== idx) return x;
+                    const next = Math.max(0, x.duration - 1);
+                    return { ...x, duration: next, isMilestone: next === 0 };
+                  }))}
+                  hitSlop={{ top: 10, right: 6, bottom: 10, left: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Shorten ${t.name}`}
+                  testID={`task-minus-${idx}`}
+                >
+                  <Minus size={15} color={t.duration === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={2.25} />
+                </TouchableOpacity>
+                <Text style={styles.durVal}>{t.duration === 0 ? '◆' : `${t.duration}d`}</Text>
+                <TouchableOpacity
+                  onPress={() => setTasks(prev => prev.map((x, i) => {
+                    if (i !== idx) return x;
+                    const next = Math.min(365, x.duration + 1);
+                    return { ...x, duration: next, isMilestone: false };
+                  }))}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Lengthen ${t.name}`}
+                  testID={`task-plus-${idx}`}
+                >
+                  <Plus size={15} color={themeColors.text} strokeWidth={2.25} />
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
                 onPress={() => setTasks(prev => prev.filter((_, i) => i !== idx))}
                 hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel="Remove task"
+                accessibilityLabel={`Remove ${t.name}`}
               >
                 <Trash2 size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -920,7 +983,27 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line,
   },
   taskDot: {
-    width: 8, height: 8, borderRadius: 4,
+    width: 10, height: 10, borderRadius: 5,
+  },
+  // Duration stepper — thumb-sized targets so a schedule can be built
+  // one-handed on site without summoning a keyboard.
+  durBox: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1,
+    borderColor: t.line,
+  },
+  durVal: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: t.text,
+    minWidth: 26,
+    textAlign: 'center' as const,
   },
   taskName: {
     fontSize: Type.bodyCompact.fontSize,
