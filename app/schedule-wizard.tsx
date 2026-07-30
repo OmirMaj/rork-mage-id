@@ -31,7 +31,7 @@
 //      for?" — and picking answers it and moves on in the same tap.
 // The template path is untouched for people who want it.
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Platform, Modal, Pressable, useWindowDimensions,
@@ -66,6 +66,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { displayText } from '@/utils/formatters';
 import DatePickerModal from '@/components/DatePickerModal';
+import {
+  saveDraft, loadDraft, clearDraft, isWorthSaving, draftMatchesEntry, savedAgoLabel,
+} from '@/utils/scheduleDraft';
 
 // Step 3 is the calendar preview. It used to be called "Schedule", which made
 // the CTA read "Next: Schedule" inside a screen called Create Schedule.
@@ -347,6 +350,56 @@ export default function ScheduleWizardScreen() {
   const startDate = useMemo(() => parseIsoDate(startIso), [startIso]);
   const isoStart = startIso;
 
+  // ── Autosave ──────────────────────────────────────────────────────────────
+  // The wizard presents itself as creating a FILE, but nothing was written
+  // until Save — so backgrounding the app mid-build lost the whole thing.
+  // A file you can lose isn't a file.
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [restored, setRestored] = useState(false);
+  const restoreCheckedRef = useRef(false);
+
+  // Restore once, on first mount, before the user starts typing over it.
+  useEffect(() => {
+    if (restoreCheckedRef.current) return;
+    restoreCheckedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const draft = await loadDraft(Date.now());
+      if (cancelled || !draft) return;
+      // Never resume one job's draft inside another job.
+      if (!draftMatchesEntry(draft, projectId ?? '')) return;
+      setTasks(repairChain(draft.tasks));
+      if (draft.projectId) setPickedProjectId(draft.projectId);
+      if (draft.startIso) setStartIso(draft.startIso);
+      if (draft.templateId) setPickedTemplateId(draft.templateId);
+      setSavedAt(draft.savedAt);
+      setRestored(true);
+      setEdited(true);
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  // Debounced write on every meaningful change. isWorthSaving keeps the
+  // wizard's own seeded blank row from being persisted as "work".
+  useEffect(() => {
+    if (!isWorthSaving(tasks)) return;
+    const handle = setTimeout(() => {
+      const now = Date.now();
+      void saveDraft({ projectId: pickedProjectId, templateId: pickedTemplateId, startIso, tasks, nowMs: now });
+      setSavedAt(now);
+    }, 700);
+    return () => clearTimeout(handle);
+  }, [tasks, pickedProjectId, pickedTemplateId, startIso]);
+
+  /** Throw the draft away and start clean (the restore banner's escape hatch). */
+  const discardDraft = useCallback(() => {
+    void clearDraft();
+    setRestored(false);
+    setSavedAt(null);
+    setTasks(documentMode ? [blankTask()] : []);
+    setEdited(false);
+  }, [documentMode]);
+
   // Compute each task's start/end DAY through the SAME weekend-aware CPM the
   // operational view runs. startDay/endDay are 1-indexed calendar-day offsets
   // from `startDate` (day 1 = startDate), so a task spanning a weekend widens
@@ -530,6 +583,8 @@ export default function ScheduleWizardScreen() {
     // explicit projectId (+ a `focus` nonce so a repeat visit re-applies it).
     // Without both, finishing the wizard for your second project dropped you
     // on your FIRST project's schedule and the work looked lost.
+    // Committed — the draft has done its job.
+    void clearDraft();
     if (wideEnoughForPro) {
       router.replace({ pathname: '/schedule-pro' as never, params: { projectId: project.id } as never });
     } else {
@@ -671,6 +726,9 @@ export default function ScheduleWizardScreen() {
             onOpenPhasePicker={setPhaseFor}
             onOpenPredecessors={setPredFor}
             onDraggingChange={setDragging}
+            savedAt={savedAt}
+            restored={restored}
+            onDiscardDraft={discardDraft}
           />
         )}
         {step === 2 && (
@@ -1031,6 +1089,11 @@ function TasksStep(props: {
   onOpenPhasePicker: (index: number) => void;
   onOpenPredecessors: (index: number) => void;
   onDraggingChange: (dragging: boolean) => void;
+  /** Autosave: epoch ms of the last write, null before the first one. */
+  savedAt: number | null;
+  /** True when this session resumed a draft from storage. */
+  restored: boolean;
+  onDiscardDraft: () => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -1039,7 +1102,7 @@ function TasksStep(props: {
     activeId, templates, onPickTemplate, documentMode, documentTitle, startDate,
     onEditProject, onBrowseTemplates, tasks, setTasks, totalDays, endDate,
     focusTaskId, setFocusTaskId, onOpenPhasePicker, onOpenPredecessors,
-    onDraggingChange,
+    onDraggingChange, savedAt, restored, onDiscardDraft,
   } = props;
   const scratchActive = activeId === SCRATCH_ID;
   const wrapTemplates = width >= WRAP_TEMPLATES_WIDTH;
@@ -1190,7 +1253,30 @@ function TasksStep(props: {
             >
               <Text style={styles.docMetaLink}>Change project or date</Text>
             </TouchableOpacity>
+            {savedAt != null ? (
+              <>
+                <Text style={styles.docMeta}>·</Text>
+                <Text style={styles.docMeta}>{savedAgoLabel(savedAt, Date.now())}</Text>
+              </>
+            ) : null}
           </View>
+          {restored ? (
+            // Autosave restored work from a previous session. Say so plainly
+            // and give an obvious way out — silently resurrecting a draft the
+            // user has moved on from is its own kind of data loss.
+            <View style={styles.restoreRow}>
+              <Text style={styles.restoreText}>Picked up where you left off.</Text>
+              <TouchableOpacity
+                onPress={onDiscardDraft}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Discard the restored draft and start a fresh schedule"
+                testID="wizard-discard-draft"
+              >
+                <Text style={styles.docMetaLink}>Start fresh</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       ) : (
         <>
@@ -2098,6 +2184,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   docMeta: {
     fontSize: Type.caption1.fontSize,
     color: t.textMuted,
+  },
+  restoreRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    marginTop: 6,
+  },
+  restoreText: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
   },
   docMetaLink: {
     fontSize: Type.caption1.fontSize,
