@@ -25,11 +25,16 @@ const MAX_KEYS = 40; // cap RPC fan-out on very large price books
 export function useCostBenchmark(entries: BenchmarkInput[]): {
   statsFor: (trade: string, unit: string) => BenchmarkStats | null;
   loading: boolean;
+  /** Whether this contractor publishes to the PUBLIC Price Index. Null while loading. */
+  publicOptIn: boolean | null;
+  /** Opt in/out of the public index. Applies to all of this user's rows. */
+  setPublicOptIn: (next: boolean) => Promise<void>;
 } {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const [stats, setStats] = useState<Record<string, BenchmarkStats>>({});
   const [loading, setLoading] = useState(false);
+  const [publicOptIn, setPublicOptInState] = useState<boolean | null>(null);
 
   const keys = useMemo(() => {
     const m = new Map<string, BenchmarkInput>();
@@ -106,10 +111,45 @@ export function useCostBenchmark(entries: BenchmarkInput[]): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, keySig]);
 
+  // Current public-index opt-in state (default false server-side, so a user
+  // with no rows yet reads as opted out).
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('cost_benchmark_samples')
+          .select('public_index_opt_in')
+          .limit(1);
+        if (cancelled) return;
+        const row = Array.isArray(data) ? data[0] : null;
+        setPublicOptInState(row ? !!(row as { public_index_opt_in?: boolean }).public_index_opt_in : false);
+      } catch {
+        if (!cancelled) setPublicOptInState(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const setPublicOptIn = async (next: boolean): Promise<void> => {
+    if (!userId) return;
+    setPublicOptInState(next); // optimistic
+    try {
+      const { error } = await supabase
+        .from('cost_benchmark_samples')
+        .update({ public_index_opt_in: next })
+        .eq('user_id', userId);
+      if (error) setPublicOptInState(!next); // revert on failure
+    } catch {
+      setPublicOptInState(!next);
+    }
+  };
+
   const statsFor = (trade: string, unit: string): BenchmarkStats | null => {
     const key = `${(trade || '').trim().toLowerCase()}|${(unit || '').trim().toLowerCase()}`;
     return stats[key] ?? null;
   };
 
-  return { statsFor, loading };
+  return { statsFor, loading, publicOptIn, setPublicOptIn };
 }
