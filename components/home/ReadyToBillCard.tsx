@@ -5,10 +5,11 @@
 // into one money line on home — "$X in change orders ready to send" — so the
 // revenue MAGE found actually gets billed. Self-hides when nothing's waiting.
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { FileSignature, ChevronRight } from 'lucide-react-native';
+import { FileSignature, ChevronRight, Banknote } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -16,6 +17,9 @@ import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import { buildReadyToBill } from '@/utils/draftedRevenue';
+import { buildAdvanceOffer, totalAdvanceAvailable } from '@/utils/coAdvance';
+import { useBrainGrading } from '@/hooks/useBrainGrading';
+import { supabase } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -27,10 +31,56 @@ export default function ReadyToBillCard() {
   const router = useRouter();
   const { changeOrders, projects } = useProjects();
 
+  const { accuracyReport } = useBrainGrading();
+  const [advanceState, setAdvanceState] = useState<'idle' | 'saving' | 'done'>('idle');
+
   const ready = useMemo(
     () => buildReadyToBill({ changeOrders, projects, nowMs: Date.now() }),
     [changeOrders, projects],
   );
+
+  // Underwrite an advance per drafted CO from the Brain's GRADED leak→CO
+  // billing history (how often flagged work actually bills) — real risk data
+  // no lender has. Money movement is a partner handoff; this sizes the offer.
+  const leakRow = useMemo(
+    () => accuracyReport.rows.find((r) => r.kind === 'leak_flag') ?? null,
+    [accuracyReport],
+  );
+  const advanceTotal = useMemo(() => {
+    const offers = ready.rows.map((r) =>
+      buildAdvanceOffer({
+        amount: r.amount,
+        ageDays: r.ageDays,
+        isAuto: r.isAuto,
+        billedRate: leakRow?.rate ?? null,
+        gradedCount: leakRow?.n ?? 0,
+      }),
+    );
+    return totalAdvanceAvailable(offers);
+  }, [ready.rows, leakRow]);
+
+  const onAdvance = async () => {
+    if (advanceState !== 'idle') return;
+    setAdvanceState('saving');
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('feature_interest')
+          .upsert({ user_id: user.id, event_key: 'revenue.factoring.altline' }, { onConflict: 'user_id,event_key' });
+      }
+      setAdvanceState('done');
+      Alert.alert(
+        'Advance requested',
+        `We've noted your interest in advancing up to ${formatMoney(advanceTotal)} against this work. ` +
+          'Funding runs through a lending partner — we\'ll reach out as soon as it opens in your state.',
+      );
+    } catch {
+      setAdvanceState('idle');
+      Alert.alert('Could not save', 'Please try again in a moment.');
+    }
+  };
 
   if (ready.count === 0) return null;
 
@@ -82,6 +132,30 @@ export default function ReadyToBillCard() {
       {ready.count > MAX_VISIBLE ? (
         <Text style={styles.overflow}>+{ready.count - MAX_VISIBLE} more waiting</Text>
       ) : null}
+
+      {/* Cash on work already done — advance against these drafts. Factoring
+          only touches APPROVED invoices, so this money is normally stranded. */}
+      {advanceTotal > 0 ? (
+        <TouchableOpacity
+          style={styles.advanceRow}
+          activeOpacity={0.8}
+          onPress={onAdvance}
+          disabled={advanceState !== 'idle'}
+          accessibilityRole="button"
+          accessibilityLabel={`Advance up to ${formatMoney(advanceTotal)} against this work`}
+          testID="ready-to-bill-advance"
+        >
+          <Banknote size={14} color={colors.success} strokeWidth={2} />
+          <Text style={styles.advanceText}>
+            {advanceState === 'done'
+              ? 'Advance requested — we’ll be in touch'
+              : `Need it now? Advance up to ${formatMoney(advanceTotal)}`}
+          </Text>
+          {advanceState === 'idle' ? (
+            <ChevronRight size={13} color={colors.textMuted} strokeWidth={2} />
+          ) : null}
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -118,4 +192,14 @@ const makeStyles = (t: ThemeColors) =>
     rowTitle: { ...Type.footnote, color: t.textSecondary, flex: 1 },
     rowAmount: { ...Type.footnoteEmphasized, color: t.text, fontVariant: ['tabular-nums'] },
     overflow: { ...Type.caption1, color: t.textMuted, marginTop: Tokens.spacing.sm },
+    advanceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: Tokens.spacing.sm,
+      paddingTop: Tokens.spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.line,
+    },
+    advanceText: { ...Type.caption1, color: t.text, fontWeight: '700', flex: 1 },
   });
