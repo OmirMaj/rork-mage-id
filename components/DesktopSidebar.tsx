@@ -11,7 +11,7 @@ import {
   ScrollText, UserPlus, Handshake, ListChecks,
   Presentation,
   PieChart, LineChart, Coins, BellRing,
-  Scale, ScanEye, ScanLine, Mic, FileSearch, Target,
+  Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -73,6 +73,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK' },
   // JUDGES bid scoring — screen self-titles "Bid Advisor" (app/judges.tsx).
   { key: 'judges',            label: 'Bid Advisor',      icon: Scale,           route: '/judges',                           section: 'FIND WORK', requires: 'bid_scoring' },
+  { key: 'auto-bids',         label: 'Pre-priced Bids',  icon: Zap,             route: '/auto-bids',                        section: 'FIND WORK', requires: 'bid_scoring' },
 
   // ── NETWORK — people + AI
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },

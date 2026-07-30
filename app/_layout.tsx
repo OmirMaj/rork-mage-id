@@ -610,6 +610,7 @@ function RootLayoutNav() {
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="track-record" options={{ headerShown: false }} />
+      <Stack.Screen name="auto-bids" options={{ headerShown: false }} />
       <Stack.Screen name="week-close" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />

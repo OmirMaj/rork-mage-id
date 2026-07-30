@@ -128,6 +128,7 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'bid-leveling', title: 'Bid Leveling', synonyms: ['bid', 'level bids', 'compare bids', 'scope gaps', 'apples to apples'], route: '/bid-leveling', icon: 'Layers', group: 'find-work' },
   { id: 'post-bid', title: 'Post-Bid Analysis', synonyms: ['bid', 'win loss', 'debrief', 'why lost'], route: '/post-bid', icon: 'BarChart3', group: 'find-work' },
   { id: 'win-optimizer', title: 'Win Optimizer', synonyms: ['bid price', 'win rate', 'markup', 'pricing strategy'], route: '/win-optimizer', icon: 'Target', group: 'find-work' },
+  { id: 'auto-bids', title: 'Pre-priced Bids', synonyms: ['mage bids for you', 'auto bid', 'priced bids', 'bids ready', 'autonomous bidding'], route: '/auto-bids', requires: 'bid_scoring', icon: 'Zap', group: 'find-work' },
   { id: 'quick-quote', title: 'Quick Quote', synonyms: ['quote', 'fast estimate', 'ballpark'], route: '/quick-quote', icon: 'Zap', group: 'find-work' },
   { id: 'smart-proposal', title: 'Smart Proposal', synonyms: ['proposal', 'good better best', 'pitch'], route: '/smart-proposal', requires: 'job_costing', icon: 'FileSignature', group: 'find-work' },
   { id: 'leads', title: 'Leads', synonyms: ['crm', 'pipeline', 'prospects', 'inquiries'], route: '/leads', icon: 'UserPlus', group: 'find-work' },
