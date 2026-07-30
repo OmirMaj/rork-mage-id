@@ -35,16 +35,14 @@ import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
 import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
-import { patchAlertForWeb } from "@/utils/webAlertPolyfill";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
 import * as Sentry from '@sentry/react-native';
 
-// Patch react-native's Alert.alert at module load so every existing call
-// site works on web. RN-Web's native Alert is a no-op for multi-button
-// alerts, which silently breaks every Cancel/Confirm flow (sign out,
-// delete, etc.). Routing through window.confirm restores the behavior.
-patchAlertForWeb();
+// NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
+// goes through utils/alert.ts showAlert/showPrompt, which renders a real
+// themed modal on web (<AlertHost/> below) instead of window.confirm — and
+// unlike the patch it supports 3 buttons and prompts.
 
 // Silence LogBox's on-screen notification toasts in dev (e.g. the RevenueCat
 // "Error fetching offerings" sim-only network warning, and the "Open debugger
@@ -613,6 +611,7 @@ function RootLayoutNav() {
       <Stack.Screen name="track-record" options={{ headerShown: false }} />
       <Stack.Screen name="auto-bids" options={{ headerShown: false }} />
       <Stack.Screen name="waiting-on" options={{ headerShown: false }} />
+      <Stack.Screen name="home-passport" options={{ headerShown: false }} />
       <Stack.Screen name="week-close" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />

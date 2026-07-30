@@ -173,8 +173,8 @@ export default function PersonaSelectScreen() {
     } catch (err) {
       console.warn('[persona-select] failed to set role:', err);
       setSubmitting(null);
-      // Web-safe via patchAlertForWeb() in app/_layout.tsx — new-user
-      // flow must never silent-fail on first tap.
+      // showAlert renders on web too — the new-user flow must never
+      // silent-fail on first tap.
       showAlert(
         "Couldn't save your choice",
         'Please tap your role again.',
