@@ -252,7 +252,7 @@ function WipReportScreenInner() {
 
       <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]}>
         {/* Portfolio totals */}
-        <View style={styles.card}>
+        <View style={[styles.card, isDesktop && styles.cardDesktop]}>
           <Text style={styles.sectionTitle}>Portfolio</Text>
           <Row label="Revised contract" value={money(portfolio.revisedContract)} styles={styles} />
           <Row label="Earned revenue" value={money(portfolio.earnedRevenue)} styles={styles} />
@@ -264,7 +264,7 @@ function WipReportScreenInner() {
         </View>
 
         {/* Period selector */}
-        <View style={styles.card}>
+        <View style={[styles.card, isDesktop && styles.cardDesktop]}>
           <Text style={styles.sectionTitle}>Periods</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             <TouchableOpacity
@@ -302,7 +302,7 @@ function WipReportScreenInner() {
         </View>
 
         {/* Per-project rows (live) */}
-        <View style={styles.card}>
+        <View style={[styles.card, isDesktop && styles.cardFullDesktop]}>
           <Text style={styles.sectionTitle}>Projects</Text>
           {liveRows.length === 0 ? (
             <Text style={styles.muted}>No active projects.</Text>
@@ -404,7 +404,16 @@ function Row({ label, value, styles }: { label: string; value: string; styles: R
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // WIP is a financial table — wide on desktop.
+  // Desktop: Portfolio + Periods sit side by side and the Projects table spans
+  // the full row, instead of three cards stacked in a narrow middle column.
+  contentDesktop: {
+    width: '100%', maxWidth: 1400, alignSelf: 'center' as const,
+    flexDirection: 'row' as const, flexWrap: 'wrap' as const,
+    alignItems: 'flex-start' as const, gap: 16,
+  },
+  cardDesktop: { flexGrow: 1, flexBasis: 420, marginBottom: 0 },
+  cardFullDesktop: { flexBasis: '100%' as const, marginBottom: 0 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingBottom: 12,

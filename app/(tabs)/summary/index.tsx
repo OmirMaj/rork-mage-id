@@ -276,7 +276,8 @@ export default function SummaryScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  contentDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' as const },
+  // Dashboard of full-bleed strips — wide is correct on desktop.
+  contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const },
   heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
   // Your Business entry strip — one compact row at the bottom of Summary
   businessStrip: {

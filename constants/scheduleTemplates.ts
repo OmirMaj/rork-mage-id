@@ -231,3 +231,165 @@ export const SCHEDULE_TEMPLATES: ScheduleTemplate[] = [
   // from it so a user can start a brand-new project from the flagship spine.
   FLAGSHIP_SCHEDULE_TEMPLATE,
 ];
+
+// ─────────────────────────────────────────────────────────────────────────
+// Task-list operations for the schedule wizard.
+//
+// These live here — beside the TemplateTask type, in a file with NO react /
+// react-native imports — so `scripts/validate-schedule-wizard-ux.ts` can
+// import and prove them under bun without dragging a bundler in.
+//
+// The wizard shows tasks as an ORDERED LIST, and the list order is the
+// sequence. Every operation therefore ends in `repairChain`, which enforces
+// one invariant: **a predecessor always exists and always sits earlier in
+// the list.** That single rule kills three real bugs:
+//   1. deleting a mid-list task left its successor pointing at a ghost id,
+//      so CPM dropped the link and the successor silently teleported to day 1;
+//   2. reordering could point a task at something below it — a cycle, which
+//      runCpm reports as a conflict and refuses to schedule;
+//   3. an orphaned task (all its predecessors deleted) jumped to day 1 rather
+//      than staying where the user put it.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * How a task is sequenced relative to the row directly above it.
+ *   'start'  — no predecessors; begins on day 1.
+ *   'after'  — begins when the row above finishes (the default chain).
+ *   'with'   — shares the row above's predecessors, so the two run in parallel.
+ *   'custom' — a richer graph than the wizard's one-tap control can express
+ *              (template tasks that wait on two or more upstream trades).
+ */
+export type TaskLinkMode = 'start' | 'after' | 'with' | 'custom';
+
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(b);
+  return a.every(id => set.has(id));
+}
+
+/**
+ * Drop predecessors that no longer exist or that now sit LATER in the list,
+ * and re-anchor any task that was sequenced but lost every predecessor to the
+ * row directly above it. Returns a new array; never mutates the input.
+ *
+ * Idempotent, and a no-op on a well-formed list (every shipped template is
+ * authored in topological order — pinned by the validator).
+ */
+export function repairChain(tasks: readonly TemplateTask[]): TemplateTask[] {
+  const indexById = new Map<string, number>();
+  tasks.forEach((t, i) => indexById.set(t.id, i));
+
+  return tasks.map((t, i) => {
+    const before = t.predecessorIds ?? [];
+    const kept = before.filter(pid => {
+      const at = indexById.get(pid);
+      return at !== undefined && at < i;
+    });
+    // Was sequenced, now orphaned → hold its place instead of jumping to day 1.
+    const next = kept.length === 0 && before.length > 0 && i > 0
+      ? [tasks[i - 1].id]
+      : kept;
+    return sameIds(next, before) ? t : { ...t, predecessorIds: next };
+  });
+}
+
+/** Move the task at `from` to index `to`, then repair the chain. */
+export function moveTask(tasks: readonly TemplateTask[], from: number, to: number): TemplateTask[] {
+  if (from === to) return tasks.slice();
+  if (from < 0 || from >= tasks.length) return tasks.slice();
+  const clamped = Math.max(0, Math.min(tasks.length - 1, to));
+  const next = tasks.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(clamped, 0, moved);
+  return repairChain(next);
+}
+
+/** Remove the task at `index`, then repair the chain. */
+export function removeTaskAt(tasks: readonly TemplateTask[], index: number): TemplateTask[] {
+  if (index < 0 || index >= tasks.length) return tasks.slice();
+  return repairChain(tasks.filter((_, i) => i !== index));
+}
+
+/**
+ * Insert `task` at `index` (clamped). The caller does not have to set
+ * predecessorIds — an inserted task with none gets chained to the row above
+ * it, which is what "add a step here" means.
+ */
+export function insertTaskAt(
+  tasks: readonly TemplateTask[],
+  index: number,
+  task: TemplateTask,
+): TemplateTask[] {
+  const at = Math.max(0, Math.min(tasks.length, index));
+  const seeded = task.predecessorIds.length === 0 && at > 0
+    ? { ...task, predecessorIds: [tasks[at - 1].id] }
+    : task;
+  const next = tasks.slice();
+  next.splice(at, 0, seeded);
+  return repairChain(next);
+}
+
+/** Classify how the task at `index` is sequenced, for the row's link chip. */
+export function readLinkMode(tasks: readonly TemplateTask[], index: number): TaskLinkMode {
+  const t = tasks[index];
+  if (!t) return 'start';
+  const preds = t.predecessorIds ?? [];
+  if (preds.length === 0) return 'start';
+  if (index === 0) return 'custom'; // repairChain clears this; defensive only.
+  const prev = tasks[index - 1];
+  if (preds.length === 1 && preds[0] === prev.id) return 'after';
+  const prevPreds = prev.predecessorIds ?? [];
+  if (prevPreds.length > 0 && sameIds(preds, prevPreds)) return 'with';
+  return 'custom';
+}
+
+/**
+ * Rewrite the task at `index` to the requested sequencing. 'custom' is not
+ * settable — it only ever describes what a template already had, so asking
+ * for it is a no-op.
+ */
+export function applyLinkMode(
+  tasks: readonly TemplateTask[],
+  index: number,
+  mode: TaskLinkMode,
+): TemplateTask[] {
+  const t = tasks[index];
+  if (!t || mode === 'custom') return tasks.slice();
+  const prev = index > 0 ? tasks[index - 1] : null;
+  let preds: string[];
+  if (!prev || mode === 'start') preds = [];
+  else if (mode === 'after') preds = [prev.id];
+  else preds = [...(prev.predecessorIds ?? [])]; // 'with' — same upstream as prev
+  const next = tasks.slice();
+  next[index] = { ...t, predecessorIds: preds };
+  return repairChain(next);
+}
+
+/**
+ * One-tap sequencing: after → with → start → after. A 'custom' template link
+ * normalises to 'after' on the first tap (the user asked to change this row,
+ * so collapsing its graph to the simple chain is the honest response).
+ */
+export function cycleLinkMode(tasks: readonly TemplateTask[], index: number): TemplateTask[] {
+  if (index <= 0) return tasks.slice(); // row 1 has nothing above it
+  const current = readLinkMode(tasks, index);
+  const next: TaskLinkMode =
+    current === 'after' ? 'with' :
+    current === 'with' ? 'start' :
+    'after'; // 'start' and 'custom' both land on 'after'
+  return applyLinkMode(tasks, index, next);
+}
+
+/** Set a duration, clamping to 0…365. 0 days is the model's milestone marker. */
+export function setTaskDuration(
+  tasks: readonly TemplateTask[],
+  index: number,
+  days: number,
+): TemplateTask[] {
+  const t = tasks[index];
+  if (!t) return tasks.slice();
+  const clamped = Math.max(0, Math.min(365, Math.round(Number.isFinite(days) ? days : 0)));
+  const next = tasks.slice();
+  next[index] = { ...t, duration: clamped, isMilestone: clamped === 0 };
+  return next;
+}

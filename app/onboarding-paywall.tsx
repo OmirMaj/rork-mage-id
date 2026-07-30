@@ -540,6 +540,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 8,
+    // Onboarding pricing: reading + two plan cards. Cap is a no-op on phone
+    // and stops the cards smearing across a desktop monitor.
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center' as const,
   },
   hero: {
     fontSize: 30,

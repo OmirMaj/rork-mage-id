@@ -5,7 +5,8 @@
 // Explicit Done stamps mageid_week_close_last_seen (brief.tsx:78 pattern).
 //
 // Business+ gated (G6). No auto-open (plan §F2).
-// Desktop: content column capped at maxWidth 640 and centered.
+// Desktop: the five legs lay out as a grid inside a 1280 content column
+// (contentDesktop); phone keeps the single stacked column.
 // Anti-slop: Colors/Type/Tokens only. No emoji in UI.
 
 import React, { useEffect, useMemo } from 'react';
@@ -21,6 +22,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -63,6 +65,7 @@ function WeekCloseInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { close } = useWeekClose();
+  const { isDesktop } = useResponsiveLayout();
 
   // Stamp last-seen on mount — hides the home card until next week.
   // LOCAL date via the shared helper: WeekCloseCard compares ISO weeks of
@@ -133,7 +136,7 @@ function WeekCloseInner() {
   };
 
   const renderLeg = (leg: WeekCloseLeg) => (
-    <View key={leg.id} style={styles.section}>
+    <View key={leg.id} style={[styles.section, isDesktop && styles.sectionDesktop]}>
       <Text style={styles.sectionTitle}>{leg.title}</Text>
       <View style={styles.card}>
         {leg.items.length > 0
@@ -171,6 +174,7 @@ function WeekCloseInner() {
         style={styles.container}
         contentContainerStyle={[
           styles.content,
+          isDesktop && styles.contentDesktop,
           { paddingBottom: insets.bottom + 32 },
         ]}
       >
@@ -186,11 +190,13 @@ function WeekCloseInner() {
         </View>
 
         {/* Five legs */}
-        {close?.legs.map(renderLeg)}
+        <View style={isDesktop ? styles.legGrid : undefined}>
+          {close?.legs.map(renderLeg)}
+        </View>
 
         {/* Done button */}
         <TouchableOpacity
-          style={styles.doneBtn}
+          style={[styles.doneBtn, isDesktop && styles.doneBtnDesktop]}
           onPress={markDone}
           activeOpacity={0.85}
           accessibilityRole="button"
@@ -209,10 +215,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   content: {
     paddingTop: Tokens.spacing.md,
     paddingHorizontal: Tokens.spacing.md,
-    maxWidth: 640,
     alignSelf: 'center' as const,
     width: '100%',
   },
+  contentDesktop: { maxWidth: 1280, paddingHorizontal: Tokens.spacing.lg },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.sm,
@@ -239,6 +245,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
 
   section: { marginBottom: Tokens.spacing.md },
+  // Desktop: five legs side-by-side rather than a 640px ribbon down the middle.
+  legGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.md },
+  sectionDesktop: { flexGrow: 1, flexBasis: 340, maxWidth: 460, marginBottom: 0 },
   sectionTitle: {
     ...Type.subheadEmphasized,
     color: t.textSecondary,
@@ -270,5 +279,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: Tokens.spacing.md,
     marginTop: Tokens.spacing.md,
   },
+  doneBtnDesktop: { maxWidth: 420, alignSelf: 'center' as const, width: '100%', paddingHorizontal: Tokens.spacing.lg },
   doneBtnText: { ...Type.bodyEmphasized, color: '#FFF', fontWeight: '700' as const },
 });

@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  centerWrap: { width: '100%', alignSelf: 'center', maxWidth: 680 },
+  centerWrap: { width: '100%', alignSelf: 'center', maxWidth: 900 },
 
   eyebrow: {
     fontSize: Type.caption1.fontSize,

@@ -416,8 +416,9 @@ function KpiCard({ label, value, subtitle, accent, icon: Icon }: {
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   return (
-    <View style={[styles.kpiCard, { borderLeftColor: accent }]}>
+    <View style={[styles.kpiCard, isDesktop && styles.kpiCardDesktop, { borderLeftColor: accent }]}>
       <View style={styles.kpiHeader}>
         <Icon size={14} color={accent} />
         <Text style={styles.kpiLabel}>{label}</Text>
@@ -738,7 +739,8 @@ function DetailRow({ label, value, bold, color }: {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // Cost-to-complete dashboard — data-dense, so use the viewport on desktop.
+  contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const },
   errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorText: { fontSize: Type.subhead.fontSize, color: t.textSecondary },
 
@@ -758,6 +760,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   // KPI grid
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
+  // Desktop: all four KPIs on one row instead of two 670px-wide cards.
+  kpiCardDesktop: { flexBasis: 200, flexGrow: 1 },
   kpiCard: {
     flexBasis: '48%', backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderLeftWidth: 3, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 1 },

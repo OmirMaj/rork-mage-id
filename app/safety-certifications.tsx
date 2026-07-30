@@ -402,7 +402,9 @@ function SafetyCertificationsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Record lists (certs / incidents / inspections / forms) — desktop gets the
+  // viewport rather than a 760px column stranded in the middle.
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   banner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, borderWidth: 1 },
   bannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   filterRow: { paddingHorizontal: 20, gap: 6, marginTop: 14, marginBottom: 4 },

@@ -136,7 +136,10 @@ export default function EstimateReviewScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + (cart.length > 0 && mode === 'contractor' ? 88 : 40) }}
+        contentContainerStyle={[
+          { padding: 16, paddingBottom: insets.bottom + (cart.length > 0 && mode === 'contractor' ? 88 : 40) },
+          isDesktop && styles.scrollDesktop,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {cart.length === 0 ? (
@@ -236,7 +239,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   desktopRow: { flexDirection: 'row', gap: 16, marginTop: 12, alignItems: 'flex-start' },
   desktopMain: { flex: 1.7, minWidth: 0 },
   desktopRail: { width: 340 },
-  clientDesktopWrap: { maxWidth: 640, alignSelf: 'center', width: '100%' },
+  // Desktop page column. The contractor view is a division TABLE + rail, so it
+  // wants width; the client proposal reads as a document, so it keeps a cap —
+  // just a far less cramped one than the old 640.
+  scrollDesktop: { width: '100%', maxWidth: 1500, alignSelf: 'center', paddingHorizontal: 24 },
+  clientDesktopWrap: { maxWidth: 900, alignSelf: 'center', width: '100%' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
   shareBtnText: { color: t.surface, fontSize: 15, fontWeight: '800' },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },

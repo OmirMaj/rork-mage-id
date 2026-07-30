@@ -1155,7 +1155,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   listContentDesktop: {
     width: '100%',
-    maxWidth: 1100,
+    // Desktop shows the DENSE project table (useDenseRows), not cards — give it
+    // the viewport instead of a 1100px column stranded in the middle.
+    maxWidth: 1400,
     alignSelf: 'center' as const,
   },
   emptyList: {

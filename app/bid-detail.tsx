@@ -280,7 +280,7 @@ export default function BidDetailScreen() {
         headerTintColor: themeColors.accent,
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
         {layout.isDesktop ? (
           <View style={bidDesktopStyles.twoCol}>
             <View style={bidDesktopStyles.mainCol}>

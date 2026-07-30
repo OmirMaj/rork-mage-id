@@ -1334,7 +1334,7 @@ export default function ProjectDetailScreen() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={stackScreenOptions} />
       <ScrollView
-        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]}
         showsVerticalScrollIndicator={false}
       >
         {/* The hero card unrolls like a blueprint when the project opens. */}
@@ -1712,6 +1712,8 @@ export default function ProjectDetailScreen() {
           const tileByKey = new Map<SectionKey, Tile>(allTiles.map(t => [t.key, t]));
 
           const renderTile = (tile: Tile) => {
+            // Desktop lays the tiles out as a wrapping grid; phone keeps the
+            // one-per-row stack.
             const TileIcon = tile.icon;
             const isLocked = lockedTileKeys.has(tile.key);
             // VoiceOver label: name + item count + locked state, so a
@@ -1723,7 +1725,7 @@ export default function ProjectDetailScreen() {
             return (
               <HardHatTap
                 key={tile.key}
-                style={styles.sectionTile}
+                style={layout.isDesktop ? [styles.sectionTile, styles.sectionTileDesktop] : styles.sectionTile}
                 hatColor={tile.color}
                 accessibilityRole="button"
                 accessibilityLabel={a11yLabel}
@@ -1807,7 +1809,7 @@ export default function ProjectDetailScreen() {
                         at opacity 0 after collapse, leaving phantom height
                         ("the gap that won't go away"). */}
                     {!collapsed && (
-                      <View style={styles.tileGroupBody}>
+                      <View style={[styles.tileGroupBody, layout.isDesktop && styles.tileGroupBodyDesktop]}>
                         {groupTiles.map(renderTile)}
                       </View>
                     )}
@@ -4805,6 +4807,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   tileGroupBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
   tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
   tileGroupBody: { gap: 8 },
+  // Desktop: a full-width 1400px row per tile wastes the viewport — wrap them
+  // into columns instead. flexBasis picks the column count.
+  tileGroupBodyDesktop: { flexDirection: 'row' as const, flexWrap: 'wrap' as const },
+  sectionTileDesktop: { flexGrow: 1, flexBasis: 240, maxWidth: 400 },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
   sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },

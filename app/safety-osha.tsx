@@ -200,7 +200,9 @@ function SafetyOshaInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Record lists (certs / incidents / inspections / forms) — desktop gets the
+  // viewport rather than a 760px column stranded in the middle.
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   summaryCard: {
     marginHorizontal: 20, marginTop: 16, marginBottom: 16,
     backgroundColor: themeColors.surface,

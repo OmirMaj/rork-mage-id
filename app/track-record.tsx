@@ -36,6 +36,7 @@ import {
   type TrackRecordReceipt,
 } from '@/utils/brain/trackRecord';
 import type { AccuracyRow } from '@/utils/brain/accuracyReport';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -87,6 +88,7 @@ function TrackRecordInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isDesktop } = useResponsiveLayout();
 
   // Mounting this runs the once-per-session grading sweep AND loads the full
   // resolved history for the accuracy state.
@@ -126,7 +128,7 @@ function TrackRecordInner() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
+        <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           {/* Hero */}
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>What the Brain called vs. what happened</Text>
@@ -165,9 +167,9 @@ function TrackRecordInner() {
               {accuracyReport.hasEnoughData && (
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>Scoreboard</Text>
-                  <View style={styles.scoreList}>
+                  <View style={[styles.scoreList, isDesktop && styles.scoreListDesktop]}>
                     {accuracyReport.rows.map((row) => (
-                      <ScoreCard key={row.kind} row={row} styles={styles} t={t} />
+                      <ScoreCard key={row.kind} row={row} styles={styles} t={t} isDesktop={isDesktop} />
                     ))}
                   </View>
                 </View>
@@ -202,15 +204,16 @@ function TrackRecordInner() {
 function ScoreCard({
   row,
   styles,
-  t,
+  isDesktop,
 }: {
   row: AccuracyRow;
   styles: ReturnType<typeof makeStyles>;
   t: ThemeColors;
+  isDesktop: boolean;
 }) {
   const pct = row.rate != null ? Math.round(Math.max(0, Math.min(1, row.rate)) * 100) : null;
   return (
-    <View style={styles.scoreCard}>
+    <View style={[styles.scoreCard, isDesktop && styles.scoreCardDesktop]}>
       <View style={styles.scoreTop}>
         <Text style={styles.scoreLabel}>{row.label}</Text>
         <Text style={styles.scoreN}>{row.n} graded</Text>
@@ -293,11 +296,13 @@ const makeStyles = (t: ThemeColors) =>
     scrollContent: { paddingBottom: 40 },
     content: {
       width: '100%',
-      maxWidth: 640,
       alignSelf: 'center',
       paddingHorizontal: Tokens.spacing.md,
       paddingTop: Tokens.spacing.lg,
     },
+    // Desktop: scoreboard + receipts are data, not prose. Use the viewport;
+    // the scoreboard becomes a multi-column grid, receipts get full width.
+    contentDesktop: { maxWidth: 1400, paddingHorizontal: Tokens.spacing.lg },
 
     hero: { marginBottom: Tokens.spacing.lg },
     eyebrow: {
@@ -321,6 +326,8 @@ const makeStyles = (t: ThemeColors) =>
 
     // Scoreboard
     scoreList: { gap: Tokens.spacing.sm },
+    scoreListDesktop: { flexDirection: 'row', flexWrap: 'wrap' },
+    scoreCardDesktop: { flexGrow: 1, flexBasis: 320, maxWidth: 460 },
     scoreCard: {
       backgroundColor: t.surface,
       borderWidth: 1,

@@ -1140,7 +1140,8 @@ function EstimateWizardScreenInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 680, alignSelf: 'center' as const },
+  // One-question-at-a-time wizard: a cap is correct, 680 was just tight.
+  contentDesktop: { width: '100%', maxWidth: 900, alignSelf: 'center' as const },
   progressWrap: {
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4,
   },

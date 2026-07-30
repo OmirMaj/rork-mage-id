@@ -88,7 +88,9 @@ function LastPlannerInner() {
   const [constraintFor, setConstraintFor] = useState<ScheduleTask | null>(null);
   const [reviewFor, setReviewFor] = useState<ScheduleTask | null>(null);
 
-  const contentWidth = layout.isDesktop ? 960 : layout.contentMaxWidth;
+  // Lookahead / weekly-commitment grids are data-dense — on desktop use the
+  // full content width (1400) rather than a 960 column.
+  const contentWidth = layout.contentMaxWidth;
 
   // ── Project picker / empty states ──
   const Header = (

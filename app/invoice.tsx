@@ -1687,7 +1687,8 @@ function getInvoiceStatusColors(t: ThemeColors, status: string): { bg: string; t
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   pipelineWrap: { paddingHorizontal: 16, marginTop: 12, marginBottom: 8 },
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // Invoice reads as a document — cap it, but 840 was too tight on desktop.
+  contentDesktop: { width: '100%', maxWidth: 1040, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
   backBtn: { backgroundColor: themeColors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },

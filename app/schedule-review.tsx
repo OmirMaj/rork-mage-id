@@ -290,7 +290,13 @@ export default function ScheduleReviewScreen() {
     if (wideEnoughForPro) {
       router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
     } else {
-      router.replace({ pathname: '/(tabs)/schedule', params: { projectId: project.id } } as any);
+      // `focus` nonce: the classic schedule only re-applies a routed projectId
+      // when the nonce is new, so a second visit to the same project without
+      // one silently keeps whatever was manually selected there before.
+      router.replace({
+        pathname: '/(tabs)/schedule',
+        params: { projectId: project.id, focus: String(Date.now()) },
+      } as any);
     }
   }, [project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds]);
 

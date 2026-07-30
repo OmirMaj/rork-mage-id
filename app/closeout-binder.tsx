@@ -1071,7 +1071,7 @@ const makeModalStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   loading: { padding: 30, alignItems: 'center', gap: 10 },
   loadingText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },

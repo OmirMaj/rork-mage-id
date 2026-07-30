@@ -18,6 +18,7 @@ import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 interface FeatureRow {
   label: string;
@@ -106,6 +107,7 @@ export default function PaywallScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isDesktop } = useResponsiveLayout();
   const {
     tier, purchasePro, purchaseBusiness, purchaseEnterprise, restorePurchases,
     isLoading, isPurchasing, proPackage, businessPackage, enterprisePackage,
@@ -261,7 +263,10 @@ export default function PaywallScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, isDesktop && styles.scrollContentDesktop]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Why MAGE — lead the conversion moment with the moat, not just the price grid.
             Copy source: docs/positioning-playbook.md (every claim maps to a shipped feature). */}
         <View style={styles.hero}>
@@ -279,7 +284,7 @@ export default function PaywallScreen() {
             iterations used a horizontal flex:1 row of 3 cards which would
             squeeze each card to ~78px when a 4th joined. */}
         <View style={styles.plansGrid}>
-          <View style={[styles.planCard, tier === 'free' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'free' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Zap} tone="neutral" size="md" />
             </View>
@@ -293,7 +298,7 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.planCard, styles.planCardHighlight, tier === 'pro' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, styles.planCardHighlight, tier === 'pro' && styles.planCardActive]}>
             <View style={styles.popularTag}>
               <Text style={styles.popularTagText}>POPULAR</Text>
             </View>
@@ -327,7 +332,7 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.planCard, tier === 'business' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'business' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Building2} tone="accent" size="md" />
             </View>
@@ -358,7 +363,7 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.planCard, tier === 'enterprise' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'enterprise' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Rocket} tone="accent" size="md" />
             </View>
@@ -772,6 +777,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  // Pricing page. Uncapped it stretched the four tier cards to ~800px each
+  // and smeared the comparison tables across the whole monitor. Capped +
+  // centred, with all four tiers on one row (see planCardDesktop).
+  scrollContentDesktop: {
+    width: '100%',
+    maxWidth: 1120,
+    alignSelf: 'center' as const,
+    paddingHorizontal: 24,
+  },
+  planCardDesktop: { width: 'auto' as const, flexBasis: 220, flexGrow: 1 },
   hero: {
     backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,

@@ -274,7 +274,9 @@ function CostDatabaseInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Cost tables: data-dense, so desktop gets the viewport rather than a
+  // 760px column. 1400 matches contentMaxWidth in useResponsiveLayout.
+  contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const },
   header: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,

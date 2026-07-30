@@ -2776,7 +2776,9 @@ const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // Long form + photo grid: widen for desktop but keep a cap so inputs and
+  // labels don't drift apart across a 27" monitor.
+  contentDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
 

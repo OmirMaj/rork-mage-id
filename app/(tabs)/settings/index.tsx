@@ -1884,7 +1884,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: themeColors.bg,
   },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' },
+  // Settings rows are label-left / control-right — a cap keeps them legible,
+  // but 760 wasted the desktop viewport.
+  contentDesktop: { width: '100%', maxWidth: 960, alignSelf: 'center' },
   rowHover: { backgroundColor: themeColors.surface },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,

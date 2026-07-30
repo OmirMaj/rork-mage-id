@@ -1074,7 +1074,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
+  // Chart + ledger rows — wide reads better than a narrow column.
+  contentDesktop: { width: '100%', maxWidth: 1320, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   heroCard: {
     marginHorizontal: 16,

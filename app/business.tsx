@@ -158,6 +158,7 @@ function BusinessInner() {
   // ── Render ─────────────────────────────────────────────────────────────
 
   const contentStyle = isDesktop ? styles.contentDesktop : styles.contentMobile;
+  const sectionStyle = isDesktop ? [styles.section, styles.sectionDesktop] : styles.section;
 
   return (
     <>
@@ -180,7 +181,7 @@ function BusinessInner() {
         <View style={contentStyle}>
 
           {/* ── Section 0: Track Record — the moat's proof ──────────── */}
-          <View style={styles.section}>
+          <View style={sectionStyle}>
             <SectionHeader
               icon={Target}
               label="Track Record"
@@ -199,7 +200,7 @@ function BusinessInner() {
           </View>
 
           {/* ── Section 1: Margin by Job Type ───────────────────────── */}
-          <View style={styles.section}>
+          <View style={sectionStyle}>
             <SectionHeader
               icon={TrendingUp}
               label="Margin by Job Type"
@@ -244,7 +245,7 @@ function BusinessInner() {
           </View>
 
           {/* ── Section 2: Pipeline vs Capacity ─────────────────────── */}
-          <View style={styles.section}>
+          <View style={sectionStyle}>
             <SectionHeader
               icon={BarChart3}
               label="Pipeline vs Capacity"
@@ -346,7 +347,7 @@ function BusinessInner() {
           </View>
 
           {/* ── Section 3: Client Book ───────────────────────────────── */}
-          <View style={styles.section}>
+          <View style={sectionStyle}>
             <SectionHeader
               icon={Users}
               label="Client Book"
@@ -400,7 +401,7 @@ function BusinessInner() {
           </View>
 
           {/* ── Section 4: Seasonality ───────────────────────────────── */}
-          <View style={styles.section}>
+          <View style={sectionStyle}>
             <SectionHeader
               icon={CloudRain}
               label="Weather Impact"
@@ -448,17 +449,32 @@ function makeStyles(t: ThemeColors) {
     contentMobile: {
       paddingHorizontal: Tokens.spacing.md,
     },
+    // CEO dashboard: five independent metric panels. On desktop they read as a
+    // grid across the viewport, not a 780px ribbon down the middle.
     contentDesktop: {
       width: '100%',
-      maxWidth: 780,
+      maxWidth: 1400,
       alignSelf: 'center' as const,
       paddingHorizontal: Tokens.spacing.lg,
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      alignItems: 'flex-start' as const,
+      gap: Tokens.spacing.md,
     },
     section: {
       backgroundColor: t.surface,
       borderRadius: Tokens.radius.panel,
       padding: Tokens.spacing.md,
       marginBottom: Tokens.spacing.md,
+    },
+    // flexBasis picks the column count for the viewport; gap replaces the
+    // stacked marginBottom.
+    sectionDesktop: {
+      flexGrow: 1,
+      flexBasis: 400,
+      // Stops a lone panel on the last row stretching the full 1400.
+      maxWidth: 560,
+      marginBottom: 0,
     },
     sectionHeader: {
       flexDirection: 'row',

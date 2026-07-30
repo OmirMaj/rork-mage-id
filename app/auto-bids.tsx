@@ -24,6 +24,7 @@ import { useCoreData, usePreconData } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import { buildPricedBids, type PricedBid, type JobHistoryPoint } from '@/utils/autoBid';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -50,6 +51,7 @@ function AutoBidsInner() {
   const { bids } = useBids();
   const { projects } = useCoreData();
   const { leads } = usePreconData();
+  const { isDesktop } = useResponsiveLayout();
 
   // Cost anchor: what your COMPLETED jobs of each type actually ran. Estimate
   // total is the closest per-job cost basis available portfolio-wide.
@@ -107,7 +109,7 @@ function AutoBidsInner() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+        <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>Priced in your numbers</Text>
             {priced.length > 0 ? (
@@ -129,10 +131,11 @@ function AutoBidsInner() {
             )}
           </View>
 
+          <View style={isDesktop ? styles.cardGrid : undefined}>
           {top.map((b) => (
             <TouchableOpacity
               key={b.id}
-              style={styles.card}
+              style={[styles.card, isDesktop && styles.cardDesktop]}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={`${b.title}, recommended ${formatMoney(b.recommendedPrice)}`}
@@ -197,6 +200,7 @@ function AutoBidsInner() {
               )}
             </TouchableOpacity>
           ))}
+          </View>
 
           {priced.length > top.length && (
             <Text style={styles.overflow}>+{priced.length - top.length} more priced bids</Text>
@@ -236,11 +240,17 @@ const makeStyles = (t: ThemeColors) =>
     scroll: { paddingBottom: 40 },
     content: {
       width: '100%',
-      maxWidth: 640,
       alignSelf: 'center',
       paddingHorizontal: Tokens.spacing.md,
       paddingTop: Tokens.spacing.lg,
     },
+    // Desktop: this is a card LIST, not prose — use the viewport and lay the
+    // bid cards out in a responsive grid instead of one 640px column.
+    contentDesktop: { maxWidth: 1400, paddingHorizontal: Tokens.spacing.lg },
+    cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.sm },
+    // flexBasis picks the column count for the viewport; maxWidth stops a lone
+    // trailing card from stretching across the whole 1400px row.
+    cardDesktop: { flexGrow: 1, flexBasis: 380, maxWidth: 520, marginBottom: 0 },
     hero: { marginBottom: Tokens.spacing.lg },
     eyebrow: {
       ...Type.caption1,

@@ -88,7 +88,7 @@ function SafetyHubInner() {
   }, [pid, router, getIncidentsForProject, incidents, expiringCertifications, templates]);
 
   const renderTile = (tile: Tile) => (
-    <TouchableOpacity key={tile.key} style={styles.tile} activeOpacity={0.85} onPress={tile.onPress}>
+    <TouchableOpacity key={tile.key} style={[styles.tile, isDesktop && styles.tileDesktop]} activeOpacity={0.85} onPress={tile.onPress}>
       <View style={styles.tileIcon}><tile.icon size={22} color={t.accent} strokeWidth={1.75} /></View>
       <Text style={styles.tileLabel}>{tile.label}</Text>
       <View style={styles.tileFooter}>
@@ -130,7 +130,9 @@ function SafetyHubInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Record lists (certs / incidents / inspections / forms) — desktop gets the
+  // viewport rather than a 760px column stranded in the middle.
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   projectPrompt: {
@@ -141,6 +143,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   projectPromptText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
   projectPromptBtn: { marginTop: 4, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accent + '14' },
   projectPromptBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accent },
+  // Desktop overrides the 47% two-up grid so tiles pack 4-5 across the wider
+  // content column instead of stretching to ~570px each.
+  tileDesktop: { width: 'auto' as const, flexBasis: 240, maxWidth: 340 },
   tile: {
     width: '47%', flexGrow: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: t.line, padding: 16, gap: 12, minHeight: 120, justifyContent: 'space-between',

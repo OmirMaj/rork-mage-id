@@ -653,6 +653,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   formContainer: {
     padding: 24,
     paddingTop: 32,
+    // Auth form: a cap is correct. No-op on phone (< 480 content width), stops
+    // the inputs stretching edge-to-edge across a desktop browser.
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center' as const,
   },
   errorBanner: {
     backgroundColor: Colors.errorLight,

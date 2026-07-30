@@ -47,6 +47,12 @@
   to = "/costs/index.html"
   status = 200
 
+# Embeddable Instant Estimate widget docs/demo.
+[[redirects]]
+  from = "/widget"
+  to = "/widget/index.html"
+  status = 200
+
 # Email preferences + unsubscribe — backed by the `unsubscribe` edge
 # function. The static pages read ?e=email&k=event_key from the
 # List-Unsubscribe URL we put in every transactional email's footer.
@@ -84,6 +90,14 @@
   for = "/*.css"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# embed.js runs on THIRD-PARTY sites. It must NOT inherit the immutable
+# year-long cache below, or a widget fix would never reach anyone.
+[[headers]]
+  for = "/widget/embed.js"
+  [headers.values]
+    Cache-Control = "public, max-age=300, must-revalidate"
+    Access-Control-Allow-Origin = "*"
 
 [[headers]]
   for = "/*.js"

@@ -317,7 +317,9 @@ function SafetyFormsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  // Record lists (certs / incidents / inspections / forms) — desktop gets the
+  // viewport rather than a 760px column stranded in the middle.
+  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   card: { marginHorizontal: 20, marginTop: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line },
   cardTop: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
   cardName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },

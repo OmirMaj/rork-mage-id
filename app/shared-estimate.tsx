@@ -48,7 +48,9 @@ export default function SharedEstimateScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ title: payload.n || 'Proposal' }} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40, maxWidth: 620, alignSelf: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
+      {/* Client-facing proposal: a document, so it keeps a readable cap —
+          but 620 left a desktop browser mostly empty. */}
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40, maxWidth: 900, alignSelf: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>PROPOSAL</Text>
         <Text style={styles.project}>{payload.n}</Text>
         {(payload.cl || payload.gc) && (
