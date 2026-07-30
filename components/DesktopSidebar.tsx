@@ -59,6 +59,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE' },
   { key: 'business',          label: 'Your Business',    icon: Briefcase,       route: '/business',                         section: 'WORKSPACE', requires: 'brain_accuracy' },
   { key: 'track-record',      label: 'Track Record',     icon: Target,          route: '/track-record',                     section: 'WORKSPACE', requires: 'brain_accuracy' },
+  { key: 'waiting-on',        label: 'Waiting on Others', icon: Inbox,          route: '/waiting-on',                       section: 'WORKSPACE' },
   { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'portfolio_margin' },
   { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
