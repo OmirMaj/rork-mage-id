@@ -19,11 +19,11 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "MAGE ID uses your microphone for voice dictation — capturing daily field reports, punch-list items, and project notes hands-free on the jobsite. Audio is transcribed and discarded; nothing is recorded permanently.",
+        "NSMicrophoneUsageDescription": "MAGE ID uses your microphone for voice dictation \u2014 capturing daily field reports, punch-list items, and project notes hands-free on the jobsite. Audio is transcribed and discarded; nothing is recorded permanently.",
         "NSCameraUsageDescription": "MAGE ID uses your camera to capture jobsite photos for daily reports, punch-list items, RFIs, and project documentation. Photos are stored against the project they were taken on.",
         "NSPhotoLibraryUsageDescription": "MAGE ID needs access to your photo library so you can attach existing photos to daily reports, punch-list items, RFIs, and project documents.",
         "NSPhotoLibraryAddUsageDescription": "MAGE ID saves project photos and rendered PDFs to your photo library when you tap Save / Share.",
-        "NSLocationWhenInUseUsageDescription": "MAGE ID stamps jobsite photos with GPS coordinates so daily-report photos and field-stamped takeoff verifications carry location proof. Location is only read when you take a photo or stamp a row — never in the background.",
+        "NSLocationWhenInUseUsageDescription": "MAGE ID stamps jobsite photos with GPS coordinates so daily-report photos and field-stamped takeoff verifications carry location proof. Location is only read when you take a photo or stamp a row \u2014 never in the background.",
         "NSFaceIDUsageDescription": "MAGE ID uses Face ID to sign you back in without re-typing your password.",
         "UIApplicationShortcutItems": [
           {
@@ -82,6 +82,49 @@
           "url": "https://sentry.io/",
           "project": "react-native",
           "organization": "mage-id"
+        }
+      ],
+      [
+        "expo-quick-actions",
+        {
+          "iosActions": [
+            {
+              "id": "daily-report",
+              "title": "Daily Report",
+              "subtitle": "Log today's work",
+              "icon": "symbol:doc.text",
+              "params": {
+                "href": "/daily-report"
+              }
+            },
+            {
+              "id": "estimate",
+              "title": "Quick Estimate",
+              "subtitle": "Price a job",
+              "icon": "symbol:function",
+              "params": {
+                "href": "/estimate-wizard"
+              }
+            },
+            {
+              "id": "waiting-on",
+              "title": "Waiting on Others",
+              "subtitle": "Who's holding you up",
+              "icon": "symbol:bell.badge",
+              "params": {
+                "href": "/waiting-on"
+              }
+            },
+            {
+              "id": "ask",
+              "title": "Ask MAGE",
+              "subtitle": "Answer from your jobs",
+              "icon": "symbol:sparkles",
+              "params": {
+                "href": "/ask"
+              }
+            }
+          ]
         }
       ]
     ],

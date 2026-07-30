@@ -113,6 +113,7 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'brief', title: 'Morning Brief', synonyms: ['briefing', 'digest', 'daily brief'], route: '/brief', icon: 'Newspaper', group: 'workspace' },
   { id: 'week-close', title: 'Week Close', synonyms: ['friday', 'friday close', 'weekly review', 'wrap up'], route: '/week-close', icon: 'CalendarCheck', group: 'workspace' },
   { id: 'business', title: 'Your Business', synonyms: ['brain', 'company health', 'accuracy', 'predictions'], route: '/business', requires: 'brain_accuracy', icon: 'Briefcase', group: 'workspace' },
+  { id: 'sub-profile', title: 'Your Work Profile', synonyms: ['sub profile', 'my history', 'credential', 'my jobs', 'reliability', 'referral'], route: '/sub-profile', icon: 'HardHat', group: 'network' },
   { id: 'home-passport', title: 'Home Passport', synonyms: ['warranty', 'permit', 'maintenance', 'model number', 'home record', 'handover'], route: '/home-passport', icon: 'BadgeCheck', group: 'client' },
   { id: 'waiting-on', title: 'Waiting on Others', synonyms: ['chase', 'follow up', 'overdue rfis', 'nudge', 'who owes me'], route: '/waiting-on', icon: 'Inbox', group: 'workspace' },
   { id: 'track-record', title: 'Track Record', synonyms: ['brain accuracy', 'scoreboard', 'receipts', 'hit rate', 'how accurate', 'predicted vs actual'], route: '/track-record', requires: 'brain_accuracy', icon: 'Target', group: 'workspace' },

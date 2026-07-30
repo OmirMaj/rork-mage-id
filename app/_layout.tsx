@@ -28,6 +28,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
+import { useQuickActionRouting } from "expo-quick-actions/router";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -440,6 +441,11 @@ function RootLayoutNav() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
 
+  // Home-screen quick actions (long-press the app icon) route via the `href`
+  // param declared on each action in app.json. Requires a native build —
+  // quick actions cannot ship over OTA.
+  useQuickActionRouting();
+
   useEffect(() => {
     if (authLoading || projectLoading || hasSeenOnboarding === null) return;
 
@@ -612,6 +618,7 @@ function RootLayoutNav() {
       <Stack.Screen name="auto-bids" options={{ headerShown: false }} />
       <Stack.Screen name="waiting-on" options={{ headerShown: false }} />
       <Stack.Screen name="home-passport" options={{ headerShown: false }} />
+      <Stack.Screen name="sub-profile" options={{ headerShown: false }} />
       <Stack.Screen name="week-close" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
