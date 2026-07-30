@@ -40,6 +40,13 @@
   to = "/builders/index.html"
   status = 200
 
+# The Price Index — free public cost data. Bare /costs resolves to the index
+# page. Future per-trade pages added as real files are served before this.
+[[redirects]]
+  from = "/costs"
+  to = "/costs/index.html"
+  status = 200
+
 # Email preferences + unsubscribe — backed by the `unsubscribe` edge
 # function. The static pages read ?e=email&k=event_key from the
 # List-Unsubscribe URL we put in every transactional email's footer.
