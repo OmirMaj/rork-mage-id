@@ -443,7 +443,7 @@ export default function HomeScreen() {
     if (step === 'estimate' && pid) {
       router.push({ pathname: '/estimate-wizard', params: { projectId: pid } } as never);
     } else if (step === 'schedule' && pid) {
-      router.push({ pathname: '/schedule-wizard', params: { projectId: pid } } as never);
+      router.push({ pathname: '/schedule-wizard', params: { projectId: pid, scratch: '1' } } as never);
     }
     setCreatedProjectId(null);
   }, [router, _createdProjectId]);

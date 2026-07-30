@@ -2527,13 +2527,13 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
             <TouchableOpacity
               style={styles.emptyAction}
-              onPress={() => router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId } } as any)}
+              onPress={() => router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId, scratch: '1' } } as any)}
               testID="open-schedule-wizard"
             >
               <CalendarDays size={20} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.emptyActionTitle}>Guided 4-step setup</Text>
-                <Text style={styles.emptyActionDesc}>Pick a template, tune tasks, preview the timeline, save</Text>
+                <Text style={styles.emptyActionDesc}>Add tasks, preview the timeline, save</Text>
               </View>
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>

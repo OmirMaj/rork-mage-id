@@ -269,11 +269,23 @@ function sameIds(a: readonly string[], b: readonly string[]): boolean {
 
 /**
  * Drop predecessors that no longer exist or that now sit LATER in the list,
- * and re-anchor any task that was sequenced but lost every predecessor to the
- * row directly above it. Returns a new array; never mutates the input.
+ * de-duplicate what's left, and re-anchor any task that was sequenced but lost
+ * every predecessor to the row directly above it. Returns a new array; never
+ * mutates the input.
  *
  * Idempotent, and a no-op on a well-formed list (every shipped template is
  * authored in topological order — pinned by the validator).
+ *
+ * This is the ONLY thing standing between the wizard and a corrupt graph, and
+ * every mutation below funnels through it — including the multi-predecessor
+ * editor (`setPredecessors`) and drag-to-reorder (`moveTask`). It already
+ * handles a task with many predecessors: each id is filtered independently, so
+ * `[a, b, c(a,b)]` survives, and dragging `c` above `b` keeps `a` and drops
+ * `b` rather than creating a backwards edge.
+ *
+ * De-duplication matters now that a row's predecessors are edited as a SET:
+ * a doubled id is harmless to CPM but makes a one-predecessor row read as
+ * "After 2 tasks" on its sequence chip.
  */
 export function repairChain(tasks: readonly TemplateTask[]): TemplateTask[] {
   const indexById = new Map<string, number>();
@@ -281,9 +293,13 @@ export function repairChain(tasks: readonly TemplateTask[]): TemplateTask[] {
 
   return tasks.map((t, i) => {
     const before = t.predecessorIds ?? [];
+    const seen = new Set<string>();
     const kept = before.filter(pid => {
+      if (seen.has(pid)) return false;
       const at = indexById.get(pid);
-      return at !== undefined && at < i;
+      if (at === undefined || at >= i) return false;
+      seen.add(pid);
+      return true;
     });
     // Was sequenced, now orphaned → hold its place instead of jumping to day 1.
     const next = kept.length === 0 && before.length > 0 && i > 0
@@ -392,4 +408,134 @@ export function setTaskDuration(
   const next = tasks.slice();
   next[index] = { ...t, duration: clamped, isMilestone: clamped === 0 };
   return next;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Multi-predecessor editing.
+//
+// The one-tap chip (after / alongside / day-1) only ever talks about the row
+// DIRECTLY ABOVE, which is a lie on any real job: "Rough Inspection" waits on
+// plumbing AND electrical AND HVAC, not on whichever of them the user happened
+// to type last. These two functions back a picker that can select any subset
+// of the EARLIER rows.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Every task the row at `index` is allowed to depend on — i.e. everything
+ * above it. Returned in list order so a picker renders in the same order the
+ * work happens, and so the selected ids come back in a stable order.
+ *
+ * The invariant is enforced by construction here AND again by repairChain in
+ * `setPredecessors`; belt and braces, because this is the list a user taps.
+ */
+export function predecessorOptions(
+  tasks: readonly TemplateTask[],
+  index: number,
+): TemplateTask[] {
+  if (!Number.isFinite(index) || index <= 0) return [];
+  return tasks.slice(0, Math.min(index, tasks.length));
+}
+
+/**
+ * Replace the predecessors of the task at `index` with an arbitrary set of
+ * ids, then repair the chain.
+ *
+ * Ids that are unknown or that sit at/after `index` are dropped, duplicates
+ * collapse, and the survivors come back in LIST ORDER (not the order the user
+ * tapped them) so the sequence chip's sentence doesn't reshuffle itself.
+ *
+ * An empty array means "starts on day 1" and is preserved: repairChain only
+ * re-anchors a row that HAD predecessors and lost them all to filtering, and
+ * by then we've already written the empty array, so there is nothing to lose.
+ */
+export function setPredecessors(
+  tasks: readonly TemplateTask[],
+  index: number,
+  ids: readonly string[],
+): TemplateTask[] {
+  const t = tasks[index];
+  if (!t) return tasks.slice();
+  const wanted = new Set(ids);
+  const preds = predecessorOptions(tasks, index)
+    .filter(x => wanted.has(x.id))
+    .map(x => x.id);
+  const next = tasks.slice();
+  next[index] = { ...t, predecessorIds: preds };
+  return repairChain(next);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Drag-to-reorder geometry.
+//
+// Deliberately here rather than in the component: these are pure functions
+// over numbers, so `scripts/validate-schedule-wizard-ux.ts` can prove them
+// under bun without a bundler — the same reason the list ops live here. The
+// component (components/schedule/TaskRowDrag.tsx) owns pixels and gestures;
+// this owns the arithmetic that turns a finger's travel into an INDEX, which
+// is then applied with `moveTask` (and therefore repairChain).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where a dragged row lands. `from` is the row under the finger, `dy` its
+ * vertical travel in px, `heights[i]` row i's laid-out height, `gap` the
+ * vertical space between rows.
+ *
+ * A row is passed once the finger has travelled MORE THAN HALF of it — the
+ * standard cross-the-midpoint rule, which is what makes a drag feel like it
+ * tracks the finger instead of snapping a beat late. Rows can have different
+ * heights (a wrapped chip row is taller), so we accumulate real measurements
+ * rather than assuming a fixed row height.
+ */
+export function dropTargetIndex(
+  from: number,
+  dy: number,
+  heights: readonly number[],
+  gap = 0,
+): number {
+  const count = heights.length;
+  if (count === 0) return 0;
+  const start = Math.max(0, Math.min(count - 1, Math.trunc(from)));
+  if (!Number.isFinite(dy) || dy === 0) return start;
+
+  // A row whose onLayout hasn't run yet measures 0. Without this guard the
+  // smallest twitch would "pass" every unmeasured row at once and fling a task
+  // to the end of the list on the first frame after it was added.
+  const span = (i: number) => {
+    const h = heights[i] || 0;
+    return h > 0 ? h + gap : 0;
+  };
+
+  let target = start;
+  let travelled = 0;
+  if (dy > 0) {
+    for (let i = start + 1; i < count; i++) {
+      const step = span(i);
+      if (step <= 0 || dy < travelled + step / 2) break;
+      target = i;
+      travelled += step;
+    }
+  } else {
+    for (let i = start - 1; i >= 0; i--) {
+      const step = span(i);
+      if (step <= 0 || -dy < travelled + step / 2) break;
+      target = i;
+      travelled += step;
+    }
+  }
+  return target;
+}
+
+/**
+ * Which way row `index` slides while row `from` is being dragged to `to`:
+ * -1 = up, 1 = down, 0 = stays put (including the dragged row itself, which
+ * follows the finger instead).
+ *
+ * Displaced rows move by exactly one dragged-row height, because that is the
+ * size of the hole the dragged row left behind — so the preview lands on the
+ * pixel the row will actually occupy.
+ */
+export function reorderShiftDirection(index: number, from: number, to: number): -1 | 0 | 1 {
+  if (from === to || index === from) return 0;
+  if (to > from) return index > from && index <= to ? -1 : 0;
+  return index >= to && index < from ? 1 : 0;
 }
