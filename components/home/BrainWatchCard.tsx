@@ -24,11 +24,11 @@ import {
   ClipboardCheck,
   ListChecks,
   ShieldCheck,
-  Brain,
   CheckCircle2,
   PartyPopper,
   ChevronRight,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -101,7 +101,7 @@ export default function BrainWatchCard() {
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.headerRow}>
-        <Brain size={16} color={colors.accent} strokeWidth={2.2} />
+        <MageAIMark size={16} color={colors.accent} />
         <Text style={styles.headerTitle}>
           {total === 1
             ? '1 thing needs your attention'
@@ -162,12 +162,12 @@ export default function BrainWatchCard() {
       {canAccess('brain_accuracy') && accuracyReport.hasEnoughData && (
         <TouchableOpacity
           style={styles.accuracyChip}
-          onPress={() => router.push('/cost-database' as any)}
+          onPress={() => router.push('/track-record' as any)}
           activeOpacity={0.75}
           accessibilityRole="button"
-          accessibilityLabel="View brain accuracy report"
+          accessibilityLabel="View the Brain's track record"
         >
-          <Brain size={12} color={colors.accent} strokeWidth={2} />
+          <MageAIMark size={12} color={colors.accent} />
           <Text style={styles.accuracyChipText}>
             {accuracyReport.rows.length} accuracy insight{accuracyReport.rows.length === 1 ? '' : 's'} ready
           </Text>

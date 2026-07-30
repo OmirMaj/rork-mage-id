@@ -190,10 +190,12 @@ function AIAPayAppScreenInner() {
   // forward logic in the seeding useEffect already handles this — every
   // monthly pay-app seeds from the prior one's billed-through totals.
   //
-  // NOTE: This is a UI-only lock. RLS gates ownership on aia_pay_apps
-  // but does NOT enforce a state-machine. Determined users or stale UI
-  // bundles can bypass via direct API. A future migration adding a
-  // DB-level update policy on aia_pay_apps is the durable fix.
+  // Defense in depth: this UI lock is now backed by a DB-level state machine.
+  // Migration 20260728120000_lock_certified_aia_pay_apps.sql adds a BEFORE
+  // UPDATE trigger that freezes the financial columns once pay_link_url is set,
+  // so direct-API or stale-bundle edits to a certified pay-app are rejected at
+  // the database — while the webhook's paid_at and the portal_state sync still
+  // go through.
   const savedForThisAppNumber = useMemo(() => {
     if (!project || !app) return null;
     return getAIAPayAppsForProject(project.id).find(a => a.applicationNumber === app.applicationNumber) ?? null;

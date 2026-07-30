@@ -31,6 +31,8 @@ import {
   RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { BrainCard } from '@/components/brain/BrainCard';
+import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -69,6 +71,10 @@ const ESTIMATE_THINKING_STEPS = [
   'Checking your margin…',
   'Assembling line items…',
 ];
+
+// On-brand cost-distribution bar palette (no purple/pink — matches the
+// redesign's trade-tile colors). Rotated by category index.
+const BREAKDOWN_COLORS = ['#FF6A1A', '#5FBF6B', '#90A4AE', '#4FC3F7', '#FFA726', '#8D6E63', '#EF5350', '#26C6DA'];
 
 // Map an AI EstimateResult into a project LinkedEstimate. Item shape mirrors
 // utils/estimateAssemblies.ts applyAssembly and app/drawing-analyzer.tsx (the
@@ -572,19 +578,19 @@ function EstimateWizardScreenInner() {
             <Text style={styles.previewBannerText}>This is the estimate your client will see</Text>
           </View>
 
-          <View style={styles.resultHero}>
-            <CheckCircle2 size={28} color={themeColors.success} strokeWidth={1.75} />
-            <Text style={styles.resultHeroTitle}>Construction Estimate</Text>
+          <View style={styles.heroCard}>
+            <BrandBackdrop />
+            <Text style={styles.heroEyebrow}>CONSTRUCTION ESTIMATE</Text>
             <TapeRollNumber
               value={result.total}
               prefix="$"
               decimals={0}
               duration={1100}
-              style={styles.resultTotal}
+              style={styles.heroTotal}
             />
-            <Text style={styles.resultSubtitle}>{answers.projectType}{answers.sizeSqft ? ` · ${answers.sizeSqft} sqft` : ''}{answers.location ? ` · ${answers.location}` : ''}</Text>
+            <Text style={styles.heroSubtitle}>{answers.projectType}{answers.sizeSqft ? ` · ${answers.sizeSqft} sqft` : ''}{answers.location ? ` · ${answers.location}` : ''}</Text>
             {costPerSqft > 0 ? (
-              <Text style={styles.resultCostPerSqft}>${costPerSqft.toFixed(0)} per sqft</Text>
+              <View style={styles.heroChip}><Text style={styles.heroChipText}>${costPerSqft.toFixed(0)} per sqft</Text></View>
             ) : null}
           </View>
 
@@ -645,19 +651,22 @@ function EstimateWizardScreenInner() {
             </View>
           ) : null}
 
-          {groundingFacts.length > 0 ? (
-            <View style={styles.groundedChip}>
-              <Text style={styles.groundedText}>Priced with your cost history · {groundingFacts.length} learned rate{groundingFacts.length === 1 ? '' : 's'}</Text>
-            </View>
-          ) : (
-            <View style={styles.groundedChipEmpty}>
-              <Text style={styles.groundedTextEmpty}>Priced from market averages — close jobs to teach MAGE your real costs</Text>
-            </View>
-          )}
+          {result.total > 0 ? (
+            <BrainCard
+              style={styles.brainCardSpacing}
+              confidence={result.confidence ?? 70}
+              ground={groundingFacts.length > 0
+                ? `Priced with your cost history · ${groundingFacts.length} learned rate${groundingFacts.length === 1 ? '' : 's'}`
+                : 'Priced from market averages — close jobs to teach MAGE your real costs'}
+              lead={result.refineWith && result.refineWith.length > 0
+                ? `Answer ${result.refineWith.length} question${result.refineWith.length === 1 ? '' : 's'} below to sharpen the number`
+                : undefined}
+            />
+          ) : null}
 
           {result.refineWith && result.refineWith.length > 0 && (
             <View style={styles.refineCard}>
-              <Text style={styles.refineTitle}>Answer these for a sharper number</Text>
+              <Text style={styles.refineTitle}>Sharpen this estimate</Text>
               {result.refineWith.map((rfn, i) => (
                 <View key={i}>
                   <TouchableOpacity
@@ -713,16 +722,20 @@ function EstimateWizardScreenInner() {
               <Text style={styles.breakdownTitle}>Cost Distribution</Text>
               {sortedCategories.map(({ cat, subtotal }, i) => {
                 const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
+                const barColor = BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length];
                 return (
                   <View key={i} style={styles.breakdownRow}>
                     <View style={styles.breakdownHead}>
-                      <Text style={styles.breakdownCat}>{cat}</Text>
+                      <View style={styles.breakdownCatWrap}>
+                        <View style={[styles.breakdownDot, { backgroundColor: barColor }]} />
+                        <Text style={styles.breakdownCat}>{cat}</Text>
+                      </View>
                       <Text style={styles.breakdownAmt}>
                         ${subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })} <Text style={styles.breakdownPct}>· {pct.toFixed(1)}%</Text>
                       </Text>
                     </View>
                     <View style={styles.breakdownBar}>
-                      <View style={[styles.breakdownBarFill, { width: `${Math.max(pct, 1)}%` }]} />
+                      <View style={[styles.breakdownBarFill, { width: `${Math.max(pct, 1)}%`, backgroundColor: barColor }]} />
                     </View>
                   </View>
                 );
@@ -1158,20 +1171,27 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   secondaryText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
   // Result view
-  resultHero: {
-    alignItems: 'center' as const, marginBottom: 24, gap: 4,
+  // Branded ink+amber hero card for the estimate total (matches the client
+  // proposal aesthetic). BrandBackdrop fills it, so text is light-on-ink.
+  heroCard: {
+    borderRadius: Tokens.radius.panel, overflow: 'hidden' as const,
+    paddingHorizontal: 22, paddingVertical: 24, marginBottom: 16,
+    minHeight: 150, justifyContent: 'center' as const,
   },
-  resultHeroTitle: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, marginTop: 8,
+  heroEyebrow: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 1.6,
+    color: '#FF8533', marginBottom: 8,
   },
-  resultTotal: {
-    fontSize: 44, fontWeight: '800' as const, color: themeColors.text, marginTop: 4,
+  heroTotal: {
+    fontFamily: 'Fraunces_700Bold', fontSize: 46, color: '#F4EFE6', letterSpacing: -1,
   },
-  resultSubtitle: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
-  resultCostPerSqft: {
-    fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent,
-    marginTop: 4, letterSpacing: 0.3,
+  heroSubtitle: { fontSize: Type.footnote.fontSize, color: '#C9C3B8', marginTop: 8 },
+  heroChip: {
+    alignSelf: 'flex-start' as const, marginTop: 12,
+    backgroundColor: 'rgba(255,106,26,0.18)', borderWidth: 1, borderColor: 'rgba(255,106,26,0.4)',
+    borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5,
   },
+  heroChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: '#FF8533' },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 21, marginBottom: 20 },
   // At-a-glance stat tiles below hero
   statGrid: {
@@ -1213,7 +1233,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     marginBottom: 4,
   },
-  breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  breakdownCatWrap: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 7, flex: 1, minWidth: 0 },
+  breakdownDot: { width: 8, height: 8, borderRadius: 4 },
+  breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text, flexShrink: 1 },
   breakdownAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
   breakdownPct: { fontWeight: '500' as const, color: themeColors.textMuted },
   breakdownBar: {
@@ -1419,8 +1441,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     lineHeight: 20,
   },
   sectionTitle: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text,
-    letterSpacing: 0.3, marginTop: 16, marginBottom: 10,
+    fontFamily: 'Fraunces_700Bold', fontSize: Type.serifHeadline.fontSize, color: themeColors.text,
+    letterSpacing: -0.2, marginTop: 18, marginBottom: 10,
   },
   lineItem: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
@@ -1448,6 +1470,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // "Sharper number" card — surfaces the AI's refineWith hints (the
   // specific missing inputs that would most improve accuracy) directly
   // under the scope summary.
+  // Brain confidence card — the reusable <BrainCard/> owns the look now; this
+  // just spaces it under the total.
+  brainCardSpacing: { marginTop: 12 },
   refineCard: { backgroundColor: themeColors.accent + '12', borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
   refineTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   refineItem: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
@@ -1455,9 +1480,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   refineInput: { flex: 1, borderWidth: 1, borderColor: themeColors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: themeColors.text, backgroundColor: themeColors.surface },
   refineGoBtn: { backgroundColor: themeColors.accent, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   refineGoText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnPrimary },
-  groundedChip: { alignSelf: 'flex-start', backgroundColor: themeColors.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
+  groundedChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, alignSelf: 'flex-start', backgroundColor: themeColors.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 12 },
   groundedText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.success },
-  groundedChipEmpty: { alignSelf: 'flex-start', backgroundColor: themeColors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
+  groundedChipEmpty: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, alignSelf: 'flex-start', backgroundColor: themeColors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 12 },
   groundedTextEmpty: { fontSize: Type.caption1.fontSize, fontWeight: '500', color: themeColors.textMuted },
   stepHintRow: { paddingHorizontal: 20, paddingTop: 8 },
   stepHintText: { fontSize: Type.footnote.fontSize, color: themeColors.danger, textAlign: 'center' },

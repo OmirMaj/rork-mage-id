@@ -510,6 +510,44 @@ serve(async (req) => {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as StripeCheckoutSession;
+
+      // Property-owner RFP post fee — a platform-direct charge from
+      // create-rfp-checkout (not a Connect invoice). Grant one post credit,
+      // idempotent by Stripe session id, and skip invoice/AIA reconciliation.
+      if (session.metadata?.purpose === "rfp_post_fee") {
+        const paid = session.payment_status === "paid" || session.payment_status === "no_payment_required";
+        const userId = session.metadata?.user_id;
+        if (!paid || !userId) {
+          console.warn("[stripe-webhook] rfp_post_fee: not paid or missing user_id");
+          break;
+        }
+        try {
+          const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+          const { data: granted, error } = await supabase.rpc("grant_rfp_post_credit", {
+            p_user: userId,
+            p_session: session.id,
+            p_n: 1,
+          });
+          if (error) {
+            console.warn("[stripe-webhook] rfp credit grant failed:", error.message);
+            // Transient: the payment landed but our grant didn't — 500 so Stripe
+            // retries. The session-keyed grant makes the retry safe (no double).
+            return new Response(
+              JSON.stringify({ error: "transient db failure, retry" }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+          console.log("[stripe-webhook] rfp post credit:", granted ? "granted" : "duplicate", userId);
+        } catch (err) {
+          console.warn("[stripe-webhook] rfp credit grant threw:", err);
+          return new Response(
+            JSON.stringify({ error: "transient db failure, retry" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        break;
+      }
+
       // Route by record_type stamped at link-creation time. Default (absent
       // or "invoice") preserves the original invoice reconciliation path
       // byte-for-byte. "aia_pay_app" flips paid_at on the AIA record instead.

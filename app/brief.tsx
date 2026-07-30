@@ -23,8 +23,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
-  Sunrise, AlertCircle, Eye, Brain, ChevronRight, CheckCircle2,
+  Sunrise, AlertCircle, Eye, ChevronRight, CheckCircle2,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -173,7 +174,7 @@ function BriefInner() {
               {brief.didForYou.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
-                    <Brain size={14} color={t.accent} strokeWidth={2} />
+                    <MageAIMark size={14} color={t.accent} />
                     <Text style={styles.sectionLabel}>Did for you</Text>
                   </View>
                   {renderRows(brief.didForYou, false)}

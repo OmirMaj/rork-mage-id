@@ -6,6 +6,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { processOfflineQueue, getOfflineQueue } from '@/utils/offlineQueue';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -488,6 +489,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     const authUser = mapSupabaseUser(data.user);
     queryClient.clear();
     console.log('[Auth] Signup successful');
+    // Funnel entry — distinct from user_logged_in so signup→activation is
+    // measurable (login.tsx only ever emitted logged_in, even for new users).
+    track(AnalyticsEvents.USER_SIGNED_UP, { method: 'email' });
 
     // Fire-and-forget welcome email. Do NOT await — the user has just
     // created their account and should land on the next screen

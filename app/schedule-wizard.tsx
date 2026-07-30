@@ -24,7 +24,7 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Check, Calendar as CalendarIcon,
-  Building2, Hammer, Trees, Home as HomeIcon, Plus, Trash2, MapPin,
+  Building2, Hammer, Trees, Home as HomeIcon, Plus, Trash2, MapPin, PencilRuler,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -44,6 +44,10 @@ import { displayText } from '@/utils/formatters';
 
 const STEPS = ['Project', 'Tasks', 'Schedule', 'Review'] as const;
 type StepIndex = 0 | 1 | 2 | 3;
+
+// Sentinel template id for the "build it yourself" path — starts the task
+// list empty instead of seeding a template's tasks.
+const SCRATCH_ID = '__scratch__';
 
 // The wizard commits a 5-day work week and hands off to Schedule Pro, which
 // runs CPM in CALENDAR mode (weekend-aware) whenever a startDate is present.
@@ -123,8 +127,12 @@ export default function ScheduleWizardScreen() {
   // Re-seed tasks when the template changes.
   const handlePickTemplate = useCallback((id: string) => {
     setPickedTemplateId(id);
-    const t = SCHEDULE_TEMPLATES.find(x => x.id === id);
-    if (t) setTasks(t.tasks.map(x => ({ ...x })));
+    if (id === SCRATCH_ID) {
+      setTasks([]); // blank canvas — the user builds it with "Add task".
+    } else {
+      const t = SCHEDULE_TEMPLATES.find(x => x.id === id);
+      if (t) setTasks(t.tasks.map(x => ({ ...x })));
+    }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
 
@@ -356,7 +364,7 @@ export default function ScheduleWizardScreen() {
         )}
         {step === 1 && (
           <TasksStep
-            template={template}
+            activeId={pickedTemplateId}
             templates={SCHEDULE_TEMPLATES}
             onPickTemplate={handlePickTemplate}
             tasks={tasks}
@@ -490,7 +498,7 @@ function ProjectStep(props: {
 
 // ── Step 2: Pick a template, tune the task list ───────────────────
 function TasksStep(props: {
-  template: ScheduleTemplate;
+  activeId: string;
   templates: ScheduleTemplate[];
   onPickTemplate: (id: string) => void;
   tasks: TemplateTask[];
@@ -498,19 +506,36 @@ function TasksStep(props: {
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { template, templates, onPickTemplate, tasks, setTasks } = props;
+  const { activeId, templates, onPickTemplate, tasks, setTasks } = props;
+  const scratchActive = activeId === SCRATCH_ID;
 
   return (
     <View style={styles.stepContent}>
-      <Text style={styles.sectionLabel}>Start from a template</Text>
+      <Text style={styles.sectionLabel}>Choose a starting point</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.templateScrollContent}
       >
+        {/* From scratch — a blank task list the user builds themselves. */}
+        <TouchableOpacity
+          onPress={() => onPickTemplate(SCRATCH_ID)}
+          style={[styles.templateCard, styles.scratchCard, scratchActive && styles.templateCardActive]}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Start from scratch"
+        >
+          <View style={[styles.templateIcon, scratchActive && { backgroundColor: themeColors.accent + '15' }]}>
+            <PencilRuler size={22} color={scratchActive ? themeColors.accent : themeColors.textSecondary} />
+          </View>
+          <Text style={[styles.templateName, scratchActive && { color: themeColors.accent }]} numberOfLines={2}>
+            From scratch
+          </Text>
+          <Text style={styles.templateSub}>Build your own</Text>
+        </TouchableOpacity>
         {templates.map(t => {
           const Icon = TEMPLATE_ICONS[t.id] ?? Hammer;
-          const active = t.id === template.id;
+          const active = t.id === activeId;
           return (
             <TouchableOpacity
               key={t.id}
@@ -531,6 +556,9 @@ function TasksStep(props: {
       </ScrollView>
 
       <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Tasks ({tasks.length})</Text>
+      {tasks.length === 0 && (
+        <Text style={styles.helper}>No tasks yet — add your first below, or pick a template above.</Text>
+      )}
       <View style={{ gap: 8 }}>
         {tasks.map((t, idx) => {
           const phaseColor = PHASE_COLORS[t.phase] ?? PHASE_COLORS.General;
@@ -862,6 +890,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   templateCardActive: {
     borderColor: t.accent,
     backgroundColor: t.accent + '08',
+  },
+  scratchCard: {
+    borderStyle: 'dashed' as const,
   },
   templateIcon: {
     width: 38, height: 38, borderRadius: Tokens.radius.sm,

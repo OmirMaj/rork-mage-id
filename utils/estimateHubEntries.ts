@@ -27,6 +27,7 @@ export const HUB_ENTRIES: HubEntry[] = [
   { id: 'takeoff', label: 'AI Takeoff',     subtitle: 'Upload plans, get LF / SF / EA quantities',            route: '/takeoff',                group: 'create',   iconKey: 'Ruler',      tone: 'accent' },
   { id: 'visual',  label: 'Visual Takeoff', subtitle: 'Trace areas & lines on plans or photos to quantify',   route: '/area-takeoff',           group: 'create',   iconKey: 'Grid',       tone: 'accent' },
   { id: 'full',    label: 'Full Estimator', subtitle: 'Line items, materials, labor, markup & PDF',           route: '/(tabs)/estimate/full',   group: 'create',   iconKey: 'Layers',     tone: 'accent' },
+  { id: 'costxray', label: 'Cost X-Ray',    subtitle: 'Price the hidden conditions before you bid',          route: '/cost-xray',              group: 'create',   iconKey: 'ScanSearch', tone: 'accent' },
   // ── Insights ────────────────────────────────────────────────────────────
   { id: 'confidence',  label: 'Estimate Risk',   subtitle: 'Score every line against your cost history',       route: '/estimate-confidence',  group: 'insights', iconKey: 'Gauge',      tone: 'info' },
   { id: 'accuracy',    label: 'Bid vs Actual',   subtitle: 'Per-line variance once the job is done',           route: '/estimate-accuracy',    group: 'insights', iconKey: 'TrendingUp', tone: 'success' },

@@ -94,7 +94,6 @@ import { geocodeProjectLocation, type GeocodeResult } from '@/utils/geocodeProje
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
-import AICopilot from '@/components/AICopilot';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -2869,8 +2868,6 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           </>
         )}
       </ScrollView>
-
-      <AICopilot />
 
       {hasScheduleData && (viewMode === 'today' || viewMode === 'lookahead') && activeSchedule && selectedProject && (
         <VoiceFieldButton

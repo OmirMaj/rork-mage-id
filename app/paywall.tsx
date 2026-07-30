@@ -230,6 +230,22 @@ export default function PaywallScreen() {
         onClose={() => router.back()}
         onOpenLegal={openLegal}
         currentTier={tier}
+        webPurchase={{
+          // `available` is true only when RevenueCat Web Billing is configured
+          // (a prod rcb_ key) AND its offerings loaded — otherwise this stays
+          // false and the view degrades to the app-download CTA (no regression).
+          available: packagesLoaded,
+          isPurchasing,
+          onPro: handlePurchasePro,
+          onBusiness: handlePurchaseBusiness,
+          onEnterprise: handlePurchaseEnterprise,
+          proAvailable: !!proPackage,
+          businessAvailable: !!businessPackage,
+          enterpriseAvailable: !!enterprisePackage,
+          proPrice: proPrice ?? '$29/mo',
+          businessPrice: businessPrice ?? '$79/mo',
+          enterprisePrice: enterprisePrice ?? '$150/mo',
+        }}
       />
     );
   }
@@ -510,6 +526,7 @@ function WebPaywallView({
   onClose,
   onOpenLegal,
   currentTier,
+  webPurchase,
 }: {
   themeColors: ThemeColors;
   styles: ReturnType<typeof makeStyles>;
@@ -517,7 +534,21 @@ function WebPaywallView({
   onClose: () => void;
   onOpenLegal: (kind: 'privacy' | 'terms') => void;
   currentTier: 'free' | 'pro' | 'business' | 'enterprise';
+  webPurchase: {
+    available: boolean;
+    isPurchasing: boolean;
+    onPro: () => void;
+    onBusiness: () => void;
+    onEnterprise: () => void;
+    proAvailable: boolean;
+    businessAvailable: boolean;
+    enterpriseAvailable: boolean;
+    proPrice: string;
+    businessPrice: string;
+    enterprisePrice: string;
+  };
 }) {
+  const wp = webPurchase;
   const openAppStore = useCallback(() => {
     void Linking.openURL('https://apps.apple.com/app/id6762229238');
   }, []);
@@ -544,14 +575,17 @@ function WebPaywallView({
             accessibilityRole="header"
             aria-level={1 as never}
           >
-            Subscribe in the mobile app
+            {wp.available ? 'Choose your plan' : 'Subscribe in the mobile app'}
           </Text>
           <Text style={[Type.body, { color: themeColors.textSecondary, marginTop: 8, textAlign: 'center', maxWidth: 520 }]}>
-            App Store + Google Play handle the subscription. Open MAGE ID on your phone to pick a plan — your account will be linked the moment you sign in.
+            {wp.available
+              ? 'Secure checkout, right here. Your plan unlocks instantly across the web and mobile apps — cancel anytime.'
+              : 'App Store + Google Play handle the subscription. Open MAGE ID on your phone to pick a plan — your account will be linked the moment you sign in.'}
           </Text>
         </View>
 
-        {/* Store CTAs */}
+        {/* Store CTAs — the primary path only when web checkout isn't live. */}
+        {!wp.available && (
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
           <TouchableOpacity
             onPress={openAppStore}
@@ -585,6 +619,7 @@ function WebPaywallView({
             <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 15 }}>Google Play</Text>
           </TouchableOpacity>
         </View>
+        )}
 
         {/* Already subscribed note */}
         <View style={{
@@ -605,9 +640,9 @@ function WebPaywallView({
         {/* Plan tiles — read-only on web */}
         <View style={{ gap: 14, marginBottom: 28 }}>
           {([
-            { name: 'Pro',        price: '$29/mo',  blurb: 'AI estimates, cash flow, AIA G702/G703, change orders + invoicing.', icon: MageAIMark,       active: currentTier === 'pro' },
-            { name: 'Business',   price: '$79/mo',  blurb: 'Everything in Pro + subs, RFIs, submittals, punch + closeout, plans.', icon: Building2, active: currentTier === 'business' },
-            { name: 'Enterprise', price: '$150/mo', blurb: 'Same features as Business with the highest AI usage caps.',           icon: Rocket,    active: currentTier === 'enterprise' },
+            { name: 'Pro',        price: wp.proPrice,        blurb: 'AI estimates, cash flow, AIA G702/G703, change orders + invoicing.', icon: MageAIMark, active: currentTier === 'pro',        onSubscribe: wp.onPro,        buyable: wp.proAvailable },
+            { name: 'Business',   price: wp.businessPrice,   blurb: 'Everything in Pro + subs, RFIs, submittals, punch + closeout, plans.', icon: Building2, active: currentTier === 'business',   onSubscribe: wp.onBusiness,   buyable: wp.businessAvailable },
+            { name: 'Enterprise', price: wp.enterprisePrice, blurb: 'Same features as Business with the highest AI usage caps.',           icon: Rocket,    active: currentTier === 'enterprise', onSubscribe: wp.onEnterprise, buyable: wp.enterpriseAvailable },
           ]).map(plan => (
             <View key={plan.name} style={{
               padding: 16, borderRadius: 14, borderWidth: 1,
@@ -620,11 +655,22 @@ function WebPaywallView({
                 <Text style={{ color: themeColors.text, fontWeight: '800', fontSize: 17 }}>{plan.price}</Text>
               </View>
               <Text style={{ color: themeColors.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 8 }}>{plan.blurb}</Text>
-              {plan.active && (
+              {plan.active ? (
                 <View style={{ marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: themeColors.accent + '22' }}>
                   <Text style={{ color: themeColors.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Your plan</Text>
                 </View>
-              )}
+              ) : wp.available && plan.buyable ? (
+                <View style={{ marginTop: 12 }}>
+                  <Button
+                    label={wp.isPurchasing ? 'Processing…' : `Subscribe · ${plan.price}`}
+                    onPress={plan.onSubscribe}
+                    disabled={wp.isPurchasing}
+                    loading={wp.isPurchasing}
+                    size="sm"
+                    fullWidth
+                  />
+                </View>
+              ) : null}
             </View>
           ))}
         </View>
@@ -676,7 +722,9 @@ function WebPaywallView({
         {/* Legal */}
         <View style={{ alignItems: 'center', marginTop: 8, gap: 6 }}>
           <Text style={{ color: themeColors.textMuted, fontSize: 12, textAlign: 'center' }}>
-            Secure payment via App Store / Google Play. Cancel anytime.
+            {wp.available
+              ? 'Secure checkout by RevenueCat + Stripe. Cancel anytime.'
+              : 'Secure payment via App Store / Google Play. Cancel anytime.'}
           </Text>
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity onPress={() => onOpenLegal('privacy')} accessibilityRole="link">

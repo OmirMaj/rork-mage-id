@@ -11,8 +11,8 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Brain } from 'lucide-react-native';
-import { MageCostDb } from '@/components/icons';
+import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { MageCostDb, MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -24,6 +24,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { buildCostDatabase, type CostBookEntry } from '@/utils/costDatabase';
+import { useCostBenchmark } from '@/hooks/useCostBenchmark';
+import CostTruthChip from '@/components/CostTruthChip';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useBrainGrading } from '@/hooks/useBrainGrading';
@@ -68,6 +70,14 @@ function CostDatabaseInner() {
     () => buildCostDatabase(projects, commitments, receipts, laborSamples),
     [projects, commitments, receipts, laborSamples],
   );
+
+  // Cost Truth: contribute my learned rates + read the cross-contractor
+  // regional benchmark (aggregate-only, k-anonymized).
+  const benchInputs = useMemo(
+    () => db.entries.map((e) => ({ trade: e.trade, unit: e.unit, personalRate: e.personalRate })),
+    [db.entries],
+  );
+  const { statsFor } = useCostBenchmark(benchInputs);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = useCallback((key: string) => {
@@ -130,7 +140,7 @@ function CostDatabaseInner() {
           {canAccess('brain_accuracy') && (
             <View style={styles.accuracySection}>
               <View style={styles.accuracySectionHeader}>
-                <Brain size={14} color={t.accent} strokeWidth={2} />
+                <MageAIMark size={14} color={t.accent} />
                 <Text style={styles.accuracySectionTitle}>Brain accuracy</Text>
               </View>
               {accuracyReport.hasEnoughData ? (
@@ -160,6 +170,7 @@ function CostDatabaseInner() {
           {db.entries.map(e => {
             const isOpen = expanded.has(e.key);
             const cc = confColor(e.confidence);
+            const bench = statsFor(e.trade, e.unit);
             const bidsLow = e.bidBias > 0.02;
             const bidsHigh = e.bidBias < -0.02;
             return (
@@ -176,6 +187,11 @@ function CostDatabaseInner() {
                       per {e.unit} · {e.jobCount} job{e.jobCount === 1 ? '' : 's'}
                       <Text style={{ color: cc }}> · {e.confidence}</Text>
                     </Text>
+                    {bench ? (
+                      <View style={{ marginTop: 5 }}>
+                        <CostTruthChip stats={bench} rate={e.personalRate} />
+                      </View>
+                    ) : null}
                   </View>
                   <View style={styles.rateBox}>
                     <Text style={styles.rateVal}>{formatRate(e.suggestedRate)}</Text>

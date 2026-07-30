@@ -7,8 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  HardHat, Plus, X, Sparkles, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive, Mic,
+  HardHat, Plus, X, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive, Mic,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -389,7 +390,7 @@ function SafetyJhaInner() {
 
                 {!isLocked ? (
                   <TouchableOpacity style={styles.aiBtn} onPress={handleGenerate} disabled={generating} activeOpacity={0.85} testID="jha-generate">
-                    <Sparkles size={16} color="#FFFFFF" strokeWidth={1.75} />
+                    <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
                     <Text style={styles.aiBtnText}>{generating ? 'Analyzing…' : 'Generate with AI'}</Text>
                   </TouchableOpacity>
                 ) : null}

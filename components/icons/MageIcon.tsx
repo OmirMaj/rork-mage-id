@@ -5,7 +5,7 @@
 // in only 95/266 files — the rest default to 2.0, mixed with 1.6/1.8/2.4).
 // Phase 3 routes lucide through this; pure-utility glyphs (X, chevrons, Check)
 // stay lucide but gain a consistent hand. Bespoke construction glyphs live
-// alongside it (MageIntelligence, and the domain set to come).
+// alongside it (MageAIMark, and the domain set to come).
 
 import React from 'react';
 import type { LucideProps } from 'lucide-react-native';

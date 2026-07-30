@@ -35,14 +35,17 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { buildOwnerConfidence } from '@/utils/ownerConfidence';
+import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
+import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type SectionKey = 'messages' | 'schedule' | 'budget' | 'invoices' | 'changeOrders' | 'photos' | 'dailyReports' | 'punchList' | 'rfis' | 'documents';
 
-function SectionHeader({ title, icon, count, expanded, onToggle }: {
-  title: string; icon: React.ReactNode; count?: number; expanded: boolean; onToggle: () => void;
+function SectionHeader({ title, icon, count, expanded, onToggle, infoTerm }: {
+  title: string; icon: React.ReactNode; count?: number; expanded: boolean; onToggle: () => void; infoTerm?: string;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -50,6 +53,7 @@ function SectionHeader({ title, icon, count, expanded, onToggle }: {
     <TouchableOpacity style={styles.sectionHeader} onPress={onToggle} activeOpacity={0.7}>
       {icon}
       <Text style={styles.sectionTitle}>{title}</Text>
+      {infoTerm ? <InfoBubble term={infoTerm} size={15} /> : null}
       {count !== undefined && (
         <View style={styles.badge}><Text style={styles.badgeText}>{count}</Text></View>
       )}
@@ -116,6 +120,10 @@ export default function ClientViewScreen() {
 
   const changeOrders = useMemo(() => project ? getChangeOrdersForProject(project.id) : [], [project, getChangeOrdersForProject]);
   const invoices = useMemo(() => project ? getInvoicesForProject(project.id) : [], [project, getInvoicesForProject]);
+  const ownerConfidence = useMemo(
+    () => (project ? buildOwnerConfidence({ project, changeOrders, invoices, nowMs: Date.now() }) : null),
+    [project, changeOrders, invoices],
+  );
   const dailyReports = useMemo(() => project ? getDailyReportsForProject(project.id) : [], [project, getDailyReportsForProject]);
   const punchItems = useMemo(() => project ? getPunchItemsForProject(project.id) : [], [project, getPunchItemsForProject]);
   const photos = useMemo(() => project ? getPhotosForProject(project.id) : [], [project, getPhotosForProject]);
@@ -687,30 +695,13 @@ export default function ClientViewScreen() {
           </View>
         )}
 
-        {/* Quick stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Schedule</Text>
-            <Text style={[styles.statValue, { color: healthScore >= 80 ? themeColors.success : healthScore >= 60 ? Colors.warning : themeColors.danger }]}>
-              {scheduleProgress}%
-            </Text>
-            <Text style={styles.statSub}>complete</Text>
-          </View>
-          {portal.showBudgetSummary && (
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Invoiced</Text>
-              <Text style={styles.statValue}>{formatMoney(invoicedTotal)}</Text>
-              <Text style={styles.statSub}>of {formatMoney(revisedContract)}</Text>
-            </View>
-          )}
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Punch List</Text>
-            <Text style={[styles.statValue, { color: punchItems.filter(p => p.status !== 'closed').length > 0 ? Colors.warning : themeColors.success }]}>
-              {punchItems.filter(p => p.status !== 'closed').length}
-            </Text>
-            <Text style={styles.statSub}>open items</Text>
-          </View>
-        </View>
+        {/* Owner Confidence — the at-a-glance "on time & on budget" hero, in
+            place of the old three-stat strip. Schedule + billing are shown
+            richer here (with projected finish, milestones, and what needs the
+            owner); punch items keep their own section below. */}
+        {ownerConfidence && (
+          <OwnerConfidenceCard confidence={ownerConfidence} showBudget={!!portal.showBudgetSummary} />
+        )}
 
         {/* Messages Section — always on, it's the main 2-way channel */}
         <View style={styles.section}>
@@ -934,6 +925,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Invoices"
+              infoTerm="pay_app"
               icon={<DollarSign size={18} color={Colors.warning} strokeWidth={1.75} />}
               count={invoices.length}
               expanded={expanded.invoices}
@@ -970,6 +962,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Change Orders"
+              infoTerm="change_order"
               icon={<FileText size={18} color={themeColors.danger} strokeWidth={1.75} />}
               count={changeOrders.length}
               expanded={expanded.changeOrders}
@@ -1094,6 +1087,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Punch List"
+              infoTerm="punch_list"
               icon={<CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />}
               count={punchItems.filter(p => p.status !== 'closed').length}
               expanded={expanded.punchList}
@@ -1127,6 +1121,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="RFIs"
+              infoTerm="rfi"
               icon={<MessageSquare size={18} color={Colors.warning} strokeWidth={1.75} />}
               count={rfis.filter(r => r.status === 'open').length}
               expanded={expanded.rfis}

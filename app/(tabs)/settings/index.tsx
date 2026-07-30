@@ -52,7 +52,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'How does the AI estimate work?',
-    a: 'Type a short description of the project and MAGE AI returns itemized materials and labor using current bulk pricing. You can edit any line, and the totals and tax update live.',
+    a: 'Type a short description of the project and MAGE Brain returns itemized materials and labor using current bulk pricing. You can edit any line, and the totals and tax update live.',
   },
   {
     q: 'Is my data private?',

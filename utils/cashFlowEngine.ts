@@ -228,10 +228,10 @@ export function generateForecast(
 
     expenses.forEach(exp => {
       if (shouldExpenseOccurInWeek(exp, weekStart, weekEnd, w)) {
-        let amount = exp.amount;
-        if (exp.frequency === 'monthly') {
-          amount = exp.amount;
-        }
+        // Guard non-finite amounts (legacy/imported rows): an unguarded NaN
+        // poisons the running balance and every subsequent week, producing a
+        // false "Healthy / $0" verdict that hides real danger weeks.
+        const amount = Number.isFinite(exp.amount) ? exp.amount : 0;
         expenseItems.push({
           description: exp.name,
           amount,
@@ -240,8 +240,8 @@ export function generateForecast(
       }
     });
 
-    const totalIncome = incomeItems.reduce((s, i) => s + i.amount, 0);
-    const totalExpenses = expenseItems.reduce((s, e) => s + e.amount, 0);
+    const totalIncome = incomeItems.reduce((s, i) => s + (Number.isFinite(i.amount) ? i.amount : 0), 0);
+    const totalExpenses = expenseItems.reduce((s, e) => s + (Number.isFinite(e.amount) ? e.amount : 0), 0);
     const netCashFlow = totalIncome - totalExpenses;
     balance += netCashFlow;
 

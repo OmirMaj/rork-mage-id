@@ -23,6 +23,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { useRouter } from 'expo-router';
 import { supabase, SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -44,6 +46,8 @@ export default function ConnectClaudeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
+  const { tier } = useTierAccess();
+  const router = useRouter();
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [creating, setCreating] = useState<boolean>(false);
@@ -152,6 +156,22 @@ export default function ConnectClaudeScreen() {
             <Text style={styles.roBadgeText}>Read-only. Claude can view your data but never change it. Revoke any time.</Text>
           </View>
         </View>
+
+        {tier === 'free' ? (
+          <TouchableOpacity
+            onPress={() => router.push('/paywall')}
+            activeOpacity={0.85}
+            testID="connect-claude-upsell"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.card, padding: 14, marginBottom: 4 }}
+          >
+            <MageAIMark size={16} color={themeColors.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.text }}>Data access needs Pro</Text>
+              <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 }}>Connect and browse the tools on any plan — but pulling your projects, costs, and RFIs into Claude requires Pro.</Text>
+            </View>
+            <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.accent }}>Upgrade</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* Freshly minted token — shown exactly once. */}
         {freshToken && connectUrl && (

@@ -2,7 +2,6 @@ import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
-  type NativeSyntheticEvent, type NativeScrollEvent,
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -22,7 +21,6 @@ import { generateUUID } from '@/utils/generateId';
 import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';
 import AIWeeklySummary from '@/components/AIWeeklySummary';
-import { HomeFabStack } from '@/components/HomeFabStack';
 import StatusBarMask from '@/components/StatusBarMask';
 import AIHomeBriefing from '@/components/AIHomeBriefing';
 import SmartInbox from '@/components/SmartInbox';
@@ -38,7 +36,6 @@ import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import EmptyState from '@/components/EmptyState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
-import Tutorial from '@/components/Tutorial';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
@@ -68,6 +65,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
 import BrainWatchCard from '@/components/home/BrainWatchCard';
+import ReadyToBillCard from '@/components/home/ReadyToBillCard';
 import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 
@@ -103,26 +101,9 @@ export default function HomeScreen() {
   const { openCreate } = useLocalSearchParams<{ openCreate?: string }>();
   const openCreateConsumed = useRef(false);
 
-  // Auto-hide the FAB stack while scrolling DOWN (reading/aiming at list
-  // rows) and bring it back on scroll-up or near the top — the stacked FABs
-  // were covering list dismiss buttons and card chevrons (sim-audit #4).
-  const [fabHidden, setFabHidden] = useState(false);
-  const lastScrollYRef = useRef(0);
-  const handleListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
-    const dy = y - lastScrollYRef.current;
-    lastScrollYRef.current = y;
-    if (y <= 24) { setFabHidden(false); return; }
-    // Small dead-zone so momentum jitter doesn't flicker the stack.
-    if (dy > 6) setFabHidden(true);
-    else if (dy < -6) setFabHidden(false);
-  }, []);
-  // Auto-hide is for ACTIVE downward motion only — the AI Copilot FAB is the
-  // primary conversational entry point and must never be stuck hidden at rest.
-  // When the scroll SETTLES (finger lifts / momentum ends), bring the stack
-  // back regardless of the last delta, so reading a card mid-list never leaves
-  // the assistant gone until the user thinks to scroll up.
-  const handleScrollSettled = useCallback(() => setFabHidden(false), []);
+  // The old home-only FAB stack (and its scroll-hide) was retired — the one
+  // global MAGE Brain FAB (app/_layout → components/brain/BrainSurface) now
+  // carries AI, voice, and help on every screen.
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
@@ -170,12 +151,8 @@ export default function HomeScreen() {
     setShowCreateModal(true);
   }, [canCreateProject, realProjectCount]);
 
-  // Tutorial is opt-in, never auto-opened. The launch-readiness audit
-  // (2026-05-16) found a brand-new user landed behind a 20-step quiz modal
-  // the instant they finished onboarding — the single biggest "where do I
-  // start" failure. It stays one tap away via the HelpFab ("Replay
-  // tutorial") and Settings; NextStepHero is the real first-run spine.
-  const [showTutorial, setShowTutorial] = useState(false);
+  // Tutorial replay lives in Settings ("Show Tutorial") and the Brain surface's
+  // Help sheet — not on home. NextStepHero is the real first-run spine.
 
   // Onboarding milestones — drives the 5-step "Get up and running" panel.
   // Re-reads when the project / invoice count changes so the user sees
@@ -669,19 +646,14 @@ export default function HomeScreen() {
         refreshControl={
           <MageRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
-        onScroll={handleListScroll}
-        onScrollEndDrag={handleScrollSettled}
-        onMomentumScrollEnd={handleScrollSettled}
         scrollEventThrottle={32}
         contentContainerStyle={[
           styles.listContent,
           responsive.isDesktop && styles.listContentDesktop,
-          // Bottom padding must clear the WHOLE floating stack — AICopilot FAB
-          // (bottom: insets.bottom + 70, 56px) PLUS the speed-dial toggle above
-          // it (44px + 8px gap): 70 + 56 + 8 + 44 + 22px margin = 200. The
-          // stack also auto-hides on scroll-down, but at rest the last rows
-          // must still clear it.
-          { paddingTop: insets.top, paddingBottom: insets.bottom + 200 },
+          // Bottom padding clears the single MAGE Brain FAB (bottom:
+          // insets.bottom + 70, 56px) plus a margin so the last rows aren't
+          // tucked under it: 70 + 56 + 24 = 150.
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 150 },
           projects.length === 0 && styles.emptyList,
         ]}
         ListHeaderComponent={
@@ -764,6 +736,7 @@ export default function HomeScreen() {
                 already computes. Renders once projects have loaded so the card
                 never flickers empty on cold launch. */}
             {projects.length > 0 && !isLoading && <BrainWatchCard />}
+            {projects.length > 0 && !isLoading && <ReadyToBillCard />}
 
             {/* "Today" feed — surfaces overdue invoices, unanswered
                 RFIs, pending CO approvals, late tasks, etc. as the
@@ -1088,12 +1061,6 @@ export default function HomeScreen() {
         onClose={() => setShowWeeklySummary(false)}
       />
 
-      {/* Single speed-dial FAB — consolidates what used to be three stacked
-          floating buttons (AI Copilot, Voice, Help) into one footprint so
-          they no longer overlap the project cards. The AI Copilot is the
-          always-visible main button; tapping the "+" toggle reveals the
-          Voice + Help mini-FABs. See components/HomeFabStack.tsx. */}
-      <HomeFabStack onReplayTutorial={() => setShowTutorial(true)} hidden={fabHidden} />
 
       <EntityActionSheet
         entityRef={actionSheetRef}
@@ -1142,9 +1109,6 @@ export default function HomeScreen() {
         }}
       />
 
-      {/* First-run tutorial. Auto-opens once; close persists the seen
-          flag so it doesn't re-open on subsequent launches. */}
-      <Tutorial visible={showTutorial} onClose={() => setShowTutorial(false)} />
 
       {/* Demo-seed picker — small ($420K) or large ($14M). Empty-state
           "Try a sample project" CTA toggles this open. */}

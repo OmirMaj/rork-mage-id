@@ -36,6 +36,7 @@ import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { Type } from '@/constants/typography';
@@ -152,6 +153,7 @@ export default function PersonaSelectScreen() {
   const commitRole = useCallback(async (role: UserRole) => {
     try {
       await setUserRole(role);
+      track(AnalyticsEvents.PERSONA_SELECTED, { persona: role, onboarding: !hasSeenOnboarding });
 
       // Routing after pick has three paths:
       //   1. Existing user changing persona from Settings (hasSeenOnboarding

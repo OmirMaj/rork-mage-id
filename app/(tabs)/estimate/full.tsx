@@ -53,7 +53,6 @@ import ProductivityCalculator from '@/components/ProductivityCalculator';
 import CostBreakdownReport from '@/components/CostBreakdownReport';
 import EstimateComparison from '@/components/EstimateComparison';
 import AIEstimateValidator from '@/components/AIEstimateValidator';
-import AICopilot from '@/components/AICopilot';
 import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
 import { formatMoney, parseLenientNumber, displayText } from '@/utils/formatters';

@@ -36,13 +36,15 @@ expect('non-numeric size blocks', stepCanAdvance(1, { ...base, sizeSqft: 'big' }
 expect('short scope "roof" advances (4 chars)', stepCanAdvance(4, { ...base, scope: 'roof' }), true);
 expect('scope "abc" blocks', stepCanAdvance(4, { ...base, scope: 'abc' }), false);
 expect('timeline range advances', stepCanAdvance(5, { ...base, timelineWeeks: '6-8 weeks' }), true);
-expect('timeline text-only blocks', stepCanAdvance(5, { ...base, timelineWeeks: 'soon' }), false);
+// Timeline is OPTIONAL — never blocks Next (even empty or text-only).
+expect('timeline optional — text advances', stepCanAdvance(5, { ...base, timelineWeeks: 'soon' }), true);
+expect('timeline optional — empty advances', stepCanAdvance(5, { ...base, timelineWeeks: '' }), true);
 
 console.log('\nscope wizard — stepBlockReason (never a silent dead end):');
 expect('advancing step → null reason', stepBlockReason(1, base), null);
 expect('blocked size names the fix', (stepBlockReason(1, { ...base, sizeSqft: 'big' }) ?? '').includes('number'), true);
 expect('blocked scope names the fix', (stepBlockReason(4, { ...base, scope: 'ab' }) ?? '').length > 0, true);
-expect('blocked timeline names the fix', (stepBlockReason(5, { ...base, timelineWeeks: '' }) ?? '').includes('weeks'), true);
+expect('optional timeline never blocks', stepBlockReason(5, { ...base, timelineWeeks: '' }), null);
 
 console.log('\nscope wizard — grounded prompt:');
 const facts = ['Framing runs $12.00/sf on your jobs (high confidence, 5 jobs)'];
@@ -52,6 +54,8 @@ expect('grounding header present', grounded.includes("COST HISTORY"), true);
 const ungrounded = buildEstimatePrompt(base);
 expect('no facts → no grounding header', ungrounded.includes('COST HISTORY'), false);
 expect('backward compatible (base prompt intact)', ungrounded.includes('construction cost estimator'), true);
+expect('prompt asks for a confidence score', ungrounded.includes('confidence'), true);
+expect('prompt probes real cost drivers', /demolition|MEP|electrical|structural/i.test(ungrounded), true);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -32,7 +32,7 @@ import { Tokens } from '@/constants/designTokens';
 export default function WinOptimizerScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
-  if (!canAccess('job_costing')) {
+  if (!canAccess('portfolio_margin')) {
     return (
       <Paywall
         visible={true}

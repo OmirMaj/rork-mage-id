@@ -71,7 +71,7 @@ export const SCOPE_STEPS: ScopeStep[] = [
   { key: 'location', title: "Where's the job?", subtitle: 'City and state — we use this for regional pricing.', iconKey: 'building', kind: 'text', placeholder: 'e.g. Austin, TX', optional: false },
   { key: 'quality', title: 'What quality tier?', subtitle: 'Drives material selection and labor assumptions.', iconKey: 'sparkles', kind: 'qualityChips', optional: false },
   { key: 'scope', title: "What's the scope?", subtitle: "A few sentences on what you're actually building.", iconKey: 'wrench', kind: 'textarea', placeholder: 'e.g. Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors.', lines: 5, optional: false },
-  { key: 'timelineWeeks', title: "What's the timeline?", subtitle: 'Expected duration in weeks.', iconKey: 'building', kind: 'numeric', placeholder: 'e.g. 8', optional: false },
+  { key: 'timelineWeeks', title: "What's the timeline?", subtitle: 'Expected duration in weeks — optional, skip if unsure.', iconKey: 'building', kind: 'numeric', placeholder: 'e.g. 8', optional: true },
   { key: 'specialRequirements', title: 'Any special requirements?', subtitle: 'Permits, HOA, historic, accessibility, etc. Optional.', iconKey: 'sparkles', kind: 'textarea', placeholder: 'e.g. Historic district review, ADA bathroom.', lines: 4, optional: true },
   { key: 'targetBudget', title: 'Target budget?', subtitle: 'Optional — helps the AI sanity-check the estimate.', iconKey: 'dollar', kind: 'numeric', placeholder: 'e.g. 75000', optional: true },
 ];
@@ -98,7 +98,7 @@ export function stepCanAdvance(stepIndex: number, a: WizardAnswers): boolean {
     case 2: return a.location.trim().length > 0;
     case 3: return true;
     case 4: return a.scope.trim().length >= 4;
-    case 5: return firstNumber(a.timelineWeeks) !== null;
+    case 5: return true; // timeline is optional — never block Next on it
     case 6: return true;
     case 7: return true;
     default: return false;
@@ -134,8 +134,12 @@ export const estimateSchema = z.object({
   permits: z.number().catch(0).default(0),
   total: z.number().catch(0).default(0),
   notes: z.array(z.string()).default([]),
-  // NEW: the specific missing inputs that would most sharpen this
-  // estimate. Empty when scope was complete. Back-compatible default.
+  // 0-100 — how tight this estimate is given the inputs. The model lowers it
+  // when the biggest cost drivers are unknown; rises as refine answers land.
+  confidence: z.number().catch(70).default(70),
+  // The specific high-leverage QUESTIONS that would most sharpen this estimate
+  // (demo/existing conditions, MEP scope, structural changes, counts). Empty
+  // when scope was already detailed. Back-compatible default.
   refineWith: z.array(z.string()).default([]),
 });
 export type EstimateResult = z.infer<typeof estimateSchema>;
@@ -167,10 +171,19 @@ Return JSON with:
 - permits: rough permit/fees estimate for the location
 - total: subtotal + contingency + permits
 - notes: array of caveats (e.g. "assumes standard finishes")
-- refineWith: array of SHORT strings naming the specific missing inputs
-  that would most improve accuracy (e.g. "exact square footage",
-  "finish level for the primary bath"). Empty array if inputs were
-  sufficient. Max 5 items.
+- confidence: integer 0-100 — how tight this estimate is GIVEN THE INPUTS.
+  Start high only when the real cost drivers are clear. Lower it (e.g. 55-70)
+  when the biggest drivers are unknown: existing conditions / demolition
+  (gut-to-studs vs cosmetic), MEP scope (new vs reuse electrical / plumbing /
+  HVAC), structural changes (moving or removing walls), and room counts
+  (# of bathrooms / kitchens for remodels).
+- refineWith: 2-4 SHORT, specific QUESTIONS whose answers would most tighten
+  THIS number — draw from the biggest cost drivers that are still unclear
+  above. Phrase as plain questions a contractor answers in a few words
+  (e.g. "Gut to the studs or cosmetic refresh?", "New electrical panel or
+  reuse the existing?", "Moving any walls?", "How many bathrooms?"). Order by
+  cost impact, biggest first. Empty array ONLY if the scope was already
+  detailed enough that none of these would move the number.
 
 Use current regional pricing where possible. Round reasonably. Keep it under 15 line items.`;
 }

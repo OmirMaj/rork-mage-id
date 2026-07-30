@@ -141,15 +141,17 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial, hideFab = false, open
             <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.row} onPress={handleReplayTutorial} activeOpacity={0.85} testID="help-fab-tutorial">
-            <View style={[styles.rowIcon, { backgroundColor: Colors.warning + '14' }]}>
-              <BookOpen size={16} color={Colors.warning} strokeWidth={1.75} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Replay the tutorial</Text>
-              <Text style={styles.rowSub}>The interactive walkthrough you saw on first launch.</Text>
-            </View>
-          </TouchableOpacity>
+          {onReplayTutorial ? (
+            <TouchableOpacity style={styles.row} onPress={handleReplayTutorial} activeOpacity={0.85} testID="help-fab-tutorial">
+              <View style={[styles.rowIcon, { backgroundColor: Colors.warning + '14' }]}>
+                <BookOpen size={16} color={Colors.warning} strokeWidth={1.75} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Replay the tutorial</Text>
+                <Text style={styles.rowSub}>The interactive walkthrough you saw on first launch.</Text>
+              </View>
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity style={styles.row} onPress={handleEmail} activeOpacity={0.85} testID="help-fab-email">
             <View style={[styles.rowIcon, { backgroundColor: themeColors.success + '14' }]}>
