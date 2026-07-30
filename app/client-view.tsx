@@ -37,14 +37,15 @@ import { isFinancingAvailable } from '@/utils/financing';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
+import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type SectionKey = 'messages' | 'schedule' | 'budget' | 'invoices' | 'changeOrders' | 'photos' | 'dailyReports' | 'punchList' | 'rfis' | 'documents';
 
-function SectionHeader({ title, icon, count, expanded, onToggle }: {
-  title: string; icon: React.ReactNode; count?: number; expanded: boolean; onToggle: () => void;
+function SectionHeader({ title, icon, count, expanded, onToggle, infoTerm }: {
+  title: string; icon: React.ReactNode; count?: number; expanded: boolean; onToggle: () => void; infoTerm?: string;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -52,6 +53,7 @@ function SectionHeader({ title, icon, count, expanded, onToggle }: {
     <TouchableOpacity style={styles.sectionHeader} onPress={onToggle} activeOpacity={0.7}>
       {icon}
       <Text style={styles.sectionTitle}>{title}</Text>
+      {infoTerm ? <InfoBubble term={infoTerm} size={15} /> : null}
       {count !== undefined && (
         <View style={styles.badge}><Text style={styles.badgeText}>{count}</Text></View>
       )}
@@ -923,6 +925,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Invoices"
+              infoTerm="pay_app"
               icon={<DollarSign size={18} color={Colors.warning} strokeWidth={1.75} />}
               count={invoices.length}
               expanded={expanded.invoices}
@@ -959,6 +962,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Change Orders"
+              infoTerm="change_order"
               icon={<FileText size={18} color={themeColors.danger} strokeWidth={1.75} />}
               count={changeOrders.length}
               expanded={expanded.changeOrders}
@@ -1083,6 +1087,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Punch List"
+              infoTerm="punch_list"
               icon={<CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />}
               count={punchItems.filter(p => p.status !== 'closed').length}
               expanded={expanded.punchList}
@@ -1116,6 +1121,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="RFIs"
+              infoTerm="rfi"
               icon={<MessageSquare size={18} color={Colors.warning} strokeWidth={1.75} />}
               count={rfis.filter(r => r.status === 'open').length}
               expanded={expanded.rfis}
