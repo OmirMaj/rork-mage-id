@@ -44,6 +44,7 @@ import {
   Calendar as CalendarIcon, Building2, Hammer, Trees, Home as HomeIcon,
   Plus, Minus, Trash2, MapPin, PencilRuler, X, CornerDownRight, GitBranch,
   Flag, FolderPlus, GripVertical, LayoutTemplate, GitMerge, Square, CheckSquare,
+  Timer,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -54,14 +55,15 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   SCHEDULE_TEMPLATES, repairChain, moveTask, removeTaskAt, insertTaskAt,
   readLinkMode, setTaskDuration, setPredecessors, predecessorOptions,
-  dropTargetIndex,
+  dropTargetIndex, setLags, getLag, clampLag, lagStepperLabel,
+  taskName, sequenceLabel, sequenceDetail, toCpmTasks, remapDependencies,
 } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate, TemplateTask } from '@/constants/scheduleTemplates';
 import TaskRowDrag, { type TaskDragHandle } from '@/components/schedule/TaskRowDrag';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { runCpm } from '@/utils/cpm';
 import { generateUUID } from '@/utils/generateId';
-import type { ScheduleTask, DependencyLink } from '@/types';
+import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { displayText } from '@/utils/formatters';
@@ -159,10 +161,6 @@ function nextMonday(from: Date): Date {
   return d;
 }
 
-function taskName(t: TemplateTask | undefined): string {
-  return t?.name.trim() || 'Untitled task';
-}
-
 /** A fresh, unnamed row. The document path opens with one already in the list
  *  so there is something to type into the moment the screen appears. */
 function blankTask(): TemplateTask {
@@ -178,34 +176,11 @@ function blankTask(): TemplateTask {
   };
 }
 
-/** Human sentence for a row's sequencing, shown on the tappable link chip.
- *
- *  Must stay TRUTHFUL now that a row can wait on several upstream tasks:
- *  a chip can't hold four trade names, but "After 3 tasks" is honest, and the
- *  full list is spelled out in the accessibility label + the picker sheet. */
-function sequenceLabel(tasks: readonly TemplateTask[], index: number): string {
-  if (index === 0) return 'Starts day 1';
-  const mode = readLinkMode(tasks, index);
-  const prevName = tasks[index - 1].name.trim() || 'the task above';
-  if (mode === 'after') return `After ${prevName}`;
-  if (mode === 'with') return `Alongside ${prevName}`;
-  if (mode === 'start') return 'Starts day 1';
-  // 'custom' — either several predecessors, or a single one that isn't the row
-  // directly above. Name it when there's exactly one; count it otherwise.
-  const preds = tasks[index].predecessorIds;
-  if (preds.length === 1) return `After ${taskName(tasks.find(t => t.id === preds[0]))}`;
-  return `After ${preds.length} tasks`;
-}
-
-/** The same sentence, unabbreviated — for screen readers and the picker's
- *  live summary, where there's room to say what "3 tasks" actually means. */
-function sequenceDetail(tasks: readonly TemplateTask[], ids: readonly string[]): string {
-  if (ids.length === 0) return 'Starts on day 1';
-  const names = tasks.filter(t => ids.includes(t.id)).map(taskName);
-  if (names.length === 1) return `Starts when ${names[0]} finishes`;
-  if (names.length === 2) return `Starts when ${names[0]} and ${names[1]} have both finished`;
-  return `Starts when all ${names.length} of ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have finished`;
-}
+// `taskName` / `sequenceLabel` / `sequenceDetail` used to live here. They moved
+// to constants/scheduleTemplates.ts when per-dependency lag landed: a sentence
+// that describes a dependency wrongly is a schedule that LOOKS right and isn't,
+// and the only way to pin the wording under bun is for it to be importable
+// without a bundler. See scripts/validate-schedule-wizard-ux.ts §11.
 
 export default function ScheduleWizardScreen() {
   const { colors: themeColors } = useTheme();
@@ -404,22 +379,13 @@ export default function ScheduleWizardScreen() {
   // operational view runs. startDay/endDay are 1-indexed calendar-day offsets
   // from `startDate` (day 1 = startDate), so a task spanning a weekend widens
   // exactly as it will in Schedule Pro — no raw-day→calendar jump on handoff.
+  //
+  // `toCpmTasks` is shared with the validator and (via `remapDependencies`)
+  // with handleSave, so the dependency links this preview is drawn from — lag
+  // and all — are the same ones that get persisted. A schedule that previews
+  // 3 days longer saves 3 days longer.
   const scheduledTasks = useMemo(() => {
-    const cpmTasks: ScheduleTask[] = tasks.map(t => ({
-      id: t.id,
-      title: t.name,
-      phase: t.phase,
-      durationDays: t.duration,
-      startDay: 1,
-      dependencies: t.predecessorIds,
-      crew: '',
-      crewSize: t.crewSize,
-      isMilestone: t.isMilestone,
-      notes: '',
-      status: 'not_started',
-      progress: 0,
-    }));
-    const result = runCpm(cpmTasks, {
+    const result = runCpm(toCpmTasks(tasks), {
       scheduleStartDate: isoStart,
       workingDaysPerWeek: WIZARD_WORKING_DAYS_PER_WEEK,
     });
@@ -528,10 +494,12 @@ export default function ScheduleWizardScreen() {
     tasks.forEach(t => idMap.set(t.id, generateUUID()));
 
     const newTasks: ScheduleTask[] = scheduledTasks.map(t => {
-      const deps = t.predecessorIds.map(pid => idMap.get(pid) ?? pid);
-      const dependencyLinks: DependencyLink[] = deps.map(taskId => ({
-        taskId, type: 'FS' as const, lagDays: 0,
-      }));
+      // Both halves from ONE source, remapped together. `lagDays` used to be
+      // hard-coded 0 here, which silently threw away every offset the preview
+      // had just scheduled around — the saved plan was shorter than the one
+      // the user approved.
+      const { dependencies: deps, dependencyLinks } =
+        remapDependencies(t, pid => idMap.get(pid) ?? pid);
       return {
         id: idMap.get(t.id)!,
         title: t.name.trim() || 'Untitled task',
@@ -779,13 +747,16 @@ export default function ScheduleWizardScreen() {
           index={predFor}
           tasks={tasks}
           onClose={() => setPredFor(null)}
-          onApply={(ids) => {
+          onApply={(ids, lags) => {
             const idx = predFor;
             setPredFor(null);
             if (idx === null) return;
             // setPredecessors ends in repairChain, exactly like every other
-            // write — the picker gets no special dispensation.
-            updateTasks(prev => setPredecessors(prev, idx, ids));
+            // write — the picker gets no special dispensation. setLags then
+            // re-derives the offsets from whatever predecessors SURVIVED that
+            // repair, so an id the picker offered but repairChain rejected
+            // can't leave an offset behind.
+            updateTasks(prev => setLags(setPredecessors(prev, idx, ids), idx, lags));
           }}
         />
       )}
@@ -1429,7 +1400,12 @@ function TaskRow(props: {
   } = props;
   const phaseColor = PHASE_COLORS[t.phase] ?? PHASE_COLORS.General;
   const mode = readLinkMode(tasks, idx);
+  // A row carrying an offset is NOT the same relationship as a plain link, so
+  // it doesn't get to wear the plain link's icon — otherwise "Alongside Demo"
+  // and "2 days after Demo" are visually identical at a glance down the list.
+  const offset = t.predecessorIds.some(p => getLag(t, p) !== 0);
   const LinkIcon =
+    offset ? Timer :
     mode === 'after' ? CornerDownRight :
     mode === 'start' ? Flag :
     mode === 'with' ? GitBranch :
@@ -1553,7 +1529,7 @@ function TaskRow(props: {
           accessibilityLabel={
             first
               ? 'This is the first task, so it starts on day 1.'
-              : `${sequenceDetail(tasks, t.predecessorIds)}. Tap to choose which tasks this one waits on.`
+              : `${sequenceDetail(tasks, t.predecessorIds, t.lags)}. Tap to choose which tasks this one waits on, and how long after each.`
           }
           testID={`task-link-${idx}`}
         >
@@ -1659,11 +1635,16 @@ function PhasePickerSheet(props: {
 // which ends in `repairChain` like everything else. The three old modes are
 // still one tap — they're presets over the same selection — so nothing that
 // worked before got slower.
+//
+// It also owns the LAG stepper. That control belongs here rather than on the
+// row for two reasons: lag is a property of a LINK, and the row has no place
+// to put a per-link control (it shows one chip for the whole set); and the row
+// is already five controls wide on a phone, which is the ceiling.
 function PredecessorSheet(props: {
   index: number;
   tasks: TemplateTask[];
   onClose: () => void;
-  onApply: (ids: string[]) => void;
+  onApply: (ids: string[], lags: Record<string, number>) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -1673,24 +1654,62 @@ function PredecessorSheet(props: {
   // Seeded once, at mount — the parent mounts this only while it's open, so
   // there's no props-to-state sync to drift.
   const [selected, setSelected] = useState<string[]>(() => task?.predecessorIds ?? []);
+  // Draft offsets, keyed by predecessor id. Same pruning rule as the model:
+  // an offset only exists while its link does.
+  const [draftLags, setDraftLags] = useState<Record<string, number>>(
+    () => ({ ...(task?.lags ?? {}) }),
+  );
 
   const prev = index > 0 ? tasks[index - 1] : null;
   const toggle = (id: string) => {
     setSelected(cur => (cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]));
+    // Un-checking drops the offset WITH the link. Keeping it would mean
+    // re-checking the same task six taps later silently restores a wait the
+    // user thought they'd deleted — the exact resurrection the model prunes
+    // against, reproduced in the draft.
+    setDraftLags(cur => {
+      if (!(id in cur)) return cur;
+      const { [id]: _dropped, ...rest } = cur;
+      return rest;
+    });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  };
+
+  const bumpLag = (id: string, delta: number) => {
+    setDraftLags(cur => ({ ...cur, [id]: clampLag((cur[id] ?? 0) + delta) }));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  };
+
+  /** Tapping the caption clears the offset — the way back from 12 taps of "+". */
+  const clearLag = (id: string) => {
+    setDraftLags(cur => {
+      if (!(id in cur)) return cur;
+      const { [id]: _dropped, ...rest } = cur;
+      return rest;
+    });
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  };
+
+  const applyPreset = (ids: string[], lags: Record<string, number>) => {
+    setSelected(ids);
+    setDraftLags(lags);
   };
 
   // The three states the old one-tap chip could reach, as shortcuts over the
   // same selection. "Alongside" is omitted when the row above starts on day 1,
   // because there it means the identical thing as "Starts day 1" and two lit
   // chips saying different words is worse than one.
-  const presets: { label: string; ids: string[] }[] = prev
+  //
+  // "Alongside it" carries the row above's OFFSETS too. Without them this row
+  // would start earlier than the row it claims to run alongside, which is the
+  // one thing the word promises.
+  const presets: { label: string; ids: string[]; lags: Record<string, number> }[] = prev
     ? [
-      { label: 'After the task above', ids: [prev.id] },
+      { label: 'After the task above', ids: [prev.id], lags: {} },
       ...(prev.predecessorIds.length > 0
-        ? [{ label: 'Alongside it', ids: [...prev.predecessorIds] }]
+        ? [{ label: 'Alongside it', ids: [...prev.predecessorIds], lags: { ...(prev.lags ?? {}) } }]
         : []),
-      { label: 'Starts day 1', ids: [] },
+      { label: 'Starts day 1', ids: [], lags: {} },
     ]
     : [];
 
@@ -1710,12 +1729,17 @@ function PredecessorSheet(props: {
 
           <View style={styles.presetRow}>
             {presets.map((p, pi) => {
-              const active = p.ids.length === selected.length && p.ids.every(id => selected.includes(id));
+              const active = p.ids.length === selected.length
+                && p.ids.every(id => selected.includes(id))
+                // A preset with the right tasks but a different wait is NOT
+                // that preset — lighting it would claim a schedule the user
+                // isn't looking at.
+                && p.ids.every(id => (draftLags[id] ?? 0) === (p.lags[id] ?? 0));
               return (
                 <TouchableOpacity
                   key={p.label}
                   style={[styles.presetChip, active && styles.presetChipActive]}
-                  onPress={() => setSelected(p.ids)}
+                  onPress={() => applyPreset(p.ids, p.lags)}
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
@@ -1734,23 +1758,69 @@ function PredecessorSheet(props: {
             {options.map((o, i) => {
               const on = selected.includes(o.id);
               const Box = on ? CheckSquare : Square;
+              const lag = draftLags[o.id] ?? 0;
               return (
-                <TouchableOpacity
-                  key={o.id}
-                  style={[styles.predOption, on && styles.predOptionActive]}
-                  onPress={() => toggle(o.id)}
-                  activeOpacity={0.7}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: on }}
-                  accessibilityLabel={taskName(o)}
-                  testID={`pred-option-${i}`}
-                >
-                  <Box size={18} color={on ? themeColors.accent : themeColors.textMuted} strokeWidth={2} />
-                  <View style={[styles.taskDot, { backgroundColor: PHASE_COLORS[o.phase] ?? PHASE_COLORS.General }]} />
-                  <Text style={[styles.predOptionText, on && { color: themeColors.text }]} numberOfLines={1}>
-                    {i + 1}. {taskName(o)}
-                  </Text>
-                </TouchableOpacity>
+                <View key={o.id} style={[styles.predRow, on && styles.predOptionActive]}>
+                  <TouchableOpacity
+                    style={styles.predOption}
+                    onPress={() => toggle(o.id)}
+                    activeOpacity={0.7}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={taskName(o)}
+                    testID={`pred-option-${i}`}
+                  >
+                    <Box size={18} color={on ? themeColors.accent : themeColors.textMuted} strokeWidth={2} />
+                    <View style={[styles.taskDot, { backgroundColor: PHASE_COLORS[o.phase] ?? PHASE_COLORS.General }]} />
+                    <Text style={[styles.predOptionText, on && { color: themeColors.text }]} numberOfLines={1}>
+                      {i + 1}. {taskName(o)}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Lag / lead. Only shown for a task this row actually waits
+                      on — an offset with no link to sit on is meaningless, and
+                      the model would prune it on the way in anyway. Stepping
+                      below zero is the LEAD direction: this task overlaps the
+                      end of that one instead of waiting for it. */}
+                  {on && (
+                    <View style={styles.lagRow}>
+                      <TouchableOpacity
+                        onPress={() => bumpLag(o.id, -1)}
+                        hitSlop={{ top: 10, right: 8, bottom: 10, left: 10 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Start earlier relative to ${taskName(o)}`}
+                        testID={`pred-lag-minus-${i}`}
+                      >
+                        <Minus size={15} color={themeColors.text} strokeWidth={2.25} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => clearLag(o.id)}
+                        disabled={lag === 0}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          lag === 0
+                            ? `No wait after ${taskName(o)}`
+                            : `${lagStepperLabel(lag)} relative to ${taskName(o)}. Tap to clear.`
+                        }
+                        testID={`pred-lag-value-${i}`}
+                      >
+                        <Text style={[styles.lagValueText, lag !== 0 && styles.lagValueTextSet]}>
+                          {lagStepperLabel(lag)}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => bumpLag(o.id, 1)}
+                        hitSlop={{ top: 10, right: 10, bottom: 10, left: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Wait longer after ${taskName(o)}`}
+                        testID={`pred-lag-plus-${i}`}
+                      >
+                        <Plus size={15} color={themeColors.text} strokeWidth={2.25} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               );
             })}
             {options.length === 0 && (
@@ -1760,12 +1830,20 @@ function PredecessorSheet(props: {
             )}
           </ScrollView>
 
+          {options.length > 0 && (
+            <Text style={[styles.helper, { marginTop: 10 }]}>
+              Tick everything this task waits on. Add a wait when there has to be
+              a gap — curing, drying, an inspector&apos;s visit — or step below
+              zero to start early and overlap the task before it.
+            </Text>
+          )}
+
           <Text style={[styles.helper, { marginTop: 12 }]} testID="pred-summary">
-            {sequenceDetail(tasks, selected)}
+            {sequenceDetail(tasks, selected, draftLags)}
           </Text>
           <TouchableOpacity
             style={[styles.confirmBtn, { marginTop: 12 }]}
-            onPress={() => onApply(selected)}
+            onPress={() => onApply(selected, draftLags)}
             activeOpacity={0.85}
             accessibilityRole="button"
             testID="pred-apply"
@@ -2652,6 +2730,39 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '600' as const,
     color: t.textSecondary,
   },
+  // Wrapper so the checkbox line and the lag stepper share one tinted block —
+  // the stepper belongs to the task above it, not to the next one down.
+  predRow: {
+    borderRadius: Tokens.radius.md,
+  },
+  // Lag / lead stepper. Indented to the checkbox's text column so it reads as
+  // a property OF that row rather than another row.
+  lagRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'flex-start' as const,
+    gap: 14,
+    marginLeft: 38,
+    marginRight: 10,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start' as const,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1,
+    borderColor: t.line,
+  },
+  // Fixed width so the caption swapping between "No wait" and "Start 3 days
+  // early" doesn't shove the +/- buttons out from under the user's thumb.
+  lagValueText: {
+    minWidth: 116,
+    textAlign: 'center' as const,
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: t.textMuted,
+  },
+  lagValueTextSet: { color: t.text, fontWeight: '700' as const },
   phaseOption: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

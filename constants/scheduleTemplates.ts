@@ -3,6 +3,9 @@
 // `ScheduleTemplate` type from this file (type-only, erased at runtime), so
 // there is no runtime import cycle — the value edge runs one way only.
 import { FLAGSHIP_SCHEDULE_TEMPLATE } from '@/constants/flagshipProject';
+// Type-only — erased at compile time, so this adds no runtime edge and cannot
+// create an import cycle. types/index.ts imports nothing at all.
+import type { DependencyLink, ScheduleTask } from '@/types';
 
 export interface TemplateTask {
   id: string;
@@ -10,6 +13,34 @@ export interface TemplateTask {
   phase: string;
   duration: number;
   predecessorIds: string[];
+  /**
+   * Lag (positive) / lead (negative) per dependency, in days, keyed by
+   * PREDECESSOR ID. `{ 'kr-6': 2 }` on Drywall means "start 2 days after
+   * Framing finishes"; `-2` means "start 2 days before it finishes" (an
+   * overlap — schedulers call it a lead).
+   *
+   * Why a sparse optional map rather than turning `predecessorIds: string[]`
+   * into `links: { id, lag }[]`:
+   *   • ADDITIVE. Every shipped template in SCHEDULE_TEMPLATES (and the
+   *     flagship spine authored in flagshipProject.ts) has no lag, so none of
+   *     them changes by so much as a character, and a persisted draft written
+   *     before this feature deserialises unchanged.
+   *   • `predecessorIds` stays the one place the GRAPH lives. Every list
+   *     operation below reasons about the graph; making the shape of an edge
+   *     also the shape of the graph would mean touching all of them, and the
+   *     one invariant this file defends (a predecessor exists and sits
+   *     earlier) has nothing to do with lag.
+   *   • Absent key === 0, and 0 is never stored (see `normaliseLags`), so
+   *     there is exactly ONE representation of "no wait" — a row with no
+   *     offsets is byte-identical to one authored before lag existed.
+   * The cost is that the map can go stale when the graph moves, which is the
+   * whole reason `normaliseLags` runs inside `repairChain`.
+   *
+   * Units are CALENDAR days, because that is what utils/cpm.ts adds to a
+   * predecessor's EF (`required = depCpm.ef + lag + 1`). "Wait 2 days for the
+   * slab to cure" is a wall-clock wait; it does not skip the weekend.
+   */
+  lags?: Record<string, number>;
   isMilestone: boolean;
   isCriticalPath: boolean;
   crewSize: number;
@@ -267,6 +298,78 @@ function sameIds(a: readonly string[], b: readonly string[]): boolean {
   return a.every(id => set.has(id));
 }
 
+/** Widest offset the wizard will store, mirroring setTaskDuration's 365. */
+export const LAG_LIMIT = 365;
+
+/** Round and bound a lag. NaN/Infinity collapse to 0 rather than poisoning CPM. */
+export function clampLag(days: number): number {
+  const n = Math.round(Number.isFinite(days) ? days : 0);
+  return Math.max(-LAG_LIMIT, Math.min(LAG_LIMIT, n));
+}
+
+function sameLags(a?: Record<string, number>, b?: Record<string, number>): boolean {
+  if (a === b) return true;
+  // An empty map and `undefined` MEAN the same thing but are not the same
+  // thing: treating them as equal would let a `lags: {}` husk survive, and the
+  // whole point of the canonical form is that "no offsets" has one spelling.
+  if (!a || !b) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every(k => a[k] === b[k]);
+}
+
+/**
+ * Canonical lag map for a row that has exactly `predecessorIds` as its
+ * predecessors: keys walk the predecessor list (so an entry for a task that is
+ * no longer — or never was — a predecessor CANNOT survive), values are clamped,
+ * and 0 is dropped. Returns `undefined` when nothing survives, so an offset-free
+ * row carries no `lags` key at all.
+ *
+ * THE TRAP this closes: a lag is a property of a LINK, but it is stored beside
+ * the task. Delete "Framing", or re-point the row at something else, and the
+ * `{ framing: 2 }` entry is orphaned but still there — invisible, because the
+ * link it describes is gone. Re-add Framing as a predecessor six edits later
+ * and the 2-day wait silently resurrects, moving a date nobody touched. So the
+ * map is never merely written to; it is re-derived from the graph on every
+ * graph change.
+ */
+function normaliseLags(
+  predecessorIds: readonly string[],
+  lags: Record<string, number> | undefined,
+): Record<string, number> | undefined {
+  if (!lags) return undefined;
+  let out: Record<string, number> | undefined;
+  for (const pid of predecessorIds) {
+    const raw = lags[pid];
+    if (typeof raw !== 'number') continue;
+    const v = clampLag(raw);
+    if (v === 0) continue;
+    (out ??= {})[pid] = v;
+  }
+  return out;
+}
+
+/**
+ * Rewrite a row's predecessors AND re-derive its lag map from them. The single
+ * choke point for both halves of a dependency, so no caller can move the graph
+ * without the offsets following.
+ *
+ * Returns the SAME object when nothing changed — `repairChain` is a no-op on a
+ * well-formed list and React re-renders should stay cheap.
+ */
+function withLinks(t: TemplateTask, predecessorIds: string[]): TemplateTask {
+  const lags = normaliseLags(predecessorIds, t.lags);
+  const idsSame = sameIds(predecessorIds, t.predecessorIds ?? []);
+  if (idsSame && sameLags(lags, t.lags)) return t;
+  const { lags: _dropped, ...rest } = t;
+  const next: TemplateTask = {
+    ...rest,
+    predecessorIds: idsSame ? t.predecessorIds : predecessorIds,
+  };
+  if (lags) next.lags = lags;
+  return next;
+}
+
 /**
  * Drop predecessors that no longer exist or that now sit LATER in the list,
  * de-duplicate what's left, and re-anchor any task that was sequenced but lost
@@ -286,6 +389,10 @@ function sameIds(a: readonly string[], b: readonly string[]): boolean {
  * De-duplication matters now that a row's predecessors are edited as a SET:
  * a doubled id is harmless to CPM but makes a one-predecessor row read as
  * "After 2 tasks" on its sequence chip.
+ *
+ * It is also where per-dependency LAG is pruned. Every mutation below ends
+ * here, so this one call site guarantees that a lag cannot outlive the link it
+ * describes — see `normaliseLags`.
  */
 export function repairChain(tasks: readonly TemplateTask[]): TemplateTask[] {
   const indexById = new Map<string, number>();
@@ -305,7 +412,7 @@ export function repairChain(tasks: readonly TemplateTask[]): TemplateTask[] {
     const next = kept.length === 0 && before.length > 0 && i > 0
       ? [tasks[i - 1].id]
       : kept;
-    return sameIds(next, before) ? t : { ...t, predecessorIds: next };
+    return withLinks(t, next);
   });
 }
 
@@ -363,6 +470,16 @@ export function readLinkMode(tasks: readonly TemplateTask[], index: number): Tas
  * Rewrite the task at `index` to the requested sequencing. 'custom' is not
  * settable — it only ever describes what a template already had, so asking
  * for it is a no-op.
+ *
+ * Lag follows the link it belongs to:
+ *   'start'  — no predecessors, so nothing to carry; normalisation empties it.
+ *   'after'  — keeps the row's own offset ON the row above if it already had
+ *              one, and drops every other entry. Re-asserting a link the user
+ *              already had shouldn't quietly reset their 2-day cure wait.
+ *   'with'   — copies the row above's offsets as well as its predecessors,
+ *              because "alongside" that means anything else is a lie: without
+ *              them this row would start earlier than the row it claims to run
+ *              alongside.
  */
 export function applyLinkMode(
   tasks: readonly TemplateTask[],
@@ -373,11 +490,17 @@ export function applyLinkMode(
   if (!t || mode === 'custom') return tasks.slice();
   const prev = index > 0 ? tasks[index - 1] : null;
   let preds: string[];
+  let lags = t.lags;
   if (!prev || mode === 'start') preds = [];
   else if (mode === 'after') preds = [prev.id];
-  else preds = [...(prev.predecessorIds ?? [])]; // 'with' — same upstream as prev
+  else {
+    preds = [...(prev.predecessorIds ?? [])]; // 'with' — same upstream as prev
+    lags = prev.lags;
+  }
+  const { lags: _own, ...bare } = t;
+  const seeded: TemplateTask = lags ? { ...bare, lags: { ...lags } } : { ...bare };
   const next = tasks.slice();
-  next[index] = { ...t, predecessorIds: preds };
+  next[index] = withLinks(seeded, preds);
   return repairChain(next);
 }
 
@@ -460,8 +583,266 @@ export function setPredecessors(
     .filter(x => wanted.has(x.id))
     .map(x => x.id);
   const next = tasks.slice();
-  next[index] = { ...t, predecessorIds: preds };
+  // withLinks, not a bare spread: dropping a predecessor here must drop its
+  // offset in the SAME step, or the row briefly holds a lag for a link it no
+  // longer has. repairChain would catch it, but relying on a later pass to
+  // undo a corruption this one just created is how the trap gets re-opened.
+  next[index] = withLinks(t, preds);
   return repairChain(next);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Lag / lead per dependency.
+//
+// A finish-to-start link says "B starts the day after A ends". Real jobs are
+// full of links that say something slightly different:
+//   • +2  concrete has to cure before anyone frames on it (a LAG);
+//   • -3  the painters can move in three days before the drywallers finish
+//         the last room (a LEAD — a deliberate overlap).
+// Without this, both get faked by padding a duration, which lies to the crew
+// list, the labor curve and the cost report to fix a date.
+//
+// The engine has honoured `DependencyLink.lagDays` all along (utils/cpm.ts,
+// forward pass / backward pass / free float). The wizard simply never set it.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The offset on the link from `predecessorId` into `task`, in days.
+ * 0 when there is no offset — and also 0 when `predecessorId` is not actually
+ * a predecessor, so a stale entry is unreadable as well as unprunable-away.
+ */
+export function getLag(task: TemplateTask | undefined, predecessorId: string): number {
+  if (!task) return 0;
+  if (!(task.predecessorIds ?? []).includes(predecessorId)) return 0;
+  const raw = task.lags?.[predecessorId];
+  return typeof raw === 'number' ? clampLag(raw) : 0;
+}
+
+/**
+ * Set the offset on ONE (task, predecessor) link. Positive waits, negative
+ * overlaps, 0 removes the entry entirely (there is one representation of "no
+ * wait"). A predecessorId that isn't a predecessor of this row is refused
+ * rather than stored — the map may only ever describe links that exist.
+ */
+export function setLag(
+  tasks: readonly TemplateTask[],
+  index: number,
+  predecessorId: string,
+  days: number,
+): TemplateTask[] {
+  const t = tasks[index];
+  if (!t || !(t.predecessorIds ?? []).includes(predecessorId)) return tasks.slice();
+  const next = tasks.slice();
+  next[index] = withLinks(
+    { ...t, lags: { ...(t.lags ?? {}), [predecessorId]: clampLag(days) } },
+    t.predecessorIds,
+  );
+  return next;
+}
+
+/**
+ * REPLACE every offset on the row at `index` with `lags`. What the picker
+ * sheet commits: its draft map is authoritative, so an id the user cleared has
+ * to disappear rather than merge back in. Entries for non-predecessors are
+ * dropped, exactly as in `setLag`.
+ */
+export function setLags(
+  tasks: readonly TemplateTask[],
+  index: number,
+  lags: Readonly<Record<string, number>>,
+): TemplateTask[] {
+  const t = tasks[index];
+  if (!t) return tasks.slice();
+  const next = tasks.slice();
+  next[index] = withLinks({ ...t, lags: { ...lags } }, t.predecessorIds);
+  return next;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// The bridge to CPM.
+//
+// The wizard runs CPM TWICE over the same task list — once live, to draw the
+// timeline and the finish date, and once on save, to persist the plan under
+// fresh UUIDs. Both used to build their dependency arrays by hand, which is
+// how the preview and the saved schedule are able to disagree. They go through
+// these two functions now, so a lag cannot reach one path and miss the other.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `task`'s predecessors as CPM dependency links, offsets included.
+ * `idFor` remaps predecessor ids — identity for the live preview, and the
+ * template-id → UUID map on save.
+ */
+export function dependencyLinksFor(
+  task: TemplateTask,
+  idFor: (id: string) => string = id => id,
+): DependencyLink[] {
+  return (task.predecessorIds ?? []).map(pid => ({
+    taskId: idFor(pid),
+    type: 'FS' as const,
+    lagDays: getLag(task, pid),
+  }));
+}
+
+/**
+ * Both halves of a saved task's dependency data, remapped through `idFor`.
+ * `dependencies` (bare ids) is what most of the app reads; `dependencyLinks`
+ * is what carries type + lag, and is what utils/cpm.ts prefers when present.
+ * Returning them together is the point: derived from ONE list, they cannot
+ * drift out of agreement.
+ */
+export function remapDependencies(
+  task: TemplateTask,
+  idFor: (id: string) => string = id => id,
+): { dependencies: string[]; dependencyLinks: DependencyLink[] } {
+  const dependencyLinks = dependencyLinksFor(task, idFor);
+  return { dependencies: dependencyLinks.map(l => l.taskId), dependencyLinks };
+}
+
+/**
+ * The wizard's editable list as CPM input. Day-1 start pins, real durations,
+ * and dependency links carrying lag — everything runCpm needs to answer "when
+ * does this finish".
+ */
+export function toCpmTasks(tasks: readonly TemplateTask[]): ScheduleTask[] {
+  return tasks.map(t => ({
+    id: t.id,
+    title: t.name,
+    phase: t.phase,
+    durationDays: t.duration,
+    startDay: 1,
+    dependencies: [...(t.predecessorIds ?? [])],
+    dependencyLinks: dependencyLinksFor(t),
+    crew: '',
+    crewSize: t.crewSize,
+    isMilestone: t.isMilestone,
+    notes: '',
+    status: 'not_started' as const,
+    progress: 0,
+  }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// The sentences.
+//
+// These live here rather than in the screen for one reason: a wrong sentence
+// about a dependency is a wrong schedule that LOOKS right, and the only way to
+// pin wording is to be able to import it. `scripts/validate-schedule-wizard-ux.ts`
+// runs them under bun; the .tsx they used to live in can't be imported without
+// a bundler.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** "1 day" / "3 days" — magnitude only; direction is the caller's word. */
+function dayCount(n: number): string {
+  const abs = Math.abs(n);
+  return `${abs} day${abs === 1 ? '' : 's'}`;
+}
+
+/** A task's display name, with the wizard's fallback for unnamed rows. */
+export function taskName(t: TemplateTask | undefined): string {
+  return t?.name.trim() || 'Untitled task';
+}
+
+/**
+ * Plain-English caption for the picker's per-predecessor stepper. Deliberately
+ * avoids "lag" and "lead" — a homeowner-facing product shouldn't require the
+ * CPM vocabulary to read its own schedule.
+ */
+export function lagStepperLabel(days: number): string {
+  const n = clampLag(days);
+  if (n === 0) return 'No wait';
+  return n > 0 ? `Wait ${dayCount(n)}` : `Start ${dayCount(n)} early`;
+}
+
+/**
+ * Human sentence for a row's sequencing, shown on the tappable link chip.
+ *
+ * Must stay TRUTHFUL now that a row can wait on several upstream tasks, each
+ * with its own offset: a chip can't hold four trade names, but "After 3 tasks"
+ * is honest, and the full list is spelled out in the accessibility label and
+ * the picker sheet.
+ *
+ * With no offsets anywhere on the row the wording is EXACTLY what it was
+ * before lag existed — the common case must not get noisier to serve the rare
+ * one.
+ */
+export function sequenceLabel(tasks: readonly TemplateTask[], index: number): string {
+  if (index === 0) return 'Starts day 1';
+  const t = tasks[index];
+  if (!t) return 'Starts day 1';
+  const preds = t.predecessorIds ?? [];
+
+  if (preds.every(p => getLag(t, p) === 0)) {
+    const mode = readLinkMode(tasks, index);
+    const prevName = tasks[index - 1].name.trim() || 'the task above';
+    if (mode === 'after') return `After ${prevName}`;
+    if (mode === 'with') return `Alongside ${prevName}`;
+    if (mode === 'start') return 'Starts day 1';
+    // 'custom' — either several predecessors, or a single one that isn't the
+    // row directly above. Name it when there's exactly one; count it otherwise.
+    if (preds.length === 1) return `After ${taskName(tasks.find(x => x.id === preds[0]))}`;
+    return `After ${preds.length} tasks`;
+  }
+
+  if (preds.length === 1) {
+    const name = taskName(tasks.find(x => x.id === preds[0]));
+    const lag = getLag(t, preds[0]);
+    return lag > 0
+      ? `${dayCount(lag)} after ${name}`
+      : `${dayCount(lag)} before ${name} ends`;
+  }
+  return `After ${preds.length} tasks with offsets`;
+}
+
+/**
+ * The same sentence, unabbreviated — for screen readers and the picker's live
+ * summary, where there's room to say what "3 tasks" actually means.
+ *
+ * Takes the ids and offsets as ARGUMENTS rather than reading them off a task,
+ * because the picker renders this for a draft selection the user hasn't
+ * committed yet.
+ *
+ * Multi-predecessor rows with mixed offsets get "at the latest of:", which is
+ * literally what CPM does — it takes the max over the links. Saying "starts
+ * when all three have finished" would be wrong the moment one of them carries
+ * a lead.
+ */
+export function sequenceDetail(
+  tasks: readonly TemplateTask[],
+  ids: readonly string[],
+  lags?: Readonly<Record<string, number>>,
+): string {
+  if (ids.length === 0) return 'Starts on day 1';
+  // List order, not tap order, so the sentence doesn't reshuffle between edits.
+  const rows = tasks.filter(t => ids.includes(t.id));
+  const names = rows.map(taskName);
+  const lagOf = (id: string) => {
+    const raw = lags?.[id];
+    return typeof raw === 'number' ? clampLag(raw) : 0;
+  };
+
+  if (rows.every(r => lagOf(r.id) === 0)) {
+    if (names.length === 1) return `Starts when ${names[0]} finishes`;
+    if (names.length === 2) return `Starts when ${names[0]} and ${names[1]} have both finished`;
+    return `Starts when all ${names.length} of ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have finished`;
+  }
+
+  if (rows.length === 1) {
+    const lag = lagOf(rows[0].id);
+    return lag > 0
+      ? `Starts ${dayCount(lag)} after ${names[0]} finishes`
+      : `Starts ${dayCount(lag)} before ${names[0]} finishes`;
+  }
+
+  const clauses = rows.map(r => {
+    const lag = lagOf(r.id);
+    const n = taskName(r);
+    if (lag === 0) return `when ${n} finishes`;
+    return lag > 0
+      ? `${dayCount(lag)} after ${n} finishes`
+      : `${dayCount(lag)} before ${n} finishes`;
+  });
+  return `Starts at the latest of: ${clauses.join(', ')}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

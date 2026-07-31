@@ -29,12 +29,26 @@
 //      target index, and the guarantee that a drag is just moveTask — i.e.
 //      it can't reach a state the up/down arrows can't
 //  10. after any operation, a CPM run over the list reports NO cycle conflict
+//  11. LAG / LEAD per dependency: the offset model, its canonical form, and
+//      the guarantee that an offset never outlives the link it describes
+//  12. PRUNING: the trap. A lag is a property of a LINK but is stored beside
+//      the TASK, so every graph edit can orphan one. An orphan is invisible —
+//      until the same predecessor is re-added and a wait nobody asked for
+//      silently moves a date
+//  13. LAG REACHES CPM ON BOTH PATHS: the live preview AND the saved
+//      schedule, through the same id remap, agreeing to the day
+//  14. TRUTHFUL SENTENCES: the chip and the spoken/summary sentence say what
+//      the graph actually does, including mixed offsets — and say EXACTLY
+//      what they used to when there are no offsets at all
 
 import {
   SCHEDULE_TEMPLATES,
   repairChain, moveTask, removeTaskAt, insertTaskAt,
   readLinkMode, applyLinkMode, cycleLinkMode, setTaskDuration,
   setPredecessors, predecessorOptions, dropTargetIndex, reorderShiftDirection,
+  getLag, setLag, setLags, clampLag, LAG_LIMIT,
+  toCpmTasks, dependencyLinksFor, remapDependencies,
+  taskName, sequenceLabel, sequenceDetail, lagStepperLabel,
 } from '../constants/scheduleTemplates';
 import type { TemplateTask } from '../constants/scheduleTemplates';
 import { runCpm } from '../utils/cpm';
@@ -105,13 +119,103 @@ function keptEveryLegalPredecessor(
 
 /** Does the engine consider this list schedulable? */
 function cpmCycles(tasks: readonly TemplateTask[]): number {
-  const cpmTasks: ScheduleTask[] = tasks.map(t => ({
-    id: t.id, title: t.name, phase: t.phase, durationDays: t.duration,
-    startDay: 1, dependencies: t.predecessorIds, crew: '', crewSize: t.crewSize,
-    isMilestone: t.isMilestone, notes: '', status: 'not_started', progress: 0,
-  }));
-  return runCpm(cpmTasks, { scheduleStartDate: '2026-08-03', workingDaysPerWeek: 5 })
+  return runCpm(toCpmTasks(tasks), { scheduleStartDate: '2026-08-03', workingDaysPerWeek: 5 })
     .conflicts.filter(c => c.kind === 'cycle').length;
+}
+
+// ── Lag helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * The lag map's canonical form, checked directly. Three rules, and violating
+ * any of them is a bug that only shows up days later:
+ *   • every key is a CURRENT predecessor — a stale entry is invisible right up
+ *     until that predecessor is re-added and resurrects a wait nobody set;
+ *   • no key stores 0 — two representations of "no wait" means the sentence,
+ *     the chip icon and the preset highlight can each pick a different one;
+ *   • values are whole days inside the clamp — CPM adds them to a day index.
+ */
+function lagsAreClean(tasks: readonly TemplateTask[]): string | null {
+  for (const t of tasks) {
+    if (!t.lags) continue;
+    for (const [pid, v] of Object.entries(t.lags)) {
+      if (!t.predecessorIds.includes(pid)) {
+        return `${t.id} holds an offset for ${pid}, which is not one of its predecessors`;
+      }
+      if (v === 0) return `${t.id} stores a zero offset for ${pid}`;
+      if (!Number.isInteger(v) || Math.abs(v) > LAG_LIMIT) {
+        return `${t.id} stores an out-of-range offset ${v} for ${pid}`;
+      }
+    }
+  }
+  return null;
+}
+
+/** The wizard's own calendar (see WIZARD_WORKING_DAYS_PER_WEEK). */
+const WIZ = { start: '2026-08-03', wd: 5 };   // 2026-08-03 is a Monday
+/** A 7-day week, where a day of lag is a day of finish and nothing else. */
+const RAW = { start: '2026-08-03', wd: 7 };
+
+/**
+ * Mirrors `scheduledTasks` in app/schedule-wizard.tsx — the LIVE PREVIEW path.
+ * Shares `toCpmTasks` with the screen, so if the screen ever stopped emitting
+ * lag this would stop seeing it too.
+ */
+function preview(tasks: readonly TemplateTask[], opts: { start: string; wd: number }) {
+  const result = runCpm(toCpmTasks(tasks), {
+    scheduleStartDate: opts.start, workingDaysPerWeek: opts.wd,
+  });
+  return tasks.map(t => {
+    const r = result.perTask.get(t.id);
+    const startDay = r?.es ?? 1;
+    const endDay = r?.ef ?? startDay + Math.max(0, t.duration - 1);
+    return { ...t, startDay, endDay };
+  });
+}
+
+function previewFinish(tasks: readonly TemplateTask[], opts: { start: string; wd: number }): number {
+  const rows = preview(tasks, opts);
+  return rows.length === 0 ? 0 : Math.max(...rows.map(r => r.endDay));
+}
+
+/**
+ * Mirrors `handleSave` in app/schedule-wizard.tsx — the SAVE path. Every task
+ * gets a fresh id (Supabase wants UUIDs) and every predecessor reference is
+ * translated through the SAME map. This is where `lagDays: 0` used to be
+ * hard-coded, so the saved plan silently disagreed with the one the user just
+ * approved on screen.
+ */
+function saved(tasks: readonly TemplateTask[], opts: { start: string; wd: number }): ScheduleTask[] {
+  const idMap = new Map<string, string>();
+  tasks.forEach((t, i) => idMap.set(t.id, `fresh-${i}`));
+  return preview(tasks, opts).map(t => {
+    const { dependencies, dependencyLinks } =
+      remapDependencies(t, pid => idMap.get(pid) ?? pid);
+    return {
+      id: idMap.get(t.id)!,
+      title: t.name.trim() || 'Untitled task',
+      phase: t.phase,
+      durationDays: t.duration,
+      startDay: t.startDay,
+      dependencies,
+      dependencyLinks,
+      crew: '',
+      crewSize: t.crewSize,
+      isMilestone: t.isMilestone,
+      notes: '',
+      status: 'not_started',
+      progress: 0,
+    };
+  });
+}
+
+/** What the saved schedule re-schedules to — i.e. what Schedule Pro will show. */
+function savedFinish(tasks: readonly TemplateTask[], opts: { start: string; wd: number }): number {
+  const result = runCpm(saved(tasks, opts), {
+    scheduleStartDate: opts.start, workingDaysPerWeek: opts.wd,
+  });
+  let max = 0;
+  result.perTask.forEach(v => { if (v.ef > max) max = v.ef; });
+  return max;
 }
 
 console.log('\nschedule wizard task-list validation:');
@@ -530,7 +634,29 @@ console.log('\n10. fuzz');
     for (let step = 0; step < 30; step++) {
       if (list.length === 0) list = insertTaskAt(list, 0, T(`f${step}`));
       const i = rnd(list.length);
-      switch (rnd(7)) {
+      switch (rnd(9)) {
+        case 7: {
+          // Offset edit. Aims at a real predecessor most of the time and at an
+          // arbitrary row the rest, because a bad caller must not be able to
+          // plant an offset on a link that doesn't exist.
+          const preds = list[i].predecessorIds;
+          const target = preds.length > 0 && rnd(4) > 0
+            ? preds[rnd(preds.length)]
+            : list[rnd(list.length)].id;
+          list = setLag(list, i, target, rnd(2 * LAG_LIMIT + 40) - LAG_LIMIT - 20);
+          break;
+        }
+        case 8: {
+          // Bulk offset write — what the picker sheet commits. Deliberately
+          // includes ids that are NOT predecessors of row i.
+          const map: Record<string, number> = {};
+          for (let k = 0; k < list.length; k++) {
+            if (rnd(3) === 0) map[list[k].id] = rnd(21) - 10;
+          }
+          if (rnd(4) === 0) map[`ghost-${step}`] = 5;
+          list = setLags(list, i, map);
+          break;
+        }
         case 0: list = removeTaskAt(list, i); break;
         case 1: list = moveTask(list, i, rnd(Math.max(1, list.length))); break;
         case 2: list = insertTaskAt(list, i, T(`f${seed}-${step}`)); break;
@@ -558,10 +684,516 @@ console.log('\n10. fuzz');
         default: list = setTaskDuration(list, i, rnd(30)); break;
       }
       if (!chainIsSane(list)) { worst = `seed ${seed} step ${step}: chain broken`; break; }
+      const dirty = lagsAreClean(list);
+      if (dirty) { worst = `seed ${seed} step ${step}: ${dirty}`; break; }
     }
     if (worst === null && cpmCycles(list) !== 0) worst = `seed ${seed}: CPM reported a cycle`;
+    // The saved plan is the one the client signs. It must agree with the one
+    // the wizard drew, on every seed, offsets and all.
+    if (worst === null && previewFinish(list, WIZ) !== savedFinish(list, WIZ)) {
+      worst = `seed ${seed}: preview finish ${previewFinish(list, WIZ)} !== saved finish ${savedFinish(list, WIZ)}`;
+    }
   }
-  ok('400 random edit sessions stay schedulable', worst === null, worst);
+  ok('400 random edit sessions stay schedulable, with clean offsets that survive a save', worst === null, worst);
+}
+
+// ── 11. lag / lead: the model ───────────────────────────────────────────────
+// A finish-to-start link means "the day after". Real jobs need "two days after
+// the pour, once it's cured" and "three days before the drywallers finish,
+// because painting the far rooms can start early". Faking either by padding a
+// duration lies to the crew count, the labor curve and the cost report in order
+// to move one date.
+console.log('\n11. lag / lead model');
+{
+  const chain = [T('a'), T('b', ['a']), T('c', ['a', 'b'])];
+
+  ok('a row with no offsets reports 0', getLag(chain[1], 'a') === 0);
+  ok('a row with no offsets carries NO lags key at all', chain[1].lags === undefined);
+  ok('reading an id that is not a predecessor reports 0', getLag(chain[1], 'zzz') === 0);
+  ok('reading from an undefined row reports 0', getLag(undefined, 'a') === 0);
+
+  const lagged = setLag(chain, 1, 'a', 3);
+  ok('setLag stores the offset', getLag(lagged[1], 'a') === 3, lagged[1].lags);
+  ok('setLag round-trips through the map', lagged[1].lags?.a === 3);
+  ok('setLag leaves other rows alone', lagged[0] === chain[0] && lagged[2] === chain[2]);
+  ok('setLag does not touch the graph', lagged[1].predecessorIds.join() === 'a');
+
+  const lead = setLag(chain, 1, 'a', -2);
+  ok('a negative offset is a lead and is stored as such', getLag(lead[1], 'a') === -2);
+
+  ok('clamps above the limit', getLag(setLag(chain, 1, 'a', 9999)[1], 'a') === LAG_LIMIT);
+  ok('clamps below the limit', getLag(setLag(chain, 1, 'a', -9999)[1], 'a') === -LAG_LIMIT);
+  ok('rounds a fractional offset', getLag(setLag(chain, 1, 'a', 2.6)[1], 'a') === 3);
+  ok('NaN collapses to no offset', setLag(chain, 1, 'a', Number.NaN)[1].lags === undefined);
+  ok('clampLag is the same function the UI steps through',
+    clampLag(2.4) === 2 && clampLag(-1e9) === -LAG_LIMIT && clampLag(Number.POSITIVE_INFINITY) === 0);
+
+  // ONE representation of "no wait" — otherwise the chip, the sentence and the
+  // preset highlight can each disagree about whether this link is plain.
+  const cleared = setLag(lagged, 1, 'a', 0);
+  ok('setting 0 removes the entry entirely', cleared[1].lags === undefined, cleared[1].lags);
+  ok('a cleared row is JSON-identical to one that never had an offset',
+    JSON.stringify(cleared[1]) === JSON.stringify(chain[1]));
+
+  // An offset on a link that doesn't exist is not a smaller mistake than a
+  // dangling predecessor; it's the same mistake, one level down.
+  const bogus = setLag(chain, 1, 'c', 4);
+  ok('setLag refuses an id that is not a predecessor', bogus[1].lags === undefined, bogus[1].lags);
+  ok('setLag on an out-of-range row is a no-op', setLag(chain, 99, 'a', 3).length === 3);
+  {
+    const snap = JSON.stringify(chain);
+    setLag(chain, 1, 'a', 3);
+    setLags(chain, 2, { a: 1, b: 2 });
+    ok('the offset writers do not mutate their input', JSON.stringify(chain) === snap);
+  }
+
+  // setLags — the picker's commit. Its draft is authoritative, so this is a
+  // REPLACE: an offset the user cleared has to disappear, not merge back in.
+  const both = setLags(chain, 2, { a: 2, b: -1 });
+  ok('setLags writes several offsets at once',
+    getLag(both[2], 'a') === 2 && getLag(both[2], 'b') === -1);
+  const replaced = setLags(both, 2, { b: 4 });
+  ok('setLags replaces rather than merges', replaced[2].lags?.a === undefined && getLag(replaced[2], 'b') === 4, replaced[2].lags);
+  ok('setLags drops keys that are not predecessors',
+    setLags(chain, 1, { a: 2, b: 5, ghost: 9 })[1].lags?.b === undefined);
+  ok('setLags keeps the legal key from that same write', getLag(setLags(chain, 1, { a: 2, ghost: 9 })[1], 'a') === 2);
+  ok('setLags with an empty map clears every offset', setLags(both, 2, {})[2].lags === undefined);
+  ok('setLags on an out-of-range row is a no-op', setLags(chain, 99, { a: 1 }).length === 3);
+
+  // The shipped library is untouched by all of this.
+  for (const tpl of SCHEDULE_TEMPLATES) {
+    ok(`${tpl.id}: ships with no offsets`, tpl.tasks.every(t => t.lags === undefined));
+  }
+  ok('repairChain never invents an offset',
+    SCHEDULE_TEMPLATES.every(tpl => repairChain(tpl.tasks).every(t => t.lags === undefined)));
+  ok('every shipped template has a clean offset map',
+    SCHEDULE_TEMPLATES.every(tpl => lagsAreClean(tpl.tasks) === null));
+}
+
+// ── 12. pruning: the trap ───────────────────────────────────────────────────
+// A lag describes a LINK but is stored on the TASK. Every operation that moves
+// the dependency graph can therefore orphan one, and an orphan is invisible:
+// nothing renders it, nothing schedules around it, and it survives happily in
+// the draft that gets autosaved to AsyncStorage. Then the user re-adds that
+// predecessor — days later, on a different screen — and a wait they never set
+// moves a date they never touched. Every mutation funnels through repairChain,
+// so that is where the offsets are re-derived from the graph.
+console.log('\n12. pruning');
+{
+  const base = setLag([T('a'), T('b'), T('c', ['a', 'b'])], 2, 'a', 3);
+  ok('fixture has the offset to begin with', getLag(base[2], 'a') === 3);
+
+  // ── The headline: no resurrection ────────────────────────────────────
+  const dropped = setPredecessors(base, 2, ['b']);
+  ok('dropping a predecessor drops its offset', dropped[2].lags?.a === undefined, dropped[2].lags);
+  const readded = setPredecessors(dropped, 2, ['a', 'b']);
+  ok('RE-ADDING that predecessor does NOT resurrect the old offset',
+    getLag(readded[2], 'a') === 0, readded[2].lags);
+  ok('the re-added link is clean', lagsAreClean(readded) === null);
+
+  // …and the same round trip through every other write path.
+  {
+    const viaRemove = removeTaskAt(base, 0);            // delete the predecessor itself
+    ok('deleting the predecessor TASK drops its offset', lagsAreClean(viaRemove) === null, viaRemove.map(t => t.lags));
+    ok('the re-anchored successor inherits no offset',
+      viaRemove[viaRemove.length - 1].lags === undefined);
+  }
+  {
+    const viaMove = moveTask(base, 2, 0);               // yank the row above its predecessors
+    ok('moving a row above its predecessors drops their offsets', viaMove[0].lags === undefined, viaMove[0].lags);
+    ok('…and the chain is still sane', chainIsSane(viaMove) && lagsAreClean(viaMove) === null);
+  }
+  {
+    const viaMove = moveTask(base, 0, 2);               // push 'a' below 'c'
+    ok('a reorder that invalidates one link prunes exactly that offset', lagsAreClean(viaMove) === null);
+  }
+  {
+    // A legal reorder must NOT throw away an offset that is still legal —
+    // the silent-data-loss twin of the resurrection bug.
+    const kept = moveTask(setLag(base, 2, 'b', -2), 0, 1); // swap a and b, both still above c
+    ok('a reorder that keeps both links keeps both offsets',
+      getLag(kept[2], 'a') === 3 && getLag(kept[2], 'b') === -2, kept[2].lags);
+  }
+
+  // repairChain on a hand-authored / deserialised list: a draft written by an
+  // older build, a template edited by hand, a bad caller.
+  {
+    const stale: TemplateTask[] = [
+      T('a'), T('b', ['a']),
+      { ...T('c', ['b']), lags: { b: 2, a: 5, ghost: 9 } },
+    ];
+    const fixed = repairChain(stale);
+    ok('repairChain drops offsets for non-predecessors even when the graph is unchanged',
+      JSON.stringify(fixed[2].lags) === JSON.stringify({ b: 2 }), fixed[2].lags);
+    ok('repairChain leaves the legal offset alone', getLag(fixed[2], 'b') === 2);
+    ok('repairChain output is clean', lagsAreClean(fixed) === null);
+    ok('pruning is idempotent', JSON.stringify(repairChain(fixed)) === JSON.stringify(fixed));
+
+    // Zero and out-of-range values are canonicalised on the way through, so a
+    // deserialised draft can't smuggle in a second spelling of "no wait".
+    const zeroed = repairChain([T('a'), { ...T('b', ['a']), lags: { a: 0 } }]);
+    ok('a stored zero is canonicalised away', zeroed[1].lags === undefined, zeroed[1].lags);
+    const wild = repairChain([T('a'), { ...T('b', ['a']), lags: { a: 99999 } }]);
+    ok('an out-of-range stored offset is clamped', getLag(wild[1], 'a') === LAG_LIMIT);
+  }
+
+  // Referential identity still holds for rows nothing happened to — this is
+  // what keeps the task list from re-rendering every row on every keystroke.
+  {
+    const clean: TemplateTask[] = [T('a'), { ...T('b', ['a']), lags: { a: 2 } }];
+    const same = repairChain(clean);
+    ok('repairChain returns the same objects when the offsets are already clean',
+      same[0] === clean[0] && same[1] === clean[1]);
+  }
+
+  // Link-mode presets. 'with' means "runs alongside the row above" — if it
+  // dropped that row's offsets this task would start EARLIER than the one it
+  // claims to run alongside, which is the only thing the word promises.
+  {
+    const withLag: TemplateTask[] = [
+      T('a'), T('b'),
+      { ...T('c', ['a', 'b']), lags: { a: 2 } },
+      T('d', ['c']),
+    ];
+    const alongside = applyLinkMode(withLag, 3, 'with');
+    ok('"alongside" copies the row above\'s offsets, not just its predecessors',
+      getLag(alongside[3], 'a') === 2, alongside[3].lags);
+    ok('"alongside" reads back as with', readLinkMode(alongside, 3) === 'with');
+    ok('"alongside" is clean', lagsAreClean(alongside) === null);
+
+    const started = applyLinkMode(alongside, 3, 'start');
+    ok('"starts day 1" clears the offsets with the links', started[3].lags === undefined);
+
+    // 'after' re-asserts the link to the row above; an offset the user already
+    // put on THAT link survives, everything else goes.
+    const seed: TemplateTask[] = [T('a'), { ...T('b', ['a']), lags: { a: 4 } }];
+    ok('"after the task above" keeps the offset on that same link',
+      getLag(applyLinkMode(seed, 1, 'after')[1], 'a') === 4);
+    const other: TemplateTask[] = [T('a'), T('b'), { ...T('c', ['a']), lags: { a: 4 } }];
+    ok('"after the task above" drops an offset that belonged to a different link',
+      applyLinkMode(other, 2, 'after')[2].lags === undefined, applyLinkMode(other, 2, 'after')[2].lags);
+
+    let cur = withLag;
+    for (let k = 0; k < 6; k++) {
+      cur = cycleLinkMode(cur, 3);
+      const dirty = lagsAreClean(cur);
+      if (dirty) { ok('cycling the link mode never strands an offset', false, dirty); break; }
+    }
+    ok('cycling the link mode never strands an offset', lagsAreClean(cur) === null);
+  }
+
+  // ── The sweep. Every possible move over a fan-in list that CARRIES offsets.
+  {
+    let fan: TemplateTask[] = [
+      T('start', [], 0),
+      T('plumb', ['start']),
+      T('elec', ['start']),
+      T('hvac', ['start']),
+      T('inspect', ['plumb', 'elec', 'hvac']),
+      T('drywall', ['inspect']),
+      T('paint', ['drywall']),
+      T('clean', ['paint', 'inspect']),
+    ];
+    fan = setLag(fan, 4, 'plumb', 2);
+    fan = setLag(fan, 4, 'elec', -1);
+    fan = setLag(fan, 5, 'inspect', 3);
+    fan = setLag(fan, 7, 'inspect', 5);
+    ok('the offset fan-in fixture is well-formed', chainIsSane(fan) && lagsAreClean(fan) === null && cpmCycles(fan) === 0);
+
+    let broken: string | null = null;
+    let moves = 0;
+    for (let from = 0; from < fan.length && broken === null; from++) {
+      for (let to = 0; to < fan.length && broken === null; to++) {
+        const moved = moveTask(fan, from, to);
+        moves++;
+        if (!chainIsSane(moved)) broken = `move ${from}->${to} left a predecessor below its task`;
+        else {
+          const dirty = lagsAreClean(moved);
+          if (dirty) broken = `move ${from}->${to}: ${dirty}`;
+          else if (cpmCycles(moved) !== 0) broken = `move ${from}->${to} produced a cycle`;
+          else {
+            const lost = keptEveryLegalPredecessor(fan, moved);
+            if (lost) broken = `move ${from}->${to}: ${lost}`;
+          }
+        }
+      }
+    }
+    ok(`every one of ${moves} possible moves leaves no stranded offset`, broken === null, broken);
+
+    // Removing each row in turn — the delete path, which re-anchors.
+    let cut: string | null = null;
+    for (let i = 0; i < fan.length && cut === null; i++) {
+      const after = removeTaskAt(fan, i);
+      const dirty = lagsAreClean(after);
+      if (dirty) cut = `removing ${fan[i].id}: ${dirty}`;
+      else if (!chainIsSane(after)) cut = `removing ${fan[i].id} broke the chain`;
+    }
+    ok('deleting any row leaves no stranded offset', cut === null, cut);
+
+    // Re-pointing each row at everything above it, then at nothing.
+    let edit: string | null = null;
+    for (let i = 1; i < fan.length && edit === null; i++) {
+      const all = setPredecessors(fan, i, predecessorOptions(fan, i).map(t => t.id));
+      const none = setPredecessors(all, i, []);
+      const d1 = lagsAreClean(all);
+      const d2 = lagsAreClean(none);
+      if (d1) edit = `wait-on-all at ${i}: ${d1}`;
+      else if (d2) edit = `wait-on-nothing at ${i}: ${d2}`;
+      else if (none[i].lags !== undefined) edit = `clearing row ${i} left an offset map behind`;
+    }
+    ok('re-pointing a row at everything, then nothing, strands no offset', edit === null, edit);
+  }
+}
+
+// ── 13. lag reaches CPM — both paths ────────────────────────────────────────
+// The engine has honoured DependencyLink.lagDays all along (utils/cpm.ts,
+// forward + backward pass + free float). The wizard was the gap: its preview
+// built links from bare predecessor ids and handleSave hard-coded
+// `lagDays: 0`. So a wait could be recorded, drawn nowhere, and saved as
+// nothing — the plan on screen and the plan in the database differed, and the
+// difference was the part the user had just typed.
+console.log('\n13. lag reaches CPM');
+{
+  // Deliberately trivial fixtures: two rows, so the arithmetic is checkable by
+  // hand and a failure names the bug instead of the fixture.
+  const plain = [T('a', [], 1), T('b', ['a'], 1)];
+  const lag3 = setLag(plain, 1, 'a', 3);
+
+  // Structure first: the links CPM is handed actually carry the number.
+  {
+    const links = toCpmTasks(lag3)[1].dependencyLinks ?? [];
+    ok('the preview emits a dependency link per predecessor', links.length === 1);
+    ok('…carrying the offset', links[0].lagDays === 3, links);
+    ok('…as a finish-to-start link', links[0].type === 'FS');
+    ok('a plain row still emits lagDays 0',
+      (toCpmTasks(plain)[1].dependencyLinks ?? [])[0].lagDays === 0);
+    ok('dependencyLinksFor remaps ids through the caller\'s map',
+      dependencyLinksFor(lag3[1], id => `x-${id}`)[0].taskId === 'x-a');
+    ok('…without disturbing the offset',
+      dependencyLinksFor(lag3[1], id => `x-${id}`)[0].lagDays === 3);
+    const { dependencies, dependencyLinks } = remapDependencies(lag3[1], id => `x-${id}`);
+    ok('remapDependencies keeps both halves in step',
+      dependencies.join() === 'x-a' && dependencyLinks[0].taskId === 'x-a' && dependencyLinks[0].lagDays === 3);
+  }
+
+  // Behaviour: on a 7-day calendar a day of lag is a day of finish, full stop.
+  ok('a 3-day lag previews 3 days longer',
+    previewFinish(lag3, RAW) === previewFinish(plain, RAW) + 3,
+    { plain: previewFinish(plain, RAW), lag3: previewFinish(lag3, RAW) });
+  ok('a 3-day lag SAVES 3 days longer',
+    savedFinish(lag3, RAW) === savedFinish(plain, RAW) + 3,
+    { plain: savedFinish(plain, RAW), lag3: savedFinish(lag3, RAW) });
+  ok('preview and save agree exactly, with the lag',
+    previewFinish(lag3, RAW) === savedFinish(lag3, RAW));
+  ok('(control) the old hard-coded lagDays:0 would have made these differ',
+    previewFinish(lag3, RAW) !== previewFinish(plain, RAW));
+
+  // The wizard's OWN calendar. Lag is measured in calendar days, because that
+  // is what utils/cpm.ts adds to a predecessor's EF — "wait two days for the
+  // slab to cure" is a wall-clock wait and does not skip the weekend. Monday
+  // start + 1-day tasks keeps this fixture clear of the weekend so the shift
+  // is exactly the lag on the 5-day calendar too.
+  ok('a 3-day lag previews 3 days longer on the wizard\'s 5-day calendar',
+    previewFinish(lag3, WIZ) === previewFinish(plain, WIZ) + 3,
+    { plain: previewFinish(plain, WIZ), lag3: previewFinish(lag3, WIZ) });
+  ok('…and saves the same 3 days longer', savedFinish(lag3, WIZ) === savedFinish(plain, WIZ) + 3);
+
+  // Lead — the direction that SHORTENS a job, and the one a padded duration
+  // can never express at all.
+  {
+    // The successor must be long enough to DRIVE the finish, or the lead is
+    // invisible: project finish is the max EF across all tasks, so pulling a
+    // 1-day successor earlier can never take the finish below its 4-day
+    // predecessor's own end. (That was a bad fixture, not a bad engine.)
+    const longer = [T('a', [], 4), T('b', ['a'], 5)];
+    const lead2 = setLag(longer, 1, 'a', -2);
+    // Exactness is asserted on the 7-day calendar, where no weekend can absorb
+    // or amplify the shift.
+    ok('a 2-day lead previews exactly 2 days shorter (7-day calendar)',
+      previewFinish(lead2, RAW) === previewFinish(longer, RAW) - 2,
+      { plain: previewFinish(longer, RAW), lead2: previewFinish(lead2, RAW) });
+    ok('a 2-day lead SAVES exactly 2 days shorter (7-day calendar)',
+      savedFinish(lead2, RAW) === savedFinish(longer, RAW) - 2);
+    ok('preview and save agree on the lead',
+      previewFinish(lead2, RAW) === savedFinish(lead2, RAW));
+    // On the wizard's 5-day calendar a weekend can sit inside the shift, so
+    // assert the direction and that both paths still agree — not an exact day
+    // count that would encode which weekday the fixture happens to start on.
+    ok('a lead genuinely shortens the job on the wizard calendar',
+      previewFinish(lead2, WIZ) < previewFinish(longer, WIZ),
+      { plain: previewFinish(longer, WIZ), lead2: previewFinish(lead2, WIZ) });
+    ok('…and the saved plan shortens with it',
+      savedFinish(lead2, WIZ) < savedFinish(longer, WIZ));
+    ok('a lead never pushes the finish out',
+      previewFinish(lead2, WIZ) <= previewFinish(longer, WIZ));
+  }
+
+  // Only the constrained link moves. A fan-in row waits on the LATEST of its
+  // links, so an offset on a link that isn't driving must change nothing.
+  {
+    const fan = [T('start', [], 0), T('slow', ['start'], 6), T('fast', ['start'], 1),
+      T('next', ['slow', 'fast'], 1)];
+    const onSlack = setLag(fan, 3, 'fast', 2); // 'fast' has 5 days of slack
+    ok('an offset inside another link\'s float does not move the finish',
+      previewFinish(onSlack, RAW) === previewFinish(fan, RAW));
+    const driving = setLag(fan, 3, 'slow', 2);
+    ok('an offset on the driving link does move the finish',
+      previewFinish(driving, RAW) === previewFinish(fan, RAW) + 2);
+    ok('a big enough offset makes the slack link the driver',
+      previewFinish(setLag(fan, 3, 'fast', 7), RAW) === previewFinish(fan, RAW) + 2);
+    ok('both paths still agree on a fan-in', previewFinish(driving, WIZ) === savedFinish(driving, WIZ));
+  }
+
+  // A real template with a real wait: 2 days for the slab to cure before
+  // framing sits on it. The whole tail moves, and it moves in both places.
+  {
+    const kitchen = SCHEDULE_TEMPLATES.find(t => t.id === 'kitchen-remodel')!.tasks.map(t => ({ ...t }));
+    const idx = kitchen.findIndex(t => t.id === 'kr-9');       // Drywall, after Insulation
+    const cured = setLag(kitchen, idx, 'kr-8', 2);
+    ok('a wait added to a shipped template moves its finish',
+      previewFinish(cured, RAW) === previewFinish(kitchen, RAW) + 2,
+      { before: previewFinish(kitchen, RAW), after: previewFinish(cured, RAW) });
+    ok('…and the saved plan moves with it',
+      savedFinish(cured, RAW) === savedFinish(kitchen, RAW) + 2);
+    ok('…on the wizard\'s calendar too, preview and save still agree',
+      previewFinish(cured, WIZ) === savedFinish(cured, WIZ));
+    ok('the untouched template is byte-identical to what ships',
+      JSON.stringify(kitchen) === JSON.stringify(SCHEDULE_TEMPLATES.find(t => t.id === 'kitchen-remodel')!.tasks));
+  }
+
+  // Every shipped template: no offsets, so nothing about its schedule changed.
+  {
+    let drift: string | null = null;
+    for (const tpl of SCHEDULE_TEMPLATES) {
+      if (previewFinish(tpl.tasks, WIZ) !== savedFinish(tpl.tasks, WIZ)) {
+        drift = `${tpl.id}: preview ${previewFinish(tpl.tasks, WIZ)} vs saved ${savedFinish(tpl.tasks, WIZ)}`;
+        break;
+      }
+    }
+    ok('every shipped template still previews exactly as it saves', drift === null, drift);
+  }
+}
+
+// ── 14. truthful sentences ──────────────────────────────────────────────────
+// The chip and its spoken label are the only place a user learns what a link
+// does. A schedule that says "After Framing" while CPM waits two more days is
+// not a cosmetic bug: it is a plan the client signs that nobody on site can
+// reproduce.
+console.log('\n14. sentences');
+{
+  const named = (id: string, name: string, preds: string[] = []): TemplateTask =>
+    ({ ...T(id, preds), name });
+  const rows = [named('f', 'Framing'), named('e', 'Electrical', ['f']), named('d', 'Drywall', ['e'])];
+
+  // ── No offsets: EXACTLY the wording that shipped before lag existed ──
+  ok('row 1 still reads "Starts day 1"', sequenceLabel(rows, 0) === 'Starts day 1');
+  ok('a plain chained row still reads "After <prev>"',
+    sequenceLabel(rows, 2) === 'After Electrical', sequenceLabel(rows, 2));
+  ok('an alongside row still reads "Alongside <prev>"',
+    sequenceLabel(applyLinkMode(rows, 2, 'with'), 2) === 'Alongside Electrical');
+  ok('a day-1 row still reads "Starts day 1"',
+    sequenceLabel(applyLinkMode(rows, 2, 'start'), 2) === 'Starts day 1');
+  ok('a plain multi row still counts',
+    sequenceLabel(setPredecessors(rows, 2, ['f', 'e']), 2) === 'After 2 tasks');
+  // A single predecessor that is neither the row above NOR the row above's own
+  // predecessor. (Pointing Drywall at 'f' does NOT test this: that gives it the
+  // same predecessor as Electrical, which correctly reads "Alongside".)
+  {
+    const four = [...rows, named('p', 'Paint', ['d'])];
+    ok('a plain single non-adjacent link is still named',
+      sequenceLabel(setPredecessors(four, 3, ['f']), 3) === 'After Framing',
+      sequenceLabel(setPredecessors(four, 3, ['f']), 3));
+    ok('…and pointing a row at the row above\'s predecessor reads "Alongside"',
+      sequenceLabel(setPredecessors(rows, 2, ['f']), 2) === 'Alongside Electrical');
+  }
+  ok('the plain detail sentence is unchanged',
+    sequenceDetail(rows, ['e']) === 'Starts when Electrical finishes');
+  ok('the plain two-predecessor sentence is unchanged',
+    sequenceDetail(rows, ['f', 'e']) === 'Starts when Framing and Electrical have both finished');
+  ok('the plain three-predecessor sentence is unchanged',
+    sequenceDetail([...rows, named('p', 'Paint')], ['f', 'e', 'd'])
+      === 'Starts when all 3 of Framing, Electrical and Drywall have finished');
+  ok('an empty selection still reads "Starts on day 1"', sequenceDetail(rows, []) === 'Starts on day 1');
+
+  // ── With offsets: the sentence changes, and says the right thing ──
+  const wait2 = setLag(rows, 2, 'e', 2);
+  ok('a lag is spoken on the chip', sequenceLabel(wait2, 2) === '2 days after Electrical', sequenceLabel(wait2, 2));
+  ok('a lag is spelled out in the detail',
+    sequenceDetail(wait2, ['e'], wait2[2].lags) === 'Starts 2 days after Electrical finishes',
+    sequenceDetail(wait2, ['e'], wait2[2].lags));
+
+  const wait1 = setLag(rows, 2, 'e', 1);
+  ok('one day is singular', sequenceLabel(wait1, 2) === '1 day after Electrical', sequenceLabel(wait1, 2));
+
+  const lead3 = setLag(rows, 2, 'e', -3);
+  ok('a lead is spoken as an overlap on the chip',
+    sequenceLabel(lead3, 2) === '3 days before Electrical ends', sequenceLabel(lead3, 2));
+  ok('a lead is spelled out in the detail',
+    sequenceDetail(lead3, ['e'], lead3[2].lags) === 'Starts 3 days before Electrical finishes',
+    sequenceDetail(lead3, ['e'], lead3[2].lags));
+  ok('a lead never leaks a minus sign into the sentence',
+    !sequenceLabel(lead3, 2).includes('-') && !sequenceDetail(lead3, ['e'], lead3[2].lags).includes('-'));
+
+  // ── Multi-predecessor with MIXED offsets. "when all three have finished" is
+  // a lie the moment one of them carries a lead, so the sentence says what CPM
+  // actually does: it takes the latest.
+  {
+    let mixed = setPredecessors([...rows, named('p', 'Paint', [])], 3, ['f', 'e', 'd']);
+    mixed = setLag(mixed, 3, 'e', 2);
+    mixed = setLag(mixed, 3, 'd', -1);
+    ok('a mixed multi row is not passed off as a plain one',
+      sequenceLabel(mixed, 3) === 'After 3 tasks with offsets', sequenceLabel(mixed, 3));
+    const detail = sequenceDetail(mixed, mixed[3].predecessorIds, mixed[3].lags);
+    ok('the mixed detail sentence names the latest-of rule',
+      detail === 'Starts at the latest of: when Framing finishes, 2 days after Electrical finishes, 1 day before Drywall finishes',
+      detail);
+    // Order is by POSITION, not by which one the user tapped last.
+    const shuffled = sequenceDetail(mixed, ['d', 'f', 'e'], mixed[3].lags);
+    ok('the sentence does not reshuffle with the selection order', shuffled === detail);
+    // Set every offset back to 0 and the old wording returns verbatim.
+    const flat = setLags(mixed, 3, {});
+    ok('clearing every offset restores the original sentence',
+      sequenceDetail(flat, flat[3].predecessorIds, flat[3].lags)
+        === 'Starts when all 3 of Framing, Electrical and Drywall have finished');
+    ok('…and the original chip', sequenceLabel(flat, 3) === 'After 3 tasks');
+  }
+
+  // A row whose predecessors match the row above but whose OFFSETS don't is
+  // not "alongside" it — it starts somewhere else entirely.
+  {
+    const par = setLag(setPredecessors([named('a', 'Slab'), named('b', 'Frame', ['a']), named('c', 'Rough-in', ['a'])], 2, ['a']), 2, 'a', 4);
+    ok('a lagged parallel row is not described as "alongside"',
+      sequenceLabel(par, 2) === '4 days after Slab', sequenceLabel(par, 2));
+  }
+
+  // The picker's stepper caption — the only place the user meets the control.
+  ok('stepper says "No wait" at zero', lagStepperLabel(0) === 'No wait');
+  ok('stepper counts a wait in plain English', lagStepperLabel(2) === 'Wait 2 days');
+  ok('stepper is singular at one day', lagStepperLabel(1) === 'Wait 1 day');
+  ok('stepper names the lead direction without jargon', lagStepperLabel(-3) === 'Start 3 days early');
+  ok('stepper is singular for a one-day lead', lagStepperLabel(-1) === 'Start 1 day early');
+  ok('stepper clamps like the model', lagStepperLabel(9999) === `Wait ${LAG_LIMIT} days`);
+  ok('unnamed rows keep their placeholder', taskName(T('x')) === 'X' && taskName(undefined) === 'Untitled task');
+
+  // A sentence is only true if the schedule agrees with it. Sweep a range of
+  // offsets and check the sentence's direction against the CPM finish.
+  {
+    let mismatch: string | null = null;
+    for (let lag = -4; lag <= 4 && mismatch === null; lag++) {
+      const list = setLag(rows, 2, 'e', lag);
+      const label = sequenceLabel(list, 2);
+      const finish = previewFinish(list, RAW);
+      const flatFinish = previewFinish(rows, RAW);
+      if (lag > 0 && (!label.startsWith(`${lag} day`) || finish <= flatFinish)) {
+        mismatch = `lag ${lag} said "${label}" but finished at ${finish} (plain ${flatFinish})`;
+      } else if (lag < 0 && (!label.includes('before') || finish >= flatFinish)) {
+        mismatch = `lead ${lag} said "${label}" but finished at ${finish} (plain ${flatFinish})`;
+      } else if (lag === 0 && (label !== 'After Electrical' || finish !== flatFinish)) {
+        mismatch = `zero said "${label}" and finished at ${finish} (plain ${flatFinish})`;
+      }
+    }
+    ok('every offset the stepper can reach is described in the direction it schedules', mismatch === null, mismatch);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
