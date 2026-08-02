@@ -53,6 +53,13 @@
   to = "/widget/index.html"
   status = 200
 
+# The brain — how MAGE grades its own predictions, and the published
+# thresholds it won't automate below. Bare /brain resolves to the index page.
+[[redirects]]
+  from = "/brain"
+  to = "/brain/index.html"
+  status = 200
+
 # Email preferences + unsubscribe — backed by the `unsubscribe` edge
 # function. The static pages read ?e=email&k=event_key from the
 # List-Unsubscribe URL we put in every transactional email's footer.

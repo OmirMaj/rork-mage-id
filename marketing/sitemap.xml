@@ -190,6 +190,16 @@
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
+  <!-- The brain: how MAGE grades its own predictions + the published autonomy
+       thresholds. The differentiator page — answers "how do I know the AI is
+       right?", which no competitor answers. High priority. -->
+  <url>
+    <loc>https://mageid.app/brain/</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
   <!-- The Price Index: free public cost data. Highest priority + weekly crawl —
        this is the page built to be cited by search and AI answer engines. -->
   <url>
