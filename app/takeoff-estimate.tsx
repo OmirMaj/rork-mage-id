@@ -40,7 +40,7 @@ import {
   ChevronLeft, Save, Plus, Trash2, AlertTriangle,
   RefreshCw, Pencil, Check, Calculator,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageCostDb } from '@/components/icons';
 
 import {
   getLivePrices, getRegionMultiplier, getMaterialCostBreakdown,
@@ -55,6 +55,8 @@ import { Tokens } from '@/constants/designTokens';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import { matchOwnRate, priceSourceLabel, pricingProvenance, type OwnRateMatch } from '@/utils/takeoffPricing';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { loadTakeoff, type PersistedTakeoff } from '@/utils/takeoffStorage';
 import { mageAI } from '@/utils/mageAI';
@@ -77,8 +79,14 @@ interface PricedLine {
   /** Deterministic engine rate from constants/materials.ts, present only when
    *  the line maps cleanly to a materials category + unit. */
   engineRate?: EngineRate;
+  /** The contractor's OWN rate for this line, from their closed-job history.
+   *  Present only when the line matches a trade+unit they've actually built.
+   *  This is the number that makes MAGE different from a generic AI estimator:
+   *  the catalog knows what framing costs somewhere, this knows what it costs
+   *  YOU. */
+  ownRate?: OwnRateMatch;
   /** Which number is currently driving unitPrice. */
-  priceSource: 'ai' | 'engine' | 'manual';
+  priceSource: 'yours' | 'ai' | 'engine' | 'manual';
 }
 
 // ─── Deterministic engine pricing ────────────────────────────────────────
@@ -232,7 +240,13 @@ function TakeoffEstimateInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, updateProject, settings } = useProjects();
+  const { projects, updateProject, settings, commitments } = useProjects();
+  // The contractor's own learned rates. Same engine that powers the Cost
+  // Database screen, so a price here and a price there can never disagree.
+  const costBook = useMemo(
+    () => buildCostDatabase(projects, commitments ?? [], [], []),
+    [projects, commitments],
+  );
 
   const project = useMemo(() =>
     projectId ? projects.find(p => p.id === projectId) ?? null : null,
@@ -316,6 +330,11 @@ function TakeoffEstimateInner() {
           const unit = typeof l.unit === 'string' ? l.unit : 'EA';
           const aiUnitPrice = typeof l.unitPrice === 'number' && l.unitPrice >= 0 ? l.unitPrice : 0;
           const engineRate = rater(csiDivision, unit, description) ?? undefined;
+          // YOUR history outranks the catalog, which outranks the AI's guess.
+          // A rate you actually paid on 4 of your jobs beats any generic
+          // number, and it's the whole reason to price here instead of in a
+          // tool that has never seen your books.
+          const ownRate = matchOwnRate({ csiDivision, description, unit }, costBook.entries) ?? undefined;
           return {
             id: generateUUID(),
             csiDivision,
@@ -324,11 +343,14 @@ function TakeoffEstimateInner() {
             unit,
             // Prefer/surface the engine price when the line is matchable — it's
             // auditable — but keep the AI number one tap away.
-            unitPrice: engineRate ? engineRate.rate : aiUnitPrice,
+            unitPrice: ownRate ? ownRate.rate : engineRate ? engineRate.rate : aiUnitPrice,
             notes: typeof l.notes === 'string' ? l.notes : undefined,
             aiUnitPrice,
             engineRate,
-            priceSource: engineRate ? ('engine' as const) : ('ai' as const),
+            ownRate,
+            priceSource: ownRate
+              ? ('yours' as const)
+              : engineRate ? ('engine' as const) : ('ai' as const),
           };
         });
 
@@ -342,6 +364,13 @@ function TakeoffEstimateInner() {
       setPricing(false);
     }
   }, [settings?.location]);
+
+  // How much of this estimate is standing on the contractor's OWN numbers.
+  // This is the honest headline: a generic AI estimator can only ever be 0%.
+  const provenance = useMemo(
+    () => pricingProvenance(lines.map(l => l.priceSource)),
+    [lines],
+  );
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
@@ -373,12 +402,15 @@ function TakeoffEstimateInner() {
     setLines(prev => prev.filter(l => l.id !== id));
   }, []);
 
-  // Snap a line's active unit price to either its engine or AI source.
-  const setLineSource = useCallback((id: string, source: 'ai' | 'engine') => {
+  // Snap a line's active unit price to one of its sources.
+  const setLineSource = useCallback((id: string, source: 'yours' | 'ai' | 'engine') => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setLines(prev => prev.map(l => {
       if (l.id !== id) return l;
-      const price = source === 'engine' ? (l.engineRate?.rate ?? l.unitPrice) : l.aiUnitPrice;
+      const price =
+        source === 'yours' ? (l.ownRate?.rate ?? l.unitPrice)
+        : source === 'engine' ? (l.engineRate?.rate ?? l.unitPrice)
+        : l.aiUnitPrice;
       return { ...l, unitPrice: price, priceSource: source };
     }));
   }, []);
@@ -667,6 +699,18 @@ function TakeoffEstimateInner() {
       {/* Sticky totals + save */}
       {!pricing && lines.length > 0 && (
         <View style={[styles.totalsBar, { paddingBottom: insets.bottom + 12 }]}>
+          {lines.length > 0 && (
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>
+                {provenance.yours > 0
+                  ? `${Math.round(provenance.ownShare * 100)}% priced from your jobs`
+                  : 'No matching history yet — catalog + AI prices'}
+              </Text>
+              <Text style={styles.provShare}>
+                {provenance.yours}/{lines.length}
+              </Text>
+            </View>
+          )}
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Subtotal</Text>
             <Text style={styles.totalsValue}>{formatMoney(totals.subtotal)}</Text>
@@ -727,7 +771,7 @@ function LineRow({
   onCommit: (patch: Partial<PricedLine>) => void;
   onCancel: () => void;
   onRemove: () => void;
-  onSetSource: (source: 'ai' | 'engine') => void;
+  onSetSource: (source: 'yours' | 'ai' | 'engine') => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -753,13 +797,34 @@ function LineRow({
           <Text style={styles.lineDesc} numberOfLines={2}>{line.description}</Text>
           <Text style={styles.lineMeta}>
             {line.quantity} {line.unit} × {formatMoney(line.unitPrice)}
-            {line.priceSource === 'engine' ? ' · engine' : line.priceSource === 'ai' ? ' · AI est.' : ' · manual'}
+            {line.priceSource === 'yours' ? ' · your rate'
+              : line.priceSource === 'engine' ? ' · catalog'
+              : line.priceSource === 'ai' ? ' · AI est.' : ' · manual'}
             {line.notes ? ` · ${line.notes}` : ''}
           </Text>
-          {/* Both prices, side by side, with a clear source label. The engine
-              number is deterministic; the AI number is the model's guess. */}
-          {line.engineRate && (
+          {/* Where this number came from, in words. A price with no stated
+              provenance is how generic AI estimators put confident nonsense on
+              a bid. */}
+          <Text style={styles.provenance} numberOfLines={1}>
+            {priceSourceLabel(line.priceSource, line.ownRate)}
+          </Text>
+          {/* Sources side by side. YOUR rate first — it's the only one built
+              from jobs this contractor actually completed. */}
+          {(line.engineRate || line.ownRate) && (
             <View style={styles.sourceRow}>
+              {line.ownRate && (
+                <TouchableOpacity
+                  style={[styles.sourcePill, line.priceSource === 'yours' && styles.sourcePillActive]}
+                  onPress={() => onSetSource('yours')}
+                  activeOpacity={0.8}
+                  testID={`price-source-yours-${line.id}`}
+                >
+                  <MageCostDb size={11} color={line.priceSource === 'yours' ? themeColors.surface : themeColors.accent} />
+                  <Text style={[styles.sourcePillLabel, line.priceSource === 'yours' && styles.sourcePillLabelActive]}>Yours</Text>
+                  <Text style={[styles.sourcePillValue, line.priceSource === 'yours' && styles.sourcePillLabelActive]}>{formatMoney(line.ownRate.rate)}</Text>
+                </TouchableOpacity>
+              )}
+              {line.engineRate && (
               <TouchableOpacity
                 style={[styles.sourcePill, line.priceSource === 'engine' && styles.sourcePillActive]}
                 onPress={() => onSetSource('engine')}
@@ -770,15 +835,16 @@ function LineRow({
                 <Text style={[styles.sourcePillLabel, line.priceSource === 'engine' && styles.sourcePillLabelActive]}>Engine</Text>
                 <Text style={[styles.sourcePillValue, line.priceSource === 'engine' && styles.sourcePillLabelActive]}>{formatMoney(line.engineRate.rate)}</Text>
               </TouchableOpacity>
+              )}
               <TouchableOpacity
-                style={[styles.sourcePill, line.priceSource !== 'engine' && styles.sourcePillActive]}
+                style={[styles.sourcePill, line.priceSource === 'ai' && styles.sourcePillActive]}
                 onPress={() => onSetSource('ai')}
                 activeOpacity={0.8}
                 testID={`price-source-ai-${line.id}`}
               >
-                <MageAIMark size={11} color={line.priceSource !== 'engine' ? themeColors.surface : themeColors.accent} />
-                <Text style={[styles.sourcePillLabel, line.priceSource !== 'engine' && styles.sourcePillLabelActive]}>AI est.</Text>
-                <Text style={[styles.sourcePillValue, line.priceSource !== 'engine' && styles.sourcePillLabelActive]}>{formatMoney(line.aiUnitPrice)}</Text>
+                <MageAIMark size={11} color={line.priceSource === 'ai' ? themeColors.surface : themeColors.accent} />
+                <Text style={[styles.sourcePillLabel, line.priceSource === 'ai' && styles.sourcePillLabelActive]}>AI est.</Text>
+                <Text style={[styles.sourcePillValue, line.priceSource === 'ai' && styles.sourcePillLabelActive]}>{formatMoney(line.aiUnitPrice)}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1041,6 +1107,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   lineMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
   lineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: t.text, minWidth: 80, textAlign: 'right' },
 
+  provShare: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textSecondary },
+  provenance: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    marginTop: 2,
+  },
   sourceRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
   sourcePill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
