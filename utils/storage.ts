@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { readFileBytes } from '@/utils/fileBytes';
 
 export async function uploadProjectPhoto(
   userId: string,
@@ -9,8 +10,7 @@ export async function uploadProjectPhoto(
   if (!isSupabaseConfigured || Platform.OS === 'web') return null;
   try {
     const fileName = `${userId}/${projectId}/${Date.now()}.jpg`;
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    const blob = await readFileBytes(fileUri);
     const { error } = await supabase.storage
       .from('project-photos')
       .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
@@ -37,8 +37,7 @@ export async function uploadDocument(
   if (!isSupabaseConfigured || Platform.OS === 'web') return null;
   try {
     const path = `${userId}/${Date.now()}_${fileName}`;
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    const blob = await readFileBytes(fileUri);
     const { error } = await supabase.storage
       .from('documents')
       .upload(path, blob, { contentType: 'application/pdf', upsert: false });
@@ -66,8 +65,7 @@ export async function uploadBrandingAsset(
   try {
     const ext = type === 'logo' ? 'png' : 'png';
     const path = `${userId}/${type}_${Date.now()}.${ext}`;
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    const blob = await readFileBytes(fileUri);
     const { error } = await supabase.storage
       .from('branding')
       .upload(path, blob, { contentType: `image/${ext}`, upsert: true });
@@ -93,8 +91,7 @@ export async function uploadProfileImage(
   if (!isSupabaseConfigured || Platform.OS === 'web') return null;
   try {
     const path = `${userId}/avatar_${Date.now()}.jpg`;
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    const blob = await readFileBytes(fileUri);
     const { error } = await supabase.storage
       .from('profiles')
       .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
@@ -127,8 +124,7 @@ export async function uploadRfpAttachment(
   try {
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = `${userId}/${rfpId}/${Date.now()}_${safeName}`;
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    const blob = await readFileBytes(fileUri);
     const { error } = await supabase.storage
       .from('rfp-attachments')
       .upload(path, blob, { contentType, upsert: false });
@@ -155,8 +151,7 @@ export async function uploadWorkerIdImage(
   if (!isSupabaseConfigured || Platform.OS === 'web') return null;
   try {
     const path = `${userId}/${crewMemberId}/${Date.now()}.jpg`;
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    const blob = await readFileBytes(fileUri);
     const { error } = await supabase.storage
       .from('worker-ids')
       .upload(path, blob, { contentType: 'image/jpeg', upsert: false });

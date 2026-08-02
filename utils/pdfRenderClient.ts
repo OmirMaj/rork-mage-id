@@ -27,9 +27,8 @@
 
 import { supabase } from '@/lib/supabase';
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
 import { PDFDocument } from 'pdf-lib';
-import { base64ToBytes } from '@/utils/base64Bytes';
+import { readFileBytes } from '@/utils/fileBytes';
 
 const PDF_BUCKET = 'pdf-uploads';
 const FUNCTION_NAME = 'convert-pdf-to-images';
@@ -124,33 +123,6 @@ export async function uploadAndRenderPdf({
 // Internals
 // ---------------------------------------------------------------------------
 
-/**
- * Read a picked PDF into bytes we can actually upload.
- *
- * THE BUG THIS FIXES: both branches used to be `fetch(uri).blob()`, with a
- * comment claiming "file:// URIs work the same way through the RN fetch
- * polyfill". They do not. On React Native a Blob from a file:// fetch does not
- * carry data that supabase-js can serialize — the upload lands as ZERO BYTES,
- * or the Blob reports size 0 and the caller throws "That file is empty."
- * Either way, PDFs could not be uploaded from the phone at all.
- *
- * Native therefore reads base64 through expo-file-system (the pattern already
- * used by photoAnalyzer / coiValidator / askYourPlans) and hands up a
- * Uint8Array, which supabase-js uploads correctly. Web keeps the blob: fetch,
- * which is genuinely correct there.
- */
-async function readFileBytes(fileUri: string): Promise<Uint8Array> {
-  if (Platform.OS === 'web') {
-    const r = await fetch(fileUri);
-    const buf = await r.arrayBuffer();
-    return new Uint8Array(buf);
-  }
-  // String-literal 'base64' rather than the enum — expo-file-system moved
-  // EncodingType into a legacy namespace and the string form is accepted by
-  // the typed signature regardless (same note as utils/photoAnalyzer.ts).
-  const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
-  return base64ToBytes(base64);
-}
 
 
 /**
