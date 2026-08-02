@@ -27,7 +27,9 @@
 
 import { supabase } from '@/lib/supabase';
 import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 import { PDFDocument } from 'pdf-lib';
+import { base64ToBytes } from '@/utils/base64Bytes';
 
 const PDF_BUCKET = 'pdf-uploads';
 const FUNCTION_NAME = 'convert-pdf-to-images';
@@ -73,8 +75,8 @@ export async function uploadAndRenderPdf({
   }
 
   // 1. Read the PDF bytes from the local URI.
-  const fileBlob = await readFileAsBlob(fileUri);
-  if (fileBlob.size === 0) {
+  const fileBytes = await readFileBytes(fileUri);
+  if (fileBytes.byteLength === 0) {
     throw new Error('That file is empty.');
   }
 
@@ -85,7 +87,7 @@ export async function uploadAndRenderPdf({
 
   const { error: upErr } = await supabase.storage
     .from(PDF_BUCKET)
-    .upload(storagePath, fileBlob, { contentType: 'application/pdf', upsert: false });
+    .upload(storagePath, fileBytes, { contentType: 'application/pdf', upsert: false });
   if (upErr) {
     throw new Error(`Upload failed: ${upErr.message}`);
   }
@@ -122,16 +124,34 @@ export async function uploadAndRenderPdf({
 // Internals
 // ---------------------------------------------------------------------------
 
-async function readFileAsBlob(fileUri: string): Promise<Blob> {
-  // On web, expo-document-picker returns a blob: URL we can fetch directly.
-  // On native, file:// URIs work the same way through the RN fetch polyfill.
+/**
+ * Read a picked PDF into bytes we can actually upload.
+ *
+ * THE BUG THIS FIXES: both branches used to be `fetch(uri).blob()`, with a
+ * comment claiming "file:// URIs work the same way through the RN fetch
+ * polyfill". They do not. On React Native a Blob from a file:// fetch does not
+ * carry data that supabase-js can serialize — the upload lands as ZERO BYTES,
+ * or the Blob reports size 0 and the caller throws "That file is empty."
+ * Either way, PDFs could not be uploaded from the phone at all.
+ *
+ * Native therefore reads base64 through expo-file-system (the pattern already
+ * used by photoAnalyzer / coiValidator / askYourPlans) and hands up a
+ * Uint8Array, which supabase-js uploads correctly. Web keeps the blob: fetch,
+ * which is genuinely correct there.
+ */
+async function readFileBytes(fileUri: string): Promise<Uint8Array> {
   if (Platform.OS === 'web') {
     const r = await fetch(fileUri);
-    return await r.blob();
+    const buf = await r.arrayBuffer();
+    return new Uint8Array(buf);
   }
-  const r = await fetch(fileUri);
-  return await r.blob();
+  // String-literal 'base64' rather than the enum — expo-file-system moved
+  // EncodingType into a legacy namespace and the string form is accepted by
+  // the typed signature regardless (same note as utils/photoAnalyzer.ts).
+  const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+  return base64ToBytes(base64);
 }
+
 
 /**
  * Count pages in a local PDF without rendering or rasterizing. Used by
@@ -143,8 +163,7 @@ async function readFileAsBlob(fileUri: string): Promise<Blob> {
  */
 export async function countPdfPages(fileUri: string): Promise<number | null> {
   try {
-    const blob = await readFileAsBlob(fileUri);
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const bytes = await readFileBytes(fileUri);
     // ignoreEncryption=true so a password-protected PDF still gets a
     // page count (the actual render will fail later with a clearer
     // message; we don't want the count step to be the choke point).

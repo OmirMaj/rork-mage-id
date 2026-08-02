@@ -301,5 +301,24 @@ console.log('\ninstant estimate widget (embeddable ballpark engine):');
   ok('docs page shows the copy-paste snippet', /data-mage-contractor="your-company-slug"/.test(docs));
 }
 
+// ── Embed-snippet parity ────────────────────────────────────────────────────
+// The snippet a contractor copies exists in TWO places: the in-app setup screen
+// (via utils/widgetEmbed) and the public docs page. If they drift, somebody
+// pastes a block that doesn't work and has no way to tell why.
+{
+  const { buildEmbedSnippet, WIDGET_SLUG_PLACEHOLDER, WIDGET_NAME_PLACEHOLDER } =
+    await import('../utils/widgetEmbed');
+  const canonical = buildEmbedSnippet(WIDGET_SLUG_PLACEHOLDER, WIDGET_NAME_PLACEHOLDER);
+  const docs = readFileSync('marketing/widget/index.html', 'utf8');
+  for (const line of canonical.split('\n')) {
+    const needle = line.trim();
+    ok(`docs page contains snippet line: ${needle.slice(0, 44)}`,
+      docs.includes(needle) || docs.includes(needle.replace(/</g, '&lt;').replace(/>/g, '&gt;')),
+      `missing from marketing/widget/index.html: ${needle}`);
+  }
+  ok('snippet carries the contractor slug attribute',
+    canonical.includes('data-mage-contractor="'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

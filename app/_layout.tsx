@@ -619,6 +619,7 @@ function RootLayoutNav() {
       <Stack.Screen name="waiting-on" options={{ headerShown: false }} />
       <Stack.Screen name="home-passport" options={{ headerShown: false }} />
       <Stack.Screen name="sub-profile" options={{ headerShown: false }} />
+      <Stack.Screen name="widget-setup" options={{ headerShown: false }} />
       <Stack.Screen name="week-close" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
