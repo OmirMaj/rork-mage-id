@@ -307,7 +307,33 @@ say "Pro-gated" but their keys (`bid_scoring`, `portfolio_margin`) are `business
    `groundingFacts`, matching what the result card already stated honestly.
 6. **Settings tier list** — was selling `client_portal` and `schedule_collaboration` (both **Pro**)
    as Business features; replaced with what Business actually unlocks.
-7. **Photo upload** (0.1) — in progress at time of writing; see the note below.
+7. **Photo upload** (0.1) — bytes now reach `project-photos`. A separate queue (multi-MB bodies
+   must not enter the AsyncStorage text-mutation queue), concurrency 2 rather than the text
+   queue's 5, draining on foreground beside it. Stores the **storage path**, not a signed URL —
+   the bucket is private with RLS `foldername(name)[1] = auth.uid()`, so URLs must be signed and
+   are minted at read time, matching how `contractSealing.ts` and `projectFiles.ts` already work.
+   Paths are **deterministic** (`<uid>/<projectId>/<recordId>.<ext>`, derived from the row id, not
+   a timestamp), so the path is written at insert time in the same optimistic write, retried
+   idempotently, and needs no update-after-upload step. Legacy `file://` rows pass through
+   untouched, so no migration. 92 assertions in `scripts/validate-photo-upload.ts`.
+
+   **Two adjacent instances of the same bug were found and fixed** while wiring the funnel:
+   punch-item photos (`punch_items.photo_uri`, reached from punch-walk / ai-punch / photo-triage)
+   and the DFR embedded photo array (`daily_reports.photos[].uri`). Both were writing device-local
+   paths into Postgres exactly like the gallery. DFR photos share the gallery row's id, so both
+   resolve to the same deterministic path and dedupe uploads the bytes exactly once.
+
+### Still open on photos
+
+- **Client portal photos are not solved.** `utils/portalSnapshot.ts` bakes `photo.uri` into the
+  snapshot, which on the GC's own device is the local `file://`. Unchanged from before — not a
+  regression — but a private bucket plus an unauthenticated homeowner needs its own decision:
+  a public mirror, or server-signed URLs minted by the portal edge function.
+- **Other buckets still persist 7-day signed URLs** (`branding`, `documents`) — the same time bomb
+  this fix avoided for photos.
+- **Nobody has run the app.** That a photo lands in the bucket, and that the gallery still paints
+  instantly offline, are reasoned from the code path and pinned by validators — not observed at
+  runtime. Worth a device smoke test alongside task #47 (PDF upload).
 
 ## Recommended next, in order
 
