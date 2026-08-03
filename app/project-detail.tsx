@@ -17,7 +17,7 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
-  Clock, Lock, Mic,
+  Clock, Lock, Mic, FileSignature,
 } from 'lucide-react-native';
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
@@ -60,7 +60,8 @@ import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
 import { formatMoney, displayText } from '@/utils/formatters';
-import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
+import { computeARAgingReport } from '@/utils/financialReports';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
@@ -96,7 +97,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const PROJECT_DETAIL_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
 const PROJECT_DETAIL_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -173,7 +174,7 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -203,7 +204,15 @@ export default function ProjectDetailScreen() {
 
   const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
   const projectInvoices = useMemo(() => getInvoicesForProject(id ?? ''), [id, getInvoicesForProject]);
+  // A/R for THIS project, straight from the same function the Reports screen's
+  // A/R Aging tab renders — reused rather than re-derived so the project list
+  // and the report can never print two different "outstanding" numbers.
+  const projectAR = useMemo(
+    () => computeARAgingReport(projectInvoices.filter(i => i.status !== 'draft'), []),
+    [projectInvoices],
+  );
   const dailyReports = useMemo(() => getDailyReportsForProject(id ?? ''), [id, getDailyReportsForProject]);
+  const projectFieldTickets = useMemo(() => getFieldTicketsForProject(id ?? ''), [id, getFieldTicketsForProject]);
   const punchItems = useMemo(() => getPunchItemsForProject(id ?? ''), [id, getPunchItemsForProject]);
   const projectPhotos = useMemo(() => getPhotosForProject(id ?? ''), [id, getPhotosForProject]);
   const commEvents = useMemo(() => getCommEventsForProject(id ?? ''), [id, getCommEventsForProject]);
@@ -461,6 +470,9 @@ export default function ProjectDetailScreen() {
     changeOrders: true,
     invoices: true,
     dailyReports: true,
+    // Routes out to /field-ticket rather than opening an in-screen section,
+    // so this flag is never read — present only to satisfy the exhaustive map.
+    fieldTickets: true,
     punchList: true,
     rfis: true,
     submittals: true,
@@ -1657,7 +1669,7 @@ export default function ProjectDetailScreen() {
           const PEOPLE_COLOR = themeColors.info;     // blue (same as docs)
           const GROUP_BY_KEY: Partial<Record<SectionKey, string>> = {
             // field
-            dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR,
+            dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR,
             punchList: FIELD_COLOR, photos: FIELD_COLOR,
             plans: FIELD_COLOR, schedule: FIELD_COLOR,
             // money
@@ -1686,6 +1698,10 @@ export default function ProjectDetailScreen() {
             { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: colorFor('changeOrders'), count: changeOrders.length },
             { key: 'invoices', label: 'Invoices', icon: Receipt, color: colorFor('invoices'), count: projectInvoices.length },
             { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: colorFor('dailyReports'), count: dailyReports.length },
+            // T&M ticket — extra work signed for on site. The badge counts
+            // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
+            // has already earned and not yet asked for.
+            { key: 'fieldTickets', label: 'T&M Tickets', icon: FileSignature, color: colorFor('fieldTickets'), count: projectFieldTickets.filter(x => x.status === 'signed').length },
             { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
             { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
             { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
@@ -1704,7 +1720,7 @@ export default function ProjectDetailScreen() {
           ];
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
-            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
+            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
             { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
             { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
@@ -1744,6 +1760,7 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'fieldTickets') { router.push({ pathname: '/field-ticket' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'projectFiles') { router.push({ pathname: '/project-files' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'scope') { router.push({ pathname: '/project-scope', params: { id } } as never); return; }
                   setActiveTile(tile.key);
@@ -2641,6 +2658,36 @@ export default function ProjectDetailScreen() {
               {projectInvoices.length === 0 && (
                 <Text style={styles.coEmptyText}>No invoices yet.</Text>
               )}
+              {/* Money state at a glance. The per-row status pill already said
+                  "Overdue"; what it never said was how much is actually out
+                  the door and how long the worst one has been sitting. */}
+              {projectAR.totals.totalOutstanding > 0 && (() => {
+                const overdue = projectAR.rows.filter(r => r.daysPastDue > 0);
+                const overdueTotal = overdue.reduce((s, r) => s + r.outstanding, 0);
+                const worst = overdue.length > 0 ? overdue[0].daysPastDue : 0; // rows are worst-aged first
+                return (
+                  <View style={styles.arSummary} testID="invoices-ar-summary">
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.arSummaryLabel}>Outstanding</Text>
+                      <Text style={styles.arSummaryValue}>{formatMoney(projectAR.totals.totalOutstanding, 2)}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.arSummaryLabel}>Overdue</Text>
+                      <Text style={[
+                        styles.arSummaryValue,
+                        { color: overdue.length > 0 ? themeColors.danger : themeColors.textSecondary },
+                      ]}>
+                        {overdue.length > 0 ? formatMoney(overdueTotal, 2) : '—'}
+                      </Text>
+                      {worst > 0 && (
+                        <Text style={styles.arSummaryMeta}>
+                          {overdue.length} invoice{overdue.length === 1 ? '' : 's'} · up to {worst}d late
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })()}
               {projectInvoices.some(i => i.status !== 'draft') && (
                 <TouchableOpacity
                   style={styles.photoShareBtn}
@@ -2680,6 +2727,9 @@ export default function ProjectDetailScreen() {
               })).map(inv => {
                 const _balance = inv.totalDue - inv.amountPaid;
                 const displayStatus = getEffectiveInvoiceStatus(inv);
+                // "Overdue" alone doesn't tell a GC whether to call today. Days
+                // do. Same helper the invoice screen's header pill uses.
+                const invDaysPastDue = getDaysPastDue(inv);
                 return (
                   <TouchableOpacity
                     key={inv.id}
@@ -2713,8 +2763,12 @@ export default function ProjectDetailScreen() {
                           color: displayStatus === 'paid' ? themeColors.success : displayStatus === 'overdue' ? themeColors.danger : displayStatus === 'partially_paid' ? themeColors.accent : displayStatus === 'sent' ? themeColors.info : themeColors.textSecondary
                         }]}>
                           {displayStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          {invDaysPastDue > 0 ? ` · ${invDaysPastDue}d` : ''}
                         </Text>
                       </View>
+                      {_balance > 0.5 && inv.amountPaid > 0 && (
+                        <Text style={styles.invBalanceMeta}>{formatMoney(_balance, 2)} due</Text>
+                      )}
                     </View>
                   </TouchableOpacity>
                 );
@@ -4565,6 +4619,21 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   coRight: { alignItems: 'flex-end', gap: 4 },
   coAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   invAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  invBalanceMeta: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.textMuted },
+  // A/R summary above the project's invoice list.
+  arSummary: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 12,
+    paddingVertical: 12, paddingHorizontal: 12, marginBottom: 8,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1, borderColor: themeColors.line,
+  },
+  arSummaryLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: themeColors.textMuted,
+    letterSpacing: 0.6, textTransform: 'uppercase' as const, marginBottom: 3,
+  },
+  arSummaryValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: themeColors.text },
+  arSummaryMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 },
   coBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   coBadgeText: { fontSize: 10, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   coApproveRow: { flexDirection: 'row', gap: 8, paddingTop: 8 },

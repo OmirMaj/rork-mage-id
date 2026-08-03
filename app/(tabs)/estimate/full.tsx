@@ -59,6 +59,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
@@ -170,12 +171,20 @@ export default function EstimateScreen() {
   // Self-perform labor (D6): crew hours × configured loaded rates ground
   // the quick estimate alongside receipts and closed-job actuals.
   const laborSamples = useLaborCostSamples();
+  // Cold-start seeds — the stated rates that keep a day-one estimate from
+  // being priced off a national average.
+  const { seeds } = useCostSeeds();
 
   const quickEstimateGrounding = useMemo<{ facts: string[]; rateCount: number }>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
+      const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
+      // A rate the contractor SEEDED is told to the model as told-to-us. Handing
+      // the LLM "runs $X on your jobs" for a number they typed would launder a
+      // claim into evidence — see utils/costSeedCore.
       const facts = db.entries.slice(0, 6).map(
-        e => `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`,
+        e => e.provenance === 'seeded'
+          ? `${e.trade}: the contractor's own stated rate is $${e.suggestedRate.toFixed(2)}/${e.unit} (self-reported, no closed job yet — use it, but don't call it measured)`
+          : `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`,
       );
       const cal = computeCalibration({ projects, commitments });
       if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
@@ -185,7 +194,7 @@ export default function EstimateScreen() {
     } catch {
       return { facts: [], rateCount: 0 };
     }
-  }, [projects, commitments, receipts, laborSamples]);
+  }, [projects, commitments, receipts, laborSamples, seeds]);
 
   // Stable seed — previously Date.now()/10000 which caused prices to drift by a cent
   // on every refresh (app resume, 5min interval, location change). Pricing is now

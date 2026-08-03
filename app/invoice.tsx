@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
-  Link2, Copy, Share2, FileText, Receipt,
+  Link2, Copy, Share2, FileText, Receipt, BellRing,
 } from 'lucide-react-native';
 import { MageAIMark, MageInvoice } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -68,6 +68,11 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { safeJsonParse } from '@/utils/safeJson';
 import { progressSubtotal, netBalanceDue, markupInclusiveUnitPrice } from '@/utils/invoiceBilling';
+import { markMilestoneInvoiced } from '@/utils/contractEngine';
+import {
+  reminderEligibility, reminderBlockMessage, reminderSentLabel, dunningStageLabel,
+} from '@/utils/billingFlowCore';
+import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
 
@@ -130,9 +135,14 @@ function InvoiceInner() {
   // the GC said something like "invoice them for demolition twenty-eight
   // hundred". JSON-encoded so we don't have to re-parse the AI's
   // structured output on this side.
-  const { projectId, invoiceId, type: invoiceType, prefillLines, prefillNotes } = useLocalSearchParams<{
+  // milestoneId / contractId arrive from the contract screen's one-tap
+  // "Create invoice" on a payment milestone. They are carried through the
+  // editor and only acted on once the invoice is ACTUALLY created — opening
+  // this screen and backing out must leave the milestone billable.
+  const { projectId, invoiceId, type: invoiceType, prefillLines, prefillNotes, milestoneId, contractId } = useLocalSearchParams<{
     projectId: string; invoiceId?: string; type?: string;
     prefillLines?: string; prefillNotes?: string;
+    milestoneId?: string; contractId?: string;
   }>();
   const {
     getProject, getInvoicesForProject, addInvoice, updateInvoice, settings, updateSettings,
@@ -278,6 +288,7 @@ function InvoiceInner() {
   const [retentionReleaseMethod, setRetentionReleaseMethod] = useState<PaymentMethod>('check');
   const [retentionReleaseNote, setRetentionReleaseNote] = useState('');
   const [generatingPayLink, setGeneratingPayLink] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   const pctValue = parseFloat(progressPercent) || 0;
   const retentionPctValue = Math.max(0, Math.min(100, parseFloat(retentionPercent) || 0));
@@ -338,10 +349,43 @@ function InvoiceInner() {
       retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
       retentionReleased: 0,
       retentionReleases: [],
+      // Stamp the milestone this invoice bills. This is the invoice-side half
+      // of the double-bill guard — if the milestone's own flip to 'invoiced'
+      // fails to persist, the contract screen can still see that this
+      // milestone has already produced an invoice.
+      sourceMilestoneId: milestoneId || undefined,
+      sourceContractId: contractId || undefined,
       createdAt: now,
       updatedAt: now,
     };
-  }, [projectId, nextInvoiceNumber, isProgressType, pctValue, paymentTerms, notes, lineItems, subtotal, taxRate, taxAmount, totalDue, retentionPctValue, retentionAmount]);
+  }, [projectId, nextInvoiceNumber, isProgressType, pctValue, paymentTerms, notes, lineItems, subtotal, taxRate, taxAmount, totalDue, retentionPctValue, retentionAmount, milestoneId, contractId]);
+
+  /**
+   * Flip the source milestone to 'invoiced' — called ONLY after addInvoice()
+   * has actually run, never when the GC merely opened this editor. Fire and
+   * forget from the caller's perspective: the invoice already exists, so a
+   * failed flip must not roll it back. We warn instead, because a silent
+   * failure is exactly what leaves a milestone billable twice.
+   */
+  const linkMilestone = useCallback(async (invoice: Invoice) => {
+    if (!milestoneId || !contractId) return;
+    try {
+      const outcome = await markMilestoneInvoiced(contractId, milestoneId, invoice.id);
+      if (outcome === 'already') {
+        showAlert(
+          'Milestone was already billed',
+          `Invoice #${invoice.number} was created, but this contract milestone had already been invoiced elsewhere. Check the payment schedule so the client isn't billed twice.`,
+        );
+      } else if (outcome !== 'flipped') {
+        showAlert(
+          'Milestone not marked as billed',
+          `Invoice #${invoice.number} was saved, but we couldn't update the contract's payment schedule. Open the contract and check that the milestone reads "Billed" before invoicing it again.`,
+        );
+      }
+    } catch (err) {
+      console.warn('[Invoice] milestone link failed:', err);
+    }
+  }, [milestoneId, contractId]);
 
   const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string) => {
     if (!projectId) return;
@@ -382,12 +426,14 @@ function InvoiceInner() {
     } else {
       const inv = buildNewInvoice(status);
       addInvoice(inv);
+      // The invoice now exists — this is the moment the milestone is billed.
+      void linkMilestone(inv);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Hammer-strike toast — non-blocking, lets the back nav fire immediately.
       nailIt(status === 'sent' ? `Invoice #${nextInvoiceNumber} sent${recipientInfo}` : `Invoice #${nextInvoiceNumber} saved`);
     }
     router.back();
-  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router, buildNewInvoice]);
+  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router, buildNewInvoice, linkMilestone]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -424,6 +470,10 @@ function InvoiceInner() {
     } else {
       workingInvoice = buildNewInvoice('sent');
       addInvoice(workingInvoice);
+      // Bill the milestone the instant the invoice is persisted — before the
+      // email attempt, which can fail and drop the invoice back to draft. A
+      // draft invoice still exists, so the milestone is still billed.
+      void linkMilestone(workingInvoice);
     }
 
     // Auto-generate a Stripe payment link if the invoice doesn't have one
@@ -575,7 +625,7 @@ function InvoiceInner() {
       nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}`);
     }
     router.back();
-  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, balanceDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral]);
+  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, balanceDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral, linkMilestone]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;
@@ -842,6 +892,74 @@ function InvoiceInner() {
       console.error('[Invoice] Share pay link failed:', err);
     }
   }, [existingInvoice, project, balanceDue, settings]);
+
+  // ── Payment reminders (dunning) ────────────────────────────────────
+  // The invoice-dunning cron has always emailed escalating notices; the GC
+  // just couldn't see it, trigger it, or tell whether one already went out —
+  // which is what produces the awkward "did you get my email?" call. Both
+  // halves are surfaced here: the state line, and a manual send.
+  const reminderState = useMemo(() => {
+    if (!existingInvoice) return null;
+    // Snapshot the clock inside the memo: recomputing it every render would
+    // invalidate this memo on every render, and the only thing that actually
+    // moves the answer is the invoice itself (which updates after a send).
+    const nowMs = Date.now();
+    const lastMs = existingInvoice.dunningLastSentAt
+      ? new Date(existingInvoice.dunningLastSentAt).getTime()
+      : null;
+    // `unsubscribed` is deliberately NOT guessed client-side — the edge fn is
+    // the only place that can read the suppression list, and it re-checks
+    // before every send. We show the button and report the server's answer.
+    const eligibility = reminderEligibility({
+      status: existingInvoice.status,
+      totalDue: existingInvoice.totalDue ?? 0,
+      amountPaid: existingInvoice.amountPaid ?? 0,
+      dueMs: existingInvoice.dueDate ? new Date(existingInvoice.dueDate).getTime() : NaN,
+      dunningStage: existingInvoice.dunningStage ?? 0,
+      lastSentMs: lastMs != null && Number.isFinite(lastMs) ? lastMs : null,
+      manual: true,
+      nowMs,
+    });
+    return {
+      eligibility,
+      nowMs,
+      lastMs: lastMs != null && Number.isFinite(lastMs) ? lastMs : null,
+      sentLabel: reminderSentLabel(existingInvoice.dunningStage, lastMs),
+    };
+  }, [existingInvoice]);
+
+  const handleSendReminder = useCallback(async () => {
+    if (!existingInvoice || sendingReminder) return;
+    setSendingReminder(true);
+    try {
+      const res = await sendInvoiceReminderNow(existingInvoice.id);
+      if (!res.success) {
+        showAlert('Reminder not sent', res.error ?? 'Could not reach the reminder service. Try again in a moment.');
+        return;
+      }
+      if (res.outcome === 'skipped') {
+        showAlert(
+          'No reminder sent',
+          res.reason === 'no_recipient'
+            ? 'No client email is on file for this project. Add a portal invitee in Client Portal setup, then try again.'
+            : res.reason
+              ? reminderBlockMessage(res.reason as Parameters<typeof reminderBlockMessage>[0], reminderState?.lastMs, Date.now())
+              : 'This invoice is not eligible for a reminder right now.',
+        );
+        return;
+      }
+      // Mirror the server's markers locally so the state line updates without
+      // waiting for the next invoices refetch. These columns are written by
+      // the edge function; echoing the SAME values back is idempotent.
+      if (res.stage != null && res.sentAt) {
+        updateInvoice(existingInvoice.id, { dunningStage: res.stage, dunningLastSentAt: res.sentAt });
+      }
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      nailIt(`${dunningStageLabel(res.stage ?? 1)} sent${res.recipient ? ` to ${res.recipient}` : ''}`);
+    } finally {
+      setSendingReminder(false);
+    }
+  }, [existingInvoice, sendingReminder, updateInvoice, reminderState?.lastMs]);
 
   const handleReleaseRetention = useCallback(() => {
     if (!existingInvoice) return;
@@ -1206,6 +1324,57 @@ function InvoiceInner() {
                 allInvoices={allInvoices}
                 subscriptionTier={tier as any}
               />
+            </View>
+          )}
+
+          {/* Payment reminders. Two jobs: (1) tell the GC whether the client
+              has already been chased and at what escalation, so they stop
+              guessing before picking up the phone; (2) let them send in the
+              moment. The cadence itself still belongs to the invoice-dunning
+              cron — this button rides the same rules, it does not bypass them. */}
+          {existingInvoice && reminderState && effectiveStatus !== 'draft' && effectiveStatus !== 'paid' && (
+            <View style={styles.reminderCard}>
+              <View style={styles.reminderHeader}>
+                <View style={styles.reminderIconWrap}>
+                  <BellRing size={18} color={themeColors.accent} strokeWidth={1.75} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.reminderTitle}>Payment reminders</Text>
+                  <Text style={styles.reminderSub} testID="reminder-state-line">
+                    {reminderState.sentLabel
+                      ?? (reminderState.eligibility.daysOverdue > 0
+                        ? `No reminder sent yet · ${reminderState.eligibility.daysOverdue} day${reminderState.eligibility.daysOverdue === 1 ? '' : 's'} overdue`
+                        : 'No reminder sent yet')}
+                  </Text>
+                </View>
+              </View>
+              {!reminderState.eligibility.eligible && reminderState.eligibility.reason && (
+                <Text style={styles.reminderHint}>
+                  {reminderBlockMessage(reminderState.eligibility.reason, reminderState.lastMs, reminderState.nowMs)}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.reminderBtn, (!reminderState.eligibility.eligible || sendingReminder) && styles.reminderBtnDisabled]}
+                onPress={() => { void handleSendReminder(); }}
+                disabled={!reminderState.eligibility.eligible || sendingReminder}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Send a payment reminder to the client now"
+                testID="send-reminder-btn"
+              >
+                {sendingReminder ? (
+                  <ActivityIndicator size="small" color={"#FFFFFF"} />
+                ) : (
+                  <Send size={15} color={"#FFFFFF"} strokeWidth={1.75} />
+                )}
+                <Text style={styles.reminderBtnText}>
+                  {sendingReminder
+                    ? 'Sending…'
+                    : reminderState.eligibility.targetStage > 0
+                      ? `Send ${dunningStageLabel(reminderState.eligibility.nextStage).toLowerCase()} now`
+                      : 'Send reminder now'}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -1824,4 +1993,29 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, gap: 8,
   },
   payLinkGenerateText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+
+  // ── Payment reminders (dunning) ──
+  reminderCard: {
+    marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: Tokens.radius.panel,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1, borderColor: themeColors.line,
+    gap: 12,
+  },
+  reminderHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
+  reminderIconWrap: {
+    width: 36, height: 36, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accent + '15',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  reminderTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 2 },
+  reminderSub: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16, fontWeight: '600' as const },
+  reminderHint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17 },
+  reminderBtn: {
+    minHeight: 48, borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.accent,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    flexDirection: 'row' as const, gap: 8,
+  },
+  reminderBtnDisabled: { opacity: 0.45 },
+  reminderBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
 });

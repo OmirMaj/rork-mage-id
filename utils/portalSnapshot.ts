@@ -15,6 +15,12 @@ import type {
 import { getUIStrings } from './portalLanguages';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { computeProjectProgress } from '@/utils/projectProgress';
+import { addWorkingDays } from '@/utils/scheduleEngine';
+import {
+  derivePayAppPeriods, buildPeriodNarrative, buildOwnerDecisions,
+  toCalendarDate,
+  type PeriodNarrative, type OwnerDecision, type PeriodMilestone,
+} from '@/utils/portalOwnerCore';
 
 /**
  * Per-item visibility gate. Undefined `portalState` is grandfathered as Sent
@@ -76,7 +82,24 @@ function renderSerialized<T>(item: T & { portalState?: PortalState }, serialize:
 //   passport generation time on the contractor's device.
 // - closeout.passport: summary counts + generatedAt driving the passport
 //   header card in the portal closeout section.
-export const PORTAL_SNAPSHOT_VERSION = 9;
+// v10 adds (owner clarity — "what am I paying for" + "what's waiting on me"):
+// - aiaPayApps[].periodFrom + aiaPayApps[].narrative: a deterministic,
+//   plain-English summary of what the billing period actually bought,
+//   cross-referenced from the daily reports, photos, and completed
+//   schedule milestones whose dates land INSIDE the pay app's window.
+//   It renders ABOVE the G702/G703 schedule of values, which is the
+//   document an architect reads, not a homeowner. Built by
+//   utils/portalOwnerCore.ts — never AI, never fabricated: an empty
+//   period carries an explicit `gap` reason and zero bullets.
+// - selections[].dueDate: SelectionCategory.dueDate has always existed and
+//   been persisted, but was never mapped here — so the portal could not
+//   show a deadline and an overdue tile pick looked identical to a fresh
+//   one. Now mapped, and it drives the overdue ranking below.
+// - ownerDecisions: the ranked list of everything sitting in the owner's
+//   court (unsigned contract, pending COs, overdue selections, unpaid
+//   invoices), so the portal shows what they're holding up instead of a
+//   single hard-coded banner priority.
+export const PORTAL_SNAPSHOT_VERSION = 10;
 
 export interface PortalSnapshot {
   v: number;
@@ -187,6 +210,11 @@ export interface PortalSnapshot {
     category: string;
     styleBrief: string;
     budget: number;
+    /** v10 — the deadline the GC set on the category. Persisted on
+     *  SelectionCategory since day one but never mapped into the
+     *  snapshot, so the portal had no way to show a selection deadline
+     *  and an overdue pick looked the same as a fresh one. */
+    dueDate?: string;
     status: 'pending' | 'browsing' | 'chosen' | 'exceeded';
     options: {
       id: string;
@@ -232,6 +260,15 @@ export interface PortalSnapshot {
     }[];
     asOf: string;             // ISO timestamp
   };
+  // v10 — everything currently waiting on the OWNER, ranked by urgency
+  // (overdue first, then contract → change order → selection → invoice,
+  // then oldest). Drives the portal's decision banner and the "Waiting on
+  // you" list. CLIENT-SAFE: titles, dates, counts, and contract-level
+  // dollars only (a change-order delta, an invoice balance) — never cost,
+  // markup, margin, unit price, or supplier. Computed at snapshot-build
+  // time so `today` is the GC's send date; the portal re-derives ages
+  // client-side when it can.
+  ownerDecisions?: OwnerDecision[];
   // Recent message thread between GC and client (most recent last). Static
   // portal reloads to fetch new messages; for now we don't poll.
   messages?: {
@@ -316,6 +353,19 @@ export interface PortalSnapshot {
       applicationNumber: number;
       applicationDate?: string;
       periodTo?: string;
+      /** v10 — start of the billing window. SavedAIAPayApp has no
+       *  `periodFrom` column; this is DERIVED the way AIA billing works
+       *  (the day after the previous application's period end, falling
+       *  back to the project start for application #1). Undefined when
+       *  neither is known — the narrative then reports a `no_period`
+       *  gap instead of guessing a window. */
+      periodFrom?: string;
+      /** v10 — plain-English "what this period bought", built from the
+       *  in-window daily reports / photos / completed milestones the GC
+       *  actually shares. CLIENT-SAFE: derived from dates, counts, and
+       *  the GC's own field notes — never from a schedule-of-values
+       *  line, a unit cost, a markup, or a supplier. */
+      narrative?: PeriodNarrative;
       ownerName?: string;
       architectName?: string;
       contractorName?: string;
@@ -342,6 +392,14 @@ export interface PortalSnapshot {
     changeOrders?: {
       id: string; number: number | string; description: string;
       changeAmount: number; status: string; dateSubmitted?: string;
+      /** v10 — the record the homeowner is actually signing. A change order
+       *  is a contract amendment; ESIGN/UETA wants the terms in front of the
+       *  signer, not just a dollar figure. All three are contract-level and
+       *  client-facing (the same numbers already on the CO the GC emailed) —
+       *  no cost buildup, markup, or margin. */
+      reason?: string;
+      newContractTotal?: number;
+      scheduleImpactDays?: number;
     }[];
     photos?: {
       url: string;
@@ -579,6 +637,11 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         changeAmount: co.changeAmount ?? 0,
         status: co.status,
         dateSubmitted: co.date,
+        // The signable record: why the change exists, what it does to the
+        // contract total, and what it does to the finish date.
+        reason: co.description && co.reason && co.reason !== co.description ? co.reason : undefined,
+        newContractTotal: co.newContractTotal || undefined,
+        scheduleImpactDays: co.scheduleImpactDays || undefined,
       }))) as PortalSnapshot['sections']['changeOrders'];
     }
   }
@@ -798,6 +861,151 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   const language = (portal.homeownerLanguage ?? 'en');
   const uiStrings = getUIStrings(language) as unknown as Record<string, string>;
 
+  // Selections — every category with at least 1 option, plus the chosen one
+  // (if any). Hoisted out of the return literal because ownerDecisions below
+  // needs the same list to know which picks are still open.
+  const selectionsPayload: PortalSnapshot['selections'] = (() => {
+    const visible = (opts.selections ?? [])
+      .filter(c => isShared(c.portalState) && (c.options ?? []).length > 0)
+      .map(c => ({
+        id: c.id,
+        category: c.category,
+        styleBrief: c.styleBrief,
+        budget: c.budget,
+        // dueDate has always been on SelectionCategory and persisted;
+        // it just never made it into the snapshot, so the portal could
+        // not show a deadline. Mapped through here it also feeds the
+        // overdue ranking in ownerDecisions below.
+        dueDate: c.dueDate,
+        status: c.status,
+        options: (c.options ?? []).map(o => ({
+          id: o.id,
+          productName: o.productName,
+          brand: o.brand,
+          description: o.description,
+          unitPrice: o.unitPrice,
+          unit: o.unit,
+          quantity: o.quantity,
+          total: o.total,
+          leadTimeDays: o.leadTimeDays,
+          supplier: o.supplier,
+          productUrl: o.productUrl,
+          imageUrl: o.imageUrl,
+          highlights: o.highlights,
+          isChosen: o.isChosen,
+        })),
+      }));
+    return visible.length > 0 ? visible : undefined;
+  })();
+
+  // ── v10: plain-English pay-application narratives ─────────────────────────
+  // A homeowner reading "Division 09 Finishes — $14,200 this period, 62%
+  // complete" has no way to judge whether that's fair, so they sit on it — and
+  // days-to-payment is the number that decides whether a small GC makes
+  // payroll. We cross-reference each pay app's billing window against the
+  // daily reports, photos, and completed milestones the GC ALREADY shares and
+  // state, in plain English, what the period bought.
+  //
+  // Grounding rules (see utils/portalOwnerCore.ts):
+  //  - only rows whose date falls INSIDE the window are counted;
+  //  - only sources this portal actually shows are cited — we never promise
+  //    "6 photos" on a portal with photos turned off;
+  //  - an empty period returns a `gap` reason and zero bullets. No filler.
+  if (sections.aiaPayApps?.length) {
+    // Milestone "completion" date: SavedAIAPayApp has no per-task actuals, so
+    // a milestone counts for a window when the GC has marked it done AND its
+    // scheduled finish lands inside that window. That is the strongest claim
+    // the stored data supports.
+    const milestones: PeriodMilestone[] = (() => {
+      if (!portal.showSchedule) return [];
+      const sch = project.schedule;
+      const anchor = toCalendarDate(sch?.startDate);
+      if (!sch?.tasks?.length || !anchor) return [];
+      const wpw = sch.workingDaysPerWeek ?? 5;
+      const start = new Date(`${anchor}T00:00:00Z`);
+      return sch.tasks
+        .filter(t => t.isMilestone)
+        .map(t => {
+          const endDay = (t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 1) - 1);
+          let dateISO: string | undefined;
+          try {
+            dateISO = addWorkingDays(start, Math.max(0, endDay - 1), wpw, sch.nonWorkingDates)
+              .toISOString().slice(0, 10);
+          } catch { dateISO = undefined; }
+          return {
+            id: t.id,
+            title: t.title,
+            dateISO,
+            completed: t.status === 'done' || (t.progress ?? 0) >= 100,
+          };
+        })
+        .filter(m => !!m.dateISO);
+    })();
+
+    const periods = derivePayAppPeriods(
+      sections.aiaPayApps.map(a => ({ id: a.id, applicationNumber: a.applicationNumber, periodTo: a.periodTo })),
+      // Application #1 has no predecessor — anchor it to the project start.
+      startDate ?? project.schedule?.startDate,
+    );
+    const periodById = new Map(periods.map(p => [p.id, p]));
+
+    const shared = {
+      reports: !!portal.showDailyReports,
+      photos: !!portal.showPhotos,
+      schedule: !!portal.showSchedule,
+    };
+    for (const app of sections.aiaPayApps) {
+      const window = periodById.get(app.id);
+      app.periodFrom = window?.periodFrom;
+      app.narrative = buildPeriodNarrative({
+        periodFrom: window?.periodFrom,
+        periodTo: window?.periodTo ?? app.periodTo,
+        // Deliberately the SNAPSHOT rows, not the raw domain objects: the
+        // narrative can only ever see what the homeowner can already see.
+        reports: sections.dailyReports ?? [],
+        photos: sections.photos ?? [],
+        milestones,
+        shared,
+      });
+    }
+  }
+
+  // ── v10: what's waiting on the owner ──────────────────────────────────────
+  // Ranked so the portal can lead with the single most urgent item and list
+  // the rest underneath. Every day an owner sits on a tile selection is a day
+  // the GC's sub doesn't show up.
+  const ownerDecisions: OwnerDecision[] = (() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const list = buildOwnerDecisions({
+      today,
+      contract: opts.contract && opts.contract.status === 'sent'
+        ? {
+            status: 'sent',
+            needsSignature: !opts.contract.homeownerSignature,
+            sentAt: opts.contract.sentAt ?? opts.contract.updatedAt,
+            title: opts.contract.title,
+          }
+        : null,
+      changeOrders: sections.changeOrders ?? [],
+      coApprovalEnabled: !!portal.coApprovalEnabled,
+      selections: (selectionsPayload ?? []).map(c => ({
+        id: c.id,
+        category: c.category,
+        dueDate: c.dueDate,
+        status: c.status,
+        chosen: (c.options ?? []).some(o => o.isChosen),
+      })),
+      invoices: (sections.invoices ?? []).map(i => ({
+        id: i.id,
+        number: i.number,
+        status: i.status,
+        balance: i.balance,
+        dueDate: i.dueDate,
+      })),
+    });
+    return list;
+  })();
+
   return {
     v: PORTAL_SNAPSHOT_VERSION,
     snapshotAt: new Date().toISOString(),
@@ -903,34 +1111,8 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     } : undefined,
     // Selections — every category with at least 1 option, plus the chosen
     // one (if any). Skip pending categories and non-shared items.
-    selections: (() => {
-      const visible = (opts.selections ?? [])
-        .filter(c => isShared(c.portalState) && (c.options ?? []).length > 0)
-        .map(c => ({
-          id: c.id,
-          category: c.category,
-          styleBrief: c.styleBrief,
-          budget: c.budget,
-          status: c.status,
-          options: (c.options ?? []).map(o => ({
-            id: o.id,
-            productName: o.productName,
-            brand: o.brand,
-            description: o.description,
-            unitPrice: o.unitPrice,
-            unit: o.unit,
-            quantity: o.quantity,
-            total: o.total,
-            leadTimeDays: o.leadTimeDays,
-            supplier: o.supplier,
-            productUrl: o.productUrl,
-            imageUrl: o.imageUrl,
-            highlights: o.highlights,
-            isChosen: o.isChosen,
-          })),
-        }));
-      return visible.length > 0 ? visible : undefined;
-    })(),
+    selections: selectionsPayload,
+    ownerDecisions,
     messages: trimmedMessages,
     company: {
       name: settings?.branding?.companyName ?? 'MAGE ID',

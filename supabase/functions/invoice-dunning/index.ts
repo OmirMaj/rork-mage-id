@@ -14,9 +14,28 @@
 // Failed sends never write the dedup marker; we'll retry the next day.
 //
 // Trigger:
-//   POST {}           cron — empty body treated as all eligible invoices
-//   POST { all:true } cron — explicit all
-//   POST { invoiceId} preview/test for a single invoice
+//   POST {}                        cron — empty body treated as all eligible
+//   POST { all:true }              cron — explicit all
+//   POST { invoiceId }             single invoice, cron cadence rules
+//   POST { invoiceId, manual:true} GC tapped "Send reminder now" in the app
+//
+// MANUAL MODE (the in-app button). The GC who just got off the phone with a
+// slow-paying client needs to send in that moment, and the cron's "only ever
+// advance to a higher stage" rule would silently skip them. Manual therefore
+// relaxes exactly ONE guard — it may re-send at the CURRENT stage — and adds a
+// 24h window in its place. Everything else is untouched:
+//   • it never writes a stage higher than days-past-due has earned, so a
+//     manual nudge on day 3 cannot fire "FINAL NOTICE" or consume stage 2;
+//   • it never regresses the stage;
+//   • unsubscribes, paid/draft, and not-yet-overdue still hard-block;
+//   • the marker is still written ONLY after a confirmed send.
+// Net effect: a manual send can neither corrupt the automated cadence nor
+// double-send.
+//
+// AUTH. Cron path = the pg_cron shared secret (isValidCron). Manual path = a
+// cryptographically verified user JWT AND an ownership check against
+// invoices.user_id — without that second half, any signed-in user could make
+// us email any other contractor's client.
 //
 // Secrets: SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, RESEND_API_KEY
 
@@ -32,6 +51,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // warnings.
 import { wrapEmailHtml, resendSend, emailButton, fmtMoney, isEmailUnsubscribed } from '../_shared/email.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
+import { verifyUser } from '../_shared/verifyUser.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -92,6 +112,19 @@ interface ProjectRow {
 }
 
 // ── Eligibility helpers ──────────────────────────────────────────────
+//
+// These MUST stay identical to utils/billingFlowCore.ts, which is the
+// bun-testable copy (scripts/validate-billing-flow.ts). A Deno edge function
+// cannot import the app's `@/utils` alias, so the rules live in two places;
+// the validator pins the behaviour so they cannot drift apart unnoticed.
+
+/**
+ * A manual "send reminder now" cannot re-send inside this window. The GC who
+ * just hung up the phone sends immediately; the GC who taps twice, or taps a
+ * few hours after the cron already emailed, does not put two dunning notices
+ * in the client's inbox the same day.
+ */
+const MANUAL_REMINDER_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /** Map days-overdue → target dunning stage (0 = not yet eligible). */
 function targetDunningStage(daysOverdue: number): number {
@@ -101,12 +134,50 @@ function targetDunningStage(daysOverdue: number): number {
   return 0;
 }
 
-/** Return whether the invoice should receive a dunning email right now. */
-function shouldDun(invoice: InvoiceRow, targetStage: number): boolean {
+/**
+ * Stage to persist after a confirmed send. Max in both directions: never
+ * regress below what was already emailed, never exceed what days-overdue has
+ * earned (so a manual send can't skip or invent a stage).
+ */
+function nextDunningStage(currentStage: number | null | undefined, targetStage: number): number {
+  return Math.max(currentStage ?? 0, targetStage);
+}
+
+type SkipReason =
+  | 'draft' | 'paid' | 'nothing_outstanding' | 'bad_due_date' | 'not_overdue'
+  | 'unsubscribed' | 'stage_already_sent' | 'too_soon' | 'no_recipient' | 'send_failed';
+
+/**
+ * Return whether the invoice should receive a dunning email right now.
+ *
+ * Cron: only ever advances to a strictly HIGHER stage — that single rule is
+ * the whole dedupe mechanism, and it's why the daily tick doesn't re-email the
+ * same second notice for a week.
+ *
+ * Manual: may also re-send at the CURRENT stage, but only once 24h have passed
+ * since the last confirmed send.
+ */
+function shouldDun(invoice: InvoiceRow, targetStage: number, manual: boolean, nowMs: number): boolean {
   // targetStage 0 means not yet overdue or less than 1 day past due — skip.
   if (targetStage === 0) return false;
-  // Only advance to a higher stage; never re-send at the same or lower stage.
-  return (invoice.dunning_stage ?? 0) < targetStage;
+  const stage = invoice.dunning_stage ?? 0;
+  if (stage < targetStage) return true;
+  if (!manual) return false;
+  const lastMs = invoice.dunning_last_sent_at ? new Date(invoice.dunning_last_sent_at).getTime() : NaN;
+  if (isFinite(lastMs) && nowMs - lastMs < MANUAL_REMINDER_MIN_INTERVAL_MS) return false;
+  return true;
+}
+
+/**
+ * Same decision as shouldDun, but names WHY so the app can tell the GC
+ * exactly what happened instead of a silent no-op. Only called once shouldDun
+ * has already returned false.
+ */
+function skipReason(invoice: InvoiceRow, targetStage: number, manual: boolean): SkipReason {
+  if (targetStage === 0) return 'not_overdue';
+  // Reaching here means stage >= targetStage. For cron that IS the dedupe
+  // rule; for manual it can only be the 24h window.
+  return manual ? 'too_soon' : 'stage_already_sent';
 }
 
 // ── Email builder ────────────────────────────────────────────────────
@@ -202,36 +273,50 @@ function buildDunningHtml(opts: {
 
 // ── Process a single invoice ─────────────────────────────────────────
 
+interface ProcessResult {
+  outcome: 'sent' | 'skipped' | 'error';
+  reason?: SkipReason;
+  /** Dunning stage AFTER this run (unchanged on a skip). */
+  stage?: number;
+  sentAt?: string;
+  recipient?: string;
+}
+
 async function processInvoice(
   client: SupabaseClient,
   invoice: InvoiceRow,
-): Promise<'sent' | 'skipped' | 'error'> {
+  manual = false,
+): Promise<ProcessResult> {
+  const stageNow = invoice.dunning_stage ?? 0;
+  const skip = (reason: SkipReason): ProcessResult => ({ outcome: 'skipped', reason, stage: stageNow });
+
   // ── Eligibility check (in JS — do not trust status alone) ──
   const outstanding = Number(invoice.total_due) - Number(invoice.amount_paid ?? 0);
   const dueMs = new Date(invoice.due_date).getTime();
+  const nowMs = Date.now();
 
   if (!isFinite(dueMs)) {
     console.warn('[invoice-dunning] bad due_date, skipping', invoice.id, invoice.due_date);
-    return 'skipped';
-  }
-  if (outstanding <= 0) {
-    // Fully paid even if status hasn't caught up.
-    return 'skipped';
+    return skip('bad_due_date');
   }
   const lowerStatus = (invoice.status ?? '').toLowerCase();
-  if (lowerStatus === 'paid' || lowerStatus === 'draft') {
-    return 'skipped';
+  // Order matters: a fully-paid invoice must report 'paid', never 'not_overdue'.
+  if (lowerStatus === 'draft') return skip('draft');
+  if (lowerStatus === 'paid') return skip('paid');
+  if (outstanding <= 0) {
+    // Fully paid even if status hasn't caught up.
+    return skip('nothing_outstanding');
   }
-  if (dueMs >= Date.now()) {
+  if (dueMs >= nowMs) {
     // Not yet overdue.
-    return 'skipped';
+    return skip('not_overdue');
   }
 
-  const daysOverdue = Math.floor((Date.now() - dueMs) / 86400000);
+  const daysOverdue = Math.floor((nowMs - dueMs) / 86400000);
   const target = targetDunningStage(daysOverdue);
 
-  if (!shouldDun(invoice, target)) {
-    return 'skipped';
+  if (!shouldDun(invoice, target, manual, nowMs)) {
+    return skip(skipReason(invoice, target, manual));
   }
 
   // ── Resolve recipient from project.client_portal.invites ──
@@ -245,7 +330,7 @@ async function processInvoice(
 
   if (projRes.error || !projRes.data) {
     console.warn('[invoice-dunning] project not found', invoice.id, invoice.project_id);
-    return 'skipped';
+    return skip('no_recipient');
   }
 
   const project = projRes.data as ProjectRow;
@@ -255,7 +340,7 @@ async function processInvoice(
   if (invites.length === 0) {
     // No client email on file — log and skip (no send, no marker).
     console.warn('[invoice-dunning] no client email, skipping invoice', invoice.id);
-    return 'skipped';
+    return skip('no_recipient');
   }
 
   // Take the first invite (consistent with how the digest handles the
@@ -269,7 +354,7 @@ async function processInvoice(
   // send below, so 'skipped' loses nothing if they later re-subscribe.
   if (await isEmailUnsubscribed(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, recipientEmail, 'payment_reminders')) {
     console.log('[invoice-dunning] recipient unsubscribed — skipping, dunning_stage not advanced', invoice.id);
-    return 'skipped';
+    return skip('unsubscribed');
   }
 
   // ── Resolve the sender's company name from the GC's profile ──
@@ -315,7 +400,7 @@ async function processInvoice(
   // ── Send ──
   if (!RESEND_API_KEY) {
     console.warn('[invoice-dunning] RESEND_API_KEY not set');
-    return 'error';
+    return { outcome: 'error', reason: 'send_failed', stage: stageNow };
   }
 
   const sendResult = await resendSend(RESEND_API_KEY, {
@@ -333,15 +418,20 @@ async function processInvoice(
   if (!sendResult.ok) {
     console.warn('[invoice-dunning] send failed', invoice.id, JSON.stringify(sendResult.resp).slice(0, 200));
     // Do NOT write dedup marker on failed send — retry next day.
-    return 'error';
+    return { outcome: 'error', reason: 'send_failed', stage: stageNow };
   }
 
   // ── Write dedup marker ONLY after confirmed send (mirrors coi pattern) ──
+  // nextDunningStage, not `target`: on a manual re-send at the current stage
+  // this keeps the marker where it is instead of quietly walking it backwards
+  // (a due-date edit can lower `target` after a final notice already went out).
+  const nextStage = nextDunningStage(invoice.dunning_stage, target);
+  const sentAt = new Date().toISOString();
   const updateRes = await client
     .from('invoices')
     .update({
-      dunning_stage: target,
-      dunning_last_sent_at: new Date().toISOString(),
+      dunning_stage: nextStage,
+      dunning_last_sent_at: sentAt,
     })
     .eq('id', invoice.id);
 
@@ -351,19 +441,30 @@ async function processInvoice(
     console.warn('[invoice-dunning] marker write failed', invoice.id, updateRes.error);
   }
 
-  return 'sent';
+  return { outcome: 'sent', stage: nextStage, sentAt, recipient: recipientEmail };
 }
 
 // ── Entry point ──────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
-  if (!(await isValidCron(req))) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'POST only' }, 405);
   if (!SUPABASE_SERVICE_ROLE_KEY) return jsonResponse({ success: false, error: 'service role key missing' }, 500);
 
-  let body: { all?: boolean; invoiceId?: string };
+  let body: { all?: boolean; invoiceId?: string; manual?: boolean };
   try { body = await req.json(); } catch { body = {}; }
+
+  // ── Auth ────────────────────────────────────────────────────────
+  // Cron holds the shared secret and may fan out over every invoice. Anyone
+  // else must be a verified user AND may only touch a single invoice they own
+  // (checked after the row is fetched, below). Fail closed.
+  const cronAuthorized = await isValidCron(req);
+  let caller: { id: string } | null = null;
+  if (!cronAuthorized) {
+    if (!body.invoiceId) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
+    caller = await verifyUser(req);
+    if (!caller) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
+  }
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -381,20 +482,41 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: false, error: 'invoice not found' }, 404);
     }
 
-    let outcome: 'sent' | 'skipped' | 'error';
+    const invoice = invRes.data as InvoiceRow;
+    // Ownership gate for the in-app path. The service-role client bypasses
+    // RLS, so without this an authenticated caller could dun any invoice in
+    // the database — i.e. email a stranger's client from their own domain.
+    if (caller && invoice.user_id !== caller.id) {
+      return jsonResponse({ success: false, error: 'forbidden' }, 403);
+    }
+
+    let result: ProcessResult;
     try {
-      outcome = await processInvoice(client, invRes.data as InvoiceRow);
+      result = await processInvoice(client, invoice, body.manual === true);
     } catch (err) {
       console.error('[invoice-dunning] unhandled error', body.invoiceId, err);
       return jsonResponse({ success: false, error: String(err) }, 500);
     }
 
+    // An 'error' outcome is a real failure the caller should be able to retry;
+    // 'skipped' is a normal, explainable non-send and reports success:true with
+    // a reason so the app can tell the GC exactly why nothing went out.
+    if (result.outcome === 'error') {
+      return jsonResponse({ success: false, mode: 'single', outcome: 'error', reason: result.reason, error: 'Reminder could not be sent.' }, 502);
+    }
+
     return jsonResponse({
       success: true,
       mode: 'single',
+      manual: body.manual === true,
+      outcome: result.outcome,
+      reason: result.reason,
+      stage: result.stage,
+      sentAt: result.sentAt,
+      recipient: result.recipient,
       processed: 1,
-      sent: outcome === 'sent' ? 1 : 0,
-      skipped: outcome === 'skipped' ? 1 : 0,
+      sent: result.outcome === 'sent' ? 1 : 0,
+      skipped: result.outcome === 'skipped' ? 1 : 0,
     });
   }
 
@@ -423,8 +545,8 @@ Deno.serve(async (req: Request) => {
   for (const invoice of invoices) {
     processed += 1;
     try {
-      const outcome = await processInvoice(client, invoice);
-      if (outcome === 'sent') sent += 1;
+      const result = await processInvoice(client, invoice);
+      if (result.outcome === 'sent') sent += 1;
       else skipped += 1;
     } catch (err) {
       // Per-row try/catch — one bad row never aborts the batch.

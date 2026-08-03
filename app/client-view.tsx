@@ -8,6 +8,7 @@ import { supabase, isSupabaseConfigured, SUPABASE_FUNCTIONS_URL } from '@/lib/su
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as Crypto from 'expo-crypto';
 import {
   Globe, CalendarDays, DollarSign, FileText, Image as ImageIcon,
   ClipboardList, CheckCircle2, MessageSquare, ChevronDown, ChevronUp,
@@ -35,6 +36,10 @@ import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
+import {
+  buildOwnerDecisions, summarizeOwnerDecisions, buildCOConsentRecord, buildCOAuditDetail,
+  ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION,
+} from '@/utils/portalOwnerCore';
 import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
 import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
@@ -136,10 +141,14 @@ export default function ClientViewScreen() {
   // projects and could never match a real UUID). Only surface items that
   // are genuinely client-facing: a contract once it's been sent/signed, a
   // binder once it's finalized/sent, warranties on the project.
+  // Fetched unconditionally (not gated on showDocuments) because the
+  // "Waiting on you" card below needs to know whether a sent contract is
+  // still unsigned — that's the single biggest thing an owner holds up.
+  // The documents list still gates its own row on showDocuments.
   const contractQ = useQuery({
     queryKey: ['portal-contract', project?.id],
     queryFn: () => project ? fetchActiveContract(project.id) : Promise.resolve(null),
-    enabled: !!project?.id && portal?.showDocuments === true,
+    enabled: !!project?.id,
   });
   const closeoutQ = useQuery({
     queryKey: ['portal-closeout', project?.id],
@@ -150,6 +159,36 @@ export default function ClientViewScreen() {
     () => project ? getWarrantiesForProject(project.id) : [],
     [project, getWarrantiesForProject],
   );
+
+  // What's waiting on the OWNER — same pure builder the static portal uses,
+  // so both surfaces rank the same way. Selections aren't loaded on this
+  // screen (they live in the portal snapshot), so selection deadlines only
+  // surface in the browser portal today.
+  const ownerDecisions = useMemo(() => {
+    if (!project) return [];
+    const contract = contractQ.data;
+    return buildOwnerDecisions({
+      today: new Date().toISOString().slice(0, 10),
+      contract: contract && contract.status === 'sent'
+        ? {
+            status: 'sent',
+            needsSignature: !contract.homeownerSignature,
+            sentAt: contract.sentAt ?? contract.updatedAt,
+            title: contract.title,
+          }
+        : null,
+      changeOrders: changeOrders.map(c => ({
+        id: c.id, number: c.number, description: c.description,
+        status: c.status, changeAmount: c.changeAmount, dateSubmitted: c.date,
+      })),
+      coApprovalEnabled: !!portal?.coApprovalEnabled,
+      invoices: invoices.map(i => ({
+        id: i.id, number: i.number, status: i.status,
+        balance: Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)),
+        dueDate: i.dueDate,
+      })),
+    });
+  }, [project, contractQ.data, changeOrders, invoices, portal?.coApprovalEnabled]);
 
   const documents = useMemo<ProjectDocument[]>(() => {
     if (!project) return [];
@@ -308,6 +347,10 @@ export default function ClientViewScreen() {
   const [approverName, setApproverName] = useState<string>(typeof clientNameParam === 'string' ? clientNameParam : '');
   const [rejectionReason, setRejectionReason] = useState('');
   const [signaturePaths, setSignaturePaths] = useState<string[]>([]);
+  // E-SIGN / UETA: approving a change order is signing a contract amendment,
+  // so the signer has to affirmatively consent to sign electronically. Same
+  // bar the static portal now clears (marketing/portal/index.html).
+  const [esignConsent, setEsignConsent] = useState(false);
   const [submittingApproval, setSubmittingApproval] = useState(false);
 
   // Lightbox state for Site Photos
@@ -381,6 +424,7 @@ export default function ClientViewScreen() {
     setApprovalMode(mode);
     setSignaturePaths([]);
     setRejectionReason('');
+    setEsignConsent(false);
     if (!approverName && clientNameParam) setApproverName(String(clientNameParam));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [approverName, clientNameParam]);
@@ -389,6 +433,7 @@ export default function ClientViewScreen() {
     setApprovalCO(null);
     setSignaturePaths([]);
     setRejectionReason('');
+    setEsignConsent(false);
     setSubmittingApproval(false);
   }, []);
 
@@ -400,6 +445,13 @@ export default function ClientViewScreen() {
     }
     if (approvalMode === 'approve' && signaturePaths.length === 0) {
       showAlert('Signature Required', 'Please sign above to approve this change order.');
+      return;
+    }
+    if (approvalMode === 'approve' && !esignConsent) {
+      showAlert(
+        'Consent Required',
+        'Approving a change order is an electronic signature. Please read the disclosure and check "I agree" to continue.',
+      );
       return;
     }
     if (approvalMode === 'reject' && !rejectionReason.trim()) {
@@ -442,14 +494,45 @@ export default function ClientViewScreen() {
       });
     }
 
+    // ── Build the retainable E-SIGN/UETA consent record. Byte-identical to
+    //    the one the static portal builds (utils/portalOwnerCore.ts is the
+    //    single source for both), so a CO signed in-app and one signed in the
+    //    browser produce the same artifact and the same hash.
+    const signatureData = signaturePaths.join(' ');
+    const signatureHash = signaturePaths.length > 0
+      ? await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, signatureData, { encoding: Crypto.CryptoEncoding.HEX })
+        .catch(() => undefined)
+      : undefined;
+    const consentRecord = buildCOConsentRecord({
+      changeOrderId: approvalCO.id,
+      changeOrderNumber: approvalCO.number,
+      description: approvalCO.description ?? '',
+      changeAmount: approvalCO.changeAmount ?? 0,
+      newContractTotal: approvalCO.newContractTotal,
+      decision: approvalMode === 'approve' ? 'approved' : 'declined',
+      signerName: approverName.trim(),
+      signatureHash: approvalMode === 'approve' ? signatureHash : undefined,
+      signatureStrokeCount: approvalMode === 'approve' ? signaturePaths.length : undefined,
+      reason: approvalMode === 'reject' ? rejectionReason.trim() : undefined,
+      portalId: portal?.portalId ?? '',
+      signedAt: now,
+      timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
+    });
+    const documentHash = await Crypto
+      .digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, consentRecord, { encoding: Crypto.CryptoEncoding.HEX })
+      .catch(() => undefined);
+
     const auditEntry: COAuditEntry = {
       id: generateUUID(),
-      action: approvalMode === 'approve' ? 'client_approved_via_portal' : 'client_rejected_via_portal',
+      action: approvalMode === 'approve' ? 'client_signed_via_portal' : 'client_declined_via_portal',
       actor: approverName.trim(),
       timestamp: now,
-      detail: approvalMode === 'approve'
-        ? `Digitally signed via client portal. Signature stroke count: ${signaturePaths.length}.`
-        : `Rejected via client portal. Reason: ${rejectionReason.trim()}`,
+      detail: buildCOAuditDetail({
+        decision: approvalMode === 'approve' ? 'approved' : 'declined',
+        signatureStrokeCount: approvalMode === 'approve' ? signaturePaths.length : undefined,
+        documentHash,
+        reason: rejectionReason.trim(),
+      }),
     };
 
     const nextStatus = approvalMode === 'approve' ? 'approved' : 'rejected';
@@ -474,6 +557,15 @@ export default function ClientViewScreen() {
             signer_name: approverName.trim(),
             signer_email: null,
             note: approvalMode === 'reject' ? rejectionReason.trim() : null,
+            // Signature + sealed consent record. Columns added by
+            // supabase/migrations/20260803120000_portal_co_esignature.sql.
+            signature_data: approvalMode === 'approve' ? signatureData : null,
+            signature_hash: approvalMode === 'approve' ? (signatureHash ?? null) : null,
+            consent_record: consentRecord,
+            document_hash: documentHash ?? null,
+            consent_version: ESIGN_DISCLOSURE_VERSION,
+            consent_accepted: approvalMode === 'approve' ? esignConsent : true,
+            sealed_at: now,
           });
         if (insertError) throw insertError;
         serverPersisted = true;
@@ -505,7 +597,7 @@ export default function ClientViewScreen() {
       `Change Order #${approvalCO.number} has been ${verb}. ${tail}`,
       [{ text: 'OK', onPress: closeApprovalFlow }]
     );
-  }, [approvalCO, project, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, updateChangeOrder, closeApprovalFlow]);
+  }, [approvalCO, project, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, esignConsent, updateChangeOrder, closeApprovalFlow]);
 
   const financingEnabledForPortal = isFinancingAvailable(settings);
 
@@ -701,6 +793,39 @@ export default function ClientViewScreen() {
             owner); punch items keep their own section below. */}
         {ownerConfidence && (
           <OwnerConfidenceCard confidence={ownerConfidence} showBudget={!!portal.showBudgetSummary} />
+        )}
+
+        {/* Waiting on you — the owner is usually the bottleneck and usually
+            doesn't know it. Ranked overdue-first by the same pure builder the
+            static portal uses (utils/portalOwnerCore.ts), so both surfaces
+            agree on what's open and how urgent it is. */}
+        {ownerDecisions.length > 0 && (
+          <View style={styles.decisionsCard}>
+            <View style={styles.decisionsHead}>
+              <ClipboardList size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.decisionsTitle}>Waiting on you</Text>
+              <Text style={styles.decisionsSub}>{summarizeOwnerDecisions(ownerDecisions)}</Text>
+            </View>
+            {ownerDecisions.map(d => {
+              const tone = d.urgency === 'overdue' ? themeColors.danger
+                : d.urgency === 'due_soon' ? Colors.warning
+                : themeColors.textMuted;
+              return (
+                <View key={`${d.kind}-${d.id}`} style={styles.decisionRow}>
+                  <View style={[styles.decisionDot, { backgroundColor: tone }]} />
+                  <View style={styles.decisionBody}>
+                    <Text style={styles.decisionTitle}>{d.title}</Text>
+                    <Text style={styles.decisionDetail}>{d.detail}</Text>
+                  </View>
+                  <Text style={[styles.decisionFlag, { color: tone }]}>
+                    {d.urgency === 'overdue'
+                      ? `${d.daysOverdue ?? 0}d late`
+                      : d.urgency === 'due_soon' ? 'Due soon' : 'Open'}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
         )}
 
         {/* Messages Section — always on, it's the main 2-way channel */}
@@ -1301,6 +1426,31 @@ export default function ClientViewScreen() {
                       <Text style={styles.signatureConfirmText}>Signature captured</Text>
                     </View>
                   )}
+
+                  {/* E-SIGN / UETA consent. A drawn mark alone is not a valid
+                      electronic signature — the signer must also affirmatively
+                      consent to transact electronically against a disclosure
+                      they can read. Same text the static portal shows. */}
+                  <View style={styles.esignBox}>
+                    <ScrollView style={styles.esignScroll} nestedScrollEnabled>
+                      <Text style={styles.esignDisclosure}>{ESIGN_DISCLOSURE_TEXT}</Text>
+                    </ScrollView>
+                    <TouchableOpacity
+                      style={styles.esignCheckRow}
+                      onPress={() => setEsignConsent(v => !v)}
+                      activeOpacity={0.8}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: esignConsent }}
+                    >
+                      <View style={[styles.esignCheckbox, esignConsent && styles.esignCheckboxOn]}>
+                        {esignConsent && <Check size={13} color="#FFF" strokeWidth={3} />}
+                      </View>
+                      <Text style={styles.esignCheckLabel}>
+                        I agree to sign this change order electronically, and I approve the scope and the
+                        change to my contract total shown above.
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               ) : (
                 <>
@@ -1621,6 +1771,33 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   signatureWrap: { alignItems: 'center', marginBottom: 10 },
   signatureConfirm: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 14 },
   signatureConfirmText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.success },
+  esignBox: {
+    backgroundColor: t.surfaceAlt ?? t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.card, padding: 12, marginBottom: 14, gap: 10,
+  },
+  esignScroll: { maxHeight: 118 },
+  esignDisclosure: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 17 },
+  esignCheckRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  esignCheckbox: {
+    width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: t.line,
+    alignItems: 'center', justifyContent: 'center', marginTop: 1, backgroundColor: t.surface,
+  },
+  esignCheckboxOn: { backgroundColor: t.accent, borderColor: t.accent },
+  esignCheckLabel: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 18, fontWeight: '600' },
+  decisionsCard: {
+    marginHorizontal: 16, marginBottom: 12, padding: 14,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.card, gap: 10,
+  },
+  decisionsHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  decisionsTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  decisionsSub: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+  decisionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  decisionDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
+  decisionBody: { flex: 1 },
+  decisionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text, lineHeight: 19 },
+  decisionDetail: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 2 },
+  decisionFlag: { fontSize: Type.caption2.fontSize, fontWeight: '700' },
   modalActions: {
     flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 12,
     borderTopWidth: 1, borderTopColor: t.line,

@@ -20,6 +20,7 @@
 import type { Project, Commitment, MaterialReceipt } from '@/types';
 import { computeEstimateActuals } from '@/utils/estimateActuals';
 import { receiptToCostSamples } from '@/utils/materialReceipt';
+import { seedsToCostSamples, isSeedSample, type SeededRate } from '@/utils/costSeedCore';
 
 /** Blend constant: at n samples, personal weight = n/(n+K). K=3 ⇒ 50/50 at n=3. */
 const BLEND_K = 3;
@@ -33,12 +34,15 @@ export interface CostSample {
   bidUnit: number;
   /** Actual unit cost (paid-to-date if available, else committed) per unit. */
   actualUnit: number;
-  basis: 'actual' | 'committed';
+  /** 'seeded' = the contractor TOLD us this rate (utils/costSeedCore) — a
+   *  claim, never a measurement. 'actual' / 'committed' are earned. */
+  basis: 'actual' | 'committed' | 'seeded';
   closedAt: string;
   /** Provenance of a receipt-derived sample: 'receipt' = scanned supplier
-   *  invoice, 'qbo' = confirmed QuickBooks cost line. Absent on closed-job /
-   *  labor samples. Additive — F5. */
-  source?: 'receipt' | 'qbo';
+   *  invoice, 'qbo' = confirmed QuickBooks cost line, 'seed' = a rate the
+   *  contractor typed/imported before they had history here. Absent on
+   *  closed-job / labor samples. Additive — F5. */
+  source?: 'receipt' | 'qbo' | 'seed';
 }
 
 export interface CostBookEntry {
@@ -46,7 +50,18 @@ export interface CostBookEntry {
   trade: string;
   unit: string;
   sampleCount: number;
+  /** Distinct REAL jobs behind this entry. Seed-derived samples never count
+   *  here — a rate you typed is not a job you closed. */
   jobCount: number;
+  /** How many seeded (contractor-stated) samples back this entry. Optional so
+   *  existing CostBookEntry literals keep compiling; buildCostDatabase always
+   *  sets it. */
+  seededSampleCount?: number;
+  /** 'earned' = closed jobs / receipts / clocked labor only. 'seeded' = the
+   *  contractor's stated rate only, nothing measured yet. 'mixed' = both.
+   *  Surface this anywhere the rate is shown — the product's credibility rests
+   *  on never conflating "you told me" with "I watched this happen". */
+  provenance?: 'earned' | 'seeded' | 'mixed';
   /** Quantity-weighted mean actual unit cost — your learned rate. */
   personalRate: number;
   /** Coefficient of variation as a fraction (0.12 = ±12% spread across jobs). */
@@ -67,8 +82,13 @@ export interface CostBookEntry {
 
 export interface CostDatabase {
   entries: CostBookEntry[];
+  /** REAL closed jobs / receipt projects behind the book. Seeds never inflate
+   *  this — a seeded book still honestly reads "0 closed jobs". */
   jobsAnalyzed: number;
   tradesTracked: number;
+  /** How many of `tradesTracked` rest on a seeded rate with nothing measured
+   *  behind them yet. Optional for back-compat; always set by the builder. */
+  tradesSeededOnly?: number;
   /** Exposure-weighted accuracy = 1 − mean|bidBias|. null when no priced history. */
   overallBidAccuracy: number | null;
   asOf: string;
@@ -93,6 +113,14 @@ export function buildCostDatabase(
    *  like everything else ("labor — framing|hour"). Additive; [] (default)
    *  = zero behavior change for existing callers. */
   laborSamples: CostSample[] = [],
+  /** COLD-START SEEDS (utils/costSeedCore). Rates the contractor pasted or
+   *  typed before they had any closed-job history here — the only way a
+   *  twenty-year GC's day-one estimate isn't a beginner's. Folded in as
+   *  quantity-1, bidUnit-0 samples under a `seed:` projectId so they:
+   *    • never count toward jobCount / jobsAnalyzed / bidBias
+   *    • are washed out by the first real job's measured quantity
+   *  Additive; [] (default) = byte-identical to the prior behavior. */
+  seeds: SeededRate[] = [],
 ): CostDatabase {
   const asOf = new Date().toISOString();
   const groups = new Map<string, CostSample[]>();
@@ -165,6 +193,13 @@ export function buildCostDatabase(
     jobs.add(s.projectId);
   }
 
+  // Fold in cold-start seeds LAST so they only ever add rows, never displace
+  // one. Deliberately NOT added to `jobs` — a rate the contractor stated is
+  // not a job they closed, and "N closed jobs" must stay true.
+  for (const s of seedsToCostSamples(seeds)) {
+    pushSample(`${s.trade.toLowerCase()}|${s.unit.toLowerCase()}`, s);
+  }
+
   const entries: CostBookEntry[] = [];
   for (const [key, ss] of groups) {
     const qtyTotal = ss.reduce((a, s) => a + s.quantity, 0);
@@ -190,13 +225,22 @@ export function buildCostDatabase(
     const baseline = sorted.find(s => s.bidUnit > 0)?.bidUnit || personalRate;
     const lastSeen = sorted[0]?.closedAt || '';
 
-    const jobIds = new Set(ss.map(s => s.projectId));
+    // EVIDENCE COUNT IS EARNED-ONLY. Seed samples are excluded from jobIds,
+    // so a seeded-only entry has n=0 → w=0 → suggestedRate = the stated rate
+    // (baseline falls back to personalRate when no bid exists), and confidence
+    // stays 'low'. As real jobs land, n rises and the measured rate takes over.
+    const seededSamples = ss.filter(isSeedSample);
+    const seededSampleCount = seededSamples.length;
+    const jobIds = new Set(ss.filter(s => !isSeedSample(s)).map(s => s.projectId));
     const n = jobIds.size;
     const w = n / (n + BLEND_K);
     const suggestedRate = baseline > 0 ? baseline * (1 - w) + personalRate * w : personalRate;
 
     const confidence: CostBookEntry['confidence'] =
       n >= 5 && variability <= 0.2 ? 'high' : n >= 3 ? 'medium' : 'low';
+
+    const provenance: NonNullable<CostBookEntry['provenance']> =
+      seededSampleCount === 0 ? 'earned' : n === 0 ? 'seeded' : 'mixed';
 
     const totalActual = ss.reduce((a, s) => a + s.actualUnit * s.quantity, 0);
 
@@ -206,6 +250,8 @@ export function buildCostDatabase(
       unit: ss[0].unit,
       sampleCount: ss.length,
       jobCount: n,
+      seededSampleCount,
+      provenance,
       personalRate,
       variability,
       bidBias,
@@ -220,16 +266,22 @@ export function buildCostDatabase(
 
   entries.sort((a, b) => b.totalActual - a.totalActual);
 
-  const expTotal = entries.reduce((a, e) => a + e.totalActual, 0);
+  // Bid accuracy is est-vs-actual — it can only be computed from entries with
+  // something MEASURED behind them. A seeded-only entry has bidBias 0 by
+  // construction, so leaving it in would report a perfect 100% to a contractor
+  // who has closed nothing. Excluded.
+  const earnedEntries = entries.filter(e => e.provenance !== 'seeded');
+  const expTotal = earnedEntries.reduce((a, e) => a + e.totalActual, 0);
   const overallBidAccuracy =
     expTotal > 0
-      ? 1 - entries.reduce((a, e) => a + e.totalActual * Math.abs(e.bidBias), 0) / expTotal
+      ? 1 - earnedEntries.reduce((a, e) => a + e.totalActual * Math.abs(e.bidBias), 0) / expTotal
       : null;
 
   return {
     entries,
     jobsAnalyzed: jobs.size,
     tradesTracked: entries.length,
+    tradesSeededOnly: entries.filter(e => e.provenance === 'seeded').length,
     overallBidAccuracy,
     asOf,
   };

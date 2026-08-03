@@ -56,6 +56,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { matchOwnRate, priceSourceLabel, pricingProvenance, type OwnRateMatch } from '@/utils/takeoffPricing';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { loadTakeoff, type PersistedTakeoff } from '@/utils/takeoffStorage';
@@ -243,9 +244,13 @@ function TakeoffEstimateInner() {
   const { projects, updateProject, settings, commitments } = useProjects();
   // The contractor's own learned rates. Same engine that powers the Cost
   // Database screen, so a price here and a price there can never disagree.
+  // Cold-start seeds (hooks/useCostSeeds): rates the GC stated before they'd
+  // closed a job here. matchOwnRate counts a seed as one unit of evidence, so
+  // a seeded book prices the takeoff instead of falling through to the catalog.
+  const { seeds } = useCostSeeds();
   const costBook = useMemo(
-    () => buildCostDatabase(projects, commitments ?? [], [], []),
-    [projects, commitments],
+    () => buildCostDatabase(projects, commitments ?? [], [], [], seeds),
+    [projects, commitments, seeds],
   );
 
   const project = useMemo(() =>

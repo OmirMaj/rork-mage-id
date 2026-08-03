@@ -121,6 +121,7 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'margin-board', title: 'Margin Board', synonyms: ['margins', 'portfolio', 'profit board'], route: '/portfolio-margin', requires: 'job_costing', icon: 'MageMargin', group: 'workspace' },
   { id: 'margin-alerts', title: 'Margin Alerts', synonyms: ['leak', 'profit alerts', 'slipping'], route: '/margin-alerts', requires: 'job_costing', icon: 'BellRing', group: 'workspace' },
   { id: 'cost-database', title: 'Cost Database', synonyms: ['unit costs', 'price book', 'learned costs', 'rates'], route: '/cost-database', requires: 'job_costing', icon: 'MageCostDb', group: 'workspace' },
+  { id: 'cost-seed', title: 'Seed Your Rates', synonyms: ['import rates', 'my prices', 'set my rates', 'paste rates', 'starting rates', 'import price book', 'cold start'], route: '/cost-seed', requires: 'job_costing', icon: 'Upload', group: 'workspace' },
   { id: 'cost-xray', title: 'Cost X-Ray', synonyms: ['xray', 'x-ray', 'hidden conditions', 'camera pricing'], route: '/cost-xray', requires: 'cost_xray', icon: 'ScanEye', group: 'workspace' },
   { id: 'project-memory', title: 'Project Memory', synonyms: ['memory', 'decisions', 'what happened'], route: '/project-memory', icon: 'Brain', group: 'workspace' },
 
@@ -171,6 +172,9 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
 
   // ── Field ─────────────────────────────────────────────────────────────
   { id: 'daily-report', title: 'Daily Reports', synonyms: ['dfr', 'field report', 'site diary', 'daily log'], route: '/daily-report', icon: 'MageDailyReport', group: 'field' },
+  // T&M ticket. Synonyms are what a super actually types when the owner's rep
+  // is standing next to them: "t&m", "extra work", "ticket", "force account".
+  { id: 'field-ticket', title: 'T&M Field Tickets', synonyms: ['t&m', 'tm ticket', 'ticket', 'extra work', 'force account', 'time and materials', 'signed ticket', 'out of scope'], route: '/field-ticket', requires: 'change_orders_invoicing', icon: 'FileSignature', group: 'field' },
   { id: 'photo-triage', title: 'Photo Triage', synonyms: ['photos', 'pictures', 'jobsite photos', 'camera roll'], route: '/photo-triage', requires: 'photo_documentation', icon: 'Camera', group: 'field' },
   { id: 'punch-list', title: 'Punch List', synonyms: ['punchlist', 'snags', 'closeout items', 'walkthrough'], route: '/punch-list', requires: 'punch_list_closeout', icon: 'MagePunch', group: 'field' },
   { id: 'rfi', title: 'RFIs', synonyms: ['request for information', 'questions to architect'], route: '/rfi', requires: 'rfis_submittals', icon: 'MageRFI', group: 'field' },

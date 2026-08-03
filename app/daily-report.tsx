@@ -27,7 +27,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
-import { FolderOpen } from 'lucide-react-native';
+import { FolderOpen, FileSignature } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -1772,6 +1772,29 @@ export default function DailyReportScreen() {
                   </Text>
                 </>
               )}
+            </TouchableOpacity>
+
+            {/* The FIELD answer to out-of-scope work, always available — not
+                only after a scan. A draft change order is the office move and
+                the owner can still argue it at closeout; a T&M ticket signed
+                on site while the work is visible is what makes it stick. */}
+            <TouchableOpacity
+              style={leakStyles.scanBtn}
+              onPress={() => router.push({
+                pathname: '/field-ticket',
+                params: {
+                  projectId,
+                  start: '1',
+                  ...(reportId ? { sourceDailyReportId: reportId } : null),
+                  ...(issuesAndDelays.trim() ? { prefillWork: issuesAndDelays.trim() } : null),
+                },
+              })}
+              testID="dfr-field-ticket"
+              accessibilityRole="button"
+              accessibilityLabel="Write a T and M field ticket and get it signed on site"
+            >
+              <FileSignature size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={leakStyles.scanBtnText}>Write a T&amp;M ticket — get it signed on site</Text>
             </TouchableOpacity>
 
             {leakScan && leakScan.items.length === 0 && (

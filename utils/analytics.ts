@@ -71,6 +71,16 @@ export const AnalyticsEvents = {
   ONBOARDING_IMPORT_VIEWED: 'onboarding_import_viewed',
   ONBOARDING_IMPORT_COMPLETED: 'onboarding_import_completed',
   ONBOARDING_IMPORT_SKIPPED: 'onboarding_import_skipped',
+  // ── Activation funnel: seed-your-rates during first-run ──
+  // The cold-start fix for the cost book (utils/costSeedCore). Without it a
+  // twenty-year contractor's day-one estimate is a beginner's, because
+  // buildCostDatabase only learns from jobs closed inside MAGE.
+  // ONBOARDING_RATES_VIEWED fires when the step renders;
+  // ONBOARDING_RATES_COMPLETED carries `count` = rates committed;
+  // ONBOARDING_RATES_SKIPPED fires from "I'll add them later".
+  ONBOARDING_RATES_VIEWED: 'onboarding_rates_viewed',
+  ONBOARDING_RATES_COMPLETED: 'onboarding_rates_completed',
+  ONBOARDING_RATES_SKIPPED: 'onboarding_rates_skipped',
   // ── AI schedule generation ──
   // Fires when a generated schedule is applied to a project. `source` is
   // 'estimate' (cost-linked, the moat) or 'text'; `cost_linked_tasks` shows

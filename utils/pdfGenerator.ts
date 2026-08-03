@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { CompanyBranding, ContractSignature, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI, Submittal } from '@/types';
+import type { CompanyBranding, ContractSignature, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal } from '@/types';
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
@@ -1784,4 +1784,185 @@ export function buildSubmittalEmailHtml(opts: {
   </table>
 </body>
 </html>`;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// T&M / extra-work field ticket
+//
+// The document the GC hands (or emails) the owner the same day. Its entire
+// job is to be un-arguable six months later at closeout: what work, why it
+// was extra, exactly who worked how many hours, what got consumed, and the
+// signature of the person on site who authorized it — with the time it was
+// signed. Reuses buildSignatureBlock's stroke renderer so a ticket signature
+// and a contract signature look identical.
+// ──────────────────────────────────────────────────────────────────────
+
+function buildFieldTicketHtml(
+  ticket: FieldTicket, project: Project, branding: CompanyBranding,
+): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const C = require('@/utils/fieldTicketCore') as typeof import('@/utils/fieldTicketCore');
+  const totals = C.computeFieldTicketTotals(ticket);
+  const label = C.fieldTicketLabel(ticket.number);
+  const worked = C.formatTicketDate(ticket.date);
+  const auth = ticket.authorization;
+
+  const headerHtml = pdfHeader(branding);
+  const titleHtml = pdfTitle({
+    eyebrow: 'Time & materials field ticket',
+    title: `${label} — ${project.name}`,
+    subtitle: `Work performed ${worked}`,
+    meta: [
+      { label: 'Project', value: project.location || project.name },
+      { label: 'Status', value: auth ? 'Signed on site' : 'UNSIGNED — not authorized' },
+      { label: 'Amount', value: fmtMoney(totals.billableTotal) },
+    ],
+  });
+
+  const statsHtml = pdfStatGrid([
+    { label: 'Labor', value: `${totals.laborHours} hr · ${fmtMoney(totals.laborCost)}` },
+    { label: 'Materials', value: fmtMoney(totals.materialCost) },
+    { label: 'Equipment', value: `${totals.equipmentHours} hr · ${fmtMoney(totals.equipmentCost)}` },
+  ]);
+
+  const blockStyle = `background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone2};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${PDF_PALETTE.text2};line-height:1.55;white-space:pre-wrap`;
+  const reasonStyle = `background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone2};border-left:4px solid ${PDF_PALETTE.amber};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${PDF_PALETTE.text};line-height:1.55;white-space:pre-wrap`;
+
+  const workHtml = pdfSectionHeaderLocal('Work performed') +
+    `<div style="${blockStyle}">${escHtml(ticket.workDescription) || 'Not recorded.'}</div>`;
+  const reasonHtml = pdfSectionHeaderLocal('Why this work is extra') +
+    `<div style="${reasonStyle}">${escHtml(ticket.reasonExtra) || 'Not recorded.'}</div>`;
+
+  const laborHtml = (ticket.labor ?? []).length > 0
+    ? pdfSectionHeaderLocal('Labor') + pdfTable(
+        [
+          { header: 'Worker', align: 'left', width: '34%' },
+          { header: 'Trade', align: 'left' },
+          { header: 'Hours', align: 'right' },
+          { header: 'Rate', align: 'right' },
+          { header: 'Amount', align: 'right' },
+        ],
+        (ticket.labor ?? []).map(r => [
+          `<span style="font-weight:600">${escHtml(r.workerName || '—')}</span>`,
+          escHtml(r.trade || '—'),
+          `<span class="num">${r.hours}</span>`,
+          `<span class="num">${r.rate ? fmtMoney(r.rate) : '—'}</span>`,
+          `<span class="num" style="font-weight:700">${r.rate ? fmtMoney(C.laborRowTotal(r)) : 'TBD'}</span>`,
+        ]),
+      )
+    : '';
+
+  const materialsHtml = (ticket.materials ?? []).length > 0
+    ? pdfSectionHeaderLocal('Materials') + pdfTable(
+        [
+          { header: 'Description', align: 'left', width: '48%' },
+          { header: 'Qty', align: 'right' },
+          { header: 'Unit', align: 'left' },
+          { header: 'Unit cost', align: 'right' },
+          { header: 'Amount', align: 'right' },
+        ],
+        (ticket.materials ?? []).map(r => [
+          `<span style="font-weight:600">${escHtml(r.description || '—')}</span>`,
+          `<span class="num">${r.quantity}</span>`,
+          escHtml(r.unit || '—'),
+          `<span class="num">${r.unitCost ? fmtMoney(r.unitCost) : '—'}</span>`,
+          `<span class="num" style="font-weight:700">${r.unitCost ? fmtMoney(C.materialRowTotal(r)) : 'TBD'}</span>`,
+        ]),
+      )
+    : '';
+
+  const equipmentHtml = (ticket.equipment ?? []).length > 0
+    ? pdfSectionHeaderLocal('Equipment') + pdfTable(
+        [
+          { header: 'Equipment', align: 'left', width: '48%' },
+          { header: 'Hours', align: 'right' },
+          { header: 'Rate', align: 'right' },
+          { header: 'Amount', align: 'right' },
+        ],
+        (ticket.equipment ?? []).map(r => [
+          `<span style="font-weight:600">${escHtml(r.description || '—')}</span>`,
+          `<span class="num">${r.hours}</span>`,
+          `<span class="num">${r.rate ? fmtMoney(r.rate) : '—'}</span>`,
+          `<span class="num" style="font-weight:700">${r.rate ? fmtMoney(C.equipmentRowTotal(r)) : 'TBD'}</span>`,
+        ]),
+      )
+    : '';
+
+  const totalsRow = (label2: string, value: string, strong = false) =>
+    `<tr><td style="padding:7px 8px;font-size:12px;color:${PDF_PALETTE.text2}${strong ? `;font-weight:700;color:${PDF_PALETTE.text}` : ''}">${escHtml(label2)}</td>
+      <td class="num" style="padding:7px 8px;text-align:right;font-size:${strong ? '15px' : '12px'};${strong ? 'font-weight:800' : 'font-weight:600'}">${value}</td></tr>`;
+
+  const totalsHtml = pdfSectionHeaderLocal('Ticket total') +
+    `<table style="margin-bottom:18px;border:1px solid ${PDF_PALETTE.bone};border-radius:12px;overflow:hidden">
+      ${totalsRow('Labor', fmtMoney(totals.laborCost))}
+      ${totalsRow('Materials', fmtMoney(totals.materialCost))}
+      ${totalsRow('Equipment', fmtMoney(totals.equipmentCost))}
+      ${totals.markupAmount > 0 ? totalsRow(`Overhead & profit (${totals.markupPercent}%)`, fmtMoney(totals.markupAmount)) : ''}
+      ${totalsRow('Total', fmtMoney(totals.billableTotal), true)}
+    </table>` +
+    (totals.unpricedRowCount > 0
+      ? `<div style="${blockStyle}">${totals.unpricedRowCount} line item(s) are recorded without a rate and are shown as TBD. Hours and quantities above are what was signed for; pricing follows under the contract's T&M rates.</div>`
+      : '');
+
+  // The signature block is the point of the whole document.
+  const authHtml = auth
+    ? pdfSectionHeaderLocal('Authorized on site') +
+      `<div style="border:1px solid ${PDF_PALETTE.bone};padding:16px;border-radius:12px;margin-bottom:14px">
+        <div style="font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${PDF_PALETTE.text2};font-size:11px;margin-bottom:8px">${escHtml(C.authorizerRoleLabel(auth.role))}</div>
+        ${auth.signaturePaths && auth.signaturePaths.length > 0
+          ? `<svg viewBox="0 0 400 120" preserveAspectRatio="xMinYMid meet" style="width:100%;max-width:360px;height:90px;background:#FFF">
+               ${auth.signaturePaths.map(d => `<path d="${escHtml(d)}" stroke="#0B0D10" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />`).join('')}
+             </svg>`
+          : `<div style="font-size:13px;color:${PDF_PALETTE.error};font-weight:700">No signature captured.</div>`}
+        <div style="font-size:12.5px;color:${PDF_PALETTE.text};margin-top:8px;font-weight:600">${escHtml(auth.name)}${auth.title ? ` — ${escHtml(auth.title)}` : ''}</div>
+        <div style="font-size:11.5px;color:${PDF_PALETTE.text2};margin-top:2px">Signed ${escHtml(new Date(auth.signedAt).toLocaleString())}${auth.locationLabel ? ` · ${escHtml(auth.locationLabel)}` : ''}</div>
+      </div>`
+    : pdfSectionHeaderLocal('Authorized on site') +
+      `<div style="border:1px dashed ${PDF_PALETTE.error};padding:16px;border-radius:12px;margin-bottom:14px;color:${PDF_PALETTE.error};font-size:13px;font-weight:600">
+         UNSIGNED — this ticket has not been authorized and is not billable.
+       </div>`;
+
+  const photosHtml = (ticket.photos ?? []).length > 0
+    ? pdfSectionHeaderLocal('Photos') +
+      `<div style="${blockStyle}">${(ticket.photos ?? []).length} photo(s) attached — see the digital copy for full resolution.</div>`
+    : '';
+
+  return pdfShell({
+    title: `${label} — ${project.name}`,
+    branding,
+    bodyHtml:
+      headerHtml + titleHtml + statsHtml + workHtml + reasonHtml +
+      laborHtml + materialsHtml + equipmentHtml + totalsHtml + authHtml + photosHtml +
+      pdfFooter(branding, `${label} · work performed ${worked}`, PDF_DISCLAIMERS.fieldTicket),
+  });
+}
+
+/** Thin local alias so this block doesn't widen the module's import list. */
+function pdfSectionHeaderLocal(label: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
+  return D.pdfSectionHeader(label);
+}
+
+export async function generateFieldTicketPDFUri(
+  ticket: FieldTicket, project: Project, branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildFieldTicketHtml(ticket, project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating field ticket PDF URI:', error);
+    return null;
+  }
+}
+
+export async function generateFieldTicketPDF(
+  ticket: FieldTicket, project: Project, branding: CompanyBranding,
+): Promise<void> {
+  const html = buildFieldTicketHtml(ticket, project, branding);
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const C = require('@/utils/fieldTicketCore') as typeof import('@/utils/fieldTicketCore');
+  await shareHtml(html, `${project.name} - ${C.fieldTicketLabel(ticket.number)}`);
 }

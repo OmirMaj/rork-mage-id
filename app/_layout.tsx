@@ -707,6 +707,12 @@ function RootLayoutNav() {
         name="change-order"
         options={{ headerShown: false }}
       />
+      {/* T&M / extra-work field ticket — the signed-on-site record that makes
+          out-of-scope work billable. Renders its own ToolHeader. */}
+      <Stack.Screen
+        name="field-ticket"
+        options={{ headerShown: false }}
+      />
       <Stack.Screen
         name="invoice"
         options={{
@@ -909,6 +915,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="cost-database"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="cost-seed"
         options={{ headerShown: false }}
       />
       <Stack.Screen

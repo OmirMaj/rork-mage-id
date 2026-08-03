@@ -34,6 +34,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { buildCostDatabase } from '@/utils/costDatabase';
@@ -135,6 +136,7 @@ function AreaTakeoffInner() {
     getPlanSheetsForProject, getCalibrationForPlan, upsertPlanCalibration,
   } = useProjects();
   const { receipts } = useMaterialReceipts();
+  const { seeds } = useCostSeeds();
 
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
   const projectSheets = useMemo(
@@ -171,7 +173,9 @@ function AreaTakeoffInner() {
   const unit = KIND_UNIT[kind];
   const needsScale = kind !== 'count';
 
-  const db = useMemo(() => buildCostDatabase(projects, commitments, receipts), [projects, commitments, receipts]);
+  // Cold-start seeds (hooks/useCostSeeds) ride along so a contractor who
+  // stated their rates can price a takeoff on day one instead of a catalog.
+  const db = useMemo(() => buildCostDatabase(projects, commitments, receipts, [], seeds), [projects, commitments, receipts, seeds]);
   const trades = useMemo(() => tradesForUnit(db, unit), [db, unit]);
   const engineOptions = useMemo(
     () => engineRatesForUnit(typeof settings?.location === 'string' ? settings.location : '', unit),
