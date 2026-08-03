@@ -13,11 +13,16 @@ import {
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { CloudRain, X, ArrowRight, CheckCircle2 } from 'lucide-react-native';
+import { CloudRain, X, ArrowRight, CheckCircle2, CloudOff } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { WeatherRescheduleResult } from '@/utils/weatherReschedule';
 import { getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import {
+  SIMULATED_WEATHER_HEADLINE,
+  SIMULATED_NO_LOG_NOTICE,
+  WEATHER_API_KEY_ENV,
+} from '@/utils/weatherProvenance';
 
 export interface WeatherRescheduleModalProps {
   visible: boolean;
@@ -52,6 +57,14 @@ export default function WeatherRescheduleModal({
   const hasImpact = !!result && result.impacts.length > 0;
   const slip = result?.projectSlipDays ?? 0;
 
+  // Provenance of the forecast that produced this proposal. Applying a
+  // simulated reschedule is allowed (it's a planning aid) but it writes NO
+  // weatherDelayLog entry — buildWeatherDelayLog returns null with no live
+  // evidence. Say that here so the missing record is explained, not silent.
+  const forecastSource = result?.forecastSource ?? 'empty';
+  const isFullySimulated = hasImpact && forecastSource === 'simulated';
+  const isPartlySimulated = hasImpact && forecastSource === 'mixed';
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity activeOpacity={1} style={styles.backdrop} onPress={onClose}>
@@ -78,6 +91,23 @@ export default function WeatherRescheduleModal({
             </View>
           ) : (
             <>
+              {/* Provenance strip — above the numbers it qualifies. */}
+              {(isFullySimulated || isPartlySimulated) && (
+                <View style={styles.provenanceStrip} accessibilityRole="alert">
+                  <CloudOff size={15} color={t.warningLabel} strokeWidth={1.75} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.provenanceTitle}>
+                      {isFullySimulated ? SIMULATED_WEATHER_HEADLINE : 'PARTLY SIMULATED FORECAST'}
+                    </Text>
+                    <Text style={styles.provenanceBody}>
+                      {isFullySimulated
+                        ? `${SIMULATED_NO_LOG_NOTICE} Set ${WEATHER_API_KEY_ENV} for live weather.`
+                        : `${result!.simulatedAffectedDates.length} of ${result!.affectedDates.length} delay days are simulated (beyond live forecast coverage). Only the ${result!.liveAffectedDates.length} live day${result!.liveAffectedDates.length === 1 ? '' : 's'} will be recorded as delay documentation.`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Headline */}
               <View style={styles.summary}>
                 <View style={styles.slipBox}>
@@ -168,6 +198,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyWrap: { alignItems: 'center', paddingHorizontal: 32, paddingVertical: 40, gap: 10 },
   emptyTitle: { fontSize: Type.headline.fontSize, fontWeight: '700', color: t.text },
   emptyBody: { fontSize: Type.caption1.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 18 },
+
+  provenanceStrip: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    paddingHorizontal: 18, paddingVertical: 12,
+    backgroundColor: t.warningSoft,
+    borderBottomWidth: 1, borderBottomColor: t.line,
+  },
+  provenanceTitle: {
+    fontSize: Type.caption1.fontSize, fontWeight: '800',
+    color: t.warningLabel, letterSpacing: 0.4,
+  },
+  provenanceBody: {
+    fontSize: Type.caption2.fontSize, color: t.textSecondary,
+    marginTop: 2, lineHeight: 15,
+  },
 
   summary: {
     flexDirection: 'row', alignItems: 'center', gap: 14,

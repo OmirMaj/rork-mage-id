@@ -13,6 +13,13 @@ import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
 import { fireGradingEvent } from '@/utils/brain/gradingBus';
 import {
+  applyCoScheduleReflow,
+  buildUnanchoredCoAuditEntry,
+  hasUnanchoredMarker,
+  isCoScheduleReflowApplied,
+} from '@/utils/coScheduleReflowCore';
+import { appendAuditToAsyncStorage } from '@/utils/scheduleAudit';
+import {
   buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, looksLikeStoragePath, photoExtFromUri,
 } from '@/utils/photoUploadCore';
 import { queuePhotoUpload } from '@/utils/photoUploadQueue';
@@ -392,8 +399,15 @@ type StableActionsValue = {
   setUserRole: (role: UserRole) => Promise<void>;
 };
 
+/** Extra intent a caller can attach to a change-order update that approves it.
+ *  `anchorTaskId` is the task the user chose (in the reflow preview) to absorb
+ *  the CO's schedule impact days; it also lets a GC place the days on a CO that
+ *  was approved remotely — through the client portal, say — and had no
+ *  identifiable anchor at the time. See utils/coScheduleReflowCore.ts. */
+export type ChangeOrderReflowIntent = { anchorTaskId?: string };
+
 type CrossDomainValue = {
-  updateChangeOrder: (id: string, updates: Partial<ChangeOrder>) => void;
+  updateChangeOrder: (id: string, updates: Partial<ChangeOrder>, reflow?: ChangeOrderReflowIntent) => void;
   addDailyReport: (report: DailyFieldReport) => void;
   updateDailyReport: (id: string, updates: Partial<DailyFieldReport>) => void;
   convertLeadToProject: (leadId: string) => string | null;
@@ -1850,47 +1864,89 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     addChangeOrders([co]);
   }, [addChangeOrders]);
 
-  const updateChangeOrder = useCallback((id: string, updates: Partial<ChangeOrder>) => {
+  const updateChangeOrder = useCallback((id: string, updates: Partial<ChangeOrder>, reflow?: ChangeOrderReflowIntent) => {
     const now = new Date().toISOString();
     const prior = changeOrders.find(c => c.id === id);
     const updated = changeOrders.map(co => co.id === id ? { ...co, ...updates, updatedAt: now } : co);
     setChangeOrders(updated);
     saveChangeOrdersMutation.mutate(updated);
 
-    // Cascade: when a CO transitions to 'approved', push its schedule impact
-    // onto the linked project's schedule exactly once. The `scheduleImpactApplied`
-    // flag guards against double-applying if the CO gets toggled approved→draft→approved.
+    // Cascade: when a CO transitions to 'approved', REFLOW the linked project's
+    // schedule exactly once.
+    //
+    // This used to be three scalar increments (totalDurationDays +=,
+    // criticalPathDays +=, and bufferDays += over in project-detail.tsx). No
+    // task's startDay moved, nothing was reflowed, CPM never re-ran — so the
+    // owner approved "+8 days," the contract said +8 days, and every sub still
+    // saw the original dates. utils/coScheduleReflowCore.ts now picks the task
+    // that absorbs the days, extends it, re-runs the real CPM engine so
+    // successors shift and float/critical path are recomputed, and captures a
+    // baseline + audit entry first.
+    //
+    // Idempotency is enforced INSIDE the core (scheduleImpactApplied plus a
+    // durable auditTrail marker), which is what makes this safe on every path
+    // that lands here: the GC's approve button, the CO screen's status
+    // pipeline, the client portal reconciler polling in the background, and an
+    // offline-queue replay. A double-applied CO silently adds phantom weeks.
     const nextCO = updated.find(c => c.id === id);
     const becameApproved =
       !!nextCO && nextCO.status === 'approved' && prior?.status !== 'approved';
-    const transitionedToApproved =
-      becameApproved &&
-      !nextCO.scheduleImpactApplied &&
-      (nextCO.scheduleImpactDays ?? 0) > 0;
+    // A caller passing an explicit anchor is placing days on an ALREADY
+    // approved CO (the "approved via portal with nothing to pin it to" case),
+    // so we honour that without needing a fresh status transition.
+    const shouldReflow =
+      !!nextCO &&
+      nextCO.status === 'approved' &&
+      !isCoScheduleReflowApplied(nextCO) &&
+      (becameApproved || !!reflow?.anchorTaskId);
 
-    if (transitionedToApproved && nextCO) {
-      // 1. Bump the project schedule's totalDurationDays + criticalPathDays.
+    let committedCOs = updated;
+
+    if (shouldReflow && nextCO) {
       const project = projects.find(p => p.id === nextCO.projectId);
-      if (project?.schedule) {
-        const bumpDays = nextCO.scheduleImpactDays ?? 0;
-        const newSchedule = {
-          ...project.schedule,
-          totalDurationDays: project.schedule.totalDurationDays + bumpDays,
-          criticalPathDays: project.schedule.criticalPathDays + bumpDays,
-          updatedAt: now,
-        };
-        const nextProjects = projects.map(p => p.id === nextCO.projectId ? { ...p, schedule: newSchedule, updatedAt: now } : p);
+      const actor = user?.email ?? user?.name ?? 'anonymous';
+      const result = applyCoScheduleReflow(project?.schedule ?? null, nextCO, {
+        anchorTaskId: reflow?.anchorTaskId,
+        // Estimate items bridge CO line items → schedule tasks via
+        // ScheduleTask.linkedEstimateItems (which stores materialIds).
+        estimateItems: (project?.linkedEstimate?.items ?? []).map(i => ({ id: i.materialId, name: i.name })),
+        actor,
+      });
+
+      if (result.plan.status === 'ready' && result.nextSchedule && result.coPatch && project) {
+        const nextProjects = projects.map(p => p.id === project.id
+          ? { ...p, schedule: result.nextSchedule!, updatedAt: now }
+          : p);
         setProjects(nextProjects);
         saveProjectsMutation.mutate(nextProjects);
-        const proj = nextProjects.find(p => p.id === nextCO.projectId);
+        const proj = nextProjects.find(p => p.id === project.id);
         if (proj) syncProjectToSupabase(proj, 'upsert');
-        console.log('[CO cascade] Extended project', nextCO.projectId, 'schedule by', bumpDays, 'days');
-      }
+        if (result.auditEntry) void appendAuditToAsyncStorage(project.id, result.auditEntry);
 
-      // 2. Mark the CO's schedule impact as applied so we never double-apply.
-      const finalCOs = updated.map(co => co.id === id ? { ...co, scheduleImpactApplied: true } : co);
-      setChangeOrders(finalCOs);
-      saveChangeOrdersMutation.mutate(finalCOs);
+        committedCOs = updated.map(co => co.id === id ? { ...co, ...result.coPatch } : co);
+        setChangeOrders(committedCOs);
+        saveChangeOrdersMutation.mutate(committedCOs);
+        console.log('[CO reflow]', result.plan.message);
+      } else if (
+        (result.plan.status === 'no_anchor' || result.plan.status === 'blocked') &&
+        !hasUnanchoredMarker(nextCO)
+      ) {
+        // Honest instead of silent: the CO is approved and the days are real,
+        // but nothing on the schedule can absorb them yet (nothing links to the
+        // CO, or the dependency network has a loop the engine won't guess
+        // through). Record that in the CO's own history (once) so the UI can
+        // surface a "place these days" prompt rather than pretending the Gantt
+        // already moved.
+        const marker = buildUnanchoredCoAuditEntry(result.plan, { actor });
+        committedCOs = updated.map(co => co.id === id
+          ? { ...co, auditTrail: [...(co.auditTrail ?? []), marker] }
+          : co);
+        setChangeOrders(committedCOs);
+        saveChangeOrdersMutation.mutate(committedCOs);
+        console.log('[CO reflow] not applied —', result.plan.message);
+      } else if (result.plan.status !== 'ready') {
+        console.log('[CO reflow] skipped —', result.plan.status, result.plan.message);
+      }
     }
 
     // Opportunistic leak grading: resolve leak_flag predictions for this
@@ -1901,7 +1957,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (becameApproved && nextCO?.projectId) fireGradingEvent(nextCO.projectId);
 
     if (canSync) {
-      const co = (transitionedToApproved ? { ...nextCO!, scheduleImpactApplied: true } : nextCO);
+      const co = committedCOs.find(c => c.id === id);
       if (co) {
         void supabaseWrite('change_orders', 'update', {
           id, description: co.description, reason: co.reason, line_items: co.lineItems,
@@ -1912,7 +1968,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [changeOrders, projects, saveChangeOrdersMutation, saveProjectsMutation, syncProjectToSupabase, canSync]);
+  }, [changeOrders, projects, saveChangeOrdersMutation, saveProjectsMutation, syncProjectToSupabase, canSync, user]);
 
   const getChangeOrdersForProject = useCallback((projectId: string) => {
     return changeOrders.filter(co => co.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

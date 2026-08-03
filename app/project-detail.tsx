@@ -17,10 +17,11 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
-  Clock, Lock, Mic, FileSignature,
+  Clock, Lock, Mic, FileSignature, CalendarClock,
 } from 'lucide-react-native';
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
-import { PROJECT_TYPES, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
+import { PROJECT_TYPES, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
+import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
 import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import BidConfidenceBadge from '@/components/BidConfidenceBadge';
@@ -297,6 +298,14 @@ export default function ProjectDetailScreen() {
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
 
+  // Estimate items keyed for the CO reflow's estimate-link anchor tier
+  // (ScheduleTask.linkedEstimateItems stores materialIds). Memoized because the
+  // preview modal re-runs CPM whenever this array's identity changes.
+  const coReflowEstimateItems = useMemo(
+    () => (project?.linkedEstimate?.items ?? []).map(i => ({ id: i.materialId, name: i.name })),
+    [project?.linkedEstimate],
+  );
+
   // Scope tile badge — shows "Not set" when the project has no scope data.
   // Runs synchronously off project (no async fetch needed).
   useEffect(() => {
@@ -529,6 +538,10 @@ export default function ProjectDetailScreen() {
   const [invoiceFilter, setInvoiceFilter] = useState<'unpaid' | 'paid' | 'all'>('unpaid');
   // Change order status filter — defaults to 'pending' (submitted, awaiting approval).
   const [coFilter, setCoFilter] = useState<'pending' | 'approved' | 'all'>('pending');
+  // CO whose schedule impact is being previewed before approval. Approving a CO
+  // with schedule days now genuinely reflows the Gantt, so the GC sees which
+  // task absorbs the days and what shifts before anything is written.
+  const [coReflowPreview, setCoReflowPreview] = useState<ChangeOrder | null>(null);
   // Estimate revision detail modal — stores the revision being inspected, or null when closed.
   const [selectedRevision, setSelectedRevision] = useState<EstimateRevision | null>(null);
   // Revision detail sub-view: null = summary+delta, 'items' = line-items list.
@@ -2537,44 +2550,30 @@ export default function ProjectDetailScreen() {
                     style={styles.coApproveBtn}
                     onPress={() => {
                       const impactDays = co.scheduleImpactDays ?? 0;
-                      const shouldApplyImpact = impactDays > 0 && !co.scheduleImpactApplied && !!project?.schedule;
-                      // Approving commits real dollars and pushes the finish
-                      // date — a one-handed jobsite mis-tap must not do that
-                      // silently. Spell out the commitment before applying it.
-                      const scheduleLine = shouldApplyImpact
-                        ? ` and add ${impactDays} day${impactDays === 1 ? '' : 's'} to the schedule`
-                        : '';
+                      // A CO with schedule days now genuinely reflows the Gantt
+                      // (anchor task extended → CPM re-run → successors shift →
+                      // float + critical path recomputed). That is not something
+                      // to do behind a one-handed jobsite tap, so it goes through
+                      // the same preview-then-apply gesture resource leveling
+                      // uses. The money-only case keeps the plain confirm.
+                      if (impactDays > 0 && !co.scheduleImpactApplied && project?.schedule) {
+                        setCoReflowPreview(co);
+                        return;
+                      }
                       showAlert(
                         `Approve CO #${co.number}?`,
-                        `This commits ${formatMoney(co.changeAmount)} to the contract${scheduleLine}. This can't be undone with a tap.`,
+                        `This commits ${formatMoney(co.changeAmount)} to the contract. This can't be undone with a tap.`,
                         [
                           { text: 'Cancel', style: 'cancel' },
                           {
                             text: 'Approve',
                             onPress: () => {
-                              updateChangeOrder(co.id, {
-                                status: 'approved',
-                                scheduleImpactApplied: shouldApplyImpact ? true : co.scheduleImpactApplied,
-                              });
+                              updateChangeOrder(co.id, { status: 'approved' });
                               // Burst — change orders are real money/scope
                               // events; the GC celebrates each approval.
                               fireConfetti({ count: 35 });
-                              if (shouldApplyImpact && project?.schedule) {
-                                const nextSchedule = {
-                                  ...project.schedule,
-                                  bufferDays: (project.schedule.bufferDays ?? 0) + impactDays,
-                                  totalDurationDays: (project.schedule.totalDurationDays ?? 0) + impactDays,
-                                  updatedAt: new Date().toISOString(),
-                                };
-                                updateProject(project.id, { schedule: nextSchedule });
-                              }
                               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                              showAlert(
-                                'Approved',
-                                shouldApplyImpact
-                                  ? `CO #${co.number} has been approved. Schedule extended by ${impactDays} day${impactDays === 1 ? '' : 's'}.`
-                                  : `CO #${co.number} has been approved.`
-                              );
+                              showAlert('Approved', `CO #${co.number} has been approved.`);
                             },
                           },
                         ],
@@ -2609,6 +2608,26 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 </View>
               ))}
+              {/* Approved, with real schedule days, that never landed on a task
+                  — the client-portal case, where the CO is approved remotely and
+                  nothing on the schedule could be matched to it. The days are
+                  contractual either way; this is where the GC places them. */}
+              {(project?.schedule?.tasks?.length ?? 0) > 0 && changeOrders
+                .filter(co => co.status === 'approved' && (co.scheduleImpactDays ?? 0) > 0 && !co.scheduleImpactApplied)
+                .map(co => (
+                  <TouchableOpacity
+                    key={`place-${co.id}`}
+                    style={styles.coAddBtn}
+                    onPress={() => setCoReflowPreview(co)}
+                    activeOpacity={0.7}
+                    testID={`co-place-days-${co.id}`}
+                  >
+                    <CalendarClock size={16} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.coAddBtnText}>
+                      CO #{co.number}: place +{co.scheduleImpactDays}d on the schedule
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               {/* Draft by voice — MAGE Copilot: speak the change, confirm the
                   amount + schedule impact, hand off to the CO screen pre-filled. */}
               <TouchableOpacity
@@ -4366,6 +4385,34 @@ export default function ProjectDetailScreen() {
           )}
         </Pressable>
       </Modal>
+
+      {/* Preview-then-apply for a change order's schedule impact. Shows the
+          anchor task, every downstream shift, the new finish and any critical
+          path flips — and lets the GC pick a different task — before the CO is
+          approved and the schedule is rewritten. */}
+      {coReflowPreview !== null && (
+        <COScheduleReflowPreviewModal
+          visible
+          changeOrder={coReflowPreview}
+          schedule={project?.schedule ?? null}
+          estimateItems={coReflowEstimateItems}
+          intent={coReflowPreview.status === 'approved' ? 'place' : 'approve'}
+          moneyLine={coReflowPreview.status === 'approved'
+            ? undefined
+            : `Commits ${formatMoney(coReflowPreview.changeAmount)} to the contract. This can't be undone with a tap.`}
+          onClose={() => setCoReflowPreview(null)}
+          onConfirm={(anchorTaskId) => {
+            const co = coReflowPreview;
+            const alreadyApproved = co.status === 'approved';
+            setCoReflowPreview(null);
+            // Approving and placing-later both land in the same context call:
+            // an explicit anchor lets the reflow run on an already-approved CO.
+            updateChangeOrder(co.id, alreadyApproved ? {} : { status: 'approved' }, { anchorTaskId });
+            if (!alreadyApproved) fireConfetti({ count: 35 });
+            if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }}
+        />
+      )}
 
       {/* Always-rendered FAB; UniversalMicButton hides itself internally
           when there's no project to scope to. Keeps the parent hook tree

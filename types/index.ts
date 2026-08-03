@@ -679,6 +679,11 @@ export interface ScheduleAuditEntry {
   /** What was touched. */
   taskId?: string;
   taskTitle?: string;
+  /** Change order that caused this entry, when one did. A delay claim asks
+   *  "which approved change moved this date?" — this is the link that answers
+   *  it. Written by the CO schedule-reflow path
+   *  (utils/coScheduleReflowCore.ts). */
+  changeOrderId?: string;
   /** Type of change — drives icon + filter. */
   kind:
     | 'task_create'
@@ -742,15 +747,40 @@ export interface WeatherAlert {
  * Written by the weather reschedule flow (utils/weatherReschedule) when the GC
  * accepts the proposed shift, so the job has an auditable history of which
  * forecast days cost how much. condition is a DayForecast['condition'] string.
+ *
+ * This is the record a GC hands an owner to justify a delay, so it must never
+ * launder invented weather into evidence — hence `source` / `simulatedDates`.
  */
 export interface WeatherDelayLogEntry {
   id: string;
   appliedAt: string;
+  /**
+   * Delay dates backed by a REAL forecast reading. This is the evidence list —
+   * the dates a GC can put in front of an owner. Never contains a simulated
+   * date, and never empty: an entry with no live evidence is not written at
+   * all (buildWeatherDelayLog returns null).
+   */
   dates: string[];
   condition?: string;
   taskIds: string[];
   projectSlipDays: number;
   note?: string;
+  /**
+   * Provenance of the forecast behind this record. REQUIRED, so an entry can
+   * never be read as evidence without disclosing where it came from.
+   *   'live'  — every delay date came from the OpenWeather API.
+   *   'mixed' — some delay days came from SIMULATED weather; those dates are
+   *             in `simulatedDates`, excluded from `dates`, and
+   *             `projectSlipDays` therefore includes unevidenced days.
+   * There is deliberately no 'simulated' member: a wholly-simulated delay is
+   * not logged at all.
+   */
+  source: 'live' | 'mixed';
+  /**
+   * Delay dates that came from simulated weather. Recorded only so the entry
+   * is complete and auditable — NOT admissible as delay documentation.
+   */
+  simulatedDates?: string[];
 }
 
 export interface ProjectSchedule {
@@ -1138,6 +1168,20 @@ export interface ChangeOrder {
   newContractTotal: number;
   scheduleImpactDays?: number;
   scheduleImpactApplied?: boolean;
+  /**
+   * Schedule tasks the AI impact analysis named as affected
+   * (`ChangeOrderImpactResult.affectedTasks[].taskName`), resolved to real task
+   * ids at capture time by `resolveAiAffectedTaskIds`. The reflow's anchor rule
+   * prefers these — it is the difference between a machine that shows you which
+   * tasks move and one that actually moves them.
+   */
+  scheduleImpactTaskIds?: string[];
+  /**
+   * The task that absorbed (or will absorb) this CO's schedule impact days.
+   * Set by the user in the reflow preview, or stamped by the reflow itself on
+   * apply. A human choice outranks every automatic anchor rule.
+   */
+  scheduleAnchorTaskId?: string;
   status: ChangeOrderStatus;
   approvers?: COApprover[];
   approvalMode?: 'sequential' | 'parallel';

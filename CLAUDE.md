@@ -104,6 +104,16 @@ All Supabase writes go through `utils/offlineQueue.ts` (`supabaseWrite` helper).
 - **`backend/hono.ts`** is a tiny Hono app with one route (`/email/send`, a Resend proxy). It is NOT mounted as the app's primary backend; it appears unused at runtime. (Earlier docs claimed it mounted tRPC — that was incorrect; tRPC has never been wired in this repo.)
 - **Supabase client** in `lib/supabase.ts` (anon key, RLS-protected). Direct table access from the app uses RLS; expensive / paid AI calls go through edge functions that use `requireTier`.
 
+### Client env vars (`EXPO_PUBLIC_*`)
+
+Live in the gitignored repo-root `.env` and are **inlined into the bundle by Metro at build time** — so any change needs a cache-cleared restart (`bun run start --clear`), and for EAS builds the same var must be in that profile's `env` block in `eas.json` (or set as an EAS project secret). Server-side secrets (Gemini, Stripe, Resend, …) are edge-function secrets, not these — see `docs/phase26-functional-audit.md`.
+
+| Var | Used by | If missing |
+|---|---|---|
+| `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` | `lib/supabase.ts` | No backend at all; every edge-function call 401s |
+| `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` (+ `_ANDROID_`, `_WEB_`, `_TEST_`) | `contexts/SubscriptionContext.tsx` | Paywall can't load offerings; all tiers read as free |
+| `EXPO_PUBLIC_OPENWEATHER_API_KEY` | `utils/weatherService.ts` | **No live weather anywhere.** Every forecast falls back to `getSimulatedForecast()`, which invents conditions from the calendar date and ignores the jobsite entirely. Simulated days are tagged `source: 'simulated'`, marked in the UI ("SIMULATED WEATHER — NOT A FORECAST"), and **refused by `ProjectSchedule.weatherDelayLog`** — a delay-day record with no live evidence is not written at all, so the delay log stays empty until a key is set. Free key: <https://openweathermap.org/api> (the "5 day / 3 hour forecast" endpoint is on the free tier; days past its 5-day horizon are padded with simulated data and marked individually). |
+
 ## Conventions
 
 - **iOS is the primary target.** `ios.supportsTablet: false` — don't design for iPad. Web is supported but secondary.

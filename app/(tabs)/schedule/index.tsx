@@ -2071,6 +2071,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   projectStartDate={projectStartDate}
                   onProgressUpdate={handleProgressUpdate}
                   onTaskPress={setTaskDetailModal}
+                  location={selectedProject?.location}
                 />
               )}
               {viewMode === 'board' && (
@@ -2722,6 +2723,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     projectStartDate={projectStartDate}
                     onProgressUpdate={handleProgressUpdate}
                     onTaskPress={setTaskDetailModal}
+                    location={selectedProject?.location}
                   />
                 )}
 

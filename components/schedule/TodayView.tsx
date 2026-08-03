@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef } from 'react';
+import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -34,7 +34,11 @@ import {
   getPredecessors,
   getSuccessors,
 } from '@/utils/scheduleEngine';
-import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+import { getForecastWithFallback, getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import {
+  SimulatedWeatherBanner,
+  SimulatedDayChip,
+} from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -48,6 +52,18 @@ interface TodayViewProps {
   onPhotoAdded?: (task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => void;
   healthScore: number;
   daysRemaining: number;
+  /**
+   * The jobsite, used to fetch the REAL forecast for THIS project. Pass the
+   * geocoded lat/lng when the project has one (far more accurate on rural
+   * sites than a free-text address); the location string is the fallback.
+   *
+   * With neither — or with no EXPO_PUBLIC_OPENWEATHER_API_KEY — the strip
+   * falls back to simulated data and says so, loudly. See
+   * components/schedule/SimulatedWeatherNotice.tsx.
+   */
+  location?: string;
+  locationLatitude?: number;
+  locationLongitude?: number;
 }
 
 const SwipeableActiveCard = React.memo(function SwipeableActiveCard({

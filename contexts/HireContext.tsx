@@ -217,13 +217,14 @@ export const [HireProvider, useHire] = createContextHook(() => {
     const convoIds = convoIdsKey.split(',').filter(Boolean);
 
     // Gated ahead of `supabase.channel(...)`: with HIRE_ENABLED false we never
-    // open the `realtime-messages-${userId}` websocket. (canSync is already
-    // flag-gated too, so this is belt-and-braces — and it keeps the guard
-    // legible to anyone auditing what this provider does at launch.)
+    // open the `realtime-messages-${userId}` websocket. Silent by design —
+    // a flag that's off for launch shouldn't narrate itself on every render.
     if (!hireRealtimeEnabled(HIRE_ENABLED, canSync, convoIds.length)) {
-      if (!HIRE_ENABLED) return;
-      if (!canSync) return;
-      console.log('[HireContext] No conversations, skipping Realtime subscription');
+      // Keep the original diagnostic for the case it was written for: the flag
+      // is on and we're synced, but there are no conversations to watch.
+      if (HIRE_ENABLED && canSync) {
+        console.log('[HireContext] No conversations, skipping Realtime subscription');
+      }
       return;
     }
 

@@ -22,6 +22,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, DailyFieldReport } from '@/types';
 import { findWeatherRisk, getConditionIcon, type DayForecast } from '@/utils/weatherService';
 import { computeWeatherHistory, weatherHistoryFactLine } from '@/utils/weatherHistory';
+import { hasSimulatedDays, SIMULATED_WEATHER_HEADLINE } from '@/utils/weatherProvenance';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -114,6 +115,11 @@ function WeatherReschedulePromptImpl({
     setDismissed(true);
   }, []);
 
+  // "3 tasks hit bad weather" is a claim about reality. If any day behind it
+  // was invented, say so on the banner itself — the GC decides whether to act
+  // right here, and must not act on fiction believing it's a forecast.
+  const conflictDaysAreSimulated = hasSimulatedDays(conflicts.map(c => c.hitDay));
+
   if (dismissed || conflicts.length === 0) return null;
 
   return (
@@ -123,6 +129,9 @@ function WeatherReschedulePromptImpl({
           <CloudRain size={16} color={Colors.warning} strokeWidth={1.75} />
         </View>
         <View style={styles.bannerBody}>
+          {conflictDaysAreSimulated && (
+            <Text style={styles.bannerProvenance}>{SIMULATED_WEATHER_HEADLINE}</Text>
+          )}
           <Text style={styles.bannerTitle}>
             {conflicts.length} weather-sensitive task{conflicts.length === 1 ? '' : 's'} hit bad weather
           </Text>
@@ -245,6 +254,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   bannerBody: { flex: 1, gap: 2 },
+  bannerProvenance: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800',
+    color: Colors.warningDark, letterSpacing: 0.4,
+  },
   bannerTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
   bannerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14 },
   bannerHistory: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14, fontStyle: 'italic' },
