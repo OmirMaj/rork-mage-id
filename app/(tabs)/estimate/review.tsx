@@ -229,10 +229,12 @@ export default function EstimateReviewScreen() {
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   hero: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden' },
-  heroEyebrow: { color: '#FF8533', fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 1.4, marginBottom: 4 },
+  // Type.eyebrow is the house uppercase micro-label (11 / 700 / 1.4 tracking).
+  // Hand-rolled weight '800' is off the four-weight ladder in typography.ts.
+  heroEyebrow: { ...Type.eyebrow, color: '#FF8533', marginBottom: 4 },
   // Fraunces display face — same hero band as the estimate hub + wizard.
   heroTitle: { ...Type.serifTitle, color: '#F4EFE6' },
-  heroSub: { color: '#C9C3B8', fontSize: Type.subhead.fontSize, marginTop: 4 },
+  heroSub: { ...Type.subhead, color: '#C9C3B8', marginTop: 4 },
   toggle: { flexDirection: 'row', gap: 4, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, padding: 4, marginBottom: 16 },
   seg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: Tokens.radius.sm },
   segOn: { backgroundColor: t.accent },
@@ -248,7 +250,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   scrollDesktop: { width: '100%', maxWidth: 1500, alignSelf: 'center', paddingHorizontal: 24 },
   clientDesktopWrap: { maxWidth: 900, alignSelf: 'center', width: '100%' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
-  shareBtnText: { color: t.surface, fontSize: 15, fontWeight: '800' },
+  shareBtnText: { ...Type.subheadEmphasized, color: t.surface },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
   emptyTitle: { color: t.text, fontSize: Type.headline.fontSize, fontWeight: '700' },
   emptyDesc: { color: t.textSecondary, fontSize: Type.subhead.fontSize, textAlign: 'center', maxWidth: 280, lineHeight: 20 },
