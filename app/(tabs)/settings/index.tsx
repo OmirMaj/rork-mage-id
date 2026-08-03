@@ -1320,7 +1320,11 @@ export default function SettingsScreen() {
                 price: '$79/mo',
                 color: themeColors.info,
                 icon: Crown,
-                features: ['Everything in Pro', 'Subcontractor management', 'Punch list & closeout', 'Client portal (shareable link)', 'Unlimited collaborators', 'Custom branding + logos', 'Priority support'],
+                // Client portal and project collaborators are BOTH Pro gates
+                // (featureTiers: client_portal='pro', schedule_collaboration='pro').
+                // Listing them here implied you had to buy Business to get them.
+                // Replaced with what Business actually unlocks — the brain.
+                features: ['Everything in Pro', 'Cost X-Ray — price what you cannot see', 'Track Record — it grades its own calls', 'Bid Advisor + Ask Your Plans', 'Subcontractor management', 'Punch list & closeout', 'QuickBooks 2-way sync', 'Priority support'],
                 disabled: [],
               },
               {

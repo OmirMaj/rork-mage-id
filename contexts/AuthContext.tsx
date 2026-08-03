@@ -79,7 +79,12 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
   const dropOfflineQueue = opts?.dropOfflineQueue ?? true;
   if (dropOfflineQueue) {
     try {
-      await AsyncStorage.removeItem('mageid_offline_queue');
+      // The photo-upload queue is governed by the same rule and for the same
+      // reason: its entries are pending WRITES that cannot be re-fetched from
+      // anywhere. It rides the dropOfflineQueue flag so a same-user re-auth
+      // (magic link / password reset) keeps un-uploaded jobsite photos, while a
+      // deliberate sign-out still leaves nothing behind for the next tenant.
+      await AsyncStorage.multiRemove(['mageid_offline_queue', 'mageid_photo_upload_queue']);
     } catch (err) {
       console.log('[Auth] Failed to clear offline queue:', err);
     }

@@ -1321,7 +1321,16 @@ export interface DFRWeather {
 
 export interface DFRPhoto {
   id: string;
+  /** Best URL to render RIGHT NOW — the device-local file when this device
+   *  still has it, otherwise a signed URL resolved from `storagePath`. */
   uri: string;
+  /** Durable location in the `project-photos` bucket. A DFR photo is mirrored
+   *  into the gallery under the SAME id, so it shares that row's deterministic
+   *  path and its single uploaded object. */
+  storagePath?: string;
+  /** Device-local original, kept so a server refetch can't replace a working
+   *  offline preview with a path this device can't render. */
+  localUri?: string;
   timestamp: string;
   /** GPS latitude captured at the moment of taking the photo, if permission granted and a fix landed within ~3s. */
   latitude?: number;
@@ -2121,7 +2130,14 @@ export interface PunchItem {
   dueDate: string;
   priority: PunchItemPriority;
   status: PunchItemStatus;
+  /** Best URL to render RIGHT NOW — see ProjectPhoto.uri. */
   photoUri?: string;
+  /** Durable location in the `project-photos` bucket (`<uid>/<projectId>/punch-<id>.jpg`).
+   *  This is what `punch_items.photo_uri` stores; a `file://` there is
+   *  unreachable from every other device. */
+  photoStoragePath?: string;
+  /** Device-local original, so an offline preview survives a server refetch. */
+  photoLocalUri?: string;
   /** GPS lat captured when the punch photo was taken. Optional. */
   photoLatitude?: number;
   photoLongitude?: number;
@@ -2386,7 +2402,31 @@ export interface SafetyFormTemplate {
 export interface ProjectPhoto {
   id: string;
   projectId: string;
+  /**
+   * Best URL to render RIGHT NOW. On the device that took the photo this stays
+   * the local `file://` URI so the gallery paints instantly and works with no
+   * signal; everywhere else it is a short-lived signed URL resolved from
+   * `storagePath` at read time.
+   *
+   * It is NOT what gets persisted — `photos.uri` in the database holds
+   * `storagePath`. Writing this field to the server is the bug that left the
+   * `project-photos` bucket empty while every row pointed at a `file://` path
+   * no other device could ever open.
+   */
   uri: string;
+  /**
+   * Durable location of the bytes in the private `project-photos` bucket:
+   * `<userId>/<projectId>/<photoId>.jpg`. Deterministic (derived from the row
+   * id, not a timestamp) so it can be computed at insert time, retried
+   * idempotently, and recomputed identically anywhere.
+   */
+  storagePath?: string;
+  /**
+   * The device-local original, retained separately from `uri` so a server
+   * refetch can't overwrite a working offline preview with a path this device
+   * has no session to sign.
+   */
+  localUri?: string;
   timestamp: string;
   /** Free-text label (e.g. "Lobby \u2014 east wall"). Distinct from the GPS-derived locationLabel below. */
   location?: string;

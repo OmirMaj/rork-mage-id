@@ -66,9 +66,20 @@ import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 
-const ESTIMATE_THINKING_STEPS = [
+// Two variants, because claiming to price "from your history" when the cost book
+// is empty is a lie the user can't see through — and it's the exact promise the
+// whole product is sold on. A contractor with zero closed jobs gets generic LLM
+// pricing (groundingFacts is []), so say that. The result card at the bottom of
+// this screen already tells the truth; the loading copy above it did not.
+const ESTIMATE_THINKING_STEPS_GROUNDED = [
   'Reading your scope…',
   'Pricing from your history…',
+  'Checking your margin…',
+  'Assembling line items…',
+];
+const ESTIMATE_THINKING_STEPS_COLD = [
+  'Reading your scope…',
+  'Pricing from market averages…',
   'Checking your margin…',
   'Assembling line items…',
 ];
@@ -1126,7 +1137,7 @@ function EstimateWizardScreenInner() {
         visible={loading}
         title="Generating estimate…"
         subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
-        thinkingSteps={ESTIMATE_THINKING_STEPS}
+        thinkingSteps={groundingFacts.length > 0 ? ESTIMATE_THINKING_STEPS_GROUNDED : ESTIMATE_THINKING_STEPS_COLD}
         onCancel={cancelGenerate}
       />
       <UpgradeSheet

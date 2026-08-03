@@ -6,7 +6,7 @@ import {
   Home, Wrench, Settings, BarChart3,
   FileText, Building2, Search, HardHat, Gavel, Lock, IdCard,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
-  Users, ShieldCheck, Bell, Briefcase,
+  Users, ShieldCheck, Bell, Briefcase, BadgeCheck, Code,
   PenTool, Store, Clock, ChevronDown, ChevronRight,
   ScrollText, UserPlus, Handshake, ListChecks,
   Presentation,
@@ -78,6 +78,10 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── NETWORK — people + AI
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
+  // The embed widget is how a contractor turns their own website into a lead
+  // source, but the setup screen shipped with no inbound navigation — you could
+  // not find your own widget ID without knowing to search for it.
+  { key: 'widget-setup',      label: 'Website Widget',   icon: Code,            route: '/widget-setup',                     section: 'NETWORK' },
   { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
   { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'NETWORK', requires: 'crew_management' },
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
@@ -127,6 +131,11 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'contract',          label: 'Contracts',        icon: MageContract,    route: '/contract',                         section: 'CLIENT' },
   { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT' },
   { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT' },
+  // Shipped fully built with ZERO inbound navigation — reachable only by typing
+  // "home passport" into the Cmd-K palette, which nobody does for a feature they
+  // don't know exists. It's the artifact the homeowner keeps after the job ends,
+  // so it's also the best referral surface in the product.
+  { key: 'home-passport',     label: 'Home Passport',    icon: BadgeCheck,      route: '/home-passport',                    section: 'CLIENT' },
 
   // ── ACCOUNT (pinned to bottom)
   { key: 'notifications',     label: 'Notifications',    icon: Bell,            route: '/notifications-inbox',              section: 'ACCOUNT' },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -11,6 +11,100 @@ import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
 import { fireGradingEvent } from '@/utils/brain/gradingBus';
+import {
+  buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, looksLikeStoragePath, photoExtFromUri,
+} from '@/utils/photoUploadCore';
+import { queuePhotoUpload } from '@/utils/photoUploadQueue';
+import { resolvePhotoUrls, deleteProjectPhotoObject } from '@/utils/storage';
+
+// ─── Photo durability ────────────────────────────────────────────────────────
+// Every image the app captures used to have its raw `file://` URI written
+// straight into Postgres — `photos.uri`, `punch_items.photo_uri`,
+// `daily_reports.photos[].uri`. A `file://` path is meaningless on any other
+// device, after a reinstall, on web, and in the client portal, and the
+// `project-photos` bucket had never received a single object as a result. For
+// an app where photos are legal documentation, that is silent data loss.
+//
+// The two helpers below are the ONLY place a local image becomes durable, so
+// every capture surface (daily report, project gallery, punch walk, cost x-ray,
+// plan viewer, AI punch, photo triage) gets the same behavior:
+//
+//   1. the UI keeps rendering the LOCAL uri — instant, and works with no signal;
+//   2. the DATABASE gets the deterministic storage path;
+//   3. the bytes go on utils/photoUploadQueue.ts, which uploads them whenever
+//      the network next allows and never drops them if it can't.
+//
+// Nothing here is awaited on the render path.
+
+/**
+ * Stage a device-local image for durable upload and return the path the
+ * database should store. Returns null when there's nothing to do (no session,
+ * no image, or the URI is already remote).
+ */
+function stagePhotoUpload(opts: {
+  userId: string | null | undefined;
+  projectId: string;
+  /** Object key within the project folder — the record's id, so the path is deterministic. */
+  recordId: string;
+  localUri: string | undefined;
+}): string | null {
+  const { userId, projectId, recordId, localUri } = opts;
+  if (!userId || !projectId || !recordId || !localUri) return null;
+  if (!isDeviceLocalUri(localUri)) return null;
+  const ext = photoExtFromUri(localUri);
+  const storagePath = buildPhotoStoragePath(userId, projectId, recordId, ext);
+  void queuePhotoUpload({
+    photoId: recordId, userId, projectId, localUri, storagePath,
+    contentType: contentTypeForExt(ext),
+  });
+  return storagePath;
+}
+
+/**
+ * The value a photo column must be given. Never a `file://` — if we have no
+ * durable path yet, an empty string is strictly better than a URI that is
+ * guaranteed to be unopenable everywhere except the device that wrote it
+ * (consumers such as portalSnapshot already filter empty photo URLs out).
+ */
+function durablePhotoValue(storagePath: string | undefined, currentUri: string | undefined): string {
+  if (storagePath) return storagePath;
+  if (currentUri && !isDeviceLocalUri(currentUri)) return currentUri;
+  return '';
+}
+
+/**
+ * The `daily_reports.photos` JSON column, sanitized for the server: durable
+ * path in `uri`, and `localUri` stripped entirely — it describes one device's
+ * filesystem and has no business being replicated to everyone else's.
+ */
+function dfrPhotoRows(photos: DFRPhoto[] | undefined): DFRPhoto[] {
+  return (photos ?? []).map((p) => {
+    const { localUri: _localUri, ...rest } = p;
+    return { ...rest, uri: durablePhotoValue(p.storagePath, p.uri) };
+  });
+}
+
+/**
+ * Turn stored photo columns back into something renderable.
+ *
+ * `photos.uri` holds a bucket path, and `project-photos` is private, so it has
+ * to be signed. We sign in ONE batched request per query and prefer this
+ * device's own local copy whenever it still has one — that keeps the gallery
+ * instant and keeps it working offline, and it means an expired signature can
+ * never blank out a photo the user took themselves.
+ */
+async function buildPhotoUrlResolver(storedValues: (string | undefined)[]): Promise<(stored: string | undefined, localUri?: string) => { uri: string; storagePath?: string }> {
+  const paths = storedValues.filter((v): v is string => looksLikeStoragePath(v));
+  const signed = paths.length > 0 ? await resolvePhotoUrls(paths) : new Map<string, string>();
+  return (stored, localUri) => {
+    const storagePath = looksLikeStoragePath(stored) ? stored : undefined;
+    if (localUri) return { uri: localUri, storagePath };
+    if (storagePath) return { uri: signed.get(storagePath) ?? '', storagePath };
+    // Legacy rows (and the handful of dev rows that still hold a `file://`)
+    // pass through untouched — no migration, no behavior change for them.
+    return { uri: stored ?? '', storagePath: undefined };
+  };
+}
 
 const PROJECTS_KEY = 'mageid_projects';
 const SETTINGS_KEY = 'mageid_settings';
@@ -623,11 +717,30 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         try {
           const { data, error } = await supabase.from('daily_reports').select('*').order('created_at', { ascending: false });
           if (!error && data && data.length > 0) {
+            // A DFR's photos are a nested JSON array whose `uri` values are now
+            // bucket paths. Flatten every path across every report so the whole
+            // page costs ONE signing round trip, and keep this device's local
+            // originals (see photosQuery for the rationale).
+            const dfrLocalUri = new Map<string, string>();
+            for (const dr of await loadLocal<DailyFieldReport[]>(DAILY_REPORTS_KEY, [])) {
+              for (const p of dr.photos ?? []) {
+                const local = p.localUri ?? (isDeviceLocalUri(p.uri) ? p.uri : undefined);
+                if (local) dfrLocalUri.set(p.id, local);
+              }
+            }
+            const resolveDfrPhoto = await buildPhotoUrlResolver(
+              data.flatMap(r => ((r.photos as DFRPhoto[] | null) ?? []).map(p => p?.uri)),
+            );
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, date: r.date as string,
               weather: r.weather as DailyFieldReport['weather'], manpower: r.manpower as DailyFieldReport['manpower'],
               workPerformed: (r.work_performed as string) ?? '', materialsDelivered: (r.materials_delivered as string[]) ?? [],
-              issuesAndDelays: (r.issues_and_delays as string) ?? '', photos: (r.photos as DailyFieldReport['photos']) ?? [],
+              issuesAndDelays: (r.issues_and_delays as string) ?? '',
+              photos: (((r.photos as DFRPhoto[] | null) ?? []).map((p) => {
+                const localUri = dfrLocalUri.get(p.id);
+                const { uri, storagePath } = resolveDfrPhoto(p.uri, localUri);
+                return { ...p, uri, storagePath, localUri };
+              })) as DailyFieldReport['photos'],
               status: (r.status as DailyFieldReport['status']) ?? 'draft',
               incident: (r.incident as DailyFieldReport['incident']) ?? undefined,
               workProgress: (r.work_progress as DailyFieldReport['workProgress']) ?? undefined,
@@ -798,14 +911,28 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         try {
           const { data, error } = await supabase.from('punch_items').select('*').order('created_at', { ascending: false });
           if (!error && data && data.length > 0) {
-            const mapped = data.map((r: Record<string, unknown>) => ({
+            // photo_uri holds a bucket path — sign the batch, and keep this
+            // device's local original when it still has one. Same treatment as
+            // the photo gallery (see photosQuery).
+            const cachedLocal = new Map<string, string>();
+            for (const p of await loadLocal<PunchItem[]>(PUNCH_ITEMS_KEY, [])) {
+              const local = p.photoLocalUri ?? (isDeviceLocalUri(p.photoUri) ? p.photoUri : undefined);
+              if (local) cachedLocal.set(p.id, local);
+            }
+            const resolve = await buildPhotoUrlResolver(data.map(r => r.photo_uri as string | undefined));
+            const mapped = data.map((r: Record<string, unknown>) => {
+              const photoLocalUri = cachedLocal.get(r.id as string);
+              const photo = resolve(r.photo_uri as string | undefined, photoLocalUri);
+              return {
               id: r.id as string, projectId: r.project_id as string, description: r.description as string,
               location: (r.location as string) ?? '', assignedSub: (r.assigned_sub as string) ?? '',
               assignedSubId: r.assigned_sub_id as string | undefined, dueDate: r.due_date as string,
               priority: (r.priority as PunchItem['priority']) ?? 'medium', status: (r.status as PunchItem['status']) ?? 'open',
-              photoUri: r.photo_uri as string | undefined, rejectionNote: r.rejection_note as string | undefined,
+              photoUri: photo.uri || undefined, photoStoragePath: photo.storagePath, photoLocalUri,
+              rejectionNote: r.rejection_note as string | undefined,
               closedAt: r.closed_at as string | undefined, createdAt: r.created_at as string, updatedAt: r.updated_at as string,
-            })) as PunchItem[];
+              };
+            }) as PunchItem[];
             await saveLocal(PUNCH_ITEMS_KEY, mapped);
             return mapped;
           }
@@ -822,13 +949,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         try {
           const { data, error } = await supabase.from('photos').select('*').order('created_at', { ascending: false });
           if (!error && data && data.length > 0) {
-            const mapped = data.map((r: Record<string, unknown>) => ({
-              id: r.id as string, projectId: r.project_id as string, uri: r.uri as string,
+            // `photos.uri` now holds a bucket path. Sign the batch once, and
+            // keep this device's own local files where it still has them so
+            // the gallery stays instant and survives losing signal.
+            const cachedLocal = new Map<string, string>();
+            for (const p of await loadLocal<ProjectPhoto[]>(PHOTOS_KEY, [])) {
+              const local = p.localUri ?? (isDeviceLocalUri(p.uri) ? p.uri : undefined);
+              if (local) cachedLocal.set(p.id, local);
+            }
+            const resolve = await buildPhotoUrlResolver(data.map(r => r.uri as string | undefined));
+            const mapped = data.map((r: Record<string, unknown>) => {
+              const localUri = cachedLocal.get(r.id as string);
+              const { uri, storagePath } = resolve(r.uri as string | undefined, localUri);
+              return {
+              id: r.id as string, projectId: r.project_id as string, uri, storagePath, localUri,
               timestamp: r.timestamp as string, location: r.location as string | undefined,
               tag: r.tag as string | undefined, linkedTaskId: r.linked_task_id as string | undefined,
               linkedTaskName: r.linked_task_name as string | undefined,
               markup: (r.markup as ProjectPhoto['markup']) ?? [], createdAt: r.created_at as string,
-            })) as ProjectPhoto[];
+              };
+            }) as ProjectPhoto[];
             await saveLocal(PHOTOS_KEY, mapped);
             return mapped;
           }
@@ -1950,9 +2090,28 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     });
   }, [projects, updateProject]);
 
+  // A DFR carries its own copy of the photos it was filed with, and those are
+  // mirrored into the gallery under the SAME ids — so both paths resolve to the
+  // same deterministic storage path and the queue's dedupe means the bytes are
+  // uploaded exactly once no matter which one runs first.
+  const stageDfrPhotos = useCallback((report: DailyFieldReport): DailyFieldReport => {
+    if (!report.photos || report.photos.length === 0) return report;
+    let changed = false;
+    const photos = report.photos.map((p) => {
+      if (p.storagePath || !isDeviceLocalUri(p.uri)) return p;
+      const storagePath = stagePhotoUpload({
+        userId, projectId: report.projectId, recordId: p.id, localUri: p.uri,
+      });
+      if (!storagePath) return p;
+      changed = true;
+      return { ...p, storagePath, localUri: p.uri };
+    });
+    return changed ? { ...report, photos } : report;
+  }, [userId]);
+
   const addDailyReport = useCallback((report: DailyFieldReport) => {
     const finalReport: DailyFieldReport = {
-      ...report,
+      ...stageDfrPhotos(report),
       portalState: report.portalState ?? initialPortalState('daily_report', report.projectId),
     };
     const updated = [finalReport, ...dailyReports];
@@ -1964,7 +2123,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         id: finalReport.id, user_id: userId, project_id: finalReport.projectId, date: finalReport.date,
         weather: finalReport.weather, manpower: finalReport.manpower, work_performed: finalReport.workPerformed,
         materials_delivered: finalReport.materialsDelivered, issues_and_delays: finalReport.issuesAndDelays,
-        photos: finalReport.photos, status: finalReport.status,
+        photos: dfrPhotoRows(finalReport.photos), status: finalReport.status,
         incident: finalReport.incident ?? null, work_progress: finalReport.workProgress ?? null,
         homeowner_summary: finalReport.homeownerSummary ?? null,
         homeowner_summary_generated_at: finalReport.homeownerSummaryGeneratedAt ?? null,
@@ -1973,11 +2132,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         portal_state: finalReport.portalState,
       });
     }
-  }, [dailyReports, saveDailyReportsMutation, canSync, userId, propagateProgressFromDFR, initialPortalState]);
+  }, [dailyReports, saveDailyReportsMutation, canSync, userId, propagateProgressFromDFR, initialPortalState, stageDfrPhotos]);
 
   const updateDailyReport = useCallback((id: string, updates: Partial<DailyFieldReport>) => {
     const now = new Date().toISOString();
-    const updated = dailyReports.map(dr => dr.id === id ? { ...dr, ...updates, updatedAt: now } : dr);
+    const updated = dailyReports.map(dr => dr.id === id ? stageDfrPhotos({ ...dr, ...updates, updatedAt: now }) : dr);
     setDailyReports(updated);
     saveDailyReportsMutation.mutate(updated);
     const dr = updated.find(d => d.id === id);
@@ -1987,7 +2146,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         void supabaseWrite('daily_reports', 'update', {
           id, weather: dr.weather, manpower: dr.manpower, work_performed: dr.workPerformed,
           materials_delivered: dr.materialsDelivered, issues_and_delays: dr.issuesAndDelays,
-          photos: dr.photos, status: dr.status, updated_at: now,
+          photos: dfrPhotoRows(dr.photos), status: dr.status, updated_at: now,
           incident: dr.incident ?? null, work_progress: dr.workProgress ?? null,
           homeowner_summary: dr.homeownerSummary ?? null,
           homeowner_summary_generated_at: dr.homeownerSummaryGeneratedAt ?? null,
@@ -1995,7 +2154,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [dailyReports, saveDailyReportsMutation, canSync, propagateProgressFromDFR]);
+  }, [dailyReports, saveDailyReportsMutation, canSync, propagateProgressFromDFR, stageDfrPhotos]);
 
   const getDailyReportsForProject = useCallback((projectId: string) => dailyReports.filter(dr => dr.projectId === projectId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [dailyReports]);
 
@@ -2687,12 +2846,27 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const getSubcontractor = useCallback((id: string) => subcontractors.find(s => s.id === id) ?? null, [subcontractors]);
 
+  // A punch photo is the deficiency's evidence — it has to outlive the device
+  // that shot it. Same treatment as the gallery: bytes onto the upload queue,
+  // durable path onto the row, local URI kept for rendering. Keyed
+  // `punch-<id>` so it can't collide with the gallery photo of the same id.
+  const stagePunchPhoto = useCallback((item: PunchItem): PunchItem => {
+    if (!item.photoUri || !isDeviceLocalUri(item.photoUri)) return item;
+    const storagePath = stagePhotoUpload({
+      userId, projectId: item.projectId, recordId: `punch-${item.id}`, localUri: item.photoUri,
+    });
+    if (!storagePath) return item;
+    return { ...item, photoStoragePath: storagePath, photoLocalUri: item.photoUri };
+  }, [userId]);
+
   // Snake/camel mapping for the punch_items insert payload — shared by the
   // single-add and batch-add paths so they stay byte-identical.
   const punchItemToRow = useCallback((item: PunchItem) => ({
     id: item.id, user_id: userId, project_id: item.projectId, description: item.description,
     location: item.location, assigned_sub: item.assignedSub, assigned_sub_id: item.assignedSubId,
-    due_date: item.dueDate, priority: item.priority, status: item.status, photo_uri: item.photoUri,
+    due_date: item.dueDate, priority: item.priority, status: item.status,
+    // Durable path, never the local `file://`.
+    photo_uri: durablePhotoValue(item.photoStoragePath, item.photoUri),
     // Plan-pin anchor + captured GPS. Client camelCase → snake_case column
     // (see migration 20260707120000_punch_location.sql). Previously omitted,
     // so this data was captured locally then silently dropped on sync.
@@ -2704,7 +2878,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     created_at: item.createdAt, updated_at: item.updatedAt,
   }), [userId]);
 
-  const addPunchItem = useCallback((item: PunchItem) => {
+  const addPunchItem = useCallback((rawItem: PunchItem) => {
+    const item = stagePunchPhoto(rawItem);
     // Read the ref (not `punchItems`) so a later synchronous call in the same
     // tick sees this row — keeps single-add composable with the batch path.
     const updated = [item, ...punchItemsRef.current];
@@ -2712,13 +2887,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setPunchItems(updated);
     savePunchItemsMutation.mutate(updated);
     if (canSync) void supabaseWrite('punch_items', 'insert', punchItemToRow(item));
-  }, [savePunchItemsMutation, canSync, punchItemToRow]);
+  }, [savePunchItemsMutation, canSync, punchItemToRow, stagePunchPhoto]);
 
   // Batch insert — prepends the WHOLE array in ONE setState via the ref, so all
   // N rows survive (the single-add read `punchItems` from a stale closure, so a
   // caller looping it kept only the last). One supabaseWrite per row, same shape.
-  const addPunchItems = useCallback((items: PunchItem[]) => {
-    if (items.length === 0) return;
+  const addPunchItems = useCallback((rawItems: PunchItem[]) => {
+    if (rawItems.length === 0) return;
+    const items = rawItems.map(stagePunchPhoto);
     // Newest-first: reverse so the first input ends up last after prepending,
     // matching the single-add ordering when called in sequence.
     const updated = [...[...items].reverse(), ...punchItemsRef.current];
@@ -2726,11 +2902,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setPunchItems(updated);
     savePunchItemsMutation.mutate(updated);
     if (canSync) items.forEach(item => { void supabaseWrite('punch_items', 'insert', punchItemToRow(item)); });
-  }, [savePunchItemsMutation, canSync, punchItemToRow]);
+  }, [savePunchItemsMutation, canSync, punchItemToRow, stagePunchPhoto]);
 
   const updatePunchItem = useCallback((id: string, updates: Partial<PunchItem>) => {
     const now = new Date().toISOString();
-    const updated = punchItems.map(pi => pi.id === id ? { ...pi, ...updates, updatedAt: now } : pi);
+    const updated = punchItems.map(pi => {
+      if (pi.id !== id) return pi;
+      // A photo attached AFTER creation (the common punch-walk flow: log the
+      // deficiency, shoot it later) has to be staged here too.
+      return stagePunchPhoto({ ...pi, ...updates, updatedAt: now });
+    });
     setPunchItems(updated);
     savePunchItemsMutation.mutate(updated);
     if (canSync) {
@@ -2739,7 +2920,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         void supabaseWrite('punch_items', 'update', {
           id, description: pi.description, location: pi.location, assigned_sub: pi.assignedSub,
           assigned_sub_id: pi.assignedSubId,
-          due_date: pi.dueDate, priority: pi.priority, status: pi.status, photo_uri: pi.photoUri,
+          due_date: pi.dueDate, priority: pi.priority, status: pi.status,
+          photo_uri: durablePhotoValue(pi.photoStoragePath, pi.photoUri),
           // Persist plan-pin anchor + captured GPS on update too (were omitted,
           // and assigned_sub_id was dropped on update — fixed here).
           plan_sheet_id: pi.planSheetId, pin_x: pi.pinX, pin_y: pi.pinY,
@@ -2750,7 +2932,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [punchItems, savePunchItemsMutation, canSync]);
+  }, [punchItems, savePunchItemsMutation, canSync, stagePunchPhoto]);
 
   const deletePunchItem = useCallback((id: string) => {
     const updated = punchItems.filter(pi => pi.id !== id);
@@ -2762,8 +2944,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const getPunchItemsForProject = useCallback((projectId: string) => punchItems.filter(pi => pi.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [punchItems]);
 
   const addProjectPhoto = useCallback((photo: ProjectPhoto) => {
+    // Queue the bytes and reserve the durable path BEFORE anything is written.
+    // `photo.uri` stays local in state so the gallery paints this frame.
+    const storagePath = photo.storagePath ?? stagePhotoUpload({
+      userId, projectId: photo.projectId, recordId: photo.id, localUri: photo.uri,
+    }) ?? undefined;
     const finalPhoto: ProjectPhoto = {
       ...photo,
+      storagePath,
+      localUri: photo.localUri ?? (isDeviceLocalUri(photo.uri) ? photo.uri : undefined),
       portalState: photo.portalState ?? initialPortalState('photo', photo.projectId),
     };
     // Functional updater: a daily-report save calls this N times synchronously
@@ -2777,7 +2966,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     });
     if (canSync) {
       void supabaseWrite('photos', 'insert', {
-        id: finalPhoto.id, user_id: userId, project_id: finalPhoto.projectId, uri: finalPhoto.uri,
+        id: finalPhoto.id, user_id: userId, project_id: finalPhoto.projectId,
+        // The DURABLE path, never the device-local URI — that was the bug.
+        uri: durablePhotoValue(storagePath, finalPhoto.uri),
         timestamp: finalPhoto.timestamp, location: finalPhoto.location, tag: finalPhoto.tag,
         linked_task_id: finalPhoto.linkedTaskId, linked_task_name: finalPhoto.linkedTaskName,
         markup: finalPhoto.markup, created_at: finalPhoto.createdAt,
@@ -2787,22 +2978,42 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, [savePhotosMutation, canSync, userId, initialPortalState]);
 
   const deleteProjectPhoto = useCallback((id: string) => {
+    const doomed = projectPhotos.find(p => p.id === id);
     const updated = projectPhotos.filter(p => p.id !== id);
     setProjectPhotos(updated);
     savePhotosMutation.mutate(updated);
-    if (canSync) void supabaseWrite('photos', 'delete', { id });
+    if (canSync) {
+      void supabaseWrite('photos', 'delete', { id });
+      // Reap the object too, or deleting photos would silently grow the
+      // bucket forever with rows nothing references.
+      if (doomed?.storagePath) void deleteProjectPhotoObject(doomed.storagePath);
+    }
   }, [projectPhotos, savePhotosMutation, canSync]);
 
   // Patch a photo in place — used by the annotator to save markup, by the
   // gallery to retag, and by clients downstream that want to update a
   // caption / location without re-uploading the image.
   const updateProjectPhoto = useCallback((id: string, updates: Partial<ProjectPhoto>) => {
-    const updated = projectPhotos.map(p => p.id === id ? { ...p, ...updates } : p);
+    const existing = projectPhotos.find(p => p.id === id);
+    // A caller replacing the image (e.g. a re-shot photo) hands us a fresh
+    // local URI. Stage its bytes and reserve a path here too, or this write
+    // would re-introduce a `file://` through the side door.
+    const nextStoragePath = updates.storagePath
+      ?? (updates.uri !== undefined && existing
+        ? stagePhotoUpload({ userId, projectId: existing.projectId, recordId: id, localUri: updates.uri }) ?? undefined
+        : undefined)
+      ?? existing?.storagePath;
+    const patched: Partial<ProjectPhoto> = {
+      ...updates,
+      ...(nextStoragePath ? { storagePath: nextStoragePath } : {}),
+      ...(updates.uri !== undefined && isDeviceLocalUri(updates.uri) ? { localUri: updates.uri } : {}),
+    };
+    const updated = projectPhotos.map(p => p.id === id ? { ...p, ...patched } : p);
     setProjectPhotos(updated);
     savePhotosMutation.mutate(updated);
     if (canSync) {
       const patch: Record<string, unknown> = { id };
-      if (updates.uri !== undefined) patch.uri = updates.uri;
+      if (updates.uri !== undefined) patch.uri = durablePhotoValue(nextStoragePath, updates.uri);
       if (updates.location !== undefined) patch.location = updates.location;
       if (updates.tag !== undefined) patch.tag = updates.tag;
       if (updates.linkedTaskId !== undefined) patch.linked_task_id = updates.linkedTaskId;
@@ -2810,7 +3021,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (updates.markup !== undefined) patch.markup = updates.markup;
       void supabaseWrite('photos', 'update', patch);
     }
-  }, [projectPhotos, savePhotosMutation, canSync]);
+  }, [projectPhotos, savePhotosMutation, canSync, userId]);
 
   const getPhotosForProject = useCallback((projectId: string) => projectPhotos.filter(p => p.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [projectPhotos]);
 
