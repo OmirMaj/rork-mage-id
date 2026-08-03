@@ -542,7 +542,12 @@ Also, the extension request in element 2 **must state an amount of time** — an
 fails elements 2 and 3 (*Zafer Taahhut Insaat v. United States*, 833 F.3d 1356, 1362 (Fed. Cir.
 2016)).
 
-**Both are one-field fixes.** `DelayEvent.claimedDays` is already required, which satisfies *Zafer*.
+**CORRECTED DURING IMPLEMENTATION.** This spec originally said `DelayEvent.claimedDays` already
+satisfies *Zafer*. **It does not.** `claimedDays` is the GC's *internal estimate of impact*; *Zafer*
+requires the **request itself** to state an amount. Those are different numbers — a notice is often
+sent for fewer days than are ultimately claimed, and the register has to record what was actually
+asked for, not what was privately believed. Implemented as a separate required
+`DelayNotice.daysRequested`, enforced by `extensionRequestViolations()`.
 Add a derived inbox prompt: when a `DelayEvent` has an `initial` notice, no `changeOrderId`, and the
 notice is older than a reasonable-response window, surface *"the owner hasn't responded — if they're
 still holding you to the original date, you may need to notify them you consider it acceleration."*
@@ -976,7 +981,7 @@ not even your fault.
 | Addition | Authority | Cost |
 |---|---|---|
 | Owner/architect RFI hold-time (fold over the existing `RFIHandoff` chain), never round-trip | *Caddell* (§2.5) | S — data already exists |
-| Required days-amount on every extension request | *Zafer* (§3.4) | XS — `claimedDays` already required |
+| Required days-amount on every extension request | *Zafer* (§3.4) | S — needs its OWN field (`DelayNotice.daysRequested`); `claimedDays` is the internal estimate, not the request. See §3.4 correction. |
 | Constructive-acceleration second-notice prompt | *Fraser* element 4 (§3.4) | S |
 | Reservation prompt fired at CO execution and final pay app, with required claim + amount | *Mingus*, *Fortis*, *MMR* (§2.2b) | S |
 | Daily-report completion streak including "nothing happened" days | FRE 803(6)(C), *Meltech* (§1.5) | S — and it is a retention feature that happens to be an evidentiary one |

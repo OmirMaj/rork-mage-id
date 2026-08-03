@@ -800,7 +800,11 @@ function ScheduleProScreenInner() {
     // guard that also keeps this a YYYY-MM-DD string for the notice clock's
     // noon-anchored parse.
     const firstObserved = logEntry.dates[0] ?? logEntry.appliedAt.slice(0, 10);
-    showAlert(
+    // The weather modal is a native <Modal> and is dismissing on this same
+    // tick. On iOS, presenting an alert while a modal tears down can silently
+    // fail to present at all — the same trap useEntityNavigation's `fromSheet`
+    // option exists for. Let the dismissal finish first.
+    const ask = () => showAlert(
       'Log this as a delay event?',
       `${logEntry.projectSlipDays} day${logEntry.projectSlipDays === 1 ? '' : 's'} of slip is on the schedule. ` +
       'Logging it starts your contract\u2019s written-notice clock and attaches this weather record as evidence.',
@@ -831,6 +835,7 @@ function ScheduleProScreenInner() {
         },
       ],
     );
+    if (Platform.OS === 'ios') setTimeout(ask, 350); else ask();
   }, [project, weatherResult, updateProject, cpm.projectFinish, router]);
 
   // Bulk push handler — moves multiple tasks in a single commit. Each

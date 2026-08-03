@@ -263,13 +263,20 @@ export default function DelayEventsScreen() {
     addDelayEvent(event);
     resetForm();
     setShowLogModal(false);
-    setOpenEventId(event.id);
 
-    // §3.3 — the FIRST delay event on a project with no notice period blocks on
+    // §3.3 — the FIRST delay event on a project with no notice period BLOCKS on
     // the ask. Not a toast, not a badge: without the period there is no clock,
     // and a delay register with no clock is the exact thing this feature exists
     // to prevent.
-    if (period.days === null) setShowPeriodModal(true);
+    //
+    // It also takes precedence over opening the event detail, so exactly ONE
+    // modal transitions per tick — presenting two while a third dismisses is
+    // the iOS stacking bug, and losing this prompt is losing the feature.
+    if (period.days === null) {
+      setShowPeriodModal(true);
+      return;
+    }
+    setOpenEventId(event.id);
   }, [projectId, formDesc, formCause, formDate, formClaimed, formConcurrent, pendingEvidence, events, addDelayEvent, resetForm, period.days]);
 
   // ── Evidence ──────────────────────────────────────────────────────────────
