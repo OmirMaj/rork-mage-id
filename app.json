@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MAGE ID",
-    "slug": "construction-cost-estimator-3g637fu",
+    "slug": "mageid",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -136,7 +136,7 @@
         "origin": "https://app.mageid.app/"
       },
       "eas": {
-        "projectId": "9f6536e0-0774-47e0-a0ae-2f10a4e46b2b"
+        "projectId": "00860b05-b25b-4b37-b85a-846ecb80bb4c"
       }
     },
     "owner": "omirmajeed",
@@ -144,7 +144,7 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/9f6536e0-0774-47e0-a0ae-2f10a4e46b2b"
+      "url": "https://u.expo.dev/00860b05-b25b-4b37-b85a-846ecb80bb4c"
     }
   }
 }
