@@ -28,13 +28,22 @@ interface Props {
   /** Optional override; when omitted the component reads projects (and the
    *  commitments/receipts/labor samples the cost book needs) from context. */
   projects?: Project[];
+  /**
+   * Fires with each successful analysis. This exists because the component
+   * used to compute `result.affectedTasks[]` — which tasks shift and by how
+   * many days — render it, and then throw it away. The change-order screen now
+   * resolves those task names to real schedule task ids and persists them on
+   * the CO, so approval can anchor the reflow on the activity the model
+   * actually identified instead of guessing.
+   */
+  onResult?: (result: ChangeOrderImpactResult) => void;
 }
 
 function formatCurrency(n: number): string {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule, projects: projectsProp }: Props) {
+export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule, projects: projectsProp, onResult }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
@@ -72,12 +81,15 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
       setIsExpanded(true);
+      // Hand the analysis up so affectedTasks[] can actually be used rather
+      // than rendered and discarded.
+      onResult?.(data);
     } catch (err) {
       console.error('[AI CO Impact] Failed:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, changeDescription, lineItems, schedule, projects, commitments, receipts, laborSamples, tier, router]);
+  }, [isLoading, changeDescription, lineItems, schedule, projects, commitments, receipts, laborSamples, tier, router, onResult]);
 
   if (!result) {
     return (

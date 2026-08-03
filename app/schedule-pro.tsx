@@ -71,7 +71,7 @@ import { CriticalPathPanel } from '@/components/schedule/CriticalPathPanel';
 import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
 import { buildCriticalPathExplanation } from '@/utils/floatExplain';
 import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
-import { getSimulatedForecast } from '@/utils/weatherService';
+import { getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
 import { computeWeatherReschedule, buildWeatherDelayLog, type WeatherRescheduleResult } from '@/utils/weatherReschedule';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
@@ -711,12 +711,33 @@ function ScheduleProScreenInner() {
     void appendAuditToAsyncStorage(project.id, buildAuditEntry(entry));
   }, [project?.id]);
 
-  // 14-day forecast keyed off project start. Used for the weather-aware
-  // reschedule prompt — surfaces tasks that hit un-workable days.
-  const forecast = useMemo(
-    () => getSimulatedForecast(projectStartDate, 14),
-    [projectStartDate],
-  );
+  // 14-day forecast keyed off project start. Drives the weather-aware
+  // reschedule prompt AND the delay-day log written by applyWeatherReschedule
+  // below — which is exactly why this must attempt the REAL API rather than
+  // calling getSimulatedForecast(): weatherDelayLog is delay documentation,
+  // and buildWeatherDelayLog refuses to write an entry with no live evidence.
+  //
+  // Prefers the project's geocoded lat/lng (far more accurate on rural sites
+  // than a free-text address), falling back to the location string. With no
+  // EXPO_PUBLIC_OPENWEATHER_API_KEY every day comes back source:'simulated',
+  // the reschedule modal says so, and nothing is logged.
+  const [forecast, setForecast] = useState<DayForecast[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setForecast([]);
+    void getForecastWithFallback(
+      {
+        city: project?.location,
+        latitude: project?.locationLatitude,
+        longitude: project?.locationLongitude,
+      },
+      projectStartDate,
+      14,
+    ).then((days) => {
+      if (!cancelled) setForecast(days);
+    });
+    return () => { cancelled = true; };
+  }, [projectStartDate, project?.location, project?.locationLatitude, project?.locationLongitude]);
 
   // Weather reschedule — compute the forecast's impact on weather-sensitive
   // tasks (and the cascade) and open the preview. todayDay pins work already

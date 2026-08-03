@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef } from 'react';
+import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -34,7 +34,11 @@ import {
   getPredecessors,
   getSuccessors,
 } from '@/utils/scheduleEngine';
-import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+import { getForecastWithFallback, getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import {
+  SimulatedWeatherBanner,
+  SimulatedDayChip,
+} from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -48,6 +52,18 @@ interface TodayViewProps {
   onPhotoAdded?: (task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => void;
   healthScore: number;
   daysRemaining: number;
+  /**
+   * The jobsite, used to fetch the REAL forecast for THIS project. Pass the
+   * geocoded lat/lng when the project has one (far more accurate on rural
+   * sites than a free-text address); the location string is the fallback.
+   *
+   * With neither — or with no EXPO_PUBLIC_OPENWEATHER_API_KEY — the strip
+   * falls back to simulated data and says so, loudly. See
+   * components/schedule/SimulatedWeatherNotice.tsx.
+   */
+  location?: string;
+  locationLatitude?: number;
+  locationLongitude?: number;
 }
 
 const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
@@ -334,10 +350,43 @@ function TodayView({
   onPhotoAdded,
   healthScore,
   daysRemaining,
+  location,
+  locationLatitude,
+  locationLongitude,
 }: TodayViewProps) {
   const now = useMemo(() => new Date(), []);
 
-  const forecast = useMemo(() => getSimulatedForecast(now, 4), [now]);
+  /**
+   * TODAY'S weather for THIS jobsite. This is the screen a superintendent
+   * opens at 6am to decide whether the pour happens — it used to call
+   * getSimulatedForecast(4) and print the result as fact. The simulator
+   * invents conditions from the calendar date and ignores the site entirely,
+   * so "72°F, 15% rain" was a number with no source.
+   *
+   * Now it goes through getForecastWithFallback, the same path LookaheadView
+   * and schedule-pro use: live OpenWeather when EXPO_PUBLIC_OPENWEATHER_API_KEY
+   * is set, simulated only when there's no key / no location / the request
+   * failed. Every returned day is tagged, and any non-live day on screen is
+   * marked (banner + per-day SIM chip).
+   *
+   * Starts empty rather than pre-seeding with simulated data: an empty header
+   * for one frame is honest, a fabricated temperature is not.
+   */
+  const [forecast, setForecast] = useState<DayForecast[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setForecast([]);
+    void getForecastWithFallback(
+      { city: location?.trim(), latitude: locationLatitude, longitude: locationLongitude },
+      now,
+      4,
+    ).then((days) => {
+      if (!cancelled) setForecast(days);
+    });
+    return () => { cancelled = true; };
+  }, [now, location, locationLatitude, locationLongitude]);
+
   const todayWeather = forecast[0];
 
   const activeTasks = useMemo(() => {
@@ -428,9 +477,16 @@ function TodayView({
               <Text style={s.weatherPrecip}>{todayWeather.precipChance}%</Text>
               <Droplet size={10} color={Colors.textSecondary} strokeWidth={1.75} />
             </View>
+            {/* Today's own number gets its own chip — the banner below covers
+                the window, but this reading is the one that gets acted on. */}
+            <SimulatedDayChip source={todayWeather.source} />
           </View>
         )}
       </View>
+
+      {/* Above the strip it disclaims. Self-hiding when every day is live —
+          `container` already supplies the gap, so no extra spacing needed. */}
+      <SimulatedWeatherBanner days={forecast} />
 
       {forecast.length > 1 && (
         <View style={s.forecastRow}>
@@ -442,6 +498,7 @@ function TodayView({
                 <Text style={s.forecastDayName}>{dayName}</Text>
                 <Text style={s.forecastDayIcon}>{getConditionIcon(f.condition)}</Text>
                 <Text style={s.forecastDayTemp}>{f.tempHigh}°</Text>
+                <SimulatedDayChip source={f.source} />
               </View>
             );
           })}

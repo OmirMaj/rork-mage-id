@@ -127,8 +127,6 @@ for (const { label, pattern, key } of MARQUEE) {
 const MISTIER: { tier: string; pattern: RegExp; key: keyof typeof REQUIRED_TIER; why: string }[] = [
   { tier: 'pro',  pattern: /closeout binder/i, key: 'punch_list_closeout',
     why: 'the closeout half of "lien waivers + closeout binder" is Business, not Pro' },
-  { tier: 'pro',  pattern: /pinning/i, key: 'plan_viewer',
-    why: 'Pro gets plan_markup; sheet pinning is the Business plan_viewer gate' },
   { tier: 'free', pattern: /Geo-tagged photo capture/i, key: 'photo_documentation',
     why: 'photo capture/documentation is a paid feature, not a Free one' },
 ];

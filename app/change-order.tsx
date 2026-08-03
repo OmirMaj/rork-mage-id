@@ -34,6 +34,8 @@ import { generateG714PDF, type G714Data, type CCDPaymentBasis } from '@/utils/ai
 import type { ChangeOrderLineItem, ChangeOrder, ChangeOrderStatus } from '@/types';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
+import { resolveAiAffectedTaskIds } from '@/utils/coScheduleReflowCore';
 
 // Pipeline stages — happy path through the CO lifecycle. Side branches
 // (rejected, revised, void) live outside this visual; the user can still
@@ -138,6 +140,14 @@ function ChangeOrderInner() {
     existingCO?.scheduleImpactDays ? String(existingCO.scheduleImpactDays)
       : (prefillScheduleDays && Number(prefillScheduleDays) > 0 ? prefillScheduleDays : '')
   );
+  // Schedule tasks the AI impact analysis named, resolved to real task ids.
+  // Persisted on the CO so approval can extend the activity the model
+  // identified — the analysis used to be rendered and thrown away.
+  const [aiAffectedTaskIds, setAiAffectedTaskIds] = useState<string[]>(
+    existingCO?.scheduleImpactTaskIds ?? []
+  );
+  // CO being previewed before its schedule impact is applied (pipeline approve).
+  const [reflowPreviewCO, setReflowPreviewCO] = useState<ChangeOrder | null>(null);
   // Pre-seed line items: single overage line so the dollar amount
   // shows on the change order without manual entry.
   const seedFromOverage: ChangeOrderLineItem[] | null = !existingCO && prefillAmount && Number(prefillAmount) > 0
@@ -187,6 +197,14 @@ function ChangeOrderInner() {
       m.supplier.toLowerCase().includes(q)
     ).slice(0, 50);
   }, [allMaterials, materialQuery]);
+
+  // Estimate items keyed for the reflow's estimate-link anchor tier
+  // (ScheduleTask.linkedEstimateItems stores materialIds). Memoized because the
+  // preview modal re-runs CPM whenever this array's identity changes.
+  const reflowEstimateItems = useMemo(
+    () => (project?.linkedEstimate?.items ?? []).map(i => ({ id: i.materialId, name: i.name })),
+    [project?.linkedEstimate],
+  );
 
   const changeAmount = useMemo(() => {
     return lineItems.reduce((sum, item) => sum + item.total, 0);
@@ -344,6 +362,7 @@ function ChangeOrderInner() {
         newContractTotal,
         status,
         scheduleImpactDays: impactDays,
+        scheduleImpactTaskIds: aiAffectedTaskIds.length > 0 ? aiAffectedTaskIds : undefined,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
@@ -363,6 +382,7 @@ function ChangeOrderInner() {
         createdAt: now,
         updatedAt: now,
         scheduleImpactDays: impactDays,
+        scheduleImpactTaskIds: aiAffectedTaskIds.length > 0 ? aiAffectedTaskIds : undefined,
       };
       addChangeOrder(co);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -370,7 +390,7 @@ function ChangeOrderInner() {
     }
 
     router.back();
-  }, [projectId, description, reason, scheduleImpactDays, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
+  }, [projectId, description, reason, scheduleImpactDays, aiAffectedTaskIds, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -545,6 +565,17 @@ function ChangeOrderInner() {
                 current={mapCOStatus(existingCO.status)}
                 startedAt={existingCO.createdAt}
                 onAdvance={(next) => {
+                  // Advancing to approved can now rewrite the Gantt. Same rule
+                  // as the project screen: preview first, never on the tap.
+                  if (
+                    next === 'approved' &&
+                    (existingCO.scheduleImpactDays ?? 0) > 0 &&
+                    !existingCO.scheduleImpactApplied &&
+                    (project?.schedule?.tasks?.length ?? 0) > 0
+                  ) {
+                    setReflowPreviewCO(existingCO);
+                    return;
+                  }
                   updateChangeOrder(existingCO.id, { status: next });
                   if (next === 'approved') {
                     nailIt(`CO #${existingCO.number} approved`);
@@ -691,7 +722,17 @@ function ChangeOrderInner() {
                   keyboardType="numeric"
                   testID="co-schedule-impact-input"
                 />
-                <Text style={styles.helperText}>When approved, these days extend the project schedule automatically.</Text>
+                {/* This line used to read "When approved, these days extend
+                    the project schedule automatically." Nothing extended: the
+                    approval bumped three scalars and left every task date
+                    untouched. Approval now really does reflow the schedule —
+                    behind a preview — so the copy says exactly that, and says
+                    something different when there is no schedule to reflow. */}
+                <Text style={styles.helperText}>
+                  {project?.schedule?.tasks?.length
+                    ? 'On approval you\'ll see which task absorbs these days and what shifts downstream — nothing moves until you apply it.'
+                    : 'This project has no schedule yet, so these days are recorded on the change order only.'}
+                </Text>
               </View>
 
               <View style={{ paddingHorizontal: 16 }}>
@@ -699,6 +740,16 @@ function ChangeOrderInner() {
                   changeDescription={description}
                   lineItems={lineItems.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))}
                   schedule={project?.schedule ?? null}
+                  onResult={(res) => {
+                    // Keep the tasks the model named so approval can anchor the
+                    // reflow on real work instead of a guess.
+                    const names = (res.affectedTasks ?? []).map(t => t.taskName).filter(Boolean);
+                    const ids = resolveAiAffectedTaskIds(project?.schedule?.tasks ?? [], names);
+                    if (ids.length > 0) setAiAffectedTaskIds(ids);
+                    // Only fill the days field when the user left it blank —
+                    // their number is the contractual one.
+                    if (res.scheduleDays > 0) setScheduleImpactDays(prev => prev || String(res.scheduleDays));
+                  }}
                 />
               </View>
             </>
@@ -712,7 +763,14 @@ function ChangeOrderInner() {
                 {existingCO?.scheduleImpactDays ? (
                   <Text style={styles.lockedSub}>
                     Schedule Impact: +{existingCO.scheduleImpactDays} day{existingCO.scheduleImpactDays === 1 ? '' : 's'}
-                    {existingCO.scheduleImpactApplied ? ' (applied to schedule)' : ''}
+                    {/* Say which of the three states it is. The old flat
+                        "applied" suffix printed on COs whose Gantt had never
+                        moved, which is exactly the lie this work removes. */}
+                    {existingCO.scheduleImpactApplied
+                      ? ' — applied to the schedule'
+                      : existingCO.status === 'approved'
+                        ? ' — approved but not yet placed on the schedule. Open Change Orders on the project to pick the activity that absorbs them.'
+                        : ' — not applied yet'}
                   </Text>
                 ) : null}
               </View>
@@ -1125,6 +1183,26 @@ function ChangeOrderInner() {
           </View>
         </View>
       </Modal>
+
+      {/* Preview-then-apply for the CO's schedule impact. Same component the
+          project screen uses, so both approve surfaces show the identical
+          plan — and the same core computes the write. */}
+      {reflowPreviewCO !== null && (
+        <COScheduleReflowPreviewModal
+          visible
+          changeOrder={reflowPreviewCO}
+          schedule={project?.schedule ?? null}
+          estimateItems={reflowEstimateItems}
+          moneyLine={`Commits ${formatCurrency(reflowPreviewCO.changeAmount)} to the contract.`}
+          onClose={() => setReflowPreviewCO(null)}
+          onConfirm={(anchorTaskId) => {
+            const co = reflowPreviewCO;
+            setReflowPreviewCO(null);
+            updateChangeOrder(co.id, { status: 'approved' }, { anchorTaskId });
+            nailIt(`CO #${co.number} approved`);
+          }}
+        />
+      )}
     </View>
   );
 }

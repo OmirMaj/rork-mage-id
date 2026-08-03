@@ -7,6 +7,13 @@
 // project finish, by the right number of days. No SMB residential competitor
 // does this; the enterprise tools (ALICE, EHAB) are $$$ and commercial-only.
 //
+// PROVENANCE: the reschedule math treats live and simulated days identically —
+// planning around a hypothetical is legitimate. What is NOT legitimate is
+// writing a hypothetical into weatherDelayLog, the record an owner sees. Each
+// affected date's `source` is carried out on the result, and
+// buildWeatherDelayLog refuses (or quarantines) anything not backed by a real
+// reading. See utils/weatherProvenance.ts.
+//
 // Model (deliberate): weather injects delay into the dependency EDGES, not the
 // hit task's own bar. A weather-sensitive task keeps its authored duration; its
 // SUCCESSORS (and the project finish) slip by the lost days. This keeps durations
@@ -21,6 +28,11 @@
 
 import type { ScheduleTask, DependencyLink, WeatherDelayLogEntry } from '@/types';
 import type { DayForecast } from '@/utils/weatherService';
+import {
+  partitionDatesBySource,
+  summarizeForecastSource,
+  type ForecastCoverage,
+} from '@/utils/weatherProvenance';
 
 export type { WeatherDelayLogEntry };
 
@@ -56,6 +68,15 @@ export interface WeatherRescheduleResult {
   cascadedCount: number;
   /** Distinct non-workable dates that actually hit a task, ascending. */
   affectedDates: string[];
+  /** Subset of `affectedDates` backed by a real OpenWeather reading. Only
+   *  these are admissible as delay documentation. */
+  liveAffectedDates: string[];
+  /** Subset of `affectedDates` that came from getSimulatedForecast — invented,
+   *  with no relation to the jobsite. Never evidence. */
+  simulatedAffectedDates: string[];
+  /** Provenance of the forecast window this result was computed from.
+   *  'empty' when no forecast was supplied at all. */
+  forecastSource: ForecastCoverage;
 }
 
 // Severity order for picking the headline condition on a multi-day hit.
@@ -210,44 +231,92 @@ export function computeWeatherReschedule(
   }
   impacts.sort((a, b) => (b.startSlipDays + b.weatherDelayDays) - (a.startSlipDays + a.weatherDelayDays));
 
+  // Carry each affected date's provenance out with the result. The reschedule
+  // math is identical for live and simulated days — what differs is whether
+  // the resulting delay may be written down as documentation.
+  const affectedDates = Array.from(affected).sort();
+  const split = partitionDatesBySource(affectedDates, forecast);
+
   return {
     tasks: Array.from(map.values()),
     impacts,
     projectSlipDays,
     directHitCount: impacts.filter((i) => i.directlyHit).length,
     cascadedCount: impacts.filter((i) => !i.directlyHit && i.startSlipDays > 0).length,
-    affectedDates: Array.from(affected).sort(),
+    affectedDates,
+    liveAffectedDates: split.live,
+    simulatedAffectedDates: split.simulated,
+    forecastSource: summarizeForecastSource(forecast),
   };
 }
 
-/** One-line summary for a banner / toast. */
+/** One-line summary for a banner / toast. Leads with the provenance when the
+ *  forecast isn't fully live, so the number is never read as a real finding. */
 export function summarizeWeatherImpact(r: WeatherRescheduleResult): string {
   if (r.impacts.length === 0) return 'No weather delays in the forecast window.';
   const d = r.projectSlipDays;
   const hit = r.directHitCount;
   const slip = d > 0 ? `${d} day${d === 1 ? '' : 's'}` : 'no net';
-  return `${hit} weather-sensitive task${hit === 1 ? '' : 's'} hit · ${slip} project slip`;
+  const body = `${hit} weather-sensitive task${hit === 1 ? '' : 's'} hit · ${slip} project slip`;
+  if (r.forecastSource === 'simulated') return `SIMULATED WEATHER — ${body}`;
+  if (r.forecastSource === 'mixed') return `PARTLY SIMULATED — ${body}`;
+  return body;
 }
 
-/** Build a durable log entry from an applied reschedule (the "delay-day log"). */
+/**
+ * Build a durable log entry from an applied reschedule (the "delay-day log").
+ *
+ * PROVENANCE RULE — the reason this can return null on a real impact:
+ * weatherDelayLog is the record a GC hands an owner to justify a delay. A
+ * delay day invented by getSimulatedForecast() has no relation to the jobsite,
+ * so it is not evidence of anything.
+ *
+ *   • no live delay dates at all → null. Nothing is logged. The reschedule
+ *     itself still applies (it's a planning aid); it just produces no
+ *     documentation. No record beats a fabricated one.
+ *   • some live, some simulated (the padded tail past OpenWeather's free
+ *     5-day horizon) → an entry stamped `source: 'mixed'`, with `dates`
+ *     holding ONLY the live-evidenced days and the invented ones quarantined
+ *     in `simulatedDates`.
+ *   • all live → `source: 'live'`.
+ *
+ * `source` is a required field on WeatherDelayLogEntry, so a reader can never
+ * encounter one of these records without also seeing where it came from.
+ */
 export function buildWeatherDelayLog(
   r: WeatherRescheduleResult,
   idGen: () => string,
   now: string = new Date().toISOString(),
 ): WeatherDelayLogEntry | null {
   if (r.impacts.length === 0) return null;
+  // Nothing real behind it → no record. (Today, with no OpenWeather key
+  // configured, this is the normal path: every forecast is simulated, so the
+  // delay log stays empty instead of filling with fiction.)
+  if (r.liveAffectedDates.length === 0) return null;
+
   let worst: DayForecast['condition'] | undefined;
   for (const i of r.impacts) {
     if (i.worstCondition && (worst === undefined || CONDITION_SEVERITY[i.worstCondition] > CONDITION_SEVERITY[worst])) {
       worst = i.worstCondition;
     }
   }
+  const simulated = r.simulatedAffectedDates;
+  const mixed = simulated.length > 0;
   return {
     id: idGen(),
     appliedAt: now,
-    dates: r.affectedDates,
+    dates: r.liveAffectedDates,
     condition: worst,
     taskIds: r.impacts.map((i) => i.taskId),
     projectSlipDays: r.projectSlipDays,
+    source: mixed ? 'mixed' : 'live',
+    ...(mixed ? { simulatedDates: simulated } : {}),
+    ...(mixed
+      ? {
+          note:
+            `${simulated.length} of ${r.affectedDates.length} delay day${r.affectedDates.length === 1 ? '' : 's'} ` +
+            'came from SIMULATED weather (beyond live forecast coverage) and are excluded from the evidenced dates.',
+        }
+      : {}),
   };
 }

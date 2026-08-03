@@ -14,7 +14,11 @@ import {
   getPhaseColor,
   getTaskDateRange,
 } from '@/utils/scheduleEngine';
-import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+import { getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import {
+  SimulatedWeatherBanner,
+  SimulatedDayChip,
+} from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -24,6 +28,17 @@ interface VerticalGanttProps {
   projectStartDate: Date;
   onTaskPress: (task: ScheduleTask) => void;
   showBaseline: boolean;
+  /**
+   * Forecast for the weather icon in each day row. Supplied by the parent —
+   * the SAME array the horizontal GanttChart gets, which comes from
+   * getForecastWithFallback keyed to the project's location.
+   *
+   * This used to be `getSimulatedForecast(now, 21)` called locally: the real
+   * API was never attempted and every icon in the date column was invented,
+   * unlabelled. Omitting the prop now renders NO weather at all rather than
+   * fabricating it — a blank column is honest, a made-up one is not.
+   */
+  forecast?: DayForecast[];
 }
 
 interface DayRow {
@@ -36,15 +51,14 @@ interface DayRow {
   tasks: ScheduleTask[];
   weatherIcon?: string;
   isWorkable?: boolean;
+  /** Provenance of the day's reading; undefined when there is no reading. */
+  weatherSource?: DayForecast['source'];
 }
 
-function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBaseline: _showBaseline }: VerticalGanttProps) {
+function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBaseline: _showBaseline, forecast }: VerticalGanttProps) {
   const now = useMemo(() => new Date(), []);
   const totalDays = schedule.totalDurationDays;
-
-  const forecast = useMemo(() => {
-    return getSimulatedForecast(now, 21);
-  }, [now]);
+  const days = useMemo(() => forecast ?? [], [forecast]);
 
   const dayRows = useMemo<DayRow[]>(() => {
     const rows: DayRow[] = [];
@@ -64,7 +78,7 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
         return date >= range.start && date <= range.end && !t.isMilestone;
       });
 
-      const weather = forecast.find(f => f.date === dateStr);
+      const weather = days.find(f => f.date === dateStr);
 
       rows.push({
         date,
@@ -76,10 +90,11 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
         tasks: dayTasks,
         weatherIcon: weather ? getConditionIcon(weather.condition) : undefined,
         isWorkable: weather?.isWorkable,
+        weatherSource: weather?.source,
       });
     }
     return rows;
-  }, [tasks, projectStartDate, schedule, totalDays, now, forecast]);
+  }, [tasks, projectStartDate, schedule, totalDays, now, days]);
 
   const renderTaskBar = useCallback((task: ScheduleTask) => {
     const phaseColor = getPhaseColor(task.phase);
@@ -115,6 +130,9 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
           {row.weatherIcon && (
             <Text style={s.dayWeather}>{row.weatherIcon}</Text>
           )}
+          {/* Per-day marker, same chip LookaheadView uses. Only the days past
+              the live horizon carry it, so a mixed column reads correctly. */}
+          {row.weatherSource && <SimulatedDayChip source={row.weatherSource} />}
         </View>
         <View style={s.dayTasks}>
           {row.tasks.length === 0 ? (
@@ -127,8 +145,23 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
     );
   }, [renderTaskBar]);
 
+  // Only the rows that actually render count — renderDayRow drops empty
+  // weekends, and a day with no forecast entry shows no weather at all.
+  const displayedWeatherDays = useMemo(
+    () =>
+      dayRows
+        .filter((r) => !(r.isWeekend && r.tasks.length === 0))
+        .map((r) => r.weatherSource)
+        .filter((src): src is DayForecast['source'] => src != null)
+        .map((source) => ({ source })),
+    [dayRows],
+  );
+
   return (
     <View style={s.container}>
+      {/* Pinned above the scroller, not inside it — a trust warning that can
+          be scrolled out of sight is not a warning. Self-hiding when live. */}
+      <SimulatedWeatherBanner days={displayedWeatherDays} style={s.simBannerSpacing} />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={s.header}>
           <View style={s.headerDateCol}>
@@ -146,6 +179,8 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
 
 const s = StyleSheet.create({
   container: { flex: 1 },
+  // Layout only for the shared marker (components/schedule/SimulatedWeatherNotice).
+  simBannerSpacing: { marginHorizontal: 4, marginBottom: 8 },
   header: {
     flexDirection: 'row',
     borderBottomWidth: 1,

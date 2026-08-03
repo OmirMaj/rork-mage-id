@@ -618,7 +618,7 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
 
 // The seal has to land somewhere. Pin the migration that gives it a home.
 {
-  const mig = read('supabase/migrations/20260803120000_portal_co_esignature.sql');
+  const mig = read('supabase/migrations/20260803120500_portal_co_esignature.sql');
   ok('CO e-signature migration present', mig.length > 0);
   ok('migration creates the token-gated signed RPC',
     /create or replace function public\.portal_submit_co_approval_signed\(/.test(mig));

@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useRef } from 'react';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,8 +22,12 @@ import {
   getTaskDateRange,
   getPredecessors,
 } from '@/utils/scheduleEngine';
-import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+import { getForecastWithFallback, getConditionIcon } from '@/utils/weatherService';
 import type { DayForecast } from '@/utils/weatherService';
+import {
+  SimulatedWeatherBanner,
+  SimulatedDayChip,
+} from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -33,6 +37,12 @@ interface LookaheadViewProps {
   projectStartDate: Date;
   onProgressUpdate: (task: ScheduleTask, progress: number) => void;
   onTaskPress: (task: ScheduleTask) => void;
+  /**
+   * The project's location string (city / address), used to fetch the REAL
+   * forecast for this jobsite. Without it — or without an OpenWeather API key —
+   * the weather strip falls back to simulated data and says so, loudly.
+   */
+  location?: string;
 }
 
 interface WeekGroup {
@@ -187,14 +197,40 @@ function LookaheadView({
   projectStartDate,
   onProgressUpdate,
   onTaskPress,
+  location,
 }: LookaheadViewProps) {
   const [weekCount, setWeekCount] = useState<3 | 6>(3);
   const now = useMemo(() => new Date(), []);
 
-  const forecast = useMemo(
-    () => getSimulatedForecast(now, weekCount * 7),
-    [now, weekCount]
-  );
+  /**
+   * Real forecast for THIS jobsite. This view used to call
+   * getSimulatedForecast() unconditionally — it never even attempted the API,
+   * and the simulator ignores the region entirely, so the strip showed
+   * calendar-derived fiction with no relation to the site.
+   *
+   * Now it goes through getForecastWithFallback, the same path the Gantt uses:
+   * live OpenWeather for `location` when EXPO_PUBLIC_OPENWEATHER_API_KEY is
+   * set (5 real days on the free tier), simulated only for the padded tail —
+   * or for everything when there's no key. Whatever comes back is tagged
+   * per-day, and any non-live day shown here is marked (see the banner below).
+   *
+   * Starts empty rather than pre-seeding with simulated data: an empty strip
+   * for one frame is honest, a fake one is not.
+   */
+  const [forecast, setForecast] = useState<DayForecast[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setForecast([]);
+    void getForecastWithFallback(
+      { city: location?.trim() },
+      now,
+      weekCount * 7,
+    ).then((days) => {
+      if (!cancelled) setForecast(days);
+    });
+    return () => { cancelled = true; };
+  }, [now, weekCount, location]);
 
   const weekGroups = useMemo<WeekGroup[]>(() => {
     const groups: WeekGroup[] = [];
@@ -258,6 +294,9 @@ function LookaheadView({
                 <View key={f.date} style={[s.weekWeatherDay, !f.isWorkable && s.weekWeatherDayBad]}>
                   <Text style={s.weekWeatherDayName}>{dayName}</Text>
                   <Text style={s.weekWeatherIcon}>{getConditionIcon(f.condition)}</Text>
+                  {/* Per-day provenance chip — says WHICH days are invented, so
+                      a part-live / part-padded week can't be read as all-real. */}
+                  <SimulatedDayChip source={f.source} />
                   {isRisky && <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />}
                 </View>
               );
@@ -329,6 +368,13 @@ function LookaheadView({
     );
   }, [tasks, schedule, projectStartDate, onProgressUpdate, onTaskPress, renderWeekHeader]);
 
+  // Only the days actually on screen count. If a padded/simulated day falls
+  // outside every rendered week, there is nothing to warn about.
+  const displayedDays = useMemo(
+    () => weekGroups.flatMap((g) => g.forecast),
+    [weekGroups],
+  );
+
   return (
     <View style={s.container}>
       <View style={s.segmentControl}>
@@ -345,6 +391,12 @@ function LookaheadView({
           <Text style={[s.segmentBtnText, weekCount === 6 && s.segmentBtnTextActive]}>6 Week</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Unmissable, always-on marker — not a tooltip. Sits directly above the
+          week strip that shows the invented conditions, so the label and the
+          data it disclaims can't be seen apart. Gated on the days actually
+          RENDERED, not the raw fetch, and self-hiding for a fully live week. */}
+      <SimulatedWeatherBanner days={displayedDays} />
 
       <FlatList
         data={weekGroups}
@@ -401,6 +453,12 @@ const s = StyleSheet.create({
   weekWeatherDayName: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
   weekWeatherIcon: { fontSize: Type.bodyCompact.fontSize },
   weatherRisk: { fontSize: 10 },
+
+  // ── Simulated-weather marker ───────────────────────────────────────────
+  // Lives in components/schedule/SimulatedWeatherNotice.tsx now — the banner
+  // and the per-day chip are shared with TodayView, VerticalGantt and the
+  // schedule task-detail panel so there is exactly ONE treatment for invented
+  // weather. Do not re-add local copies here.
 
   weekEmpty: {
     alignItems: 'center',

@@ -9,6 +9,12 @@ import { supabaseWrite } from '@/utils/offlineQueue';
 import { sendLocalNotification } from '@/utils/notifications';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { generateUUID } from '@/utils/generateId';
+import {
+  hireQueriesEnabled,
+  hireCanSync,
+  hireRealtimeEnabled,
+  hireDisabledError,
+} from '@/utils/hireGating';
 
 const JOBS_KEY = 'mageid_jobs';
 const WORKERS_KEY = 'mageid_workers';
@@ -25,11 +31,30 @@ const MESSAGES_KEY = 'mageid_messages';
 // is reachable in the meantime. Keep it exported — screens and nav read it.
 export const HIRE_ENABLED = false;
 
+// ─── The flag is enforced INSIDE this provider, not just by consumers ──────
+// HireProvider is mounted unconditionally in app/_layout.tsx, so until this
+// was gated it ran four react-query fetches (job_listings, worker_profiles,
+// conversations, messages) and opened a `realtime-messages-${userId}`
+// websocket on every launch, for every signed-in user, for a subsystem no
+// user can reach.
+//
+// Now: `enabled: QUERIES_ENABLED` on each query (an `enabled: false` query
+// never invokes its queryFn — no Supabase call, no AsyncStorage read), the
+// Realtime effect returns before `supabase.channel(...)`, and mutations throw
+// via hireDisabledError() rather than silently pretending to persist.
+//
+// `enabled` is used deliberately instead of early-returning from the hook, so
+// hook order stays identical whether the flag is on or off.
+//
+// Nothing is deleted — flip HIRE_ENABLED to true and the whole subsystem
+// comes back with no further edits.
+const QUERIES_ENABLED = hireQueriesEnabled(HIRE_ENABLED);
+
 export const [HireProvider, useHire] = createContextHook(() => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const canSync = !!userId && isSupabaseConfigured;
+  const canSync = hireCanSync(HIRE_ENABLED, !!userId, isSupabaseConfigured);
 
   const [jobs, setJobs] = useState<JobListing[]>([]);
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);
@@ -38,6 +63,7 @@ export const [HireProvider, useHire] = createContextHook(() => {
 
   const jobsQuery = useQuery({
     queryKey: ['jobs'],
+    enabled: QUERIES_ENABLED,
     queryFn: async () => {
       if (canSync) {
         try {
@@ -77,6 +103,7 @@ export const [HireProvider, useHire] = createContextHook(() => {
 
   const workersQuery = useQuery({
     queryKey: ['workers'],
+    enabled: QUERIES_ENABLED,
     queryFn: async () => {
       if (canSync) {
         try {
@@ -115,6 +142,7 @@ export const [HireProvider, useHire] = createContextHook(() => {
 
   const convoQuery = useQuery({
     queryKey: ['conversations'],
+    enabled: QUERIES_ENABLED,
     queryFn: async () => {
       if (canSync) {
         try {
@@ -143,6 +171,7 @@ export const [HireProvider, useHire] = createContextHook(() => {
 
   const messagesQuery = useQuery({
     queryKey: ['messages'],
+    enabled: QUERIES_ENABLED,
     queryFn: async () => {
       if (canSync) {
         try {
@@ -185,11 +214,17 @@ export const [HireProvider, useHire] = createContextHook(() => {
   const convoIdsKey = useMemo(() => conversations.map(c => c.id).join(','), [conversations]);
 
   useEffect(() => {
-    if (!canSync) return;
-
     const convoIds = convoIdsKey.split(',').filter(Boolean);
-    if (convoIds.length === 0) {
-      console.log('[HireContext] No conversations, skipping Realtime subscription');
+
+    // Gated ahead of `supabase.channel(...)`: with HIRE_ENABLED false we never
+    // open the `realtime-messages-${userId}` websocket. Silent by design —
+    // a flag that's off for launch shouldn't narrate itself on every render.
+    if (!hireRealtimeEnabled(HIRE_ENABLED, canSync, convoIds.length)) {
+      // Keep the original diagnostic for the case it was written for: the flag
+      // is on and we're synced, but there are no conversations to watch.
+      if (HIRE_ENABLED && canSync) {
+        console.log('[HireContext] No conversations, skipping Realtime subscription');
+      }
       return;
     }
 
@@ -306,7 +341,19 @@ export const [HireProvider, useHire] = createContextHook(() => {
     onSuccess: (data) => queryClient.setQueryData(['messages'], data),
   });
 
+  // Mutations are unreachable while the flag is off (every entry point is
+  // gated), so this only fires on a wiring mistake. When it does, it must be
+  // LOUD: a silent no-op would tell the caller the job posted / the message
+  // sent when nothing was written anywhere.
+  const requireEnabled = useCallback((operation: string) => {
+    if (HIRE_ENABLED) return;
+    const err = hireDisabledError(operation);
+    console.error(err.message);
+    throw err;
+  }, []);
+
   const addJob = useCallback((job: JobListing) => {
+    requireEnabled('addJob');
     const updated = [job, ...jobs];
     setJobs(updated);
     saveJobsMutation.mutate(updated);
@@ -320,9 +367,10 @@ export const [HireProvider, useHire] = createContextHook(() => {
         status: job.status, applicant_count: job.applicantCount,
       });
     }
-  }, [jobs, saveJobsMutation, canSync, userId]);
+  }, [jobs, saveJobsMutation, canSync, userId, requireEnabled]);
 
   const updateJob = useCallback((id: string, changes: Partial<JobListing>) => {
+    requireEnabled('updateJob');
     const updated = jobs.map(j => j.id === id ? { ...j, ...changes } : j);
     setJobs(updated);
     saveJobsMutation.mutate(updated);
@@ -338,9 +386,10 @@ export const [HireProvider, useHire] = createContextHook(() => {
         });
       }
     }
-  }, [jobs, saveJobsMutation, canSync]);
+  }, [jobs, saveJobsMutation, canSync, requireEnabled]);
 
   const addWorker = useCallback((worker: WorkerProfile) => {
+    requireEnabled('addWorker');
     const updated = [worker, ...workers];
     setWorkers(updated);
     saveWorkersMutation.mutate(updated);
@@ -352,15 +401,17 @@ export const [HireProvider, useHire] = createContextHook(() => {
         bio: worker.bio, past_projects: worker.pastProjects, contact_email: worker.contactEmail, phone: worker.phone,
       });
     }
-  }, [workers, saveWorkersMutation, canSync, userId]);
+  }, [workers, saveWorkersMutation, canSync, userId, requireEnabled]);
 
   const applyToJob = useCallback((jobId: string) => {
+    requireEnabled('applyToJob');
     const updated = jobs.map(j => j.id === jobId ? { ...j, applicantCount: j.applicantCount + 1 } : j);
     setJobs(updated);
     saveJobsMutation.mutate(updated);
-  }, [jobs, saveJobsMutation]);
+  }, [jobs, saveJobsMutation, requireEnabled]);
 
   const sendMessage = useCallback((conversationId: string, senderId: string, senderName: string, text: string) => {
+    requireEnabled('sendMessage');
     const msg: ChatMessage = {
       id: generateUUID(),
       conversationId, senderId, senderName, text,
@@ -388,9 +439,10 @@ export const [HireProvider, useHire] = createContextHook(() => {
         id: conversationId, last_message: text, last_message_time: new Date().toISOString(),
       });
     }
-  }, [messages, conversations, saveMessagesMutation, saveConvosMutation, canSync]);
+  }, [messages, conversations, saveMessagesMutation, saveConvosMutation, canSync, requireEnabled]);
 
   const startConversation = useCallback((participantIds: string[], participantNames: string[], initialMessage: string) => {
+    requireEnabled('startConversation');
     const existingConvo = conversations.find(c =>
       c.participantIds.length === participantIds.length &&
       participantIds.every(id => c.participantIds.includes(id))
@@ -425,17 +477,23 @@ export const [HireProvider, useHire] = createContextHook(() => {
       sendMessage(convoId, participantIds[0], participantNames[0], initialMessage);
     }
     return convoId;
-  }, [conversations, saveConvosMutation, sendMessage, canSync]);
+  }, [conversations, saveConvosMutation, sendMessage, canSync, requireEnabled]);
 
+  // READS never throw. app/messages.tsx calls this during render, BEFORE its
+  // own HIRE_ENABLED guard runs — with no query having run, `messages` is []
+  // and this correctly returns [].
   const getConversationMessages = useCallback((conversationId: string) => {
     return messages.filter(m => m.conversationId === conversationId);
   }, [messages]);
 
+  // Same public shape whether the flag is on or off: the eight consumers keep
+  // compiling and see empty lists. `enabled: false` queries never enter a
+  // fetching state, so isLoading is pinned false rather than stuck true.
   return useMemo(() => ({
     jobs, workers, conversations,
     addJob, updateJob, addWorker, applyToJob,
     sendMessage, startConversation, getConversationMessages,
-    isLoading: jobsQuery.isLoading || workersQuery.isLoading,
+    isLoading: QUERIES_ENABLED && (jobsQuery.isLoading || workersQuery.isLoading),
   }), [jobs, workers, conversations, addJob, updateJob, addWorker, applyToJob, sendMessage, startConversation, getConversationMessages, jobsQuery.isLoading, workersQuery.isLoading]);
 });
 

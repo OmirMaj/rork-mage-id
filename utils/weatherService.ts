@@ -1,3 +1,30 @@
+// utils/weatherService.ts — jobsite weather.
+//
+// ┌─ REQUIRED ENV VAR ────────────────────────────────────────────────────┐
+// │  EXPO_PUBLIC_OPENWEATHER_API_KEY                                      │
+// │                                                                       │
+// │  Without it there is NO live weather anywhere in the app. Every       │
+// │  forecast falls back to getSimulatedForecast(), which invents         │
+// │  conditions from the calendar date alone — it does not know, and      │
+// │  cannot know, where the jobsite is.                                   │
+// │                                                                       │
+// │  To enable live weather:                                              │
+// │    1. Create a free key at https://openweathermap.org/api  (the       │
+// │       "5 day / 3 hour forecast" endpoint is on the free tier).        │
+// │    2. Add to the repo-root `.env` (gitignored):                       │
+// │         EXPO_PUBLIC_OPENWEATHER_API_KEY=<key>                         │
+// │    3. Restart Metro with a cleared cache — EXPO_PUBLIC_* is inlined   │
+// │       into the bundle at build time:  bun run start --clear           │
+// │    4. For EAS builds, add the same var to each profile's `env` block  │
+// │       in eas.json (or set it as an EAS project secret).               │
+// │                                                                       │
+// │  Verify: any day with `source: 'live'` came from the API. If every    │
+// │  day is `source: 'simulated'`, the key is missing or the request      │
+// │  failed — the UI says so out loud (see utils/weatherProvenance.ts).   │
+// └───────────────────────────────────────────────────────────────────────┘
+
+import type { ForecastSource } from '@/utils/weatherProvenance';
+
 export interface DayForecast {
   date: string;
   condition: 'clear' | 'cloudy' | 'rain' | 'storm' | 'snow' | 'wind';
@@ -7,6 +34,13 @@ export interface DayForecast {
   windSpeed: number;
   isWorkable: boolean;
   icon: string;
+  /**
+   * Where this reading came from. REQUIRED — every construction site in this
+   * file sets it, so a DayForecast can never travel without its provenance.
+   * Consumers that display or log weather MUST branch on it: 'simulated' days
+   * are invented and are not admissible as delay documentation.
+   */
+  source: ForecastSource;
 }
 
 const CONDITION_ICONS: Record<DayForecast['condition'], string> = {
@@ -22,6 +56,15 @@ export function getConditionIcon(condition: DayForecast['condition']): string {
   return CONDITION_ICONS[condition] ?? '☀️';
 }
 
+/**
+ * INVENTED WEATHER. Seeded pseudo-random from the calendar date and a coarse
+ * northern-hemisphere season model. `_region` is accepted and IGNORED — this
+ * function has no knowledge of the jobsite and never will.
+ *
+ * Every day it returns is stamped `source: 'simulated'` so it can be marked in
+ * the UI and refused by the delay log. Do NOT call this directly from a
+ * screen: use `getForecastWithFallback`, which tries the real API first.
+ */
 export function getSimulatedForecast(startDate: Date, days: number, _region?: string): DayForecast[] {
   const forecasts: DayForecast[] = [];
   for (let i = 0; i < days; i++) {
@@ -75,6 +118,7 @@ export function getSimulatedForecast(startDate: Date, days: number, _region?: st
       windSpeed: Math.round(windSpeed),
       isWorkable,
       icon: getConditionIcon(condition),
+      source: 'simulated',
     });
   }
   return forecasts;
@@ -208,6 +252,7 @@ function condenseToDaily(list: OpenWeatherListEntry[], days: number): DayForecas
       windSpeed: Math.round(windSpeedMph),
       isWorkable,
       icon: getConditionIcon(condition),
+      source: 'live',
     });
   }
   return out;
@@ -280,6 +325,10 @@ export async function getOpenWeatherForecast(
  * tail with simulated data so the Gantt doesn't drop weather badges for
  * far-future weather-sensitive tasks. The real days come first (since
  * they're the most actionable); simulated days are appended contiguously.
+ *
+ * The padded tail keeps `source: 'simulated'` from getSimulatedForecast, so a
+ * mixed window is detectable day-by-day: the UI marks exactly the padded days
+ * and the delay log excludes them from its evidence list.
  */
 function padWithSimulated(
   real: DayForecast[],
@@ -299,10 +348,21 @@ function padWithSimulated(
 }
 
 /**
- * Convenience wrapper used by the schedule screen: try OpenWeather first,
- * fall back to simulated data. This is the single entry point callers
- * should use so the swap is transparent and the rate-limit cache stays
- * centralized.
+ * THE entry point every screen should use: try OpenWeather first, fall back to
+ * simulated data. Keeps the swap transparent and the rate-limit cache
+ * centralized. Never call getSimulatedForecast() from a component — going
+ * straight to the simulator means the real path is never even attempted, and
+ * the jobsite's actual location is ignored.
+ *
+ * The returned days are individually tagged (`source`), so a caller can always
+ * tell what it got:
+ *   • key set + request OK          → all 'live' (up to 5 days), tail padded
+ *                                     with 'simulated'
+ *   • no EXPO_PUBLIC_OPENWEATHER_API_KEY, no location, or request failed
+ *                                   → all 'simulated'
+ *
+ * Callers displaying these days MUST surface non-live ones (see
+ * utils/weatherProvenance.ts: hasSimulatedDays / SIMULATED_WEATHER_HEADLINE).
  */
 export async function getForecastWithFallback(
   location: { city?: string; latitude?: number; longitude?: number },

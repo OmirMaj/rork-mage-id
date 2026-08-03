@@ -558,7 +558,7 @@ export default function ClientViewScreen() {
             signer_email: null,
             note: approvalMode === 'reject' ? rejectionReason.trim() : null,
             // Signature + sealed consent record. Columns added by
-            // supabase/migrations/20260803120000_portal_co_esignature.sql.
+            // supabase/migrations/20260803120500_portal_co_esignature.sql.
             signature_data: approvalMode === 'approve' ? signatureData : null,
             signature_hash: approvalMode === 'approve' ? (signatureHash ?? null) : null,
             consent_record: consentRecord,
