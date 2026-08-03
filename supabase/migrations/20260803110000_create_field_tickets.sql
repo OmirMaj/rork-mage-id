@@ -59,7 +59,10 @@ CREATE TABLE IF NOT EXISTS public.field_tickets (
 
   -- FieldTicketAuthorization: { name, title, role, signedAt, signaturePaths[],
   -- latitude, longitude, locationLabel }. NULL until someone signs.
-  authorization jsonb,
+  -- QUOTED: `authorization` is a RESERVED WORD in Postgres. Unquoted this
+  -- fails with `syntax error at or near "authorization"`. PostgREST quotes
+  -- identifiers itself, so the app payload key stays `authorization`.
+  "authorization" jsonb,
 
   -- Set exactly once, when a change order is built from this ticket.
   converted_change_order_id text,
