@@ -273,5 +273,38 @@ ok('every capture surface funnels through the one staging helper',
   (ctxSrc.match(/stagePhotoUpload\(/g) ?? []).length >= 4,
   'gallery, punch items and DFR photos must all stage the same way');
 
+// ── Wiring: a queue nothing drains is just a slower way to lose photos ──────
+ok('the photo queue is drained by OfflineSyncManager',
+  /processPhotoUploadQueue/.test(readFileSync('app/_layout.tsx', 'utf8')),
+  'without a drain trigger, queued photos never upload');
+ok('queueing also kicks an opportunistic drain',
+  /scheduleOpportunisticDrain/.test(readFileSync('utils/photoUploadQueue.ts', 'utf8')),
+  'a user who stays in the foreground would otherwise wait for a background/foreground cycle');
+ok('the photo queue is wiped on tenant switch, like the offline write queue',
+  /mageid_photo_upload_queue/.test(readFileSync('contexts/AuthContext.tsx', 'utf8')),
+  'a pending upload must not follow one user onto the next tenant on a shared device');
+
+// ── Testability invariant ───────────────────────────────────────────────────
+// bun cannot parse `react-native`, so the moment this core imports it (directly
+// or transitively) every assertion above stops running. Same rule that keeps
+// utils/alertCore.ts and utils/base64Bytes.ts testable.
+const coreSrc = readFileSync('utils/photoUploadCore.ts', 'utf8');
+// Comments in these files legitimately discuss react-native and image bytes —
+// compare against CODE only, or the prose explaining a rule trips the rule.
+const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const coreCode = stripComments(coreSrc);
+const queueCode = stripComments(readFileSync('utils/photoUploadQueue.ts', 'utf8'));
+const coreImports = [...coreCode.matchAll(/^\s*import\s[\s\S]*?from\s+'([^']+)'/gm)].map(m => m[1]);
+expect('the core has no imports at all — nothing can drag react-native in', coreImports, []);
+ok('the RN-bound shell is a separate module', /from 'react-native'/.test(queueCode));
+
+// The queue must not hold image BYTES — it is AsyncStorage-backed and that
+// budget is measured in a few MB, total.
+ok('queue entries carry a path, never bytes',
+  !/base64|Uint8Array|arrayBuffer/.test(coreCode),
+  'putting image data in an AsyncStorage-backed queue blows its budget in a handful of photos');
+ok('a task records the local path and the destination path',
+  /localUri: string/.test(coreCode) && /storagePath: string/.test(coreCode));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

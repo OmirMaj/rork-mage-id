@@ -115,9 +115,16 @@ async function persistLocalCopy(localUri: string, storagePath: string): Promise<
     const info = await FileSystem.getInfoAsync(PENDING_DIR);
     if (!info.exists) await FileSystem.makeDirectoryAsync(PENDING_DIR, { intermediates: true });
     const target = `${PENDING_DIR}${storagePath.replace(/\//g, '_')}`;
-    const existing = await FileSystem.getInfoAsync(target);
-    if (existing.exists) await FileSystem.deleteAsync(target, { idempotent: true });
-    await FileSystem.copyAsync({ from: localUri, to: target });
+    // Stage into a unique temp file and MOVE it into place, rather than
+    // delete-then-copy. Two surfaces can legitimately stage the same photo at
+    // once — a daily report mirrors its photos into the gallery, so both paths
+    // resolve to the same deterministic key — and with delete-then-copy a flush
+    // landing in that window would read a target that momentarily does not
+    // exist, classify ENOENT as terminal, and DROP the photo. A move leaves the
+    // target as either the old complete file or the new one, never absent.
+    const staged = `${target}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.part`;
+    await FileSystem.copyAsync({ from: localUri, to: staged });
+    await FileSystem.moveAsync({ from: staged, to: target });
     return target;
   } catch (err) {
     console.warn('[PhotoQueue] Could not stage a durable copy; queueing the original URI:', err);
@@ -168,9 +175,32 @@ export async function queuePhotoUpload(input: QueuePhotoInput): Promise<void> {
         notifyDroppedPhotos(dropped.length, 'queue cap exceeded');
       }
     });
+    scheduleOpportunisticDrain();
   } catch (err) {
     console.warn('[PhotoQueue] Failed to queue photo upload:', err);
   }
+}
+
+/**
+ * Try to upload right away instead of waiting for the next foreground.
+ *
+ * OfflineSyncManager drains on startup / foreground / backoff, but its backoff
+ * only re-arms while something is still queued — so a photo taken by a user who
+ * is online and stays in the app would otherwise sit on disk until they
+ * backgrounded it, and be lost outright if they deleted the app first.
+ *
+ * Debounced because a daily-report save enqueues its whole roll in one tick and
+ * we want ONE flush, not eight. Offline, the attempt simply classifies as
+ * transient and costs nothing — there is no connectivity API here, so trying is
+ * how we find out (exactly how supabaseWrite behaves).
+ */
+let drainTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleOpportunisticDrain(): void {
+  if (drainTimer) clearTimeout(drainTimer);
+  drainTimer = setTimeout(() => {
+    drainTimer = null;
+    void processPhotoUploadQueue().catch(() => {/* the queue keeps the work */});
+  }, 1500);
 }
 
 // Re-entrancy guard, mirroring offlineQueue.processOfflineQueue. Startup,

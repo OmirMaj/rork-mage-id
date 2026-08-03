@@ -729,7 +729,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               }
             }
             const resolveDfrPhoto = await buildPhotoUrlResolver(
-              data.flatMap(r => ((r.photos as DFRPhoto[] | null) ?? []).map(p => p?.uri)),
+              data.flatMap(r => ((r.photos as DFRPhoto[] | null) ?? [])
+                .filter(p => p && !dfrLocalUri.has(p.id))
+                .map(p => p.uri)),
             );
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, date: r.date as string,
@@ -919,7 +921,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               const local = p.photoLocalUri ?? (isDeviceLocalUri(p.photoUri) ? p.photoUri : undefined);
               if (local) cachedLocal.set(p.id, local);
             }
-            const resolve = await buildPhotoUrlResolver(data.map(r => r.photo_uri as string | undefined));
+            // Only sign what we'll actually render — on the device that shot
+            // them, every photo already has a local file and signing would be
+            // pure waste.
+            const resolve = await buildPhotoUrlResolver(
+              data.filter(r => !cachedLocal.has(r.id as string)).map(r => r.photo_uri as string | undefined),
+            );
             const mapped = data.map((r: Record<string, unknown>) => {
               const photoLocalUri = cachedLocal.get(r.id as string);
               const photo = resolve(r.photo_uri as string | undefined, photoLocalUri);
@@ -957,7 +964,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               const local = p.localUri ?? (isDeviceLocalUri(p.uri) ? p.uri : undefined);
               if (local) cachedLocal.set(p.id, local);
             }
-            const resolve = await buildPhotoUrlResolver(data.map(r => r.uri as string | undefined));
+            // Only sign what we'll actually render — on the device that shot
+            // them, every photo already has a local file and signing would be
+            // pure waste.
+            const resolve = await buildPhotoUrlResolver(
+              data.filter(r => !cachedLocal.has(r.id as string)).map(r => r.uri as string | undefined),
+            );
             const mapped = data.map((r: Record<string, unknown>) => {
               const localUri = cachedLocal.get(r.id as string);
               const { uri, storagePath } = resolve(r.uri as string | undefined, localUri);
@@ -2852,6 +2864,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // `punch-<id>` so it can't collide with the gallery photo of the same id.
   const stagePunchPhoto = useCallback((item: PunchItem): PunchItem => {
     if (!item.photoUri || !isDeviceLocalUri(item.photoUri)) return item;
+    // Already staged THIS exact file — every unrelated edit (status change,
+    // reassignment, closing the item) runs through here, and re-staging would
+    // re-copy the image to disk each time. A genuinely replaced photo has a
+    // different URI and does fall through.
+    if (item.photoStoragePath && item.photoLocalUri === item.photoUri) return item;
     const storagePath = stagePhotoUpload({
       userId, projectId: item.projectId, recordId: `punch-${item.id}`, localUri: item.photoUri,
     });
@@ -2866,7 +2883,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     location: item.location, assigned_sub: item.assignedSub, assigned_sub_id: item.assignedSubId,
     due_date: item.dueDate, priority: item.priority, status: item.status,
     // Durable path, never the local `file://`.
-    photo_uri: durablePhotoValue(item.photoStoragePath, item.photoUri),
+    // `|| null` because punch_items.photo_uri is nullable and "no photo" must
+    // stay NULL — photos.uri is NOT NULL, so that one keeps the empty string.
+    photo_uri: durablePhotoValue(item.photoStoragePath, item.photoUri) || null,
     // Plan-pin anchor + captured GPS. Client camelCase → snake_case column
     // (see migration 20260707120000_punch_location.sql). Previously omitted,
     // so this data was captured locally then silently dropped on sync.
@@ -2921,7 +2940,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           id, description: pi.description, location: pi.location, assigned_sub: pi.assignedSub,
           assigned_sub_id: pi.assignedSubId,
           due_date: pi.dueDate, priority: pi.priority, status: pi.status,
-          photo_uri: durablePhotoValue(pi.photoStoragePath, pi.photoUri),
+          photo_uri: durablePhotoValue(pi.photoStoragePath, pi.photoUri) || null,
           // Persist plan-pin anchor + captured GPS on update too (were omitted,
           // and assigned_sub_id was dropped on update — fixed here).
           plan_sheet_id: pi.planSheetId, pin_x: pi.pinX, pin_y: pi.pinY,
@@ -2984,11 +3003,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     savePhotosMutation.mutate(updated);
     if (canSync) {
       void supabaseWrite('photos', 'delete', { id });
-      // Reap the object too, or deleting photos would silently grow the
-      // bucket forever with rows nothing references.
-      if (doomed?.storagePath) void deleteProjectPhotoObject(doomed.storagePath);
+      // Reap the object too, or deleting photos would grow the bucket forever
+      // with objects nothing references — UNLESS a daily report still shows the
+      // same image. DFR photos are mirrored into the gallery under the same id,
+      // so they share one object; removing it here would blank a photo out of a
+      // filed report, which is a document we must not alter after the fact.
+      const stillReferenced = doomed?.storagePath
+        ? dailyReports.some(dr => (dr.photos ?? []).some(p => p.storagePath === doomed.storagePath))
+        : true;
+      if (doomed?.storagePath && !stillReferenced) void deleteProjectPhotoObject(doomed.storagePath);
     }
-  }, [projectPhotos, savePhotosMutation, canSync]);
+  }, [projectPhotos, savePhotosMutation, canSync, dailyReports]);
 
   // Patch a photo in place — used by the annotator to save markup, by the
   // gallery to retag, and by clients downstream that want to update a
