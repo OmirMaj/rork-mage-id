@@ -69,6 +69,20 @@ const T_BUBBLE = 300;
 const T_FADE = 820;
 const DUR_FADEOUT = 220;
 
+// Hard ceiling on the overlay's total lifetime, measured from mount.
+// The scripted motion is ~1040ms end to end; on a congested deep-link cold
+// start the completion callback has been measured landing at ~2.0s because
+// the Animated.delay legs are JS-driven and the JS thread is saturated by
+// route resolution + provider hydration. 3s is ~3x the nominal budget, so a
+// healthy launch never hits it — but nothing can push the splash past it.
+// See SPLASH_FAILSAFE below for why this must not depend on Animated.
+export const SPLASH_MAX_LIFETIME_MS = 3000;
+
+// How long we'll wait for the native reduced-motion query before assuming
+// "no". Until it answers we paint a bare ink field with no wordmark, and
+// AccessibilityInfo.isReduceMotionEnabled() is an unbounded native promise.
+const REDUCE_MOTION_QUERY_TIMEOUT_MS = 250;
+
 export interface BrandSplashProps {
   /** Called when the splash finishes and the app should be revealed. */
   onDone: () => void;
@@ -78,12 +92,6 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const doneRef = useRef(false);
 
-  const finish = useCallback(() => {
-    if (doneRef.current) return;
-    doneRef.current = true;
-    onDone();
-  }, [onDone]);
-
   // Animated values
   const overlayOpacity = useRef(new Animated.Value(1)).current;
   const labelOpacity = useRef(new Animated.Value(0)).current;
@@ -92,15 +100,53 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
   const bubbleX = useRef(new Animated.Value(BUBBLE_START_X)).current;
   const settleGlow = useRef(new Animated.Value(0)).current;
 
-  // Resolve reduced-motion once (and keep in sync while mounted), same pattern
-  // as onboarding.tsx / PersonaSwitchOverlay.
+  const finish = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    // Snap transparent before handing back. If we got here from an interrupted
+    // animation or the failsafe, overlayOpacity is stranded part-way and the
+    // parent's unmount is a commit away — without this the wordmark would be
+    // painted over the app for that frame.
+    overlayOpacity.setValue(0);
+    onDone();
+  }, [onDone, overlayOpacity]);
+
+  // SPLASH_FAILSAFE — the overlay's lifetime is bounded by wall clock and by
+  // nothing else.
+  //
+  // Every other dismiss path funnels through an Animated completion callback,
+  // and that callback is not a guarantee: Animated.parallel defaults to
+  // stopTogether, so ANY interrupted leg reports finished:false for the whole
+  // group; the Animated.delay legs are JS-driven, so a saturated JS thread can
+  // starve them; and a native-driver callback that never makes it back over
+  // the bridge simply never arrives. Because this component renders a
+  // full-screen overlay ABOVE a live, hydrating app rather than gating it, any
+  // of those left the "MAGE ID" wordmark painted translucently over the home
+  // feed permanently — the deep-link cold-start bug. A launch screen that
+  // outlives its animation is a bug, so time it out unconditionally.
+  useEffect(() => {
+    const failsafe = setTimeout(finish, SPLASH_MAX_LIFETIME_MS);
+    return () => clearTimeout(failsafe);
+  }, [finish]);
+
+  // Resolve reduced-motion once. We deliberately latch the FIRST answer and do
+  // not subscribe to later 'reduceMotionChanged' events: the splash lives for
+  // about a second, so re-deciding the path mid-play can only interrupt the
+  // running animation — it can't improve anything.
   useEffect(() => {
     let active = true;
+    const settle = (v: boolean) => {
+      if (!active) return;
+      active = false;
+      setReduceMotion(v);
+    };
     AccessibilityInfo.isReduceMotionEnabled()
-      .then((v) => { if (active) setReduceMotion(v); })
-      .catch(() => { if (active) setReduceMotion(false); });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => { active = false; sub.remove(); };
+      .then(settle)
+      .catch(() => settle(false));
+    // The native query is an unbounded promise; don't sit on a bare ink field
+    // waiting for it on a congested cold start.
+    const t = setTimeout(() => settle(false), REDUCE_MOTION_QUERY_TIMEOUT_MS);
+    return () => { active = false; clearTimeout(t); };
   }, []);
 
   useEffect(() => {
@@ -187,10 +233,15 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
     ]);
 
     anim.start(({ finished }) => {
-      if (!finished) return;
-      if (Platform.OS !== 'web') {
+      if (finished && Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
+      // Dismiss on EVERY end, interrupted or not. Gating this on `finished`
+      // was the deep-link cold-start bug: a stopped animation reported
+      // finished:false, the early return skipped onDone(), and the overlay
+      // stayed painted over the app forever at whatever opacity it had
+      // reached. The splash is never load-bearing — revealing the app early is
+      // always correct, leaving it covered never is.
       finish();
     });
 

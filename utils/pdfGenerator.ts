@@ -518,7 +518,7 @@ function buildEstimateHtml(
         <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(legacyEst.subtotal)}</span></div>
         <div class="summary-row"><span>Tax</span><span>${formatCurrency(legacyEst.tax)}</span></div>
         <div class="summary-row"><span>Contingency</span><span>${formatCurrency(legacyEst.contingency)}</span></div>
-        <div class="summary-row savings"><span>Bulk Savings</span><span>-${formatCurrency(legacyEst.bulkSavingsTotal)}</span></div>
+        ${(legacyEst.bulkSavingsTotal ?? 0) > 0 ? `<div class="summary-row savings"><span>Bulk Savings</span><span>-${formatCurrency(legacyEst.bulkSavingsTotal)}</span></div>` : ''}
         <div class="summary-divider thick"></div>
         <div class="summary-row total"><span>Grand Total</span><span>${formatCurrency(legacyEst.grandTotal)}</span></div>
         ${legacyEst.pricePerSqFt > 0 ? `<div class="summary-row sub"><span>Price per Sq Ft</span><span>${formatCurrency(legacyEst.pricePerSqFt)}</span></div>` : ''}
@@ -1532,7 +1532,12 @@ export function buildEstimateTextForEmail(
     text += `Subtotal:      ${formatCurrency(legacyEst.subtotal)}\n`;
     text += `Tax:           ${formatCurrency(legacyEst.tax)}\n`;
     text += `Contingency:   ${formatCurrency(legacyEst.contingency)}\n`;
-    text += `Bulk Savings:  -${formatCurrency(legacyEst.bulkSavingsTotal)}\n`;
+    // Only when there is a real saving. bulkSavingsTotal is never COMPUTED
+    // anywhere in the app — it exists only in demo seed data — so for a real
+    // user this is undefined and printed "Bulk Savings: -$0.00" to their client.
+    if ((legacyEst.bulkSavingsTotal ?? 0) > 0) {
+      text += `Bulk Savings:  -${formatCurrency(legacyEst.bulkSavingsTotal)}\n`;
+    }
     text += `${divider}\n`;
     text += `GRAND TOTAL:   ${formatCurrency(legacyEst.grandTotal)}\n`;
     if (legacyEst.pricePerSqFt > 0) text += `Per Sq Ft:     ${formatCurrency(legacyEst.pricePerSqFt)}\n`;

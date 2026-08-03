@@ -3,9 +3,14 @@
 // a centered icon + soft halo, generous typography, and an optional
 // CTA. The whole thing fades + slides up on mount so it feels alive.
 //
-// Construction-themed touch: a subtle grid pattern behind the icon
-// (drawn with two stacked Views — no SVG dep) suggesting graph paper /
-// blueprint backing. Stays decorative; doesn't distract.
+// NO structural lines behind the content. This primitive used to paint a
+// decorative "blueprint" grid (2 horizontal + 2 vertical hairlines) behind the
+// icon and copy. On a real screen it did not read as graph paper — it read as
+// a chart/Gantt grid bleeding through from underneath, i.e. as a rendering
+// bug, and it did so on EVERY empty state in the app because every one of them
+// routes through this component. It is gone and must stay gone: an empty state
+// is the one moment the app has nothing to show, so it has to look deliberate
+// rather than broken. Pinned by scripts/validate-visual-regressions.ts.
 //
 // Same props as the previous version (icon, title, message, action) —
 // drop-in upgrade with no call-site changes.
@@ -80,15 +85,6 @@ export default function EmptyState({
       style={[styles.container, { opacity: enter, transform: [{ translateY: translate }] }]}
       testID="empty-state"
     >
-      {/* Decorative grid behind the icon — two stacked thin lines suggest
-          blueprint paper without needing an image asset. */}
-      <View style={styles.gridBackdrop} pointerEvents="none">
-        <View style={[styles.gridLine, { top: '30%' as const }]} />
-        <View style={[styles.gridLine, { top: '60%' as const }]} />
-        <View style={[styles.gridLineV, { left: '30%' as const }]} />
-        <View style={[styles.gridLineV, { left: '70%' as const }]} />
-      </View>
-
       <View style={styles.iconStack}>
         <Animated.View
           style={[
@@ -147,28 +143,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 40,
     paddingVertical: 60,
-  },
-  gridBackdrop: {
-    position: 'absolute' as const,
-    top: '20%' as const,
-    left: 16,
-    right: 16,
-    height: 200,
-    opacity: 0.5,
-  },
-  gridLine: {
-    position: 'absolute' as const,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: t.line,
-  },
-  gridLineV: {
-    position: 'absolute' as const,
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: t.line,
   },
   iconStack: {
     width: 96,

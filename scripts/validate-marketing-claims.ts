@@ -152,3 +152,27 @@ for (const { pattern, why } of PRICING_BANNED) {
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
+
+// ── Fabricated numbers must never reach a client-facing document ─────────────
+// bulkSavingsTotal is declared required on the Estimate type but is NEVER
+// COMPUTED anywhere in the app — its only writers are demoSeed.ts and the two
+// dev seeders. It was rendering UNGUARDED into the client proposal PDF and the
+// plain-text export, so a real contractor's first proposal showed their
+// customer "Bulk Savings -$0.00". The row right below it (pricePerSqFt) was
+// already guarded, which is what made this an oversight rather than a choice.
+{
+  const pdf = readFileSync('utils/pdfGenerator.ts', 'utf8');
+  // Count RENDER sites only — strip comment lines first, or this validator's
+  // own explanatory comment counts as a third occurrence.
+  const pdfCode = pdf.split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+  const clientFacingBulkSavings = [...pdfCode.matchAll(/Bulk Savings/g)];
+  ok('client PDF renders Bulk Savings only when > 0',
+    /\(legacyEst\.bulkSavingsTotal \?\? 0\) > 0 \?/.test(pdf),
+    'the HTML proposal row must be guarded — it reaches the contractor\'s customer');
+  ok('text export renders Bulk Savings only when > 0',
+    /if \(\(legacyEst\.bulkSavingsTotal \?\? 0\) > 0\) \{/.test(pdf),
+    'the plain-text export must be guarded too');
+  ok('every Bulk Savings site in the PDF generator is guarded',
+    clientFacingBulkSavings.length === 2,
+    `found ${clientFacingBulkSavings.length} — a new unguarded site may have been added`);
+}
