@@ -94,6 +94,7 @@ const KIND_ICON: Record<EntityKind, React.FC<{ size: number; color: string }>> =
   planMarkup: PenTool,
   prequalPacket: ClipboardList,
   priceAlert: Bell,
+  delayEvent: CalendarDays,
 };
 
 const KIND_LABEL: Record<EntityKind, string> = {
@@ -121,6 +122,7 @@ const KIND_LABEL: Record<EntityKind, string> = {
   planMarkup: 'Plan Markups',
   prequalPacket: 'Prequal Packets',
   priceAlert: 'Price Alerts',
+  delayEvent: 'Delay Events',
 };
 
 const KIND_ORDER: EntityKind[] = [

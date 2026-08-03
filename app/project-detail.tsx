@@ -76,6 +76,10 @@ import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
+import {
+  computeDailyLogCompletion, calendarOfSchedule,
+  dailyLogHeadline, dailyLogEmptyDayLine, dailyLogGapLine, dailyLogTodayLine,
+} from '@/utils/dailyLogCompletion';
 
 const ESTIMATE_REASON_LABEL: Record<EstimateChangeReason, string> = {
   manual: 'Manual save',
@@ -297,6 +301,17 @@ export default function ProjectDetailScreen() {
   }, [id]);
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
+
+  // How complete the daily log is over THIS project's working days. The number
+  // that matters evidentially is coverage, not content: FRE 803(6)(C) turns on
+  // the record being a regular practice, and a day filed as "no work on site"
+  // counts exactly as much as a busy one. Non-working days are never misses.
+  // Pure math lives in utils/dailyLogCompletion.ts.
+  const dfrRecord = useMemo(() => computeDailyLogCompletion({
+    reports: dailyReports,
+    calendar: calendarOfSchedule(project?.schedule),
+    startDateISO: project?.schedule?.startDate ?? null,
+  }), [dailyReports, project?.schedule]);
 
   // Estimate items keyed for the CO reflow's estimate-link anchor tier
   // (ScheduleTask.linkedEstimateItems stores materialIds). Memoized because the
@@ -2864,6 +2879,27 @@ export default function ProjectDetailScreen() {
 
           {expanded.dailyReports && (
             <View style={styles.coCard}>
+              {/* The record's completeness, stated plainly. This is the
+                  standing number; the home card only appears when there is
+                  something to do about it. Gaps are reported as facts about
+                  the record — there is deliberately no "fill in that day"
+                  action, because a report written after the fact is not
+                  contemporaneous and re-writing the log is what destroyed the
+                  contractor's credibility in Vistas Construction. */}
+              {dfrRecord.hasRecord && dailyLogHeadline(dfrRecord) && (
+                <View style={styles.dfrRecordBlock} testID="dfr-record-block">
+                  <Text style={styles.dfrRecordHeadline}>{dailyLogHeadline(dfrRecord)}</Text>
+                  {dailyLogEmptyDayLine(dfrRecord) && (
+                    <Text style={styles.dfrRecordNote}>{dailyLogEmptyDayLine(dfrRecord)}</Text>
+                  )}
+                  {dailyLogGapLine(dfrRecord) && (
+                    <Text style={styles.dfrRecordNote}>{dailyLogGapLine(dfrRecord)}</Text>
+                  )}
+                  {dailyLogTodayLine(dfrRecord) && (
+                    <Text style={styles.dfrRecordDue}>{dailyLogTodayLine(dfrRecord)}</Text>
+                  )}
+                </View>
+              )}
               {dailyReports.length === 0 && (
                 <Text style={styles.coEmptyText}>No daily reports yet.</Text>
               )}
@@ -4699,6 +4735,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   punchProgressFill: { height: 6, backgroundColor: themeColors.accent, borderRadius: 3 },
   punchDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   punchMoreText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
+  dfrRecordBlock: {
+    gap: 4, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8,
+    backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md,
+  },
+  dfrRecordHeadline: { fontSize: Type.subheadEmphasized.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  dfrRecordNote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  dfrRecordDue: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.accent, lineHeight: 17 },
   dfrWeekBucket: { marginBottom: 8 },
   dfrWeekHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 4, paddingVertical: 6 },
   dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },

@@ -784,7 +784,54 @@ function ScheduleProScreenInner() {
       },
     });
     setShowWeather(false);
-  }, [project, weatherResult, updateProject, cpm.projectFinish]);
+
+    // A weather delay-day log entry proves WHAT happened. It does not start the
+    // notice clock, and unusually-severe weather is excusable time under most
+    // contracts only if you actually claim it in the window. Offer the one tap
+    // that turns the log entry into a tracked delay event with this record
+    // already attached as evidence.
+    //
+    // Only offered when buildWeatherDelayLog returned an entry — it returns null
+    // when no delay day had a LIVE forecast behind it, and a delay event built
+    // on simulated weather would be evidence of nothing.
+    if (!logEntry) return;
+    // `dates` is the LIVE-evidenced list and buildWeatherDelayLog returns null
+    // when it is empty, so [0] is always present; the slice is a belt-and-braces
+    // guard that also keeps this a YYYY-MM-DD string for the notice clock's
+    // noon-anchored parse.
+    const firstObserved = logEntry.dates[0] ?? logEntry.appliedAt.slice(0, 10);
+    showAlert(
+      'Log this as a delay event?',
+      `${logEntry.projectSlipDays} day${logEntry.projectSlipDays === 1 ? '' : 's'} of slip is on the schedule. ` +
+      'Logging it starts your contract\u2019s written-notice clock and attaches this weather record as evidence.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Log it',
+          onPress: () => router.push({
+            pathname: '/delay-events',
+            params: {
+              projectId: project.id,
+              autoLog: '1',
+              cause: 'weather',
+              firstObservedDate: firstObserved,
+              claimedDays: String(logEntry.projectSlipDays),
+              description:
+                `Weather delay \u2014 ${logEntry.dates.length} evidenced day${logEntry.dates.length === 1 ? '' : 's'}` +
+                `${logEntry.condition ? ` (${logEntry.condition})` : ''}. ` +
+                `${logEntry.projectSlipDays} day${logEntry.projectSlipDays === 1 ? '' : 's'} of project slip.` +
+                (logEntry.source === 'mixed'
+                  ? ' Some delay days came from simulated weather and are excluded from the evidenced dates.'
+                  : ''),
+              evidenceKind: 'weather_log',
+              evidenceId: logEntry.id,
+              evidenceAt: logEntry.appliedAt,
+            },
+          }),
+        },
+      ],
+    );
+  }, [project, weatherResult, updateProject, cpm.projectFinish, router]);
 
   // Bulk push handler — moves multiple tasks in a single commit. Each
   // task's startDay shifts by deltaDays; CPM cascades successors via the

@@ -230,6 +230,32 @@ export interface Project {
   contractorFeePercent?: number;
   contractorFeeAmount?: number;
   /**
+   * Written-notice window from THIS project's contract, in calendar days.
+   * Drives utils/noticeClock.ts.
+   *
+   * DEFAULT IS UNSET AND MUST STAY UNSET. Shipping 21 (AIA A201-2017
+   * §15.1.3.1) as a default is the product telling a contractor what their
+   * contract says — it does not know. A GC on a 7-day residential agreement
+   * would get a clock running 14 days too long and a false sense of safety,
+   * which is strictly worse than no clock at all. The app ASKS on the first
+   * delay event. Spec §3.3.
+   */
+  noticePeriodDays?: number;
+  /**
+   * True when the GC answered "I don't know" and the app fell back to a
+   * conservative 7. Every downstream deadline built from an assumed period is
+   * labelled "assumed — verify your contract". Spec §3.3, §5.1(A).
+   */
+  noticePeriodAssumed?: boolean;
+  /**
+   * Delivery method the contract requires. AIA A201-2017 §15.1.3.2 requires
+   * certified/registered mail or a courier with proof of delivery; ordinary
+   * email does not satisfy it absent a §1.6 electronic-transmission agreement.
+   * Set so the app can warn that a portal message may not satisfy the clause.
+   * Spec §3.5.
+   */
+  noticeMethodRequired?: DelayNoticeMethod;
+  /**
    * Manual closeout-day checks. Keys are stable string IDs ('walkthrough',
    * 'keys', etc.); values are the ISO timestamp at which the GC marked the
    * box as done. Computed checks (selections / punch / waivers / binder)
@@ -1192,6 +1218,164 @@ export interface ChangeOrder {
   updatedAt: string;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
+}
+
+// ============================================================================
+// Delay events — the claim-defense spine.
+// ----------------------------------------------------------------------------
+// See docs/superpowers/specs/2026-08-03-claim-defense-design.md §2.2.
+//
+// The app already captures six evidence primitives (weather delay log, photos,
+// daily reports, RFI handoff chains, field tickets, CO audit trails) and NONE
+// of them reference each other. There is no object that says "this photo, this
+// weather day, this RFI, and this CO are the same delay." DelayEvent is that
+// object.
+//
+// It REFERENCES evidence; it never copies it. A copy is a second version of a
+// fact that can drift from the first, which is the exact failure mode a claim
+// packet must not have.
+//
+// Stored in the `delay_events` TABLE, not on projects.schedule — that cell is a
+// whole-row upsert with last-write-wins clobber, so a second device can
+// silently erase evidence stored there.
+// ============================================================================
+
+/** Why the delay happened. Drives the compensability SUGGESTION (never the
+ *  conclusion) — spec §1.3, §5.3. */
+export type DelayCause =
+  | 'weather'
+  | 'owner_directed_change'
+  | 'late_rfi_response'
+  | 'differing_site_condition'
+  | 'owner_supplied_item'
+  | 'permit_or_inspection'
+  | 'design_revision'
+  | 'contractor_caused'      // logged honestly — see concurrentDays below
+  | 'other';
+
+/**
+ * Spec §1.3. `unclassified` is the DEFAULT and the app must not guess: an
+ * entitlement call is the GC's assertion and their attorney's argument, never
+ * a finding the software makes. The UI may suggest from `cause`; it may not
+ * conclude.
+ */
+export type DelayClassification =
+  | 'excusable_compensable'
+  | 'excusable_noncompensable'
+  | 'nonexcusable'
+  | 'unclassified';
+
+export type DelayEvidenceKind =
+  | 'photo' | 'daily_report' | 'rfi' | 'weather_log'
+  | 'field_ticket' | 'comm_event' | 'schedule_audit' | 'change_order';
+
+/** A pointer, not a copy. `capturedAt` is denormalized ONLY for chronological
+ *  sort in the register; the referenced row remains authoritative. */
+export interface DelayEvidenceRef {
+  kind: DelayEvidenceKind;
+  id: string;
+  capturedAt: string;
+  note?: string;
+}
+
+export type DelayNoticeMethod =
+  | 'portal' | 'email' | 'hand_delivered' | 'certified_mail' | 'courier' | 'other';
+
+/**
+ * A notice recorded against a delay event.
+ *
+ * RECORDING A NOTICE IN MAGE IS NOT THE SAME ACT AS SERVING NOTICE UNDER THE
+ * CONTRACT. Spec §3.5 — the product must never let those two blur.
+ *
+ * `kind`:
+ *   initial              — the Notice of Claim itself.
+ *   supplemental         — Fraser element 4: the SECOND notice, telling the
+ *                          owner you regard their insistence on the original
+ *                          date as constructive acceleration. This is the most
+ *                          missed element in the whole body of law.
+ *   reservation_of_rights— see the three required fields below.
+ */
+export interface DelayNotice {
+  id: string;
+  kind: 'initial' | 'supplemental' | 'reservation_of_rights';
+  /** When the notice was recorded. Phase 1 writes the DEVICE clock; a
+   *  server-stamped companion arrives in Phase 2 (spec §6.2). Do not describe
+   *  this as server-timestamped. */
+  sentAt: string;
+  method: DelayNoticeMethod;
+  recipient: string;
+  /**
+   * REQUIRED when kind === 'reservation_of_rights'. Three structured fields,
+   * never a free-text "reserves all rights" box: Mingus Constructors v. United
+   * States, 812 F.2d 1387 (Fed. Cir. 1987) called generic reservation language
+   * a "blunderbuss exception" and held it "insufficient as a matter of law."
+   * The reservation must NAME the claim and STATE an amount.
+   *
+   * Enforced by isValidReservation() in utils/noticeClock.ts.
+   */
+  reservedClaimDescription?: string;
+  reservedAmount?: number;
+  reservedDaysClaimed?: number;
+  /**
+   * REQUIRED when kind === 'initial' or 'supplemental'. An extension request
+   * with no amount of time fails Fraser elements 2 and 3 — Zafer Taahhut Insaat
+   * v. United States, 833 F.3d 1356, 1362 (Fed. Cir. 2016).
+   */
+  daysRequested?: number;
+  /** Set when the notice went out through the client portal, the only channel
+   *  where MAGE holds independent proof of receipt. */
+  portalMessageId?: string;
+  /** Free-form record of what was sent. Never a substitute for the structured
+   *  reservation fields above. */
+  note?: string;
+}
+
+export interface DelayEvent {
+  id: string;
+  projectId: string;
+  /** Per-project sequential, rendered "DE-004". Same convention as FieldTicket. */
+  number: number;
+  cause: DelayCause;
+  /**
+   * The date the GC FIRST KNEW. This starts the notice clock — not createdAt,
+   * because a GC logging Monday's washout on Wednesday must not get two free
+   * days against a condition-precedent notice window.
+   */
+  firstObservedDate: string;
+  /** Date the causal condition ended, when it has ended. */
+  endedDate?: string;
+  description: string;
+
+  evidence: DelayEvidenceRef[];
+
+  /** Tasks the GC ASSERTS were impacted. Critical-path status is DERIVED from
+   *  runCpm() at render time, never stored — a stored flag goes stale the
+   *  moment the schedule moves. */
+  impactedTaskIds: string[];
+  /** Calendar days claimed. GC-entered. */
+  claimedDays: number;
+  /**
+   * Days another delay ran concurrently. Spec §1.3 — the honest field that
+   * makes the register survive cross-examination. Under the general US rule a
+   * concurrent contractor-caused delay converts excusable-compensable into
+   * excusable but NON-compensable: you get the time, not the money.
+   */
+  concurrentDays?: number;
+
+  notices: DelayNotice[];
+  classification: DelayClassification;
+
+  /** The CO that resolved it, when one did. Closes the loop backwards from the
+   *  change order to the cause — the direction a claim is actually argued. */
+  changeOrderId?: string;
+
+  auditTrail?: COAuditEntry[];   // reused, not re-invented — FieldTicket does the same
+  /** Phase 2 (sealing). Declared here so the row shape is stable; nothing in
+   *  Phase 1 writes them. */
+  sealedAt?: string;
+  contentHash?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InvoiceLineItem {
@@ -4006,7 +4190,8 @@ export type EntityKind =
   | 'drawingPin'
   | 'planMarkup'
   | 'prequalPacket'
-  | 'priceAlert';
+  | 'priceAlert'
+  | 'delayEvent';
 
 export interface EntityRef {
   kind: EntityKind;

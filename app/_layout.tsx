@@ -117,6 +117,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/submittal': 'Submittal',
     '/oac-meeting': 'OAC meeting',
     '/daily-report': 'Daily report',
+    '/delay-events': 'Delay register',
     '/time-tracking': 'Time tracking',
     '/photo-triage': 'Photo triage',
     '/leads': 'Pipeline',
@@ -628,6 +629,7 @@ function RootLayoutNav() {
       <Stack.Screen name="track-record" options={{ headerShown: false }} />
       <Stack.Screen name="auto-bids" options={{ headerShown: false }} />
       <Stack.Screen name="waiting-on" options={{ headerShown: false }} />
+      <Stack.Screen name="delay-events" options={{ headerShown: false }} />
       <Stack.Screen name="home-passport" options={{ headerShown: false }} />
       <Stack.Screen name="sub-profile" options={{ headerShown: false }} />
       <Stack.Screen name="widget-setup" options={{ headerShown: false }} />

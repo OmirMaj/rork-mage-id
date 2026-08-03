@@ -1043,6 +1043,62 @@ export default function DailyReportScreen() {
     router.back();
   }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId]);
 
+  // ─── "Nothing happened today" — one tap, no invented content ───────────
+  //
+  // A daily log is admissible as a business record largely on FRE 803(6)(C):
+  // that making it was a REGULAR PRACTICE. Meltech Corp. (ASBCA No. 61765) is
+  // the cautionary case — the PM "did not 'make[] a habit of noting'" problems
+  // and the board gave the later testimony "little credence." A superintendent
+  // who only logs eventful days has a record with holes in it, and the holes
+  // are what get attacked.
+  //
+  // So filing a dead day has to be as fast as skipping it. These are the
+  // reasons a super actually writes; nothing here fabricates crew, quantities,
+  // or progress, and the saved report carries zero manpower and zero photos so
+  // it reads as exactly what it is: a day with no work on site.
+  const NO_WORK_REASONS: { label: string; text: string }[] = [
+    { label: 'Weather', text: 'No work on site — weather.' },
+    { label: 'No crew scheduled', text: 'No work on site — no crew scheduled.' },
+    { label: 'Holiday / closure', text: 'No work on site — holiday or site closure.' },
+    { label: 'Waiting on inspection', text: 'No work on site — waiting on inspection.' },
+    { label: 'Waiting on materials', text: 'No work on site — waiting on materials.' },
+    { label: 'Waiting on an answer', text: 'No work on site — waiting on an answer from the design team.' },
+  ];
+
+  const handleFileNoWorkDay = useCallback((text: string) => {
+    if (!projectId) return;
+    const now = new Date().toISOString();
+    const report: DailyFieldReport = {
+      id: stableReportId,
+      projectId,
+      date: reportDate,
+      weather,
+      manpower: [],
+      workPerformed: text,
+      materialsDelivered: [],
+      issuesAndDelays: '',
+      photos: [],
+      status: 'draft',
+      createdAt: now,
+      updatedAt: now,
+    };
+    addDailyReport(report);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    nailIt('Logged as a no-work day. The record has no gap.');
+    router.back();
+  }, [projectId, reportDate, weather, stableReportId, addDailyReport, router]);
+
+  // Only offer it on a brand-new report the user has not started filling in —
+  // once anything is entered, the day plainly had something on it.
+  const showNoWorkShortcut = !existingReport
+    && manpower.length === 0
+    && workProgress.length === 0
+    && materialsDelivered.length === 0
+    && photos.length === 0
+    && workPerformed.trim().length === 0
+    && issuesAndDelays.trim().length === 0
+    && !incident.hasIncident;
+
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
   }, []);
@@ -1485,6 +1541,37 @@ export default function DailyReportScreen() {
             )}
           </View>
 
+          {/* Nothing happened today. Filing that is the point — a log with a
+              hole in it is what gets attacked as not routine under FRE
+              803(6)(C), so a dead day filed in one tap is worth more than a
+              detailed report on the days that were busy anyway. Nothing here
+              invents crew, quantities, or progress. */}
+          {showNoWorkShortcut && (
+            <View style={styles.noWorkCard} testID="no-work-day-card">
+              <Text style={styles.noWorkTitle}>Nothing happened on site today</Text>
+              <Text style={styles.noWorkBody}>
+                File it anyway. A day logged as no work keeps the record unbroken, and an unbroken
+                record is what makes the log hold up. Pick a reason and this is saved with no crew
+                and no photos.
+              </Text>
+              <View style={styles.noWorkChips}>
+                {NO_WORK_REASONS.map(r => (
+                  <TouchableOpacity
+                    key={r.label}
+                    style={styles.noWorkChip}
+                    onPress={() => handleFileNoWorkDay(r.text)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`File today as no work on site: ${r.label}`}
+                    testID={`no-work-chip-${r.label}`}
+                  >
+                    <Text style={styles.noWorkChipText}>{r.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Cloud size={18} color={themeColors.info} strokeWidth={1.75} />
@@ -1729,6 +1816,41 @@ export default function DailyReportScreen() {
               />
             ) : (
               <Text style={styles.readOnlyText}>{issuesAndDelays || 'No issues reported.'}</Text>
+            )}
+
+            {/* A note in a daily report is contemporaneous evidence, but it is
+                not a claim and it starts no clock. Most contracts make written
+                notice a condition precedent — a real entitlement gets waived on
+                a missed window. This is the one tap from "I wrote it down" to
+                "the deadline is being tracked." The report's own date is the
+                date the GC first knew, which is what the clock counts from. */}
+            {issuesAndDelays.trim().length > 0 && (
+              <TouchableOpacity
+                style={styles.delayEventBtn}
+                onPress={() => router.push({
+                  pathname: '/delay-events',
+                  params: {
+                    projectId,
+                    autoLog: '1',
+                    firstObservedDate: reportDate,
+                    description: issuesAndDelays.trim(),
+                    ...(existingReport
+                      ? { evidenceKind: 'daily_report', evidenceId: existingReport.id, evidenceAt: reportDate }
+                      : null),
+                  },
+                })}
+                testID="dfr-log-delay-event"
+                accessibilityRole="button"
+                accessibilityLabel="Log this as a delay event and start the notice clock"
+              >
+                <CalendarClock size={14} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.delayEventBtnText}>Log this as a delay event</Text>
+              </TouchableOpacity>
+            )}
+            {issuesAndDelays.trim().length > 0 && (
+              <Text style={styles.delayEventHint}>
+                Starts your contract&apos;s written-notice clock, and links this report as evidence.
+              </Text>
             )}
           </View>
 
@@ -2890,6 +3012,21 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   sectionCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  // "Nothing happened today" one-tap filing. Deliberately plain — this is
+  // the boring path and it should look like the boring path.
+  noWorkCard: {
+    marginHorizontal: 20, marginTop: 4, padding: 16,
+    backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.panel,
+    borderWidth: 1, borderColor: themeColors.line, gap: 8,
+  },
+  noWorkTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  noWorkBody: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  noWorkChips: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 2 },
+  noWorkChip: {
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
+  },
+  noWorkChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.text },
   sectionTotal: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontWeight: '600' as const },
   roleTileGrid: {
     flexDirection: 'row' as const,
@@ -2916,6 +3053,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   textArea: { minHeight: 80, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
   textInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
   readOnlyText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
+  delayEventBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    marginTop: 10, paddingHorizontal: 12, paddingVertical: 11, borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.accentSoft,
+  },
+  delayEventBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  delayEventHint: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 6, lineHeight: 16 },
   incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line },
   incidentToggleActive: { backgroundColor: themeColors.danger, borderColor: themeColors.danger + '40' },
   incidentToggleDot: { width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 2, borderColor: themeColors.line },
