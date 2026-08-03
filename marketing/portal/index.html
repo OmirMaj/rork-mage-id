@@ -2930,6 +2930,19 @@
     if (isNaN(d)) return iso;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
+  // Timezone-safe formatter for DATE-ONLY values (a selection deadline, a
+  // billing-period bound). `new Date('2026-06-10')` parses as UTC midnight and
+  // then renders as Jun 9 anywhere west of Greenwich — which made the same
+  // deadline read "Jun 10" in the decision list (formatted server-side by
+  // utils/portalOwnerCore.ts) and "Jun 9" on the selection badge. Deadlines are
+  // calendar days, not instants, so format the parts directly.
+  var CAL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtCalendarDate(dateStr, withYear) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
+    if (!m) return fmtDateShort(dateStr);
+    var label = CAL_MONTHS[Number(m[2]) - 1] + ' ' + Number(m[3]);
+    return withYear ? label + ', ' + m[1] : label;
+  }
   function fmtPercent(n, dec) {
     if (n == null || isNaN(n)) return '—';
     return Number(n).toFixed(dec != null ? dec : 0) + '%';
@@ -3577,11 +3590,16 @@
     var cls = days < 0 ? ' is-overdue' : (days <= DECISION_DUE_SOON_DAYS ? ' is-due_soon' : '');
     var label;
     if (days < 0) {
-      label = 'Was due ' + fmtDateShort(due) + ' · ' + Math.abs(days) + ' day' + (Math.abs(days) === 1 ? '' : 's') + ' past due';
+      var late = Math.abs(days);
+      label = 'Was due ' + fmtCalendarDate(due) + ' · ' + late + ' day' + (late === 1 ? '' : 's') + ' past due';
     } else if (days === 0) {
       label = 'Due today';
+    } else if (days <= DECISION_DUE_SOON_DAYS) {
+      // Only count down when the deadline is actually near. "26,453 days left"
+      // on a far-future date is noise, not urgency.
+      label = 'Due ' + fmtCalendarDate(due) + ' · ' + days + ' day' + (days === 1 ? '' : 's') + ' left';
     } else {
-      label = 'Due ' + fmtDateShort(due) + ' · ' + days + ' day' + (days === 1 ? '' : 's') + ' left';
+      label = 'Due ' + fmtCalendarDate(due);
     }
     return '<div class="sel-due' + cls + '">' + icn(ICONS.calendar, 11) + esc(label) + '</div>';
   }
@@ -4209,7 +4227,9 @@
             '</div>' +
             '<div class="aia-period">'+
               (a.periodFrom && a.periodTo
-                ? 'Billing ' + fmtDateShort(a.periodFrom) + ' – ' + fmtDate(a.periodTo)
+                // Calendar-day formatter: a billing period bound is a date, not
+                // an instant, so it must not shift by the viewer's timezone.
+                ? 'Billing ' + fmtCalendarDate(a.periodFrom) + ' – ' + fmtCalendarDate(a.periodTo, true)
                 : (a.periodTo ? 'Period ending ' + fmtDate(a.periodTo) : 'Pay application')) +
               (a.architectName ? ' · '+esc(a.architectName) : '') +
             '</div>' +
