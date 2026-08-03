@@ -33,6 +33,9 @@ const LOCAL_USER_CACHE_KEYS = [
   'mageid_client_rfp_credits_v1', 'mageid_client_sub_state_v1',
   'mageid_leads', 'mageid_bid_packages', 'mageid_bid_package_bids',
   'mageid_change_orders', 'mageid_invoices', 'mageid_daily_reports',
+  // T&M / extra-work field tickets. Signed evidence naming a specific owner's
+  // rep — never leave it behind on a shared device for the next tenant.
+  'mageid_field_tickets',
   'mageid_subcontractors', 'mageid_punch_items', 'mageid_photos',
   'mageid_price_alerts', 'mageid_contacts', 'mageid_comm_events',
   'mageid_rfis', 'mageid_submittals', 'mageid_oac_meetings',
@@ -44,6 +47,11 @@ const LOCAL_USER_CACHE_KEYS = [
   'mageid_labor_rates',
   'mageid_material_receipts',
   'mageid_time_entries',
+  // Cold-start cost seeds (hooks/useCostSeeds): the rates a contractor pasted
+  // or typed to prime their price book before closing a job here. Per-user
+  // pricing — must wipe on tenant switch or the next person on a shared device
+  // bids at someone else's numbers.
+  'mageid_cost_seeds',
   // Community-feed cache. Shared data, but rows carry per-user attribution
   // (userId → public_bids.user_id) that drives the post-quota count — wipe
   // on tenant switch so a signed-out user's posts never count against the
@@ -79,7 +87,12 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
   const dropOfflineQueue = opts?.dropOfflineQueue ?? true;
   if (dropOfflineQueue) {
     try {
-      await AsyncStorage.removeItem('mageid_offline_queue');
+      // The photo-upload queue is governed by the same rule and for the same
+      // reason: its entries are pending WRITES that cannot be re-fetched from
+      // anywhere. It rides the dropOfflineQueue flag so a same-user re-auth
+      // (magic link / password reset) keeps un-uploaded jobsite photos, while a
+      // deliberate sign-out still leaves nothing behind for the next tenant.
+      await AsyncStorage.multiRemove(['mageid_offline_queue', 'mageid_photo_upload_queue']);
     } catch (err) {
       console.log('[Auth] Failed to clear offline queue:', err);
     }

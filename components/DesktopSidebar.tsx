@@ -6,12 +6,12 @@ import {
   Home, Wrench, Settings, BarChart3,
   FileText, Building2, Search, HardHat, Gavel, Lock, IdCard,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
-  Users, ShieldCheck, Bell, Briefcase,
+  Users, ShieldCheck, Bell, Briefcase, BadgeCheck, Code,
   PenTool, Store, Clock, ChevronDown, ChevronRight,
-  ScrollText, UserPlus, Handshake, ListChecks,
+  ScrollText, UserPlus, Handshake, ListChecks, FileSignature,
   Presentation,
   PieChart, LineChart, Coins, BellRing,
-  Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap,
+  Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap, Upload,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -63,6 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'portfolio_margin' },
   { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'cost-seed',         label: 'Seed Your Rates',  icon: Upload,          route: '/cost-seed',                        section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-xray',         label: 'Cost X-Ray',       icon: ScanEye,         route: '/cost-xray',                        section: 'WORKSPACE', requires: 'cost_xray' },
   // MAGE Copilot hub — the universal voice→build engine's front door.
@@ -78,6 +79,10 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── NETWORK — people + AI
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
+  // The embed widget is how a contractor turns their own website into a lead
+  // source, but the setup screen shipped with no inbound navigation — you could
+  // not find your own widget ID without knowing to search for it.
+  { key: 'widget-setup',      label: 'Website Widget',   icon: Code,            route: '/widget-setup',                     section: 'NETWORK' },
   { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
   { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'NETWORK', requires: 'crew_management' },
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
@@ -100,6 +105,9 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── PROJECT · FIELD OPS
   { key: 'daily-report',      label: 'Daily Report',     icon: MageDailyReport, route: '/daily-report',                     section: 'FIELD OPS' },
+  // T&M ticket — signed-on-site record of extra work. Sits directly under the
+  // daily report because that is where the super notices the work.
+  { key: 'field-ticket',      label: 'T&M Tickets',      icon: FileSignature,   route: '/field-ticket',                     section: 'FIELD OPS', requires: 'change_orders_invoicing' },
   { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS', requires: 'subcontractor_management' },
   { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
   // Scan-Anything: classify → extract → auto-file any document/photo.
@@ -127,6 +135,11 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'contract',          label: 'Contracts',        icon: MageContract,    route: '/contract',                         section: 'CLIENT' },
   { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT' },
   { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT' },
+  // Shipped fully built with ZERO inbound navigation — reachable only by typing
+  // "home passport" into the Cmd-K palette, which nobody does for a feature they
+  // don't know exists. It's the artifact the homeowner keeps after the job ends,
+  // so it's also the best referral surface in the product.
+  { key: 'home-passport',     label: 'Home Passport',    icon: BadgeCheck,      route: '/home-passport',                    section: 'CLIENT' },
 
   // ── ACCOUNT (pinned to bottom)
   { key: 'notifications',     label: 'Notifications',    icon: Bell,            route: '/notifications-inbox',              section: 'ACCOUNT' },

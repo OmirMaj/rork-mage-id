@@ -20,6 +20,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -63,12 +64,15 @@ function CostDatabaseInner() {
   // Self-perform labor (D6): the book's own screen must show every source
   // that feeds it — crew hours appear as "Labor — <trade>" $/hour entries.
   const laborSamples = useLaborCostSamples();
+  // Cold-start seeds — rates the GC stated on /cost-seed. They show here from
+  // day one, tagged so they can never be mistaken for measured history.
+  const { seeds } = useCostSeeds();
   const { canAccess } = useTierAccess();
   const { accuracyReport } = useBrainGrading();
 
   const db = useMemo(
-    () => buildCostDatabase(projects, commitments, receipts, laborSamples),
-    [projects, commitments, receipts, laborSamples],
+    () => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds),
+    [projects, commitments, receipts, laborSamples, seeds],
   );
 
   // Cost Truth: contribute my learned rates + read the cross-contractor
@@ -110,14 +114,16 @@ function CostDatabaseInner() {
         <EmptyState
           icon={<MageCostDb size={36} color={t.accent} />}
           title="No price history yet"
-          message="Your cost database learns what work actually costs from every job you close. To build it:"
+          message="Your cost database learns what work actually costs from every job you close — which means it has nothing on day one. Don't wait six months for it:"
           steps={[
-            'Complete or close a project that had a cost estimate.',
-            'Make sure its commitments are linked to estimate lines (buyout does this).',
-            'Each closed job adds samples — rates sharpen as history grows.',
+            'Seed the rates you already know — paste a trade/unit/price list in a minute.',
+            'Close projects that had a cost estimate; commitments linked to estimate lines (buyout does this) become samples.',
+            'Every closed job corrects what you seeded — measurement always beats a stated rate.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
+          actionLabel="Seed your rates"
+          onAction={() => router.push('/cost-seed' as any)}
+          secondaryLabel="Open Projects"
+          onSecondaryAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
         <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 40 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
@@ -147,7 +153,10 @@ function CostDatabaseInner() {
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Trades</Text>
               <Text style={styles.kpiValue}>{db.tradesTracked}</Text>
-              <Text style={styles.kpiSub}>{db.jobsAnalyzed} closed job{db.jobsAnalyzed === 1 ? '' : 's'}</Text>
+              <Text style={styles.kpiSub}>
+                {db.jobsAnalyzed} closed job{db.jobsAnalyzed === 1 ? '' : 's'}
+                {(db.tradesSeededOnly ?? 0) > 0 ? ` · ${db.tradesSeededOnly} you set` : ''}
+              </Text>
             </View>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Bid accuracy</Text>
@@ -205,10 +214,23 @@ function CostDatabaseInner() {
                 >
                   <View style={styles.cardHeadBody}>
                     <Text style={styles.cardTrade} numberOfLines={1}>{e.trade}</Text>
+                    {/* A rate the GC stated must never read as measured
+                        history. 'seeded' says so; 'mixed' admits the seed is
+                        still in there while real jobs correct it. */}
                     <Text style={styles.cardMeta}>
-                      per {e.unit} · {e.jobCount} job{e.jobCount === 1 ? '' : 's'}
-                      <Text style={{ color: cc }}> · {e.confidence}</Text>
+                      {e.provenance === 'seeded'
+                        ? `per ${e.unit} · you set this`
+                        : `per ${e.unit} · ${e.jobCount} job${e.jobCount === 1 ? '' : 's'}`}
+                      {e.provenance === 'seeded'
+                        ? null
+                        : <Text style={{ color: cc }}> · {e.confidence}</Text>}
+                      {e.provenance === 'mixed' ? ' · started from your set rate' : ''}
                     </Text>
+                    {e.provenance === 'seeded' ? (
+                      <View style={styles.seedBadge}>
+                        <Text style={styles.seedBadgeText}>YOU SET THIS · NOT YET MEASURED</Text>
+                      </View>
+                    ) : null}
                     {bench ? (
                       <View style={{ marginTop: 5 }}>
                         <CostTruthChip stats={bench} rate={e.personalRate} />
@@ -251,7 +273,9 @@ function CostDatabaseInner() {
                         <Text style={styles.sampleName} numberOfLines={1}>{s.projectName}</Text>
                         <Text style={styles.sampleRate}>
                           {formatRate(s.actualUnit)}
-                          <Text style={styles.sampleBasis}> {s.basis === 'actual' ? 'actual' : 'signed'}</Text>
+                          <Text style={styles.sampleBasis}>
+                            {' '}{s.basis === 'actual' ? 'actual' : s.basis === 'seeded' ? 'you set this' : 'signed'}
+                          </Text>
                         </Text>
                       </View>
                     ))}
@@ -317,6 +341,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cardHeadBody: { flex: 1, gap: 2 },
   cardTrade: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   cardMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  // A stated rate has to LOOK different from a measured one, not just read
+  // differently — the whole moat is "these are real numbers".
+  seedBadge: {
+    alignSelf: 'flex-start' as const, marginTop: 5,
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: Tokens.radius.full, backgroundColor: t.accentSoft,
+  },
+  seedBadgeText: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const,
+    color: t.accentLabel, letterSpacing: 0.4,
+  },
   rateBox: { alignItems: 'flex-end' as const },
   rateVal: { fontSize: Type.headline.fontSize, fontWeight: '800' as const, color: t.text },
   rateSub: { fontSize: Type.caption2.fontSize, color: t.textMuted },

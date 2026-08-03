@@ -55,6 +55,8 @@ import {
   type ProjectSizeBand,
 } from '@/utils/onboardingProfile';
 import { parseImportBlob, draftToLeadInput, type ImportedLeadDraft } from '@/utils/pipelineImport';
+import { parseSeedBlob, draftsToSeeds, type SeedParseResult } from '@/utils/costSeedCore';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // ── Brand palette local to onboarding — kept hardcoded so the splash
@@ -76,7 +78,7 @@ const BRAND = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type Step = 'splash' | 'preview' | 'routing' | 'import';
+type Step = 'splash' | 'preview' | 'routing' | 'import' | 'rates';
 
 // Flavor of the auto-seeded sample project. Derived from the size band on
 // the routing step. Inferred from suggestedDemoFlavorForBand so we don't
@@ -128,6 +130,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const projectCtx = useProjects();
   const { completeOnboarding, addLead } = projectCtx;
+  const { addSeeds } = useCostSeeds();
   const { colors: themeColors } = useTheme();
 
   const [step, setStep] = useState<Step>('splash');
@@ -145,6 +148,23 @@ export default function OnboardingScreen() {
   const [parsed, setParsed] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importHint, setImportHint] = useState<string | null>(null);
+
+  // ── Seed-your-rates step state. THE cold-start fix: utils/costDatabase only
+  // learns from jobs closed inside MAGE, so without this a twenty-year
+  // contractor's first estimate is priced identically to a beginner's. Pasting
+  // the rates they already know makes the estimate wizard's grounding facts
+  // non-empty on day one. Rates land tagged "you set this" and never count as
+  // closed jobs — see utils/costSeedCore.
+  //
+  // Deliberately NOT tier-gated here: first-run happens before the paywall
+  // (this flow ends at /onboarding-paywall). The Pro gate lives on the
+  // management screen, app/cost-seed.
+  const [rateBlob, setRateBlob] = useState('');
+  const [rateReview, setRateReview] = useState<SeedParseResult | null>(null);
+  const [rateHint, setRateHint] = useState<string | null>(null);
+  // Carried across the rates step so the demo-seed decision made on the import
+  // step still applies when the flow finally exits.
+  const [pendingSeedDemo, setPendingSeedDemo] = useState(true);
 
   // Respect iOS Accessibility → Reduce Motion. When on, we cross-fade
   // instead of slide-up + stagger. Apple HIG mandates this; premium apps
@@ -207,6 +227,7 @@ export default function OnboardingScreen() {
   // viewed→completed. Fires once when the step first renders.
   useEffect(() => {
     if (step === 'import') track(AnalyticsEvents.ONBOARDING_IMPORT_VIEWED);
+    if (step === 'rates') track(AnalyticsEvents.ONBOARDING_RATES_VIEWED);
   }, [step]);
 
   const handleStarted = useCallback(() => {
@@ -298,26 +319,62 @@ export default function OnboardingScreen() {
       track(AnalyticsEvents.ONBOARDING_IMPORT_COMPLETED, { count: drafts.length });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Real pipeline imported → their clients ARE the populated state, so
-      // skip the demo seed.
-      await finishToHome({ seedDemo: false });
+      // skip the demo seed when the flow eventually exits.
+      setPendingSeedDemo(false);
+      setStep('rates');
     } finally {
       setImporting(false);
     }
-  }, [drafts, addLead, finishToHome]);
+  }, [drafts, addLead]);
 
   const handleImportSkip = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     track(AnalyticsEvents.ONBOARDING_IMPORT_SKIPPED);
-    void finishToHome({ seedDemo: true, band: pendingBand });
-  }, [finishToHome, pendingBand]);
+    setPendingSeedDemo(true);
+    setStep('rates');
+  }, []);
+
+  // ── Seed-your-rates step ─────────────────────────────────────────────
+  const handleRatesParse = useCallback(() => {
+    const parsed = parseSeedBlob(rateBlob);
+    if (parsed.rows.length === 0) {
+      setRateHint(
+        parsed.rejected.length > 0
+          ? "Couldn't read a rate from those lines. Each needs a trade, a unit (SF, LF, EA, HR…) and a price."
+          : 'Paste one rate per line — trade, unit, price. For example: Framing, SF, $12.50',
+      );
+      return;
+    }
+    setRateHint(null);
+    setRateReview(parsed);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [rateBlob]);
+
+  const handleRatesCommit = useCallback(() => {
+    if (!rateReview || rateReview.rows.length === 0) return;
+    const seeds = draftsToSeeds(rateReview.rows, { now: new Date().toISOString(), method: 'paste' });
+    addSeeds(seeds);
+    track(AnalyticsEvents.ONBOARDING_RATES_COMPLETED, { count: seeds.length });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void finishToHome({ seedDemo: pendingSeedDemo, band: pendingBand });
+  }, [rateReview, addSeeds, finishToHome, pendingSeedDemo, pendingBand]);
+
+  const handleRatesSkip = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    track(AnalyticsEvents.ONBOARDING_RATES_SKIPPED);
+    void finishToHome({ seedDemo: pendingSeedDemo, band: pendingBand });
+  }, [finishToHome, pendingSeedDemo, pendingBand]);
 
   // Top-bar Skip — bails out of the whole flow. Seeds a sample project so
   // the user still lands on a populated home. `pendingBand` is null unless
   // they'd already reached the import step, in which case we honor it.
+  // `pendingSeedDemo` starts true and is only cleared once real clients have
+  // been imported — bailing out from the rates step must not drop a fake
+  // sample project on top of a real pipeline.
   const handleSkip = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    void finishToHome({ seedDemo: true, band: pendingBand });
-  }, [finishToHome, pendingBand]);
+    void finishToHome({ seedDemo: pendingSeedDemo, band: pendingBand });
+  }, [finishToHome, pendingSeedDemo, pendingBand]);
 
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
@@ -350,6 +407,7 @@ export default function OnboardingScreen() {
         <View style={[styles.stepDot, step === 'preview' && styles.stepDotActive]} />
         <View style={[styles.stepDot, step === 'routing' && styles.stepDotActive]} />
         <View style={[styles.stepDot, step === 'import' && styles.stepDotActive]} />
+        <View style={[styles.stepDot, step === 'rates' && styles.stepDotActive]} />
       </View>
 
       {/* Body — switches between splash and routing. Both use the same
@@ -688,6 +746,149 @@ export default function OnboardingScreen() {
           </Animated.View>
         </KeyboardAvoidingView>
       )}
+
+      {/* Seed-your-rates — the cost-book cold-start fix. MAGE's whole pitch is
+          "it learns your real costs", but utils/costDatabase only learns from
+          jobs closed inside the app: a twenty-year contractor's day-one
+          estimate was a beginner's, and stayed that way for 6-18 months.
+          Pasting the rates they already know makes the very first estimate
+          theirs. Parsed by the shared utils/costSeedCore; rates are stored
+          tagged "you set this" and never counted as closed jobs. */}
+      {step === 'rates' && (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={insets.top + 72}
+        >
+          <Animated.View
+            style={[
+              styles.body,
+              { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+            ]}
+          >
+            <View style={{ flex: 1 }} />
+
+            <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
+              <Text style={styles.eyebrowDot}>●</Text>  price from your numbers
+            </Animated.Text>
+
+            <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
+              <Text style={styles.headlineRoman}>You already{' '}</Text>
+              <Text style={styles.headlineItalic}>know{' '}</Text>
+              <Text style={styles.headlineRoman}>your costs.</Text>
+            </Animated.Text>
+
+            {!rateReview ? (
+              <Animated.View style={{ opacity: bodyOpacity }}>
+                <Text style={styles.lede}>
+                  MAGE learns your rates from every job you close — which means nothing to
+                  price with today. Paste what you already charge and your first estimate is
+                  built on your numbers, not a national average.
+                </Text>
+                <TextInput
+                  style={styles.pasteInput}
+                  value={rateBlob}
+                  onChangeText={(v) => { setRateBlob(v); setRateHint(null); }}
+                  placeholder={'Framing, SF, $12.50\nDrywall hang & finish, SF, 3.20\nElectrical rough-in, EA, $145'}
+                  placeholderTextColor={BRAND.fog}
+                  multiline
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textAlignVertical="top"
+                  testID="onboarding-rates-blob"
+                />
+                {!!rateHint && <Text style={styles.importHint}>{rateHint}</Text>}
+                <Pressable
+                  onPress={handleRatesParse}
+                  disabled={!rateBlob.trim()}
+                  style={({ pressed }) => [
+                    styles.ctaPrimary,
+                    styles.ctaWide,
+                    !rateBlob.trim() && { opacity: 0.5 },
+                    pressed && { opacity: 0.92 },
+                  ]}
+                  accessibilityLabel="Review the rates before adding them"
+                  accessibilityRole="button"
+                  testID="onboarding-rates-review"
+                >
+                  <Text style={styles.ctaPrimaryText}>Review rates</Text>
+                  <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
+                </Pressable>
+                <TouchableOpacity
+                  onPress={handleRatesSkip}
+                  hitSlop={8}
+                  style={styles.importSkip}
+                  testID="onboarding-rates-skip"
+                >
+                  <Text style={styles.signInText}>
+                    <Text style={styles.signInLink}>Skip — I&apos;ll add them later</Text>
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            ) : (
+              <Animated.View style={{ opacity: bodyOpacity }}>
+                <View style={styles.confirmCard}>
+                  <View style={styles.confirmHeadRow}>
+                    <TrendingUp size={16} color={BRAND.orange} strokeWidth={2.2} />
+                    <Text style={styles.confirmCount}>
+                      {rateReview.rows.length} rate{rateReview.rows.length === 1 ? '' : 's'} ready
+                    </Text>
+                  </View>
+                  <View style={styles.nameChipRow}>
+                    {rateReview.rows.slice(0, 6).map((r, i) => (
+                      <View key={`${r.trade}-${r.unit}-${i}`} style={styles.nameChip}>
+                        <Text style={styles.nameChipText} numberOfLines={1}>
+                          {r.trade} ${r.rate.toFixed(2)}/{r.unit}
+                        </Text>
+                      </View>
+                    ))}
+                    {rateReview.rows.length > 6 && (
+                      <View style={styles.nameChip}>
+                        <Text style={styles.nameChipText}>+{rateReview.rows.length - 6} more</Text>
+                      </View>
+                    )}
+                  </View>
+                  {rateReview.rejected.length > 0 && (
+                    <Text style={styles.importHint}>
+                      {rateReview.rejected.length} line{rateReview.rejected.length === 1 ? '' : 's'} skipped —
+                      {' '}{rateReview.rejected[0].reason}
+                    </Text>
+                  )}
+                  <Text style={styles.seedNote}>
+                    Saved as rates you set — never counted as closed jobs. Every job you finish
+                    corrects them.
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={handleRatesCommit}
+                  style={({ pressed }) => [
+                    styles.ctaPrimary,
+                    styles.ctaWide,
+                    pressed && { opacity: 0.92 },
+                  ]}
+                  accessibilityLabel={`Add ${rateReview.rows.length} rates`}
+                  accessibilityRole="button"
+                  testID="onboarding-rates-commit"
+                >
+                  <Check size={18} color={BRAND.ink} strokeWidth={2.6} />
+                  <Text style={styles.ctaPrimaryText}>
+                    Add {rateReview.rows.length} rate{rateReview.rows.length === 1 ? '' : 's'}
+                  </Text>
+                </Pressable>
+                <TouchableOpacity
+                  onPress={() => setRateReview(null)}
+                  hitSlop={8}
+                  style={styles.importSkip}
+                >
+                  <Text style={styles.signInText}>
+                    <Text style={styles.signInLink}>Back to edit</Text>
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      )}
     </View>
   );
 }
@@ -1003,5 +1204,14 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     fontWeight: '600',
     color: BRAND.cream,
+  },
+
+  // Seed-your-rates step — the honesty line under the review chips.
+  seedNote: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '500',
+    color: BRAND.fog,
+    lineHeight: 16,
+    marginTop: 12,
   },
 });

@@ -28,8 +28,14 @@ export interface OwnRateMatch {
   /** The trade label it matched, for display ("matched to Framing"). */
   trade: string;
   unit: string;
-  /** How many of the contractor's jobs back this rate. */
+  /** How many of the contractor's REAL jobs back this rate. 0 on a rate they
+   *  seeded by hand and haven't yet closed a job against. */
   jobCount: number;
+  /** 'earned' = measured from closed jobs / receipts / clocked labor.
+   *  'seeded' = the contractor stated it, nothing measured yet.
+   *  'mixed' = a stated rate that real jobs have started to correct.
+   *  The UI must not present a 'seeded' rate as learned history. */
+  provenance: 'earned' | 'seeded' | 'mixed';
   confidence: CostBookEntry['confidence'];
   /** Spread across jobs, as a fraction (0.12 = ±12%). */
   variability: number;
@@ -94,7 +100,13 @@ export function matchOwnRate(
 
   for (const entry of book) {
     if (normalizeUnit(entry.unit) !== unit) continue;      // unit must agree
-    if ((entry.jobCount ?? 0) < minJobs) continue;          // no history, no claim
+    // Evidence = real jobs, plus ONE for a cold-start seed the contractor
+    // stated themselves (utils/costSeedCore). A seed is weaker evidence than a
+    // closed job — it counts once, never more — but it is still the
+    // contractor's own number, and it beats a national catalog average. An
+    // entry with neither still returns null: no history, no claim.
+    const evidence = (entry.jobCount ?? 0) + ((entry.seededSampleCount ?? 0) > 0 ? 1 : 0);
+    if (evidence < minJobs) continue;
     if (!(entry.suggestedRate > 0)) continue;
 
     const tradeWords = words(entry.trade);
@@ -118,6 +130,7 @@ export function matchOwnRate(
         trade: entry.trade,
         unit: entry.unit,
         jobCount: entry.jobCount ?? 0,
+        provenance: entry.provenance ?? 'earned',
         confidence: entry.confidence,
         variability: entry.variability ?? 0,
         matchScore: score,
@@ -131,9 +144,16 @@ export function matchOwnRate(
 /** Human provenance line shown under a priced row. */
 export function priceSourceLabel(source: PriceSource, match?: OwnRateMatch | null): string {
   if (source === 'yours' && match) {
+    // A seeded rate is the contractor's own number, but it was TOLD to us, not
+    // measured. Saying "0 jobs" would read as a bug; claiming jobs would be a
+    // lie. Say exactly what happened.
+    if (match.provenance === 'seeded') {
+      return `Your rate — ${match.trade}, you set this (no closed jobs yet)`;
+    }
     const jobs = `${match.jobCount} job${match.jobCount === 1 ? '' : 's'}`;
     const spread = match.variability > 0 ? ` · ±${Math.round(match.variability * 100)}%` : '';
-    return `Your rate — ${match.trade}, ${jobs}${spread}`;
+    const seeded = match.provenance === 'mixed' ? ' · started from your set rate' : '';
+    return `Your rate — ${match.trade}, ${jobs}${spread}${seeded}`;
   }
   if (source === 'engine') return 'Catalog rate — not your history';
   if (source === 'ai') return 'AI estimate — no history for this yet';

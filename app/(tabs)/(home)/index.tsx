@@ -65,6 +65,7 @@ import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
 import BrainWatchCard from '@/components/home/BrainWatchCard';
 import ReadyToBillCard from '@/components/home/ReadyToBillCard';
+import RecoveredCard from '@/components/home/RecoveredCard';
 import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 import { showAlert } from '@/utils/alert';
@@ -737,6 +738,10 @@ export default function HomeScreen() {
                 never flickers empty on cold launch. */}
             {projects.length > 0 && !isLoading && <BrainWatchCard />}
             {projects.length > 0 && !isLoading && <ReadyToBillCard />}
+            {/* The receipt: money MAGE found that the client already signed off.
+                Sits below ReadyToBill deliberately — "what to send" is the
+                action, "what you collected" is the proof. Self-hides at zero. */}
+            {projects.length > 0 && !isLoading && <RecoveredCard />}
 
             {/* "Today" feed — surfaces overdue invoices, unanswered
                 RFIs, pending CO approvals, late tasks, etc. as the

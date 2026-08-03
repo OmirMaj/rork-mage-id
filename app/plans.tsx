@@ -278,25 +278,42 @@ export default function PlansScreen() {
             return (
               <TouchableOpacity
                 key={s.id}
-                style={styles.sheetCard}
+                style={[styles.sheetCard, s.superseded && styles.sheetCardSuperseded]}
                 onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: s.id } as never })}
                 activeOpacity={0.7}
+                testID={s.superseded ? `sheet-row-superseded-${s.id}` : undefined}
               >
-                <View style={styles.sheetThumbWrap}>
+                <View style={[styles.sheetThumbWrap, s.superseded && styles.sheetThumbWrapSuperseded]}>
                   <Image source={{ uri: s.imageUri }} style={styles.sheetThumb} resizeMode="cover" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    {s.sheetNumber ? <Text style={styles.sheetNumber}>{s.sheetNumber}</Text> : null}
-                    {s.revision && s.revision > 1 && (
+                  <View style={styles.sheetTagRow}>
+                    {s.sheetNumber ? (
+                      <Text style={[styles.sheetNumber, s.superseded && styles.sheetNumberSuperseded]}>{s.sheetNumber}</Text>
+                    ) : null}
+                    {/* Unconditional on `superseded` — NOT gated on revision.
+                        The original copy of a re-uploaded sheet is Rev 1, so a
+                        revision-gated badge left the single most dangerous row
+                        in the list (the old one everyone already has printed)
+                        completely unmarked. */}
+                    {s.superseded ? (
+                      <View style={styles.supersededBadge}>
+                        <AlertTriangle size={10} color={themeColors.warningLabel} strokeWidth={2.5} />
+                        <Text style={styles.supersededBadgeText}>Superseded</Text>
+                      </View>
+                    ) : null}
+                    {s.revision && s.revision > 1 ? (
                       <View style={[styles.revPill, s.superseded && { backgroundColor: themeColors.surfaceAlt }]}>
                         <Text style={[styles.revPillText, s.superseded && { color: themeColors.textMuted }]}>
-                          Rev {s.revision}{s.superseded ? ' · superseded' : ''}
+                          Rev {s.revision}
                         </Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
-                  <Text style={styles.sheetName} numberOfLines={2}>{s.name}</Text>
+                  <Text style={[styles.sheetName, s.superseded && styles.sheetNameSuperseded]} numberOfLines={2}>{s.name}</Text>
+                  {s.superseded ? (
+                    <Text style={styles.supersededNote}>Replaced by a newer revision — do not build from it.</Text>
+                  ) : null}
                   <View style={styles.sheetMetaRow}>
                     <View style={styles.metaPill}>
                       <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
@@ -519,12 +536,39 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, padding: 12, borderRadius: Tokens.radius.lg,
     borderColor: t.line, borderWidth: 1, marginBottom: 10,
   },
+  // Superseded rows are deliberately loud AND dimmed: amber edge so the eye
+  // catches them mid-scroll, muted content so they never read as the live
+  // sheet. A GC scrolling fast must not be able to mistake one for current.
+  sheetCardSuperseded: {
+    backgroundColor: t.warningSoft,
+    borderColor: t.warningLabel + '55',
+    borderLeftWidth: 3, borderLeftColor: t.warningLabel,
+  },
   sheetThumbWrap: {
     width: 72, height: 72, borderRadius: Tokens.radius.md, overflow: 'hidden',
     backgroundColor: t.surfaceAlt, justifyContent: 'center', alignItems: 'center',
   },
+  sheetThumbWrapSuperseded: { opacity: 0.45 },
   sheetThumb: { width: '100%', height: '100%' },
+  sheetTagRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   sheetNumber: { color: t.accent, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },
+  sheetNumberSuperseded: { color: t.textMuted },
+  supersededBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: Tokens.radius.xs,
+    backgroundColor: t.warningSoft,
+    borderWidth: 1, borderColor: t.warningLabel + '66',
+  },
+  supersededBadgeText: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.warningLabel,
+    letterSpacing: 0.3, textTransform: 'uppercase' as const,
+  },
+  supersededNote: {
+    color: t.warningLabel, fontSize: Type.caption2.fontSize, fontWeight: '600' as const,
+    marginTop: 3,
+  },
+  sheetNameSuperseded: { color: t.textSecondary },
   revPill: {
     paddingHorizontal: 6, paddingVertical: 2,
     borderRadius: 8,

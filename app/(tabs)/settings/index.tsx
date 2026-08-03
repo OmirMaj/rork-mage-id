@@ -1132,6 +1132,45 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* YOUR COSTS — the cold-start path. MAGE's whole pitch is "it learns
+            your real costs", but it only learns from jobs closed here, so a
+            veteran's day-one estimate was a beginner's. Seeding lets them bring
+            the rates they already know; the book keeps them tagged as stated
+            (not measured) until a closed job proves them out. */}
+        <Text style={styles.sectionHeader}>YOUR COSTS</Text>
+        <Text style={styles.sectionSubtext}>
+          Bring the rates you already know so estimates price from your numbers on day one.
+        </Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/cost-seed' as any)}
+            activeOpacity={0.7}
+            testID="cost-seed-link"
+          >
+            <View style={styles.iconWrap}>
+              <FolderInput size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Seed your rates</Text>
+              <Text style={styles.sectionSubtext}>Paste or type your unit costs</Text>
+            </View>
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/cost-database' as any)}
+            activeOpacity={0.7}
+            testID="cost-database-link"
+          >
+            <View style={styles.iconWrap}>
+              <Database size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Cost database</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionHeader}>CONTACTS & EMAIL</Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1320,7 +1359,11 @@ export default function SettingsScreen() {
                 price: '$79/mo',
                 color: themeColors.info,
                 icon: Crown,
-                features: ['Everything in Pro', 'Subcontractor management', 'Punch list & closeout', 'Client portal (shareable link)', 'Unlimited collaborators', 'Custom branding + logos', 'Priority support'],
+                // Client portal and project collaborators are BOTH Pro gates
+                // (featureTiers: client_portal='pro', schedule_collaboration='pro').
+                // Listing them here implied you had to buy Business to get them.
+                // Replaced with what Business actually unlocks — the brain.
+                features: ['Everything in Pro', 'Cost X-Ray — price what you cannot see', 'Track Record — it grades its own calls', 'Bid Advisor + Ask Your Plans', 'Subcontractor management', 'Punch list & closeout', 'QuickBooks 2-way sync', 'Priority support'],
                 disabled: [],
               },
               {

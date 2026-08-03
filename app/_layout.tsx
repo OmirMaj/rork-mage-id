@@ -35,6 +35,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
+import { processPhotoUploadQueue } from "@/utils/photoUploadQueue";
 import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
@@ -397,7 +398,17 @@ function OfflineSyncManager() {
       if (cancelled) return;
       if (reset) backoffMs.current = 0;
       clearRetry();
-      void processOfflineQueue().then(({ processed, remaining }) => {
+      // Photo bytes drain on the SAME triggers as text mutations (startup,
+      // foreground, backoff) but on their own queue — see utils/photoUploadQueue.
+      // Chained rather than raced so a jobsite's uplink isn't split between
+      // multi-MB image bodies and the small writes that make the UI consistent.
+      void processOfflineQueue().then(async (res) => {
+        const photos = await processPhotoUploadQueue().catch((err) => {
+          console.log('[OfflineSync] Failed to process photo queue:', err);
+          return { uploaded: 0, failed: 0, remaining: 0 };
+        });
+        return { processed: res.processed, remaining: res.remaining + photos.remaining };
+      }).then(({ processed, remaining }) => {
         if (cancelled) return;
         if (processed > 0) {
           console.log('[OfflineSync] Processed', processed, 'queued mutations');
@@ -696,6 +707,12 @@ function RootLayoutNav() {
         name="change-order"
         options={{ headerShown: false }}
       />
+      {/* T&M / extra-work field ticket — the signed-on-site record that makes
+          out-of-scope work billable. Renders its own ToolHeader. */}
+      <Stack.Screen
+        name="field-ticket"
+        options={{ headerShown: false }}
+      />
       <Stack.Screen
         name="invoice"
         options={{
@@ -898,6 +915,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="cost-database"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="cost-seed"
         options={{ headerShown: false }}
       />
       <Stack.Screen

@@ -184,6 +184,13 @@ export const PDF_DISCLAIMERS = {
   closeout:
     'This handoff packet is provided for the owner\'s reference. Warranty terms, product specifications, and maintenance schedules originate with the manufacturer or installer named for each item. The contractor disclaims any warranty beyond what is stated in the original construction contract or in the items themselves.',
 
+  // T&M field ticket — the point is that the signature attests to WORK
+  // PERFORMED, not to a price. Saying so plainly on the document is what
+  // keeps a signed ticket usable when the owner later disputes the rate
+  // rather than the hours.
+  fieldTicket:
+    'This ticket records time, materials, and equipment expended on work the signer identified as outside the contract scope. The signature above attests to the work performed and the hours and quantities shown — not to pricing, which is billed under the contract\'s time-and-materials rates. Any resulting change order remains subject to the contract\'s change-order provisions.',
+
   // Estimate — soft language; estimate isn\'t a quote.
   estimate:
     'This is a project estimate, not a fixed-price quote, unless explicitly stated in a signed agreement. Quantities, unit prices, and materials are subject to change based on field conditions, market pricing, and design revisions.',

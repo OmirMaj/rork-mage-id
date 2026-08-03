@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The MAGE Brain — it writes down every call it makes, then shows you the misses | MAGE ID</title>
+<link rel="canonical" href="https://mageid.app/brain/" />
+<meta name="description" content="MAGE grades its own predictions against what actually happened on your jobs — hits, misses and ties. It won't automate anything until it has earned it, and every threshold is published." />
+<meta name="theme-color" content="#0B0D10" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="The MAGE Brain — ask your software how often it's wrong" />
+<meta property="og:description" content="Every duration, price and verdict goes in a ledger. When the job closes, MAGE grades itself. The misses stay on the board." />
+<meta property="og:url" content="https://mageid.app/brain/" />
+<meta property="og:site_name" content="MAGE ID" />
+<meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+
+<!-- Structured data: this page answers "how do I know the AI is right?" — the
+     question every contractor asks and no vendor answers. Every figure below is
+     the literal threshold in utils/brain/autonomyGate.ts and
+     utils/brain/accuracyReport.ts, so an answer engine quoting us quotes code. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I know if construction estimating AI is accurate?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Ask it for its track record. MAGE ID records every prediction it makes — task durations, estimate totals, profit-leak flags, margin verdicts and bid odds — in a ledger at the moment it makes them. When the job closes, it compares each one to what actually happened and marks it a hit, a miss or a tie. The contractor sees that scoreboard, misses included. Most construction AI never checks its own output at all." }
+    },
+    {
+      "@type": "Question",
+      "name": "When does MAGE ID start doing things automatically?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Only once it has earned it, and the thresholds are published. MAGE will not pre-fill task durations for a trade until its learned pace has matched or beaten the generic AI call on at least five graded predictions for that trade, at a 60 percent rate or better. It will not draft change orders on its own until at least half of the profit-leak items it flagged were actually billed back, across at least five graded scans." }
+    },
+    {
+      "@type": "Question",
+      "name": "What happens when there isn't enough job history yet?",
+      "acceptedAnswer": { "@type": "Answer", "text": "It shows nothing for that category. Any prediction type with fewer than three graded results is suppressed rather than displayed as a percentage, and tracked-bid calibration needs five. An accuracy figure drawn from one or two jobs is not an accuracy figure." }
+    },
+    {
+      "@type": "Question",
+      "name": "How is MAGE ID different from other AI construction software?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Three things. It grades its own output against the contractor's real job outcomes instead of never checking. It prices from that contractor's own closed-job costs instead of a generic national catalog. And it states on every estimate line where the number came from — your history, a catalog, or an AI guess — so a made-up number cannot hide next to a real one." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does MAGE ID share my cost data with other contractors?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Not unless you switch it on. Contributing to the public MAGE Price Index is opt-in and off by default. Even when it is on, a trade is published only once at least five independent contractors have contributed, and only median and interquartile values are released — never an individual contractor's rates." }
+    }
+  ]
+}
+</script>
+
+<script>
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+    api_host: 'https://us.i.posthog.com',
+    capture_pageview: true, capture_pageleave: true, autocapture: false,
+    persistence: 'localStorage+cookie',
+  });
+</script>
+
+<style>
+  :root{
+    --navy:#0B0D10; --navy-2:#14181D; --amber:#FF6A1A; --amber-hot:#FF8533;
+    --ink:#1B222B; --muted:#5C6875; --line:#E6E0D4; --bg:#FAF7F0; --card:#fff;
+    --good:#1B7F5A; --bad:#B0402B;
+    --sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --serif:'Fraunces',Georgia,serif;
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+  h1,h2,h3{text-wrap:balance}
+
+  /* nav — real cross-links. /costs and /widget previously had none anywhere. */
+  .nav{border-bottom:1px solid var(--line);background:rgba(250,247,240,.92);position:sticky;top:0;z-index:20;backdrop-filter:saturate(140%) blur(8px)}
+  .nav .wrap{display:flex;align-items:center;gap:18px;height:58px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.12em;font-size:12px;text-transform:uppercase;text-decoration:none;color:var(--navy)}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber)}
+  .navlinks{display:flex;gap:17px;margin-left:auto;font-size:14px}
+  .navlinks a{text-decoration:none;color:var(--muted);font-weight:500}
+  .navlinks a:hover,.navlinks a[aria-current]{color:var(--navy)}
+  .navcta{background:var(--navy);color:#fff;text-decoration:none;padding:9px 15px;border-radius:9px;font-weight:700;font-size:14px}
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:4px}
+  @media(max-width:760px){.navlinks{display:none}}
+
+  section{padding:62px 0}
+  .kick{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);margin-bottom:14px}
+  .hero{padding:74px 0 58px;background:var(--navy);color:#F3EEE5}
+  .hero .kick{color:var(--amber-hot)}
+  h1{font-family:var(--serif);font-size:clamp(33px,5.3vw,57px);line-height:1.07;letter-spacing:-.02em;max-width:15ch;font-weight:600}
+  .hero .sub{font-size:19px;color:#C6C0B5;margin-top:19px;max-width:60ch}
+  .hero .sub b{color:#F3EEE5;font-weight:600}
+  .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+  .btn{text-decoration:none;padding:13px 20px;border-radius:11px;font-weight:700;font-size:15px;display:inline-block}
+  .btn.primary{background:var(--amber);color:#fff}
+  .btn.ghost{border:1.5px solid rgba(243,238,229,.3);color:#F3EEE5}
+  .light .btn.ghost{border-color:var(--line);color:var(--navy)}
+
+  h2{font-family:var(--serif);font-size:clamp(25px,3.3vw,37px);line-height:1.14;letter-spacing:-.015em;color:var(--navy-2);max-width:19ch;font-weight:600}
+  .lede{font-size:17px;color:var(--muted);margin-top:12px;max-width:62ch}
+  h3{font-size:16.5px;font-weight:700;color:var(--navy-2);margin-bottom:6px}
+
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:16px;margin-top:34px}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+  .step .n{font-family:var(--mono);font-size:11.5px;color:var(--amber);letter-spacing:.1em;margin-bottom:10px}
+  .step p{font-size:15px;color:var(--muted)}
+
+  /* the scoreboard — mirrors the receipt shape in utils/brain/trackRecord.ts:
+     label · predicted → actual · note · verdict */
+  .board{background:var(--card);border:1px solid var(--line);border-radius:18px;margin-top:30px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(11,13,16,.04),0 14px 40px rgba(11,13,16,.07)}
+  .board-top{display:flex;align-items:baseline;gap:10px;padding:17px 22px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .board-top .t{font-weight:700;color:var(--navy-2)}
+  .board-top .s{font-size:12.5px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+  .scroller{overflow-x:auto}
+  .row{display:flex;align-items:center;gap:14px;padding:13px 22px;border-bottom:1px solid var(--line);font-size:15px;min-width:520px}
+  .row .what{flex:1;color:var(--navy-2)}
+  .row .pa{font-family:var(--mono);font-size:13px;color:var(--navy-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .row .pa i{font-style:normal;color:var(--muted);padding:0 4px}
+  .row .note{font-size:12.5px;color:var(--muted);white-space:nowrap;min-width:126px;text-align:right}
+  .tag{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .hit{background:rgba(27,127,90,.12);color:var(--good)}
+  .miss{background:rgba(176,64,43,.12);color:var(--bad)}
+  .tie{background:rgba(92,104,117,.13);color:var(--muted)}
+  .board-note{padding:14px 22px;background:var(--bg);font-size:13px;color:var(--muted)}
+  .board-note a{color:var(--navy-2)}
+  /* On a phone the verdict is the last column, so side-scrolling would hide
+     the exact thing this page is about. Restack instead: label + verdict on
+     line one, the numbers underneath. No scroller needed at this width. */
+  @media(max-width:620px){
+    .scroller{overflow-x:visible}
+    .row{min-width:0;flex-wrap:wrap;gap:7px 10px;padding:14px 18px}
+    .row .what{order:1;flex:1 1 auto;font-weight:600}
+    .row .tag{order:2;margin-left:auto}
+    /* zero-height full-width breaker — forces line 1 to be label + verdict on
+       EVERY row, short ones included, instead of the tag drifting mid-row */
+    .row::after{content:"";order:3;flex:0 0 100%;height:0}
+    .row .pa{order:4;flex:0 1 auto;white-space:normal}
+    .row .note{order:5;margin-left:auto;min-width:0;white-space:normal}
+  }
+
+  .gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:16px;margin-top:30px}
+  .gate{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:14px;padding:20px}
+  .gate .rule{font-family:var(--mono);font-size:11.5px;color:var(--amber);margin-bottom:9px;letter-spacing:.02em}
+  .gate p{font-size:14.5px;color:var(--muted)}
+
+  .band{background:var(--navy);color:#F3EEE5}
+  .band h2{color:#F3EEE5}
+  .band .lede{color:#C6C0B5}
+  .quote{font-family:var(--serif);font-size:clamp(23px,3.1vw,31px);line-height:1.28;color:#F3EEE5;max-width:23ch;font-weight:600}
+  .quote span{color:var(--amber-hot)}
+
+  .faq{margin-top:26px;max-width:70ch}
+  .faq details{border-bottom:1px solid var(--line);padding:15px 0}
+  .faq summary{font-weight:700;color:var(--navy-2);cursor:pointer;font-size:16px}
+  .faq p{color:var(--muted);margin-top:10px;font-size:15px}
+  .faq a{color:var(--navy-2)}
+
+  footer{border-top:1px solid var(--line);padding:30px 0;font-size:13.5px;color:var(--muted)}
+  footer a{color:var(--navy-2)}
+  .flinks{display:flex;gap:15px;flex-wrap:wrap;margin-top:9px}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="wrap">
+  <a class="brand" href="/"><span class="dot"></span>MAGE&nbsp;ID</a>
+  <span class="navlinks">
+    <a href="/brain/" aria-current="page">The brain</a>
+    <a href="/costs/">Price Index</a>
+    <a href="/features/">Features</a>
+    <a href="/compare/">Compare</a>
+    <a href="/pricing.html">Pricing</a>
+  </span>
+  <a class="navcta" href="https://app.mageid.app">Start free</a>
+</div></nav>
+
+<section class="hero"><div class="wrap">
+  <p class="kick">The MAGE brain</p>
+  <h1>It writes down every call it makes. Then it shows you the misses.</h1>
+  <p class="sub">
+    Every duration, price, leak flag and verdict goes into a ledger the moment it's made.
+    When the job closes, MAGE grades itself against what actually happened.
+    <b>The misses stay on the board — that's the only thing that makes the hits worth anything.</b>
+  </p>
+  <div class="cta-row">
+    <a class="btn primary" href="https://app.mageid.app">Start free</a>
+    <a class="btn ghost" href="#gates">See what it refuses to do</a>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <p class="kick">The loop nobody else closes</p>
+  <h2>Most construction AI never finds out if it was right.</h2>
+  <p class="lede">
+    It hands you a number, you build the job, and nobody goes back to check. The next estimate
+    is exactly as blind as the last one. MAGE closes that loop — on your jobs, in your numbers.
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="n">01 — PREDICT</div>
+      <h3>It commits, in writing</h3>
+      <p>Framing takes 6 days. This estimate totals $42,000. Four items on this job are leaking money. Each call is recorded when it's made, not reconstructed afterwards from a generous memory.</p>
+    </div>
+    <div class="step">
+      <div class="n">02 — RESOLVE</div>
+      <h3>The job answers back</h3>
+      <p>Framing actually took 6. The job closed at $42,840. Three of the four flagged items got billed back and one got eaten. When the job closes, the real outcome lands next to the prediction.</p>
+    </div>
+    <div class="step">
+      <div class="n">03 — GRADE</div>
+      <h3>Hit, miss, or tie</h3>
+      <p>Every resolved call gets scored — a duration inside a day is a hit, an estimate inside 3% is a hit, a leak nobody billed back is a miss. Nothing is graded on vibes, and nothing quietly disappears because it went badly.</p>
+    </div>
+  </div>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap">
+  <p class="kick">Your track record</p>
+  <h2>The receipts, not just the score.</h2>
+  <p class="lede">
+    Any vendor can put a percentage on a slide. This is the itemized list behind it —
+    what was predicted, what actually happened, and what that made it.
+  </p>
+
+  <div class="board">
+    <div class="board-top">
+      <span class="t">Track record</span>
+      <span class="s">predicted &rarr; actual</span>
+    </div>
+    <div class="scroller">
+      <div class="row"><span class="what">Framing</span><span class="pa">6d <i>&rarr;</i> 6d</span><span class="note">beat the AI's 8d</span><span class="tag hit">Hit</span></div>
+      <div class="row"><span class="what">Tile</span><span class="pa">4d <i>&rarr;</i> 7d</span><span class="note">3d over</span><span class="tag miss">Miss</span></div>
+      <div class="row"><span class="what">Drywall</span><span class="pa">5d <i>&rarr;</i> 5d</span><span class="note">matched the AI</span><span class="tag tie">Tie</span></div>
+      <div class="row"><span class="what">Estimate</span><span class="pa">$42,000 <i>&rarr;</i> $42,840</span><span class="note">+2% vs actual</span><span class="tag hit">Hit</span></div>
+      <div class="row"><span class="what">Profit-leak scan</span><span class="pa">4 flagged <i>&rarr;</i> 3 recovered</span><span class="note">$6,180 billed back</span><span class="tag hit">Hit</span></div>
+      <div class="row"><span class="what">Margin verdict</span><span class="pa">20% target <i>&rarr;</i> 17%</span><span class="note">&minus;3% vs target</span><span class="tag miss">Miss</span></div>
+      <div class="row"><span class="what">Tracked bid</span><span class="pa">62% win odds <i>&rarr;</i> lost</span><span class="note">call didn't land</span><span class="tag miss">Miss</span></div>
+    </div>
+    <div class="board-note">
+      Illustrative rows in the real format. Your board is built only from your own graded
+      predictions, and any category with fewer than three graded results shows nothing at all.
+      Track Record is a Business-plan screen; the grading itself runs on every plan.
+    </div>
+  </div>
+</div></section>
+
+<section class="band" id="gates"><div class="wrap">
+  <p class="kick" style="color:var(--amber-hot)">Earned autonomy</p>
+  <h2>It has to earn the keys.</h2>
+  <p class="lede">
+    Plenty of software will happily automate your business on day one, on the strength of a
+    demo. MAGE won't touch a thing until it has proved itself on your jobs — and the
+    thresholds aren't a secret.
+  </p>
+
+  <div class="gates">
+    <div class="gate">
+      <div class="rule">n &ge; 5 &nbsp;·&nbsp; rate &ge; 60%</div>
+      <h3>Before it fills in a duration</h3>
+      <p>MAGE won't pre-fill task durations for a trade until its learned pace has matched or beaten the generic AI call on at least five graded predictions for that trade, at 60% or better. Per trade — earning it on framing says nothing about tile.</p>
+    </div>
+    <div class="gate">
+      <div class="rule">n &ge; 5 &nbsp;·&nbsp; billed &ge; 50%</div>
+      <h3>Before it drafts a change order</h3>
+      <p>It won't draft change orders on its own until at least half the profit-leak items it flagged were actually billed back, across at least five graded scans. If your flags aren't converting, it stays quiet and leaves the call to you.</p>
+    </div>
+    <div class="gate">
+      <div class="rule">n &lt; 3 &nbsp;·&nbsp; shows nothing</div>
+      <h3>Before it claims an accuracy number</h3>
+      <p>Any prediction type with fewer than three graded results is suppressed entirely, and tracked-bid calibration needs five. A hit rate off one or two jobs isn't a hit rate, and rounding it up to look clever would poison every other number on the board.</p>
+    </div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <p class="kick">Why the grading matters</p>
+  <h2>It prices from your jobs, not a catalog.</h2>
+  <p class="lede">
+    Once MAGE knows what work actually costs <em>you</em>, that's what goes on the next bid.
+    Drop in a plan set and every priced line says where its number came from — so a guess
+    can't sit next to a real number and look identical.
+  </p>
+  <div class="board" style="margin-top:26px">
+    <div class="board-top"><span class="t">Takeoff estimate</span><span class="s">priced from your history</span></div>
+    <div class="scroller">
+      <div class="row"><span class="what">Framing</span><span class="pa">1,240 SF</span><span class="note">your rate · 7 jobs · &plusmn;9%</span><span class="tag hit">Yours</span></div>
+      <div class="row"><span class="what">Drywall</span><span class="pa">3,100 SF</span><span class="note">your rate · 4 jobs · &plusmn;12%</span><span class="tag hit">Yours</span></div>
+      <div class="row"><span class="what">Skylight flashing</span><span class="pa">3 EA</span><span class="note">no history yet</span><span class="tag tie">Catalog</span></div>
+    </div>
+    <div class="board-note">
+      A generic AI estimator scores zero in that first column, permanently — it has never seen
+      your books. For what the work costs across the trade, see the free
+      <a href="/costs/">MAGE Price Index</a>, published from real completed jobs.
+    </div>
+  </div>
+</div></section>
+
+<section class="band" style="padding:54px 0"><div class="wrap">
+  <p class="quote">Ask your software how often it's wrong. <span>Then ask why it can't tell you.</span></p>
+</div></section>
+
+<section><div class="wrap">
+  <p class="kick">Straight answers</p>
+  <h2>The questions worth asking any vendor.</h2>
+  <div class="faq">
+    <details open>
+      <summary>How does it know whether its calls were right?</summary>
+      <p>It records each prediction when it's made, then compares it to the real outcome once the job closes — durations against actual task spans, estimate totals against actual cost, leak flags against whether the item was actually billed back, bid odds against whether you won. Each one is marked hit, miss or tie.</p>
+    </details>
+    <details>
+      <summary>What if I've only finished a couple of jobs?</summary>
+      <p>Then it shows you almost nothing, on purpose. Categories under three graded results are suppressed, and the autonomy features above stay switched off until their thresholds are met. It gets sharper as your history accumulates — the first few weeks are honest about being early.</p>
+    </details>
+    <details>
+      <summary>Can a competitor just copy this?</summary>
+      <p>They can copy the screens in a quarter. They can't copy fifty of your finished jobs. The scoreboard and the pricing both run on your own outcomes, which is the one input a rival can't ship in a release.</p>
+    </details>
+    <details>
+      <summary>Does my cost data get shared?</summary>
+      <p>Not unless you switch it on. Contributing to the public <a href="/costs/">Price Index</a> is opt-in and off by default, and even then a trade only publishes once at least five independent contractors have contributed — median and quartiles only, never your rates, your name or your jobs.</p>
+    </details>
+    <details>
+      <summary>What does it cost?</summary>
+      <p>Free to start, no card. Pro is $29/mo and Business is $79/mo. Your subs join your projects free on every plan. Full breakdown on the <a href="/pricing.html">pricing page</a>.</p>
+    </details>
+  </div>
+
+  <div class="cta-row light" style="margin-top:32px">
+    <a class="btn primary" href="https://app.mageid.app">Start free &mdash; subs are free too</a>
+    <a class="btn ghost" href="/pricing.html">See pricing</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div>MAGE&nbsp;ID &middot; Construction intelligence</div>
+  <div class="flinks">
+    <a href="/">Home</a><a href="/brain/">The brain</a><a href="/costs/">Price Index</a>
+    <a href="/widget/">Website widget</a><a href="/features/">Features</a>
+    <a href="/compare/">Compare</a><a href="/pricing.html">Pricing</a>
+    <a href="/playbook.html">Playbook</a><a href="/privacy.html">Privacy</a>
+  </div>
+</div></footer>
+
+</body>
+</html>

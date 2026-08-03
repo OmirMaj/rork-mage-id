@@ -48,6 +48,7 @@ import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
@@ -66,9 +67,20 @@ import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 
-const ESTIMATE_THINKING_STEPS = [
+// Two variants, because claiming to price "from your history" when the cost book
+// is empty is a lie the user can't see through — and it's the exact promise the
+// whole product is sold on. A contractor with zero closed jobs gets generic LLM
+// pricing (groundingFacts is []), so say that. The result card at the bottom of
+// this screen already tells the truth; the loading copy above it did not.
+const ESTIMATE_THINKING_STEPS_GROUNDED = [
   'Reading your scope…',
   'Pricing from your history…',
+  'Checking your margin…',
+  'Assembling line items…',
+];
+const ESTIMATE_THINKING_STEPS_COLD = [
+  'Reading your scope…',
+  'Pricing from market averages…',
   'Checking your margin…',
   'Assembling line items…',
 ];
@@ -187,6 +199,9 @@ function EstimateWizardScreenInner() {
   // Self-perform labor (D6): crew hours × configured loaded rates, folded
   // into the same cost book the wizard grounds its prices on.
   const laborSamples = useLaborCostSamples();
+  // Cold-start seeds: rates the contractor stated before they had any closed
+  // jobs here. Without these a veteran's first estimate is a beginner's.
+  const { seeds } = useCostSeeds();
   const { tier } = useSubscription();
 
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -262,9 +277,14 @@ function EstimateWizardScreenInner() {
   // national average. Best-effort — an empty book just means no grounding.
   const groundingFacts = useMemo<string[]>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
+      const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
+      // Seeded rates are told to the model as told-to-us, never as measured
+      // history. Handing the LLM "runs $X on your jobs" for a number the
+      // contractor typed would launder a claim into evidence.
       const facts = db.entries.slice(0, 6).map((e) =>
-        `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
+        e.provenance === 'seeded'
+          ? `${e.trade}: the contractor's own stated rate is $${e.suggestedRate.toFixed(2)}/${e.unit} (self-reported, no closed job yet — use it, but don't call it measured)`
+          : `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
       const cal = computeCalibration({ projects, commitments });
       if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
         facts.push(cal.categories[0].detail);
@@ -273,7 +293,7 @@ function EstimateWizardScreenInner() {
     } catch {
       return [];
     }
-  }, [projects, commitments, receipts, laborSamples]);
+  }, [projects, commitments, receipts, laborSamples, seeds]);
 
   const next = useCallback(() => {
     if (!canAdvance) return;
@@ -653,16 +673,41 @@ function EstimateWizardScreenInner() {
           ) : null}
 
           {result.total > 0 ? (
-            <BrainCard
-              style={styles.brainCardSpacing}
-              confidence={result.confidence ?? 70}
-              ground={groundingFacts.length > 0
-                ? `Priced with your cost history · ${groundingFacts.length} learned rate${groundingFacts.length === 1 ? '' : 's'}`
-                : 'Priced from market averages — close jobs to teach MAGE your real costs'}
-              lead={result.refineWith && result.refineWith.length > 0
-                ? `Answer ${result.refineWith.length} question${result.refineWith.length === 1 ? '' : 's'} below to sharpen the number`
-                : undefined}
-            />
+            <>
+              <BrainCard
+                style={styles.brainCardSpacing}
+                confidence={result.confidence ?? 70}
+                ground={groundingFacts.length > 0
+                  ? `Priced with your cost history · ${groundingFacts.length} learned rate${groundingFacts.length === 1 ? '' : 's'}`
+                  : 'Priced from market averages — MAGE has none of your rates yet'}
+                lead={result.refineWith && result.refineWith.length > 0
+                  ? `Answer ${result.refineWith.length} question${result.refineWith.length === 1 ? '' : 's'} below to sharpen the number`
+                  : undefined}
+              />
+              {/* Empty cost book: don't just confess to generic pricing, hand
+                  them the fix. Closing jobs is the long road; seeding the
+                  rates they already know works today. */}
+              {groundingFacts.length === 0 ? (
+                <TouchableOpacity
+                  style={styles.seedPrompt}
+                  onPress={() => router.push('/cost-seed' as never)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add your own rates so estimates price from your numbers"
+                  testID="estimate-wizard-seed-cta"
+                >
+                  <TrendingUp size={16} color={themeColors.accent} strokeWidth={2} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.seedPromptTitle}>Price this from your numbers</Text>
+                    <Text style={styles.seedPromptBody}>
+                      Paste or type the rates you already charge — takes a minute, and the next
+                      estimate is yours instead of the market&apos;s.
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              ) : null}
+            </>
           ) : null}
 
           {result.refineWith && result.refineWith.length > 0 && (
@@ -1126,7 +1171,7 @@ function EstimateWizardScreenInner() {
         visible={loading}
         title="Generating estimate…"
         subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
-        thinkingSteps={ESTIMATE_THINKING_STEPS}
+        thinkingSteps={groundingFacts.length > 0 ? ESTIMATE_THINKING_STEPS_GROUNDED : ESTIMATE_THINKING_STEPS_COLD}
         onCancel={cancelGenerate}
       />
       <UpgradeSheet
@@ -1475,6 +1520,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // Brain confidence card — the reusable <BrainCard/> owns the look now; this
   // just spaces it under the total.
   brainCardSpacing: { marginTop: 12 },
+  // "Your cost book is empty" → the actionable fix, not just the confession.
+  seedPrompt: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+    marginTop: 8, padding: 13,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: themeColors.line,
+    backgroundColor: themeColors.surface,
+    minHeight: 56,
+  },
+  seedPromptTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.text },
+  seedPromptBody: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16, marginTop: 2 },
   refineCard: { backgroundColor: themeColors.accent + '12', borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
   refineTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   refineItem: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },

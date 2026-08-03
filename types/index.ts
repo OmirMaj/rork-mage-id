@@ -1224,6 +1224,26 @@ export interface Invoice {
   qboRetryCount?: number;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
+  /**
+   * Contract payment milestone this invoice was billed from (the one-tap
+   * "Create invoice" action on a PaymentMilestone row). Half of the
+   * double-bill guard: the milestone also flips to 'invoiced' on its own row,
+   * but that flip is a SEPARATE write that can fail after the invoice already
+   * landed. Stamping the link on the invoice too means the contract screen can
+   * detect "already billed" from either side.
+   */
+  sourceMilestoneId?: string;
+  sourceContractId?: string;
+  /**
+   * Payment-reminder (dunning) markers. Written by the invoice-dunning edge
+   * function ONLY after a confirmed send — never by the app as an intent.
+   * `dunningStage` is 1/2/3 (friendly reminder / second notice / final
+   * notice). Surfaced on the invoice as "Reminder sent · Stage 2 · Nov 14" so
+   * the GC knows whether the client has already been chased before picking up
+   * the phone.
+   */
+  dunningStage?: number;
+  dunningLastSentAt?: string;
 }
 
 // AIA G702/G703 progress pay application saved against a project. The portal
@@ -1321,7 +1341,16 @@ export interface DFRWeather {
 
 export interface DFRPhoto {
   id: string;
+  /** Best URL to render RIGHT NOW — the device-local file when this device
+   *  still has it, otherwise a signed URL resolved from `storagePath`. */
   uri: string;
+  /** Durable location in the `project-photos` bucket. A DFR photo is mirrored
+   *  into the gallery under the SAME id, so it shares that row's deterministic
+   *  path and its single uploaded object. */
+  storagePath?: string;
+  /** Device-local original, kept so a server refetch can't replace a working
+   *  offline preview with a path this device can't render. */
+  localUri?: string;
   timestamp: string;
   /** GPS latitude captured at the moment of taking the photo, if permission granted and a fix landed within ~3s. */
   latitude?: number;
@@ -2121,7 +2150,14 @@ export interface PunchItem {
   dueDate: string;
   priority: PunchItemPriority;
   status: PunchItemStatus;
+  /** Best URL to render RIGHT NOW — see ProjectPhoto.uri. */
   photoUri?: string;
+  /** Durable location in the `project-photos` bucket (`<uid>/<projectId>/punch-<id>.jpg`).
+   *  This is what `punch_items.photo_uri` stores; a `file://` there is
+   *  unreachable from every other device. */
+  photoStoragePath?: string;
+  /** Device-local original, so an offline preview survives a server refetch. */
+  photoLocalUri?: string;
   /** GPS lat captured when the punch photo was taken. Optional. */
   photoLatitude?: number;
   photoLongitude?: number;
@@ -2386,7 +2422,31 @@ export interface SafetyFormTemplate {
 export interface ProjectPhoto {
   id: string;
   projectId: string;
+  /**
+   * Best URL to render RIGHT NOW. On the device that took the photo this stays
+   * the local `file://` URI so the gallery paints instantly and works with no
+   * signal; everywhere else it is a short-lived signed URL resolved from
+   * `storagePath` at read time.
+   *
+   * It is NOT what gets persisted — `photos.uri` in the database holds
+   * `storagePath`. Writing this field to the server is the bug that left the
+   * `project-photos` bucket empty while every row pointed at a `file://` path
+   * no other device could ever open.
+   */
   uri: string;
+  /**
+   * Durable location of the bytes in the private `project-photos` bucket:
+   * `<userId>/<projectId>/<photoId>.jpg`. Deterministic (derived from the row
+   * id, not a timestamp) so it can be computed at insert time, retried
+   * idempotently, and recomputed identically anywhere.
+   */
+  storagePath?: string;
+  /**
+   * The device-local original, retained separately from `uri` so a server
+   * refetch can't overwrite a working offline preview with a path this device
+   * has no session to sign.
+   */
+  localUri?: string;
   timestamp: string;
   /** Free-text label (e.g. "Lobby \u2014 east wall"). Distinct from the GPS-derived locationLabel below. */
   location?: string;
@@ -4316,4 +4376,139 @@ export type SendableItemKind =
 export interface QboPaymentBlob {
   qboId?: string;
   source?: 'mage' | 'qbo';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T&M / EXTRA-WORK FIELD TICKETS
+// ───────────────────────────────────────────────────────────────────────────
+// The superintendent notices out-of-scope work at 2pm. Nobody signs anything.
+// At closeout the owner denies it happened and the GC eats it. A field ticket
+// signed AT THE MOMENT THE WORK HAPPENS is what makes extra work billable.
+//
+// A FieldTicket is deliberately NOT a variant of ChangeOrder:
+//   * A CO carries a client-facing sequential `number`, an
+//     originalContractValue/newContractTotal pair, an approver chain and a
+//     portalState. None of that exists at 2pm in a hallway, and burning a CO
+//     number on an unsigned ticket would put gaps in the client-facing CO
+//     sequence.
+//   * The CO status union (draft|submitted|under_review|approved|rejected|
+//     revised|void) describes an office approval workflow. A ticket's life is
+//     draft → signed on site → converted to a CO (or voided).
+//   * Every existing CO consumer (change-order.tsx, leakCoDraft, coAdvance,
+//     week-close, WIP, the client portal) would have to learn to filter out a
+//     variant that violates its invariants.
+// Instead the ticket is its own record that CONVERTS into a ChangeOrder —
+// exactly the pattern utils/brain/leakCoDraft.ts already established for
+// building a CO from another source, dedupe marker and all.
+// See utils/fieldTicketCore.ts for the pure totals / gating / mapping logic.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * draft     — being captured, fully editable.
+ * signed    — the owner's rep signed on site. SEALED: content is evidence and
+ *             must not be silently editable (contract.tsx `isLocked` grain).
+ * converted — a ChangeOrder was created from it. Terminal; never convert twice.
+ * void      — abandoned. Kept for the audit trail, never billable.
+ */
+export type FieldTicketStatus = 'draft' | 'signed' | 'converted' | 'void';
+
+/** Who put their name on it. Drives the wording on the PDF + the CO reason. */
+export type FieldTicketAuthorizerRole =
+  | 'owner_rep' | 'client' | 'architect' | 'cm' | 'other';
+
+export interface FieldTicketLaborRow {
+  id: string;
+  /** Who did the work. Free text — field crews aren't all in the roster. */
+  workerName: string;
+  /** Trade / classification, e.g. "Carpenter", "Laborer". */
+  trade: string;
+  hours: number;
+  /** Billing rate $/hr. OPTIONAL on purpose: the super signs for HOURS, the
+   *  office attaches money later. See fieldTicketCore.isFieldTicketSignable. */
+  rate?: number;
+}
+
+export interface FieldTicketMaterialRow {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  /** Unit cost. Optional for the same reason as FieldTicketLaborRow.rate. */
+  unitCost?: number;
+}
+
+export interface FieldTicketEquipmentRow {
+  id: string;
+  description: string;
+  hours: number;
+  /** Hourly equipment rate. Optional (see FieldTicketLaborRow.rate). */
+  rate?: number;
+}
+
+/** Same storagePath/localUri contract as DFRPhoto — the bytes ride the
+ *  photo-upload queue and the persisted column holds a STORAGE PATH. */
+export interface FieldTicketPhoto {
+  id: string;
+  uri: string;
+  storagePath?: string;
+  localUri?: string;
+  timestamp: string;
+  latitude?: number;
+  longitude?: number;
+  locationAccuracyMeters?: number;
+  locationLabel?: string;
+}
+
+/**
+ * The on-site authorization. THIS is the artifact that makes the work
+ * billable — a name, a wet-ish signature, and a timestamp captured while the
+ * work is visible. Mirrors ContractSignature's shape (name + signedAt +
+ * signaturePaths) so the PDF signature renderer works unchanged.
+ */
+export interface FieldTicketAuthorization {
+  /** Typed legal name of the person who authorized the work. */
+  name: string;
+  /** Free-text title as they gave it, e.g. "Owner's Rep — Turner". */
+  title?: string;
+  role: FieldTicketAuthorizerRole;
+  signedAt: string;
+  /** SVG paths from components/SignaturePad. At least one is required. */
+  signaturePaths: string[];
+  /** Best-effort GPS at the moment of signing — proves it happened on site. */
+  latitude?: number;
+  longitude?: number;
+  locationLabel?: string;
+}
+
+export interface FieldTicket {
+  id: string;
+  /** Per-project sequential ticket number (rendered "T&M-007"). Independent
+   *  of the ChangeOrder sequence — see the header note. */
+  number: number;
+  projectId: string;
+  /** ISO — the day the extra work was performed. */
+  date: string;
+  /** What work was done. */
+  workDescription: string;
+  /** Why it is outside the contract (the billability argument). */
+  reasonExtra: string;
+  /** Back-link when the ticket was started from a daily report. */
+  sourceDailyReportId?: string;
+  labor: FieldTicketLaborRow[];
+  materials: FieldTicketMaterialRow[];
+  equipment: FieldTicketEquipmentRow[];
+  photos?: FieldTicketPhoto[];
+  /** Markup applied to the raw T&M cost when the ticket becomes a CO.
+   *  Percent (15 = 15%). Absent/0 = bill at cost. */
+  markupPercent?: number;
+  status: FieldTicketStatus;
+  authorization?: FieldTicketAuthorization;
+  /** Set exactly once, when a ChangeOrder is created from this ticket. */
+  convertedChangeOrderId?: string;
+  convertedAt?: string;
+  /** Append-only history. Reuses COAuditEntry — identical shape and
+   *  semantics, and the ticket→CO dedupe reads the CO's auditTrail. */
+  auditTrail?: COAuditEntry[];
+  createdAt: string;
+  updatedAt: string;
 }

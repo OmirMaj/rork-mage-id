@@ -22,7 +22,7 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import {
   ChevronLeft, ChevronRight, MapPin, Pencil, Eraser, Camera, ClipboardList, X, Check,
-  Trash2, Undo2, Image as ImageIcon, Ruler, FileText,
+  Trash2, Undo2, Image as ImageIcon, Ruler, FileText, AlertTriangle, ArrowRight,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -40,6 +40,7 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { planRevisionStatus, staleBannerCopy } from '@/utils/planRevisionCore';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
 
@@ -100,7 +101,7 @@ function PlanViewerScreenInner() {
   const punchIdParam = typeof params.punchId === 'string' ? params.punchId : undefined;
 
   const {
-    getPlanSheet, getPinsForPlan, addDrawingPin, updateDrawingPin, deleteDrawingPin,
+    getPlanSheet, getPlanSheetsForProject, getPinsForPlan, addDrawingPin, updateDrawingPin, deleteDrawingPin,
     getMarkupsForPlan, addPlanMarkup, deletePlanMarkup,
     getPhotosForProject, getPunchItemsForProject, addProjectPhoto, addPunchItem,
     upsertPlanCalibration, getCalibrationForPlan,
@@ -108,6 +109,29 @@ function PlanViewerScreenInner() {
   } = useProjects();
 
   const sheet = sheetId ? getPlanSheet(sheetId) : null;
+
+  // Revision control. addPlanSheet has always marked the prior copy
+  // `superseded` when a sheet number is re-uploaded, but the viewer used to
+  // render a dead drawing exactly like a live one — so a saved deep link, or
+  // a pin someone tapped from the punch list, opened a stale sheet silently.
+  // Building off it is demo + RFI + delay + change order, and the GC eats it.
+  const revision = useMemo(() => {
+    if (!sheet) return null;
+    return planRevisionStatus(sheet, getPlanSheetsForProject(sheet.projectId));
+  }, [sheet, getPlanSheetsForProject]);
+  const staleBanner = revision ? staleBannerCopy(revision) : null;
+  // Only ever navigate on an unambiguous resolution. `ambiguous` (two live
+  // copies of one number) and `not_found` still warn — they just don't offer a
+  // destination, because sending someone to the wrong sheet is the exact
+  // failure this banner exists to prevent.
+  const currentSheetId = revision?.current.status === 'resolved' ? revision.current.sheetId : null;
+
+  // `replace`, not `push`: the stale sheet should leave the history stack
+  // entirely, so Back doesn't land the user right back on the dead drawing.
+  const goToCurrentSheet = useCallback(() => {
+    if (!currentSheetId) return;
+    router.replace({ pathname: '/plan-viewer' as never, params: { sheetId: currentSheetId } as never });
+  }, [currentSheetId, router]);
 
   const [mode, setMode] = useState<Mode>('pin');
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
@@ -438,6 +462,39 @@ function PlanViewerScreenInner() {
           <MageAIMark size={20} color={themeColors.accent} />
         </TouchableOpacity>
       </View>
+
+      {/* Superseded warning. Non-dismissible by design — it sits above the
+          drawing for as long as the drawing is dead. There is no "got it"
+          because there is nothing to acknowledge: the sheet stays wrong. */}
+      {staleBanner ? (
+        <View
+          style={styles.staleBanner}
+          accessibilityRole="alert"
+          accessibilityLabel={`${staleBanner.title}. ${staleBanner.detail}`}
+          testID="plan-viewer-superseded-banner"
+        >
+          <View style={styles.staleBannerRow}>
+            <AlertTriangle size={18} color={themeColors.warningLabel} strokeWidth={2} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.staleBannerTitle}>{staleBanner.title}</Text>
+              <Text style={styles.staleBannerDetail}>{staleBanner.detail}</Text>
+            </View>
+          </View>
+          {currentSheetId ? (
+            <TouchableOpacity
+              style={styles.staleBannerBtn}
+              onPress={goToCurrentSheet}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open the current revision"
+              testID="plan-viewer-open-current"
+            >
+              <Text style={styles.staleBannerBtnText}>Open current revision</Text>
+              <ArrowRight size={15} color={Colors.textOnAccent} strokeWidth={2} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
 
       {/* Image + overlays */}
       <View style={styles.canvasWrap} onLayout={handleContainerLayout}>
@@ -1039,6 +1096,30 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerTitle: { color: t.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
   modePill: { backgroundColor: t.surfaceAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.md },
   modePillText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+
+  // Superseded banner — amber (warning), not red. Red is `danger`, which this
+  // screen already spends on delete/markup strokes; amber reads as "stop and
+  // check" without competing with a destructive action.
+  staleBanner: {
+    backgroundColor: t.warningSoft,
+    borderBottomColor: t.warningLabel + '55', borderBottomWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10, gap: 8,
+  },
+  staleBannerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  staleBannerTitle: {
+    color: t.warningLabel, fontSize: Type.footnote.fontSize, fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  staleBannerDetail: {
+    color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '500',
+    marginTop: 2, lineHeight: Type.caption1.lineHeight,
+  },
+  staleBannerBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: t.warningLabel,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
+  },
+  staleBannerBtnText: { color: Colors.textOnAccent, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   canvasWrap: { flex: 1, backgroundColor: '#1C1C1E', overflow: 'hidden' },
   canvasScroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },

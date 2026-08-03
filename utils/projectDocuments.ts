@@ -23,6 +23,7 @@
 import * as Print from 'expo-print';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { readFileBytes } from '@/utils/fileBytes';
 
 const BUCKET = 'project-documents';
 
@@ -70,9 +71,8 @@ export async function saveDailyReportToProjectFiles({
   // 2. Read the file as a blob via fetch — same pattern as the PDF
   //    upload path in `pdfRenderClient.ts`. Web returns a blob: URL,
   //    native returns a file://.
-  const r = await fetch(uri);
-  const blob = await r.blob();
-  if (blob.size === 0) throw new Error('Generated an empty PDF.');
+  const bytes = await readFileBytes(uri);
+  if (bytes.byteLength === 0) throw new Error('Generated an empty PDF.');
 
   // 3. Upload to the bucket. We stable-sort the path on `reportId` so
   //    re-saving the same DFR overwrites in place rather than littering
@@ -82,7 +82,7 @@ export async function saveDailyReportToProjectFiles({
 
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
-    .upload(objectName, blob, {
+    .upload(objectName, bytes, {
       contentType: 'application/pdf',
       upsert: true,
       // contentDisposition lets the browser show a sensible filename
@@ -97,7 +97,7 @@ export async function saveDailyReportToProjectFiles({
   return {
     storagePath: objectName,
     publicUrl: pub.publicUrl,
-    bytes: blob.size,
+    bytes: bytes.byteLength,
   };
 }
 

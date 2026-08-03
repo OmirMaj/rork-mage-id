@@ -15,12 +15,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Modal,
 } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileText, Plus, Trash2, DollarSign, Calendar, Send,
-  CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight,
+  CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight, Receipt,
 } from 'lucide-react-native';
 import { MageContract } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -37,6 +37,10 @@ import {
   fetchActiveContract, saveContract, setContractStatus,
   buildDraftContract, buildProposalFromRevision, defaultPaymentSchedule,
 } from '@/utils/contractEngine';
+import {
+  milestoneBillability, milestoneBlockMessage, deriveMilestoneInvoiceLine, milestoneInvoiceNote,
+  type MilestoneBillability,
+} from '@/utils/billingFlowCore';
 import { generateUUID } from '@/utils/generateId';
 import { formatMoney } from '@/utils/formatters';
 import { statusPillStyle } from '@/utils/statusPill';
@@ -99,7 +103,7 @@ function ContractScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
-  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments } = useProjects();
+  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject } = useProjects();
   const { isFree } = useTierAccess();
   const project = projectId ? getProject(projectId) : undefined;
 
@@ -140,6 +144,88 @@ function ContractScreenInner() {
     })();
     return () => { cancelled = true; };
   }, [project, user]);
+
+  // Re-read the contract when this screen regains focus, so a milestone the
+  // invoice editor just flipped to 'invoiced' shows as billed the moment the
+  // GC lands back here. Gated on a SIGNED contract on purpose: a draft holds
+  // unsaved local edits (scope text, amounts) that a refetch would silently
+  // discard, and only a signed contract can be invoiced against anyway.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const id = contract?.id;
+      if (!id || contract?.status !== 'signed' || !project) return;
+      (async () => {
+        const fresh = await fetchActiveContract(project.id);
+        if (!cancelled && fresh && fresh.id === id) setContract(fresh);
+      })();
+      return () => { cancelled = true; };
+    }, [contract?.id, contract?.status, project]),
+  );
+
+  // ── Milestone → invoice ──────────────────────────────────────────
+  // Invoices already billed against a milestone, keyed by milestone id. This
+  // is the invoice-side half of the double-bill guard: if markMilestoneInvoiced
+  // failed to persist (offline, RLS, app killed mid-flow) the milestone row
+  // still says 'pending', but the invoice it produced still names it — and that
+  // is enough to keep the "Create invoice" action off the row.
+  const projectInvoices = useMemo(
+    () => (projectId ? getInvoicesForProject(projectId) : []),
+    [projectId, getInvoicesForProject],
+  );
+  const invoicesByMilestone = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const inv of projectInvoices) {
+      if (!inv.sourceMilestoneId) continue;
+      const list = map.get(inv.sourceMilestoneId) ?? [];
+      list.push(inv.id);
+      map.set(inv.sourceMilestoneId, list);
+    }
+    return map;
+  }, [projectInvoices]);
+
+  const billabilityFor = useCallback((m: PaymentMilestone): MilestoneBillability => milestoneBillability({
+    milestone: m,
+    contractValue: contract?.contractValue ?? 0,
+    contractStatus: contract?.status,
+    linkedInvoiceIds: invoicesByMilestone.get(m.id),
+  }), [contract?.contractValue, contract?.status, invoicesByMilestone]);
+
+  // Open the invoice editor pre-filled from this milestone. We do NOT flip the
+  // milestone here — the invoice screen flips it once addInvoice() actually
+  // runs, so a GC who opens the editor and backs out leaves it 'pending'.
+  const handleCreateInvoiceFromMilestone = useCallback((m: PaymentMilestone) => {
+    if (!contract || !projectId) return;
+    const bill = billabilityFor(m);
+    if (!bill.billable) {
+      showAlert(
+        'Can’t bill this milestone',
+        milestoneBlockMessage(bill.reason!),
+        bill.existingInvoiceId
+          ? [
+              { text: 'Close', style: 'cancel' },
+              { text: 'Open invoice', onPress: () => router.push({ pathname: '/invoice', params: { projectId, invoiceId: bill.existingInvoiceId! } } as never) },
+            ]
+          : undefined,
+      );
+      return;
+    }
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const line = deriveMilestoneInvoiceLine(m, contract.contractValue);
+    router.push({
+      pathname: '/invoice',
+      params: {
+        projectId,
+        // 'quick' keeps the editor to a single line if prefill parsing ever
+        // fails, instead of dragging the whole estimate in behind the milestone.
+        type: 'quick',
+        prefillLines: JSON.stringify([line]),
+        prefillNotes: milestoneInvoiceNote(m, contract.title),
+        milestoneId: m.id,
+        contractId: contract.id,
+      },
+    } as never);
+  }, [contract, projectId, billabilityFor, router]);
 
   // Generic field setter.
   const updateContract = useCallback(<K extends keyof ProjectContract>(key: K, value: ProjectContract[K]) => {
@@ -571,15 +657,23 @@ function ContractScreenInner() {
             )}
           </View>
 
-          {contract.paymentSchedule.map((m) => (
-            <MilestoneRow
-              key={m.id}
-              milestone={m}
-              locked={isLocked}
-              onChange={patch => updateMilestone(m.id, patch)}
-              onRemove={() => removeMilestone(m.id)}
-            />
-          ))}
+          {contract.paymentSchedule.map((m) => {
+            const bill = billabilityFor(m);
+            return (
+              <MilestoneRow
+                key={m.id}
+                milestone={m}
+                locked={isLocked}
+                onChange={patch => updateMilestone(m.id, patch)}
+                onRemove={() => removeMilestone(m.id)}
+                billability={contract.status === 'signed' ? bill : null}
+                onCreateInvoice={() => handleCreateInvoiceFromMilestone(m)}
+                onOpenInvoice={bill.existingInvoiceId
+                  ? () => router.push({ pathname: '/invoice', params: { projectId: projectId!, invoiceId: bill.existingInvoiceId! } } as never)
+                  : undefined}
+              />
+            );
+          })}
 
           <View style={styles.scheduleTotalRow}>
             <Text style={styles.scheduleTotalLabel}>Total scheduled</Text>
@@ -815,11 +909,15 @@ function StatusPill({ status }: { status: ProjectContract['status'] }) {
   );
 }
 
-function MilestoneRow({ milestone, locked, onChange, onRemove }: {
+function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCreateInvoice, onOpenInvoice }: {
   milestone: PaymentMilestone;
   locked: boolean;
   onChange: (patch: Partial<PaymentMilestone>) => void;
   onRemove: () => void;
+  /** null while the contract isn't signed — the billing action stays hidden. */
+  billability?: MilestoneBillability | null;
+  onCreateInvoice?: () => void;
+  onOpenInvoice?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
@@ -905,6 +1003,43 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
             placeholderTextColor={themeColors.textMuted}
           />
         </>
+      )}
+
+      {/* One-tap bill. The dollar figure printed here is the amount the
+          invoice will actually carry — for a % milestone that's derived live
+          from the contract value, not the cached `amount`, so the GC never
+          taps through to a different number than the one they read. */}
+      {billability?.billable && (
+        <TouchableOpacity
+          style={styles.milestoneBillBtn}
+          onPress={onCreateInvoice}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Create invoice for ${milestone.label}`}
+          testID={`milestone-create-invoice-${milestone.id}`}
+        >
+          <Receipt size={14} color="#FFF" strokeWidth={1.75} />
+          <Text style={styles.milestoneBillBtnText}>
+            Create invoice · {formatMoney(billability.amount)}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {billability && !billability.billable && billability.existingInvoiceId && (
+        <TouchableOpacity
+          style={styles.milestoneBilledRow}
+          onPress={onOpenInvoice}
+          disabled={!onOpenInvoice}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Open the invoice billed from this milestone"
+          testID={`milestone-open-invoice-${milestone.id}`}
+        >
+          <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
+          <Text style={styles.milestoneBilledText}>
+            {milestone.status === 'paid' ? 'Paid' : 'Billed'} — already on an invoice
+          </Text>
+          <Text style={styles.milestoneBilledLink}>Open</Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -1119,6 +1254,23 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: themeColors.line,
     minHeight: 44,
   },
+  // "Create invoice" — the one-tap milestone → invoice hand-off.
+  milestoneBillBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    marginTop: 12, paddingVertical: 11, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accent,
+    minHeight: 44,
+  },
+  milestoneBillBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  milestoneBilledRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1, borderColor: themeColors.line,
+    minHeight: 44,
+  },
+  milestoneBilledText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.textMuted },
+  milestoneBilledLink: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: themeColors.accent },
 
   scheduleTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

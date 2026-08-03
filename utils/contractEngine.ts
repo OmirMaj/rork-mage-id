@@ -322,6 +322,63 @@ export async function setContractStatus(id: string, status: ContractStatus, extr
   return true;
 }
 
+/**
+ * Flip ONE payment milestone to 'invoiced' after an invoice was actually
+ * created from it.
+ *
+ * Called from the invoice editor the moment addInvoice() runs — never when the
+ * GC merely taps "Create invoice", because backing out of the editor must
+ * leave the milestone billable.
+ *
+ * Read-verify-write against the live row rather than patching whatever the
+ * caller had in memory: the caller's copy of paymentSchedule is a snapshot
+ * from before it navigated to the invoice screen, and blind-writing it would
+ * clobber any other milestone that changed in between. If the milestone is no
+ * longer 'pending' by the time we get here, another path already billed it —
+ * report 'already' and let the caller warn instead of overwriting the link to
+ * a different invoice.
+ */
+export async function markMilestoneInvoiced(
+  contractId: string,
+  milestoneId: string,
+  invoiceId: string,
+): Promise<'flipped' | 'already' | 'not_found' | 'failed'> {
+  if (!isSupabaseConfigured) return 'failed';
+  const { data, error } = await supabase
+    .from('project_contracts')
+    .select('id,payment_schedule')
+    .eq('id', contractId)
+    .maybeSingle();
+  if (error || !data) {
+    console.warn('[contractEngine] markMilestoneInvoiced: contract not found', contractId, error?.message);
+    return 'not_found';
+  }
+
+  const schedule = ((data as { payment_schedule?: PaymentMilestone[] }).payment_schedule ?? []) as PaymentMilestone[];
+  const target = schedule.find(m => m.id === milestoneId);
+  if (!target) return 'not_found';
+  // Idempotent: re-running for the SAME invoice is a success, not a conflict
+  // (the app can retry after a dropped write). A DIFFERENT invoice id on an
+  // already-billed milestone is the double-bill case and stays blocked.
+  if (target.status !== 'pending' || target.invoiceId) {
+    return target.invoiceId === invoiceId ? 'flipped' : 'already';
+  }
+
+  const next = schedule.map(m => m.id === milestoneId
+    ? { ...m, status: 'invoiced' as const, invoiceId, invoicedAt: new Date().toISOString() }
+    : m);
+
+  const { error: updErr } = await supabase
+    .from('project_contracts')
+    .update({ payment_schedule: next })
+    .eq('id', contractId);
+  if (updErr) {
+    console.warn('[contractEngine] markMilestoneInvoiced: write failed', updErr.message);
+    return 'failed';
+  }
+  return 'flipped';
+}
+
 // Compute the total of every paid milestone — useful for the contract
 // header when the contract is partially executed.
 export function computeContractPaid(contract: ProjectContract): number {

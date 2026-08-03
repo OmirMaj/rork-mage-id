@@ -1842,6 +1842,232 @@
   }
   .confirm-btn-cancel:hover { background: var(--bone-2, #ECE4D2); }
 
+  /* ───────── Change-order e-signature modal ─────────
+     A change order is a contract amendment. Approving one used to be a
+     browser confirm() + prompt() — a consent click, not a signature. This
+     modal is the ESIGN/UETA surface: the scope and the dollar delta stated
+     plainly, a drawn signature, a typed legal name, and an explicit consent
+     affirmation before Approve unlocks. Declining stays one tap + a reason. */
+  .esign-modal {
+    position: fixed; inset: 0;
+    background: rgba(11,13,16,0.6);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    z-index: 140;
+    display: none;
+    align-items: flex-start; justify-content: center;
+    padding: 20px 16px;
+    overflow-y: auto;
+    animation: fadeIn 0.16s ease;
+  }
+  .esign-modal.open { display: flex; }
+  .esign-card {
+    background: #FFFFFF;
+    border: 1px solid var(--bone);
+    border-radius: 18px;
+    padding: 24px 22px 20px;
+    max-width: 470px; width: 100%;
+    margin: auto;
+    box-shadow: 0 24px 64px rgba(11,13,16,0.34);
+    animation: confirmPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .esign-eyebrow {
+    font-size: 11px; font-weight: 800; color: var(--amber);
+    letter-spacing: 1.6px; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .esign-title {
+    font-family: 'Space Grotesk', Georgia, serif;
+    font-size: 21px; font-weight: 700; line-height: 1.2;
+    letter-spacing: -0.02em; color: var(--ink); margin: 0 0 14px;
+  }
+  .esign-scope {
+    background: var(--cream); border: 1px solid var(--bone);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;
+  }
+  .esign-scope-label {
+    font-size: 10px; font-weight: 800; color: var(--text-muted);
+    letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 4px;
+  }
+  .esign-scope-desc {
+    font-size: 14px; color: var(--text); line-height: 1.5;
+    font-weight: 600; margin-bottom: 10px;
+  }
+  .esign-scope-reason {
+    font-size: 12.5px; color: var(--text-2); line-height: 1.55;
+    margin: -4px 0 10px;
+  }
+  .esign-delta {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; padding-top: 10px; border-top: 1px solid var(--bone);
+  }
+  .esign-delta + .esign-delta { border-top: 0; padding-top: 4px; }
+  .esign-delta-label { font-size: 12.5px; color: var(--text-2); }
+  .esign-delta-value { font-size: 19px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; }
+  .esign-delta-value.add { color: #C2410C; }
+  .esign-delta-value.credit { color: var(--success); }
+  .esign-delta-value.small { font-size: 15px; font-weight: 700; }
+  .esign-field-label {
+    font-size: 12px; font-weight: 800; color: var(--ink);
+    letter-spacing: 0.4px; text-transform: uppercase; margin: 14px 0 6px;
+  }
+  .esign-input, .esign-textarea {
+    width: 100%; box-sizing: border-box;
+    border: 1.5px solid var(--bone); border-radius: 10px;
+    padding: 11px 12px; font-size: 15px; font-family: inherit;
+    color: var(--ink); background: var(--cream-2);
+  }
+  .esign-input:focus, .esign-textarea:focus {
+    outline: none; border-color: var(--amber); background: #fff;
+  }
+  .esign-textarea { min-height: 92px; resize: vertical; line-height: 1.5; }
+  .esign-pad-wrap {
+    position: relative;
+    border: 1.5px dashed var(--bone); border-radius: 12px;
+    background: var(--cream-2); overflow: hidden;
+  }
+  .esign-pad-wrap.signed { border-style: solid; border-color: var(--success); background: #fff; }
+  .esign-pad { display: block; width: 100%; height: 150px; touch-action: none; cursor: crosshair; }
+  .esign-pad-hint {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 13px; color: var(--text-muted); pointer-events: none;
+  }
+  .esign-pad-wrap.signed .esign-pad-hint { display: none; }
+  .esign-pad-baseline {
+    position: absolute; left: 18px; right: 18px; bottom: 30px;
+    border-bottom: 1px solid var(--bone); pointer-events: none;
+  }
+  .esign-pad-tools {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 6px; min-height: 20px;
+  }
+  .esign-clear {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 700;
+    color: var(--text-2); text-decoration: underline;
+  }
+  .esign-signed-tag {
+    display: none; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 700; color: var(--success);
+  }
+  .esign-signed-tag.show { display: inline-flex; }
+  .esign-consent {
+    margin-top: 14px;
+    background: var(--cream); border: 1px solid var(--bone);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  .esign-consent-body {
+    font-size: 11.5px; line-height: 1.6; color: var(--text-2);
+    max-height: 132px; overflow-y: auto; margin-bottom: 10px;
+  }
+  .esign-consent-check {
+    display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.45;
+  }
+  .esign-consent-check input {
+    width: 18px; height: 18px; margin: 1px 0 0; flex-shrink: 0;
+    accent-color: #FF6A1A; cursor: pointer;
+  }
+  .esign-error {
+    display: none; margin-top: 12px;
+    background: var(--error-tint); border: 1px solid #F2C7C1;
+    border-radius: 10px; padding: 10px 12px;
+    font-size: 12.5px; line-height: 1.5; color: var(--error);
+  }
+  .esign-error.show { display: block; }
+  .esign-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .esign-btn {
+    flex: 1; padding: 13px 16px; border-radius: 12px;
+    font-size: 14px; font-weight: 700; font-family: inherit;
+    cursor: pointer; border: 0;
+    transition: transform 0.1s ease, opacity 0.15s ease, background 0.15s ease;
+  }
+  .esign-btn:active { transform: scale(0.98); }
+  .esign-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .esign-btn-primary { background: var(--ink); color: #fff; box-shadow: 0 4px 12px rgba(11,13,16,0.18); }
+  .esign-btn-primary:hover:not([disabled]) { background: var(--ink-2); }
+  .esign-btn-danger { background: var(--error); color: #fff; }
+  .esign-btn-cancel { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
+  .esign-btn-cancel:hover { background: var(--bone-2); }
+  .esign-legal {
+    margin-top: 12px; font-size: 11px; line-height: 1.5;
+    color: var(--text-muted); text-align: center;
+  }
+  .co-receipt {
+    margin-top: 6px; font-size: 10.5px; color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all;
+  }
+
+  /* ───────── Pay-application plain-English narrative ─────────
+     Sits ABOVE the G702/G703 schedule of values. The SOV is the document an
+     architect reviews; this is the paragraph a homeowner can actually judge. */
+  .aia-narrative {
+    background: var(--amber-tint); border: 1px solid #FFD9BF;
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 18px;
+  }
+  .aia-narrative.is-gap { background: var(--cream); border-color: var(--bone); }
+  .aia-narrative-eyebrow {
+    font-size: 10px; font-weight: 800; color: var(--amber-dark);
+    letter-spacing: 1.3px; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .aia-narrative.is-gap .aia-narrative-eyebrow { color: var(--text-muted); }
+  .aia-narrative-period { font-size: 11.5px; color: var(--text-2); margin-bottom: 8px; font-weight: 600; }
+  .aia-narrative-headline {
+    font-size: 15px; font-weight: 700; line-height: 1.5;
+    color: var(--ink); letter-spacing: -0.01em;
+  }
+  .aia-narrative-list { margin: 10px 0 0; padding: 0; list-style: none; }
+  .aia-narrative-list li {
+    position: relative; padding-left: 18px; margin-bottom: 6px;
+    font-size: 13px; line-height: 1.55; color: var(--text-2);
+  }
+  .aia-narrative-list li:before {
+    content: ''; position: absolute; left: 3px; top: 8px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--amber);
+  }
+  .aia-narrative.is-gap .aia-narrative-list li:before { background: var(--text-muted); }
+  .aia-card-summary {
+    margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: var(--text-2);
+    border-left: 2px solid var(--amber); padding-left: 10px;
+  }
+
+  /* ───────── "Waiting on you" decision list ───────── */
+  .decision-row {
+    display: flex; gap: 12px; align-items: flex-start;
+    width: 100%; text-align: left;
+    padding: 13px 14px; border-radius: 12px;
+    border: 1px solid var(--bone); background: var(--surface);
+    font-family: inherit; cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .decision-row + .decision-row { margin-top: 8px; }
+  .decision-row:hover { border-color: var(--ink); }
+  .decision-row:active { transform: scale(0.995); }
+  .decision-row.is-overdue { border-color: #F2C7C1; background: var(--error-tint); }
+  .decision-row.is-due_soon { border-color: #FFD9BF; background: var(--amber-tint); }
+  .decision-row-body { flex: 1; min-width: 0; }
+  .decision-row-title { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.35; }
+  .decision-row-detail { font-size: 12.5px; color: var(--text-2); line-height: 1.5; margin-top: 3px; }
+  .decision-row-side { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+  .decision-flag {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
+    text-transform: uppercase; padding: 3px 7px; border-radius: 999px;
+    background: var(--bone-2); color: var(--text-2); white-space: nowrap;
+  }
+  .decision-flag.is-overdue { background: var(--error); color: #fff; }
+  .decision-flag.is-due_soon { background: var(--amber); color: #fff; }
+  .decision-amount { font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+
+  /* Selection deadline badge — the schedule lever. */
+  .sel-due {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-top: 6px; padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+    background: var(--bone-2); color: var(--text-2);
+  }
+  .sel-due.is-due_soon { background: var(--amber-tint); color: var(--amber-dark); }
+  .sel-due.is-overdue  { background: var(--error-tint);  color: var(--error); }
+
   /* When a category has a chosen option, dim the unchosen siblings so
      the homeowner sees their pick clearly. They can still tap an
      unchosen option to change selection (which re-triggers the
@@ -2454,6 +2680,66 @@
         <button type="button" class="confirm-btn confirm-btn-cancel" id="confirm-cancel">Cancel</button>
         <button type="button" class="confirm-btn confirm-btn-primary" id="confirm-go">Confirm pick</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Change-order e-signature modal. A change order amends a signed
+       contract, so approving one has to clear the E-SIGN / UETA bar:
+       the record on screen, intent to sign (a drawn mark), identity (a
+       typed legal name), and an affirmative consent to sign
+       electronically. Declining needs only a reason — it creates no
+       obligation, so we keep that path one tap. Populated by
+       showCOSignModal(). -->
+  <div class="esign-modal" id="esign-modal" role="dialog" aria-modal="true" aria-labelledby="esign-title">
+    <div class="esign-card">
+      <div class="esign-eyebrow" id="esign-eyebrow">Change order</div>
+      <h2 class="esign-title" id="esign-title">Review &amp; sign</h2>
+
+      <div class="esign-scope" id="esign-scope"></div>
+
+      <div id="esign-approve-fields">
+        <label class="esign-field-label" for="esign-name">Your full legal name</label>
+        <input class="esign-input" id="esign-name" type="text" autocomplete="name"
+               placeholder="As it appears on your contract" />
+
+        <div class="esign-field-label">Sign here</div>
+        <div class="esign-pad-wrap" id="esign-pad-wrap">
+          <canvas class="esign-pad" id="esign-pad"></canvas>
+          <div class="esign-pad-baseline"></div>
+          <div class="esign-pad-hint" id="esign-pad-hint">Draw your signature with your finger or mouse</div>
+        </div>
+        <div class="esign-pad-tools">
+          <button type="button" class="esign-clear" id="esign-clear">Clear signature</button>
+          <span class="esign-signed-tag" id="esign-signed-tag">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Signature captured
+          </span>
+        </div>
+
+        <div class="esign-consent">
+          <div class="esign-consent-body" id="esign-consent-text"></div>
+          <label class="esign-consent-check">
+            <input type="checkbox" id="esign-consent-check" />
+            <span>I agree to sign this change order electronically, and I approve the scope and the change to my contract total shown above.</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="esign-decline-fields" style="display:none">
+        <label class="esign-field-label" for="esign-decline-name">Your name</label>
+        <input class="esign-input" id="esign-decline-name" type="text" autocomplete="name" placeholder="Your name" />
+        <label class="esign-field-label" for="esign-reason">Why are you declining?</label>
+        <textarea class="esign-textarea" id="esign-reason"
+                  placeholder="Tell your contractor what needs to change before you can approve — price, scope, timing…"></textarea>
+      </div>
+
+      <div class="esign-error" id="esign-error"></div>
+
+      <div class="esign-actions">
+        <button type="button" class="esign-btn esign-btn-cancel" id="esign-cancel">Cancel</button>
+        <button type="button" class="esign-btn esign-btn-primary" id="esign-submit">Sign &amp; approve</button>
+      </div>
+      <div class="esign-legal" id="esign-legal"></div>
     </div>
   </div>
 
@@ -3271,9 +3557,33 @@
             '</div>' +
           '</div>' +
           statusBadge +
+          (hasChosen ? '' : selectionDueBadge(c.dueDate)) +
           '<div class="sel-options">' + optionsHtml + '</div>' +
         '</div>';
     }).join('');
+  }
+
+  // SelectionCategory.dueDate has always existed and been persisted, but it
+  // never made it into the portal snapshot — so an overdue tile pick looked
+  // exactly like a fresh one and the homeowner had no idea the schedule was
+  // waiting on them. Snapshot v10 maps it through; this renders it. Only
+  // shown while the category is still undecided — once they've picked, the
+  // deadline is moot.
+  function selectionDueBadge(dueDate) {
+    var due = calendarDate(dueDate);
+    if (!due) return '';
+    var days = daysUntil(todayISO(), due);
+    if (days == null) return '';
+    var cls = days < 0 ? ' is-overdue' : (days <= DECISION_DUE_SOON_DAYS ? ' is-due_soon' : '');
+    var label;
+    if (days < 0) {
+      label = 'Was due ' + fmtDateShort(due) + ' · ' + Math.abs(days) + ' day' + (Math.abs(days) === 1 ? '' : 's') + ' past due';
+    } else if (days === 0) {
+      label = 'Due today';
+    } else {
+      label = 'Due ' + fmtDateShort(due) + ' · ' + days + ' day' + (days === 1 ? '' : 's') + ' left';
+    }
+    return '<div class="sel-due' + cls + '">' + icn(ICONS.calendar, 11) + esc(label) + '</div>';
   }
 
   // Fire a notify edge-function event. Best-effort — never block UX on
@@ -3898,9 +4208,17 @@
               '<span class="aia-num-value">#'+esc(a.applicationNumber)+'</span>' +
             '</div>' +
             '<div class="aia-period">'+
-              (a.periodTo ? 'Period ending ' + fmtDate(a.periodTo) : 'Pay application') +
+              (a.periodFrom && a.periodTo
+                ? 'Billing ' + fmtDateShort(a.periodFrom) + ' – ' + fmtDate(a.periodTo)
+                : (a.periodTo ? 'Period ending ' + fmtDate(a.periodTo) : 'Pay application')) +
               (a.architectName ? ' · '+esc(a.architectName) : '') +
             '</div>' +
+            // One-line plain-English headline right on the card, so the
+            // homeowner knows what they're being billed for before they
+            // even open the G702/G703.
+            (a.narrative && a.narrative.headline
+              ? '<div class="aia-card-summary">' + esc(a.narrative.headline) + '</div>'
+              : '') +
             '<div class="aia-stat-row">' +
               '<div>' +
                 '<div class="aia-stat-label">Earned to date</div>' +
@@ -3943,23 +4261,31 @@
       var amt = c.changeAmount || 0;
       var sign = amt >= 0 ? '+' : '−';
       var stat = String(c.status || '').toLowerCase();
-      var canDecide = coApprovalEnabled && (stat === 'pending' || stat === 'submitted' || stat === 'review');
+      var canDecide = coApprovalEnabled && (stat === 'pending' || stat === 'submitted' || stat === 'review' || stat === 'under_review');
       var locallyDecided = loadCODecision(c.id);
       var ctaHtml = '';
       if (locallyDecided) {
         var goodLook = locallyDecided.decision === 'approved';
+        // Show the signer + the record hash back to the homeowner. This is
+        // their receipt: the same SHA-256 the server stored, so they can ask
+        // for the sealed record later and check it matches.
+        var receiptHtml = locallyDecided.hash
+          ? '<div class="co-receipt">Record SHA-256 ' + esc(String(locallyDecided.hash).slice(0, 32)) + '…</div>'
+          : '';
         ctaHtml = (
           '<div class="co-decided ' + (goodLook ? 'good' : 'bad') + '">' +
             (goodLook ? icn(ICONS.check, 14) : icn(ICONS.alert, 14)) +
-            '<span>' + (goodLook ? 'Approved' : 'Declined') + ' ' + esc(timeAgo(locallyDecided.at)) + '</span>' +
-          '</div>'
+            '<span>' + (goodLook ? 'Signed & approved' : 'Declined') +
+              (locallyDecided.signer ? ' by ' + esc(locallyDecided.signer) : '') +
+              ' ' + esc(timeAgo(locallyDecided.at)) + '</span>' +
+          '</div>' + receiptHtml
         );
       } else if (canDecide) {
         ctaHtml = (
           '<div class="co-cta">' +
             '<button class="co-decline-btn" data-co-decline="'+esc(c.id)+'">Decline</button>' +
             '<button class="co-approve-btn" data-co-approve="'+esc(c.id)+'">' +
-              icn(ICONS.check, 13) + '<span>Approve</span>' +
+              icn(ICONS.check, 13) + '<span>Review &amp; sign</span>' +
             '</button>' +
           '</div>'
         );
@@ -4249,6 +4575,32 @@
     openDrawer('Invoice', '#' + inv.number, bodyHtml, footerHtml);
   }
 
+  // "What this payment covers" — the homeowner-readable half of a pay
+  // application. Rendered from snapshot.sections.aiaPayApps[].narrative,
+  // which is a deterministic cross-reference of the billing window against
+  // the daily reports / photos / completed milestones the GC shares. When a
+  // period has no matching activity the narrative carries a `gap` reason and
+  // zero bullets, and we render THAT — never filler.
+  function renderAIANarrative(n) {
+    if (!n || !n.headline) return '';
+    var isGap = !n.hasActivity;
+    var bullets = (n.bullets || []).map(function (b) {
+      return '<li>' + esc(b) + '</li>';
+    }).join('');
+    return (
+      '<div class="aia-narrative' + (isGap ? ' is-gap' : '') + '">' +
+        '<div class="aia-narrative-eyebrow">' +
+          (isGap ? 'About this billing period' : 'What this payment covers') +
+        '</div>' +
+        (n.periodLabel
+          ? '<div class="aia-narrative-period">Billing period ' + esc(n.periodLabel) + '</div>'
+          : '') +
+        '<div class="aia-narrative-headline">' + esc(n.headline) + '</div>' +
+        (bullets ? '<ul class="aia-narrative-list">' + bullets + '</ul>' : '') +
+      '</div>'
+    );
+  }
+
   function renderAIADrawer(a, brandName) {
     var sumRows = '';
     sumRows += '<div class="detail-row"><span class="detail-row-label">Application #</span><span class="detail-row-value">'+esc(a.applicationNumber)+'</span></div>';
@@ -4302,7 +4654,17 @@
       sovRows = '<div class="row-meta" style="padding:8px 0">No schedule of values shared.</div>';
     }
 
+    // Plain-English summary FIRST. The G702/G703 below is the document an
+    // architect reviews — a homeowner reading "Division 09 Finishes —
+    // $14,200 this period, 62% complete" has no way to judge whether that's
+    // fair, so they sit on it, and days-to-payment is the number that decides
+    // whether a small GC makes payroll. The narrative is built at snapshot
+    // time from the daily reports, photos, and completed milestones whose
+    // dates land INSIDE this pay app's billing window (utils/portalOwnerCore
+    // .ts). It is never AI-written and never invented: an empty period says
+    // so plainly instead of producing filler.
     var bodyHtml =
+      renderAIANarrative(a.narrative) +
       '<div class="detail-block">' +
         '<div class="detail-block-eyebrow">Application details</div>' +
         sumRows +
@@ -4677,6 +5039,419 @@
     }
   }
 
+  // ───────── Change-order electronic signature (E-SIGN / UETA) ─────────
+  //
+  // A change order amends a signed contract, and most are well over $500.
+  // This flow used to be confirm() + prompt('Your name (for the record):'),
+  // which is a consent CLICK — a homeowner disputing a $12K CO could
+  // credibly argue it never met ESIGN/UETA. What follows brings it up to the
+  // bar the contract flow already clears:
+  //
+  //   record        the scope, the reason, the dollar delta, the resulting
+  //                 contract total, and any schedule impact, on screen
+  //                 before anything is signable
+  //   intent        a real drawn signature (canvas, stroke data retained)
+  //   identity      a typed full legal name
+  //   consent       an affirmative "I agree to sign electronically" checkbox
+  //                 against the disclosure text below
+  //   tamper-       a canonical consent record + SHA-256, re-hashed
+  //   evidence      server-side by portal_submit_co_approval_signed before
+  //                 it is stored (see supabase/migrations/
+  //                 20260803120000_portal_co_esignature.sql)
+  //
+  // The disclosure text and the canonical record format below MUST stay
+  // byte-identical to ESIGN_DISCLOSURE_TEXT / buildCOConsentRecord() in
+  // utils/portalOwnerCore.ts — the app-side viewer produces the same record
+  // for the same decision, and scripts/validate-portal-owner.ts pins it.
+  var ESIGN_DISCLOSURE_VERSION = 'co-esign-1';
+  var ESIGN_DISCLOSURE_TEXT =
+    'By typing your legal name, drawing your signature, and selecting "I agree", you consent to sign this change order electronically. ' +
+    'Your electronic signature has the same legal effect as a handwritten one under the U.S. E-SIGN Act and UETA. ' +
+    'You are approving the scope described above and the resulting change to your contract total. ' +
+    'You may decline instead, or ask for a paper copy at no charge, by messaging your contractor. ' +
+    'A copy of this record is retained by your contractor and is available to you on request.';
+
+  // SHA-256 → lowercase hex. Resolves null (never throws) when the page is
+  // somehow not a secure context: the RPC computes its own hash server-side,
+  // so a missing client hash degrades the cross-check, not the seal.
+  function sha256Hex(text) {
+    try {
+      if (!window.crypto || !window.crypto.subtle || typeof TextEncoder === 'undefined') {
+        return Promise.resolve(null);
+      }
+      var bytes = new TextEncoder().encode(text == null ? '' : String(text));
+      return window.crypto.subtle.digest('SHA-256', bytes).then(function (buf) {
+        var arr = Array.prototype.slice.call(new Uint8Array(buf));
+        return arr.map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+      }).catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+
+  function esignTidy(s, max) {
+    var flat = String(s == null ? '' : s).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    if (flat.length <= max) return flat;
+    return flat.slice(0, max - 1).replace(/\s+$/, '') + '…';
+  }
+
+  // Order-fixed, line-oriented canonical form. NOT JSON.stringify over an
+  // object literal — the browser, Postgres, and any future auditor all have
+  // to hash exactly the same bytes, and key order in JS objects is not a
+  // contract we want to bet a signature on.
+  function buildCOConsentRecord(f) {
+    var lines = [
+      'MAGE ID CHANGE ORDER ELECTRONIC SIGNATURE RECORD',
+      'version: ' + ESIGN_DISCLOSURE_VERSION,
+      'decision: ' + f.decision,
+      'portal_id: ' + f.portalId,
+      'change_order_id: ' + f.changeOrderId,
+      'change_order_number: ' + f.changeOrderNumber,
+      'scope: ' + esignTidy(f.description, 600),
+      'change_amount_usd: ' + Number(f.changeAmount || 0).toFixed(2)
+    ];
+    if (typeof f.newContractTotal === 'number') {
+      lines.push('new_contract_total_usd: ' + f.newContractTotal.toFixed(2));
+    }
+    lines.push('signer_name: ' + String(f.signerName == null ? '' : f.signerName).replace(/^\s+|\s+$/g, ''));
+    lines.push('signed_at: ' + f.signedAt);
+    if (typeof f.timezoneOffsetMinutes === 'number') {
+      lines.push('signer_utc_offset_minutes: ' + f.timezoneOffsetMinutes);
+    }
+    if (f.signatureHash) lines.push('signature_sha256: ' + f.signatureHash);
+    if (typeof f.signatureStrokeCount === 'number') {
+      lines.push('signature_strokes: ' + f.signatureStrokeCount);
+    }
+    if (f.reason) lines.push('decline_reason: ' + esignTidy(f.reason, 600));
+    if (f.userAgent) lines.push('user_agent: ' + esignTidy(f.userAgent, 200));
+    lines.push('consent_disclosure: ' + ESIGN_DISCLOSURE_TEXT);
+    return lines.join('\n');
+  }
+
+  // Canvas signature pad. Strokes are stored in normalized 0..1 space so the
+  // captured mark reproduces at any display size (same idea as the photo
+  // markup primitives already in the snapshot), and serialize to an
+  // SVG-style path string that is what actually gets hashed and stored.
+  function attachSignaturePad(canvas, wrap, onChange) {
+    var ctx = canvas.getContext('2d');
+    var strokes = [];
+    var current = null;
+    var drawing = false;
+
+    function css() { return canvas.getBoundingClientRect(); }
+    function resize() {
+      var rect = css();
+      if (!rect.width || !rect.height) return;
+      var dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      redraw();
+    }
+    function redraw() {
+      var rect = css();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#0B0D10';
+      for (var s = 0; s < strokes.length; s++) {
+        var pts = strokes[s];
+        if (!pts.length) continue;
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0] * rect.width, pts[0][1] * rect.height);
+        for (var i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i][0] * rect.width, pts[i][1] * rect.height);
+        }
+        if (pts.length === 1) ctx.lineTo(pts[0][0] * rect.width + 0.4, pts[0][1] * rect.height);
+        ctx.stroke();
+      }
+    }
+    function pointOf(ev) {
+      var rect = css();
+      var src = (ev.touches && ev.touches.length) ? ev.touches[0] : ev;
+      var x = (src.clientX - rect.left) / rect.width;
+      var y = (src.clientY - rect.top) / rect.height;
+      return [Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))];
+    }
+    function notify() {
+      if (wrap) {
+        if (strokes.length > 0) wrap.classList.add('signed');
+        else wrap.classList.remove('signed');
+      }
+      if (onChange) onChange(strokes.length);
+    }
+    function start(ev) {
+      ev.preventDefault();
+      drawing = true;
+      current = [pointOf(ev)];
+      strokes.push(current);
+      if (ev.pointerId != null && canvas.setPointerCapture) {
+        try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+      }
+      redraw();
+      notify();
+    }
+    function move(ev) {
+      if (!drawing || !current) return;
+      ev.preventDefault();
+      current.push(pointOf(ev));
+      redraw();
+    }
+    function end() {
+      if (!drawing) return;
+      drawing = false;
+      current = null;
+      notify();
+    }
+
+    if (window.PointerEvent) {
+      canvas.addEventListener('pointerdown', start);
+      canvas.addEventListener('pointermove', move);
+      canvas.addEventListener('pointerup', end);
+      canvas.addEventListener('pointercancel', end);
+      canvas.addEventListener('pointerleave', end);
+    } else {
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', move, { passive: false });
+      canvas.addEventListener('touchend', end);
+    }
+    window.addEventListener('resize', resize);
+
+    return {
+      resize: resize,
+      strokeCount: function () { return strokes.length; },
+      // Total sampled points — a single accidental dot is not a signature.
+      pointCount: function () {
+        var n = 0;
+        for (var i = 0; i < strokes.length; i++) n += strokes[i].length;
+        return n;
+      },
+      pathData: function () {
+        return strokes.map(function (pts) {
+          return 'M' + pts.map(function (p) {
+            return p[0].toFixed(3) + ' ' + p[1].toFixed(3);
+          }).join(' L');
+        }).join(' ');
+      },
+      clear: function () {
+        strokes = [];
+        current = null;
+        drawing = false;
+        redraw();
+        notify();
+      },
+      destroy: function () { window.removeEventListener('resize', resize); },
+    };
+  }
+
+  // Open the review-and-sign sheet for one change order.
+  //   opts.co         snapshot change-order row
+  //   opts.decision   'approved' | 'declined'
+  //   opts.onConfirm  (result, ui) => void — result carries the signer name,
+  //                   signature path data + stroke count, and the reason.
+  function showCOSignModal(opts) {
+    var modal   = document.getElementById('esign-modal');
+    var scopeEl = document.getElementById('esign-scope');
+    var approve = document.getElementById('esign-approve-fields');
+    var decline = document.getElementById('esign-decline-fields');
+    var nameEl  = document.getElementById('esign-name');
+    var declineNameEl = document.getElementById('esign-decline-name');
+    var reasonEl = document.getElementById('esign-reason');
+    var checkEl = document.getElementById('esign-consent-check');
+    var errEl   = document.getElementById('esign-error');
+    var submit  = document.getElementById('esign-submit');
+    var cancel  = document.getElementById('esign-cancel');
+    var clearBtn = document.getElementById('esign-clear');
+    var padWrap = document.getElementById('esign-pad-wrap');
+    var padEl   = document.getElementById('esign-pad');
+    var signedTag = document.getElementById('esign-signed-tag');
+    if (!modal || !scopeEl) return;
+
+    var isApprove = opts.decision === 'approved';
+    var c = opts.co || {};
+    var amt = Number(c.changeAmount || 0);
+    var deltaClass = amt < 0 ? 'credit' : 'add';
+    var deltaText = (amt >= 0 ? '+' : '−') + fmtMoney(Math.abs(amt), { dec: 2 });
+
+    document.getElementById('esign-eyebrow').textContent =
+      'Change order #' + (c.number != null ? c.number : '—');
+    document.getElementById('esign-title').textContent =
+      isApprove ? 'Review & sign this change' : 'Decline this change';
+
+    scopeEl.innerHTML =
+      '<div class="esign-scope-label">What is changing</div>' +
+      '<div class="esign-scope-desc">' + esc(c.description || 'No description provided.') + '</div>' +
+      (c.reason ? '<div class="esign-scope-reason">' + esc(c.reason) + '</div>' : '') +
+      '<div class="esign-delta">' +
+        '<span class="esign-delta-label">' + (amt < 0 ? 'Credit to your contract' : 'Added to your contract') + '</span>' +
+        '<span class="esign-delta-value ' + deltaClass + '">' + deltaText + '</span>' +
+      '</div>' +
+      (typeof c.newContractTotal === 'number' && c.newContractTotal > 0
+        ? '<div class="esign-delta">' +
+            '<span class="esign-delta-label">Your new contract total</span>' +
+            '<span class="esign-delta-value small">' + fmtMoney(c.newContractTotal, { dec: 2 }) + '</span>' +
+          '</div>'
+        : '') +
+      (c.scheduleImpactDays
+        ? '<div class="esign-delta">' +
+            '<span class="esign-delta-label">Schedule impact</span>' +
+            '<span class="esign-delta-value small">' +
+              (c.scheduleImpactDays > 0 ? '+' : '−') + Math.abs(c.scheduleImpactDays) +
+              ' day' + (Math.abs(c.scheduleImpactDays) === 1 ? '' : 's') +
+            '</span>' +
+          '</div>'
+        : '');
+
+    document.getElementById('esign-consent-text').textContent = ESIGN_DISCLOSURE_TEXT;
+    document.getElementById('esign-legal').textContent = isApprove
+      ? 'Signed electronically under the U.S. E-SIGN Act and UETA. Your contractor keeps a sealed copy of this record.'
+      : 'Declining costs you nothing and does not cancel your contract — it tells your contractor what to change.';
+
+    approve.style.display = isApprove ? 'block' : 'none';
+    decline.style.display = isApprove ? 'none' : 'block';
+    submit.className = 'esign-btn ' + (isApprove ? 'esign-btn-primary' : 'esign-btn-danger');
+    submit.textContent = isApprove ? 'Sign & approve' : 'Send decline';
+    errEl.className = 'esign-error';
+    errEl.textContent = '';
+
+    nameEl.value = opts.clientName || '';
+    declineNameEl.value = opts.clientName || '';
+    reasonEl.value = '';
+    checkEl.checked = false;
+    if (signedTag) signedTag.className = 'esign-signed-tag';
+
+    var pad = isApprove ? attachSignaturePad(padEl, padWrap, function (n) {
+      if (signedTag) signedTag.className = 'esign-signed-tag' + (n > 0 ? ' show' : '');
+      refresh();
+    }) : null;
+    if (pad) pad.clear();
+
+    function nameValue() { return (isApprove ? nameEl.value : declineNameEl.value).replace(/^\s+|\s+$/g, ''); }
+    function refresh() {
+      var ok = isApprove
+        // All three ESIGN elements, or the button stays locked. Two sampled
+        // points minimum so a stray tap can't count as a signature.
+        ? (nameValue().length >= 3 && !!pad && pad.pointCount() >= 2 && checkEl.checked)
+        : (nameValue().length >= 2 && reasonEl.value.replace(/^\s+|\s+$/g, '').length >= 3);
+      submit.disabled = !ok;
+    }
+    function setError(msg) {
+      errEl.textContent = msg;
+      errEl.className = 'esign-error' + (msg ? ' show' : '');
+    }
+    function setBusy(busy) {
+      submit.disabled = busy;
+      cancel.disabled = busy;
+      submit.textContent = busy
+        ? (isApprove ? 'Sealing…' : 'Sending…')
+        : (isApprove ? 'Sign & approve' : 'Send decline');
+      if (!busy) refresh();
+    }
+    function close() {
+      modal.classList.remove('open');
+      nameEl.removeEventListener('input', refresh);
+      declineNameEl.removeEventListener('input', refresh);
+      reasonEl.removeEventListener('input', refresh);
+      checkEl.removeEventListener('change', refresh);
+      submit.removeEventListener('click', onSubmit);
+      cancel.removeEventListener('click', close);
+      clearBtn.removeEventListener('click', onClear);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      if (pad) { pad.clear(); pad.destroy(); }
+      cancel.disabled = false;
+    }
+    function onClear() { if (pad) pad.clear(); }
+    function onBackdrop(e) { if (e.target === modal && !cancel.disabled) close(); }
+    function onKey(e) { if (e.key === 'Escape' && !cancel.disabled) close(); }
+    function onSubmit() {
+      setError('');
+      opts.onConfirm({
+        signerName: nameValue(),
+        signatureData: pad ? pad.pathData() : '',
+        strokeCount: pad ? pad.strokeCount() : 0,
+        consentAccepted: isApprove ? !!checkEl.checked : true,
+        reason: reasonEl.value.replace(/^\s+|\s+$/g, ''),
+      }, { setError: setError, setBusy: setBusy, close: close });
+    }
+
+    nameEl.addEventListener('input', refresh);
+    declineNameEl.addEventListener('input', refresh);
+    reasonEl.addEventListener('input', refresh);
+    checkEl.addEventListener('change', refresh);
+    submit.addEventListener('click', onSubmit);
+    cancel.addEventListener('click', close);
+    clearBtn.addEventListener('click', onClear);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+
+    modal.classList.add('open');
+    refresh();
+    // Canvas needs a layout pass before it can size itself to the card.
+    setTimeout(function () {
+      if (pad) pad.resize();
+      (isApprove ? nameEl : declineNameEl).focus();
+    }, 0);
+  }
+
+  // Submit a SIGNED change-order decision. Same token-gated RPC pattern as
+  // every other portal write. The server re-hashes p_consent_record and
+  // refuses on mismatch, then appends a real audit entry to the change order
+  // itself — until now app/client-view.tsx was the only code path in the app
+  // writing change_orders.audit_trail.
+  //
+  // Fallback: the static portal and the database migrate on separate clocks.
+  // If the sealed RPC isn't deployed yet we fall back to the legacy
+  // portal_submit_co_approval so a homeowner is never blocked from
+  // responding, and carry a compact signed receipt through in the note.
+  async function postCOApprovalSigned(api, payload) {
+    if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
+    var base = api.supabaseUrl.replace(/\/+$/, '');
+    var resp = await fetch(base + '/rest/v1/rpc/portal_submit_co_approval_signed', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api.supabaseAnonKey,
+        'Authorization': 'Bearer ' + api.supabaseAnonKey,
+      },
+      body: JSON.stringify({
+        p_portal_id: payload.portal_id,
+        p_access_token: getPortalToken(),
+        p_change_order_id: payload.change_order_id,
+        p_decision: payload.decision,
+        p_signer_name: payload.signer_name || null,
+        p_note: payload.note || null,
+        p_user_agent: payload.user_agent || null,
+        p_signature_data: payload.signature_data || null,
+        p_signature_hash: payload.signature_hash || null,
+        p_consent_record: payload.consent_record || null,
+        p_client_hash: payload.client_hash || null,
+        p_consent_version: payload.consent_version || null,
+        p_consent_accepted: !!payload.consent_accepted,
+      }),
+    });
+    if (resp.ok) {
+      try { return await resp.json(); } catch (e) { return {}; }
+    }
+    var text = '';
+    try { text = await resp.text(); } catch (e) {}
+    var notDeployed = resp.status === 404 || /PGRST202|Could not find the function|does not exist/i.test(text);
+    if (notDeployed) {
+      await postCOApproval(api, {
+        portal_id: payload.portal_id,
+        change_order_id: payload.change_order_id,
+        decision: payload.decision,
+        signer_name: payload.signer_name,
+        note: payload.legacy_note || payload.note || null,
+        user_agent: payload.user_agent,
+      });
+      return { legacy: true, document_hash: payload.client_hash || null };
+    }
+    throw new Error('Supabase ' + resp.status + ': ' + text);
+  }
+
   // ───────── Stats bar ─────────
   function renderStats(budget, invoices, aia) {
     var grid = document.getElementById('stats-grid');
@@ -5029,6 +5804,17 @@
         t('contractSectionSubtitleSigned'), null, renderContractCard(data.contract));
     }
 
+    // "Waiting on you" — every open decision, ranked overdue-first, right
+    // under the contract. The homeowner rarely knows they're the bottleneck:
+    // every day an owner sits on a tile selection is a day the GC's sub
+    // doesn't show up. Only renders when something is actually open.
+    var ownerDecisions = ownerDecisionList(data, sections);
+    if (ownerDecisions.length > 0) {
+      addSection('decisions', 'check', 'Waiting on you',
+        ownerDecisionsSubtitle(ownerDecisions),
+        ownerDecisions.length, renderOwnerDecisions(ownerDecisions));
+    }
+
     // Recent activity feed — aggregates the last ~15 events across
     // photos, daily reports, change orders, invoices, selections so
     // the homeowner sees "what just happened" without scrolling
@@ -5114,6 +5900,7 @@
 
     document.getElementById('sections').innerHTML = sectionHtml;
     renderNav(navItems);
+    wireOwnerDecisionRows();
 
     // Snapshot time
     if (data.snapshotAt) {
@@ -5167,39 +5954,106 @@
       var coById = {};
       co.forEach(function (c) { coById[c.id] = c; });
 
+      // A change order is a contract amendment, so an approval is an
+      // ELECTRONIC SIGNATURE — not a confirm() + prompt(). We show the record,
+      // capture a drawn signature + typed legal name + affirmative consent,
+      // build the canonical consent record, hash it, and submit it to the
+      // sealed RPC which re-hashes server-side before storing. Declining stays
+      // easy: a name and a reason, no signature.
       function handleCODecision(coId, decision) {
         var c = coById[coId];
         if (!c) return;
-        var verb = decision === 'approved' ? 'Approve' : 'Decline';
-        var verbing = decision === 'approved' ? 'Approving' : 'Declining';
-        if (!confirm(verb + ' CO #' + c.number + ' — ' + (c.description || '') + '?\n\nAmount: ' + (c.changeAmount >= 0 ? '+' : '-') + fmtMoney(Math.abs(c.changeAmount || 0)))) return;
-        var signerName = data.clientName || prompt('Your name (for the record):') || 'Client';
 
-        var btnSelector = '[data-co-' + (decision === 'approved' ? 'approve' : 'decline') + '="' + coId + '"]';
-        var btn = document.querySelector(btnSelector);
-        if (btn) { btn.disabled = true; btn.textContent = verbing + '…'; }
-
-        var payload = {
-          portal_id: data.portalApi.portalId,
-          invite_id: data.portalApi.inviteId || null,
-          change_order_id: coId,
+        showCOSignModal({
+          co: c,
           decision: decision,
-          signer_name: signerName,
-          user_agent: navigator.userAgent.slice(0, 200),
-        };
+          clientName: data.clientName || '',
+          onConfirm: function (result, ui) {
+            ui.setBusy(true);
+            var signedAt = new Date().toISOString();
+            var userAgent = String(navigator.userAgent || '').slice(0, 200);
+            var tzOffset = null;
+            try { tzOffset = -new Date().getTimezoneOffset(); } catch (e) { tzOffset = null; }
+            var isApprove = decision === 'approved';
+            var signatureData = isApprove ? (result.signatureData || '') : '';
 
-        postCOApproval(data.portalApi, payload).then(function () {
-          saveCODecision(coId, { decision: decision, at: new Date().toISOString() });
-          var sectionEl = document.getElementById('sec-changeOrders');
-          if (sectionEl) {
-            var body = sectionEl.querySelector('.section-body');
-            if (body) body.innerHTML = renderChangeOrders(co, true);
-            bindCOHandlers();
-          }
-        }).catch(function (err) {
-          console.warn('CO approval failed', err);
-          if (btn) { btn.disabled = false; btn.textContent = verb; }
-          alert("Couldn't reach the server. Please try again or message your contractor.");
+            sha256Hex(signatureData).then(function (signatureHash) {
+              var record = buildCOConsentRecord({
+                decision: decision,
+                portalId: data.portalApi.portalId,
+                changeOrderId: coId,
+                changeOrderNumber: c.number != null ? c.number : '',
+                description: c.description || '',
+                changeAmount: c.changeAmount || 0,
+                newContractTotal: typeof c.newContractTotal === 'number' ? c.newContractTotal : undefined,
+                signerName: result.signerName,
+                signedAt: signedAt,
+                timezoneOffsetMinutes: typeof tzOffset === 'number' ? tzOffset : undefined,
+                signatureHash: isApprove ? (signatureHash || undefined) : undefined,
+                signatureStrokeCount: isApprove ? result.strokeCount : undefined,
+                reason: isApprove ? undefined : (result.reason || undefined),
+                userAgent: userAgent,
+              });
+              return sha256Hex(record).then(function (documentHash) {
+                return postCOApprovalSigned(data.portalApi, {
+                  portal_id: data.portalApi.portalId,
+                  change_order_id: coId,
+                  decision: decision,
+                  signer_name: result.signerName,
+                  note: isApprove ? null : result.reason,
+                  user_agent: userAgent,
+                  signature_data: signatureData || null,
+                  signature_hash: signatureHash,
+                  consent_record: record,
+                  client_hash: documentHash,
+                  consent_version: ESIGN_DISCLOSURE_VERSION,
+                  consent_accepted: !!result.consentAccepted,
+                  // Used only if the sealed RPC isn't deployed yet — the
+                  // legacy note column caps at 2000 chars, so send a compact
+                  // receipt rather than a truncated (unverifiable) record.
+                  legacy_note: (isApprove
+                    ? 'E-SIGN consent ' + ESIGN_DISCLOSURE_VERSION + ' accepted; signature strokes ' + result.strokeCount +
+                      '; record SHA-256 ' + (documentHash || 'unavailable')
+                    : 'Declined. Reason: ' + esignTidy(result.reason || '', 1200)),
+                }).then(function (res) {
+                  return { res: res, documentHash: documentHash };
+                });
+              });
+            }).then(function (out) {
+              var stamp = (out.res && out.res.document_hash) || out.documentHash || null;
+              saveCODecision(coId, {
+                decision: decision,
+                at: signedAt,
+                signer: result.signerName,
+                hash: stamp,
+                sealed: !!(out.res && out.res.document_hash),
+              });
+              ui.close();
+              var sectionEl = document.getElementById('sec-changeOrders');
+              if (sectionEl) {
+                var body = sectionEl.querySelector('.section-body');
+                if (body) body.innerHTML = renderChangeOrders(co, true);
+                bindCOHandlers();
+              }
+              notifyEvent(decision === 'approved' ? 'change_order_signed' : 'change_order_declined', {
+                project_id: data.project && data.project.id,
+                portal_id: data.portalApi.portalId,
+                project_name: data.project && data.project.name,
+                change_order_id: coId,
+                change_order_number: c.number,
+                signer_name: result.signerName,
+                document_hash: stamp,
+              });
+              if (decision === 'approved') fireWebConfetti();
+            }).catch(function (err) {
+              console.warn('CO decision failed', err);
+              ui.setBusy(false);
+              var msg = /Supabase 4/.test(String(err && err.message))
+                ? 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.'
+                : "We couldn't record your decision. Check your connection and try again, or message your contractor.";
+              ui.setError(msg);
+            });
+          },
         });
       }
 
@@ -5515,72 +6369,20 @@
   function renderDecisionBanner(data, sections) {
     var banner = document.getElementById('decision-banner');
     if (!banner) return;
-    var actions = [];
-
-    // Contract awaiting signature — highest priority
-    if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature) {
-      actions.push({
-        priority: 1,
-        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L13 14l-4 1 1-4z"/></svg>',
-        title: 'Contract waiting for your signature',
-        body: 'Review the scope, payment schedule, and warranty, then counter-sign to make it binding.',
-        target: 'sec-contract',
-      });
-    }
-    // Pending change orders awaiting approval
-    var pendingCO = (sections.changeOrders || []).filter(function (c) {
-      return c.status === 'submitted' || c.status === 'pending';
-    });
-    if (pendingCO.length > 0 && data.coApprovalEnabled) {
-      actions.push({
-        priority: 2,
-        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
-        title: pendingCO.length + ' change order' + (pendingCO.length === 1 ? '' : 's') + ' need your approval',
-        body: 'Review the changes and approve or decline.',
-        target: 'sec-changeOrders',
-      });
-    }
-    // Selections that need a pick
-    var pendingSelections = (data.selections || []).filter(function (cat) {
-      return !(cat.options || []).some(function (o) { return o.isChosen; });
-    });
-    if (pendingSelections.length > 0) {
-      actions.push({
-        priority: 3,
-        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.5-1.5H17a5 5 0 0 0 5-5c0-4.97-4.5-9-10-9z"/><circle cx="7.5" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="16.5" cy="11" r="1" fill="currentColor" stroke="none"/></svg>',
-        title: pendingSelections.length + ' selection' + (pendingSelections.length === 1 ? '' : 's') + ' to make',
-        body: 'Pick finishes, fixtures, and materials to keep the schedule on track.',
-        target: 'sec-selections',
-      });
-    }
-    // Unpaid invoice with the most urgency
-    var unpaid = (sections.invoices || []).filter(function (i) {
-      return i.status !== 'paid' && i.status !== 'draft';
-    });
-    if (unpaid.length > 0) {
-      actions.push({
-        priority: 4,
-        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
-        title: 'Invoice awaiting payment',
-        body: 'View the invoice and pay online.',
-        target: 'sec-invoices',
-      });
-    }
+    var actions = ownerDecisionList(data, sections);
 
     if (actions.length === 0) {
       banner.style.display = 'none';
       return;
     }
 
-    actions.sort(function (a, b) { return a.priority - b.priority; });
     var top = actions[0];
-
     banner.innerHTML =
       '<button class="decision-banner-inner" type="button">' +
-        '<div class="decision-icon">' + top.icon + '</div>' +
+        '<div class="decision-icon">' + icn(ICONS[DECISION_ICON[top.kind] || 'alert'], 18) + '</div>' +
         '<div class="decision-body">' +
           '<div class="decision-title">' + esc(top.title) + '</div>' +
-          '<div class="decision-detail">' + esc(top.body) + '</div>' +
+          '<div class="decision-detail">' + esc(top.detail) + '</div>' +
         '</div>' +
         '<div class="decision-arrow">→</div>' +
       '</button>';
@@ -5588,10 +6390,187 @@
     var btn = banner.querySelector('button');
     if (btn) {
       btn.addEventListener('click', function () {
-        var el = document.getElementById(top.target);
+        var el = document.getElementById(top.target) || document.getElementById('sec-decisions');
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
+  }
+
+  // ───────── What's waiting on the owner ─────────
+  //
+  // Source of truth is snapshot.ownerDecisions (v10+), produced by
+  // utils/portalOwnerCore.ts buildOwnerDecisions() and already ranked
+  // overdue-first. Two things happen here on top of that:
+  //
+  //  1. RE-AGING. The snapshot bakes the GC's send-day as "today". A
+  //     homeowner opening the link a week later must not see a stale badge,
+  //     so any decision carrying a real dueDate is re-evaluated against the
+  //     browser's today and the list re-sorted with the same rank formula.
+  //     The baked `detail` prose deliberately states only fixed DATES, so it
+  //     can never contradict the live badge.
+  //  2. FALLBACK. Snapshots built before v10 carry no ownerDecisions and no
+  //     selection dueDate, so we derive an undated list locally rather than
+  //     showing an older client portal nothing.
+  var DECISION_ICON = { contract: 'fileText', change_order: 'diff', selection: 'sparkle', invoice: 'creditCard' };
+  var DECISION_KIND_WEIGHT = { contract: 0, change_order: 1, selection: 2, invoice: 3 };
+  var DECISION_SEVERITY_WEIGHT = { overdue: 0, due_soon: 10, waiting: 20 };
+  var DECISION_DUE_SOON_DAYS = 7;
+
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + d.getDate()).slice(-2);
+  }
+  function calendarDate(v) {
+    if (!v) return null;
+    var m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v));
+    if (m) return m[1];
+    var d = new Date(v);
+    return isNaN(d) ? null : d.toISOString().slice(0, 10);
+  }
+  function daysUntil(fromISO, toISO) {
+    var a = Date.parse(fromISO + 'T00:00:00Z');
+    var b = Date.parse(toISO + 'T00:00:00Z');
+    if (isNaN(a) || isNaN(b)) return null;
+    return Math.round((b - a) / 86400000);
+  }
+
+  function ownerDecisionList(data, sections) {
+    var list = (data && data.ownerDecisions && data.ownerDecisions.length)
+      ? data.ownerDecisions.slice()
+      : legacyOwnerDecisions(data, sections);
+    var today = todayISO();
+    return list.map(function (d) {
+      var out = {};
+      for (var k in d) { if (Object.prototype.hasOwnProperty.call(d, k)) out[k] = d[k]; }
+      var due = calendarDate(d.dueDate);
+      if (due) {
+        var days = daysUntil(today, due);
+        if (days == null) { /* unparseable — keep what the builder said */ }
+        else if (days < 0) { out.urgency = 'overdue'; out.daysOverdue = -days; }
+        else if (days <= DECISION_DUE_SOON_DAYS) { out.urgency = 'due_soon'; out.daysOverdue = null; out.daysUntilDue = days; }
+        else { out.urgency = 'waiting'; out.daysOverdue = null; out.daysUntilDue = days; }
+      }
+      out.rank = (DECISION_SEVERITY_WEIGHT[out.urgency] != null ? DECISION_SEVERITY_WEIGHT[out.urgency] : 20) +
+                 (DECISION_KIND_WEIGHT[out.kind] || 0);
+      return out;
+    }).sort(function (a, b) {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      var od = (b.daysOverdue || 0) - (a.daysOverdue || 0);
+      if (od !== 0) return od;
+      var ad = a.dueDate || '￿', bd = b.dueDate || '￿';
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      var wd = (b.waitingDays || 0) - (a.waitingDays || 0);
+      if (wd !== 0) return wd;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
+
+  // Pre-v10 snapshots: same shape, but undated — we can't claim a deadline
+  // the snapshot never carried.
+  function legacyOwnerDecisions(data, sections) {
+    if (!data) return [];
+    var secs = sections || data.sections || {};
+    var out = [];
+    if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature) {
+      out.push({
+        id: 'contract', kind: 'contract', urgency: 'waiting',
+        title: 'Contract waiting for your signature',
+        detail: 'Review the scope, payment schedule, and warranty, then counter-sign to make it binding.',
+        target: 'sec-contract',
+      });
+    }
+    (secs.changeOrders || []).forEach(function (c) {
+      var s = String(c.status || '').toLowerCase();
+      if (s !== 'submitted' && s !== 'pending' && s !== 'under_review' && s !== 'review') return;
+      out.push({
+        id: c.id, kind: 'change_order', urgency: 'waiting',
+        title: 'Change order #' + (c.number != null ? c.number : '') + (c.description ? ' — ' + c.description : ''),
+        detail: data.coApprovalEnabled
+          ? 'Review the scope and the change to your contract total, then sign to approve or decline with a reason.'
+          : 'Your contractor is waiting on your decision — reply in Messages.',
+        amount: c.changeAmount,
+        target: 'sec-changeOrders',
+      });
+    });
+    (data.selections || []).forEach(function (cat) {
+      if ((cat.options || []).some(function (o) { return o.isChosen; })) return;
+      out.push({
+        id: cat.id, kind: 'selection', urgency: 'waiting',
+        title: (cat.category || 'Selection') + ' — pick your option',
+        detail: 'Pick a finish so your contractor can order it and hold the schedule.',
+        dueDate: cat.dueDate || undefined,
+        target: 'sec-selections',
+      });
+    });
+    (secs.invoices || []).forEach(function (i) {
+      var s = String(i.status || '').toLowerCase();
+      if (s === 'paid' || s === 'draft') return;
+      if (i.balance != null && i.balance <= 0) return;
+      out.push({
+        id: i.id, kind: 'invoice', urgency: 'waiting',
+        title: 'Invoice #' + (i.number != null ? i.number : '') + ' awaiting payment',
+        detail: 'Open it to review and pay.',
+        dueDate: i.dueDate || undefined,
+        amount: i.balance,
+        target: 'sec-invoices',
+      });
+    });
+    return out;
+  }
+
+  function decisionFlagLabel(d) {
+    if (d.urgency === 'overdue') {
+      var n = d.daysOverdue || 0;
+      return n > 0 ? n + ' day' + (n === 1 ? '' : 's') + ' past due' : 'Past due';
+    }
+    if (d.urgency === 'due_soon') {
+      if (d.daysUntilDue === 0) return 'Due today';
+      return d.daysUntilDue != null
+        ? 'Due in ' + d.daysUntilDue + ' day' + (d.daysUntilDue === 1 ? '' : 's')
+        : 'Due soon';
+    }
+    return 'Waiting on you';
+  }
+
+  function renderOwnerDecisions(list) {
+    if (!list || !list.length) return emptyState('Nothing needs you right now.');
+    return list.map(function (d) {
+      return (
+        '<button type="button" class="decision-row is-' + esc(d.urgency) + '" data-decision-target="' + esc(d.target || '') + '">' +
+          '<div class="section-icon" style="width:34px;height:34px;flex-shrink:0">' +
+            icn(ICONS[DECISION_ICON[d.kind] || 'alert'], 17) +
+          '</div>' +
+          '<div class="decision-row-body">' +
+            '<div class="decision-row-title">' + esc(d.title) + '</div>' +
+            '<div class="decision-row-detail">' + esc(d.detail) + '</div>' +
+          '</div>' +
+          '<div class="decision-row-side">' +
+            '<span class="decision-flag is-' + esc(d.urgency) + '">' + esc(decisionFlagLabel(d)) + '</span>' +
+            (typeof d.amount === 'number' && d.amount !== 0
+              ? '<span class="decision-amount">' + (d.kind === 'change_order' && d.amount > 0 ? '+' : '') + fmtMoney(d.amount) + '</span>'
+              : '') +
+          '</div>' +
+        '</button>'
+      );
+    }).join('');
+  }
+
+  function ownerDecisionsSubtitle(list) {
+    var overdue = list.filter(function (d) { return d.urgency === 'overdue'; }).length;
+    var base = list.length === 1 ? 'One decision is holding up your project'
+                                 : list.length + ' decisions are holding up your project';
+    return overdue > 0 ? base + ' · ' + overdue + ' past due' : base;
+  }
+
+  function wireOwnerDecisionRows() {
+    document.querySelectorAll('[data-decision-target]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var el = document.getElementById(row.getAttribute('data-decision-target'));
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
   }
 
   function wireActivityReactions(data) {

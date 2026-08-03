@@ -52,11 +52,23 @@ ok('5000-byte payload keeps its exact length',
 
 // Guard the regression itself: the native path must NOT go back to fetch().blob().
 import { readFileSync } from 'node:fs';
-const src = readFileSync('utils/pdfRenderClient.ts', 'utf8');
-const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-ok('native read uses expo-file-system, not fetch().blob()',
-  code.includes('readAsStringAsync'),
-  'native PDF reads must not go back through fetch().blob() — it uploads 0 bytes on RN');
+ok('shared reader uses expo-file-system, not fetch().blob()',
+  readFileSync('utils/fileBytes.ts', 'utf8').includes('readAsStringAsync'),
+  'native reads must not go back through fetch().blob() — it uploads 0 bytes on RN');
+
+// EVERY upload path must go through the shared reader. This bug was systemic:
+// production Storage held 0-byte objects and pdf-uploads had never received a
+// single file, because six call sites in storage.ts plus projectDocuments and
+// pdfRenderClient all did fetch(uri).blob().
+for (const f of ['utils/storage.ts', 'utils/projectDocuments.ts', 'utils/pdfRenderClient.ts']) {
+  const body = readFileSync(f, 'utf8');
+  const stripped = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok(`${f} reads bytes through the shared reader`,
+    stripped.includes('readFileBytes'), 'must use utils/fileBytes.readFileBytes');
+  ok(`${f} has no raw .blob() upload`,
+    !/\.blob\(\)/.test(stripped),
+    'a Blob from fetch(file://) uploads as ZERO BYTES on React Native');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
