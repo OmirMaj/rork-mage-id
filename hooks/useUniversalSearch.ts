@@ -630,6 +630,7 @@ function emptyGrouped(): Record<EntityKind, SearchResult[]> {
     permit: [], equipment: [], subcontractor: [], commitment: [],
     planSheet: [], commEvent: [], portalMessage: [],
     drawingPin: [], planMarkup: [], prequalPacket: [], priceAlert: [],
+    delayEvent: [],
   };
 }
 
@@ -641,6 +642,7 @@ function emptyCounts(): Record<EntityKind, number> {
     permit: 0, equipment: 0, subcontractor: 0, commitment: 0,
     planSheet: 0, commEvent: 0, portalMessage: 0,
     drawingPin: 0, planMarkup: 0, prequalPacket: 0, priceAlert: 0,
+    delayEvent: 0,
   };
 }
 

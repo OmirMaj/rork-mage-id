@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice } from '@/types';
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -125,6 +125,7 @@ const CHANGE_ORDERS_KEY = 'mageid_change_orders';
 const INVOICES_KEY = 'mageid_invoices';
 const DAILY_REPORTS_KEY = 'mageid_daily_reports';
 const FIELD_TICKETS_KEY = 'mageid_field_tickets';
+const DELAY_EVENTS_KEY = 'mageid_delay_events';
 const SUBS_KEY = 'mageid_subcontractors';
 const PUNCH_ITEMS_KEY = 'mageid_punch_items';
 const PHOTOS_KEY = 'mageid_photos';
@@ -250,6 +251,15 @@ type FinancialsDataValue = {
   addAIAPayApp: (app: SavedAIAPayApp) => SavedAIAPayApp;
   deleteAIAPayApp: (id: string) => void;
   getAIAPayAppsForProject: (projectId: string) => SavedAIAPayApp[];
+  // Delay register — the claim-defense spine. Sits with change orders rather
+  // than the field tables because it is claim material (causation, dollar
+  // reservations, the GC's own contractor_caused admissions) and its RLS
+  // mirrors change_orders for exactly that reason.
+  delayEvents: DelayEvent[];
+  addDelayEvent: (event: DelayEvent) => DelayEvent;
+  updateDelayEvent: (id: string, updates: Partial<DelayEvent>) => void;
+  deleteDelayEvent: (id: string) => void;
+  getDelayEventsForProject: (projectId: string) => DelayEvent[];
 };
 
 type FieldDataValue = {
@@ -450,6 +460,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [prequalPackets, setPrequalPackets] = useState<PrequalPacket[]>([]);
   const [dailyReports, setDailyReports] = useState<DailyFieldReport[]>([]);
   const [fieldTickets, setFieldTickets] = useState<FieldTicket[]>([]);
+  const [delayEvents, setDelayEvents] = useState<DelayEvent[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [punchItems, setPunchItems] = useState<PunchItem[]>([]);
   // Mirror of `punchItems` (see submittalsRef note below) so batch adds looped
@@ -856,6 +867,54 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         } catch { /* fallback */ }
       }
       return loadLocal<FieldTicket[]>(FIELD_TICKETS_KEY, []);
+    },
+  });
+
+  // Delay register. Same server-first-then-local shape as the field tickets.
+  //
+  // PRE-MIGRATION BEHAVIOUR — READ THIS BEFORE DEBUGGING AN EMPTY REGISTER.
+  // public.delay_events does not exist in production until
+  // supabase/migrations/20260804120000_delay_events.sql is applied. Until then
+  // this select errors, the catch falls through to AsyncStorage, and every
+  // write hits a PostgREST schema-cache miss that utils/offlineQueue.ts
+  // classifies as TRANSIENT and re-queues. Net effect: the feature works fully
+  // on-device and syncs nothing, losing nothing. That is deliberate — the
+  // notice clock is worth having before the table lands.
+  const delayEventsQuery = useQuery({
+    queryKey: ['delayEvents', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('delay_events').select('*').order('first_observed_date', { ascending: true });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              projectId: r.project_id as string,
+              number: Number(r.number),
+              cause: (r.cause as DelayEvent['cause']) ?? 'other',
+              firstObservedDate: r.first_observed_date as string,
+              endedDate: (r.ended_date as string | null) ?? undefined,
+              description: (r.description as string) ?? '',
+              evidence: (r.evidence as DelayEvidenceRef[] | null) ?? [],
+              impactedTaskIds: (r.impacted_task_ids as string[] | null) ?? [],
+              claimedDays: Number(r.claimed_days ?? 0),
+              concurrentDays: r.concurrent_days == null ? undefined : Number(r.concurrent_days),
+              notices: (r.notices as DelayNotice[] | null) ?? [],
+              // Never coerce a missing classification into a guess.
+              classification: (r.classification as DelayEvent['classification']) ?? 'unclassified',
+              changeOrderId: (r.change_order_id as string | null) ?? undefined,
+              auditTrail: (r.audit_trail as DelayEvent['auditTrail']) ?? undefined,
+              sealedAt: (r.sealed_at as string | null) ?? undefined,
+              contentHash: (r.content_hash as string | null) ?? undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as DelayEvent[];
+            await saveLocal(DELAY_EVENTS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback — table may not exist yet */ }
+      }
+      return loadLocal<DelayEvent[]>(DELAY_EVENTS_KEY, []);
     },
   });
 
@@ -1371,6 +1430,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (prequalQuery.data) setPrequalPackets(prequalQuery.data); }, [prequalQuery.data]);
   useEffect(() => { if (dailyReportsQuery.data) setDailyReports(dailyReportsQuery.data); }, [dailyReportsQuery.data]);
   useEffect(() => { if (fieldTicketsQuery.data) setFieldTickets(fieldTicketsQuery.data); }, [fieldTicketsQuery.data]);
+  useEffect(() => { if (delayEventsQuery.data) setDelayEvents(delayEventsQuery.data); }, [delayEventsQuery.data]);
   useEffect(() => { if (subsQuery.data) setSubcontractors(subsQuery.data); }, [subsQuery.data]);
   useEffect(() => { if (leadsQuery.data) setLeads(leadsQuery.data); }, [leadsQuery.data]);
   useEffect(() => { if (bidPackagesQuery.data) setBidPackages(bidPackagesQuery.data); }, [bidPackagesQuery.data]);
@@ -1598,6 +1658,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const saveFieldTicketsMutation = useMutation({
     mutationFn: async (updated: FieldTicket[]) => { await saveLocal(FIELD_TICKETS_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['fieldTickets', userId], data); },
+  });
+  const saveDelayEventsMutation = useMutation({
+    mutationFn: async (updated: DelayEvent[]) => { await saveLocal(DELAY_EVENTS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['delayEvents', userId], data); },
   });
   const saveSubsMutation = useMutation({
     mutationFn: async (updated: Subcontractor[]) => { await saveLocal(SUBS_KEY, updated); return updated; },
@@ -2397,6 +2461,62 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     fieldTickets.filter(t => t.projectId === projectId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
   [fieldTickets]);
+
+  // ─────────────────────────────────────────────
+  // Delay register (the claim-defense spine)
+  // ─────────────────────────────────────────────
+
+  const delayEventRow = useCallback((e: DelayEvent) => ({
+    id: e.id, user_id: userId, project_id: e.projectId, number: e.number,
+    cause: e.cause,
+    first_observed_date: e.firstObservedDate,
+    ended_date: e.endedDate ?? null,
+    description: e.description,
+    evidence: e.evidence ?? [],
+    impacted_task_ids: e.impactedTaskIds ?? [],
+    claimed_days: e.claimedDays ?? 0,
+    concurrent_days: e.concurrentDays ?? null,
+    notices: e.notices ?? [],
+    classification: e.classification ?? 'unclassified',
+    change_order_id: e.changeOrderId ?? null,
+    audit_trail: e.auditTrail ?? null,
+    created_at: e.createdAt, updated_at: e.updatedAt,
+  }), [userId]);
+
+  /**
+   * Returns the created event so callers (the daily report, the weather
+   * reschedule) can route straight to it without racing on closure refresh —
+   * same pattern as addRFI / addLead.
+   */
+  const addDelayEvent = useCallback((event: DelayEvent): DelayEvent => {
+    const updated = [event, ...delayEvents];
+    setDelayEvents(updated);
+    saveDelayEventsMutation.mutate(updated);
+    if (canSync) void supabaseWrite('delay_events', 'insert', delayEventRow(event));
+    return event;
+  }, [delayEvents, saveDelayEventsMutation, canSync, delayEventRow]);
+
+  const updateDelayEvent = useCallback((id: string, updates: Partial<DelayEvent>) => {
+    const now = new Date().toISOString();
+    const updated = delayEvents.map(e => e.id === id ? { ...e, ...updates, updatedAt: now } : e);
+    setDelayEvents(updated);
+    saveDelayEventsMutation.mutate(updated);
+    const next = updated.find(e => e.id === id);
+    if (canSync && next) void supabaseWrite('delay_events', 'update', delayEventRow(next));
+  }, [delayEvents, saveDelayEventsMutation, canSync, delayEventRow]);
+
+  const deleteDelayEvent = useCallback((id: string) => {
+    const updated = delayEvents.filter(e => e.id !== id);
+    setDelayEvents(updated);
+    saveDelayEventsMutation.mutate(updated);
+    if (canSync) void supabaseWrite('delay_events', 'delete', { id });
+  }, [delayEvents, saveDelayEventsMutation, canSync]);
+
+  /** Chronological — the order a claim narrative is told in. */
+  const getDelayEventsForProject = useCallback((projectId: string) =>
+    delayEvents.filter(e => e.projectId === projectId)
+      .sort((a, b) => a.firstObservedDate.localeCompare(b.firstObservedDate)),
+  [delayEvents]);
 
   // ─────────────────────────────────────────────
   // CRM / Leads
@@ -4415,7 +4535,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject,
     prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
-  }), [changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject]);
+    delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject,
+  }), [changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject]);
 
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, getDailyReportsForProject,

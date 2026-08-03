@@ -20,6 +20,10 @@
 //                        status === 'not_started'
 //   coi_expiring         Subcontractor.coiExpiry within 30 days
 //   permit_expiring      SKIPPED — permits live outside ProjectContext
+//   notice_deadline      DelayEvent whose contractual written-notice window is
+//                        approaching or blown, plus the "set your notice
+//                        period" ask and the constructive-acceleration second
+//                        notice. Derived by utils/noticeClock.ts.
 //
 // Scoring: each rule emits a severity 1..3 (3 = hottest). The list is sorted
 // by severity desc, then by the source date asc (earlier = first). Tap-closed
@@ -32,9 +36,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
 import { groupReadyPunchItems } from '@/utils/brainWatch';
+import { buildNoticeStatus } from '@/utils/noticeClock';
 import type {
   EntityRef, Project, Invoice, RFI, Submittal, ChangeOrder, PunchItem,
-  Subcontractor, ScheduleTask, WeatherAlert,
+  Subcontractor, ScheduleTask, WeatherAlert, DelayEvent,
 } from '@/types';
 
 export type InboxCategory = 'money' | 'schedule' | 'safety' | 'other';
@@ -48,7 +53,8 @@ export type InboxRule =
   | 'punch_verify'
   | 'task_starting_today'
   | 'coi_expiring'
-  | 'permit_expiring';
+  | 'permit_expiring'
+  | 'notice_deadline';
 
 export interface InboxItem {
   /** Stable id used for dismissal tracking. `${rule}:${refKind}:${refId}` */
@@ -333,6 +339,39 @@ export function useSmartInbox(): SmartInboxResult {
         subtitle: `${sub.trade}${sub.contactName ? ` · ${sub.contactName}` : ''}`,
         sourceDate: sub.coiExpiry,
         ref: { kind: 'contact', id: sub.id },
+      });
+    }
+
+    // ── notice_deadline ──────────────────────────────────────────────────
+    // A notice deadline is the GC's OWN obligation, which is why it lives here
+    // and not in buildChaseList — that file's stated contract is "the app
+    // chases someone ELSE for you", and chasing yourself is noise
+    // (utils/systemOfAction.ts:56).
+    //
+    // This is the only rule in this file that prevents a loss rather than
+    // reporting one. Most construction contracts make written notice a
+    // condition precedent: miss the window and a real claim is waived. Greg
+    // Opinski Constr. v. City of Oakdale, 199 Cal.App.4th 1107 (2011) — the
+    // contractor owed liquidated damages despite OWNER-caused delay, because it
+    // never used the contract's procedure to extend the time.
+    for (const s of buildNoticeStatus({
+      events: (store.delayEvents as DelayEvent[]) ?? [],
+      projects: store.projects as Project[],
+      nowMs,
+    })) {
+      out.push({
+        id: `notice_deadline:delayEvent:${s.eventId}`,
+        rule: 'notice_deadline',
+        category: 'schedule',
+        severity: s.severity,
+        title: s.headline,
+        subtitle: s.detail,
+        projectId: s.projectId,
+        projectName: s.projectName,
+        // The clock counts from the day the GC first knew — not from when the
+        // event was entered — so that is the date the list sorts on.
+        sourceDate: s.deadlineDate ?? s.firstObservedDate,
+        ref: { kind: 'delayEvent', id: s.eventId, projectId: s.projectId },
       });
     }
 

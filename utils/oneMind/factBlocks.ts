@@ -262,6 +262,10 @@ export function buildRfiBlock(projectId: string, projectRfis: RFI[]): FactBlock 
   ];
   if (latency.factLine) facts.push(latency.factLine + '.');
   else if (latency.overdueCount > 0) facts.push(`${latency.overdueCount} RFI(s) past their needed-by date.`);
+  // Owner-side HOLD time, kept distinct from the round-trip line above. The
+  // round-trip figure includes the GC's own turnaround and is not a claim
+  // measure; this one is. See utils/rfiHoldTime.ts.
+  if (latency.holdFactLine) facts.push(latency.holdFactLine);
   return {
     domain: 'RFI LATENCY',
     ref: 'RFI',

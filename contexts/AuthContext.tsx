@@ -36,6 +36,10 @@ const LOCAL_USER_CACHE_KEYS = [
   // T&M / extra-work field tickets. Signed evidence naming a specific owner's
   // rep — never leave it behind on a shared device for the next tenant.
   'mageid_field_tickets',
+  // Delay register — the claim-defense spine. Names causation, the owner, and
+  // reserved dollar amounts on a specific job, and carries the GC's own
+  // contractor_caused admissions. Never leave it on a shared device.
+  'mageid_delay_events',
   'mageid_subcontractors', 'mageid_punch_items', 'mageid_photos',
   'mageid_price_alerts', 'mageid_contacts', 'mageid_comm_events',
   'mageid_rfis', 'mageid_submittals', 'mageid_oac_meetings',

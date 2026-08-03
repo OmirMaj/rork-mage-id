@@ -70,6 +70,10 @@ const CAPABILITIES: Record<EntityKind, EntityActionId[]> = {
   planMarkup:   [...UNIVERSAL, 'delete'],
   prequalPacket:[...UNIVERSAL],
   priceAlert:   [...UNIVERSAL, 'delete'],
+  // No 'delete' verb: a delay event is claim material. Removing one is a
+  // deliberate act that belongs on the record's own screen, not one tap deep in
+  // a generic action sheet.
+  delayEvent:   [...UNIVERSAL],
 };
 
 const ACTION_META: Record<EntityActionId, Omit<EntityAction, 'id'>> = {

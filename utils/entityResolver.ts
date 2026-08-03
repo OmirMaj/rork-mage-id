@@ -228,6 +228,15 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
         params: { alertId: ref.id },
       };
 
+    case 'delayEvent':
+      // The delay register is project-scoped; deep-link the list with the
+      // event pre-selected.
+      if (!ref.projectId) return null;
+      return {
+        pathname: '/delay-events',
+        params: { projectId: ref.projectId, delayEventId: ref.id },
+      };
+
     default: {
       // Exhaustiveness guard — a new EntityKind added to types/index.ts will
       // surface a TS error here.
@@ -296,6 +305,7 @@ export function resolveEntityObject(
     case 'planMarkup':
     case 'prequalPacket':
     case 'priceAlert':
+    case 'delayEvent':
       // These live outside the core projects store. Consumers that need the
       // object can pass a richer store; we return null for the default shape.
       return null;
@@ -336,6 +346,7 @@ const KIND_LABEL: Record<EntityKind, string> = {
   planMarkup: 'Markup',
   prequalPacket: 'Prequal',
   priceAlert: 'Price Alert',
+  delayEvent: 'Delay Event',
 };
 
 /**

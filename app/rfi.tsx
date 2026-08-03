@@ -28,6 +28,7 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { extractMemoryDocs, answerFromMemorySemantic } from '@/utils/projectMemory';
 import { rfiBlockStatus, overdueCalendarDays } from '@/utils/delayScan/rfiBlocking';
+import { computeRfiHoldTime } from '@/utils/rfiHoldTime';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
@@ -178,6 +179,23 @@ function RFIScreenInner() {
     if (!existingRFI || status !== 'open' || !dateRequired) return 0;
     return overdueCalendarDays(dateRequired);
   }, [existingRFI, status, dateRequired]);
+
+  // Owner-side HOLD time — how long the ball actually sat in the architect's,
+  // engineer's, or owner's court, folded from the append-only handoff chain.
+  // This is a different claim from the round-trip age the pipeline shows:
+  // Caddell lost partly because it measured total turnaround "including the
+  // time the RFIs were in Caddell's hands." Both are rendered below, labelled,
+  // and never summed. Pure math lives in utils/rfiHoldTime.ts.
+  const holdTime = useMemo(
+    () => computeRfiHoldTime({
+      handoffs: existingRFI?.handoffs,
+      status: existingRFI?.status ?? 'open',
+      dateSubmitted: existingRFI?.dateSubmitted ?? '',
+      dateResponded: existingRFI?.dateResponded,
+    }),
+    [existingRFI],
+  );
+  const dayWord = useCallback((n: number) => (n === 1 ? 'day' : 'days'), []);
 
   const handleSave = useCallback(() => {
     if (!subject.trim()) {
@@ -470,9 +488,13 @@ function RFIScreenInner() {
             <AlertTriangle size={15} color={overdueDays > 0 ? themeColors.danger : Colors.warning} strokeWidth={1.75} />
             <Text style={styles.alertBannerText}>
               {overdueDays > 0
-                ? `Response due ${overdueDays} ${overdueDays === 1 ? 'day' : 'days'} ago`
+                ? `Response due ${overdueDays} ${dayWord(overdueDays)} ago`
                 : 'Waiting on this answer'}
               {blocking.critical && blocking.taskTitle ? ` — blocks "${blocking.taskTitle}" on the critical path.` : ''}
+              {/* The claimable measure, not the round-trip age. */}
+              {holdTime.measurable && holdTime.ownerSideDays > 0
+                ? ` Owner side has held it ${holdTime.ownerSideDays} ${dayWord(holdTime.ownerSideDays)}.`
+                : ''}
             </Text>
           </View>
         )}
@@ -518,6 +540,56 @@ function RFIScreenInner() {
                 </Text>
               </View>
             </View>
+            {/* HOLD TIME — the number a delay claim actually rests on.
+                Caddell Constr. Co. v. United States (Fed. Cl. 2007) went
+                against the claimant partly because it measured RFI turnaround
+                "including the time the RFIs were in Caddell's hands." Owner-
+                side hold is the intervals the architect / engineer / owner
+                held the ball, folded from the handoff chain below. Round trip
+                is shown too, labelled as what it is, so the two never get
+                mistaken for each other. A sub's hold is the GC's own tier and
+                is listed on the GC's side — see utils/rfiHoldTime.ts. */}
+            <View style={styles.holdBlock} testID="rfi-hold-time">
+              <Text style={styles.handoffLogLabel}>Hold time</Text>
+              {holdTime.measurable ? (
+                <>
+                  <View style={styles.holdRow}>
+                    <Text style={styles.holdLabel}>Owner side held it</Text>
+                    <Text style={styles.holdValueStrong}>
+                      {holdTime.ownerSideDays} {dayWord(holdTime.ownerSideDays)}
+                      {holdTime.accruing ? ' and counting' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.holdRow}>
+                    <Text style={styles.holdLabel}>Your turnaround</Text>
+                    <Text style={styles.holdValue}>{holdTime.gcDays} {dayWord(holdTime.gcDays)}</Text>
+                  </View>
+                  {holdTime.subDays > 0 && (
+                    <View style={styles.holdRow}>
+                      <Text style={styles.holdLabel}>Held by a sub (your side)</Text>
+                      <Text style={styles.holdValue}>{holdTime.subDays} {dayWord(holdTime.subDays)}</Text>
+                    </View>
+                  )}
+                  <View style={styles.holdRow}>
+                    <Text style={styles.holdLabel}>Total elapsed, round trip</Text>
+                    <Text style={styles.holdValue}>{holdTime.elapsedDays} {dayWord(holdTime.elapsedDays)}</Text>
+                  </View>
+                  <Text style={styles.holdNote}>
+                    Owner side means the architect, engineer, or owner. A subcontractor&apos;s time
+                    counts on your side, not theirs. Round trip includes your own turnaround, so it
+                    is not a delay measure.
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.holdNote}>
+                  This RFI has no handoff log, so owner-side hold time cannot be computed — it is
+                  unknown, not zero. Total elapsed is {holdTime.elapsedDays} {dayWord(holdTime.elapsedDays)},
+                  which includes your own turnaround and is not a delay measure. Sending and
+                  answering from this screen starts the chain.
+                </Text>
+              )}
+            </View>
+
             {(existingRFI.handoffs?.length ?? 0) > 0 && (
               <View style={styles.handoffLog}>
                 <Text style={styles.handoffLogLabel}>Handoff log</Text>
@@ -1149,6 +1221,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   handoffRow: { gap: 1 },
   handoffArrow: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.text },
   handoffMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary },
+  // Hold time — owner-side custody, kept visually separate from the
+  // round-trip figures so the two claims never read as one number.
+  holdBlock: {
+    paddingTop: 8, borderTopWidth: 0.5, borderTopColor: themeColors.line,
+    gap: 4,
+  },
+  holdRow: { flexDirection: 'row' as const, alignItems: 'baseline' as const, justifyContent: 'space-between' as const, gap: 12 },
+  holdLabel: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  holdValue: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  holdValueStrong: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  holdNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 4 },
   // RFI brain — suggest button + banners
   suggestBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,

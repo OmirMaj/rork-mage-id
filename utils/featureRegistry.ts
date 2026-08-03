@@ -117,6 +117,7 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'sub-profile', title: 'Your Work Profile', synonyms: ['sub profile', 'my history', 'credential', 'my jobs', 'reliability', 'referral'], route: '/sub-profile', icon: 'HardHat', group: 'network' },
   { id: 'home-passport', title: 'Home Passport', synonyms: ['warranty', 'permit', 'maintenance', 'model number', 'home record', 'handover'], route: '/home-passport', icon: 'BadgeCheck', group: 'client' },
   { id: 'waiting-on', title: 'Waiting on Others', synonyms: ['chase', 'follow up', 'overdue rfis', 'nudge', 'who owes me'], route: '/waiting-on', icon: 'Inbox', group: 'workspace' },
+  { id: 'delay-events', title: 'Delay Register', synonyms: ['delay', 'delay log', 'notice', 'notice deadline', 'claim', 'time extension', 'delay claim', 'schedule impact log'], route: '/delay-events', icon: 'CalendarClock', group: 'project' },
   { id: 'track-record', title: 'Track Record', synonyms: ['brain accuracy', 'scoreboard', 'receipts', 'hit rate', 'how accurate', 'predicted vs actual'], route: '/track-record', requires: 'brain_accuracy', icon: 'Target', group: 'workspace' },
   { id: 'margin-board', title: 'Margin Board', synonyms: ['margins', 'portfolio', 'profit board'], route: '/portfolio-margin', requires: 'job_costing', icon: 'MageMargin', group: 'workspace' },
   { id: 'margin-alerts', title: 'Margin Alerts', synonyms: ['leak', 'profit alerts', 'slipping'], route: '/margin-alerts', requires: 'job_costing', icon: 'BellRing', group: 'workspace' },
