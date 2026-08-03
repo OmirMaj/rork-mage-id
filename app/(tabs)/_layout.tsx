@@ -122,6 +122,11 @@ export default function TabLayout() {
             web#31. This layout only hides the tab bar on desktop and adds
             the Action-Required rail on wide viewports. */}
         <View style={styles.desktopContent}>
+          {/* Constrain routed content to a centered, readable column on wide
+              displays instead of stretching full-bleed to the monitor edge —
+              the top "built by a coder, not a designer" tell. Uses the
+              responsive hook's contentMaxWidth (1400 on desktop). */}
+          <View style={[styles.desktopContentInner, { maxWidth: layout.contentMaxWidth }]}>
           <Tabs
             initialRouteName="(home)"
             screenOptions={{
@@ -148,6 +153,7 @@ export default function TabLayout() {
             <Tabs.Screen name="subs" options={{ href: null }} />
             <Tabs.Screen name="equipment" options={{ href: null }} />
           </Tabs>
+          </View>
         </View>
         {showActionRail && <DesktopActionRail />}
       </View>
@@ -256,5 +262,12 @@ const styles = StyleSheet.create({
   },
   desktopContent: {
     flex: 1,
+    // Center the routed content column when the viewport is wider than
+    // contentMaxWidth (extra space becomes symmetric margin, not full-bleed).
+    alignItems: 'center',
+  },
+  desktopContentInner: {
+    flex: 1,
+    width: '100%',
   },
 });
