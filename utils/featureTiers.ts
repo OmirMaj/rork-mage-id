@@ -39,7 +39,6 @@ export type FeatureKey =
   | 'schedule_collaboration'
   // Business-only features
   | 'unlimited_bid_responses'
-  | 'plan_viewer'
   | 'subcontractor_management'
   | 'punch_list_closeout'
   | 'rfis_submittals'
@@ -82,7 +81,6 @@ export const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   schedule_collaboration: 'pro',
   // Business-only
   unlimited_bid_responses: 'business',
-  plan_viewer: 'business',
   subcontractor_management: 'business',
   punch_list_closeout: 'business',
   rfis_submittals: 'business',
