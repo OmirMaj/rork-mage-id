@@ -68,9 +68,11 @@ QueryClientProvider
 
 Contexts are built with `@nkzw/create-context-hook` (`createContextHook`), which generates a `Provider` + typed hook pair. A context added below `Auth` gets the current user; one added above it does not.
 
+> **The tree above is ABRIDGED — it lists 8 providers; the real stack in `app/_layout.tsx` is 16.** Read the file before reasoning about provider ordering. See `docs/ARCHITECTURE-SUMMARY.md` for the verified full stack.
+
 ### State
 
-- **Local / UI**: `zustand` stores.
+- **Local / UI**: plain `useState` / `useReducer` in the owning component. (`zustand` is in `package.json` but has **zero imports anywhere in the source tree** — this line previously claimed zustand stores, which was aspirational, not real. Don't reach for it without deciding to actually adopt it; the same doc drift once claimed tRPC.)
 - **Server / remote**: `@tanstack/react-query` + Supabase client (`lib/supabase.ts`) + Supabase edge functions (`supabase/functions/*`). The app does NOT use tRPC — earlier docs claimed it did, but `lib/trpc.ts` and `backend/trpc/` do not exist.
 - **Cross-screen domain state**: the context providers listed above.
 - **Persistence**: `AsyncStorage`. All keys are namespaced under the single `mageid_*` prefix — core (`mageid_projects`, `mageid_settings`, `mageid_user_role`), project sub-collections (`mageid_change_orders`, `mageid_invoices`, `mageid_daily_reports`, `mageid_punch_items`, `mageid_photos`, `mageid_rfis`, `mageid_submittals`, `mageid_warranties`, `mageid_portal_messages`), and app state (`mageid_offline_queue`, `mageid_theme`, `mageid_auth_*`). (Historically core keys used `buildwise_*` and sub-collections used `tertiary_*`; both were unified to `mageid_*` in the pre-launch de-branding. Any NEW `mageid_*` per-user key must be added to `LOCAL_USER_CACHE_KEYS` in `contexts/AuthContext.tsx` or it leaks across tenants on shared devices.)
