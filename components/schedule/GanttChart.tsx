@@ -16,6 +16,7 @@ import {
   getPhaseColor,
 } from '@/utils/scheduleEngine';
 import { findWeatherRisk, type DayForecast } from '@/utils/weatherService';
+import { SimulatedWeatherBanner } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -144,8 +145,28 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
     );
   }, [totalDays, schedule, showBaseline, onTaskPress, forecast, projectStartDate]);
 
+  /**
+   * The forecast days that actually reach the screen: one per rendered
+   * weather badge. A badge is a claim about the weather on a specific date —
+   * if the day behind it was invented rather than observed, the chart has to
+   * say so. Days in `forecast` that produce no badge aren't displayed, so
+   * they aren't disclaimed (same rule LookaheadView uses).
+   */
+  const displayedRiskDays = useMemo(() => {
+    if (!forecast || forecast.length === 0) return [];
+    const out: DayForecast[] = [];
+    for (const t of tasks) {
+      if (!t.isWeatherSensitive) continue;
+      const risk = findWeatherRisk(projectStartDate, t.startDay, t.durationDays, forecast);
+      if (risk) out.push(risk);
+    }
+    return out;
+  }, [tasks, forecast, projectStartDate]);
+
   return (
     <View style={s.container}>
+      {/* Self-hiding when every badge is backed by a live reading. */}
+      <SimulatedWeatherBanner days={displayedRiskDays} style={s.simBannerSpacing} />
       <ScrollView horizontal showsHorizontalScrollIndicator style={s.horizontalScroll}>
         <View style={{ width: ganttWidth }}>
           <View style={s.headerRow}>
@@ -192,6 +213,8 @@ const s = StyleSheet.create({
   container: {
     flex: 1,
   },
+  // Layout only for the shared marker (components/schedule/SimulatedWeatherNotice).
+  simBannerSpacing: { marginBottom: 8 },
   horizontalScroll: {
     flex: 1,
   },

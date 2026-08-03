@@ -75,7 +75,11 @@ import { MobileScheduleScreen } from '@/components/schedule/mobile/MobileSchedul
 import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
-import { getSimulatedForecast, getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
+import { getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
+import {
+  SimulatedWeatherBanner,
+  SimulatedDayChip,
+} from '@/components/schedule/SimulatedWeatherNotice';
 import { geocodeProjectLocation, type GeocodeResult } from '@/utils/geocodeProject';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
@@ -308,27 +312,37 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   );
 
   /**
-   * Forecast driving the Gantt weather badges. We prime synchronously with
-   * simulated data so the first render has something to show, then kick off
-   * a real OpenWeather fetch (keyed to the project's location string) in
-   * an effect and swap in the real payload when it resolves. The service
-   * layer caps real calls to once per 10 minutes per location so this
-   * won't rate-limit us even if the effect re-runs.
+   * THE forecast for this screen. Drives the Gantt weather badges (horizontal
+   * + vertical) and the task-detail "Weather Impact" panel.
    *
-   * Fallback order: live OpenWeather → cached OpenWeather (<10 min) →
-   * simulated. If no EXPO_PUBLIC_OPENWEATHER_API_KEY is set, we stay on
-   * simulated forever, which is fine for dev and demo.
+   * It used to prime synchronously with getSimulatedForecast(21) — twice, once
+   * in the useState initializer and again at the top of the effect — so the
+   * first paint (and every re-run of the effect) showed invented conditions as
+   * fact, with the real payload swapping in silently afterwards. Nothing said
+   * which one you were looking at.
+   *
+   * Now it starts EMPTY and only ever holds what getForecastWithFallback
+   * returned: live OpenWeather → cached OpenWeather (<10 min) → simulated,
+   * every day tagged with its `source`. One frame with no weather badges is
+   * honest; a frame of fabricated ones is not. Prefers the project's geocoded
+   * lat/lng over the free-text address (rural sites geocode badly), matching
+   * app/schedule-pro.tsx. The service caps real calls to once per 10 minutes
+   * per location, so effect re-runs can't rate-limit us.
+   *
+   * Anything rendered from this array is marked when it isn't live — see
+   * `ganttForecastHasSim` below and components/schedule/SimulatedWeatherNotice.
    */
-  const [ganttForecast, setGanttForecast] = useState<DayForecast[]>(() =>
-    getSimulatedForecast(projectStartDate, 21),
-  );
+  const [ganttForecast, setGanttForecast] = useState<DayForecast[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    const locationHint = selectedProject?.location?.trim();
-    setGanttForecast(getSimulatedForecast(projectStartDate, 21));
+    setGanttForecast([]);
     void getForecastWithFallback(
-      { city: locationHint },
+      {
+        city: selectedProject?.location?.trim(),
+        latitude: selectedProject?.locationLatitude,
+        longitude: selectedProject?.locationLongitude,
+      },
       projectStartDate,
       21,
     ).then((forecast) => {
@@ -337,7 +351,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     return () => {
       cancelled = true;
     };
-  }, [projectStartDate, selectedProject?.location]);
+  }, [
+    projectStartDate,
+    selectedProject?.location,
+    selectedProject?.locationLatitude,
+    selectedProject?.locationLongitude,
+  ]);
 
   const filteredTasks = useMemo(() => {
     switch (filterMode) {
@@ -2062,6 +2081,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   onPhotoAdded={handlePhotoAdded}
                   healthScore={healthScore}
                   daysRemaining={daysRemaining}
+                  location={selectedProject?.location}
+                  locationLatitude={selectedProject?.locationLatitude}
+                  locationLongitude={selectedProject?.locationLongitude}
                 />
               )}
               {viewMode === 'lookahead' && (
@@ -2163,7 +2185,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     </TouchableOpacity>
                   </View>
                   {isVerticalGantt ? (
-                    <VerticalGantt schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} />
+                    <VerticalGantt schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
                   ) : (
                     <GanttChart schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
                   )}
@@ -2713,6 +2735,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     onPhotoAdded={handlePhotoAdded}
                     healthScore={healthScore}
                     daysRemaining={daysRemaining}
+                    location={selectedProject?.location}
+                    locationLatitude={selectedProject?.locationLatitude}
+                    locationLongitude={selectedProject?.locationLongitude}
                   />
                 )}
 
@@ -2829,6 +2854,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                         projectStartDate={projectStartDate}
                         onTaskPress={setTaskDetailModal}
                         showBaseline={showBaseline}
+                        forecast={ganttForecast}
                       />
                     ) : (
                       <GanttChart
@@ -3334,7 +3360,14 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
                   {(() => {
                     if (!task.isWeatherSensitive) return null;
-                    const weatherForecast = getSimulatedForecast(new Date(), 14);
+                    // Reuses the screen's real forecast (getForecastWithFallback,
+                    // keyed to this project's location) instead of the old local
+                    // getSimulatedForecast(new Date(), 14) — which invented a
+                    // fresh 14 days on every render of this modal and printed
+                    // them next to "N days of poor weather may impact this task",
+                    // a claim about reality. Beyond the forecast horizon
+                    // relevantDays is empty and the panel simply doesn't render.
+                    const weatherForecast = ganttForecast;
                     const taskDr = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
                     if (!taskDr) return null;
                     const relevantDays = weatherForecast.filter(f => {
@@ -3343,14 +3376,17 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     });
                     const badDays = relevantDays.filter(f => !f.isWorkable);
                     if (relevantDays.length === 0) return null;
+                    // Only the days actually printed below (max 7) get disclaimed.
+                    const shownDays = relevantDays.slice(0, 7);
                     return (
                       <View style={styles.weatherImpactSection}>
                         <View style={styles.weatherImpactHeader}>
                           <Cloud size={14} color={themeColors.info} strokeWidth={1.75} />
                           <Text style={styles.weatherImpactTitle}>Weather Impact</Text>
                         </View>
+                        <SimulatedWeatherBanner days={shownDays} />
                         <View style={styles.weatherImpactForecastRow}>
-                          {relevantDays.slice(0, 7).map(f => {
+                          {shownDays.map(f => {
                             const d = new Date(f.date);
                             const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
                             return (
@@ -3358,6 +3394,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                                 <Text style={styles.weatherImpactDayName}>{dayName}</Text>
                                 <Text style={styles.weatherImpactDayIcon}>{getConditionIcon(f.condition)}</Text>
                                 <Text style={styles.weatherImpactDayTemp}>{f.tempHigh}°</Text>
+                                <SimulatedDayChip source={f.source} />
                               </View>
                             );
                           })}

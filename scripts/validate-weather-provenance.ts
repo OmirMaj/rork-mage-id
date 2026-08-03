@@ -19,9 +19,9 @@
 // parse those). fileURLToPath + join because the repo path contains a space.
 //
 // Run: bun run scripts/validate-weather-provenance.ts
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 import { getSimulatedForecast, type DayForecast } from '../utils/weatherService';
 import { computeWeatherReschedule, buildWeatherDelayLog } from '../utils/weatherReschedule';
@@ -79,6 +79,35 @@ function isoForDay(startDate: Date, dayNumber: number): string {
  *  comment can't satisfy — or violate — a source assertion. */
 function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+/** Source with `import ... from '...';` statements removed. Without this, an
+ *  assertion like "renders SIMULATED_WEATHER_HEADLINE" is satisfied by a file
+ *  that merely IMPORTS the constant and then shows different copy — which is
+ *  exactly the mutation that first slipped past this validator. */
+function stripImports(src: string): string {
+  return src.replace(/^import[\s\S]*?from\s+'[^']*';$/gm, '');
+}
+
+/** Every .ts/.tsx under the given repo-relative dirs, as repo-relative paths.
+ *  Used by the sweep in section 6 so a NEW screen that renders weather is
+ *  caught automatically, without anyone remembering to add it to a list. */
+function collectSourceFiles(dirs: readonly string[]): string[] {
+  const out: string[] = [];
+  const walk = (abs: string) => {
+    let entries: string[];
+    try { entries = readdirSync(abs); } catch { return; }
+    for (const name of entries) {
+      if (name === 'node_modules' || name.startsWith('.')) continue;
+      const full = join(abs, name);
+      let st;
+      try { st = statSync(full); } catch { continue; }
+      if (st.isDirectory()) walk(full);
+      else if (name.endsWith('.tsx') || name.endsWith('.ts')) out.push(relative(ROOT, full));
+    }
+  };
+  for (const d of dirs) walk(join(ROOT, d));
+  return out.sort();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -234,10 +263,75 @@ ok("WeatherDelayLogEntry has no 'simulated' source member",
   'a wholly-simulated delay is not logged at all, so the member must not exist');
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 5. LookaheadView goes through the real fetch path and marks what it shows
+// 5. ONE marker component, owned in one place
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\n[5] LookaheadView');
+// The banner + per-day chip started life inline in LookaheadView. Four more
+// surfaces needed the same treatment, so they were lifted into
+// SimulatedWeatherNotice — the ONLY visual language for invented weather.
+// These assertions pin the treatment itself; section 6 pins its use.
+console.log('\n[5] SimulatedWeatherNotice — the single marker treatment');
 
+const NOTICE_PATH = 'components/schedule/SimulatedWeatherNotice.tsx';
+const notice = read(NOTICE_PATH);
+const noticeCode = stripComments(notice);
+// Import-stripped, so "the constant is imported" can never stand in for
+// "the constant is rendered".
+const noticeBody = stripImports(noticeCode);
+
+ok('the shared marker exports a banner and a per-day chip',
+  /export function SimulatedWeatherBanner\b/.test(noticeCode) &&
+  /export function SimulatedDayChip\b/.test(noticeCode));
+ok('the banner RENDERS the unmissable headline + body copy',
+  /\{SIMULATED_WEATHER_HEADLINE\}/.test(noticeBody) && /SIMULATED_WEATHER_BODY/.test(noticeBody),
+  'importing the copy is not the same as showing it');
+ok('the chip RENDERS the per-day label',
+  /\{SIMULATED_DAY_LABEL\}/.test(noticeBody));
+ok('the banner is gated on the days it is handed, not on config',
+  /hasSimulatedDays\(days\)/.test(noticeCode),
+  'provenance is data on every DayForecast — no feature flag decides this');
+ok('the banner renders nothing for a fully live window',
+  /if \(!hasSimulatedDays\(days\)\) return null;/.test(noticeCode),
+  'safe to mount unconditionally, so no surface can forget it');
+ok('the chip renders nothing for a live day',
+  /if \(source === 'live'\) return null;/.test(noticeCode));
+ok('the marker is inline UI, not a tooltip/title attribute',
+  /accessibilityRole="alert"/.test(noticeCode) && !/title=\{SIMULATED/.test(noticeCode));
+ok('the marker uses the amber warning palette, never info/neutral',
+  /Colors\.warningLight/.test(noticeCode) &&
+  /Colors\.warning\b/.test(noticeCode) &&
+  /Colors\.warningDark/.test(noticeCode) &&
+  !/Colors\.info/.test(noticeCode),
+  'this is a trust warning, not a hint');
+ok('the marker uses palette tokens, not a fresh hex',
+  !/#[0-9A-Fa-f]{6}/.test(noticeCode));
+ok('the marker uses the CloudOff lucide icon (no emoji)',
+  /CloudOff/.test(noticeCode) && /lucide-react-native/.test(noticeCode));
+ok('the marker headline is unmissable copy',
+  SIMULATED_WEATHER_HEADLINE === 'SIMULATED WEATHER — NOT A FORECAST',
+  `got "${SIMULATED_WEATHER_HEADLINE}"`);
+ok('the marker does not import weatherService (no cycle, structural props)',
+  !/weatherService/.test(noticeCode));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. NO surface renders a forecast without a provenance marker in scope
+// ═══════════════════════════════════════════════════════════════════════════
+// The five sites below all used to call getSimulatedForecast() and print the
+// result unlabelled. Each is now either routed to the real fetch path, or fed
+// from a surface that is — and every one of them marks what it shows.
+console.log('\n[6] Every weather surface marks what it shows');
+
+/** A file "has a marker in scope" if it MOUNTS the shared component, or (for
+ *  the two reschedule surfaces, which predate the extraction) renders the
+ *  headline copy directly. Imports are stripped first: importing the marker
+ *  and never rendering it must not count. */
+function hasMarkerInScope(src: string): boolean {
+  const body = stripImports(src);
+  return /<SimulatedWeatherBanner\b/.test(body)
+    || /<SimulatedDayChip\b/.test(body)
+    || /SIMULATED_WEATHER_HEADLINE/.test(body);
+}
+
+// ── LookaheadView (already routed; now uses the shared marker) ──────────────
 const lookahead = read('components/schedule/LookaheadView.tsx');
 const lookaheadCode = stripComments(lookahead);
 
@@ -252,20 +346,139 @@ ok('LookaheadView calls getForecastWithFallback',
 ok('LookaheadView takes the project location',
   /location\?:\s*string/.test(lookahead) && /city:\s*location/.test(lookahead),
   'live data must be for the jobsite, not a default region');
-
-ok('LookaheadView renders the simulated marker',
-  /SIMULATED_WEATHER_HEADLINE/.test(lookahead));
-ok('the marker is gated on displayed days, not on the raw fetch',
-  /hasSimulatedDays\(displayedDays\)/.test(lookahead),
+ok('LookaheadView renders the shared banner',
+  /<SimulatedWeatherBanner\b/.test(lookaheadCode));
+ok('the banner is gated on displayed days, not on the raw fetch',
+  /<SimulatedWeatherBanner\s+days=\{displayedDays\}/.test(lookaheadCode),
   'the requirement is "when any DISPLAYED day is not live"');
-ok('per-day simulated chips are rendered',
-  /SIMULATED_DAY_LABEL/.test(lookahead) && /f\.source\s*!==\s*'live'/.test(lookahead));
-ok('the marker is inline UI, not a tooltip/title attribute',
-  /simBanner/.test(lookahead) && !/title=\{SIMULATED/.test(lookahead));
-ok('the marker headline is unmissable copy',
-  SIMULATED_WEATHER_HEADLINE === 'SIMULATED WEATHER — NOT A FORECAST',
-  `got "${SIMULATED_WEATHER_HEADLINE}"`);
+ok('LookaheadView renders a per-day chip driven by each day\'s source',
+  /<SimulatedDayChip\s+source=\{f\.source\}/.test(lookaheadCode));
 
+// ── TodayView — the 6am screen. Was the worst offender. ────────────────────
+const todayView = read('components/schedule/TodayView.tsx');
+const todayViewCode = stripComments(todayView);
+
+ok('TodayView no longer imports or calls getSimulatedForecast',
+  !/\bgetSimulatedForecast\b/.test(todayViewCode),
+  "a superintendent decides whether to pour off this screen");
+ok('TodayView goes through getForecastWithFallback',
+  /getForecastWithFallback\s*\(/.test(todayViewCode));
+ok('TodayView takes the jobsite location (string + geocode)',
+  /location\?:\s*string/.test(todayView) &&
+  /locationLatitude\?:\s*number/.test(todayView) &&
+  /locationLongitude\?:\s*number/.test(todayView));
+ok('TodayView passes the location through to the fetch',
+  /city:\s*location\?\.trim\(\)/.test(todayViewCode) &&
+  /latitude:\s*locationLatitude/.test(todayViewCode) &&
+  /longitude:\s*locationLongitude/.test(todayViewCode));
+ok('TodayView starts with an EMPTY forecast, not a simulated seed',
+  /useState<DayForecast\[\]>\(\[\]\)/.test(todayViewCode),
+  'one frame with no weather is honest; a frame of invented weather is not');
+ok('TodayView marks the whole strip and each day',
+  /<SimulatedWeatherBanner\s+days=\{forecast\}/.test(todayViewCode) &&
+  /<SimulatedDayChip\s+source=\{f\.source\}/.test(todayViewCode));
+ok("TodayView marks today's own reading, not just the outlook strip",
+  /<SimulatedDayChip\s+source=\{todayWeather\.source\}/.test(todayViewCode),
+  'the number acted on at 6am is the one that most needs a source');
+
+// ── VerticalGantt — now fed by the parent's real forecast ──────────────────
+const vGantt = read('components/schedule/VerticalGantt.tsx');
+const vGanttCode = stripComments(vGantt);
+
+ok('VerticalGantt no longer imports or calls getSimulatedForecast',
+  !/\bgetSimulatedForecast\b/.test(vGanttCode));
+ok('VerticalGantt takes the forecast as a prop',
+  /forecast\?:\s*DayForecast\[\]/.test(vGantt),
+  'same array the horizontal chart gets, from getForecastWithFallback');
+ok('VerticalGantt renders NO weather when given none',
+  /forecast \?\? \[\]/.test(vGanttCode),
+  'a blank date column is honest; a fabricated one is not');
+ok('VerticalGantt marks the column and each day row',
+  /<SimulatedWeatherBanner\b/.test(vGanttCode) && /<SimulatedDayChip\b/.test(vGanttCode));
+ok('VerticalGantt disclaims only the rows it actually renders',
+  /displayedWeatherDays/.test(vGanttCode));
+
+// ── GanttChart — a weather badge is a claim about a specific date ──────────
+const gantt = read('components/schedule/GanttChart.tsx');
+const ganttCode = stripComments(gantt);
+
+ok('GanttChart never fabricates a forecast',
+  !/\bgetSimulatedForecast\b/.test(ganttCode));
+ok('GanttChart marks the badges it draws',
+  /<SimulatedWeatherBanner\b/.test(ganttCode));
+ok('GanttChart disclaims exactly the days behind rendered badges',
+  /displayedRiskDays/.test(ganttCode),
+  'forecast days that produce no badge are not displayed, so not disclaimed');
+
+// ── app/(tabs)/schedule/index.tsx — the Gantt seed + task-detail panel ─────
+const schedIndex = read('app/(tabs)/schedule/index.tsx');
+const schedIndexCode = stripComments(schedIndex);
+
+ok('the schedule screen no longer imports or calls getSimulatedForecast',
+  !/\bgetSimulatedForecast\b/.test(schedIndexCode),
+  'it did so three times: two Gantt seeds and the task-detail weather panel');
+ok('the Gantt forecast starts EMPTY rather than seeded with simulated data',
+  /useState<DayForecast\[\]>\(\[\]\)/.test(schedIndexCode) &&
+  !/useState<DayForecast\[\]>\(\(\) =>/.test(schedIndexCode),
+  'the old seed painted invented badges on first frame, then swapped silently');
+ok('the Gantt forecast comes from getForecastWithFallback',
+  /getForecastWithFallback\s*\(/.test(schedIndexCode));
+ok('the Gantt forecast uses the project location AND geocode',
+  /city:\s*selectedProject\?\.location\?\.trim\(\)/.test(schedIndexCode) &&
+  /latitude:\s*selectedProject\?\.locationLatitude/.test(schedIndexCode) &&
+  /longitude:\s*selectedProject\?\.locationLongitude/.test(schedIndexCode),
+  'lat/lng beats a free-text address on rural sites');
+ok('the task-detail weather panel reuses the real forecast',
+  /const weatherForecast = ganttForecast;/.test(schedIndexCode),
+  'it used to mint getSimulatedForecast(new Date(), 14) on every render');
+ok('the task-detail weather panel marks what it prints',
+  /<SimulatedWeatherBanner\s+days=\{shownDays\}/.test(schedIndexCode) &&
+  /<SimulatedDayChip\s+source=\{f\.source\}/.test(schedIndexCode));
+ok('both VerticalGantt mounts are fed the real forecast',
+  (schedIndexCode.match(/forecast=\{ganttForecast\}/g) ?? []).length === 4,
+  'two GanttChart mounts + two VerticalGantt mounts (mobile + desktop)');
+ok('both TodayView mounts are fed the jobsite location',
+  (schedIndexCode.match(/location=\{selectedProject\?\.location\}/g) ?? []).length === 4 &&
+  (schedIndexCode.match(/locationLatitude=\{selectedProject\?\.locationLatitude\}/g) ?? []).length === 2,
+  'two TodayView + two LookaheadView mounts take `location`; TodayView also takes lat/lng');
+
+// ── The sweep: nothing NEW may render weather unmarked ─────────────────────
+// Two independent nets, so a future surface can't slip through by copying
+// either half of the old pattern.
+const RENDERS_FORECAST = /getConditionIcon\s*\(/;      // turns a DayForecast into pixels
+const IMPORTS_SIMULATOR = /\bgetSimulatedForecast\b/;  // mints one locally
+
+const uiFiles = collectSourceFiles(['app', 'components']);
+
+const unmarkedRenderers = uiFiles.filter((rel) => {
+  const src = stripComments(read(rel));
+  return RENDERS_FORECAST.test(src) && !hasMarkerInScope(src);
+});
+ok('no UI file renders a forecast without a provenance marker in scope',
+  unmarkedRenderers.length === 0,
+  unmarkedRenderers.join(', '));
+
+const simulatorUsers = uiFiles.filter((rel) => IMPORTS_SIMULATOR.test(stripComments(read(rel))));
+ok('no UI file calls getSimulatedForecast at all',
+  simulatorUsers.length === 0,
+  `getForecastWithFallback is the entry point for every screen — found: ${simulatorUsers.join(', ')}`);
+const unmarkedSimulatorUsers = simulatorUsers.filter((rel) => !hasMarkerInScope(stripComments(read(rel))));
+ok('and if one ever comes back, it must ship a marker with it',
+  unmarkedSimulatorUsers.length === 0,
+  unmarkedSimulatorUsers.join(', '));
+
+ok('every one of the five original offenders is covered',
+  ([
+    'app/(tabs)/schedule/index.tsx',
+    'components/schedule/VerticalGantt.tsx',
+    'components/schedule/TodayView.tsx',
+  ] as const).every((rel) => {
+    const src = stripComments(read(rel));
+    return !IMPORTS_SIMULATOR.test(src) && hasMarkerInScope(src);
+  }),
+  'schedule/index.tsx x3, VerticalGantt x1, TodayView x1');
+
+// ── The two reschedule surfaces (unchanged, still asserted) ────────────────
 // The screen that actually applies a reschedule must disclose provenance too —
 // otherwise the blocked delay-log entry is a silent no-op.
 const modal = read('components/schedule/WeatherRescheduleModal.tsx');
@@ -292,9 +505,9 @@ ok('the delay-log writer uses the project location / geocode',
   'lat/lng beats a free-text address on rural sites');
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. The env var is documented where a developer will see it
+// 7. The env var is documented where a developer will see it
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\n[6] EXPO_PUBLIC_OPENWEATHER_API_KEY is documented');
+console.log('\n[7] EXPO_PUBLIC_OPENWEATHER_API_KEY is documented');
 
 ok('weatherService header names the env var',
   serviceSrc.slice(0, 2000).includes(WEATHER_API_KEY_ENV),
@@ -306,9 +519,9 @@ ok('CLAUDE.md documents the env var',
   'the repo-level doc a developer actually reads');
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7. HireContext is inert while HIRE_ENABLED is false
+// 8. HireContext is inert while HIRE_ENABLED is false
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\n[7] HireContext issues no query and opens no Realtime channel');
+console.log('\n[8] HireContext issues no query and opens no Realtime channel');
 
 ok('queries are disabled when the flag is off', hireQueriesEnabled(false) === false);
 ok('queries are enabled when the flag is on', hireQueriesEnabled(true) === true);

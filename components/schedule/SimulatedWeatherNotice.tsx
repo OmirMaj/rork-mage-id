@@ -139,6 +139,11 @@ const s = StyleSheet.create({
     borderColor: Colors.warning,
   },
   simDayChipText: {
+    // 9pt, carried over verbatim from LookaheadView's original chip. Below
+    // Type's smallest token (caption2, 11) on purpose: the chip has to sit
+    // under a weather glyph inside an ~60px day column and inside the
+    // vertical Gantt's 80px date gutter without wrapping. Do not "fix" this
+    // to a token without re-checking both of those columns.
     fontSize: 9,
     fontWeight: '800' as const,
     color: Colors.warningDark,
