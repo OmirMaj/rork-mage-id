@@ -790,12 +790,23 @@ export default function ProjectDetailScreen() {
       ? `${branding.companyName} - Estimate: ${project.name}`
       : `Estimate: ${project.name}`;
 
-    const body = buildEstimateTextForEmail(project, branding);
+    // Mirror the same patched-project pattern used by handleSharePDF so the
+    // emailed estimate text and the PDF agree on the bulk-savings figure.
+    const projectForEmail = project.estimate
+      ? {
+          ...project,
+          estimate: {
+            ...project.estimate,
+            bulkSavingsTotal: showBulkSavings ? totalBulkSavings : undefined,
+          },
+        }
+      : project;
+    const body = buildEstimateTextForEmail(projectForEmail, branding);
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     Linking.openURL(mailtoUrl).catch(() => {
       showAlert('Unable to open email', 'Please check your email app is configured.');
     });
-  }, [project, branding]);
+  }, [project, branding, showBulkSavings, totalBulkSavings]);
 
   const handleShareText = useCallback(() => {
     if (!project) return;
@@ -1258,7 +1269,7 @@ export default function ProjectDetailScreen() {
           <View style={[detailStyles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
             <TrendingDown size={28} color={themeColors.success} strokeWidth={1.75} />
           </View>
-          <Text style={[detailStyles.heroAmount, { color: themeColors.success }]}>{formatMoney(savingsBreakdown.totalBulkSavings)}</Text>
+          <Text style={[detailStyles.heroAmount, { color: themeColors.success }]}>{formatMoney(totalBulkSavings)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
           <View style={detailStyles.heroChips}>
             {showBulkSavings && (savingsBreakdown.savingsRate ?? 0) > 0 ? (
