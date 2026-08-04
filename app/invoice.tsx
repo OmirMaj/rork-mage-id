@@ -139,20 +139,29 @@ function InvoiceInner() {
   // "Create invoice" on a payment milestone. They are carried through the
   // editor and only acted on once the invoice is ACTUALLY created — opening
   // this screen and backing out must leave the milestone billable.
-  const { projectId, invoiceId, type: invoiceType, prefillLines, prefillNotes, milestoneId, contractId } = useLocalSearchParams<{
+  const { projectId: paramProjectId, invoiceId, type: invoiceType, prefillLines, prefillNotes, milestoneId, contractId } = useLocalSearchParams<{
     projectId: string; invoiceId?: string; type?: string;
     prefillLines?: string; prefillNotes?: string;
     milestoneId?: string; contractId?: string;
   }>();
   const {
-    getProject, getInvoicesForProject, addInvoice, updateInvoice, settings, updateSettings,
+    projects, getProject, getInvoicesForProject, addInvoice, updateInvoice, settings, updateSettings,
     getChangeOrdersForProject, contacts, invoices: allInvoices,
   } = useProjects();
   const { tier } = useSubscription();
   const { user } = useAuth();
   const { ensureReferral } = useFinancingReferrals(user?.id);
 
+  // Reached from the sidebar, universal search or a deep link there is no
+  // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
+
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
   const existingInvoice = useMemo(() => invoiceId ? existingInvoices.find(i => i.id === invoiceId) : null, [invoiceId, existingInvoices]);
   const approvedCOs = useMemo(() => {
@@ -995,17 +1004,18 @@ function InvoiceInner() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Invoices' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Invoices"
+          message="Invoices live inside a project so they roll up to the right billing total."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MageInvoice size={36} color={themeColors.accent} />}
-          title="No invoice open yet"
-          message="Invoices live inside a project so they roll up to the right billing total. To create one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Invoices in the project tile grid.',
             'Hit + New Invoice and bill against an estimate or line items.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

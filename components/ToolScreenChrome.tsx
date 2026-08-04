@@ -17,7 +17,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, FolderOpen, Plus } from 'lucide-react-native';
+import { ChevronLeft, FolderOpen, Plus, AlertTriangle } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -62,27 +62,52 @@ export function ToolHeader({ eyebrow, title, right }: {
 
 // ─── ToolProjectPicker ────────────────────────────────────────────────────────
 
-export function ToolProjectPicker({ toolName, message, projects, onPick }: {
+export function ToolProjectPicker({
+  toolName, message, projects, onPick, staleProjectId, icon, steps,
+}: {
   /** Used in the section title + no-projects empty state. */
   toolName: string;
   /** One sentence: what this tool does and why it needs a project. */
   message: string;
   projects: Project[];
   onPick: (projectId: string) => void;
+  /** Set when the screen WAS opened with a projectId that matches no project —
+   *  a stale deep link, a shared URL, or a project that has since been deleted.
+   *  That is a different failure from "arrived with no id at all": the user
+   *  asked for something specific and it is gone, so say so instead of silently
+   *  showing a picker (or, as before, a blank screen). */
+  staleProjectId?: string;
+  /** The host screen's own icon, so the picker keeps that tool's identity in
+   *  the zero-projects empty state. Defaults to a folder. */
+  icon?: React.ReactNode;
+  /** Optional "do this, then this" steps for the zero-projects empty state. */
+  steps?: string[];
 }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
+  // A user with genuinely zero projects cannot pick one, so the honest next
+  // action is to create one — /?openCreate=1 opens the create-project sheet on
+  // Home (consumed by app/(tabs)/(home)/index.tsx), rather than dropping them
+  // on an empty Projects list to find the "+" themselves.
+  const createProject = () =>
+    router.push({ pathname: '/' as never, params: { openCreate: '1' } as never });
+
   if (projects.length === 0) {
     return (
       <View style={styles.pickerEmptyWrap}>
         <EmptyState
-          icon={<FolderOpen size={36} color={t.accent} strokeWidth={1.6} />}
+          icon={icon ?? <FolderOpen size={36} color={t.accent} strokeWidth={1.6} />}
           title="No projects yet"
-          message={`${message} Create a project first so the results have somewhere to land.`}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as never)}
+          message={
+            staleProjectId
+              ? `That project no longer exists, and there are no others to open. ${message}`
+              : `${message} Create a project first so ${toolName} has somewhere to land.`
+          }
+          steps={steps}
+          actionLabel="Create a project"
+          onAction={createProject}
         />
       </View>
     );
@@ -90,6 +115,15 @@ export function ToolProjectPicker({ toolName, message, projects, onPick }: {
 
   return (
     <ScrollView contentContainerStyle={styles.pickerContent} showsVerticalScrollIndicator={false}>
+      {staleProjectId ? (
+        <View style={styles.staleNotice} testID="tool-picker-stale-notice">
+          <AlertTriangle size={16} color={t.warningLabel} strokeWidth={1.9} />
+          <Text style={styles.staleNoticeText}>
+            That link points at a project that no longer exists. Pick one below to
+            open {toolName}.
+          </Text>
+        </View>
+      ) : null}
       <Text style={styles.pickerLead}>{message}</Text>
       <Text style={styles.sectionTitle}>Pick a project</Text>
       {projects.map(p => (
@@ -104,6 +138,15 @@ export function ToolProjectPicker({ toolName, message, projects, onPick }: {
           <Plus size={16} color={t.accent} strokeWidth={1.75} />
         </TouchableOpacity>
       ))}
+      <TouchableOpacity
+        style={styles.pickCreateRow}
+        onPress={createProject}
+        activeOpacity={0.8}
+        testID="tool-pick-create-project"
+      >
+        <Plus size={16} color={t.accent} strokeWidth={1.9} />
+        <Text style={styles.pickCreateText}>New project</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -131,4 +174,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line, padding: 14, marginBottom: 8,
   },
   pickRowTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  pickCreateRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
+    gap: 8, paddingVertical: 12, marginTop: 4,
+  },
+  pickCreateText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.accent },
+  staleNotice: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10,
+    backgroundColor: t.warningSoft, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.warningSoft, padding: 12, marginBottom: 14,
+  },
+  staleNoticeText: {
+    flex: 1, fontSize: Type.footnote.fontSize, color: t.warningLabel, lineHeight: 18,
+  },
 });
