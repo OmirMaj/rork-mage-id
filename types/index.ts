@@ -71,7 +71,10 @@ export interface EstimateBreakdown {
   contingency: number;
   materialTotal: number;
   laborTotal: number;
-  bulkSavingsTotal: number;
+  // DERIVED, not authored. Real value comes from utils/bulkSavings.ts
+  // (computeBulkSavings) at render time. Seed/demo code must NOT set this to a
+  // fabricated figure — a demo shows real savings only via awarded BidPackages.
+  bulkSavingsTotal?: number;
   subtotal: number;
   tax: number;
   grandTotal: number;
