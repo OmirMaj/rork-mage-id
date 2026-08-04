@@ -1425,7 +1425,12 @@ export default function ProjectDetailScreen() {
                 )}
               </View>
               <View style={styles.heroStatsRow}>
-                {estimate && (
+                {/* Legacy estimate sub-stats ONLY when no linkedEstimate drives the
+                    headline (effectiveEstimateTotal prefers linkedEstimate). Otherwise
+                    per-sqft / duration / bulk-savings are stale legacy figures sitting
+                    directly under a headline computed from the linked grandTotal — two
+                    numbers on one card that disagree. Restored from PR #81. */}
+                {estimate && !linkedEstimate && (
                   <>
                     <View style={styles.heroStatSmall}>
                       <Text style={styles.smallStatLabel}>Per Sq Ft</Text>
