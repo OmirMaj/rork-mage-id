@@ -29,7 +29,7 @@ import {
   Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
   Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
   PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
-  Ruler, ScanLine, HardHat, ScanSearch, IdCard,
+  Ruler, ScanLine, HardHat, ScanSearch, IdCard, ScanEye,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -86,10 +86,23 @@ export default function DiscoverToolsScreen() {
           <NavRow
             Icon={MageAIMark}
             title="Construction AI"
-            subtitle="Building code check, scope assistant"
+            subtitle="Code check, AI permit roadmap & plan review"
             tone="accent"
             onPress={() => router.push('/(tabs)/construction-ai' as never)}
             testID="tools-construction-ai"
+          />
+          <Divider styles={styles} />
+          {/* Cost X-Ray was reachable only from the desktop sidebar and Cmd-K —
+              the 2026-08-03 UX audit flagged flagship features missing from the
+              Tools grid, which is the only discovery surface on iOS. Restored
+              from PR #85. */}
+          <NavRow
+            Icon={ScanEye}
+            title="Cost X-Ray"
+            subtitle="Camera prices the hidden conditions you can't see — on your learned costs"
+            tone="accent"
+            onPress={() => router.push('/cost-xray' as never)}
+            testID="tools-cost-xray"
           />
           <Divider styles={styles} />
           <NavRow

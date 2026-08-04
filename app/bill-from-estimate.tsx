@@ -230,7 +230,20 @@ export default function BillFromEstimateScreen() {
       return;
     }
     setBillingHint(null);
-    const activeRows = rows.filter(r => selected[r.key] && (amountsByKey[r.key] ?? 0) > 0);
+    // De-dupe by billing key BEFORE building line items. `amountsByKey`,
+    // `billPercents` and `selected` are all keyed by `r.key` (= materialId||name),
+    // so two source rows sharing a key would each emit a line reading the SAME
+    // keyed amount — double-counting the stored `lineItems` while `subtotal` /
+    // `totalDue` (summed from the per-key `amountsByKey`) count it once. Keeping
+    // one row per key makes Σ(line.total) === subtotal exactly, so the detail
+    // recompute, the PDF and the stored/list total all agree.
+    const seenKeys = new Set<string>();
+    const activeRows = rows.filter(r => {
+      if (!(selected[r.key] && (amountsByKey[r.key] ?? 0) > 0)) return false;
+      if (seenKeys.has(r.key)) return false;
+      seenKeys.add(r.key);
+      return true;
+    });
     if (activeRows.length === 0) {
       showAlert('Nothing to Bill', 'Select at least one line item and enter a billing percent greater than zero.');
       return;
