@@ -46,6 +46,7 @@ import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -73,6 +74,8 @@ export default function BuyoutPackageScreen() {
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds — same reason as app/bid-leveling.tsx.
+  const { seeds } = useCostSeeds();
 
   const pkg = useMemo(() => packageId ? getBidPackage(packageId) : null, [packageId, getBidPackage]);
   const bids = useMemo(() => packageId ? getBidsForPackage(packageId) : [], [packageId, getBidsForPackage]);
@@ -153,7 +156,7 @@ export default function BuyoutPackageScreen() {
     }
     setLeveling(true);
     try {
-      const result = await levelBids({ pkg, bids, projects, commitments, receipts });
+      const result = await levelBids({ pkg, bids, projects, commitments, receipts, seeds });
       await recordAIUsage('smart', 'bidLeveling');
       setLevelingResult(result);
       // Persist each adjustment back to the bid records — but only when
@@ -181,7 +184,7 @@ export default function BuyoutPackageScreen() {
     } finally {
       setLeveling(false);
     }
-  }, [pkg, bids, projects, commitments, receipts, updateBidPackageBid, subscriptionTier]);
+  }, [pkg, bids, projects, commitments, receipts, seeds, updateBidPackageBid, subscriptionTier]);
 
   // ── Award a bid ─────────────────────────────────────────────
   // Prequal gate (industry must-have): when the bidder is a tracked

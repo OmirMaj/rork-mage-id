@@ -393,7 +393,7 @@ export interface PortalSnapshot {
       id: string; number: number | string; description: string;
       changeAmount: number; status: string; dateSubmitted?: string;
       /** v10 — the record the homeowner is actually signing. A change order
-       *  is a contract amendment; ESIGN/UETA wants the terms in front of the
+       *  is a contract amendment, so the terms have to be in front of the
        *  signer, not just a dollar figure. All three are contract-level and
        *  client-facing (the same numbers already on the CO the GC emailed) —
        *  no cost buildup, markup, or margin. */

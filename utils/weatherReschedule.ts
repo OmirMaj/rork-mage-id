@@ -69,7 +69,7 @@ export interface WeatherRescheduleResult {
   /** Distinct non-workable dates that actually hit a task, ascending. */
   affectedDates: string[];
   /** Subset of `affectedDates` backed by a real OpenWeather reading. Only
-   *  these are admissible as delay documentation. */
+   *  these came from a real reading. */
   liveAffectedDates: string[];
   /** Subset of `affectedDates` that came from getSimulatedForecast — invented,
    *  with no relation to the jobsite. Never evidence. */

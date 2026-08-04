@@ -1,25 +1,25 @@
-// validate-claim-metrics.ts — pins the two Phase-1 claim-defense metrics.
+// validate-claim-metrics.ts — pins the two record-keeping metrics.
 //
-// Both exist because a number computed the obvious way loses the case.
+// Both exist because the obvious way to compute the number is wrong.
 //
 // 1. RFI OWNER-SIDE HOLD TIME (utils/rfiHoldTime.ts)
-//    Caddell Constr. Co. v. United States (Fed. Cl. 2007): the claimant
-//    measured RFI turnaround "including the time the RFIs were in Caddell's
-//    hands" and lost on it. Round-trip age is not a delay measure. The
-//    claimable number is the summed time a NON-GC party held the ball, folded
-//    from the append-only RFIHandoff chain. A subcontractor is the GC's own
-//    tier, so sub time is tracked and deliberately kept OUT of the owner-side
-//    figure — lumping it in would be the same defect one level down.
+//    Round-trip age — submitted to answered — includes the days the RFI sat
+//    on the GC's own desk, so it measures nobody's responsiveness in
+//    particular. The useful number is the summed time a NON-GC party held the
+//    ball, folded from the append-only RFIHandoff chain. A subcontractor is
+//    the GC's own tier, so sub time is tracked and deliberately kept OUT of
+//    the owner-side figure — lumping it in is the same defect one level down.
 //
 // 2. DAILY-LOG COMPLETION (utils/dailyLogCompletion.ts)
-//    FRE 803(6)(C) — routineness — is where daily logs die (Meltech Corp.,
-//    ASBCA No. 61765: the PM "did not 'make[] a habit of noting'" problems).
-//    "Self-serving" is expressly NOT a ground for exclusion, so the metric is
-//    completion over expected working days, not report quality. A report that
-//    records "nothing happened" is a COMPLETION. A Sunday on a 5-day job is
-//    not a miss. And nothing may reward backfilling, because a report written
-//    after the fact is not contemporaneous (Vistas Construction, ASBCA Nos.
-//    58479-58488: it "essentially re-wrote these documents").
+//    A log with holes in it tells you nothing about the days in the holes, so
+//    the metric is completion over expected working days, not report quality.
+//    A report that records "nothing happened" is a COMPLETION. A Sunday on a
+//    5-day job is not a miss. And nothing may reward backfilling, because a
+//    report written weeks later carries the date it was written.
+//
+// 3. NO LEGAL ADVICE. Neither module may cite a rule, name a case, or say
+//    anything about how a record will be received. Enforced at the bottom of
+//    this file, over the sources AND over every string they generate.
 //
 // Pure node:fs for the wiring checks — no bundler, no react-native import.
 // Run: bun run scripts/validate-claim-metrics.ts
@@ -66,7 +66,7 @@ ok('owner side is architect, engineer, owner — and only those',
 
 ok('a sub is NOT owner side',
   !OWNER_SIDE_PARTIES.includes('sub') && holdSideOf('sub') === 'sub',
-  'a subcontractor is the GC\'s own tier; counting its time against the owner is the Caddell defect one level down');
+  'a subcontractor is the GC\'s own tier; counting its time against the owner pads the figure with time the GC controlled');
 ok('the GC is not owner side', holdSideOf('gc') === 'gc');
 ok('a closed RFI holds for nobody', holdSideOf('closed') === 'none');
 
@@ -85,7 +85,7 @@ const simple = computeRfiHoldTime({
 }, { nowMs: ms('2026-06-20') });
 
 ok('hold time counts only the architect-held interval', simple.ownerSideDays === 10, `got ${simple.ownerSideDays}, expected 10`);
-ok('GC-held days are captured separately, not in the claim', simple.gcDays === 5, `got ${simple.gcDays}, expected 5`);
+ok('GC-held days are captured separately, not in the owner-side figure', simple.gcDays === 5, `got ${simple.gcDays}, expected 5`);
 ok('round-trip elapsed is larger than owner-side hold',
   simple.elapsedDays === 12 && simple.elapsedDays > simple.ownerSideDays,
   `elapsed ${simple.elapsedDays}, hold ${simple.ownerSideDays}`);
@@ -119,7 +119,7 @@ ok('four separate GC holds sum (2 + 1 + 2 + 2)', bounced.gcDays === 7, `got ${bo
 ok('custody partitions the whole span with nothing double-counted',
   bounced.ownerSideDays + bounced.gcDays + bounced.subDays === 19,
   `owner ${bounced.ownerSideDays} + gc ${bounced.gcDays} + sub ${bounced.subDays}`);
-ok('the claim figure is strictly smaller than round-trip whenever the GC held it at all',
+ok('the owner-side figure is strictly smaller than round-trip whenever the GC held it at all',
   bounced.ownerSideDays < bounced.elapsedDays,
   `hold ${bounced.ownerSideDays} vs elapsed ${bounced.elapsedDays}`);
 ok('every custody interval is recorded', bounced.segments.length === 8, `got ${bounced.segments.length}`);
@@ -378,8 +378,8 @@ ok('the longest run before the gap is kept', withGap.longestStreak === 7, `got $
 ok('the completion rate reflects the hole', Math.round(withGap.completionRate * 100) === 90,
   `got ${Math.round(withGap.completionRate * 100)}`);
 ok('the gap line states the fact', /no log/i.test(dailyLogGapLine(withGap) ?? ''), dailyLogGapLine(withGap) ?? 'null');
-ok('the gap line says filing late does not close the gap',
-  /does not close it/i.test(dailyLogGapLine(withGap) ?? ''), dailyLogGapLine(withGap) ?? 'null');
+ok('the gap line explains why filing now would not close the gap',
+  /would carry today's date/i.test(dailyLogGapLine(withGap) ?? ''), dailyLogGapLine(withGap) ?? 'null');
 ok('no gap line when the record is unbroken', dailyLogGapLine(withDeadDay) === null);
 
 // ── Today is not a miss until the day is over ──────────────────────────────
@@ -442,7 +442,7 @@ ok('the empty-day line says those days count',
 ok('no headline before there is a record', dailyLogHeadline(computeDailyLogCompletion({ reports: [], todayISO: TODAY })) === null);
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HOUSE VOICE — this is evidentiary hygiene, not a game
+// HOUSE VOICE — this is record keeping, not a game
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\nhouse voice (no gamification):');
 
@@ -478,6 +478,9 @@ ok('the RFI screen computes hold time', /computeRfiHoldTime/.test(rfiScreen));
 ok('the RFI screen labels the owner-side hold', /Owner side held it/.test(rfiScreen));
 ok('the RFI screen labels the round-trip figure as round trip', /round trip/i.test(rfiScreen));
 ok('the RFI screen states that a sub\'s time is the GC\'s side', /sub/i.test(rfiScreen) && /not theirs/i.test(rfiScreen));
+ok('the RFI screen does not call round trip a delay measure or a claim',
+  !/is not a delay measure/i.test(rfiScreen) && !/claimable/i.test(rfiScreen),
+  'round trip is described by what it contains, not by what it is worth');
 ok('the RFI screen says an RFI with no chain is unknown, not zero', /unknown, not zero/i.test(rfiScreen));
 ok('the overdue banner carries the hold figure', /Owner side has held it/.test(rfiScreen));
 
@@ -497,6 +500,77 @@ ok('the dead-day path files zero crew rather than inventing any',
   /manpower: \[\],\n\s*workPerformed: text,/.test(dfr));
 ok('the dead-day shortcut only offers itself on an untouched new report',
   /showNoWorkShortcut = !existingReport/.test(dfr));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NO LEGAL ADVICE — the founder's ship-without-a-lawyer rule
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// These two metrics are useful operational tracking. They stop being shippable
+// the moment they start explaining evidence law to a contractor. So: no rule
+// or statute citations, no case names, and nothing about how a record will be
+// received later. Run over the sources AND over the strings they generate,
+// because a clean module that renders a bad sentence is not clean.
+console.log('\nno legal advice:');
+
+const LEGAL_SOURCES: { rel: string; text: string }[] = [
+  'utils/rfiHoldTime.ts',
+  'utils/rfiLatency.ts',
+  'utils/dailyLogCompletion.ts',
+  'components/home/DailyLogCard.tsx',
+].map(rel => ({ rel, text: read(rel) }));
+
+// Screens are shared files, so only the blocks these metrics own are scanned.
+function blockOf(rel: string, from: string, to: string): { rel: string; text: string } {
+  const src = read(rel);
+  const start = src.indexOf(from);
+  const end = src.indexOf(to, start);
+  return { rel: `${rel} (${from.slice(0, 24)}…)`, text: start >= 0 && end > start ? src.slice(start, end) : '' };
+}
+const rfiHoldBlock = blockOf('app/rfi.tsx', 'Owner-side HOLD time', 'Handoff log');
+const dfrNoWorkBlock = blockOf('app/daily-report.tsx', 'Nothing happened today', 'sectionCard');
+ok('the RFI hold block was found for scanning', rfiHoldBlock.text.length > 200);
+ok('the daily-report no-work block was found for scanning', dfrNoWorkBlock.text.length > 200);
+
+const NO_ADVICE: { re: RegExp; why: string }[] = [
+  { re: /\bFRE\s*\d|\b803\(6\)|Federal Rule[s]? of Evidence|\bRule 803\b/i, why: 'evidence-rule citation' },
+  { re: /§\s*\d|\bA201\b|\bE-?SIGN\b|\bUETA\b/i, why: 'statute or contract-form citation' },
+  { re: /\bF\.\s?[23]d\b|Cal\.\s?App|\bASBCA\b|\bCBCA\b|Fed\.\s?(Cir|Cl)\./i, why: 'case reporter citation' },
+  { re: /\b(Mingus|Zafer|Fraser|Meltech|Vistas|Caddell|Opinski)\b/, why: 'case name' },
+  { re: /admissib|business record[s]? (rule|exception)|hearsay/i, why: 'admissibility claim' },
+  { re: /\bholds? up\b|stand[s]? up in court|little credence|gets? (the )?(whole )?record attacked/i,
+    why: 'claim about how the record will be received' },
+  { re: /unassailable|legally binding|tamper[- ]proof|court[- ]ready/i, why: 'guarantee' },
+  { re: /survives? cross-examination|opposing counsel|not contemporaneous\b/i, why: 'litigation framing' },
+  { re: /\bclaimable\b|as a delay claim|is not a delay measure/i, why: 'frames the metric by its legal worth' },
+];
+for (const { re, why } of NO_ADVICE) {
+  const hits = [...LEGAL_SOURCES, rfiHoldBlock, dfrNoWorkBlock]
+    .filter(s => re.test(s.text)).map(s => s.rel);
+  ok(`no metric source carries a ${why}`, hits.length === 0,
+    hits.length ? `/${re.source.slice(0, 44)}/ — found in: ${hits.join(', ')}` : undefined);
+}
+
+for (const { re, why } of NO_ADVICE) {
+  const bad = ALL_COPY.find(s => re.test(s));
+  ok(`no generated metric line carries a ${why}`, !bad, bad);
+}
+
+// NEGATIVE CONTROLS — every sentence below shipped in an earlier version of
+// these files. If the scanner stops catching them it has stopped working.
+for (const planted of [
+  'Under FRE 803(6)(C) the record has to be a regular practice.',
+  'Meltech Corp. (ASBCA No. 61765) is the cautionary case.',
+  'A gap is what gets the whole record attacked, and filing it late does not close it.',
+  'An unbroken record is what makes the log hold up.',
+  'Round trip includes your own turnaround, so it is not a delay measure.',
+]) {
+  ok(`NEGATIVE: the scanner fires on "${planted.slice(0, 42)}…"`,
+    NO_ADVICE.some(({ re }) => re.test(planted)));
+}
+ok('NEGATIVE: an ordinary metric sentence is NOT flagged',
+  !NO_ADVICE.some(({ re }) => re.test(
+    'Owner side held it 12 days. Your turnaround was 5 days. Total elapsed, round trip: 17 days.')),
+  'the scanner must not be so broad that the feature cannot describe itself');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

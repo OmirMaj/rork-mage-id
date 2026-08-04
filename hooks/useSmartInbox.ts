@@ -348,12 +348,9 @@ export function useSmartInbox(): SmartInboxResult {
     // chases someone ELSE for you", and chasing yourself is noise
     // (utils/systemOfAction.ts:56).
     //
-    // This is the only rule in this file that prevents a loss rather than
-    // reporting one. Most construction contracts make written notice a
-    // condition precedent: miss the window and a real claim is waived. Greg
-    // Opinski Constr. v. City of Oakdale, 199 Cal.App.4th 1107 (2011) — the
-    // contractor owed liquidated damages despite OWNER-caused delay, because it
-    // never used the contract's procedure to extend the time.
+    // Every date here is counted from the notice window the user entered on
+    // the project themselves. MAGE does not read contracts and does not supply
+    // a default — see utils/noticeClock.ts.
     for (const s of buildNoticeStatus({
       events: (store.delayEvents as DelayEvent[]) ?? [],
       projects: store.projects as Project[],

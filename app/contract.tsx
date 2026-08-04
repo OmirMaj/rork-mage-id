@@ -57,6 +57,9 @@ import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStat
 import { snapshotPatch } from '@/utils/estimateCommit';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 
 // Pipeline shown at the top of every saved contract. Void is omitted
 // from the visual (user can still set status=void via the existing UI);
@@ -104,6 +107,13 @@ function ContractScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const { projectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
   const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject } = useProjects();
+  // The converted_to_contract snapshot was building its cost book from closed
+  // jobs ALONE — no receipts, no self-perform labor, no seeds — so it graded
+  // itself against a thinner book than the wizard that produced the estimate.
+  // All four inputs now, matching app/estimate-wizard.tsx.
+  const { receipts } = useMaterialReceipts();
+  const laborSamples = useLaborCostSamples();
+  const { seeds } = useCostSeeds();
   const { isFree } = useTierAccess();
   const project = projectId ? getProject(projectId) : undefined;
 
@@ -344,7 +354,7 @@ function ContractScreenInner() {
         if (Object.keys(_cvSnap).length) ctxUpdateProject(project.id, _cvSnap);
         // G4: fire-and-forget capture — ledger failure must never break signing
         try {
-          const snapshotPayload = buildEstimateSnapshotPayload(project, projects, commitments);
+          const snapshotPayload = buildEstimateSnapshotPayload(project, projects, commitments, receipts, laborSamples, seeds);
           if (snapshotPayload) {
             recordPrediction(
               'estimate_confidence_snapshot',
@@ -484,7 +494,7 @@ function ContractScreenInner() {
     } finally {
       setSigning(false);
     }
-  }, [contract, project, ctxUpdateProject, settings, isFree]);
+  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds]);
 
   const handleSealSignedContract = useCallback(async () => {
     if (!project || !contract || !user?.id) return;

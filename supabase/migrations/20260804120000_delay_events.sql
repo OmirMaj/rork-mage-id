@@ -1,7 +1,5 @@
 -- ============================================================================
--- delay_events — the claim-defense spine.
---
--- Spec: docs/superpowers/specs/2026-08-03-claim-defense-design.md §2.2, §2.3.
+-- delay_events — the row that ties a delay to its evidence.
 --
 -- ── WHY A TABLE AND NOT A JSONB ARRAY ON projects.schedule ──────────────────
 -- The obvious cheap move is to hang a `delayEvents[]` array off the schedule
@@ -12,7 +10,7 @@
 --   describes projects.schedule as "two writers on one JSONB cell (whole-row
 --   upsert, last-write-wins clobber)".
 --
--- Legal evidence must not live behind last-write-wins. Two devices, or one
+-- Evidence must not live behind last-write-wins. Two devices, or one
 -- device and a stale bundle, and a carefully-provenanced delay record is
 -- silently overwritten by whoever saves the schedule last. Nothing warns
 -- anyone. (This is also a LIVE pre-existing bug for weatherDelayLog, which
@@ -28,9 +26,9 @@
 -- 20260803140000_collaborator_rls_field_tables.sql scoped collaborator access
 -- to FIELD tables only and explicitly excluded the financial/contractual
 -- cluster, because the roles are owner|editor|viewer with no field-vs-money
--- separation. A delay register is claim material: it names causation, dollar
--- reservations, and the GC's own contractor_caused admissions. It belongs on
--- the change_orders side of that line until a real 'field' role exists.
+-- separation. A delay register is sensitive: it names causation, dollar
+-- reservations, and the GC's own contractor_caused entries. It belongs on the
+-- change_orders side of that line until a real 'field' role exists.
 --
 -- ── WHAT PHASE 1 DOES NOT DO ────────────────────────────────────────────────
 -- No sealing RPC, no BEFORE UPDATE / BEFORE DELETE immutability trigger, no
@@ -71,8 +69,8 @@ CREATE TABLE IF NOT EXISTS public.delay_events (
   description text NOT NULL DEFAULT '',
 
   -- DelayEvidenceRef[] — POINTERS, never copies. {kind, id, capturedAt, note}.
-  -- A copy is a second version of a fact that can drift from the first, which
-  -- is the exact failure a claim packet must not have.
+  -- A copy is a second version of a fact that can drift from the first, and a
+  -- record with two versions of one fact is worth less than one.
   evidence jsonb NOT NULL DEFAULT '[]'::jsonb,
 
   -- Schedule task ids the GC ASSERTS were impacted. Critical-path status is
@@ -81,31 +79,25 @@ CREATE TABLE IF NOT EXISTS public.delay_events (
   impacted_task_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
 
   claimed_days integer NOT NULL DEFAULT 0 CHECK (claimed_days >= 0),
-  -- Days another delay ran concurrently. The honest field that makes the
-  -- register survive cross-examination: under the general US rule a concurrent
-  -- contractor-caused delay converts excusable-compensable into excusable but
-  -- NON-compensable — the GC gets the time, not the money. A register that
-  -- cannot represent it produces a packet opposing counsel dismantles in one
-  -- question.
+  -- Days another delay ran concurrently, including one of the GC's own. The
+  -- honest field: a register that cannot show an overlap is describing half a
+  -- week.
   concurrent_days integer CHECK (concurrent_days IS NULL OR concurrent_days >= 0),
 
   -- DelayNotice[] — {id, kind, sentAt, method, recipient, daysRequested,
   -- reservedClaimDescription, reservedAmount, reservedDaysClaimed,
   -- portalMessageId, note}.
   --
-  -- Two legal constraints live in utils/noticeClock.ts rather than as CHECKs,
+  -- Two completeness rules live in utils/noticeClock.ts rather than as CHECKs,
   -- because they are per-element rules inside a JSON array and the app must be
-  -- able to explain WHY it refused rather than surface a constraint violation:
-  --   * a reservation of rights needs a named claim AND an amount — Mingus
-  --     Constructors v. United States, 812 F.2d 1387 (Fed. Cir. 1987) held
-  --     generic reservation language "insufficient as a matter of law";
-  --   * an extension request must state an amount of time — Zafer Taahhut
-  --     Insaat v. United States, 833 F.3d 1356, 1362 (Fed. Cir. 2016).
+  -- able to explain WHICH field is empty rather than surface a constraint
+  -- violation:
+  --   * a reservation of rights needs a named claim AND an amount;
+  --   * an extension request records how many days were asked for.
   notices jsonb NOT NULL DEFAULT '[]'::jsonb,
 
   -- DEFAULT 'unclassified' AND IT MUST STAY THAT WAY. The app may SUGGEST a
-  -- classification from `cause`; it must never conclude one. Entitlement is
-  -- the GC's assertion and their attorney's argument.
+  -- classification from `cause`; the user sets it.
   classification text NOT NULL DEFAULT 'unclassified'
     CHECK (classification IN (
       'excusable_compensable', 'excusable_noncompensable',
@@ -113,7 +105,7 @@ CREATE TABLE IF NOT EXISTS public.delay_events (
     )),
 
   -- The change order that resolved it, when one did. Closes the loop backwards
-  -- from the CO to the cause — the direction a claim is actually argued. Kept
+  -- from the CO to the cause — the direction the story is actually told. Kept
   -- as a plain text id (no FK) so a delay logged before its CO exists, or one
   -- whose CO was deleted, still stands as a record.
   change_order_id text,
@@ -140,7 +132,7 @@ CREATE INDEX IF NOT EXISTS delay_events_user_idx
   ON public.delay_events(user_id);
 
 -- The register query: every delay on a job, oldest first (chronological is the
--- order a claim narrative is told in).
+-- order the story is told in).
 CREATE INDEX IF NOT EXISTS delay_events_project_idx
   ON public.delay_events(project_id, first_observed_date);
 
@@ -191,10 +183,9 @@ CREATE POLICY delay_events_update ON public.delay_events
   WITH CHECK (auth.uid() = user_id);
 
 -- DELETE is owner-only and, for now, unrestricted. This is a KNOWN GAP, not an
--- oversight: §6.4 of the spec records that every sealed row in this product is
--- still deletable by its owner, and that there is no litigation-hold concept
--- anywhere. The BEFORE DELETE trigger and legal_hold_at belong to Phase 2.
--- Until they ship, nothing may describe these rows as immutable.
+-- oversight: every sealed row in this product is still deletable by its owner,
+-- and there is no hold concept anywhere. A BEFORE DELETE trigger is future
+-- work. Until it ships, nothing may describe these rows as immutable.
 CREATE POLICY delay_events_delete ON public.delay_events
   FOR DELETE TO authenticated
   USING (auth.uid() = user_id);

@@ -17,21 +17,39 @@
 //   5. seeded entries stay distinguishable from earned ones — in the sample,
 //      in the entry, in the database rollup, and in the provenance label
 //   6. a real closed job outweighs and corrects the seed
+//   7. DURABILITY (§11): the Postgres round-trip keeps the deterministic id and
+//      every provenance-bearing field, the migration's PK is composite, and the
+//      hook writes through the offline queue rather than supabase.from()
+//   8. REACH (§12): all 16 cost-book consumers actually RECEIVE seeds. These
+//      are source-level assertions on purpose — the exact failure this feature
+//      already shipped with was "the 5th arg exists and eleven callers don't
+//      pass it", which no behavioural test of the engine can catch.
+//   9. THE FIREWALL AT EACH NEW SITE (§13): every newly-wired surface is
+//      exercised against a seeded-only book and must still refuse to present a
+//      stated rate as a measured one.
 //
 // Run: bun run scripts/validate-cost-seed.ts
 
 import {
   parseSeedLine, parseSeedBlob, canonicalSeedUnit, seedKey, seedId,
   draftsToSeeds, mergeSeeds, seedsToCostSamples, isSeedSample, describeSeed,
+  seedToRow, rowToSeed, reconcileSeeds,
   SEED_PROJECT_PREFIX, SEED_UNITS,
   type SeededRate, type SeededRateDraft,
 } from '../utils/costSeedCore';
 import { buildCostDatabase, lookupRate } from '../utils/costDatabase';
 import { matchOwnRate, normalizeUnit, priceSourceLabel } from '../utils/takeoffPricing';
 import { REQUIRED_TIER } from '../utils/featureTiers';
-import type { Project, Commitment } from '../types';
+import { computeEstimateConfidence } from '../utils/estimateConfidence';
+import { buildEstimateSnapshotPayload } from '../utils/brain/estimateSnapshot';
+import { computeBidVerdict } from '../utils/judges/computeBidVerdict';
+import { buildNarrationPrompt } from '../utils/judges/narrateVerdict';
+import { priceTell, DEFAULT_VARIABILITY } from '../utils/costXray';
+import { priceLeakItems } from '../utils/profitLeak/priceLeakItems';
+import { checkSubBid } from '../utils/profitLeak/subBidCheck';
+import type { Project, Commitment, LinkedEstimate } from '../types';
 // fileURLToPath + join because the repo path contains a space.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -454,6 +472,434 @@ expect('the registry entry is gated at Pro too',
 const core = src('utils/costSeedCore.ts');
 ok('costSeedCore imports nothing from react-native / expo / a hook',
   !/from '(react-native|expo|@\/hooks|@\/components|@\/contexts)/.test(core));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 11. DURABILITY — a price book that evaporates on reinstall is worse than
+//     none, because by then they'd stopped double-checking the numbers
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// V1 was AsyncStorage-only. The data the whole cost moat rests on did not
+// survive a reinstall and never reached a second device.
+
+const UID = '11111111-2222-3333-4444-555555555555';
+
+// ── The round trip. The deterministic id is the thing that must survive: it
+// is what makes re-importing a corrected spreadsheet an UPDATE rather than a
+// second row, both locally (mergeSeeds) and server-side (upsert on the PK).
+const rich: SeededRate = draftsToSeeds(
+  [{ trade: 'Drywall hang & finish', unit: 'SF', rate: 3.2, reportedJobs: 9, asOf: '2025-11-03', note: 'includes labor', raw: '' }],
+  { now: NOW, method: 'manual' },
+)[0];
+
+const pgRow = seedToRow(rich, UID);
+expect('pgRow carries the deterministic id verbatim', pgRow.id, seedId('Drywall hang & finish', 'SF'));
+expect('pgRow is owned — RLS has something to check', pgRow.user_id, UID);
+expect('snake_case reaches PostgREST', [pgRow.reported_jobs, pgRow.as_of], [9, '2025-11-03']);
+
+const back = rowToSeed(pgRow);
+expect('round-trip preserves the id', back?.id, rich.id);
+expect('…and re-deriving from the round-tripped trade+unit lands on the SAME id',
+  seedId(back!.trade, back!.unit), rich.id);
+expect('round-trip preserves trade / unit / rate',
+  [back?.trade, back?.unit, back?.rate], [rich.trade, rich.unit, rich.rate]);
+expect('round-trip preserves the self-reported job count (display-only)',
+  back?.reportedJobs, 9);
+expect('round-trip preserves asOf / note / method',
+  [back?.asOf, back?.note, back?.method], ['2025-11-03', 'includes labor', 'manual']);
+expect('round-trip normalizes createdAt to canonical ISO', back?.createdAt, NOW);
+ok('a Postgres +00:00 timestamp still normalizes to the same instant',
+  rowToSeed({ ...pgRow, created_at: '2026-01-15 00:00:00+00' })?.createdAt === NOW);
+
+// THE PROVENANCE ROUND TRIP: a restored seed must still be a CLAIM. If a
+// reinstall silently promoted stated rates to measured ones, the restore would
+// be worse than the loss it fixed.
+const restoredDb = buildCostDatabase(emptyProjects, emptyCommitments, [], [], [back!]);
+const restoredEntry = lookupRate(restoredDb, 'Drywall hang & finish', 'SF');
+expect('a restored seed is still flagged seeded', restoredEntry?.provenance, 'seeded');
+expect('…still counts ZERO jobs — a reinstall does not promote a claim',
+  restoredEntry?.jobCount, 0);
+expect('…still contributes no bid bias', restoredEntry?.bidBias, 0);
+expect('…still leaves overallBidAccuracy null', restoredDb.overallBidAccuracy, null);
+expect('…and jobsAnalyzed stays 0', restoredDb.jobsAnalyzed, 0);
+ok('the restored sample keeps the seed: projectId prefix',
+  seedsToCostSamples([back!])[0].projectId.startsWith(SEED_PROJECT_PREFIX));
+expect('the restored sample keeps bidUnit 0', seedsToCostSamples([back!])[0].bidUnit, 0);
+
+// Re-importing a correction after a restore must still collapse to one pgRow.
+const corrected = draftsToSeeds([{ trade: 'drywall hang & finish', unit: 'sf', rate: 3.85, raw: '' }], { now: NOW });
+const afterCorrection = mergeSeeds([back!], corrected);
+expect('a corrected re-import after a restore replaces, never duplicates',
+  afterCorrection.merged.length, 1);
+expect('…at the corrected rate', afterCorrection.merged[0].rate, 3.85);
+expect('…on the same deterministic id', afterCorrection.merged[0].id, rich.id);
+
+// Junk rows must not survive the wire any more than they survive the cache.
+expect('a pgRow with no rate is dropped, not imported as NaN', rowToSeed({ ...pgRow, rate: null }), null);
+expect('a zero-rate pgRow is dropped', rowToSeed({ ...pgRow, rate: 0 }), null);
+expect('a tradeless pgRow is dropped', rowToSeed({ ...pgRow, trade: '   ' }), null);
+expect('a non-object is dropped', rowToSeed('nope'), null);
+expect('an id-less pgRow re-derives its id from trade+unit',
+  rowToSeed({ ...pgRow, id: undefined })?.id, rich.id);
+
+// ── reconcileSeeds: the local-vs-server merge.
+const older: SeededRate = { ...rich, rate: 10, createdAt: '2026-01-01T00:00:00.000Z' };
+const newer: SeededRate = { ...rich, rate: 20, createdAt: '2026-06-01T00:00:00.000Z' };
+expect('a reinstall (empty local) restores every server row',
+  reconcileSeeds([], [newer]).length, 1);
+expect('a pending local edit is NOT reverted by a stale server copy',
+  reconcileSeeds([newer], [older])[0].rate, 20);
+expect('a newer statement from another device wins',
+  reconcileSeeds([older], [newer])[0].rate, 20);
+expect('reconcile unions rather than replaces — nothing is dropped',
+  reconcileSeeds(firstImport, [newer]).length, 3);
+expect('reconcile is keyed like mergeSeeds — one row per trade+unit',
+  reconcileSeeds([rich], [{ ...rich, trade: 'DRYWALL HANG & FINISH', unit: 'sf' }]).length, 1);
+
+// ── The migration. Generated, deliberately NOT applied — a production schema
+// change is the founder's call.
+const MIGRATIONS = join(ROOT, 'supabase', 'migrations');
+const seedMigrationFile = readdirSync(MIGRATIONS).find(f => /_cost_seeds\.sql$/.test(f));
+ok('a cost_seeds migration exists', !!seedMigrationFile, String(seedMigrationFile));
+const mig = seedMigrationFile ? readFileSync(join(MIGRATIONS, seedMigrationFile), 'utf8') : '';
+
+// Shape checks run against the DDL with `--` comments stripped: this file's
+// header DISCUSSES the single-column PK and TO PUBLIC as the things it is
+// deliberately not doing, and a naive grep would read the warning as the bug.
+const ddl = mig.replace(/^[ \t]*--.*$/gm, '');
+
+ok('it creates public.cost_seeds', /CREATE TABLE IF NOT EXISTS public\.cost_seeds/.test(ddl));
+
+// THE COLLISION GUARD. seedId is deterministic from trade+unit, so EVERY
+// contractor who frames walls produces 'seed-framing-sf'. With `id text PRIMARY
+// KEY` the second contractor's insert is a duplicate-key violation — which
+// utils/offlineQueue classifies TERMINAL and DISCARDS. Their rates would be
+// dropped on the floor. The PK must be composite.
+ok('the PK is COMPOSITE (user_id, id) — deterministic ids collide across users',
+  /PRIMARY KEY \(user_id, id\)/.test(ddl));
+ok('…and is NOT a bare single-column id PK',
+  !/\bid text PRIMARY KEY/.test(ddl));
+ok('the deterministic id is documented as not globally unique',
+  /globally unique/.test(mig));
+
+// RLS mirroring 20260804120000_delay_events.sql: owner-only, all four commands.
+ok('RLS is enabled', /ALTER TABLE public\.cost_seeds ENABLE ROW LEVEL SECURITY/.test(ddl));
+for (const cmd of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+  ok(`there is a ${cmd} policy`, new RegExp(`FOR ${cmd} TO authenticated`).test(ddl));
+}
+expect('every policy is owner-scoped on auth.uid() = user_id',
+  (ddl.match(/auth\.uid\(\) = user_id/g) ?? []).length >= 5, true);
+ok('UPDATE carries WITH CHECK too (no re-keying a row onto another user)',
+  /FOR UPDATE TO authenticated\s+USING \(auth\.uid\(\) = user_id\)\s+WITH CHECK \(auth\.uid\(\) = user_id\)/.test(ddl));
+ok('policies are TO authenticated, not TO PUBLIC', !/TO PUBLIC/i.test(ddl));
+ok('a bad rate cannot be written around the parser', /CHECK \(rate > 0/.test(ddl));
+ok('reported_jobs is documented as display-only',
+  /DISPLAY ONLY/.test(mig));
+
+// ── The hook. Local-first cache + queued writes.
+const hook = src('hooks/useCostSeeds.ts');
+ok('the hook still caches to AsyncStorage (works offline AND pre-migration)',
+  /AsyncStorage/.test(hook) && /mageid_cost_seeds/.test(hook));
+ok('writes go through supabaseWrite (utils/offlineQueue), never a raw write',
+  /supabaseWrite\(/.test(hook) &&
+  !/supabase\.from\([^)]*\)\s*\.\s*(insert|update|delete|upsert)/.test(hook));
+ok('the write is an UPSERT — a deterministic id re-insert is a terminal dup-key',
+  /supabaseWrite\(TABLE, 'upsert'/.test(hook));
+ok('deletes are queued too', /supabaseWrite\(TABLE, 'delete'/.test(hook));
+ok('the seed→row mapper is used, so user_id rides along for RLS',
+  /seedToRow\(s, userId\)/.test(hook));
+ok('the query is keyed by user so a tenant switch refetches',
+  /\['cost-seeds', userId\]/.test(hook));
+ok('the pre-migration schema-cache behaviour is documented, not discovered',
+  /schema-cache/.test(hook));
+// A local row the server has never seen is a rate still one reinstall from
+// being lost — seeds entered in onboarding before the auth session hydrated,
+// or a queued write dropped at the offline queue's 1,000-entry cap.
+ok('local rows the server has never seen are backfilled on sync',
+  /BACKFILL/.test(hook) && /onServer\.has\(seedKey\(s\.trade, s\.unit\)\)/.test(hook));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 12. REACH — the arg exists and the callers pass it
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// This is the failure mode the feature actually shipped with: buildCostDatabase
+// grew an additive 5th `seeds` arg, five callers passed it, and ELEVEN did not.
+// A seeded contractor got their own numbers in the estimate wizard and generic
+// AI everywhere else. Nothing about the engine can detect that, so it is
+// pinned at the source.
+
+/** Every file that builds a cost book, and the call that must carry seeds. */
+const COST_BOOK_CONSUMERS: { file: string; why: string }[] = [
+  // Wired at launch (2026-08-03).
+  { file: 'app/estimate-wizard.tsx', why: 'the estimate itself' },
+  { file: 'app/(tabs)/estimate/full.tsx', why: 'the full estimate screen' },
+  { file: 'app/takeoff-estimate.tsx', why: 'takeoff pricing' },
+  { file: 'app/area-takeoff.tsx', why: 'area takeoff' },
+  { file: 'app/cost-database.tsx', why: 'the price book screen' },
+  // The eleven that were not.
+  { file: 'app/cost-xray.tsx', why: 'hidden-condition allowances' },
+  { file: 'app/daily-report.tsx', why: 'profit-leak pricing' },
+  { file: 'app/job-costing.tsx', why: 'the sub-bid reality check' },
+  { file: 'app/estimate-confidence.tsx', why: 'per-line confidence' },
+  { file: 'utils/aiService.ts', why: 'change-order impact' },
+  { file: 'utils/bidLevelingEngine.ts', why: 'bid leveling' },
+  { file: 'utils/instantBid.ts', why: 'the instant ROM' },
+  { file: 'utils/copilot/estimate/estimateGrounding.ts', why: 'the copilot interview' },
+  { file: 'utils/judges/runJudges.ts', why: 'the bid verdict' },
+  { file: 'utils/brain/estimateSnapshot.ts', why: 'the brain snapshot' },
+  { file: 'components/BidConfidenceBadge.tsx', why: 'the confidence pill' },
+];
+
+for (const c of COST_BOOK_CONSUMERS) {
+  const body = src(c.file);
+  ok(`${c.file} builds its cost book WITH seeds (${c.why})`,
+    /buildCostDatabase\([^;]*?,\s*seeds\s*\)/.test(body),
+    (/buildCostDatabase\([^;]*?\)/.exec(body) ?? ['<no call found>'])[0]);
+}
+expect('all 16 cost-book consumers are accounted for', COST_BOOK_CONSUMERS.length, 16);
+
+// Screens/components read seeds from the hook…
+for (const f of [
+  'app/cost-xray.tsx', 'app/daily-report.tsx', 'app/job-costing.tsx',
+  'app/estimate-confidence.tsx', 'components/BidConfidenceBadge.tsx',
+]) {
+  ok(`${f} actually calls useCostSeeds()`, /useCostSeeds\(\)/.test(src(f)));
+}
+
+// …and the pure engines get theirs from a caller. Half of the eleven never
+// build the book from their own hooks, so wiring the engine alone is a no-op —
+// these pin the CALLER side, which is where the bug lived.
+const CALLER_HANDOFFS: { caller: string; pattern: RegExp; why: string }[] = [
+  { caller: 'app/judges.tsx', pattern: /receipts, laborSamples, seeds \}/, why: 'JudgesContext → runJudges' },
+  { caller: 'app/copilot.tsx', pattern: /receipts, laborSamples, seeds \}/, why: 'ctx bag → estimateGrounding' },
+  { caller: 'app/submit-bid-response.tsx', pattern: /laborSamples, seeds \}/, why: 'groundingContext → instantBid' },
+  { caller: 'components/InstantBidProposalModal.tsx', pattern: /laborSamples, seeds \}/, why: 'groundingContext → instantBid' },
+  { caller: 'app/bid-leveling.tsx', pattern: /levelBids\(\{ pkg, bids, projects, commitments, receipts, seeds \}\)/, why: '→ bidLevelingEngine' },
+  { caller: 'app/buyout-package.tsx', pattern: /levelBids\(\{ pkg, bids, projects, commitments, receipts, seeds \}\)/, why: '→ bidLevelingEngine' },
+  { caller: 'components/AIChangeOrderImpact.tsx', pattern: /analyzeChangeOrderImpact\([^;]*laborSamples, seeds\)/, why: '→ aiService' },
+  { caller: 'app/contract.tsx', pattern: /buildEstimateSnapshotPayload\([^;]*seeds\)/, why: '→ estimateSnapshot' },
+];
+for (const h of CALLER_HANDOFFS) {
+  ok(`${h.caller} passes seeds onward (${h.why})`, h.pattern.test(src(h.caller)));
+}
+// estimate-wizard calls the snapshot builder from three separate commit paths.
+expect('all three estimate-wizard snapshot calls carry seeds',
+  (src('app/estimate-wizard.tsx').match(/laborSamples, seeds,/g) ?? []).length, 3);
+
+// A seeded contractor most plausibly has ZERO projects — they pasted a rate
+// sheet and haven't created a job yet. Both instant-bid callers used to gate
+// grounding on projects.length > 0, which threw those seeds away.
+for (const f of ['app/submit-bid-response.tsx', 'components/InstantBidProposalModal.tsx']) {
+  ok(`${f} grounds on seeds even with no projects yet`,
+    /projects\.length > 0\) \|\| seeds\.length > 0/.test(src(f)));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 13. THE FIREWALL AT EACH NEWLY-WIRED SITE
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Reaching more surfaces is only worth doing if none of them start describing
+// a stated rate as a measured one. Each block below runs the real engine
+// against a seeded-only book.
+
+const SEEDED_ONLY = buildCostDatabase(emptyProjects, emptyCommitments, [], [], SEEDS);
+const EARNED_ONLY = buildCostDatabase(emptyProjects, emptyCommitments, [], [realSample], []);
+
+// ── JUDGES. Coverage is the load-bearing number here twice over: it is shown
+// as "% from your history" AND it scales how far the verdict may move off
+// neutral (confWeight). Seeded coverage must be reported apart from both.
+const seededVerdict = computeBidVerdict({
+  lines: [{ category: 'Framing', unit: 'SF', quantity: 100, bidUnit: 12 }],
+  costDb: SEEDED_ONLY,
+  targetMargin: 0.2,
+  typeMargin: { avgMarginPct: 0.3, jobCount: 6 },
+  capacity: { loadPct: 0.1, bookedSolid: false, overlappingProjects: 0 },
+});
+expect('JUDGES prices the line from the seeded rate (the point of wiring it)',
+  seededVerdict.lines[0].usedUnit, 12.5);
+expect('…and the priced line is stamped seeded', seededVerdict.lines[0].provenance, 'seeded');
+expect('measured coverage stays 0 on a seeded-only book', seededVerdict.coveragePct, 0);
+expect('…the seeded share is reported separately', seededVerdict.seededCoveragePct, 1);
+ok('the confidence chip never merges the two',
+  (seededVerdict.drivers.find(d => d.kind === 'cost_confidence')?.detail ?? '')
+    .includes('0% of this scope is priced from your own history'),
+  seededVerdict.drivers.find(d => d.kind === 'cost_confidence')?.detail);
+ok('…and it names the stated share out loud',
+  (seededVerdict.drivers.find(d => d.kind === 'cost_confidence')?.detail ?? '')
+    .includes('rates you set yourself'));
+ok('a disclaimer says the scope is priced off unmeasured rates',
+  seededVerdict.disclaimers.some(s => s.includes('rates you set yourself')),
+  seededVerdict.disclaimers.join(' | '));
+// The damping test: strong signals + a fully seeded book must NOT buy a 'take'
+// that an equally strong EARNED book would earn.
+const earnedVerdict = computeBidVerdict({
+  lines: [{ category: 'Framing', unit: 'SF', quantity: 100, bidUnit: 12 }],
+  costDb: EARNED_ONLY,
+  targetMargin: 0.2,
+  typeMargin: { avgMarginPct: 0.3, jobCount: 6 },
+  capacity: { loadPct: 0.1, bookedSolid: false, overlappingProjects: 0 },
+});
+ok('a seeded book cannot buy the confidence an earned one does',
+  seededVerdict.fitScore < earnedVerdict.fitScore,
+  `seeded=${seededVerdict.fitScore} earned=${earnedVerdict.fitScore}`);
+expect('an earned book still reports full measured coverage', earnedVerdict.coveragePct, 1);
+expect('…and zero seeded coverage', earnedVerdict.seededCoveragePct, 0);
+// The LLM that phrases the verdict must be told which kind of number it holds.
+const narration = buildNarrationPrompt(seededVerdict);
+ok('the narration prompt tells the model the rate is SELF-REPORTED',
+  /SET THEMSELVES/.test(narration) && /not measured/.test(narration), narration.slice(0, 400));
+ok('…and forbids calling it history',
+  /Do NOT describe these as history/.test(narration));
+ok('an earned verdict\'s prompt carries no self-reported caveat',
+  !/SET THEMSELVES/.test(buildNarrationPrompt(earnedVerdict)));
+
+// ── ESTIMATE CONFIDENCE + the BidConfidenceBadge pill that opens it.
+// The score is "share of estimate $ backed by ALIGNED, PROVEN costs". A seeded
+// rate may light up the underpriced warning; it must never raise the score.
+const estimate: LinkedEstimate = {
+  id: 'est-1',
+  items: [{
+    materialId: 'm1', name: 'Wall framing', category: 'Framing', unit: 'SF',
+    quantity: 100, unitPrice: 12.5, bulkPrice: 0, markup: 0, usesBulk: false,
+    lineTotal: 1250, supplier: '',
+  }],
+  globalMarkup: 0, baseTotal: 1250, markupTotal: 0, grandTotal: 1250, createdAt: NOW,
+};
+const seededProject = { id: 'p-seed', name: 'Cold Start', linkedEstimate: estimate } as unknown as Project;
+
+const coldConf = computeEstimateConfidence(seededProject, cold);
+const seededConf = computeEstimateConfidence(seededProject, SEEDED_ONLY);
+expect('with no book at all the line reads no_history', coldConf.lines[0].confidence, 'no_history');
+expect('a seeded book gives the line a rate to check against',
+  seededConf.lines[0].learnedRate, 12.5);
+expect('…and the line is no longer flagged unknown', seededConf.lines[0].flag, 'aligned');
+expect('…but its confidence stays low', seededConf.lines[0].confidence, 'low');
+expect('…and it honestly reports zero jobs', seededConf.lines[0].jobCount, 0);
+expect('NOTHING is "backed by proven costs" on a seeded-only book',
+  seededConf.backedCost, 0);
+expect('…so the Bid Confidence score stays 0 — no fabricated credibility',
+  seededConf.score, 0);
+// The same shape of estimate against three real closed jobs DOES score — so
+// the zero above is the firewall doing its job, not computeEstimateConfidence
+// being incapable of scoring anything. (Priced at the blended $14 those jobs
+// imply, so the line reads 'aligned'; the seeded case above was aligned too.)
+const earnedProject = {
+  id: 'p-earned', name: 'Real Jobs',
+  linkedEstimate: {
+    ...estimate,
+    items: [{ ...estimate.items[0], unitPrice: 14, lineTotal: 1400 }],
+    baseTotal: 1400, grandTotal: 1400,
+  },
+} as unknown as Project;
+const earnedConf = computeEstimateConfidence(
+  earnedProject,
+  buildCostDatabase(emptyProjects, emptyCommitments, [], [
+    realSample, { ...realSample, projectId: 'p2', closedAt: '2026-01-11' },
+    { ...realSample, projectId: 'p3', closedAt: '2026-01-12' },
+  ], []),
+);
+expect('three closed jobs lift the line to medium confidence', earnedConf.lines[0].confidence, 'medium');
+ok('a measured book CAN score — the zero above is the firewall, not a bug',
+  earnedConf.score > 0, `score=${earnedConf.score} flag=${earnedConf.lines[0].flag}`);
+
+// ── BRAIN SNAPSHOT. This payload is what the brain later grades ITSELF on, so
+// an inflated coveragePct would corrupt its own track record.
+const seededSnap = buildEstimateSnapshotPayload(seededProject, emptyProjects, emptyCommitments, [], [], SEEDS);
+expect('the snapshot prices the line off the seed', seededSnap?.lines[0].confidenceBand, 'low');
+expect('…but claims zero coverage — the brain never grades itself on a claim',
+  seededSnap?.coveragePct, 0);
+
+// ── COST X-RAY. Two firewalls: the caption, and the band.
+const TELL = {
+  key: 'panel_fpe_zinsco' as const, category: 'electrical' as const,
+  tell: 'FPE panel', severity: 'high' as const, confidence: 90, likelihood: 80,
+  photoIndex: 0, bbox: { x: 0, y: 0, w: 1, h: 1 },
+};
+const XRAY_SEEDS = draftsToSeeds([{ trade: 'Electrical', unit: 'EA', rate: 3000, raw: '' }], { now: NOW });
+const xraySeeded = priceTell(TELL, buildCostDatabase(emptyProjects, emptyCommitments, [], [], XRAY_SEEDS));
+const xrayCatalog = priceTell(TELL, cold);
+expect('X-Ray prices the tell off the seeded rate', xraySeeded.band.expected, Math.round(0.8 * 3000));
+expect('…labelled seeded, so the screen cannot say "your job history"',
+  xraySeeded.rateBasis, 'seeded');
+expect('a bookless scan is labelled catalog', xrayCatalog.rateBasis, 'catalog');
+expect('an earned book is labelled earned',
+  priceTell(TELL, buildCostDatabase(emptyProjects, emptyCommitments, [], [{
+    ...realSample, trade: 'Electrical', unit: 'EA', quantity: 4, actualUnit: 2800,
+  }], [])).rateBasis, 'earned');
+ok('a seeded allowance keeps a real RANGE — one stated number is not certainty',
+  xraySeeded.band.low < xraySeeded.band.expected && xraySeeded.band.expected < xraySeeded.band.high,
+  JSON.stringify(xraySeeded.band));
+expect('…using the catalog band width, not a fake 0% spread',
+  xraySeeded.band.low, Math.max(0, Math.round(xraySeeded.band.expected * (1 - DEFAULT_VARIABILITY))));
+ok('the screen has a distinct caption for a seeded rate',
+  /seeded: 'the rate you set yourself'/.test(src('app/cost-xray.tsx')));
+ok('…and no longer captions everything learned as "your job history"',
+  !/hasLearnedRate \? 'your job history'/.test(src('app/cost-xray.tsx')));
+
+// ── PROFIT LEAK (daily report). Out-of-scope work now gets a price instead of
+// "price it yourself" — carrying the right label.
+const leak = priceLeakItems(
+  [{ trade: 'Framing', unit: 'SF', quantity: 40, description: 'extra wall', confidence: 'high', reportQuote: '' } as never],
+  SEEDED_ONLY,
+);
+expect('a seeded book prices a flagged leak item', leak[0].estimatedPrice, 500);
+expect('…stamped seeded so the row cannot read "from your cost history"',
+  leak[0].rateProvenance, 'seeded');
+expect('…at low confidence', leak[0].rateConfidence, 'low');
+expect('an earned book stamps earned',
+  priceLeakItems([{ trade: 'Framing', unit: 'SF', quantity: 40, description: 'x', confidence: 'high', reportQuote: '' } as never],
+    EARNED_ONLY)[0].rateProvenance, 'earned');
+ok('the daily report renders the seeded caption differently',
+  /rateProvenance === 'seeded' \? 'from the rate you set'/.test(src('app/daily-report.tsx')));
+
+// ── SUB-BID REALITY CHECK (job costing). A seeded book gives it an expectation
+// to compare against; its copy never claims a job count either way.
+const subVerdict = checkSubBid(
+  { id: 'c1', projectId: 'p-seed', amount: 800, description: 'Framing', vendorName: 'Ace' } as never,
+  seededProject,
+  SEEDED_ONLY,
+);
+expect('a seeded book gives the sub-bid check a basis', subVerdict.basis, 'trade_match');
+expect('…priced at the stated rate (100 SF × $12.50)', subVerdict.expected, 1250);
+expect('…and flags the 36%-under bid', subVerdict.verdict, 'low');
+ok('the sub-bid copy never cites a job count for a seeded rate',
+  !/\d+ jobs?\b/.test(subVerdict.detail), subVerdict.detail);
+
+// ── AI GROUNDING FACTS. Every prompt that can now see a seeded rate must say
+// so in the prompt text — the model is the surface most likely to launder a
+// claim into a measurement.
+const GROUNDING_PROMPTS: { file: string; why: string }[] = [
+  { file: 'utils/copilot/estimate/estimateGrounding.ts', why: 'copilot interview' },
+  { file: 'utils/instantBid.ts', why: 'instant ROM' },
+  { file: 'utils/bidLevelingEngine.ts', why: 'bid leveling' },
+  { file: 'utils/aiService.ts', why: 'change-order impact' },
+];
+for (const g of GROUNDING_PROMPTS) {
+  const body = src(g.file);
+  ok(`${g.file} branches on provenance === 'seeded' (${g.why})`,
+    /provenance === 'seeded'/.test(body));
+  ok(`…and tells the model the rate is self-reported`,
+    /SELF-REPORTED|SET THEMSELVES/.test(body));
+}
+ok('instantBid never labels a seeded-only proposal as basis=history',
+  /basis = rateCount > 0 \? 'history' : 'ai_guess'/.test(src('utils/instantBid.ts')) &&
+  /seededRateCount/.test(src('utils/instantBid.ts')));
+ok('…and the assumption line for stated rates is worded separately',
+  /rate\$\{seededRateCount === 1 \? '' : 's'\} you set yourself/.test(src('utils/instantBid.ts')));
+ok('the instant-bid prompt header no longer claims every rate came from closed jobs',
+  !/LEARNED RATES FROM THIS CONTRACTOR'S CLOSED JOBS/.test(src('utils/instantBid.ts')));
+ok('bid leveling counts self-reported trades apart from learned ones',
+  /rates you set yourself/.test(src('utils/bidLevelingEngine.ts')));
+
+// ── AND THE ORIGINAL INVARIANT, RE-ASSERTED ACROSS EVERY NEW SITE.
+// overallBidAccuracy excluding seeded-only entries is the single check that
+// keeps a contractor who has closed nothing from being shown a perfect 100%.
+expect('a fully seeded book STILL reports no bid accuracy',
+  SEEDED_ONLY.overallBidAccuracy, null);
+expect('…still zero closed jobs', SEEDED_ONLY.jobsAnalyzed, 0);
+expect('…and every entry still counts zero jobs',
+  SEEDED_ONLY.entries.every(e => e.jobCount === 0), true);
+expect('…with every seeded sample still bidUnit 0',
+  SEEDED_ONLY.entries.every(e => e.samples.every(s => !isSeedSample(s) || s.bidUnit === 0)), true);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

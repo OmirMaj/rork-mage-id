@@ -16,6 +16,11 @@ export function priceLeakItems(items: LeakItem[], costDb: CostDatabase): PricedL
       rateUsed: fromHistory ? hit!.suggestedRate : null,
       rateConfidence: fromHistory ? hit!.confidence : null,
       fromHistory,
+      // Cold-start seeds can now reach this book, so `fromHistory` alone is no
+      // longer safe to caption with: it is true for a rate the contractor
+      // merely STATED. Entries built before seeding shipped have no
+      // provenance — those are earned by construction.
+      rateProvenance: fromHistory ? (hit!.provenance ?? 'earned') : null,
     };
   });
 }

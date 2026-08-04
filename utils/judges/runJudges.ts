@@ -2,6 +2,7 @@
 // Mirrors utils/plans/askYourPlans.ts: pure engine + a thin async wrapper.
 import type { Project, Commitment, ChangeOrder, Invoice, ProjectType, MaterialReceipt } from '@/types';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
+import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { computeMarginRisk } from '@/utils/marginRiskScore';
 import { mageAISmart } from '@/utils/mageAI';
@@ -21,6 +22,14 @@ export interface JudgesContext {
   /** Self-perform labor samples (utils/laborSamples.ts) — crew hours priced
    *  at the GC's configured loaded rates. Optional; feeds the cost book. */
   laborSamples?: CostSample[];
+  /** Cold-start seeds (hooks/useCostSeeds) — rates the GC stated before they
+   *  had closed-job history here. Without these, a seeded contractor gets an
+   *  EMPTY cost book from JUDGES and the verdict is priced off their own bid
+   *  assumptions, which is the cold start the seeding feature exists to fix.
+   *  The seeded/earned split is preserved downstream: computeBidVerdict reports
+   *  seeded coverage separately from measured coverage and never lets it buy
+   *  the verdict confidence. */
+  seeds?: SeededRate[];
 }
 
 export interface JudgesResult {
@@ -52,8 +61,8 @@ export async function runJudges(params: {
   ctx: JudgesContext;
   scopeSummary?: string;
 }): Promise<JudgesResult> {
-  const { projects, commitments, receipts, laborSamples } = params.ctx;
-  const costDb = buildCostDatabase(projects, commitments, receipts, laborSamples);
+  const { projects, commitments, receipts, laborSamples, seeds } = params.ctx;
+  const costDb = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
   let calibration; try { calibration = computeCalibration({ projects, commitments }); } catch { /* additive */ }
   let capacity; if (params.timelineWindow) { try { capacity = computeCapacityLoad(projects, params.timelineWindow.startISO, params.timelineWindow.endISO); } catch { /* additive */ } }
   let typeMargin; try { typeMargin = aggregateTypeMargin(projects, params.projectType, commitments); } catch { /* additive */ }

@@ -347,9 +347,9 @@ export default function ClientViewScreen() {
   const [approverName, setApproverName] = useState<string>(typeof clientNameParam === 'string' ? clientNameParam : '');
   const [rejectionReason, setRejectionReason] = useState('');
   const [signaturePaths, setSignaturePaths] = useState<string[]>([]);
-  // E-SIGN / UETA: approving a change order is signing a contract amendment,
-  // so the signer has to affirmatively consent to sign electronically. Same
-  // bar the static portal now clears (marketing/portal/index.html).
+  // Approving a change order is signing a contract amendment, so the signer
+  // affirmatively consents to sign electronically rather than just tapping a
+  // button. Same bar the static portal clears (marketing/portal/index.html).
   const [esignConsent, setEsignConsent] = useState(false);
   const [submittingApproval, setSubmittingApproval] = useState(false);
 
@@ -494,7 +494,7 @@ export default function ClientViewScreen() {
       });
     }
 
-    // ── Build the retainable E-SIGN/UETA consent record. Byte-identical to
+    // ── Build the retainable consent record. Byte-identical to
     //    the one the static portal builds (utils/portalOwnerCore.ts is the
     //    single source for both), so a CO signed in-app and one signed in the
     //    browser produce the same artifact and the same hash.
@@ -1427,10 +1427,10 @@ export default function ClientViewScreen() {
                     </View>
                   )}
 
-                  {/* E-SIGN / UETA consent. A drawn mark alone is not a valid
-                      electronic signature — the signer must also affirmatively
-                      consent to transact electronically against a disclosure
-                      they can read. Same text the static portal shows. */}
+                  {/* Signing consent. A drawn mark on its own says nothing
+                      about what the signer thought they were agreeing to, so
+                      the disclosure is on screen and the consent is an explicit
+                      tap. Same text the static portal shows. */}
                   <View style={styles.esignBox}>
                     <ScrollView style={styles.esignScroll} nestedScrollEnabled>
                       <Text style={styles.esignDisclosure}>{ESIGN_DISCLOSURE_TEXT}</Text>

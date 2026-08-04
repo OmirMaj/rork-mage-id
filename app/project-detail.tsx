@@ -303,10 +303,9 @@ export default function ProjectDetailScreen() {
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
 
   // How complete the daily log is over THIS project's working days. The number
-  // that matters evidentially is coverage, not content: FRE 803(6)(C) turns on
-  // the record being a regular practice, and a day filed as "no work on site"
-  // counts exactly as much as a busy one. Non-working days are never misses.
-  // Pure math lives in utils/dailyLogCompletion.ts.
+  // is coverage, not content — a day filed as "no work on site" counts exactly
+  // as much as a busy one, and non-working days are never misses. Pure math
+  // lives in utils/dailyLogCompletion.ts.
   const dfrRecord = useMemo(() => computeDailyLogCompletion({
     reports: dailyReports,
     calendar: calendarOfSchedule(project?.schedule),
@@ -2888,9 +2887,8 @@ export default function ProjectDetailScreen() {
                   standing number; the home card only appears when there is
                   something to do about it. Gaps are reported as facts about
                   the record — there is deliberately no "fill in that day"
-                  action, because a report written after the fact is not
-                  contemporaneous and re-writing the log is what destroyed the
-                  contractor's credibility in Vistas Construction. */}
+                  action, because a report written later carries the date it
+                  was written, not the day it describes. */}
               {dfrRecord.hasRecord && dailyLogHeadline(dfrRecord) && (
                 <View style={styles.dfrRecordBlock} testID="dfr-record-block">
                   <Text style={styles.dfrRecordHeadline}>{dailyLogHeadline(dfrRecord)}</Text>

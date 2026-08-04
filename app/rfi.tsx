@@ -191,10 +191,10 @@ function RFIScreenInner() {
 
   // Owner-side HOLD time — how long the ball actually sat in the architect's,
   // engineer's, or owner's court, folded from the append-only handoff chain.
-  // This is a different claim from the round-trip age the pipeline shows:
-  // Caddell lost partly because it measured total turnaround "including the
-  // time the RFIs were in Caddell's hands." Both are rendered below, labelled,
-  // and never summed. Pure math lives in utils/rfiHoldTime.ts.
+  // A different number from the round-trip age the pipeline shows, because
+  // round trip includes the days the RFI sat on the GC's own desk. Both are
+  // rendered below, labelled, and never summed. Pure math lives in
+  // utils/rfiHoldTime.ts.
   const holdTime = useMemo(
     () => computeRfiHoldTime({
       handoffs: existingRFI?.handoffs,
@@ -501,7 +501,7 @@ function RFIScreenInner() {
                 ? `Response due ${overdueDays} ${dayWord(overdueDays)} ago`
                 : 'Waiting on this answer'}
               {blocking.critical && blocking.taskTitle ? ` — blocks "${blocking.taskTitle}" on the critical path.` : ''}
-              {/* The claimable measure, not the round-trip age. */}
+              {/* Owner-side hold, not the round-trip age. */}
               {holdTime.measurable && holdTime.ownerSideDays > 0
                 ? ` Owner side has held it ${holdTime.ownerSideDays} ${dayWord(holdTime.ownerSideDays)}.`
                 : ''}
@@ -550,15 +550,14 @@ function RFIScreenInner() {
                 </Text>
               </View>
             </View>
-            {/* HOLD TIME — the number a delay claim actually rests on.
-                Caddell Constr. Co. v. United States (Fed. Cl. 2007) went
-                against the claimant partly because it measured RFI turnaround
-                "including the time the RFIs were in Caddell's hands." Owner-
-                side hold is the intervals the architect / engineer / owner
-                held the ball, folded from the handoff chain below. Round trip
-                is shown too, labelled as what it is, so the two never get
-                mistaken for each other. A sub's hold is the GC's own tier and
-                is listed on the GC's side — see utils/rfiHoldTime.ts. */}
+            {/* HOLD TIME — how long the other side actually had it.
+                Round-trip age includes the GC's own turnaround, so it says
+                nothing about how fast anyone else moved. Owner-side hold is
+                the intervals the architect / engineer / owner held the ball,
+                folded from the handoff chain below. Round trip is shown too,
+                labelled as what it is, so the two never get mistaken for each
+                other. A sub's hold is the GC's own tier and is listed on the
+                GC's side — see utils/rfiHoldTime.ts. */}
             <View style={styles.holdBlock} testID="rfi-hold-time">
               <Text style={styles.handoffLogLabel}>Hold time</Text>
               {holdTime.measurable ? (
@@ -587,15 +586,15 @@ function RFIScreenInner() {
                   <Text style={styles.holdNote}>
                     Owner side means the architect, engineer, or owner. A subcontractor&apos;s time
                     counts on your side, not theirs. Round trip includes your own turnaround, so it
-                    is not a delay measure.
+                    is not a measure of how fast they answered.
                   </Text>
                 </>
               ) : (
                 <Text style={styles.holdNote}>
                   This RFI has no handoff log, so owner-side hold time cannot be computed — it is
                   unknown, not zero. Total elapsed is {holdTime.elapsedDays} {dayWord(holdTime.elapsedDays)},
-                  which includes your own turnaround and is not a delay measure. Sending and
-                  answering from this screen starts the chain.
+                  which includes your own turnaround and is not a measure of how fast they
+                  answered. Sending and answering from this screen starts the chain.
                 </Text>
               )}
             </View>

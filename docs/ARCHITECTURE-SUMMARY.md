@@ -24,6 +24,8 @@
 | `supabase/migrations/20260803120000_invoice_milestone_link.sql` | not applied | invoice-side half of the double-bill guard is inert (milestone side still holds) |
 | `supabase/migrations/create_field_tickets.sql` | not applied | no `field_tickets` table exists in prod; T&M tickets are AsyncStorage-only |
 | `supabase/migrations/20260803120500_portal_co_esignature.sql` | not applied | portal CO signature columns missing |
+| `supabase/migrations/20260804120000_delay_events.sql` | not applied | delay register is AsyncStorage-only; every write re-queues as a schema-cache miss |
+| `supabase/migrations/20260805120000_cost_seeds.sql` | not applied | cost seeds are AsyncStorage-backed until it lands. Writes queue as transient schema-cache misses and drain automatically once applied — nothing is lost, but a reinstall still loses the rates until then |
 | `supabase/functions/invoice-dunning` | deployed at v4, but the **current source is undeployed** (changed in `dc6d584`) | "Send reminder now" will fail |
 
 Last applied migration: `20260730142849 public_price_index`.
@@ -298,7 +300,7 @@ Tier keys come from `utils/featureTiers.ts` — **33 keys total: 16 Pro, 15 Busi
 | Module | Entry point | Core logic | Gate | Maturity |
 |---|---|---|---|---|
 | **Estimating / takeoff** | `app/estimate-wizard.tsx` (1,685), `app/takeoff.tsx` (2,369), `app/takeoff-estimate.tsx` | `utils/costDatabase.ts`, `utils/estimateAssemblies.ts`, `utils/takeoffPricing.ts`, `utils/takeoffGeometry.ts`, `utils/estimateCalibration.ts` | `ai_estimate_wizard` Pro | Real. Grounding is the weak point — see cost seeding below. |
-| **Cost seeding** | `app/cost-seed.tsx` (712) | `utils/costSeedCore.ts`, `hooks/useCostSeeds.ts` | `job_costing` Pro | Shipped 2026-08-03. **Reaches only 5 of 16 cost-book consumers** — Cost X-Ray and the copilot still see an empty book. **AsyncStorage-only, no Supabase table** — seeds do not survive a reinstall. |
+| **Cost seeding** | `app/cost-seed.tsx` (712) | `utils/costSeedCore.ts`, `hooks/useCostSeeds.ts` | `job_costing` Pro | Shipped 2026-08-03; durability + reach closed 2026-08-04. Now reaches **all 16 cost-book consumers**. Local-first AsyncStorage cache + `public.cost_seeds` through `supabaseWrite`; the migration is **written but not applied**, so cross-device sync starts the moment it lands. The seeded/earned firewall holds at every new site — `scripts/validate-cost-seed.ts` pins reach at the source and the firewall behaviourally. |
 | **Scheduling** | `app/schedule-pro.tsx` (2,208), `app/schedule-wizard.tsx` (2,871), `app/(tabs)/schedule/` | `utils/cpm.ts` (forward/backward pass, float, **resource leveling at :810**), `utils/scheduleEngine.ts`, `utils/scheduleRebase.ts`, `utils/scheduleHealthScore.ts`, `utils/scheduleEarnedValue.ts`, `utils/scheduleMerge.ts` | `schedule_import`, `schedule_scenarios`, `schedule_collaboration` — all Pro | The deepest module in the app. CPM, float, leveling (engine + preview/apply UI), baselines, lag/lead per dependency, iCal export, .mpp/.xer import. |
 | **Bidding & marketplace** | `app/post-bid.tsx`, `app/bid-detail.tsx`, `app/auto-bids.tsx`, `app/(tabs)/mage-id-bids/` | `utils/bidLevelingEngine.ts`, `utils/bidQuestionsEngine.ts`, `utils/bidHistoryFacts.ts` | `unlimited_bid_responses`, `bid_scoring` — Business | Feed is populated from scraped caches. `auto-bids.tsx` is **registered with zero inbound navigation**. |
 | **Job costing & WIP** | `app/job-costing.tsx`, `app/budget-dashboard.tsx`, `app/wip-report.tsx`, `app/cost-xray.tsx` | `utils/costDatabase.ts`, `utils/estimateActuals.ts`, `utils/profitLeak/*` | `job_costing` Pro; `full_budget_dashboard`, `wip_reporting`, `cost_xray` Business | Engines are pinned by validators. `wip_periods` and `commitments` are empty. |
@@ -500,5 +502,5 @@ Everything the system asks for, in 140 lines: one border + one radius token, no 
 **The three things that would most improve this architecture, in order** (unchanged from the 2026-08-02 audit, none yet done):
 
 1. **Extend collaborator RLS to sub-tables** — one reviewed migration per table with a verification query each. Multi-user is advertised and currently inoperable beyond the schedule.
-2. **Persist cost seeds to Postgres and wire the remaining 11 of 16 cost-book consumers.** The moat's input data currently lives in AsyncStorage and does not survive a reinstall.
+2. ~~**Persist cost seeds to Postgres and wire the remaining 11 of 16 cost-book consumers.**~~ Done 2026-08-04 — `20260805120000_cost_seeds.sql` written (composite PK `(user_id, id)`, because `seedId` is deterministic from trade+unit and therefore collides across contractors), all 16 consumers wired. **Apply the migration** to actually get cross-device durability.
 3. **Stop writing fiction.** Label or suppress the simulated weather before it reaches `weatherDelayLog`, and either implement the CO→schedule reflow or delete the sentence at `change-order.tsx:694` that promises it.

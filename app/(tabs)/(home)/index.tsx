@@ -744,12 +744,11 @@ export default function HomeScreen() {
                 action, "what you collected" is the proof. Self-hides at zero. */}
             {projects.length > 0 && !isLoading && <RecoveredCard />}
 
-            {/* Daily log completeness. FRE 803(6)(C) turns on the record being
-                ROUTINE, so a missing day costs more than a boring one — the
-                card asks for today, counts a "nothing happened" day as filed,
-                and never offers to backfill a gap (a late report is not
-                contemporaneous). Self-hides unless today is unfiled or the
-                last 30 days have a hole. */}
+            {/* Daily log completeness. A missing day costs more than a boring
+                one — the card asks for today, counts a "nothing happened" day
+                as filed, and never offers to backfill a gap (a late report
+                carries the date it was typed). Self-hides unless today is
+                unfiled or the last 30 days have a hole. */}
             {projects.length > 0 && !isLoading && <DailyLogCard />}
 
             {/* "Today" feed — surfaces overdue invoices, unanswered

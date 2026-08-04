@@ -33,6 +33,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborRates, useLaborCostSamples, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
@@ -95,6 +96,10 @@ function JobCostingInner() {
   const timeEntries = useTimeEntriesMirror();
   const { rates: laborRates } = useLaborRates();
   const laborSamples = useLaborCostSamples();
+  // Cold-start seeds — this book feeds checkSubBid's trade_match basis, which
+  // is how the Sub-Bid Reality Check knows a $4,600 bid is 30% under. With an
+  // empty book it silently falls back to the GC's own budgeted line totals.
+  const { seeds } = useCostSeeds();
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
@@ -109,7 +114,7 @@ function JobCostingInner() {
     [commitments, projectId],
   );
 
-  const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts, laborSamples), [projects, commitments, receipts, laborSamples]);
+  const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds), [projects, commitments, receipts, laborSamples, seeds]);
   const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
 
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);

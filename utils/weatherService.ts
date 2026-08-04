@@ -38,7 +38,7 @@ export interface DayForecast {
    * Where this reading came from. REQUIRED — every construction site in this
    * file sets it, so a DayForecast can never travel without its provenance.
    * Consumers that display or log weather MUST branch on it: 'simulated' days
-   * are invented and are not admissible as delay documentation.
+   * are invented and must never be recorded as a weather delay.
    */
   source: ForecastSource;
 }

@@ -4,40 +4,22 @@
 //
 // WHY COMPLETENESS, NOT QUALITY
 // ------------------------------------------------------------------------
-// Daily reports are business records. Under FRE 803(6) they come in if they
-// were made at or near the time by someone with knowledge, kept in the course
-// of a regularly conducted activity (B), and — the part that actually decides
-// cases — if making them was a REGULAR PRACTICE (C).
-//
-// Two things follow, and both are counter-intuitive:
-//
-// 1. "Self-serving" is not a ground for exclusion. The Advisory Committee is
-//    explicit that "absence of motivation to misrepresent has not
-//    traditionally been a requirement of the rule; that records might be
-//    self-serving has not been a ground for exclusion." A contractor's own
-//    log is not excluded for being the contractor's. So there is nothing to
-//    be gained by making the log read more neutrally.
-//
-// 2. Routineness is where logs die. In Meltech Corp., ASBCA No. 61765, the PM
-//    "did not 'make[] a habit of noting'" problems and the later testimony got
-//    "little credence." A superintendent who logs only on eventful days
-//    satisfies (B) and fails (C).
-//
-// Therefore: a gap-free boring log beats a sparse detailed one. A missing
-// Tuesday is worse than a Tuesday that says "rain, no work." The metric that
-// matters is completion over expected working days — and a report recording
-// that nothing happened is the behaviour worth reinforcing, so it counts as a
-// completion here and is reported separately so the surface can say so.
+// A daily log is only worth anything if it covers the whole job. A month with
+// a hole in it tells you nothing about the day in the hole, no matter how
+// detailed the days on either side are. So the number this module produces is
+// coverage: filed days over the working days the project actually expected —
+// and a report that records "nothing happened on site" is a filed day, not a
+// gap. Those are counted separately so a surface can say so out loud, because
+// the day a superintendent is most tempted to skip is the day nothing
+// happened.
 //
 // WHAT THIS DELIBERATELY DOES NOT DO
 // ------------------------------------------------------------------------
-// It does not reward backfilling. A report typed weeks later for a day that
-// was missed is not contemporaneous, and retro-annotating the record is how
-// Vistas Construction (ASBCA Nos. 58479-58488) destroyed its own witnesses:
-// it "did not merely add notations ... it essentially re-wrote these
-// documents." Gaps are reported as facts about the record, never as a to-do
-// list to go fill in. The only action a surface should offer is filing
-// TODAY'S log.
+// It does not reward backfilling. A report typed weeks later carries the date
+// it was typed, not the day it describes, and it is not the same artifact as
+// a note written on site that afternoon. Gaps are reported as facts about the
+// record, never as a to-do list to go fill in. The only action a surface
+// should offer is filing TODAY'S log.
 //
 // It also does not reward volume. Nothing here reads report length, and there
 // is no score to raise by typing more. If the fastest path to a complete
@@ -325,14 +307,14 @@ export function dailyLogHeadline(c: DailyLogCompletion): string | null {
 export function dailyLogEmptyDayLine(c: DailyLogCompletion): string | null {
   if (!c.hasRecord || c.emptyDayFilings === 0) return null;
   const n = c.emptyDayFilings;
-  return `${n} of those ${n === 1 ? 'days was' : 'days were'} logged with no work on site. Those count — a filed day with nothing on it is what makes the log routine.`;
+  return `${n} of those ${n === 1 ? 'days was' : 'days were'} logged with no work on site. Those count — a filed day with nothing on it still keeps the record unbroken.`;
 }
 
 /** The gap statement. A fact about the record, not a to-do list. */
 export function dailyLogGapLine(c: DailyLogCompletion): string | null {
   if (!c.hasRecord || c.missedDays === 0) return null;
   const n = c.missedDays;
-  return `${plural(n, 'working day')} in this stretch ${n === 1 ? 'has' : 'have'} no log. A gap is what gets a log attacked as not routine, and filing it late does not close it.`;
+  return `${plural(n, 'working day')} in this stretch ${n === 1 ? 'has' : 'have'} no log. A report written now would carry today's date, not that day's, so the gap stays.`;
 }
 
 /** The only action worth offering: today. Null when today is not owed. */

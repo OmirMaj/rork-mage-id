@@ -22,6 +22,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useEstimateCalibration } from '@/hooks/useEstimateCalibration';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -74,15 +75,20 @@ function EstimateConfidenceInner() {
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, commitments, updateProject } = useProjects();
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds. FIREWALL NOTE: these can move a line off 'no_history'
+  // and let the underpriced warning fire, but they can NEVER raise the score —
+  // backedCost only counts medium/high-confidence lines, and a seeded-only
+  // entry is always 'low' (jobCount 0). The number stays earned-only.
+  const { seeds } = useCostSeeds();
   const { corrections } = useEstimateCalibration();
 
   const project = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
   const report = useMemo(() => {
     if (!project) return null;
-    const db = buildCostDatabase(projects, commitments, receipts);
+    const db = buildCostDatabase(projects, commitments, receipts, [], seeds);
     return computeEstimateConfidence(project, db);
-  }, [project, projects, commitments, receipts]);
+  }, [project, projects, commitments, receipts, seeds]);
 
   // The payoff of the cost-learning moat: preview what applying the GC's saved
   // per-category corrections would do to THIS estimate. Only offered when a

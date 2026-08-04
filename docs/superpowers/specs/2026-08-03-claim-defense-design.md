@@ -1,7 +1,30 @@
+> ## ⚠️ UNREVIEWED RESEARCH — NOT PRODUCT COPY, NOT LEGAL ADVICE
+>
+> **No part of this document has been reviewed by an attorney.** The statutes,
+> rules, cases, and contract-form sections cited below came from an AI research
+> pass and were never validated by counsel. They may be wrong, outdated,
+> inapplicable in any given jurisdiction, or simply misread.
+>
+> **Nothing here is a statement of the law, and MAGE ID does not give legal
+> advice.**
+>
+> **No copy derived from this document may ship without legal review.** The
+> shipped feature deliberately carries none of the citations, case names, or
+> legal conclusions in this file. The notice clock is described to users as a
+> reminder they configured, and `scripts/validate-notice-clock.ts` §15 plus the
+> "no legal advice" section of `scripts/validate-claim-metrics.ts` fail the
+> build if that language comes back. This document is kept as the record of the
+> research and the design decisions, nothing more. If you want any of it in
+> front of a user, get a lawyer first.
+>
+> *(Header added 2026-08-04. Everything below is unchanged and unreviewed.)*
+
+---
+
 # Cryptographic Claim Defense — Design Spec
 
 **Date:** 2026-08-03
-**Status:** Design. Not approved, not planned, not built.
+**Status:** Design. Not approved, not planned, not built. Not reviewed by counsel.
 **Author:** Claude + founder
 **Method:** every code claim below was grepped or queried before it was written. Production DB
 (`nteoqhcswappxxjlpvap`) was read directly for migration state, row counts, and RLS policies. Legal

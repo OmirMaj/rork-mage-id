@@ -13,6 +13,7 @@ import { analyzeChangeOrderImpact, type ChangeOrderImpactResult } from '@/utils/
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -52,10 +53,13 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
   // surface uses (mirrors app/job-costing.tsx): projects + commitments from
   // ProjectContext, snapped supplier receipts, and self-perform labor
   // samples. Without commitments, buildCostDatabase produces an empty cost
-  // book and the "YOUR COST HISTORY" grounding block can never appear.
+  // book and the "YOUR OWN RATES" grounding block can never appear.
   const { projects: contextProjects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
   const laborSamples = useLaborCostSamples();
+  // Cold-start seeds — the CO cost check is worthless to a contractor whose
+  // book is empty, and seeding is what fills it before the first closeout.
+  const { seeds } = useCostSeeds();
   const projects = projectsProp ?? contextProjects;
   const [result, setResult] = useState<ChangeOrderImpactResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -76,7 +80,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     setIsLoading(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const data = await analyzeChangeOrderImpact(desc, lineItems, schedule, projects, commitments, receipts, laborSamples);
+      const data = await analyzeChangeOrderImpact(desc, lineItems, schedule, projects, commitments, receipts, laborSamples, seeds);
       await recordAIUsage('fast', 'changeOrderImpact');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
@@ -89,7 +93,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, changeDescription, lineItems, schedule, projects, commitments, receipts, laborSamples, tier, router, onResult]);
+  }, [isLoading, changeDescription, lineItems, schedule, projects, commitments, receipts, laborSamples, seeds, tier, router, onResult]);
 
   if (!result) {
     return (

@@ -25,6 +25,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
 import { FolderOpen, FileSignature } from 'lucide-react-native';
@@ -98,6 +99,10 @@ export default function DailyReportScreen() {
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds — the Profit Leak scan prices out-of-scope work off the
+  // cost book. Without them a seeded contractor gets "No price history" on
+  // every flagged item and the leak-CO draft goes out with blanks.
+  const { seeds } = useCostSeeds();
   const { tier } = useSubscription();
   const { isFree } = useTierAccess();
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -640,7 +645,7 @@ export default function DailyReportScreen() {
         return;
       }
       const items = coerceLeakResult(res.data);
-      const costDb = buildCostDatabase(projects, commitments, receipts);
+      const costDb = buildCostDatabase(projects, commitments, receipts, [], seeds);
       const record: LeakScanRecord = {
         items: priceLeakItems(items, costDb),
         scannedAt: new Date().toISOString(),
@@ -671,7 +676,7 @@ export default function DailyReportScreen() {
     } finally {
       setLeakScanning(false);
     }
-  }, [project, workPerformed, issuesAndDelays, materialsDelivered, tier, projects, commitments, receipts, getChangeOrdersForProject, existingReport, updateDailyReport, stableReportId]);
+  }, [project, workPerformed, issuesAndDelays, materialsDelivered, tier, projects, commitments, receipts, seeds, getChangeOrdersForProject, existingReport, updateDailyReport, stableReportId]);
 
   const handleDraftLeakCO = useCallback(() => {
     if (!projectId || !leakScan || leakScan.items.length === 0) return;
@@ -1054,12 +1059,8 @@ export default function DailyReportScreen() {
 
   // ─── "Nothing happened today" — one tap, no invented content ───────────
   //
-  // A daily log is admissible as a business record largely on FRE 803(6)(C):
-  // that making it was a REGULAR PRACTICE. Meltech Corp. (ASBCA No. 61765) is
-  // the cautionary case — the PM "did not 'make[] a habit of noting'" problems
-  // and the board gave the later testimony "little credence." A superintendent
-  // who only logs eventful days has a record with holes in it, and the holes
-  // are what get attacked.
+  // A superintendent who only logs eventful days ends up with a record full of
+  // holes, and the holes are the days nobody can reconstruct later.
   //
   // So filing a dead day has to be as fast as skipping it. These are the
   // reasons a super actually writes; nothing here fabricates crew, quantities,
@@ -1551,18 +1552,16 @@ export default function DailyReportScreen() {
             )}
           </View>
 
-          {/* Nothing happened today. Filing that is the point — a log with a
-              hole in it is what gets attacked as not routine under FRE
-              803(6)(C), so a dead day filed in one tap is worth more than a
-              detailed report on the days that were busy anyway. Nothing here
-              invents crew, quantities, or progress. */}
+          {/* Nothing happened today. Filing that is the point — a dead day
+              filed in one tap is worth more than a detailed report on the days
+              that were busy anyway. Nothing here invents crew, quantities, or
+              progress. */}
           {showNoWorkShortcut && (
             <View style={styles.noWorkCard} testID="no-work-day-card">
               <Text style={styles.noWorkTitle}>Nothing happened on site today</Text>
               <Text style={styles.noWorkBody}>
-                File it anyway. A day logged as no work keeps the record unbroken, and an unbroken
-                record is what makes the log hold up. Pick a reason and this is saved with no crew
-                and no photos.
+                File it anyway. A day logged as no work keeps the record unbroken. Pick a reason
+                and this is saved with no crew and no photos.
               </Text>
               <View style={styles.noWorkChips}>
                 {NO_WORK_REASONS.map(r => (
@@ -1828,12 +1827,10 @@ export default function DailyReportScreen() {
               <Text style={styles.readOnlyText}>{issuesAndDelays || 'No issues reported.'}</Text>
             )}
 
-            {/* A note in a daily report is contemporaneous evidence, but it is
-                not a claim and it starts no clock. Most contracts make written
-                notice a condition precedent — a real entitlement gets waived on
-                a missed window. This is the one tap from "I wrote it down" to
-                "the deadline is being tracked." The report's own date is the
-                date the GC first knew, which is what the clock counts from. */}
+            {/* A note typed here is a record of the day, but nothing counts
+                down from it. This is the one tap from "I wrote it down" to "the
+                date is being tracked." The report's own date is the date the GC
+                first knew, which is what the countdown runs from. */}
             {issuesAndDelays.trim().length > 0 && (
               <TouchableOpacity
                 style={styles.delayEventBtn}
@@ -1851,7 +1848,7 @@ export default function DailyReportScreen() {
                 })}
                 testID="dfr-log-delay-event"
                 accessibilityRole="button"
-                accessibilityLabel="Log this as a delay event and start the notice clock"
+                accessibilityLabel="Log this as a delay event and start the notice countdown"
               >
                 <CalendarClock size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.delayEventBtnText}>Log this as a delay event</Text>
@@ -1859,7 +1856,8 @@ export default function DailyReportScreen() {
             )}
             {issuesAndDelays.trim().length > 0 && (
               <Text style={styles.delayEventHint}>
-                Starts your contract&apos;s written-notice clock, and links this report as evidence.
+                Starts the countdown against the notice window you set for this job, and links
+                this report as evidence.
               </Text>
             )}
           </View>
@@ -1948,8 +1946,10 @@ export default function DailyReportScreen() {
                       <Text style={[leakStyles.itemDesc, leakIsStale && leakStyles.itemDescStale]}>{item.description}</Text>
                       {!!item.reportQuote && <Text style={leakStyles.itemQuote}>&ldquo;{item.reportQuote}&rdquo;</Text>}
                       <Text style={leakStyles.itemMeta}>
+                        {/* A seeded rate is the GC's own number, not history —
+                            caption it as what it is. */}
                         {item.trade} · {item.estimatedPrice !== null
-                          ? `~$${item.estimatedPrice.toLocaleString('en-US')} from your cost history`
+                          ? `~$${item.estimatedPrice.toLocaleString('en-US')} ${item.rateProvenance === 'seeded' ? 'from the rate you set' : 'from your cost history'}`
                           : 'No price history — price it yourself'} · {item.confidence} confidence
                       </Text>
                     </View>

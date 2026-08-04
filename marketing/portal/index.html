@@ -1845,7 +1845,7 @@
   /* ───────── Change-order e-signature modal ─────────
      A change order is a contract amendment. Approving one used to be a
      browser confirm() + prompt() — a consent click, not a signature. This
-     modal is the ESIGN/UETA surface: the scope and the dollar delta stated
+     modal is the signing surface: the scope and the dollar delta stated
      plainly, a drawn signature, a typed legal name, and an explicit consent
      affirmation before Approve unlocks. Declining stays one tap + a reason. */
   .esign-modal {
@@ -2684,11 +2684,10 @@
   </div>
 
   <!-- Change-order e-signature modal. A change order amends a signed
-       contract, so approving one has to clear the E-SIGN / UETA bar:
-       the record on screen, intent to sign (a drawn mark), identity (a
-       typed legal name), and an affirmative consent to sign
-       electronically. Declining needs only a reason — it creates no
-       obligation, so we keep that path one tap. Populated by
+       contract, so approving one captures the record on screen, intent to
+       sign (a drawn mark), identity (a typed legal name), and an explicit
+       consent to sign electronically. Declining needs only a reason — it
+       creates no obligation, so we keep that path one tap. Populated by
        showCOSignModal(). -->
   <div class="esign-modal" id="esign-modal" role="dialog" aria-modal="true" aria-labelledby="esign-title">
     <div class="esign-card">
@@ -5059,13 +5058,12 @@
     }
   }
 
-  // ───────── Change-order electronic signature (E-SIGN / UETA) ─────────
+  // ───────── Change-order electronic signature ─────────
   //
   // A change order amends a signed contract, and most are well over $500.
   // This flow used to be confirm() + prompt('Your name (for the record):'),
-  // which is a consent CLICK — a homeowner disputing a $12K CO could
-  // credibly argue it never met ESIGN/UETA. What follows brings it up to the
-  // bar the contract flow already clears:
+  // which is a consent CLICK, not a signature. What follows captures what the
+  // contract flow already captures:
   //
   //   record        the scope, the reason, the dollar delta, the resulting
   //                 contract total, and any schedule impact, on screen
@@ -5083,10 +5081,9 @@
   // byte-identical to ESIGN_DISCLOSURE_TEXT / buildCOConsentRecord() in
   // utils/portalOwnerCore.ts — the app-side viewer produces the same record
   // for the same decision, and scripts/validate-portal-owner.ts pins it.
-  var ESIGN_DISCLOSURE_VERSION = 'co-esign-1';
+  var ESIGN_DISCLOSURE_VERSION = 'co-esign-2';
   var ESIGN_DISCLOSURE_TEXT =
     'By typing your legal name, drawing your signature, and selecting "I agree", you consent to sign this change order electronically. ' +
-    'Your electronic signature has the same legal effect as a handwritten one under the U.S. E-SIGN Act and UETA. ' +
     'You are approving the scope described above and the resulting change to your contract total. ' +
     'You may decline instead, or ask for a paper copy at no charge, by messaging your contractor. ' +
     'A copy of this record is retained by your contractor and is available to you on request.';
@@ -5326,7 +5323,7 @@
 
     document.getElementById('esign-consent-text').textContent = ESIGN_DISCLOSURE_TEXT;
     document.getElementById('esign-legal').textContent = isApprove
-      ? 'Signed electronically under the U.S. E-SIGN Act and UETA. Your contractor keeps a sealed copy of this record.'
+      ? 'Signed electronically. Your contractor keeps a sealed copy of this record, and so can you.'
       : 'Declining costs you nothing and does not cancel your contract — it tells your contractor what to change.';
 
     approve.style.display = isApprove ? 'block' : 'none';
@@ -6032,7 +6029,7 @@
                   // legacy note column caps at 2000 chars, so send a compact
                   // receipt rather than a truncated (unverifiable) record.
                   legacy_note: (isApprove
-                    ? 'E-SIGN consent ' + ESIGN_DISCLOSURE_VERSION + ' accepted; signature strokes ' + result.strokeCount +
+                    ? 'Signing consent ' + ESIGN_DISCLOSURE_VERSION + ' accepted; signature strokes ' + result.strokeCount +
                       '; record SHA-256 ' + (documentHash || 'unavailable')
                     : 'Declined. Reason: ' + esignTidy(result.reason || '', 1200)),
                 }).then(function (res) {

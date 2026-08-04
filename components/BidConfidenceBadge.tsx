@@ -18,6 +18,7 @@ import type { Project } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeEstimateConfidence } from '@/utils/estimateConfidence';
 
@@ -36,11 +37,17 @@ export default function BidConfidenceBadge({ project, variant = 'light' }: Props
   const { colors: t } = useTheme();
   const { projects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds — same book the estimate-confidence screen this pill opens
+  // uses, so the pill and the breakdown can never disagree. The SCORE stays
+  // earned-only by construction (backedCost requires medium/high confidence;
+  // a seeded-only entry is always 'low'), so a seeded contractor sees
+  // hasHistory flip on but no fabricated confidence number.
+  const { seeds } = useCostSeeds();
 
   const report = useMemo(() => {
-    const db = buildCostDatabase(projects, commitments, receipts);
+    const db = buildCostDatabase(projects, commitments, receipts, [], seeds);
     return computeEstimateConfidence(project, db);
-  }, [project, projects, commitments, receipts]);
+  }, [project, projects, commitments, receipts, seeds]);
 
   const router = useRouter();
 

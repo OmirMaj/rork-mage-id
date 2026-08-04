@@ -233,26 +233,23 @@ export interface Project {
    * Written-notice window from THIS project's contract, in calendar days.
    * Drives utils/noticeClock.ts.
    *
-   * DEFAULT IS UNSET AND MUST STAY UNSET. Shipping 21 (AIA A201-2017
-   * §15.1.3.1) as a default is the product telling a contractor what their
-   * contract says — it does not know. A GC on a 7-day residential agreement
-   * would get a clock running 14 days too long and a false sense of safety,
-   * which is strictly worse than no clock at all. The app ASKS on the first
-   * delay event. Spec §3.3.
+   * DEFAULT IS UNSET AND MUST STAY UNSET. Shipping any number as a default is
+   * the product putting words in a contract it has never read. A GC on a 7-day
+   * agreement handed a 21-day countdown gets a false sense of safety, which is
+   * strictly worse than no countdown at all. The app ASKS on the first delay
+   * event.
    */
   noticePeriodDays?: number;
   /**
-   * True when the GC answered "I don't know" and the app fell back to a
-   * conservative 7. Every downstream deadline built from an assumed period is
-   * labelled "assumed — verify your contract". Spec §3.3, §5.1(A).
+   * True when the GC answered "I don't know" and the app fell back to a short
+   * 7. Every downstream date built from an assumed period is labelled
+   * "assumed — verify your contract".
    */
   noticePeriodAssumed?: boolean;
   /**
-   * Delivery method the contract requires. AIA A201-2017 §15.1.3.2 requires
-   * certified/registered mail or a courier with proof of delivery; ordinary
-   * email does not satisfy it absent a §1.6 electronic-transmission agreement.
-   * Set so the app can warn that a portal message may not satisfy the clause.
-   * Spec §3.5.
+   * Delivery method the user recorded for this job, from their own agreement.
+   * Set so the app can point out when a notice was logged through a different
+   * channel. MAGE never supplies a value here.
    */
   noticeMethodRequired?: DelayNoticeMethod;
   /**
@@ -804,7 +801,8 @@ export interface WeatherDelayLogEntry {
   source: 'live' | 'mixed';
   /**
    * Delay dates that came from simulated weather. Recorded only so the entry
-   * is complete and auditable — NOT admissible as delay documentation.
+   * is complete and auditable — these days were generated from the calendar
+   * date and have no relation to the jobsite.
    */
   simulatedDates?: string[];
 }
@@ -1221,10 +1219,8 @@ export interface ChangeOrder {
 }
 
 // ============================================================================
-// Delay events — the claim-defense spine.
+// Delay events — the record that ties the evidence together.
 // ----------------------------------------------------------------------------
-// See docs/superpowers/specs/2026-08-03-claim-defense-design.md §2.2.
-//
 // The app already captures six evidence primitives (weather delay log, photos,
 // daily reports, RFI handoff chains, field tickets, CO audit trails) and NONE
 // of them reference each other. There is no object that says "this photo, this
@@ -1240,8 +1236,8 @@ export interface ChangeOrder {
 // silently erase evidence stored there.
 // ============================================================================
 
-/** Why the delay happened. Drives the compensability SUGGESTION (never the
- *  conclusion) — spec §1.3, §5.3. */
+/** Why the delay happened. Drives a SUGGESTED classification the user can
+ *  accept or override — never a conclusion MAGE reaches on its own. */
 export type DelayCause =
   | 'weather'
   | 'owner_directed_change'
@@ -1254,10 +1250,9 @@ export type DelayCause =
   | 'other';
 
 /**
- * Spec §1.3. `unclassified` is the DEFAULT and the app must not guess: an
- * entitlement call is the GC's assertion and their attorney's argument, never
- * a finding the software makes. The UI may suggest from `cause`; it may not
- * conclude.
+ * `unclassified` is the DEFAULT and the app must not guess — this is the
+ * user's own label on their own delay. The UI may suggest from `cause`; it may
+ * not decide.
  */
 export type DelayClassification =
   | 'excusable_compensable'
@@ -1284,42 +1279,38 @@ export type DelayNoticeMethod =
 /**
  * A notice recorded against a delay event.
  *
- * RECORDING A NOTICE IN MAGE IS NOT THE SAME ACT AS SERVING NOTICE UNDER THE
- * CONTRACT. Spec §3.5 — the product must never let those two blur.
+ * RECORDING A NOTICE IN MAGE IS NOT THE SAME ACT AS SENDING IT. The product
+ * must never let those two blur.
  *
  * `kind`:
- *   initial              — the Notice of Claim itself.
- *   supplemental         — Fraser element 4: the SECOND notice, telling the
- *                          owner you regard their insistence on the original
- *                          date as constructive acceleration. This is the most
- *                          missed element in the whole body of law.
+ *   initial              — the first notice on this delay.
+ *   supplemental         — a later notice on the same delay, recorded
+ *                          alongside the first rather than in place of it.
  *   reservation_of_rights— see the three required fields below.
  */
 export interface DelayNotice {
   id: string;
   kind: 'initial' | 'supplemental' | 'reservation_of_rights';
   /** When the notice was recorded. Phase 1 writes the DEVICE clock; a
-   *  server-stamped companion arrives in Phase 2 (spec §6.2). Do not describe
-   *  this as server-timestamped. */
+   *  server-stamped companion is future work. Do not describe this as
+   *  server-timestamped. */
   sentAt: string;
   method: DelayNoticeMethod;
   recipient: string;
   /**
-   * REQUIRED when kind === 'reservation_of_rights'. Three structured fields,
-   * never a free-text "reserves all rights" box: Mingus Constructors v. United
-   * States, 812 F.2d 1387 (Fed. Cir. 1987) called generic reservation language
-   * a "blunderbuss exception" and held it "insufficient as a matter of law."
-   * The reservation must NAME the claim and STATE an amount.
+   * REQUIRED when kind === 'reservation_of_rights'. Three structured fields
+   * rather than a free-text box, so the record NAMES the claim and STATES an
+   * amount instead of saying something generic.
    *
-   * Enforced by isValidReservation() in utils/noticeClock.ts.
+   * Completeness is checked by reservationViolations() in
+   * utils/noticeClock.ts.
    */
   reservedClaimDescription?: string;
   reservedAmount?: number;
   reservedDaysClaimed?: number;
   /**
-   * REQUIRED when kind === 'initial' or 'supplemental'. An extension request
-   * with no amount of time fails Fraser elements 2 and 3 — Zafer Taahhut Insaat
-   * v. United States, 833 F.3d 1356, 1362 (Fed. Cir. 2016).
+   * REQUIRED when kind === 'initial' or 'supplemental'. How many days of
+   * extension the notice asked for.
    */
   daysRequested?: number;
   /** Set when the notice went out through the client portal, the only channel
@@ -1337,9 +1328,9 @@ export interface DelayEvent {
   number: number;
   cause: DelayCause;
   /**
-   * The date the GC FIRST KNEW. This starts the notice clock — not createdAt,
-   * because a GC logging Monday's washout on Wednesday must not get two free
-   * days against a condition-precedent notice window.
+   * The date the GC FIRST KNEW. The countdown runs from here — not createdAt,
+   * because a GC logging Monday's washout on Wednesday should not get two free
+   * days on the reminder.
    */
   firstObservedDate: string;
   /** Date the causal condition ended, when it has ended. */
@@ -1355,10 +1346,9 @@ export interface DelayEvent {
   /** Calendar days claimed. GC-entered. */
   claimedDays: number;
   /**
-   * Days another delay ran concurrently. Spec §1.3 — the honest field that
-   * makes the register survive cross-examination. Under the general US rule a
-   * concurrent contractor-caused delay converts excusable-compensable into
-   * excusable but NON-compensable: you get the time, not the money.
+   * Days another delay ran concurrently — including one of the GC's own. The
+   * honest field: a register that cannot show an overlap is describing half a
+   * week.
    */
   concurrentDays?: number;
 
@@ -1370,8 +1360,8 @@ export interface DelayEvent {
   changeOrderId?: string;
 
   auditTrail?: COAuditEntry[];   // reused, not re-invented — FieldTicket does the same
-  /** Phase 2 (sealing). Declared here so the row shape is stable; nothing in
-   *  Phase 1 writes them. */
+  /** Sealing is future work. Declared here so the row shape is stable;
+   *  nothing writes them today. */
   sealedAt?: string;
   contentHash?: string;
   createdAt: string;
@@ -1661,6 +1651,10 @@ export interface PricedLeakItem extends LeakItem {
   rateUsed: number | null;
   rateConfidence: LeakConfidence | null;
   fromHistory: boolean;
+  /** Which kind of rate priced it. 'seeded' = the contractor STATED this rate;
+   *  it must never be captioned "from your cost history". Optional so scans
+   *  persisted before cold-start seeding still parse. */
+  rateProvenance?: 'earned' | 'seeded' | 'mixed' | null;
 }
 
 /** Persisted result of a Profit Leak scan on a daily report.

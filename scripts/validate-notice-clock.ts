@@ -1,25 +1,20 @@
 // validate-notice-clock.ts — pins the notice clock and the delay register.
 //
-// WHY: this is the only feature in the product whose failure mode is a WAIVED
-// CLAIM. Most construction contracts make written notice a condition precedent
-// to any claim for time or money; miss the window and a real entitlement is
-// gone. Greg Opinski Constr. v. City of Oakdale, 199 Cal.App.4th 1107 (2011)
-// held a contractor liable for liquidated damages despite OWNER-caused delay,
-// because it never used the contract's procedure to obtain the extension.
+// WHAT THIS FEATURE IS: a countdown against a number the user typed in, after
+// reading their own contract. MAGE does not read contracts, does not supply a
+// default, and does not tell anybody what any agreement or any statute
+// requires of them. §15 below is the enforcement of that last sentence.
 //
-// Several rules below have a specific case behind them and a specific wrong
-// implementation they exist to prevent:
+// The rules with teeth:
 //
 //   * NO DEFAULT NOTICE PERIOD. Shipping 21 days would hand a GC on a 7-day
-//     residential agreement a clock that runs two weeks long. Worse than none.
-//   * Mingus Constructors v. United States, 812 F.2d 1387 (Fed. Cir. 1987) —
-//     a generic "reserves all rights" is a "blunderbuss exception" and
-//     "insufficient as a matter of law". Three structured fields, not a box.
-//   * Zafer Taahhut Insaat v. United States, 833 F.3d 1356 (Fed. Cir. 2016) —
-//     an open-ended extension request is not a sufficient request.
-//   * Fraser Constr. Co. v. United States, 384 F.3d 1354 (Fed. Cir. 2004),
-//     element 4 — constructive acceleration needs a SECOND notice.
-//   * The app must never conclude entitlement (spec §5.3).
+//     agreement a countdown that runs two weeks long. Worse than none.
+//   * A reservation is three structured fields, not a free-text box.
+//   * A notice asking for time records how many days.
+//   * A notice with no response recorded stays visible.
+//   * The app suggests a classification; the user sets it.
+//   * NO LEGAL ADVICE ANYWHERE. No statute or rule citations, no case names,
+//     no claims about admissibility or how any of this will be received.
 //
 // Pure node:fs + the pure module. No bundler, no react-native import (those
 // crash bun). fileURLToPath + join because the repo path contains a space.
@@ -31,12 +26,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   noticeDeadline, effectiveNoticePeriod, daysUntil, daysSince, parseNoticeDate,
-  buildNoticeStatus, noticeSummary, accelerationPromptFor,
+  buildNoticeStatus, noticeSummary, ownerSilencePromptFor,
   reservationViolations, extensionRequestViolations, noticeViolations,
   noticeMethodWarning, suggestClassification, nextDelayEventNumber,
   formatDelayEventNumber,
   NOTICE_PERIOD_PRESETS, ASSUMED_NOTICE_PERIOD_DAYS, ASSUMED_LABEL,
   RECORDING_IS_NOT_SERVING, OWNER_RESPONSE_WINDOW_DAYS,
+  NOTICE_REMINDER_DISCLAIMER, NOTICE_PERIOD_QUESTION,
 } from '../utils/noticeClock';
 import type { DelayEvent, DelayNotice, Project } from '../types';
 
@@ -126,7 +122,7 @@ ok('"I don\'t know" is carried through as assumed',
 ok('the assumed fallback is conservative (short, not long)',
   ASSUMED_NOTICE_PERIOD_DAYS === 7 && ASSUMED_NOTICE_PERIOD_DAYS <= Math.min(...NOTICE_PERIOD_PRESETS),
   `ASSUMED_NOTICE_PERIOD_DAYS=${ASSUMED_NOTICE_PERIOD_DAYS} — a long assumption is a false sense of safety`);
-ok('presets are the three real contract windows',
+ok('the preset shortcuts are the three numbers people enter most',
   NOTICE_PERIOD_PRESETS.join(',') === '7,14,21', `got ${NOTICE_PERIOD_PRESETS.join(',')}`);
 ok('the assumed label tells the user to verify',
   /verify your contract/i.test(ASSUMED_LABEL), ASSUMED_LABEL);
@@ -178,7 +174,7 @@ const unset = statusFor({}, {});
 ok('an event on a project with no period is SURFACED, not skipped',
   unset.urgency === 'unset' && unset.deadlineDate === null,
   'dropping it hides the one thing the user must do for the clock to work at all');
-ok('the unset row asks the question', /notice period/i.test(unset.headline), unset.headline);
+ok('the unset row asks the question', /notice window/i.test(unset.headline), unset.headline);
 ok('the unset row is loud enough to act on', unset.severity >= 2, `sev ${unset.severity}`);
 
 const assumedStatus = statusFor({ firstObservedDate: '2026-08-01' }, { noticePeriodDays: 7, noticePeriodAssumed: true });
@@ -225,33 +221,33 @@ ok('summary counts blown and critical separately',
   sum.total === 3 && sum.blown === 1 && sum.critical === 1,
   JSON.stringify(sum));
 
-// ── 6. Mingus — the reservation of rights is THREE STRUCTURED FIELDS ────────
+// ── 6. The reservation of rights is THREE STRUCTURED FIELDS ────────────────
 
 ok('a reservation with no named claim is rejected',
   reservationViolations({ kind: 'reservation_of_rights', reservedAmount: 5000 }).length > 0,
-  'Mingus: the exception must identify the claim');
+  'the record has to say WHICH claim');
 ok('a reservation with no stated amount is rejected',
-  reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: 'acceleration costs' }).length > 0,
-  'Mingus: "specific claims be excepted in stated amounts"');
-ok('a bare "reserves all rights" is rejected on both counts',
+  reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: 'extra crew hours' }).length > 0,
+  'the record has to say HOW MUCH');
+ok('an empty reservation is rejected on both counts',
   reservationViolations({ kind: 'reservation_of_rights' }).length === 2,
-  'the blunderbuss exception — insufficient as a matter of law');
+  'a free-text box would let both go unfilled');
 ok('a whitespace-only description does not satisfy the requirement',
   reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: '   ', reservedAmount: 5000 }).length > 0);
 ok('a zero amount does not count as a stated amount',
   reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: 'x', reservedAmount: 0 }).length > 0);
 ok('claim + dollars is accepted',
-  reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: 'May acceleration', reservedAmount: 17900 }).length === 0);
+  reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: 'May stair re-work', reservedAmount: 17900 }).length === 0);
 ok('claim + days is accepted (time is an amount too)',
-  reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: 'May acceleration', reservedDaysClaimed: 12 }).length === 0);
+  reservationViolations({ kind: 'reservation_of_rights', reservedClaimDescription: 'May stair re-work', reservedDaysClaimed: 12 }).length === 0);
 ok('the reservation rule does not fire on a normal notice',
   reservationViolations({ kind: 'initial' }).length === 0);
 
-// ── 7. Zafer — an extension request must state an amount of time ────────────
+// ── 7. An extension request records an amount of time ──────────────────────
 
 ok('an initial notice with no days requested is rejected',
   extensionRequestViolations({ kind: 'initial' }).length > 0,
-  'Zafer: an open-ended request fails Fraser elements 2 and 3');
+  'the field exists so the record says how many days were asked for');
 ok('a supplemental notice with no days requested is rejected',
   extensionRequestViolations({ kind: 'supplemental' }).length > 0);
 ok('zero days is not an amount',
@@ -263,14 +259,18 @@ ok('the days rule does not fire on a reservation of rights',
 ok('noticeViolations folds both rules together',
   noticeViolations(makeNotice({ kind: 'reservation_of_rights', daysRequested: undefined })).length === 2);
 
-// ── 8. §3.5 — the one thing the clock must say out loud ─────────────────────
+// ── 8. The method mismatch — two settings reported back, nothing more ───────
 
-ok('a portal notice against a certified-mail contract warns',
+ok('a portal notice against a certified-mail setting is flagged',
   (noticeMethodWarning('certified_mail', 'portal') ?? '').includes('certified mail'),
   String(noticeMethodWarning('certified_mail', 'portal')));
-ok('the warning names the clause',
-  /15\.1\.3\.2/.test(noticeMethodWarning('certified_mail', 'portal') ?? ''),
-  'a GC needs to know WHICH clause to go read');
+ok('the flag attributes the requirement to the USER, not to a rule',
+  /^You set /.test(noticeMethodWarning('certified_mail', 'portal') ?? ''),
+  'the app must never say a contract or a clause "requires" anything');
+ok('the flag draws no conclusion from the mismatch',
+  !/(may not satisfy|does not satisfy|invalid|insufficient|waive)/i.test(
+    noticeMethodWarning('certified_mail', 'portal') ?? ''),
+  String(noticeMethodWarning('certified_mail', 'portal')));
 ok('an email notice against a courier contract warns',
   noticeMethodWarning('courier', 'email') !== null);
 ok('certified mail against a certified-mail contract does not warn',
@@ -283,37 +283,43 @@ ok('no recorded requirement means no warning — never a guess',
   'the app must not invent a delivery requirement the user never entered');
 ok('a portal-only contract does not warn about a portal notice',
   noticeMethodWarning('portal', 'portal') === null);
-ok('recording is explicitly distinguished from serving',
-  /not the same as serving/i.test(RECORDING_IS_NOT_SERVING), RECORDING_IS_NOT_SERVING);
+ok('recording is explicitly distinguished from sending',
+  /not the same as sending/i.test(RECORDING_IS_NOT_SERVING), RECORDING_IS_NOT_SERVING);
 
-// ── 9. Fraser element 4 — the SECOND notice ─────────────────────────────────
+// ── 9. A notice with no response recorded stays visible ────────────────────
 
 const waited = makeEvent({ notices: [makeNotice({ sentAt: '2026-07-10T12:00:00Z' })] });
-ok('the acceleration prompt fires once the owner has sat on it',
-  accelerationPromptFor(waited, NOW) !== null,
+ok('the silence prompt fires once the response window elapses',
+  ownerSilencePromptFor(waited, NOW) !== null,
   `waited ${daysSince('2026-07-10T12:00:00Z', NOW)}d against a ${OWNER_RESPONSE_WINDOW_DAYS}d window`);
-ok('the prompt names acceleration',
-  /accelerat/i.test(accelerationPromptFor(waited, NOW) ?? ''));
+ok('the prompt states elapsed time and nothing else',
+  /^No response recorded in the \d+ days since you logged this notice\.$/
+    .test(ownerSilencePromptFor(waited, NOW) ?? ''),
+  ownerSilencePromptFor(waited, NOW) ?? 'null');
+ok('the prompt tells nobody what to do about it',
+  !/(you (should|must|need to|have to)|notify them|in writing|constructive|accelerat)/i
+    .test(ownerSilencePromptFor(waited, NOW) ?? ''),
+  ownerSilencePromptFor(waited, NOW) ?? 'null');
 ok('no prompt before the response window elapses',
-  accelerationPromptFor(makeEvent({ notices: [makeNotice({ sentAt: '2026-08-01T12:00:00Z' })] }), NOW) === null);
-ok('no prompt without an initial notice — element 2 comes first',
-  accelerationPromptFor(makeEvent({ notices: [] }), NOW) === null);
+  ownerSilencePromptFor(makeEvent({ notices: [makeNotice({ sentAt: '2026-08-01T12:00:00Z' })] }), NOW) === null);
+ok('no prompt without an initial notice — nothing has been sent yet',
+  ownerSilencePromptFor(makeEvent({ notices: [] }), NOW) === null);
 ok('no prompt once a change order resolved it',
-  accelerationPromptFor(makeEvent({
+  ownerSilencePromptFor(makeEvent({
     notices: [makeNotice({ sentAt: '2026-07-10T12:00:00Z' })], changeOrderId: 'co1',
   }), NOW) === null,
-  'the owner acted — there is nothing to escalate');
-ok('no prompt once the second notice has been sent',
-  accelerationPromptFor(makeEvent({
+  'the owner acted — there is nothing outstanding');
+ok('no prompt once a follow-up notice has been recorded',
+  ownerSilencePromptFor(makeEvent({
     notices: [makeNotice({ sentAt: '2026-07-10T12:00:00Z' }), makeNotice({ id: 'n2', kind: 'supplemental' })],
   }), NOW) === null,
-  'element 4 is satisfied — do not nag');
+  'the user already followed up — do not nag');
 ok('the prompt surfaces through buildNoticeStatus even though the clock stopped',
   (buildNoticeStatus({ events: [waited], projects: [makeProject({ noticePeriodDays: 21 })], nowMs: NOW })[0]
-    ?.accelerationPrompt ?? null) !== null,
-  'a notice-given event with a live second-notice obligation must not be filtered out');
+    ?.ownerSilencePrompt ?? null) !== null,
+  'a notice-given event with an unanswered notice must not be filtered out');
 
-// ── 10. §5.3 — SUGGEST, NEVER CONCLUDE ──────────────────────────────────────
+// ── 10. SUGGEST, NEVER CONCLUDE ─────────────────────────────────────────────
 
 ok('a stored event defaults to unclassified', makeEvent().classification === 'unclassified');
 ok('weather suggests time-but-not-money',
@@ -322,9 +328,9 @@ ok('an owner-directed change suggests time and money',
   suggestClassification('owner_directed_change') === 'excusable_compensable');
 ok('a contractor-caused delay is suggested honestly',
   suggestClassification('contractor_caused') === 'nonexcusable');
-ok('a differing site condition gets NO suggestion — it depends on the contract',
+ok('a differing site condition gets NO suggestion — it depends on the job',
   suggestClassification('differing_site_condition') === null,
-  'who bears that risk is a contract question; guessing is deciding entitlement');
+  'MAGE cannot see the agreement, so it does not guess');
 ok('permit/inspection gets no suggestion', suggestClassification('permit_or_inspection') === null);
 ok('"other" gets no suggestion', suggestClassification('other') === null);
 ok('no suggestion is ever "unclassified" itself',
@@ -433,7 +439,7 @@ if (migName) {
     'mirrors public.change_orders');
   ok('classification defaults to unclassified in the schema too',
     /classification text not null default 'unclassified'/i.test(mig),
-    'the DB must not be able to hold a guessed entitlement as a default');
+    'the DB must not be able to hold a guessed classification as a default');
   ok('first_observed_date is NOT NULL — the clock has nothing to count from otherwise',
     /first_observed_date text not null/i.test(mig));
   ok('a unique index stops two DE-004s on the same job',
@@ -459,29 +465,81 @@ ok('the daily report can log a delay from Issues & Delays',
 ok('the weather reschedule can log a delay',
   /pathname: '\/delay-events'/.test(read('app/schedule-pro.tsx')));
 
-// ── 15. Language limits (spec §6.7) ─────────────────────────────────────────
+// ── 15. NO LEGAL ADVICE, ANYWHERE ───────────────────────────────────────────
+//
+// The founder's rule: this ships without a lawyer, so nothing in it may need
+// one. Two separate bans, enforced differently.
+//
+//   HARD BAN (§15a) — statute and rule citations, and case names. There is no
+//   "we deliberately don't cite FRE 803(6)" exemption, because writing the
+//   citation down at all is how it ends up in a tooltip six months from now.
+//   The unreviewed research that produced these lives in the design spec and
+//   stays there.
+//
+//   SOFT BAN (§15b) — outcome and guarantee language, where a file is allowed
+//   to name a phrase in order to forbid it.
+//
+// Both run over the claim-defense sources AND over every string these modules
+// actually hand to a user, because a clean source file that renders a bad
+// sentence is not clean.
 
 // Scope matters. types/index.ts is a 4,700-line shared file whose unrelated
 // sections legitimately say "immutable" about other things, so only the delay
 // block added for this feature is scanned.
 function delayTypesBlock(): string {
   const src = read('types/index.ts');
-  const start = src.indexOf('// Delay events — the claim-defense spine.');
+  const start = src.indexOf('// Delay events — the record that ties the evidence together.');
   const end = src.indexOf('export interface InvoiceLineItem', start);
   return start >= 0 && end > start ? src.slice(start, end) : '';
 }
 const NEW_SOURCES: { rel: string; text: string }[] = [
   { rel: 'utils/noticeClock.ts', text: read('utils/noticeClock.ts') },
+  { rel: 'utils/rfiHoldTime.ts', text: read('utils/rfiHoldTime.ts') },
+  { rel: 'utils/dailyLogCompletion.ts', text: read('utils/dailyLogCompletion.ts') },
   { rel: 'app/delay-events.tsx', text: read('app/delay-events.tsx') },
+  { rel: 'components/home/DailyLogCard.tsx', text: read('components/home/DailyLogCard.tsx') },
   { rel: 'types/index.ts (delay block)', text: delayTypesBlock() },
   ...(migName ? [{ rel: migName, text: readFileSync(join(migDir, migName), 'utf8') }] : []),
 ];
 ok('the delay-types block was found for scanning', delayTypesBlock().length > 500);
 
+// ── 15a. HARD BAN — citations and case names ────────────────────────────────
+// No negation escape hatch. A hit anywhere in the file fails.
+
+const CITATIONS: { re: RegExp; why: string }[] = [
+  { re: /\bFRE\s*\d|\bF\.?R\.?E\.?\s*803|Federal Rule[s]? of Evidence|\bRule 803\b/i,
+    why: 'evidence-rule citation' },
+  { re: /\bA201\b|AIA Document|ConsensusDocs/i, why: 'contract-form citation' },
+  { re: /§\s*\d/, why: 'section citation — a section number is a citation to something' },
+  { re: /\bE-?SIGN\b|\bUETA\b/i, why: 'statute citation' },
+  { re: /\b\d+\s*U\.?\s?S\.?\s?C\.?\s*§?\s*\d|\bUCC\s*\d/i, why: 'code citation' },
+  { re: /statute[s]? of (repose|limitation)/i, why: 'statute citation' },
+  { re: /\bF\.\s?[23]d\b|\bU\.S\.\s?\d|Cal\.\s?App|Ohio St\.|\bASBCA\b|\bCBCA\b|Fed\.\s?(Cir|Cl)\./i,
+    why: 'case reporter citation' },
+  { re: /\b(?:Inc\.|Corp\.|Co\.|LLC)?\s*v\.\s+(?:United States|City of|[A-Z][a-z]+\s+(?:Constr|Dept|Corp))/,
+    why: 'case name' },
+  { re: /\b(Mingus|Zafer|Fraser|Meltech|Vistas|Caddell|Opinski|Dugan & Meyers|Enfield)\b/,
+    why: 'case name' },
+  { re: /as a matter of law|condition precedent|blunderbuss/i, why: 'legal term of art stated as fact' },
+];
+for (const { re, why } of CITATIONS) {
+  const hits = NEW_SOURCES.filter(s => re.test(s.text)).map(s => s.rel);
+  ok(`no claim-defense source carries a ${why}`, hits.length === 0,
+    hits.length ? `/${re.source.slice(0, 44)}/ — found in: ${hits.join(', ')}` : undefined);
+}
+
+// NEGATIVE CONTROL: the scanner must actually fire. If this ever passes as
+// "clean", every check above is theatre.
+ok('NEGATIVE: the citation scanner fires on a planted citation',
+  CITATIONS.some(({ re }) => re.test(
+    'Under FRE 803(6) and AIA A201-2017 §15.1.3.2, see Mingus Constructors v. United States, 812 F.2d 1387 (Fed. Cir. 1987).')),
+  'a planted citation was not detected — the patterns are broken');
+
+// ── 15b. SOFT BAN — outcome and guarantee language ──────────────────────────
 // A file is allowed to NAME forbidden language in order to warn against it —
 // that is the whole point of several comments here. So a hit only counts when
 // the surrounding two lines carry no negation.
-const NEGATION = /\b(not|never|no\b|insufficient|anti-pattern|blunderbuss|fails?|void|must not|cannot|refus|forbidden|wrong|deliberately)/i;
+const NEGATION = /\b(not|never|no\b|anti-pattern|fails?|void|must not|cannot|refus|forbidden|wrong|deliberately|may not appear|do not say)/i;
 function affirmativeHits(text: string, re: RegExp): number {
   const lines = text.split('\n');
   let n = 0;
@@ -495,28 +553,101 @@ function affirmativeHits(text: string, re: RegExp): number {
 
 const FORBIDDEN: { re: RegExp; why: string }[] = [
   { re: /unassailable/i, why: 'nothing is — there are five independent ways to assail it' },
-  { re: /court[- ]admissible/i, why: 'admissibility is a ruling on a record, not a property of a file' },
-  { re: /legally binding proof/i, why: 'same' },
+  { re: /admissib/i, why: 'admissibility is a ruling on a record, not a property of a file' },
+  { re: /will hold up|holds? up in court|stand[s]? up in court|survive[s]? (a )?(challenge|cross)/i,
+    why: 'outcome claim — MAGE cannot know how anything will be received' },
+  { re: /legally binding|legal[- ]grade|legally valid/i, why: 'legal-effect claim' },
+  { re: /tamper[- ]proof/i, why: 'tamper-EVIDENT is true; tamper-proof is not' },
   { re: /blockchain[- ]grade|cryptographically guaranteed/i, why: 'there is no external anchor' },
   { re: /proves (that )?the owner/i, why: 'causation is argued from evidence; software assembles evidence' },
-  { re: /will win your claim/i, why: 'outcome claim' },
-  { re: /reserves? all rights\b(?![^.]*insufficient)/i, why: 'Mingus — the blunderbuss exception, insufficient as a matter of law' },
-  { re: /under protest/i, why: 'UCC 1-308(b) switches it off against accord and satisfaction — legally wrong advice' },
+  { re: /will win your claim|wins? your claim|protects? your claim/i, why: 'outcome claim' },
+  { re: /reserves? all rights/i, why: 'reads as drafting advice, not a field label' },
+  { re: /under protest/i, why: 'drafting advice' },
   { re: /CPM is required/i, why: 'conditional — most residential contracts do not require it' },
+  // "Send it the way your agreement requires" is a DISCLAIMER — it hands the
+  // question back to the user's own document. "Your contract requires
+  // certified mail" is MAGE finishing that sentence for them, which it cannot
+  // do, having never read the contract. So the ban is on the completed form:
+  // `requires` followed by a word.
+  { re: /(your|the) (contract|agreement) requires \w|the law requires/i,
+    why: 'MAGE has never read the contract; say "you set", not "your contract requires X"' },
+  { re: /waives? (your|a|the) claim|claim is waived|forfeits?/i, why: 'legal consequence stated as fact' },
 ];
 for (const { re, why } of FORBIDDEN) {
   const hits = NEW_SOURCES.filter(s => affirmativeHits(s.text, re) > 0).map(s => s.rel);
-  ok(`no new file asserts /${re.source.slice(0, 34)}/`, hits.length === 0,
+  ok(`no claim-defense source asserts /${re.source.slice(0, 34)}/`, hits.length === 0,
     hits.length ? `${why} — found in: ${hits.join(', ')}` : undefined);
 }
 
-// "Immutable" is only true after the Phase 2 triggers ship, and even then only
+// "Immutable" is only true once the sealing triggers ship, and even then only
 // against UPDATE. Until then it must not appear as a promise.
 const immutableClaims = NEW_SOURCES
   .filter(s => affirmativeHits(s.text, /\bimmutable\b/i) > 0)
   .map(s => s.rel);
-ok('no new file promises immutability', immutableClaims.length === 0,
+ok('no claim-defense source promises immutability', immutableClaims.length === 0,
   immutableClaims.length ? `the rows are deletable by their owner today — found in: ${immutableClaims.join(', ')}` : undefined);
+
+// ── 15c. The strings a user actually reads ──────────────────────────────────
+// Everything the pure module renders, run through BOTH bans with no negation
+// escape — a user-facing sentence has no surrounding comment to soften it.
+
+const USER_FACING: string[] = [
+  ASSUMED_LABEL,
+  RECORDING_IS_NOT_SERVING,
+  NOTICE_REMINDER_DISCLAIMER,
+  NOTICE_PERIOD_QUESTION,
+  noticeMethodWarning('certified_mail', 'portal') ?? '',
+  noticeMethodWarning('courier', 'email') ?? '',
+  ownerSilencePromptFor(waited, NOW) ?? '',
+  ...reservationViolations({ kind: 'reservation_of_rights' }),
+  ...extensionRequestViolations({ kind: 'initial' }),
+  ...buildNoticeStatus({
+    events: [
+      makeEvent({ id: 'x1', number: 1, firstObservedDate: '2026-07-01' }),
+      makeEvent({ id: 'x2', number: 2, firstObservedDate: '2026-08-02' }),
+      makeEvent({ id: 'x3', number: 3, notices: [makeNotice({ sentAt: '2026-07-10T12:00:00Z' })] }),
+    ],
+    projects: [makeProject({ noticePeriodDays: 7, noticePeriodAssumed: true, noticeMethodRequired: 'certified_mail' })],
+    nowMs: NOW,
+    includeGiven: true,
+  }).flatMap(s => [s.headline, s.detail, s.methodWarning ?? '', s.ownerSilencePrompt ?? '']),
+  ...buildNoticeStatus({ events: [makeEvent()], projects: [makeProject()], nowMs: NOW })
+    .flatMap(s => [s.headline, s.detail]),
+].filter(s => s.length > 0);
+
+ok('every user-facing notice string was collected', USER_FACING.length >= 14, `got ${USER_FACING.length}`);
+
+for (const { re, why } of [...CITATIONS, ...FORBIDDEN]) {
+  const bad = USER_FACING.find(s => re.test(s));
+  ok(`no user-facing notice string carries a ${why}`, !bad, bad);
+}
+
+// NEGATIVE CONTROLS for the soft ban, on the two rules most easily written
+// too loose. Both of these sentences shipped in this file's earlier version.
+ok('NEGATIVE: the scanner fires on MAGE stating what a contract requires',
+  FORBIDDEN.some(({ re }) => re.test(
+    'Your contract requires certified mail or courier with proof of delivery.')));
+ok('NEGATIVE: deferring to the user\'s own contract is NOT flagged',
+  !FORBIDDEN.some(({ re }) => re.test(
+    'Send it the way your agreement requires, then log it here.')),
+  'a disclaimer that hands the question back to the user must stay legal');
+ok('NEGATIVE: the scanner fires on an outcome claim',
+  FORBIDDEN.some(({ re }) => re.test(
+    'An unbroken record is what makes the log hold up in court.')));
+
+// The honest disclaimer has to exist, be short, and actually be rendered.
+ok('the reminder disclaimer says the date came from the user\'s own setting',
+  /you entered/i.test(NOTICE_REMINDER_DISCLAIMER), NOTICE_REMINDER_DISCLAIMER);
+ok('the reminder disclaimer says it is not legal advice',
+  /not legal advice/i.test(NOTICE_REMINDER_DISCLAIMER), NOTICE_REMINDER_DISCLAIMER);
+ok('the reminder disclaimer is one short line, not a wall of text',
+  NOTICE_REMINDER_DISCLAIMER.length < 200, `${NOTICE_REMINDER_DISCLAIMER.length} chars`);
+{
+  const screen = read('app/delay-events.tsx');
+  ok('the delay register renders the reminder disclaimer',
+    (screen.match(/NOTICE_REMINDER_DISCLAIMER/g) ?? []).length >= 3,
+    'it must appear wherever a derived notice date is shown, not just in the footer');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

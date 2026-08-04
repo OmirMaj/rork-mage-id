@@ -3,6 +3,7 @@ import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage, Commitment, MaterialReceipt } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
+import type { SeededRate } from '@/utils/costSeedCore';
 import { getLanguageMeta } from '@/utils/portalLanguages';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
@@ -666,11 +667,14 @@ export async function analyzeChangeOrderImpact(
   // Cost-book inputs. buildCostDatabase derives BOTH 'actual' and 'committed'
   // line costs exclusively from commitments — with an empty array every
   // closed-job line resolves to cost 0 and the cost book is ALWAYS empty
-  // (the "YOUR COST HISTORY" block could never appear). Callers must thread
+  // (the "YOUR OWN RATES" block could never appear). Callers must thread
   // the real arrays (see components/AIChangeOrderImpact.tsx).
   commitments: Commitment[] = [],
   receipts: MaterialReceipt[] = [],
   laborSamples: CostSample[] = [],
+  /** Cold-start seeds (hooks/useCostSeeds) — rates the GC stated before they
+   *  had closed-job history here. Additive; [] (default) = prior behavior. */
+  seeds: SeededRate[] = [],
 ): Promise<ChangeOrderImpactResult> {
   console.log('[AI CO] Analyzing change order impact...');
 
@@ -697,11 +701,16 @@ export async function analyzeChangeOrderImpact(
       paceBlock = paceFactsBlock(paceFacts, { citeInRationale: false });
       groundingSources.push(`pace on ${tradeCount} trade${tradeCount === 1 ? '' : 's'}`);
     }
+  }
 
+  // Cost-book grounding is gated on projects OR seeds — NOT on projects alone.
+  // Pace needs closed jobs; a cost book does not, and a seeded contractor with
+  // no closed job here still has real rates to check the CO's line items against.
+  if ((projects && projects.length > 0) || seeds.length > 0) {
     // Build a lightweight cost-book fact block from line-item trades.
     try {
       const { buildCostDatabase } = await import('@/utils/costDatabase');
-      const costDb = buildCostDatabase(projects, commitments, receipts, laborSamples);
+      const costDb = buildCostDatabase(projects ?? [], commitments, receipts, laborSamples, seeds);
       if (costDb.entries.length > 0) {
         // Find entries relevant to the CO's line items or description.
         const descWords = changeDescription.toLowerCase();
@@ -709,9 +718,21 @@ export async function analyzeChangeOrderImpact(
           .filter(e => descWords.includes(e.trade.toLowerCase()) || lineItems.some(li => li.name.toLowerCase().includes(e.trade.toLowerCase())))
           .slice(0, 4);
         if (relatedEntries.length > 0) {
-          costBlock = 'YOUR COST HISTORY (flag line items more than 25% off these rates):\n'
-            + relatedEntries.map(e => `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${e.sampleCount} samples, ${e.confidence} confidence)`).join('\n');
-          groundingSources.push('your cost history');
+          const anyEarned = relatedEntries.some(e => e.provenance !== 'seeded');
+          const anySeeded = relatedEntries.some(e => e.provenance === 'seeded');
+          costBlock = 'YOUR OWN RATES (flag line items more than 25% off these):\n'
+            + relatedEntries.map(e =>
+              // A seeded row has exactly one stated sample; printing
+              // "(1 samples, low confidence)" would dress a claim up as
+              // evidence. Name it instead.
+              e.provenance === 'seeded'
+                ? `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (SELF-REPORTED — the GC set this rate themselves; nothing here has measured it. Do not call it their cost history.)`
+                : `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${e.sampleCount} samples, ${e.confidence} confidence)`,
+            ).join('\n');
+          // Two distinct grounding chips so the UI never labels a stated rate
+          // as measured history.
+          if (anyEarned) groundingSources.push('your cost history');
+          if (anySeeded) groundingSources.push('rates you set yourself');
         }
       }
     } catch {
@@ -733,7 +754,7 @@ Total duration: ${schedule?.totalDurationDays ?? 0} days
 Tasks:
 ${taskSummary}
 
-${paceBlock ? paceBlock + '\n\n' : ''}${costBlock ? costBlock + '\n\n' : ''}Predict schedule delay (use PACE HISTORY when a trade matches; bias delay by actual pace), cost impact (flag line items that deviate from COST HISTORY), affected downstream tasks, and give a recommendation. Include compression options to reduce delay. Set groundedOn to the history sources you actually used (e.g. ["your cost history", "pace on 2 trades"]). Leave clarifyQuestion null.`,
+${paceBlock ? paceBlock + '\n\n' : ''}${costBlock ? costBlock + '\n\n' : ''}Predict schedule delay (use PACE HISTORY when a trade matches; bias delay by actual pace), cost impact (flag line items that deviate from YOUR OWN RATES — but never describe a rate marked SELF-REPORTED as measured history), affected downstream tasks, and give a recommendation. Include compression options to reduce delay. Set groundedOn to the sources you actually used (e.g. ["your cost history", "pace on 2 trades"]). Leave clarifyQuestion null.`,
     schema: changeOrderImpactSchema,
     tier: 'smart',
     maxTokens: 3500,

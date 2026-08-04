@@ -630,14 +630,14 @@ export function summarizeOwnerDecisions(decisions: OwnerDecision[]): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. Change-order e-signature consent record (ESIGN / UETA)
+// 4. Change-order e-signature consent record
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // A homeowner "approving" a $12K change order behind a browser confirm() +
-// prompt() is a consent CLICK, not an electronic signature. ESIGN/UETA want:
-// intent to sign, consent to do business electronically, association of the
-// signature with the record, and a retainable copy. The canonical record below
-// is the retainable artifact — the portal hashes it (SHA-256) and the
+// prompt() is a consent CLICK, not a signature. This flow captures the four
+// things that make a signature worth keeping: the signer's stated intent, the
+// record they were looking at, a drawn mark, and a copy they can keep. The
+// canonical record below is that copy — the portal hashes it (SHA-256) and the
 // portal_submit_co_approval_signed RPC re-hashes it server-side before storing,
 // so any later byte-level edit to the stored record breaks the stored hash.
 // Same tamper-evidence property as the contract flow's seal-document fn.
@@ -648,11 +648,10 @@ export function summarizeOwnerDecisions(decisions: OwnerDecision[]): string {
 
 /** Bump when the disclosure text or the field set changes — a stored record
  *  must always be re-verifiable against the disclosure the signer actually saw. */
-export const ESIGN_DISCLOSURE_VERSION = 'co-esign-1';
+export const ESIGN_DISCLOSURE_VERSION = 'co-esign-2';
 
 export const ESIGN_DISCLOSURE_TEXT =
   'By typing your legal name, drawing your signature, and selecting "I agree", you consent to sign this change order electronically. ' +
-  'Your electronic signature has the same legal effect as a handwritten one under the U.S. E-SIGN Act and UETA. ' +
   'You are approving the scope described above and the resulting change to your contract total. ' +
   'You may decline instead, or ask for a paper copy at no charge, by messaging your contractor. ' +
   'A copy of this record is retained by your contractor and is available to you on request.';
@@ -724,7 +723,7 @@ export function buildCOAuditDetail(input: {
   if (input.decision === 'approved') {
     return (
       'Electronically signed via the client portal ' +
-      `(E-SIGN/UETA consent ${ESIGN_DISCLOSURE_VERSION}` +
+      `(signing consent ${ESIGN_DISCLOSURE_VERSION}` +
       (input.signatureStrokeCount != null ? `, ${input.signatureStrokeCount} signature strokes` : '') +
       (input.documentHash ? `, record SHA-256 ${input.documentHash.slice(0, 16)}…` : '') +
       ').'

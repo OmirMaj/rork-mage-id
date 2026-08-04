@@ -28,6 +28,12 @@ export interface PricedLine {
   lineTrueCost: number;
   confidence: ConfidenceLevel;
   fromHistory: boolean;
+  /** Provenance of the matched cost-book entry — 'seeded' means the rate is one
+   *  the contractor STATED (utils/costSeedCore), not one measured on a job here.
+   *  null when the line fell back to its own bid price. Carried so coverage can
+   *  stay honest: `fromHistory` alone would let a seeded rate be reported as
+   *  "priced from your own history", which it is not. */
+  provenance: 'earned' | 'seeded' | 'mixed' | null;
   /** The cost-book entry key this line matched (after unit-alias normalization), or null. */
   bookKey: string | null;
 }
@@ -75,7 +81,14 @@ export interface BidVerdict {
   targetMargin: number;
   bidBiasNudge: number;      // fraction the range was raised (>0 = you habitually bid low)
   costConfidence: ConfidenceLevel;
-  coveragePct: number;       // share of $ costed from real history
+  /** Share of $ costed from MEASURED history (closed jobs / receipts / clocked
+   *  labor). Seeded-only rates are deliberately excluded — this number drives
+   *  how far the verdict is allowed to move off neutral, and unproven rates
+   *  must not buy the engine confidence. */
+  coveragePct: number;
+  /** Share of $ costed from rates the contractor STATED but nothing has
+   *  measured. Reported alongside coveragePct, never folded into it. */
+  seededCoveragePct: number;
   lines: PricedLine[];
   drivers: BidDriver[];      // ranked by weight, both polarities
   disclaimers: string[];

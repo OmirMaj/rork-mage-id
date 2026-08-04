@@ -519,6 +519,120 @@ export function seedsToCostSamples(seeds: SeededRate[]): CostSample[] {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Postgres round-trip (public.cost_seeds)
+// ---------------------------------------------------------------------------
+// Seeds were AsyncStorage-only in V1, which meant the data the whole cost moat
+// depends on did not survive a reinstall and never reached a second device.
+// supabase/migrations/20260805120000_cost_seeds.sql adds the table;
+// hooks/useCostSeeds writes through utils/offlineQueue.supabaseWrite.
+//
+// These two functions live HERE, not in the hook, for one reason: the hook
+// imports AsyncStorage and react-query, so bun can't run it — and the
+// deterministic-id round-trip is exactly the thing that has to be pinned by a
+// test. scripts/validate-cost-seed.ts exercises them directly.
+
+/** A `public.cost_seeds` row. snake_case because it goes straight to PostgREST. */
+export interface CostSeedRow {
+  id: string;
+  user_id: string;
+  trade: string;
+  unit: string;
+  rate: number;
+  reported_jobs: number | null;
+  as_of: string | null;
+  note: string | null;
+  method: SeedEntryMethod;
+  created_at: string;
+}
+
+/**
+ * Seed → row. The id is NOT regenerated here: it is carried through verbatim so
+ * a re-imported correction upserts onto the row it is correcting instead of
+ * creating a second one. (The table's PK is (user_id, id) — the id is
+ * deterministic from trade+unit and therefore only unique per contractor; see
+ * the migration's header for why that matters.)
+ */
+export function seedToRow(s: SeededRate, userId: string): CostSeedRow {
+  return {
+    id: s.id || seedId(s.trade, s.unit),
+    user_id: userId,
+    trade: s.trade,
+    unit: s.unit,
+    rate: s.rate,
+    reported_jobs: s.reportedJobs ?? null,
+    as_of: s.asOf ?? null,
+    note: s.note ?? null,
+    method: s.method === 'manual' ? 'manual' : 'paste',
+    created_at: s.createdAt,
+  };
+}
+
+/**
+ * Row → seed. Returns null for anything that couldn't price a line — a row with
+ * no usable trade/unit/rate must never reach the cost book, whether it came
+ * from a hand-edited cache or a hand-crafted API call.
+ *
+ * The id is taken from the row when present and RE-DERIVED otherwise, so the
+ * deterministic trade+unit identity survives the round-trip either way.
+ * created_at is normalized back to a canonical ISO-8601 Z string because
+ * Postgres hands back `+00:00`, and the local-vs-server merge compares these
+ * as timestamps.
+ */
+export function rowToSeed(raw: unknown): SeededRate | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+
+  const trade = typeof r.trade === 'string' ? r.trade.trim() : '';
+  const unit = typeof r.unit === 'string' ? r.unit.trim() : '';
+  const rate = Number(r.rate);
+  if (!trade || !unit || !Number.isFinite(rate) || rate <= 0) return null;
+
+  const reported = Number(r.reported_jobs);
+  const createdRaw = typeof r.created_at === 'string' ? r.created_at : '';
+  const createdAt = createdRaw && !Number.isNaN(Date.parse(createdRaw))
+    ? new Date(createdRaw).toISOString()
+    : new Date(0).toISOString();
+
+  return {
+    id: typeof r.id === 'string' && r.id ? r.id : seedId(trade, unit),
+    trade,
+    unit,
+    rate,
+    ...(Number.isFinite(reported) && reported > 0 ? { reportedJobs: reported } : {}),
+    ...(typeof r.as_of === 'string' && r.as_of ? { asOf: r.as_of } : {}),
+    ...(typeof r.note === 'string' && r.note ? { note: r.note } : {}),
+    createdAt,
+    method: r.method === 'manual' ? 'manual' : 'paste',
+  };
+}
+
+/**
+ * Reconcile the local cache against what the server returned.
+ *
+ * Same domain rule mergeSeeds already applies — the LAST time the contractor
+ * stated a rate wins — extended across devices by comparing createdAt (which
+ * draftsToSeeds re-stamps on every import, so it really is "last stated at").
+ *
+ * Why not "server always wins", the shape useRateOverrides uses? Because an
+ * edit made offline sits in the offline queue, and a plain server-wins refetch
+ * would visibly revert it until the queue drained. Why not "local always wins"?
+ * Because then a reinstall — the case this whole table exists for — would keep
+ * the empty local set. Comparing the timestamp gets both right, and the reads
+ * are unioned so a row that exists on only one side is never dropped.
+ */
+export function reconcileSeeds(local: SeededRate[], server: SeededRate[]): SeededRate[] {
+  const byKey = new Map<string, SeededRate>();
+  for (const s of local) byKey.set(seedKey(s.trade, s.unit), s);
+  for (const s of server) {
+    const key = seedKey(s.trade, s.unit);
+    const mine = byKey.get(key);
+    // Ties go to the server: it is the copy every other device will also see.
+    if (!mine || Date.parse(s.createdAt) >= Date.parse(mine.createdAt)) byKey.set(key, s);
+  }
+  return Array.from(byKey.values());
+}
+
 /** One-line human summary for the review step / settings row. */
 export function describeSeed(s: SeededRate): string {
   const jobs = s.reportedJobs != null

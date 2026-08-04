@@ -1,7 +1,7 @@
 // Warranty walk reminders — 11-month walks before 1-year contractor
 // warranty expires.
 //
-// On most residential / light-commercial contracts (AIA A201 §12.2) the
+// On most residential / light-commercial contracts the
 // contractor's workmanship warranty runs one year from the date of
 // substantial completion. Best practice is to walk the project with
 // the owner at the 11-month mark to surface latent defects BEFORE the

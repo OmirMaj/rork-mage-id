@@ -102,7 +102,7 @@ export default function WeatherRescheduleModal({
                     <Text style={styles.provenanceBody}>
                       {isFullySimulated
                         ? `${SIMULATED_NO_LOG_NOTICE} Set ${WEATHER_API_KEY_ENV} for live weather.`
-                        : `${result!.simulatedAffectedDates.length} of ${result!.affectedDates.length} delay days are simulated (beyond live forecast coverage). Only the ${result!.liveAffectedDates.length} live day${result!.liveAffectedDates.length === 1 ? '' : 's'} will be recorded as delay documentation.`}
+                        : `${result!.simulatedAffectedDates.length} of ${result!.affectedDates.length} delay days are simulated (beyond live forecast coverage). Only the ${result!.liveAffectedDates.length} live day${result!.liveAffectedDates.length === 1 ? '' : 's'} will be recorded in the weather delay log.`}
                     </Text>
                   </View>
                 </View>
