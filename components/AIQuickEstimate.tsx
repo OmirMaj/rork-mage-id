@@ -495,9 +495,12 @@ export default React.memo(function AIQuickEstimate({
           <BrainCard
             style={{ marginBottom: 12 }}
             confidence={result.confidenceScore}
-            ground={(learnedRateCount ?? 0) > 0
-              ? `Priced with your cost history · ${learnedRateCount} learned rate${learnedRateCount === 1 ? '' : 's'}`
-              : 'Priced from market averages — close jobs to teach MAGE your real costs'}
+            ground={[
+              (learnedRateCount ?? 0) > 0
+                ? `Priced with your cost history · ${learnedRateCount} learned rate${learnedRateCount === 1 ? '' : 's'}`
+                : 'Priced from market averages — close jobs to teach MAGE your real costs',
+              result.confidenceScore === undefined ? 'No confidence score returned for this run' : null,
+            ].filter(Boolean).join(' · ')}
           />
 
           <View style={s.totalCard}>

@@ -12,6 +12,19 @@
 //     Before this existed, ai-punch / compare-drawings / extract-submittals
 //     dead-ended on a flat gray "No project selected." (sim-audit #5).
 //
+// UX-AUDIT-2026-08-03 #3 extended the picker to the seven project-scoped money
+// and field screens (invoice, job-costing, daily-report, punch-list, rfi,
+// client-portal-setup, closeout-binder) plus schedule-pro, which were still
+// telling a user with three live jobs "No project to cost yet". Two cases the
+// picker now separates, because they are not the same failure:
+//
+//   no id at all   → "Pick a project" over the real project list.
+//   stale/bad id   → same list, preceded by a notice saying the thing they
+//                    asked for is gone. Previously this rendered blank.
+//
+// And a user with genuinely ZERO projects gets "Create a project" (which opens
+// the create sheet directly), never an empty picker.
+//
 // Pure presentation — selection state lives in the host screen.
 
 import React from 'react';

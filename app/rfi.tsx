@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Save, ChevronDown, Link2, X, CheckCircle2, Send, CalendarDays, RefreshCw, AlertTriangle } from 'lucide-react-native';
 import { MageRFI, MageAIMark } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -92,20 +92,29 @@ function RFIScreenInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId, rfiId, prefillPhotoId } = useLocalSearchParams<{
+  const { projectId: paramProjectId, rfiId, prefillPhotoId } = useLocalSearchParams<{
     projectId: string;
     rfiId?: string;
     prefillPhotoId?: string;
   }>();
   const ctx = useProjects();
   const {
-    getProject, getRFIsForProject, addRFI, updateRFI, settings,
+    projects, getProject, getRFIsForProject, addRFI, updateRFI, settings,
     getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject,
   } = ctx;
   const { tier } = useSubscription();
   const projectPhotos = (ctx as any).projectPhotos as { id: string; uri: string }[] | undefined;
 
+  // Reached from the sidebar, universal search or a deep link there is no
+  // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
+
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingRFIs = useMemo(() => getRFIsForProject(projectId ?? ''), [projectId, getRFIsForProject]);
   const existingRFI = useMemo(() => rfiId ? existingRFIs.find(r => r.id === rfiId) : null, [rfiId, existingRFIs]);
 
@@ -437,17 +446,18 @@ function RFIScreenInner() {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'RFIs' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="RFIs"
+          message="RFIs (Requests for Information) attach to a project so the answer becomes part of that job's record."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MageRFI size={36} color={themeColors.accent} />}
-          title="No RFI open yet"
-          message="RFIs (Requests for Information) attach to a project so the answer becomes part of that job's record. To send one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap RFIs inside the project tile grid.',
             'Hit Ask the Architect, dictate the question, set a deadline, and send.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

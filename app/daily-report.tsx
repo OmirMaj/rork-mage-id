@@ -15,7 +15,7 @@ import {
   CalendarClock, ChevronDown, Link2, Minus,
 } from 'lucide-react-native';
 import { MageAIMark, MageDailyReport } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -85,11 +85,18 @@ export default function DailyReportScreen() {
   const voiceStyles = useThemedStyles(makeVoiceStyles);
   const leakStyles = useThemedStyles(makeLeakStyles);
   const dcStyles = useThemedStyles(makeDcStyles);
-  const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
+  const { projectId: paramProjectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
     getPhotosForProject, projects, commitments, getChangeOrdersForProject, updateProject,
   } = useProjects();
+
+  // Reached from the sidebar, universal search or a deep link there is no
+  // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const { receipts } = useMaterialReceipts();
   const { tier } = useSubscription();
   const { isFree } = useTierAccess();
@@ -119,6 +126,8 @@ export default function DailyReportScreen() {
   } | null>(null);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingReports = useMemo(() => getDailyReportsForProject(projectId ?? ''), [projectId, getDailyReportsForProject]);
 
   // Photos taken on the same calendar day this DFR is for (or today if new).
@@ -1215,17 +1224,18 @@ export default function DailyReportScreen() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Daily Report' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Daily Reports"
+          message="Daily field reports (DFRs) log weather, manpower, and progress on one specific project."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MageDailyReport size={36} color={themeColors.accent} />}
-          title="No daily report open yet"
-          message="Daily field reports (DFRs) log weather, manpower, and progress on a specific project. To start one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Daily Report inside the project tile grid.',
             'Voice-dictate the day or fill weather, crew, and progress fields, then submit.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

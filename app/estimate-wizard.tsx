@@ -116,10 +116,14 @@ function buildLinkedEstimate(data: EstimateResult): LinkedEstimate {
   // gap (e.g. rows summing to $100k while summary showed "Base $130k").
   // Only appended when > 0. Same shape as the priced rows above:
   // quantity 1, unitPrice = the amount, markup 0.
+  // The label was 'Contingency (~10%)' while the amount is whatever the model
+  // returned against whatever subtotal it built — the two never had to agree,
+  // and this row propagates into the client proposal PDF. The dollar figure is
+  // real; the percentage was an assertion nothing checked, so it's gone.
   if (data.contingency > 0) {
     items.push({
       materialId: generateUUID(),
-      name: 'Contingency (~10%)',
+      name: 'Contingency',
       category: 'Contingency',
       unit: 'ls',
       quantity: 1,
@@ -674,12 +678,18 @@ function EstimateWizardScreenInner() {
 
           {result.total > 0 ? (
             <>
+              {/* No `?? 70`. When the model returns no confidence, BrainCard
+                  omits the pill AND the meter, and the grounding line says so
+                  — an absent score must not look like an earned one. */}
               <BrainCard
                 style={styles.brainCardSpacing}
-                confidence={result.confidence ?? 70}
-                ground={groundingFacts.length > 0
-                  ? `Priced with your cost history · ${groundingFacts.length} learned rate${groundingFacts.length === 1 ? '' : 's'}`
-                  : 'Priced from market averages — MAGE has none of your rates yet'}
+                confidence={result.confidence}
+                ground={[
+                  groundingFacts.length > 0
+                    ? `Priced with your cost history · ${groundingFacts.length} learned rate${groundingFacts.length === 1 ? '' : 's'}`
+                    : 'Priced from market averages — MAGE has none of your rates yet',
+                  result.confidence === undefined ? 'No confidence score returned for this run' : null,
+                ].filter(Boolean).join(' · ')}
                 lead={result.refineWith && result.refineWith.length > 0
                   ? `Answer ${result.refineWith.length} question${result.refineWith.length === 1 ? '' : 's'} below to sharpen the number`
                   : undefined}
@@ -920,8 +930,8 @@ function EstimateWizardScreenInner() {
           <RevenueEarlyAccessCard
             eventKey="revenue.sub_bid_network"
             icon={Users}
-            headline="Post this scope to 3 vetted subs"
-            body="Push the trades-by-line-item to qualified subs in your area. Receive 3 bids in 48h. Industry data: real-time bid network closes 35% faster than email."
+            headline="Post this scope to vetted subs"
+            body="Push the trades-by-line-item to qualified subs in your area, instead of emailing the set to each one and waiting."
             footer="Sub-bid network launches when your metro hits 50 active subs per trade"
             testID="estimate-subbid-cta"
           />

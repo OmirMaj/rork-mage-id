@@ -496,7 +496,7 @@ export default function DiscoverScreen() {
           eventKey="revenue.equipment_financing"
           icon={Truck}
           headline="Finance a truck or new equipment"
-          body="When you outgrow rentals: $25K-$80K loans for trucks, lifts, scaffold, tools. 24-hour decisions via partner lenders. Rev-share, no application fee."
+          body="When you outgrow rentals: financing for trucks, lifts, scaffold and tools through partner lenders. No application fee."
           footer="Lower priority per the strategy doc — added for completeness"
           testID="discover-equipment-cta"
         />

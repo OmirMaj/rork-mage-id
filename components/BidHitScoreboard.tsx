@@ -1,14 +1,19 @@
 // BidHitScoreboard — the contractor's marketplace win-rate, made legible.
 //
-// Research finding: <6% of contractors track their bid-hit ratio, yet it's
-// the clearest "am I winning?" signal. Surfacing it — with the ~25% industry
-// average as a benchmark — turns vague effort into a falsifiable scoreboard
-// and gives the app a recurring reason to open ("how am I doing?").
+// Every number on this card is measured from the contractor's own records.
+// It used to also print "Above the ~25% industry average" against a hardcoded
+// BENCHMARK_WIN_RATE — a figure MAGE has never measured and cannot measure.
+// That's gone: their win rate is real, the benchmark was not.
 //
 // Data source: CRM leads with source 'mage_bids' (created automatically when
 // a contractor submits a bid via the marketplace — see submit-bid-response).
 // Decided bids = won + lost; win-rate = won / decided. Speed-to-lead is the
 // median minutes from receivedAt → firstRespondedAt.
+//
+// The win rate is withheld below MIN_DECIDED_FOR_RATE. One won bid is not a
+// "100% win rate" — publishing it invents a statistic out of a sample of one.
+// Same gate and same threshold as utils/bidHistoryFacts.ts MIN_DECIDED, which
+// is what components/AIBidScorecard.tsx already honours.
 
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
@@ -20,9 +25,10 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-// Industry-average commercial bid win-rate (~25%, "2-3 wins per 10 bids"),
-// used as the benchmark line. See research synthesis.
-const BENCHMARK_WIN_RATE = 0.25;
+/** Minimum decided bids before we publish a win rate. Mirrors
+ *  utils/bidHistoryFacts.ts MIN_DECIDED — one source of truth for
+ *  "how much evidence before MAGE states a rate". */
+const MIN_DECIDED_FOR_RATE = 3;
 
 export default function BidHitScoreboard({ testID }: { testID?: string }) {
   const { leads } = useProjects();
@@ -35,7 +41,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
     const lost = mine.filter(l => l.stage === 'lost').length;
     const decided = won + lost;
     const pending = mine.length - decided;
-    const winRate = decided > 0 ? won / decided : null;
+    const winRate = decided >= MIN_DECIDED_FOR_RATE ? won / decided : null;
 
     // Median response time (minutes) where we have both timestamps.
     const responseMins: number[] = [];
@@ -57,7 +63,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
   if (stats.total === 0) return null;
 
   const pct = stats.winRate != null ? Math.round(stats.winRate * 100) : null;
-  const beatsBenchmark = stats.winRate != null && stats.winRate >= BENCHMARK_WIN_RATE;
+  const decided = stats.won + stats.lost;
 
   const respLabel = (() => {
     if (stats.medianResp == null) return '—';
@@ -78,10 +84,8 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
       <View style={styles.row}>
         <View style={styles.stat}>
           <View style={styles.statTop}>
-            <Trophy size={13} color={beatsBenchmark ? colors.success : colors.text} strokeWidth={1.75} />
-            <Text style={[styles.statValue, beatsBenchmark && { color: colors.success }]}>
-              {pct != null ? `${pct}%` : '—'}
-            </Text>
+            <Trophy size={13} color={colors.text} strokeWidth={1.75} />
+            <Text style={styles.statValue}>{pct != null ? `${pct}%` : '—'}</Text>
           </View>
           <Text style={styles.statLabel}>Win rate</Text>
         </View>
@@ -105,9 +109,11 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
 
       {pct != null ? (
         <Text style={styles.benchmark}>
-          {beatsBenchmark
-            ? `Above the ~25% industry average — keep it up.`
-            : `Industry average is ~25%. Faster, more professional bids close the gap.`}
+          {stats.won} of {decided} decided bid{decided === 1 ? '' : 's'} won. Your own record — MAGE has no industry benchmark to hold it against.
+        </Text>
+      ) : decided > 0 ? (
+        <Text style={styles.benchmark}>
+          {decided} decided bid{decided === 1 ? '' : 's'} so far. A win rate needs at least {MIN_DECIDED_FOR_RATE} to mean anything.
         </Text>
       ) : (
         <Text style={styles.benchmark}>

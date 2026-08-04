@@ -495,13 +495,23 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </View>
+          {/* HONESTY: this is a paid-tier upsell, so every figure on it has to
+              be checkable in the code. The two stats below are the ONLY two
+              real differences between the tiers — the model, and the output
+              budget (supabase/functions/analyze-drawings/index.ts: 32768 vs
+              16384 maxOutputTokens, exactly 2x). buildPrompt() takes no model
+              argument, so the prompt is byte-identical for both: the old
+              scope-capture percentage and the "Pro-only RFI escalation" line
+              described differences that do not exist. Nobody has measured
+              Pro-vs-Standard output on real sets, so this card now describes
+              what you get, not what it will find. */}
           <Text style={styles.teaserBody}>
-            Pro Estimator routinely catches scope Standard misses on incomplete drawings — electrical rough-ins, structural metals, site work, permits. It also escalates ambiguous areas to critical-severity concerns so you don&apos;t ship a bid without an RFI.
+            Pro Estimator runs the same read on a bigger model with twice the room to write. On dense or incomplete sets that is where the difference shows — it has the headroom to itemise instead of truncating. What it actually finds on your set is yours to judge.
           </Text>
           <View style={styles.teaserStatRow}>
             <View style={styles.teaserStat}>
-              <Text style={styles.teaserStatValue}>15-30%</Text>
-              <Text style={styles.teaserStatLabel}>more scope captured on rough drawings</Text>
+              <Text style={styles.teaserStatValue}>2.5 Pro</Text>
+              <Text style={styles.teaserStatLabel}>reads the set — Standard runs 2.5 Flash</Text>
             </View>
             <View style={styles.teaserStatDivider} />
             <View style={styles.teaserStat}>

@@ -10,7 +10,7 @@ import {
   Link2, Copy, Share2, FileText, Receipt, BellRing,
 } from 'lucide-react-native';
 import { MageAIMark, MageInvoice } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -1466,7 +1466,7 @@ function InvoiceInner() {
                         eventKey="revenue.financing.wisetack"
                         icon={HandCoins}
                         headline="Offer your client monthly payments"
-                        body="Industry data: contractors who offer financing close 20% more deals at 5-7x larger ticket. We pre-fill the app from this invoice."
+                        body="Give the homeowner a monthly option instead of one lump sum. We pre-fill the application from this invoice."
                         footer="Wisetack-style partnership · early access shipping Q3 2026"
                         testID="invoice-financing-cta"
                       />

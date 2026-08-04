@@ -35,6 +35,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Undo2, Redo2, Download, Mic } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -158,7 +159,7 @@ function ScheduleProScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   // Re-read tier access inside the inner so the PDF handler can guard
   // on the narrower `schedule_gantt_pdf` feature flag directly (the outer
   // gate covers full Schedule Pro access — this is the export-specific
@@ -177,6 +178,13 @@ function ScheduleProScreenInner() {
     getDailyReportsForProject,
   } = useProjects();
 
+  // Reached from the sidebar, universal search or a deep link there is no
+  // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
+
   // Viewer collaborators can't persist schedule edits — guard the writer at the
   // source so every updateProject(...) in this screen is a no-op for viewers
   // (Supabase RLS also denies their UPDATE). role is null while loading, so
@@ -192,6 +200,8 @@ function ScheduleProScreenInner() {
     () => projects.find(p => p.id === projectId) ?? null,
     [projects, projectId],
   );
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
   // Local working copy so the grid feels instant; we debounce persistence.
   // The undo/redo stacks live in a single HistoryState via the pure,
@@ -1588,23 +1598,15 @@ function ScheduleProScreenInner() {
   }, [focusedTaskId]);
 
   // -------------------------------------------------------------------------
-  // Early returns — no project, or screen too narrow
+  // Early returns — screen too narrow, or no project
   // -------------------------------------------------------------------------
-
-  if (!project) {
-    return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
-        <Stack.Screen options={{ title: 'Schedule Pro' }} />
-        <Text style={styles.emptyTitle}>No project selected</Text>
-        <Text style={styles.emptyBody}>
-          Open a project first, then return to Schedule Pro from the header.
-        </Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.back()} activeOpacity={0.8}>
-          <Text style={styles.primaryBtnText}>Go back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  //
+  // The width gate deliberately runs FIRST, which is the one way Schedule Pro
+  // is treated differently from the other project-scoped screens. This screen
+  // is unusable below GRID_BREAKPOINT, so making a phone user pick a project
+  // before telling them to go use the classic schedule is a step that leads
+  // nowhere. Narrow ⇒ hand them the classic schedule immediately; only on a
+  // surface that can actually render the grid do we ask which job to open.
 
   if (width < GRID_BREAKPOINT) {
     return (
@@ -1624,6 +1626,28 @@ function ScheduleProScreenInner() {
         >
           <Text style={styles.primaryBtnText}>Open classic schedule</Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!project) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="SCHEDULE PRO · MAGE" title="Schedule Pro" />
+        <ToolProjectPicker
+          toolName="Schedule Pro"
+          message="Schedule Pro drives the CPM grid, float and baselines for one project at a time."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
+          icon={<MageAIMark size={30} color={themeColors.accent} />}
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Build or import a schedule so there are tasks to sequence.',
+            'Open Schedule Pro to set dependencies, float and baselines.',
+          ]}
+        />
       </View>
     );
   }

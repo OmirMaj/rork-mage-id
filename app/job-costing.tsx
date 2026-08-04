@@ -23,7 +23,7 @@ import {
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
   CheckCircle2, Clock, Calculator, Activity, Receipt,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -75,11 +75,18 @@ function JobCostingInner() {
   const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const {
     getProject, commitments, invoices, changeOrders,
     addCommitment, updateCommitment, deleteCommitment, subcontractors, projects,
   } = useProjects();
+
+  // Reached from the sidebar, universal search or a deep link there is no
+  // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
 
   const { receipts } = useMaterialReceipts();
   // Self-perform labor (D6): finished shifts × the GC's configured loaded
@@ -89,6 +96,8 @@ function JobCostingInner() {
   const { rates: laborRates } = useLaborRates();
   const laborSamples = useLaborCostSamples();
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
@@ -121,19 +130,24 @@ function JobCostingInner() {
 
   if (!project) {
     return (
-      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'Job Costing' }} />
-        <EmptyState
+      <View style={{ flex: 1, backgroundColor: themeColors.bg, paddingTop: insets.top }}>
+        {/* This route is declared headerShown:false in app/_layout.tsx, so
+            without ToolHeader the picker runs under the notch and has no back
+            affordance. */}
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="JOB COSTING · MAGE" title="Job Costing" />
+        <ToolProjectPicker
+          toolName="Job Costing"
+          message="Job costing rolls up commitments, invoices, and change orders for one project at a time."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<Calculator size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No project to cost yet"
-          message="Job costing rolls up commitments, invoices, and change orders for one project. To see live numbers:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Inside the project, log a sub commitment, invoice, or change order.',
             'Tap Job Costing in the project tile grid to see budget vs. actual.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

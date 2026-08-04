@@ -83,9 +83,24 @@ export function priceTell(tell: ConditionTell, db: CostDatabase): PricedTell {
   return { tell, remediation: rem, band: { low, expected, high }, hasLearnedRate: !!learned };
 }
 
-/** Low-confidence tells become a field-verify task instead of a priced line. */
+/** Low-confidence tells become a field-verify task instead of a priced line.
+ *
+ *  A tell with NO likelihood also lands here. `normalizeTells` (and the edge
+ *  function) coerce a missing/garbage `likelihood` to 0 — and 0 is not a
+ *  neutral placeholder, it is the claim "this definitely needs no work". It
+ *  also zeroes the whole allowance band (priceTell weights by likelihood/100),
+ *  so the screen would print a confident "0% likely to need work · $0". A tell
+ *  the model gave no probability for is exactly what verify-only is for. */
 export function routeByConfidence(tell: ConditionTell): 'price' | 'verify-only' {
+  if (!(tell.likelihood > 0)) return 'verify-only';
   return tell.confidence < CONFIDENCE_THRESHOLD ? 'verify-only' : 'price';
+}
+
+/** Why a tell was routed to verify-only, so the UI can state the real reason
+ *  instead of always blaming detection confidence. Null when it was priced. */
+export function verifyOnlyReason(tell: ConditionTell): 'no-likelihood' | 'low-confidence' | null {
+  if (!(tell.likelihood > 0)) return 'no-likelihood';
+  return tell.confidence < CONFIDENCE_THRESHOLD ? 'low-confidence' : null;
 }
 
 /** Defensive client-side coercion of the edge response (belt-and-suspenders). */

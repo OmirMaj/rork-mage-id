@@ -13,7 +13,7 @@ import {
   Mail, RefreshCw, Check, X, HandCoins, Sunrise, Briefcase,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -170,9 +170,9 @@ function ClientPortalSetupScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: paramId } = useLocalSearchParams<{ id: string }>();
   const {
-    getProject, updateProject,
+    projects, getProject, updateProject,
     settings,
     getInvoicesForProject, getChangeOrdersForProject,
     getDailyReportsForProject, getPunchItemsForProject,
@@ -181,7 +181,16 @@ function ClientPortalSetupScreenInner() {
     getCommitmentsForProject, getWarrantiesForProject,
   } = useProjects();
 
+  // Reached from the sidebar, universal search or a deep link there is no
+  // project id, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const id = pickedProjectId ?? paramId ?? '';
+
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramId ? paramId : undefined;
   const proposalQ = usePortalBudgetProposals(id);
   // Pass BOTH projectId + portalId so the messages query can filter by
   // portal_id (the only column both sides actually populate) while
@@ -686,17 +695,18 @@ function ClientPortalSetupScreenInner() {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Client Portal' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Client Portal"
+          message="Each project gets its own private homeowner portal with progress, photos, selections, and pay buttons."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<Briefcase size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No client portal set up yet"
-          message="Each project gets its own private homeowner portal with progress, photos, selections, and pay buttons. To set one up:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Client Portal inside the project tile grid.',
             'Toggle which sections to share, then send the magic link to the homeowner.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );
