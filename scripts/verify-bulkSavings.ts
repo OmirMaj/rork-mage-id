@@ -49,5 +49,13 @@ eq('empty.bulkSavings', computeBulkSavings('proj1', [], [], ASOF).bulkSavings, 0
   eq('open.hasRealData', r.hasRealData, false);
 }
 
+{
+  const r = computeBulkSavings('proj1',
+    [pkg({ awardedCommitmentId: 'c1' })],
+    [com({ id: 'c1', projectId: 'proj2' })], ASOF); // commitment belongs to another project
+  eq('crossProject.hasRealData', r.hasRealData, false);
+  eq('crossProject.savings', r.bulkSavings, 0);
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 if (failures) process.exit(1);

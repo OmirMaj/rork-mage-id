@@ -20,6 +20,9 @@ export interface BulkSavingsSummary {
 }
 
 /**
+ * A package with estimateBudget 0 still contributes (as an overrun equal to its
+ * awardedAmount) — a zero-budget committed line is a real cost, surfaced honestly.
+ *
  * Real bulk savings for a project = Σ(estimate budget − signed award) across
  * buyout packages that are actually AWARDED and have a resolvable signed
  * Commitment. Forward estimates, open/leveling packages, and awarded-but-not-
