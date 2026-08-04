@@ -52,8 +52,10 @@ const SCREENS: { file: string; param: string; note: string }[] = [
 ];
 
 /** The reference implementations. If these lose the picker, the pattern the
- *  seven were copied from is gone and the whole rule is unanchored. */
-const REFERENCE = ['app/field-ticket.tsx', 'app/ai-punch.tsx'];
+ *  seven were copied from is gone and the whole rule is unanchored.
+ *  budget-dashboard is in here because it used to be the SECOND, hand-rolled
+ *  picker — the "two competing patterns" half of the finding. */
+const REFERENCE = ['app/field-ticket.tsx', 'app/ai-punch.tsx', 'app/budget-dashboard.tsx'];
 
 const read = (p: string) => readFileSync(p, 'utf8');
 
@@ -70,6 +72,24 @@ for (const { file, note } of SCREENS) {
 for (const file of REFERENCE) {
   ok(`${file}: still the reference picker call site`, /<ToolProjectPicker\b/.test(read(file)),
     'the seven screens copy this file; if it changes shape, update them together');
+}
+
+// ── Exactly ONE picker in the app ───────────────────────────────────────────
+// Half of finding #3 was that the app shipped two answers to the same question
+// and put the worse one on the money screens. A second hand-rolled picker is
+// how that comes back, so ban the shape: a screen that says "Pick a project"
+// must be delegating to ToolScreenChrome, not painting its own rows.
+{
+  const hosts = [...SCREENS.map(s => s.file), ...REFERENCE];
+  const rogue = hosts.filter(f => {
+    const src = read(f);
+    return /Pick a project/.test(src) && !/<ToolProjectPicker\b/.test(src);
+  });
+  ok('no screen hand-rolls a second project picker', rogue.length === 0,
+    rogue.length ? `these paint their own picker: ${rogue.join(', ')}` : undefined);
+  ok('the picker copy lives in ToolScreenChrome only',
+    /Pick a project/.test(read('components/ToolScreenChrome.tsx')),
+    'one component owns this string');
 }
 
 // ── The picker branch must be an EARLY RETURN, before primary content ───────
