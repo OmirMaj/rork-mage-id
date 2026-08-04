@@ -6,41 +6,62 @@ export interface InvoicePrediction {
   invoiceId: string;
   invoiceNumber: number;
   projectName: string;
+  /** REAL — derived from this invoice's own totals, never from the model. */
   outstandingAmount: number;
-  onTimeProbability: number; // 0-100
-  predictedPayDate: string;  // ISO
-  daysToPay: number;
-  riskLevel: 'low' | 'medium' | 'high';
+  /** 0-100, or null when the model returned no probability for this invoice.
+   *  null must NOT be rendered as a number: "we have no forecast" and "a
+   *  coin flip" are completely different claims about the same invoice. */
+  onTimeProbability: number | null;
+  /** ISO, or null when there is no daysToPay to project a date from. */
+  predictedPayDate: string | null;
+  /** null when the model returned no timing for this invoice. */
+  daysToPay: number | null;
+  /** null when the model returned no risk level for this invoice. */
+  riskLevel: 'low' | 'medium' | 'high' | null;
   reasons: string[];
   suggestedAction: string;
 }
 
 export interface PaymentPredictionResult {
   perInvoice: InvoicePrediction[];
+  /** Probability-weighted inflow over rows the model DID forecast. Rows with
+   *  no timing contribute nothing — see unforecastAmount for what's missing. */
   expected7dInflow: number;
   expected14dInflow: number;
   expected30dInflow: number;
   atRiskAmount: number;
-  collectionRiskScore: number; // 0-100, higher = riskier
+  /** 0-100, higher = riskier. null when the model returned no portfolio score. */
+  collectionRiskScore: number | null;
+  /** Invoices the model returned no usable timing for. Their outstanding
+   *  dollars are NOT inside the inflow windows above, so the screen has to
+   *  say so — otherwise a partial forecast reads as a complete one. */
+  unforecastCount: number;
+  unforecastAmount: number;
   headline: string;
   topAction: string;
 }
 
-// Every field has a default — if Gemini returns partial data, the
-// mageAI salvage path can rescue per-field instead of throwing the
-// whole forecast away. Previously a single missing `riskLevel` (or
-// the model returning a free-text level like "moderate") killed the
-// entire response and the user saw "Could not forecast payments."
+// Text/enum fields keep their defaults — if Gemini returns partial data the
+// mageAI salvage path can rescue per-field instead of throwing the whole
+// forecast away. Previously a single missing `riskLevel` (or the model
+// returning a free-text level like "moderate") killed the entire response
+// and the user saw "Could not forecast payments."
+//
+// The NUMERIC and RISK fields deliberately have NO default. `.default(50)` on
+// onTimeProbability turned "the model said nothing" into a confident 50%
+// on-time probability, a 50/100 collection-risk score, and a 21-day pay date
+// — indistinguishable on screen from a measured forecast, and a contractor
+// makes collections calls on them. Absent stays absent all the way to the UI.
 const predictionSchema = z.object({
   perInvoice: z.array(z.object({
     invoiceId: z.string().default(''),
-    onTimeProbability: z.number().default(50),
-    daysToPay: z.number().default(21),
-    riskLevel: z.enum(['low', 'medium', 'high']).catch('medium').default('medium'),
+    onTimeProbability: z.number().optional().catch(undefined),
+    daysToPay: z.number().optional().catch(undefined),
+    riskLevel: z.enum(['low', 'medium', 'high']).optional().catch(undefined),
     reasons: z.array(z.string()).default([]),
     suggestedAction: z.string().default(''),
   })).default([]),
-  collectionRiskScore: z.number().default(50),
+  collectionRiskScore: z.number().optional().catch(undefined),
   headline: z.string().default(''),
   topAction: z.string().default(''),
 });
@@ -107,7 +128,10 @@ export async function predictInvoicePayments(
       expected14dInflow: 0,
       expected30dInflow: 0,
       atRiskAmount: 0,
+      // Real, not a default: zero unpaid invoices IS zero collection risk.
       collectionRiskScore: 0,
+      unforecastCount: 0,
+      unforecastAmount: 0,
       headline: 'No unpaid invoices to forecast.',
       topAction: 'Keep the cadence going — issue your next progress invoice when milestones complete.',
     };
@@ -193,24 +217,30 @@ Be concrete. Use specific invoice numbers and project names in headline/topActio
   const byId = new Map<string, any>();
   perInvoiceRaw.forEach(r => { if (r?.invoiceId) byId.set(r.invoiceId, r); });
 
+  // A number only counts if the model actually returned one. `Number.isFinite`
+  // rejects NaN/Infinity as well as undefined, so a garbage field can't become
+  // a plausible-looking forecast.
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
   const perInvoice: InvoicePrediction[] = unpaid.map(inv => {
     const aiRow = byId.get(inv.id);
     const project = projectsById[inv.projectId];
     const outstanding = outstandingOf(inv);
-    const daysToPay = typeof aiRow?.daysToPay === 'number' ? Math.max(0, Math.round(aiRow.daysToPay)) : 21;
-    const predicted = new Date(today.getTime() + daysToPay * 86_400_000).toISOString();
-    const riskLevel: 'low' | 'medium' | 'high' = aiRow?.riskLevel === 'low' || aiRow?.riskLevel === 'high' ? aiRow.riskLevel : 'medium';
+    const rawDays = num(aiRow?.daysToPay);
+    const daysToPay = rawDays === null ? null : Math.max(0, Math.round(rawDays));
+    const rawProb = num(aiRow?.onTimeProbability);
     return {
       invoiceId: inv.id,
       invoiceNumber: inv.number,
       projectName: project?.name || 'Project',
       outstandingAmount: outstanding,
-      onTimeProbability: typeof aiRow?.onTimeProbability === 'number'
-        ? Math.max(0, Math.min(100, Math.round(aiRow.onTimeProbability)))
-        : 50,
-      predictedPayDate: predicted,
+      onTimeProbability: rawProb === null ? null : Math.max(0, Math.min(100, Math.round(rawProb))),
+      // No daysToPay ⇒ no date. Projecting today+21 would invent a deadline.
+      predictedPayDate: daysToPay === null ? null : new Date(today.getTime() + daysToPay * 86_400_000).toISOString(),
       daysToPay,
-      riskLevel,
+      riskLevel: aiRow?.riskLevel === 'low' || aiRow?.riskLevel === 'medium' || aiRow?.riskLevel === 'high'
+        ? aiRow.riskLevel
+        : null,
       reasons: Array.isArray(aiRow?.reasons) ? aiRow.reasons.slice(0, 3).map((r: any) => String(r)) : [],
       suggestedAction: typeof aiRow?.suggestedAction === 'string'
         ? aiRow.suggestedAction
@@ -218,28 +248,33 @@ Be concrete. Use specific invoice numbers and project names in headline/topActio
     };
   });
 
-  const expected7dInflow = perInvoice
-    .filter(p => p.daysToPay <= 7)
+  // Only rows that carry BOTH a timing and a probability can be placed in a
+  // window and weighted. The rest are reported separately rather than being
+  // folded in at a made-up rate.
+  const forecast = perInvoice.filter(
+    (p): p is InvoicePrediction & { daysToPay: number; onTimeProbability: number } =>
+      p.daysToPay !== null && p.onTimeProbability !== null,
+  );
+  const inflowWithin = (days: number) => forecast
+    .filter(p => p.daysToPay <= days)
     .reduce((s, p) => s + p.outstandingAmount * (p.onTimeProbability / 100), 0);
-  const expected14dInflow = perInvoice
-    .filter(p => p.daysToPay <= 14)
-    .reduce((s, p) => s + p.outstandingAmount * (p.onTimeProbability / 100), 0);
-  const expected30dInflow = perInvoice
-    .filter(p => p.daysToPay <= 30)
-    .reduce((s, p) => s + p.outstandingAmount * (p.onTimeProbability / 100), 0);
-  const atRiskAmount = perInvoice
-    .filter(p => p.riskLevel === 'high')
-    .reduce((s, p) => s + p.outstandingAmount, 0);
+
+  const unforecast = perInvoice.filter(p => p.daysToPay === null || p.onTimeProbability === null);
 
   return {
     perInvoice,
-    expected7dInflow,
-    expected14dInflow,
-    expected30dInflow,
-    atRiskAmount,
-    collectionRiskScore: typeof parsed?.collectionRiskScore === 'number'
-      ? Math.max(0, Math.min(100, Math.round(parsed.collectionRiskScore)))
-      : 50,
+    expected7dInflow: inflowWithin(7),
+    expected14dInflow: inflowWithin(14),
+    expected30dInflow: inflowWithin(30),
+    atRiskAmount: perInvoice
+      .filter(p => p.riskLevel === 'high')
+      .reduce((s, p) => s + p.outstandingAmount, 0),
+    collectionRiskScore: (() => {
+      const raw = num(parsed?.collectionRiskScore);
+      return raw === null ? null : Math.max(0, Math.min(100, Math.round(raw)));
+    })(),
+    unforecastCount: unforecast.length,
+    unforecastAmount: unforecast.reduce((s, p) => s + p.outstandingAmount, 0),
     headline: typeof parsed?.headline === 'string' ? parsed.headline : `Forecasting ${perInvoice.length} unpaid invoices.`,
     topAction: typeof parsed?.topAction === 'string' ? parsed.topAction : 'Review the highest-risk invoice first.',
   };

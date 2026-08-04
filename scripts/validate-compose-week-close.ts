@@ -291,7 +291,8 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
       outstandingAmount: 10_000, onTimeProbability: 60, predictedPayDate: '2026-08-01',
       daysToPay: 7, riskLevel: 'low', reasons: [], suggestedAction: '' }],
     expected7dInflow: 10_000, expected14dInflow: 10_000, expected30dInflow: 10_000,
-    atRiskAmount: 0, collectionRiskScore: 20, headline: '', topAction: '',
+    atRiskAmount: 0, collectionRiskScore: 20, unforecastCount: 0, unforecastAmount: 0,
+    headline: '', topAction: '',
   };
   const resultPred = composeWeekClose(baseInput({
     projects: [p1], dailyReports: [report],

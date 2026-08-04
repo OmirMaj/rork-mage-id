@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import Svg, { Path, Line } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -177,10 +178,16 @@ Be specific and actionable. Use construction industry terminology.`;
     };
   }, [cashFlowData, chartWidth]);
 
-  // Opened without a projectId (e.g. from the Tools launcher) but the user
-  // has projects → show a picker instead of dead-ending on the empty state.
-  // Budget Dashboard is single-project EVM, so it needs a project to chart.
-  if (!project && projects.length > 0) {
+  // Opened without a projectId (e.g. from the Tools launcher) → show a picker
+  // instead of dead-ending on the empty state. Budget Dashboard is
+  // single-project EVM, so it needs a project to chart.
+  //
+  // UX-AUDIT-2026-08-03 #3: this used to be a SECOND, hand-rolled picker — the
+  // app shipped two answers to one question. It now renders the same
+  // ToolProjectPicker as field-ticket and the seven screens the audit named,
+  // so there is one picker in the app and one place to fix it. The pick still
+  // goes through router.setParams here, which keeps the choice in the URL.
+  if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{
@@ -189,45 +196,42 @@ Be specific and actionable. Use construction industry terminology.`;
           headerTintColor: themeColors.accent,
           headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         }} />
-        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
-          <FeatureHeader
-            eyebrow="Earned Value"
-            title="Pick a project to chart"
-            subtitle="Budget Dashboard tracks earned value (CPI / SPI) for one project at a time. Choose which job to open."
-            style={styles.featureHeader}
-          />
-          {projects.map((p) => (
-            <TouchableOpacity
-              key={p.id}
-              style={styles.pickerRow}
-              activeOpacity={0.85}
-              onPress={() => router.setParams({ projectId: p.id })}
-              testID={`budget-dashboard-pick-${p.id}`}
-            >
-              <BarChart3 size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.pickerRowText} numberOfLines={1}>{p.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (!project || !metrics) {
-    return (
-      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Budget Dashboard' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="the Budget Dashboard"
+          message="Budget Dashboard tracks earned value (CPI / SPI) for one project at a time."
+          projects={projects}
+          onPick={(id) => router.setParams({ projectId: id })}
+          staleProjectId={projectId ? projectId : undefined}
           icon={<BarChart3 size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No project to chart yet"
-          message="The budget dashboard tracks earned value (CPI / SPI) against an estimate. To see one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Build an estimate so the dashboard has a planned budget to chart against.',
             'Tap Budget Dashboard inside the project tile grid.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
+      </View>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
+        <Stack.Screen options={{ title: 'Budget Dashboard' }} />
+        {/* A project IS selected here — the picker above handles "no project".
+            This is the narrower case: the job has no estimate, so there is no
+            planned value to chart earned value against. Saying "no project"
+            here would be the same false copy the audit called out. */}
+        <EmptyState
+          icon={<BarChart3 size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          title="Nothing to chart yet"
+          message={`${project.name} has no estimate, so there's no planned budget to measure earned value (CPI / SPI) against.`}
+          steps={[
+            'Open the project and build or import an estimate.',
+            'Log invoices and commitments as the job runs.',
+            'Come back here to see CPI / SPI against that plan.',
+          ]}
+          actionLabel="Open project"
+          onAction={() => router.push({ pathname: '/project-detail' as never, params: { id: project.id } as never })}
         />
       </View>
     );
@@ -422,23 +426,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 0,
     marginBottom: 4,
   },
-  pickerRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 12,
-    backgroundColor: t.surface,
-    borderRadius: Tokens.radius.lg,
-    padding: 16,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: t.line,
-  },
-  pickerRowText: {
-    flex: 1,
-    fontSize: Type.bodyCompact.fontSize,
-    fontWeight: '600' as const,
-    color: t.text,
-  },
+  // (pickerRow / pickerRowText removed — the hand-rolled project picker they
+  // styled is now the shared ToolProjectPicker. UX-AUDIT-2026-08-03 #3.)
   projectHeader: {
     backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,

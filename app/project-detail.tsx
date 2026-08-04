@@ -1106,7 +1106,7 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.heroChipSub}>per sq ft</Text>
             </View>
             <View style={[detailStyles.heroChip, { backgroundColor: themeColors.successSoft }]}>
-              <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
+              <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal ?? 0)}</Text>
               <Text style={[detailStyles.heroChipSub, { color: themeColors.success }]}>savings applied</Text>
             </View>
           </View>
@@ -1159,7 +1159,7 @@ export default function ProjectDetailScreen() {
               <Text style={[detailStyles.additionalLabel, { color: themeColors.success }]}>Bulk Savings</Text>
             </View>
             <View style={detailStyles.additionalRight}>
-              <Text style={[detailStyles.additionalValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
+              <Text style={[detailStyles.additionalValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal ?? 0)}</Text>
             </View>
           </View>
         </View>
@@ -1195,7 +1195,7 @@ export default function ProjectDetailScreen() {
           </View>
           <View style={detailStyles.breakdownRow}>
             <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Bulk Savings</Text>
-            <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
+            <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal ?? 0)}</Text>
           </View>
           <View style={detailStyles.breakdownDividerThick} />
           <View style={detailStyles.breakdownRow}>

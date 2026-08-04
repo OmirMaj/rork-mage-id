@@ -94,30 +94,29 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingBottom: 22,
     overflow: 'hidden',
   },
+  // Type.eyebrow is the house uppercase micro-label (11 / 700 / 1.4 tracking).
+  // These were hand-rolled at weight '800', which is off the four-weight
+  // ladder in constants/typography.ts ('400' | '500' | '600' | '700').
   heroEyebrow: {
+    ...Type.eyebrow,
     color: '#FF8533',
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '800',
-    letterSpacing: 1.5,
     marginBottom: 4,
   },
-  // Fraunces display face — matches PageHeader, the wizard hero, and the
-  // Card.Title serif used by the cards directly below this band.
+  // Fraunces display face — matches PageHeader and the wizard hero. Serif is
+  // for the SCREEN title only; the cards below are on the sans ladder.
   heroTitle: {
     ...Type.serifTitle,
     color: '#F4EFE6',
   },
   heroSubtitle: {
+    ...Type.subhead,
     color: '#C9C3B8',
-    fontSize: Type.subhead.fontSize,
     marginTop: 4,
   },
   scroll: { flex: 1 },
   sectionLabel: {
+    ...Type.eyebrow,
     color: t.textMuted,
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '800',
-    letterSpacing: 1.2,
     marginBottom: 10,
   },
   card: { marginBottom: 10 },

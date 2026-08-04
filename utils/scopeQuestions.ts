@@ -136,7 +136,13 @@ export const estimateSchema = z.object({
   notes: z.array(z.string()).default([]),
   // 0-100 — how tight this estimate is given the inputs. The model lowers it
   // when the biggest cost drivers are unknown; rises as refine answers land.
-  confidence: z.number().catch(70).default(70),
+  //
+  // NO DEFAULT, deliberately. This used to be `.catch(70).default(70)`, so a
+  // model that returned nothing rendered "70% confident" plus a filled meter
+  // in BrainCard — visually identical to an earned score. `undefined` now
+  // flows through to BrainCard, which omits the pill and the meter entirely
+  // when confidence is absent, and the wizard says so in the grounding line.
+  confidence: z.number().min(0).max(100).optional().catch(undefined),
   // The specific high-leverage QUESTIONS that would most sharpen this estimate
   // (demo/existing conditions, MEP scope, structural changes, counts). Empty
   // when scope was already detailed. Back-compatible default.

@@ -452,7 +452,10 @@ Tone: a contractor texting their client a friendly progress note. Not a corporat
 }
 
 export const estimateValidationSchema = z.object({
-  overallScore: z.number().default(5),
+  // NO DEFAULT. `.default(5)` rendered a middling "5/10" review badge in
+  // amber whenever the model returned no score — a verdict on the user's
+  // estimate that nothing produced. Absent means no badge.
+  overallScore: z.number().optional().catch(undefined),
   issues: z.array(z.object({
     type: z.enum(['warning', 'error', 'suggestion', 'ok']).default('suggestion'),
     title: z.string().default(''),
@@ -1124,7 +1127,12 @@ export const aiQuickEstimateSchema = z.object({
   }),
   estimatedDuration: z.string().default('TBD'),
   costPerSqFt: z.number().default(0),
-  confidenceScore: z.number().default(70),
+  // NO DEFAULT — same rule as utils/scopeQuestions.ts `confidence`. This
+  // renders through BrainCard as a "% confident" pill plus a filled meter
+  // (components/AIQuickEstimate.tsx), so `.default(70)` made a model that
+  // returned nothing look exactly like an earned score. BrainCard omits the
+  // pill and the meter entirely when confidence is undefined.
+  confidenceScore: z.number().min(0).max(100).optional().catch(undefined),
   // Model sometimes returns warnings/tips as an object of { warning1: "...", warning2: "..." }
   // or a single string. Coerce any shape to string[].
   warnings: z.preprocess(
@@ -1202,7 +1210,10 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
     additionalCosts: { permits: 500, dumpsterRental: 400, equipmentRental: 300, cleanup: 200, contingencyPercent: 10, overheadPercent: 12 },
     estimatedDuration: 'To be determined',
     costPerSqFt: squareFootage > 0 ? Math.round(8000 / squareFootage) : 0,
-    confidenceScore: 30,
+    // No confidenceScore. This is the placeholder path — nothing was
+    // estimated, so there is nothing to be 30% confident about. The warning
+    // below is the honest signal; a confidence meter on a stub is fabricated
+    // precision about a fabricated estimate.
     warnings: ['AI estimate unavailable — this is a placeholder. Please edit with actual quantities and pricing.'],
     savingsTips: ['Get at least 3 contractor bids', 'Buy materials in bulk where possible'],
   };

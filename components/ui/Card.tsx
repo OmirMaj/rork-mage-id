@@ -89,14 +89,26 @@ function CardLabel({ children }: { children: string }) {
   return <EyebrowLabel tone="neutral" showDot={false}>{children}</EyebrowLabel>;
 }
 
+// Card rows are BODY UI, not display type, so they sit on the sans ladder —
+// the same steps every other list row in the app uses (compare the Discover
+// rows: a Type.body/700 title over a Type.footnote subtitle).
+//
+// These two slots used to be Type.serifHeadline (Fraunces 22) over
+// Type.monoCaption (JetBrains Mono 12). Both are real Type tokens, so no
+// validator flagged them — but stacking them on every row made the one screen
+// that renders <Card>, the Estimate hub under Discover, read in a completely
+// different typeface AND scale from the rest of the app: serif headlines over
+// monospaced body copy where everything else is system sans. Fraunces and
+// JetBrains Mono stay reserved for what they are for — screen-level display
+// titles (Type.serif*) and micro/numeric labels (Type.mono*).
 function CardTitle({ children, style }: SlotProps) {
   const { colors } = useTheme();
-  return <Text style={[Type.serifHeadline, { color: colors.text, marginTop: 4 }, style]}>{children}</Text>;
+  return <Text style={[Type.headline, { color: colors.text, marginTop: 4 }, style]}>{children}</Text>;
 }
 
 function CardMeta({ children, style }: SlotProps) {
   const { colors } = useTheme();
-  return <Text style={[Type.monoCaption, { color: colors.textMuted, marginTop: 6 }, style]}>{children}</Text>;
+  return <Text style={[Type.footnote, { color: colors.textMuted, marginTop: 6 }, style]}>{children}</Text>;
 }
 
 const makeStyles = (t: ThemeColors) =>

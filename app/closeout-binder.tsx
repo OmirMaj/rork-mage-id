@@ -26,7 +26,7 @@ import {
   ShieldCheck, BookOpen,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -69,9 +69,18 @@ export default function CloseoutBinderScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject, subcontractors } = useProjects() as any;
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projects, getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject, subcontractors } = useProjects() as any;
+
+  // Reached from the sidebar, universal search or a deep link there is no
+  // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = projectId ? getProject(projectId) : undefined;
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>(DEFAULT_MAINTENANCE);
   const [notes, setNotes] = useState('');
@@ -511,19 +520,24 @@ export default function CloseoutBinderScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 16 }]}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <EmptyState
+        {/* This screen hides the nav header, so without ToolHeader the picker
+            would have no back affordance at all — the exact dead end #3 is
+            about. */}
+        <ToolHeader eyebrow="CLOSEOUT · MAGE" title="Closeout Binder" />
+        <ToolProjectPicker
+          toolName="the Closeout Binder"
+          message="The closeout binder pulls warranties, selections, and as-builts from a single project."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<ShieldCheck size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No closeout to deliver yet"
-          message="The closeout binder pulls warranties, selections, and as-builts from a single project. To prepare one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Inside the project, log warranties, selections, and any final invoices or change orders.',
             'Tap Closeout in the project tile grid to assemble and send the binder PDF.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

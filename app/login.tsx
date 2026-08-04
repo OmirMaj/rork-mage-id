@@ -247,13 +247,12 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.topSection, { paddingTop: insets.top + 36 }]}>
-        {/* Decorative amber glow + concrete grid lines, mirroring the
-            marketing site's "industrial concrete × tech" aesthetic. */}
+        {/* Decorative amber glow only. The four hairline "concrete grid" rules
+            that used to sit behind this hero were the same faint-rules-behind-
+            content artifact removed from components/EmptyState.tsx — on device
+            they read as a chart grid bleeding through, not as texture. Do not
+            reintroduce; scripts/validate-visual-regressions.ts pins this. */}
         <View pointerEvents="none" style={styles.heroGlow} />
-        <View pointerEvents="none" style={styles.heroGridH1} />
-        <View pointerEvents="none" style={styles.heroGridH2} />
-        <View pointerEvents="none" style={styles.heroGridV1} />
-        <View pointerEvents="none" style={styles.heroGridV2} />
 
         <View style={styles.brandRow}>
           <View style={styles.logoChip}>
@@ -534,8 +533,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   // Premium dark hero — matches the marketing site at https://mageid.app
   // Palette: --ink #0B0D10 + --amber #FF6A1A + --cream #F4EFE6.
-  // Decorative grid + glow give the "industrial concrete × tech" feel
-  // without an image asset.
+  // A single soft amber glow gives the "industrial concrete × tech" feel
+  // without an image asset — and without ruled lines behind the copy.
   topSection: {
     backgroundColor: '#0B0D10',
     paddingHorizontal: 28,
@@ -551,38 +550,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     height: 320,
     borderRadius: 160,
     backgroundColor: 'rgba(255,106,26,0.18)',
-  },
-  heroGridH1: {
-    position: 'absolute' as const,
-    left: 0,
-    right: 0,
-    top: '38%' as const,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  heroGridH2: {
-    position: 'absolute' as const,
-    left: 0,
-    right: 0,
-    top: '70%' as const,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  heroGridV1: {
-    position: 'absolute' as const,
-    top: 0,
-    bottom: 0,
-    left: '32%' as const,
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  heroGridV2: {
-    position: 'absolute' as const,
-    top: 0,
-    bottom: 0,
-    left: '68%' as const,
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   brandRow: {
     flexDirection: 'row' as const,

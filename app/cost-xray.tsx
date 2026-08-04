@@ -33,7 +33,7 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { buildCostDatabase } from '@/utils/costDatabase';
-import { priceTell, routeByConfidence, normalizeTells } from '@/utils/costXray';
+import { priceTell, routeByConfidence, verifyOnlyReason, normalizeTells } from '@/utils/costXray';
 import type { ConditionTell } from '@/utils/costXray';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { createId } from '@/utils/scheduleEngine';
@@ -595,7 +595,11 @@ export default function CostXrayScreen() {
                     ) : (
                       <View style={styles.verifyRow}>
                         <ShieldAlert size={14} color={t.accentHot} strokeWidth={1.75} />
-                        <Text style={styles.verifyText}>Field-verify only — confidence too low to price. It becomes a task, not a line.</Text>
+                        <Text style={styles.verifyText}>
+                          {verifyOnlyReason(r.tell) === 'no-likelihood'
+                            ? 'Field-verify only — no likelihood came back for this tell, so there is nothing to weight an allowance against. It becomes a task, not a line.'
+                            : 'Field-verify only — confidence too low to price. It becomes a task, not a line.'}
+                        </Text>
                       </View>
                     )}
 

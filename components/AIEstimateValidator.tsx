@@ -93,8 +93,13 @@ export default React.memo(function AIEstimateValidator(props: Props) {
     );
   }
 
-  const scoreColor = result.overallScore >= 7 ? "#2E7D44" :
-    result.overallScore >= 5 ? Colors.warning : "#C84038";
+  // No score returned ⇒ no badge. A "5/10" placeholder is a verdict on the
+  // user's estimate that nothing actually produced. The issue list below is
+  // the real output and stands on its own.
+  const score = result.overallScore;
+  const scoreColor = score === undefined ? themeColors.textMuted
+    : score >= 7 ? "#2E7D44"
+    : score >= 5 ? Colors.warning : "#C84038";
 
   return (
     <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
@@ -103,9 +108,11 @@ export default React.memo(function AIEstimateValidator(props: Props) {
           <MageAIMark size={16} color={"#FF6A1A"} />
           <Text style={styles.headerTitle}>AI Estimate Review</Text>
         </View>
-        <View style={[styles.scoreBadge, { backgroundColor: `${scoreColor}15` }]}>
-          <Text style={[styles.scoreText, { color: scoreColor }]}>{result.overallScore}/10</Text>
-        </View>
+        {score !== undefined ? (
+          <View style={[styles.scoreBadge, { backgroundColor: `${scoreColor}15` }]} testID="estimate-review-score">
+            <Text style={[styles.scoreText, { color: scoreColor }]}>{score}/10</Text>
+          </View>
+        ) : null}
       </TouchableOpacity>
 
       {isExpanded && (

@@ -33,17 +33,26 @@ function formatShortDate(iso: string): string {
   } catch { return '—'; }
 }
 
-const RISK_COLOR: Record<InvoicePrediction['riskLevel'], string> = {
+type KnownRisk = NonNullable<InvoicePrediction['riskLevel']>;
+
+const RISK_COLOR: Record<KnownRisk, string> = {
   low: '#2E7D44',
   medium: Colors.warning,
   high: '#C84038',
 };
 
-const RISK_LABEL: Record<InvoicePrediction['riskLevel'], string> = {
+const RISK_LABEL: Record<KnownRisk, string> = {
   low: 'On Track',
   medium: 'Watch',
   high: 'At Risk',
 };
+
+// A prediction the model didn't return is NOT "Watch" and NOT a coin flip —
+// it gets a neutral, explicitly-empty treatment so it can never be mistaken
+// for a measured result. Same principle as AIBidScorecard's "Not enough
+// decided bids to estimate odds".
+const NO_FORECAST_LABEL = 'No forecast';
+const EMPTY = '—';
 
 export default function PaymentPredictionsScreen() {
   const router = useRouter();
@@ -145,9 +154,13 @@ function PaymentPredictionsScreenInner() {
 
   const sortedPredictions = useMemo(() => {
     if (!result) return [];
-    const order: Record<InvoicePrediction['riskLevel'], number> = { high: 0, medium: 1, low: 2 };
+    // Unforecast rows sit directly under the high-risk ones: an invoice the
+    // Brain could say nothing about needs a human look, so it must not be
+    // buried at the bottom of the list.
+    const rank = (r: InvoicePrediction['riskLevel']) =>
+      r === 'high' ? 0 : r === null ? 1 : r === 'medium' ? 2 : 3;
     return [...result.perInvoice].sort((a, b) => {
-      const r = order[a.riskLevel] - order[b.riskLevel];
+      const r = rank(a.riskLevel) - rank(b.riskLevel);
       if (r !== 0) return r;
       return b.outstandingAmount - a.outstandingAmount;
     });
@@ -218,12 +231,26 @@ function PaymentPredictionsScreenInner() {
         <>
           <View style={styles.headlineCard}>
             <View style={styles.scoreRow}>
-              <View style={[styles.scoreBubble, { backgroundColor: result.collectionRiskScore > 60 ? themeColors.danger + '18' : result.collectionRiskScore > 35 ? Colors.warning + '18' : themeColors.success + '18' }]}>
-                <Text style={[styles.scoreNum, { color: result.collectionRiskScore > 60 ? themeColors.danger : result.collectionRiskScore > 35 ? Colors.warning : themeColors.success }]}>
-                  {result.collectionRiskScore}
-                </Text>
-                <Text style={styles.scoreLabel}>Risk Score</Text>
-              </View>
+              {(() => {
+                const score = result.collectionRiskScore;
+                // No score returned ⇒ render the absence. A neutral "—" can't
+                // be misread as a measured 50/100 the way a default could.
+                if (score === null) {
+                  return (
+                    <View style={[styles.scoreBubble, { backgroundColor: Colors.fillSecondary }]} testID="collection-risk-score-absent">
+                      <Text style={[styles.scoreNum, { color: themeColors.textMuted }]}>{EMPTY}</Text>
+                      <Text style={styles.scoreLabel}>No Score</Text>
+                    </View>
+                  );
+                }
+                const tone = score > 60 ? themeColors.danger : score > 35 ? Colors.warning : themeColors.success;
+                return (
+                  <View style={[styles.scoreBubble, { backgroundColor: tone + '18' }]} testID="collection-risk-score">
+                    <Text style={[styles.scoreNum, { color: tone }]}>{score}</Text>
+                    <Text style={styles.scoreLabel}>Risk Score</Text>
+                  </View>
+                );
+              })()}
               <View style={{ flex: 1 }}>
                 <Text style={styles.headlineText}>{result.headline}</Text>
                 {result.topAction && (
@@ -253,11 +280,26 @@ function PaymentPredictionsScreenInner() {
                 <Text style={[styles.metricValue, { color: themeColors.danger }]}>{formatMoney(result.atRiskAmount)}</Text>
               </View>
             </View>
+
+            {/* The inflow windows above only contain invoices the Brain
+                actually forecast. Saying so is the difference between a
+                partial forecast and a wrong one. */}
+            {result.unforecastCount > 0 ? (
+              <Text style={styles.provenanceText} testID="unforecast-disclosure">
+                {formatMoney(result.unforecastAmount)} across {result.unforecastCount} invoice{result.unforecastCount === 1 ? '' : 's'} is not in these totals — the Brain returned no timing for {result.unforecastCount === 1 ? 'it' : 'them'}.
+              </Text>
+            ) : null}
+
+            <Text style={styles.provenanceText}>
+              An AI forecast from invoice terms, dates and your payment history — not a commitment from the client. Verify before you act on it.
+            </Text>
           </View>
 
           <Text style={styles.listHeading}>Per-Invoice Forecast</Text>
           {sortedPredictions.map(pred => {
-            const color = RISK_COLOR[pred.riskLevel];
+            // No risk level ⇒ no risk colour. Painting an unforecast row in
+            // "Watch" amber would be the same lie the default was.
+            const color = pred.riskLevel ? RISK_COLOR[pred.riskLevel] : themeColors.textMuted;
             return (
               <TouchableOpacity
                 key={pred.invoiceId}
@@ -271,7 +313,9 @@ function PaymentPredictionsScreenInner() {
                     <View style={styles.invoiceTitleRow}>
                       <Text style={styles.invoiceNumber}>Invoice #{pred.invoiceNumber}</Text>
                       <View style={[styles.riskPill, { backgroundColor: color + '18' }]}>
-                        <Text style={[styles.riskPillText, { color }]}>{RISK_LABEL[pred.riskLevel]}</Text>
+                        <Text style={[styles.riskPillText, { color }]}>
+                          {pred.riskLevel ? RISK_LABEL[pred.riskLevel] : NO_FORECAST_LABEL}
+                        </Text>
                       </View>
                     </View>
                     <Text style={styles.invoiceProject} numberOfLines={1}>{pred.projectName}</Text>
@@ -286,12 +330,21 @@ function PaymentPredictionsScreenInner() {
                   </View>
                   <View style={styles.invoiceMetricBox}>
                     <Text style={styles.invoiceMetricLabel}>Est. pay date</Text>
-                    <Text style={styles.invoiceMetricValue}>{formatShortDate(pred.predictedPayDate)}</Text>
-                    <Text style={styles.invoiceMetricSub}>in {pred.daysToPay}d</Text>
+                    <Text style={styles.invoiceMetricValue}>
+                      {pred.predictedPayDate ? formatShortDate(pred.predictedPayDate) : EMPTY}
+                    </Text>
+                    <Text style={styles.invoiceMetricSub}>
+                      {pred.daysToPay !== null ? `in ${pred.daysToPay}d` : 'no estimate returned'}
+                    </Text>
                   </View>
                   <View style={styles.invoiceMetricBox}>
                     <Text style={styles.invoiceMetricLabel}>On-time</Text>
-                    <Text style={[styles.invoiceMetricValue, { color }]}>{pred.onTimeProbability}%</Text>
+                    <Text style={[styles.invoiceMetricValue, { color }]}>
+                      {pred.onTimeProbability !== null ? `${pred.onTimeProbability}%` : EMPTY}
+                    </Text>
+                    {pred.onTimeProbability === null ? (
+                      <Text style={styles.invoiceMetricSub}>no estimate returned</Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -358,6 +411,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   scoreNum: { fontSize: 24, fontWeight: '800' as const, letterSpacing: -0.5 },
   scoreLabel: { fontSize: 9, color: t.textSecondary, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4, marginTop: 2 },
   headlineText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text, lineHeight: 19 },
+  provenanceText: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
   topActionWrap: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line },
   topActionText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
 

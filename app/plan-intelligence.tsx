@@ -99,6 +99,12 @@ function PlanIntelligenceInner() {
 
   const trainedLine = memorySummary(memory);
   const totals = useMemo(() => planRoomTotals(rooms), [rooms]);
+  // Included rooms still priced off DEFAULT_ROOM_RATES rather than a rate the
+  // GC taught or typed. The footer total is only as real as this count is low.
+  const placeholderRoomCount = useMemo(
+    () => rooms.filter(r => r.included && r.rateSource === 'default').length,
+    [rooms],
+  );
 
   const measureAspect = useCallback((uri: string, w?: number, h?: number) => {
     if (w && h && w > 0 && h > 0) { setImageAspect(w / h); return; }
@@ -368,6 +374,15 @@ function PlanIntelligenceInner() {
                     {r.rateSource === 'learned' && (
                       <View style={styles.learnedChip}><Text style={styles.learnedChipText}>your rate</Text></View>
                     )}
+                    {/* Absence of a positive chip is NOT a disclosure. A room
+                        priced off DEFAULT_ROOM_RATES has a placeholder $/SF
+                        that came from nobody's job — it has to say so, or a
+                        cold-start row reads exactly like a learned one. */}
+                    {r.rateSource === 'default' && (
+                      <View style={styles.defaultRateChip}>
+                        <Text style={styles.defaultRateChipText}>placeholder rate</Text>
+                      </View>
+                    )}
                   </View>
                   {(r.note || r.aiNote) ? (
                     <View style={styles.roomNoteRow}>
@@ -395,6 +410,12 @@ function PlanIntelligenceInner() {
           <View style={styles.footerTotals}>
             <Text style={styles.footerTotalsTop}>{totals.roomCount} rooms · {totals.totalSqft.toLocaleString()} SF</Text>
             <Text style={styles.footerTotalsMain}>{formatMoney(totals.totalCost)}</Text>
+            {/* How much of that total is standing on placeholder rates. */}
+            {placeholderRoomCount > 0 ? (
+              <Text style={styles.footerTotalsWarn} testID="plan-intel-placeholder-note">
+                {placeholderRoomCount} of {totals.roomCount} on placeholder rates
+              </Text>
+            ) : null}
           </View>
           <TouchableOpacity
             style={[styles.footerBtn, styles.footerBtnGhost, taught && { borderColor: t.success }]}
@@ -584,6 +605,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   roomCardDot: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   learnedChip: { backgroundColor: t.accent + '1A', borderRadius: Tokens.radius.full, paddingHorizontal: 7, paddingVertical: 2 },
   learnedChipText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '700' as const },
+  defaultRateChip: { backgroundColor: t.warningLabel + '1A', borderRadius: Tokens.radius.full, paddingHorizontal: 7, paddingVertical: 2 },
+  defaultRateChipText: { fontSize: Type.caption2.fontSize, color: t.warningLabel, fontWeight: '700' as const },
   roomNoteRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 6 },
   roomNoteText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 16 },
 
@@ -605,6 +628,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   footerTotals: { flex: 1 },
   footerTotalsTop: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const },
   footerTotalsMain: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text },
+  footerTotalsWarn: { fontSize: Type.caption2.fontSize, color: t.warningLabel, fontWeight: '600' as const },
   footerBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
     backgroundColor: t.accent, borderRadius: Tokens.radius.full,

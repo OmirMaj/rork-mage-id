@@ -18,6 +18,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import type { PunchItem, PunchItemStatus, PunchItemPriority, SubTrade } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -72,14 +73,23 @@ function PunchListScreenInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId, prefillPhotoUri, prefillPhotoId } = useLocalSearchParams<{
+  const { projectId: paramProjectId, prefillPhotoUri, prefillPhotoId } = useLocalSearchParams<{
     projectId: string;
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
   }>();
-  const { getProject, getPunchItemsForProject, addPunchItem, updatePunchItem, deletePunchItem, updateProject, subcontractors } = useProjects();
+  const { projects, getProject, getPunchItemsForProject, addPunchItem, updatePunchItem, deletePunchItem, updateProject, subcontractors } = useProjects();
+
+  // Reached from the sidebar, universal search or a deep link there is no
+  // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
+  // A pick outranks the param so a STALE id in the URL — deleted project,
+  // shared link — can't make the picker inert.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const items = useMemo(() => getPunchItemsForProject(projectId ?? ''), [projectId, getPunchItemsForProject]);
 
   const [showForm, setShowForm] = useState(false);
@@ -326,17 +336,18 @@ function PunchListScreenInner() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Punch List' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Punch List"
+          message="Punch lists are tied to a project so each item links to its trade and location."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MagePunch size={36} color={themeColors.accent} />}
-          title="No punch list open yet"
-          message="Punch lists are tied to a project so each item links to its trade and location. To start one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Punch List inside the project tile grid.',
             'Hit + to add the first item, or run an AI walk-through to seed it from photos.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

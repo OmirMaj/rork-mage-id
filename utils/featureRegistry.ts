@@ -19,6 +19,17 @@
 // params. Screens that dead-end without a projectId (weekly-snapshot,
 // safety-jha, margin-risk, schedule-builder, activity-feed…) are reachable
 // from inside a project and are deliberately NOT listed here.
+//
+// UX-AUDIT-2026-08-03 #3 found this rule was being VIOLATED by the registry
+// itself: invoice, job-costing, daily-report, punch-list, rfi,
+// client-portal-setup, closeout-binder and schedule-pro were all listed while
+// still dead-ending on "No invoice open yet" / "No project selected" — copy
+// that is simply false for a user who has three live jobs. The rule was right
+// and the screens were wrong, so the screens were fixed rather than delisted:
+// every one now renders <ToolProjectPicker> (components/ToolScreenChrome.tsx)
+// when no project resolves, which also covers a STALE id from an old link.
+// scripts/validate-project-scoped-screens.ts pins that at source level, so the
+// next screen added here cannot quietly reintroduce the dead end.
 // ============================================================================
 
 import { REQUIRED_TIER, tierMeetsRequirement } from '@/utils/featureTiers';

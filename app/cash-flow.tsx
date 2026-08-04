@@ -88,7 +88,11 @@ const cashFlowAnalysisSchema = z.object({
   // safeParse and flow into mageAI.ts's coercion + "partial result" banner path
   // instead of a silent wrong number. (.default still covers missing fields.)
   overallHealth: z.enum(['healthy', 'caution', 'danger']).default('caution'),
-  healthScore: z.number().min(0).max(100).default(50),
+  // …and no .default() either. `.default(50)` still turned a MISSING field
+  // (as opposed to a malformed one) into a printed "50/100" health badge —
+  // the exact fake the comment above describes, arriving by the other door.
+  // Absent stays absent; the badge is omitted rather than filled in.
+  healthScore: z.number().min(0).max(100).optional().catch(undefined),
   criticalWeeks: z.array(z.object({
     weekNumber: z.number().default(0),
     weekDate: z.string().catch('').default(''),
@@ -884,11 +888,15 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.aiResultsHeader}>
                 <MageAIMark size={16} color={themeColors.accent} />
                 <Text style={styles.aiResultsTitle}>AI Cash Flow Analysis</Text>
-                <View style={[styles.healthBadge, { backgroundColor: healthColor(aiAnalysis.overallHealth) + '20' }]}>
-                  <Text style={[styles.healthBadgeText, { color: healthColor(aiAnalysis.overallHealth) }]}>
-                    {aiAnalysis.healthScore}/100
-                  </Text>
-                </View>
+                {/* No score returned ⇒ no badge. A "50/100" placeholder once
+                    showed an insolvent business a healthy-looking number. */}
+                {aiAnalysis.healthScore !== undefined ? (
+                  <View style={[styles.healthBadge, { backgroundColor: healthColor(aiAnalysis.overallHealth) + '20' }]} testID="cash-flow-health-score">
+                    <Text style={[styles.healthBadgeText, { color: healthColor(aiAnalysis.overallHealth) }]}>
+                      {aiAnalysis.healthScore}/100
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               <Text style={styles.aiSummary}>{aiAnalysis.summary}</Text>

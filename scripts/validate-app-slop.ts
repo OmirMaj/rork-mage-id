@@ -110,5 +110,32 @@ failures += report(
   scan(collectFiles(['app', 'components', 'constants']), (l) => INTER_RE.test(l)),
 );
 
+// ── Check 4: fontWeight '800' ratchet ────────────────────────────────────────
+// constants/typography.ts documents a FOUR-weight ladder (400/500/600/700) and
+// its own header names `fontWeight: '800'` — then used 378 times — as part of
+// the problem the Type scale was created to solve. The 2026-08-03 UX audit
+// found 877. The drift has more than DOUBLED since that fix shipped.
+//
+// Rewriting 877 call sites blind would risk visual regressions across the app
+// for a polish issue, so this is a RATCHET, not a ban: the count may fall,
+// never rise. Lower CEILING as screens migrate. Never raise it.
+//
+// Failing here means you added a new one. Use Type.eyebrow (11/700/uppercase)
+// for small loud labels, or Type.headline / Type.title* for real headings.
+const WEIGHT_800_CEILING = 877;
+const weight800 = scan(collectFiles(['app', 'components']), (l) => /fontWeight: '800'/.test(l));
+if (weight800.length > WEIGHT_800_CEILING) {
+  failures += report(
+    `fontWeight '800' did not grow (${weight800.length} <= ${WEIGHT_800_CEILING})`,
+    weight800.slice(0, 5),
+  );
+} else {
+  console.log(`  PASS  fontWeight '800' ratchet — ${weight800.length} of ${WEIGHT_800_CEILING} allowed`);
+  if (weight800.length < WEIGHT_800_CEILING) {
+    console.log(`        ↓ lower WEIGHT_800_CEILING to ${weight800.length}`);
+  }
+}
+
 console.log('');
 process.exit(failures === 0 ? 0 : 1);
+

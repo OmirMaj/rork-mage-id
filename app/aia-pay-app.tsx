@@ -770,7 +770,7 @@ function AIAPayAppScreenInner() {
                 eventKey="revenue.factoring.altline"
                 icon={Banknote}
                 headline={`Advance ${formatMoney(totals.currentPaymentDue * 0.9)} on this pay app today`}
-                body="Owners average 60-83 days to release pay-app funds. Factoring partner fronts up to 90% in 24 hours for 2-4% per 30 days."
+                body="Pay-app funds sit with the owner until they certify and release. A factoring partner would front the balance against this certified amount instead."
                 footer="Partner LOI in progress · early access shipping Q3 2026"
                 testID="aia-factoring-cta"
               />
