@@ -40,6 +40,8 @@ import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/util
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
 import * as Sentry from '@sentry/react-native';
+import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink';
+import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
 // goes through utils/alert.ts showAlert/showPrompt, which renders a real
@@ -450,6 +452,7 @@ function OfflineSyncManager() {
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
 
@@ -495,6 +498,14 @@ function RootLayoutNav() {
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
+      // Stash the intended path so we can replay it post-login. Skip /login
+      // itself and PUBLIC_PATHS (reset-password, prequal-form) — those never
+      // need a post-login replay because they're either the destination of the
+      // bounce or public routes that don't require auth.
+      const firstSeg = pathname.replace(/^\//, '').split('?')[0];
+      if (pathname !== '/login' && !PUBLIC_PATHS.has(firstSeg)) {
+        void setPendingDeepLink(pathname);
+      }
       router.replace('/login');
       return;
     }
@@ -523,7 +534,37 @@ function RootLayoutNav() {
       router.replace('/(tabs)/(home)' as any);
       return;
     }
-  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router]);
+  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, pathname]);
+
+  // Post-login deep-link replay: when the user completes sign-in AND all
+  // onboarding gates (persona + onboarding screen), check for a stashed
+  // pending path and navigate there instead of staying on the default home.
+  //
+  // The replayedRef guards against re-firing if deps change (e.g. a
+  // re-render while the async read is in flight) — so this fires AT MOST
+  // ONCE per component mount (i.e. once per app session). The stash itself
+  // is consumed by takePendingDeepLink(), which removes the AsyncStorage key
+  // immediately, so a second fire would read null anyway.
+  //
+  // We only replay when isAuthenticated + userRole + hasSeenOnboarding are
+  // all satisfied — same three conditions the auth gate uses before it
+  // considers a user "fully through" the first-run funnel. Attempting to
+  // replay before those gates clear could navigate to a protected screen
+  // before the app is ready, or interrupt the onboarding/persona flow.
+  const replayedRef = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || userRole === null || !hasSeenOnboarding || replayedRef.current) return;
+    replayedRef.current = true;
+    (async () => {
+      const pending = await takePendingDeepLink();
+      if (pending) {
+        // pending was validated by isInAppRoute inside setPendingDeepLink /
+        // takePendingDeepLink — the `as any` cast here sidesteps typed-routes
+        // exhaustive checking while keeping the runtime guarantee intact.
+        router.replace(pending as any);
+      }
+    })();
+  }, [isAuthenticated, userRole, hasSeenOnboarding, router]);
 
   // Audit-2026-05-21 W1 (HIGH): per-route document.title on web.
   //
@@ -536,7 +577,8 @@ function RootLayoutNav() {
   // a new route doesn't require touching each screen — just add an entry
   // here. Format is "Page · MAGE ID" matching the dot-separator convention
   // Linear/Vercel/Notion use. Native (iOS/Android) skips entirely.
-  const pathname = usePathname();
+  // (pathname is declared at the top of this function; moved up so the auth
+  // gate can reference it for the pending-deeplink stash.)
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     if (typeof document === 'undefined') return;
