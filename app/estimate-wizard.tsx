@@ -40,6 +40,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
 import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import { estimateGroundingProps } from '@/utils/activationSignals';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import UpgradeSheet from '@/components/UpgradeSheet';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
@@ -66,6 +67,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // Two variants, because claiming to price "from your history" when the cost book
 // is empty is a lie the user can't see through — and it's the exact promise the
@@ -279,13 +281,21 @@ function EstimateWizardScreenInner() {
   // closed jobs (same grounding the estimate copilot uses). Injected into
   // the prompt so a quick estimate prices from YOUR history, not a generic
   // national average. Best-effort — an empty book just means no grounding.
+  //
+  // costDb is exposed as its own memo so the analytics emit path can attach
+  // estimateGroundingProps (used_learned_costs / learned_rate_count /
+  // jobs_analyzed) to estimate_generated without rebuilding the DB twice.
+  const costDb = useMemo(
+    () => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds),
+    [projects, commitments, receipts, laborSamples, seeds],
+  );
+
   const groundingFacts = useMemo<string[]>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
       // Seeded rates are told to the model as told-to-us, never as measured
       // history. Handing the LLM "runs $X on your jobs" for a number the
       // contractor typed would launder a claim into evidence.
-      const facts = db.entries.slice(0, 6).map((e) =>
+      const facts = costDb.entries.slice(0, 6).map((e) =>
         e.provenance === 'seeded'
           ? `${e.trade}: the contractor's own stated rate is $${e.suggestedRate.toFixed(2)}/${e.unit} (self-reported, no closed job yet — use it, but don't call it measured)`
           : `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
@@ -297,7 +307,7 @@ function EstimateWizardScreenInner() {
     } catch {
       return [];
     }
-  }, [projects, commitments, receipts, laborSamples, seeds]);
+  }, [costDb, projects, commitments]);
 
   const next = useCallback(() => {
     if (!canAdvance) return;
@@ -371,6 +381,15 @@ function EstimateWizardScreenInner() {
         const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
         setResult(data);
 
+        // Activation funnel: enriched aha event — attaches whether this
+        // estimate was priced from the contractor's own learned cost data.
+        track(AnalyticsEvents.ESTIMATE_GENERATED, {
+          path: 'wizard_generated',
+          grand_total: data.total,
+          item_count: data.lineItems?.length ?? 0,
+          ...estimateGroundingProps(costDb),
+        });
+
         // Project-aware link-back. When the wizard was launched with a
         // ?projectId (from a project's "estimate now" entry point), fold
         // the AI line items into that project's linkedEstimate so the
@@ -416,7 +435,7 @@ function EstimateWizardScreenInner() {
     } finally {
       setLoading(false);
     }
-  }, [answers, groundingFacts, loading, tier, router, projectId, scopedProject, updateProject]);
+  }, [answers, groundingFacts, costDb, loading, tier, router, projectId, scopedProject, updateProject]);
 
   // Escape hatch for the loading screen. We don't actually abort the
   // in-flight fetch (the AbortController is internal to mageAI), but
@@ -445,6 +464,12 @@ function EstimateWizardScreenInner() {
         logoUri:       settings?.branding?.logoUri,
       };
       await shareQuickEstimatePDF(result, answers, branding);
+      // Activation funnel: the final funnel step — priced estimate sent to client.
+      track(AnalyticsEvents.ESTIMATE_SHARED, {
+        method: 'pdf_share',
+        source: 'estimate_wizard',
+        grand_total: result?.total ?? 0,
+      });
     } catch (err) {
       showAlert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
     } finally {

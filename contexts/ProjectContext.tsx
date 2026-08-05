@@ -8,6 +8,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import { estimateGroundingProps } from '@/utils/activationSignals';
 import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
@@ -1783,12 +1785,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       total_projects: updated.length,
       type: project.type,
       has_estimate: !!project.linkedEstimate,
+      is_first_project: updated.length === 1,
     });
     if (project.linkedEstimate || project.status === 'estimated') {
+      // receipts / laborSamples / seeds are not available in ProjectContext's
+      // scope — buildCostDatabase is called with the data that IS here
+      // (projects + commitments). Grounding reflects closed-job history only —
+      // a seed-only user (rates seeded, no closed jobs) reads used_learned_costs
+      // false on THIS path. Accepted v1 undercount; the wizard emit carries full
+      // grounding (incl. seeds) and is the primary aha signal.
+      const _db = buildCostDatabase(updated, commitments);
       track(AnalyticsEvents.ESTIMATE_GENERATED, {
         project_type: project.type,
         grand_total: project.linkedEstimate?.grandTotal,
         path: 'created_with_estimate',
+        ...estimateGroundingProps(_db),
       });
     }
     setProjects(updated);
@@ -1812,10 +1823,18 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // Activation funnel: a project crossing INTO 'estimated' is the moat's
     // first "aha" — fire once on the transition, not on every estimate re-save.
     if (proj && prior?.status !== 'estimated' && proj.status === 'estimated') {
+      // receipts / laborSamples / seeds are not available in ProjectContext's
+      // scope — buildCostDatabase is called with the data that IS here
+      // (projects + commitments). Grounding reflects closed-job history only —
+      // a seed-only user (rates seeded, no closed jobs) reads used_learned_costs
+      // false on THIS path. Accepted v1 undercount; the wizard emit carries full
+      // grounding (incl. seeds) and is the primary aha signal.
+      const _db = buildCostDatabase(updated, commitments);
       track(AnalyticsEvents.ESTIMATE_GENERATED, {
         project_type: proj.type,
         grand_total: proj.linkedEstimate?.grandTotal,
         path: 'linked_to_project',
+        ...estimateGroundingProps(_db),
       });
     }
     if (proj) {

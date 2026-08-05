@@ -64,6 +64,7 @@ import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -1017,6 +1018,11 @@ export default function EstimateScreen() {
       });
 
       if (result.success) {
+        track(AnalyticsEvents.ESTIMATE_SHARED, {
+          method: 'email',
+          source: 'estimate_full',
+          grand_total: grandTotal ?? 0,
+        });
         showAlert('Email Sent', `Estimate emailed to ${options.recipient}`);
       } else if (result.error === 'cancelled') {
         return;

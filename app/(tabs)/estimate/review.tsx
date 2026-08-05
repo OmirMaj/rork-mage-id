@@ -27,6 +27,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // Redesigned estimate REVIEW — the approved ink+amber summary view reading the
 // live material cart. Non-destructive: the catalog/cart estimator at
@@ -120,6 +121,11 @@ export default function EstimateReviewScreen() {
     const url = `${base}/shared-estimate?t=${token}`;
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    track(AnalyticsEvents.ESTIMATE_SHARED, {
+      method: 'proposal_link',
+      source: 'estimate_review',
+      grand_total: clientView?.projectTotal ?? 0,
+    });
     showAlert(
       ok ? 'Proposal link copied' : 'Proposal link',
       ok

@@ -91,4 +91,18 @@ export const AnalyticsEvents = {
   // subs). `source` says where the invite was triggered (e.g. 'subs'). Each
   // accepted invite seeds the supply side of the marketplace.
   CONTRACTOR_INVITE_SHARED: 'contractor_invite_shared',
+  // ── Activation funnel: the aha + send-to-client ──
+  // ESTIMATE_SHARED fires when a priced estimate/proposal is sent to a
+  //   homeowner (the funnel's final step). `method` is 'pdf_share' |
+  //   'proposal_link' | 'email'; `source` names the screen.
+  // COST_RATES_SEEDED fires when the contractor commits seeded rates OUTSIDE
+  //   first-run onboarding (the standalone cost-seed screen). Onboarding rates
+  //   already emit ONBOARDING_RATES_COMPLETED.
+  // MATERIAL_RECEIPT_SAVED fires when a scanned/entered material receipt is
+  //   saved — real cost actuals, a legitimate step-4 "own cost data" input.
+  // The aha itself is the EXISTING estimate_generated, now enriched with
+  //   used_learned_costs / learned_rate_count / jobs_analyzed (see later tasks).
+  ESTIMATE_SHARED: 'estimate_shared',
+  COST_RATES_SEEDED: 'cost_rates_seeded',
+  MATERIAL_RECEIPT_SAVED: 'material_receipt_saved',
 } as const;
