@@ -18,7 +18,7 @@ export async function takePendingDeepLink(): Promise<string | null> {
   if (!raw) return null;
   try {
     const { path, ts } = JSON.parse(raw) as { path: string; ts: number };
-    if (typeof path !== 'string' || Date.now() - ts > TTL_MS) return null;
+    if (typeof path !== 'string' || typeof ts !== 'number' || Date.now() - ts > TTL_MS) return null;
     const route = path.replace(/^\//, '').split('?')[0];
     return isInAppRoute(route) ? path : null;
   } catch {
