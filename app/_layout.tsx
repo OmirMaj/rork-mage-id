@@ -42,6 +42,7 @@ import { supabase } from "@/lib/supabase";
 import * as Sentry from '@sentry/react-native';
 import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink';
 import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
+import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
 // goes through utils/alert.ts showAlert/showPrompt, which renders a real
@@ -1493,6 +1494,16 @@ export default Sentry.wrap(function RootLayout() {
   }, [fontsLoaded]);
 
   const handleBrandSplashDone = useCallback(() => setBrandSplashDone(true), []);
+
+  // Capture the marketing-site signup intent (?plan=pro&trial=14) on first
+  // web load. Runs once per session, before auth, so a fresh arrival from the
+  // marketing site always persists the intent even when unauthenticated.
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const intent = parseSignupIntent(new URLSearchParams(window.location.search));
+      if (intent) void persistSignupIntent(intent);
+    }
+  }, []);
 
   return (
     <ErrorBoundary fallbackMessage="MAGE ID encountered an error. Tap below to restart.">
