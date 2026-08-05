@@ -25,6 +25,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
 
 /**
  * Onboarding-style paywall — single-screen, trial-narrative, big-CTA
@@ -129,6 +130,11 @@ export default function OnboardingPaywallScreen() {
 
   const [selectedPlan, setSelectedPlan] = useState<Plan>('pro');
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('annual');
+  // intentTrialDays > 0 means the marketing handoff specified a trial —
+  // surface trial framing near the CTA. Pre-selects + frames only.
+  // Actual trial/purchase activation is the existing RevenueCat flow and
+  // requires the RC webhook + real web key (owner task).
+  const [intentTrialDays, setIntentTrialDays] = useState(0);
 
   // Stamp first-seen on mount so the 3-day gate has an anchor. `setItem`
   // is a no-op if the key already exists (via getItem check) — we never
@@ -150,6 +156,32 @@ export default function OnboardingPaywallScreen() {
       } catch (err) {
         console.log('[OnboardingPaywall] storage stamp failed', err);
       }
+    })();
+  }, []);
+
+  // Consume the marketing-site signup intent (?plan=pro&trial=14).
+  // Pre-select the matching plan and surface trial framing near the CTA.
+  // Pre-selects + frames only. Actual trial/purchase activation is the
+  // existing RevenueCat flow and requires the RC webhook + real web key (owner task).
+  useEffect(() => {
+    (async () => {
+      const intent = await readSignupIntent();
+      if (!intent) return;
+      // Map the intent plan to the two plans this paywall supports.
+      // enterprise → default to 'business' (closest available).
+      // 'free' → no purchase intent here; don't consume the intent so
+      // app/paywall.tsx (the comparison table) can still read it.
+      if (intent.plan === 'free') return;
+      if (intent.plan === 'pro') {
+        setSelectedPlan('pro');
+      } else if (intent.plan === 'business' || intent.plan === 'enterprise') {
+        setSelectedPlan('business');
+      }
+      // trial framing — surface badge near CTA if trialDays > 0
+      if (intent.trialDays > 0) {
+        setIntentTrialDays(intent.trialDays);
+      }
+      await clearSignupIntent();
     })();
   }, []);
 
@@ -406,6 +438,12 @@ export default function OnboardingPaywallScreen() {
         </View>
 
         <Text style={styles.priceFootnote}>{priceFootnote}</Text>
+
+        {intentTrialDays > 0 && (
+          <View style={styles.trialBadge}>
+            <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
+          </View>
+        )}
 
         <TouchableOpacity
           style={[styles.cta, (isPurchasing || isLoading) && styles.ctaDisabled]}
@@ -721,6 +759,22 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 14,
+  },
+  // Trial framing: shown above the CTA when the marketing intent carries
+  // a non-zero trialDays value. Visual-only — purchase does NOT auto-start.
+  trialBadge: {
+    backgroundColor: t.successSoft,
+    borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    alignSelf: 'center' as const,
+    marginBottom: 10,
+  },
+  trialBadgeText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: t.success,
+    letterSpacing: 0.2,
   },
   cta: {
     height: 54,

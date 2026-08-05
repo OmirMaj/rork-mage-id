@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking,
 } from 'react-native';
@@ -17,6 +17,8 @@ import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
+import type { SignupPlan } from '@/utils/signupIntent';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 
@@ -112,6 +114,24 @@ export default function PaywallScreen() {
     tier, purchasePro, purchaseBusiness, purchaseEnterprise, restorePurchases,
     isLoading, isPurchasing, proPackage, businessPackage, enterprisePackage,
   } = useSubscription();
+
+  // Pre-selects + frames only. Actual trial/purchase activation is the
+  // existing RevenueCat flow and requires the RC webhook + real web key (owner task).
+  const [highlightedPlan, setHighlightedPlan] = useState<SignupPlan | null>(null);
+  const [intentTrialDays, setIntentTrialDays] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const intent = await readSignupIntent();
+      if (!intent) return;
+      // 'free' plan means no purchase needed — don't highlight a paid tier.
+      if (intent.plan !== 'free') {
+        setHighlightedPlan(intent.plan);
+        setIntentTrialDays(intent.trialDays);
+      }
+      await clearSignupIntent();
+    })();
+  }, []);
 
   const packagesLoaded = !!proPackage || !!businessPackage || !!enterprisePackage;
   const packagesStillLoading = isLoading && !packagesLoaded;
@@ -298,7 +318,7 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, styles.planCardHighlight, tier === 'pro' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, styles.planCardHighlight, highlightedPlan === 'pro' && styles.planCardIntentHighlight, tier === 'pro' && styles.planCardActive]}>
             <View style={styles.popularTag}>
               <Text style={styles.popularTagText}>POPULAR</Text>
             </View>
@@ -317,22 +337,29 @@ export default function PaywallScreen() {
                 <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
-              <Button
-                label="Subscribe"
-                onPress={() => {
-                  if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                  void handlePurchasePro();
-                }}
-                disabled={isPurchasing}
-                loading={isPurchasing || packagesStillLoading}
-                size="sm"
-                fullWidth
-                testID="buy-pro"
-              />
+              <>
+                {highlightedPlan === 'pro' && intentTrialDays > 0 && (
+                  <View style={styles.trialBadge}>
+                    <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
+                  </View>
+                )}
+                <Button
+                  label="Subscribe"
+                  onPress={() => {
+                    if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                    void handlePurchasePro();
+                  }}
+                  disabled={isPurchasing}
+                  loading={isPurchasing || packagesStillLoading}
+                  size="sm"
+                  fullWidth
+                  testID="buy-pro"
+                />
+              </>
             )}
           </View>
 
-          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'business' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, highlightedPlan === 'business' && styles.planCardIntentHighlight, tier === 'business' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Building2} tone="accent" size="md" />
             </View>
@@ -348,22 +375,29 @@ export default function PaywallScreen() {
                 <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
-              <Button
-                label="Subscribe"
-                onPress={() => {
-                  if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                  void handlePurchaseBusiness();
-                }}
-                disabled={isPurchasing}
-                loading={isPurchasing || packagesStillLoading}
-                size="sm"
-                fullWidth
-                testID="buy-business"
-              />
+              <>
+                {highlightedPlan === 'business' && intentTrialDays > 0 && (
+                  <View style={styles.trialBadge}>
+                    <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
+                  </View>
+                )}
+                <Button
+                  label="Subscribe"
+                  onPress={() => {
+                    if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                    void handlePurchaseBusiness();
+                  }}
+                  disabled={isPurchasing}
+                  loading={isPurchasing || packagesStillLoading}
+                  size="sm"
+                  fullWidth
+                  testID="buy-business"
+                />
+              </>
             )}
           </View>
 
-          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, tier === 'enterprise' && styles.planCardActive]}>
+          <View style={[styles.planCard, isDesktop && styles.planCardDesktop, highlightedPlan === 'enterprise' && styles.planCardIntentHighlight, tier === 'enterprise' && styles.planCardActive]}>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Rocket} tone="accent" size="md" />
             </View>
@@ -379,18 +413,25 @@ export default function PaywallScreen() {
                 <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
-              <Button
-                label="Subscribe"
-                onPress={() => {
-                  if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                  void handlePurchaseEnterprise();
-                }}
-                disabled={isPurchasing}
-                loading={isPurchasing || packagesStillLoading}
-                size="sm"
-                fullWidth
-                testID="buy-enterprise"
-              />
+              <>
+                {highlightedPlan === 'enterprise' && intentTrialDays > 0 && (
+                  <View style={styles.trialBadge}>
+                    <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
+                  </View>
+                )}
+                <Button
+                  label="Subscribe"
+                  onPress={() => {
+                    if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                    void handlePurchaseEnterprise();
+                  }}
+                  disabled={isPurchasing}
+                  loading={isPurchasing || packagesStillLoading}
+                  size="sm"
+                  fullWidth
+                  testID="buy-enterprise"
+                />
+              </>
             )}
           </View>
         </View>
@@ -827,8 +868,33 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   planCardHighlight: {
     borderColor: t.accent + '40',
   },
+  // Applied when a marketing-site intent (?plan=pro&trial=14) pre-selects
+  // this tier. Stronger accent border than the default highlight so the
+  // recommended plan stands out while the user is still free to pick any tier.
+  // borderWidth is intentionally omitted — the base planCard already sets
+  // borderWidth: 2, so overriding it here would cause a 1px layout shift
+  // between highlighted and non-highlighted cards.
+  planCardIntentHighlight: {
+    borderColor: t.accent,
+  },
   planCardActive: {
     borderColor: t.success,
+  },
+  // Trial framing badge shown above the CTA when the marketing intent carries
+  // a non-zero trialDays value. Visual-only — purchase does NOT auto-start.
+  trialBadge: {
+    backgroundColor: t.successSoft,
+    borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'center' as const,
+    marginBottom: 4,
+  },
+  trialBadgeText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: t.success,
+    letterSpacing: 0.2,
   },
   popularTag: {
     position: 'absolute' as const,

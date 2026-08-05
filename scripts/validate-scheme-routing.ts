@@ -3,8 +3,8 @@
 // Guards the single-scheme (mageid://) routing invariants:
 //   • The app scheme strips correctly (and a bare in-app path normalizes the
 //     same way), so inbound routing is uniform.
-//   • Public paths pass through with their query string; everything else
-//     routes to home ('/').
+//   • Public paths and well-formed in-app routes pass through with their query
+//     string; genuinely malformed/empty paths route to home ('/').
 //   • The scheme is mageid:// and APP_SCHEMES lists exactly ['mageid'] (the
 //     rork-app:// scaffold scheme was retired pre-launch).
 import {
@@ -42,7 +42,8 @@ eq('reset-password with query passes through', resolveDeepLinkPath('mageid://res
 // is redeemed separately by MagicLinkHandler (a Linking listener), NOT by this
 // router. Route extraction splits on '?' only.
 eq('reset-password with #hash → home (token handled by MagicLinkHandler)', resolveDeepLinkPath('mageid://reset-password#access_token=x'), '/');
-eq('non-public path → home', resolveDeepLinkPath('mageid://qbo-setup'), '/');
+eq('well-formed in-app path passes through', resolveDeepLinkPath('mageid://qbo-setup'), '/qbo-setup');
+eq('malformed path → home', resolveDeepLinkPath('mageid://!!bad!!'), '/');
 eq('unknown scheme → home', resolveDeepLinkPath('rork-app://prequal-form?token=abc'), '/');
 eq('bare scheme → home', resolveDeepLinkPath('mageid://'), '/');
 eq('empty → home', resolveDeepLinkPath(''), '/');

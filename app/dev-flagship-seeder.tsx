@@ -198,7 +198,6 @@ export default function DevFlagshipSeederScreen() {
           grandTotal: CONTRACT,
           pricePerSqFt: Math.round(CONTRACT / FLAGSHIP_IDENTITY.squareFootage),
           estimatedDuration: '16-17 months',
-          bulkSavingsTotal: 74_500,
           materials: [],
         },
         status: 'in_progress',

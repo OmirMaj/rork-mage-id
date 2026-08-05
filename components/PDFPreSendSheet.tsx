@@ -37,6 +37,10 @@ interface PDFPreSendSheetProps {
   contacts?: Contact[];
   pdfNaming?: PDFNamingSettings;
   onPdfNumberUsed?: () => void;
+  /** When false/absent the Bulk Savings Breakdown toggle is hidden so the
+   *  contractor is never offered a fabricated section. Only pass true when
+   *  computeBulkSavings().hasRealData && .bulkSavings > 0. */
+  hasBulkSavings?: boolean;
 }
 
 export interface PDFSendOptions {
@@ -99,16 +103,24 @@ function getDefaultFileName(type: PDFDocumentType, projectName: string, docNumbe
   }
 }
 
-function getDefaultSections(type: PDFDocumentType): PDFSection[] {
+function getDefaultSections(type: PDFDocumentType, hasBulkSavings = false): PDFSection[] {
   switch (type) {
-    case 'estimate':
-      return [
+    case 'estimate': {
+      const sections: PDFSection[] = [
         { id: 'line_items', label: 'Line Items', enabled: true },
         { id: 'cost_summary', label: 'Cost Summary', enabled: true },
-        { id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: true },
+      ];
+      // Only show the Bulk Savings Breakdown toggle when there is real
+      // buyout-measured data — never offer a fabricated section.
+      if (hasBulkSavings) {
+        sections.push({ id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: true });
+      }
+      sections.push(
         { id: 'schedule_summary', label: 'Schedule Summary', enabled: false },
         { id: 'branding', label: 'Company Branding', enabled: true },
-      ];
+      );
+      return sections;
+    }
     case 'invoice':
       return [
         { id: 'line_items', label: 'Line Items', enabled: true },
@@ -164,6 +176,7 @@ export default function PDFPreSendSheet({
   contacts,
   pdfNaming,
   onPdfNumberUsed,
+  hasBulkSavings = false,
 }: PDFPreSendSheetProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -183,11 +196,11 @@ export default function PDFPreSendSheet({
       setRecipient(defaultRecipient);
       setRecipientName('');
       setMessage('');
-      setSections(propSections ?? getDefaultSections(documentType));
+      setSections(propSections ?? getDefaultSections(documentType, hasBulkSavings));
       setShowSections(false);
       setShowContactPicker(false);
     }
-  }, [visible, documentType, projectName, documentNumber, defaultRecipient, propSections, pdfNaming]);
+  }, [visible, documentType, projectName, documentNumber, defaultRecipient, propSections, pdfNaming, hasBulkSavings]);
 
   const toggleSection = useCallback((id: string) => {
     setSections(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));

@@ -380,7 +380,7 @@ function PlanIntelligenceInner() {
                         cold-start row reads exactly like a learned one. */}
                     {r.rateSource === 'default' && (
                       <View style={styles.defaultRateChip}>
-                        <Text style={styles.defaultRateChipText}>placeholder rate</Text>
+                        <Text style={styles.defaultRateChipText}>market placeholder — not your rate</Text>
                       </View>
                     )}
                   </View>
@@ -413,7 +413,7 @@ function PlanIntelligenceInner() {
             {/* How much of that total is standing on placeholder rates. */}
             {placeholderRoomCount > 0 ? (
               <Text style={styles.footerTotalsWarn} testID="plan-intel-placeholder-note">
-                {placeholderRoomCount} of {totals.roomCount} on placeholder rates
+                {placeholderRoomCount} room{placeholderRoomCount === 1 ? '' : 's'} on market placeholders — not your rates
               </Text>
             ) : null}
           </View>
