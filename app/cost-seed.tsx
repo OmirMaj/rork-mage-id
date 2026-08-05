@@ -45,6 +45,7 @@ import {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 const PLACEHOLDER =
   'Trade, Unit, Rate, Jobs\n' +
@@ -106,6 +107,11 @@ function CostSeedInner() {
     if (!review || review.rows.length === 0) return;
     const next = draftsToSeeds(review.rows, { now: new Date().toISOString(), method: 'paste' });
     const result = addSeeds(next);
+    track(AnalyticsEvents.COST_RATES_SEEDED, {
+      count: (result?.added ?? 0) + (result?.replaced ?? 0),
+      method: 'paste',
+      source: 'cost_seed',
+    });
     if (Platform.OS !== 'web') {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -162,7 +168,12 @@ function CostSeedInner() {
       // the old row rather than leaving an orphan behind.
       deleteSeed(editingId);
     }
-    addSeeds([seed]);
+    const manualResult = addSeeds([seed]);
+    track(AnalyticsEvents.COST_RATES_SEEDED, {
+      count: (manualResult?.added ?? 0) + (manualResult?.replaced ?? 0),
+      method: 'manual',
+      source: 'cost_seed',
+    });
     if (Platform.OS !== 'web') {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
