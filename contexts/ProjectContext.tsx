@@ -1790,8 +1790,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (project.linkedEstimate || project.status === 'estimated') {
       // receipts / laborSamples / seeds are not available in ProjectContext's
       // scope — buildCostDatabase is called with the data that IS here
-      // (projects + commitments). Grounding reflects closed-job history only;
-      // seed rates and receipt samples narrow used_learned_costs accordingly.
+      // (projects + commitments). Grounding reflects closed-job history only —
+      // a seed-only user (rates seeded, no closed jobs) reads used_learned_costs
+      // false on THIS path. Accepted v1 undercount; the wizard emit carries full
+      // grounding (incl. seeds) and is the primary aha signal.
       const _db = buildCostDatabase(updated, commitments);
       track(AnalyticsEvents.ESTIMATE_GENERATED, {
         project_type: project.type,
@@ -1823,8 +1825,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (proj && prior?.status !== 'estimated' && proj.status === 'estimated') {
       // receipts / laborSamples / seeds are not available in ProjectContext's
       // scope — buildCostDatabase is called with the data that IS here
-      // (projects + commitments). Grounding reflects closed-job history only;
-      // seed rates and receipt samples narrow used_learned_costs accordingly.
+      // (projects + commitments). Grounding reflects closed-job history only —
+      // a seed-only user (rates seeded, no closed jobs) reads used_learned_costs
+      // false on THIS path. Accepted v1 undercount; the wizard emit carries full
+      // grounding (incl. seeds) and is the primary aha signal.
       const _db = buildCostDatabase(updated, commitments);
       track(AnalyticsEvents.ESTIMATE_GENERATED, {
         project_type: proj.type,
