@@ -14,6 +14,10 @@ eq('inapp.clientview', resolveDeepLinkPath('mageid://client-view'), '/client-vie
 eq('inapp.nested', resolveDeepLinkPath('mageid://integrations/qbo/callback'), '/integrations/qbo/callback');
 eq('empty', resolveDeepLinkPath('mageid://'), '/');
 eq('malformed', resolveDeepLinkPath('mageid://!!bad path!!'), '/');
+// A #-fragment recovery link: split('?') leaves the '#' in the route segment,
+// which fails IN_APP_ROUTE and is not in PUBLIC_PATHS → resolves to '/'.
+// The actual token is redeemed by MagicLinkHandler (a Linking listener).
+eq('reset.hashfragment', resolveDeepLinkPath('mageid://reset-password#access_token=x'), '/');
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 if (failures) process.exit(1);
