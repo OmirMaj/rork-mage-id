@@ -332,7 +332,7 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
   // "placeholder rates", so a bare text search would pass with no chip at all.
   ok('plan intelligence chips rooms priced off a placeholder rate',
     /r\.rateSource === 'default' &&/.test(plan) &&
-    /defaultRateChipText}>placeholder rate</.test(plan),
+    /defaultRateChipText}>[^<]*not your rate</.test(plan),
     'a room on DEFAULT_ROOM_RATES must say so — "your rate" absent is not "not your rate"');
   ok('plan intelligence discloses placeholder rates in the total',
     /plan-intel-placeholder-note/.test(plan),
