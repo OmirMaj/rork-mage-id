@@ -871,9 +871,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Applied when a marketing-site intent (?plan=pro&trial=14) pre-selects
   // this tier. Stronger accent border than the default highlight so the
   // recommended plan stands out while the user is still free to pick any tier.
+  // borderWidth is intentionally omitted — the base planCard already sets
+  // borderWidth: 2, so overriding it here would cause a 1px layout shift
+  // between highlighted and non-highlighted cards.
   planCardIntentHighlight: {
     borderColor: t.accent,
-    borderWidth: 2,
   },
   planCardActive: {
     borderColor: t.success,

@@ -169,7 +169,9 @@ export default function OnboardingPaywallScreen() {
       if (!intent) return;
       // Map the intent plan to the two plans this paywall supports.
       // enterprise → default to 'business' (closest available).
-      // 'free' → no purchase intent, skip.
+      // 'free' → no purchase intent here; don't consume the intent so
+      // app/paywall.tsx (the comparison table) can still read it.
+      if (intent.plan === 'free') return;
       if (intent.plan === 'pro') {
         setSelectedPlan('pro');
       } else if (intent.plan === 'business' || intent.plan === 'enterprise') {
@@ -439,7 +441,7 @@ export default function OnboardingPaywallScreen() {
 
         {intentTrialDays > 0 && (
           <View style={styles.trialBadge}>
-            <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial included</Text>
+            <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
           </View>
         )}
 
