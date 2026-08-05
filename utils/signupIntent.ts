@@ -13,7 +13,7 @@ function get(params: Params, key: string): string | undefined {
 
 /** Parse the marketing ?plan=&trial= handoff. Returns null if plan is absent/invalid. */
 export function parseSignupIntent(params: Params): SignupIntent | null {
-  const plan = (get(params, 'plan') ?? '').toLowerCase() as SignupPlan;
+  const plan = (get(params, 'plan') ?? '').trim().toLowerCase() as SignupPlan;
   if (!VALID_PLANS.includes(plan)) return null;
   const rawTrial = get(params, 'trial');
   const parsed = rawTrial ? Math.floor(Number(rawTrial)) : 0;

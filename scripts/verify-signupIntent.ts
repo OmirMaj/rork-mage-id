@@ -16,5 +16,8 @@ eq('missing.plan', parseSignupIntent({ trial: '14' }), null);
 eq('garbage.trial', parseSignupIntent({ plan: 'pro', trial: 'abc' }), { plan: 'pro', trialDays: 0 });
 eq('negative.trial', parseSignupIntent({ plan: 'pro', trial: '-5' }), { plan: 'pro', trialDays: 0 });
 
+eq('urlsearchparams', parseSignupIntent(new URLSearchParams('plan=pro&trial=7')), { plan: 'pro', trialDays: 7 });
+eq('whitespace.plan', parseSignupIntent({ plan: '  pro  ', trial: '14' }), { plan: 'pro', trialDays: 14 });
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 if (failures) process.exit(1);
