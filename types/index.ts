@@ -1105,6 +1105,11 @@ export interface LinkedEstimate {
   markupTotal: number;
   grandTotal: number;
   createdAt: string;
+  // DERIVED, not authored. Real value comes from utils/bulkSavings.ts
+  // (computeBulkSavings) at render time and injected into the temp project
+  // just before PDF/email generation. Seed/demo code must NOT set this to a
+  // fabricated figure.
+  bulkSavingsTotal?: number;
 }
 
 export interface LinkedEstimateItem {

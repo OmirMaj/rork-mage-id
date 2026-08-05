@@ -458,6 +458,7 @@ function buildEstimateHtml(
       <div class="summary-box">
         <div class="summary-row"><span>Base Cost</span><span>${formatCurrency(est.baseTotal)}</span></div>
         <div class="summary-row"><span>Markup (${est.globalMarkup}%)</span><span>+${formatCurrency(est.markupTotal)}</span></div>
+        ${(est.bulkSavingsTotal ?? 0) > 0 ? `<div class="summary-row savings"><span>Bulk Savings</span><span>-${formatCurrency(est.bulkSavingsTotal ?? 0)}</span></div>` : ''}
         <div class="summary-divider"></div>
         <div class="summary-row total"><span>Estimate Total</span><span>${formatCurrency(est.grandTotal)}</span></div>
       </div>`;
@@ -1518,6 +1519,9 @@ export function buildEstimateTextForEmail(
     text += `${divider}\n`;
     text += `Base Cost:    ${formatCurrency(est.baseTotal)}\n`;
     text += `Markup:       +${formatCurrency(est.markupTotal)}\n`;
+    if ((est.bulkSavingsTotal ?? 0) > 0) {
+      text += `Bulk Savings:  -${formatCurrency(est.bulkSavingsTotal ?? 0)}\n`;
+    }
     text += `TOTAL:        ${formatCurrency(est.grandTotal)}\n\n`;
   }
 
