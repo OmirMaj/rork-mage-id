@@ -18,6 +18,11 @@ eq('mixed-and-earned', estimateGroundingProps(db([{ provenance: 'earned' }, { pr
   { used_learned_costs: true, learned_rate_count: 2, jobs_analyzed: 3 });
 eq('all-earned', estimateGroundingProps(db([{ provenance: 'earned' }, { provenance: 'earned' }], 5)),
   { used_learned_costs: true, learned_rate_count: 2, jobs_analyzed: 5 });
+// A legacy entry with no provenance predates the seeded-rate feature, so it is
+// earned data — it MUST count toward learned_rate_count (undefined !== 'seeded').
+eq('undefined-provenance-counts-as-learned',
+  estimateGroundingProps(db([{ provenance: undefined as unknown as string }], 1)),
+  { used_learned_costs: true, learned_rate_count: 1, jobs_analyzed: 1 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
