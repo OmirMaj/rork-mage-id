@@ -210,7 +210,8 @@ function EstimateWizardScreenInner() {
   const { seeds } = useCostSeeds();
   const { tier } = useSubscription();
 
-  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { projectId, onboarding } = useLocalSearchParams<{ projectId?: string; onboarding?: string }>();
+  const isOnboarding = onboarding === '1';
   const scopedProject = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId, getProject]);
 
   const [step, setStep] = useState<number>(0);
@@ -470,6 +471,13 @@ function EstimateWizardScreenInner() {
         source: 'estimate_wizard',
         grand_total: result?.total ?? 0,
       });
+      // Onboarding arc: after a successful send, route to the value-first
+      // paywall. The leave handler (Cancel/back) also routes there, but
+      // router.replace here means we're already gone — the leave handler
+      // won't fire for this session.
+      if (isOnboarding) {
+        router.replace('/onboarding-paywall' as never);
+      }
     } catch (err) {
       showAlert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
     } finally {
@@ -1147,6 +1155,12 @@ function EstimateWizardScreenInner() {
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
+          {isOnboarding && (
+            <View style={styles.onboardingBanner} testID="estimate-onboarding-banner">
+              <Text style={styles.onboardingBannerTitle}>Your first bid</Text>
+              <Text style={styles.onboardingBannerSubtitle}>Priced off your rate — send it when it looks right.</Text>
+            </View>
+          )}
           <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
         </ScrollView>
 
@@ -1157,7 +1171,9 @@ function EstimateWizardScreenInner() {
         ) : null}
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
-            onPress={step === 0 ? () => router.back() : back}
+            onPress={step === 0
+              ? () => (isOnboarding ? router.replace('/onboarding-paywall' as never) : router.back())
+              : back}
             style={[styles.secondaryBtn, styles.footerBtn]}
             activeOpacity={0.8}
             testID="wizard-back"
@@ -1368,6 +1384,29 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   voiceBannerTitle: { ...Type.subheadEmphasized, color: themeColors.accent },
   voiceBannerDesc: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 1 },
+  // Onboarding-mode framing banner — shown at the top of the wizard when
+  // launched with ?onboarding=1. Frames the moment without changing any
+  // estimate logic.
+  onboardingBanner: {
+    backgroundColor: themeColors.accentSoft,
+    borderWidth: 1,
+    borderColor: themeColors.accentSoft,
+    borderRadius: Tokens.radius.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    gap: 4,
+  },
+  onboardingBannerTitle: {
+    ...Type.subheadEmphasized,
+    color: themeColors.accent,
+  },
+  onboardingBannerSubtitle: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '500' as const,
+    color: themeColors.textSecondary,
+    lineHeight: 18,
+  },
   // "Client preview" banner at top of result screen
   previewBanner: {
     backgroundColor: themeColors.accent + '12',
