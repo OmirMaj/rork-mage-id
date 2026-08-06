@@ -99,6 +99,7 @@ import { showAlert } from '@/utils/alert';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
+import { seedDemoSchedule } from '@/utils/demoSchedule';
 
 interface TaskDraft {
   title: string;
@@ -1081,16 +1082,21 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       case 'voice':
         router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any);
         break;
-      case 'example':
-        // Load the demo example — same as the existing AI builder open path
-        setIsAIBuilderOpen(true);
+      case 'example': {
+        // Seed the real demo schedule (35-task residential build) — no AI modal.
+        const demoTasks = seedDemoSchedule();
+        const demoName = selectedProject ? `${selectedProject.name} Schedule` : 'Example Schedule';
+        const demoSchedule = buildScheduleFromTasks(demoName, selectedProject?.id ?? null, demoTasks);
+        saveSchedule(demoSchedule, selectedProject);
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         break;
+      }
       case 'manual':
         setTaskDraft({ ...EMPTY_DRAFT });
         setIsQuickAddOpen(true);
         break;
     }
-  }, [handleBuildFromEstimate, router, selectedProject, selectedProjectId]);
+  }, [handleBuildFromEstimate, router, saveSchedule, selectedProject, selectedProjectId]);
 
   const togglePhaseCollapse = useCallback((phase: string) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
