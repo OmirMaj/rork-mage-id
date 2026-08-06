@@ -96,6 +96,8 @@ import { recordDidForYou } from '@/utils/brain/didForYou';
 import { runCpm } from '@/utils/cpm';
 import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { showAlert } from '@/utils/alert';
+import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
+import type { OnRampPath } from '@/utils/scheduleOnRamp';
 
 interface TaskDraft {
   title: string;
@@ -1041,6 +1043,34 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, [selectedProject, saveSchedule]);
+
+  const handleOnRampPick = useCallback((path: OnRampPath) => {
+    switch (path) {
+      case 'estimate':
+        void handleBuildFromEstimate();
+        break;
+      case 'interview':
+        router.push({ pathname: '/schedule-builder', params: { projectId: selectedProject?.id } } as never);
+        break;
+      case 'blank':
+        router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId, scratch: '1' } } as any);
+        break;
+      case 'template':
+        setIsTemplatePickerOpen(true);
+        break;
+      case 'voice':
+        router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any);
+        break;
+      case 'example':
+        // Load the demo example — same as the existing AI builder open path
+        setIsAIBuilderOpen(true);
+        break;
+      case 'manual':
+        setTaskDraft({ ...EMPTY_DRAFT });
+        setIsQuickAddOpen(true);
+        break;
+    }
+  }, [handleBuildFromEstimate, router, selectedProject, selectedProjectId]);
 
   const togglePhaseCollapse = useCallback((phase: string) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -2511,92 +2541,11 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
         {selectedProject && !hasScheduleData && (
           <View style={styles.emptySchedule}>
-            <MageSchedule size={44} color={themeColors.accent} />
-            <Text style={styles.emptyTitle}>Build Your Schedule</Text>
-            <Text style={styles.emptyDesc}>Choose how to get started:</Text>
-
-            {/* PRIMARY: AI Schedule Builder — ask a few questions, build a schedule */}
-            <TouchableOpacity
-              style={styles.emptyAIOnramp}
-              onPress={() => router.push({ pathname: '/schedule-builder', params: { projectId: selectedProject.id } } as never)}
-              testID="mobile-onramp-interview"
-              accessibilityRole="button"
-              accessibilityLabel="Build schedule by answering a few questions with AI"
-            >
-              <MageAIMark size={20} color={Colors.textOnAccent} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emptyAIOnrampTitle}>Answer a few questions</Text>
-                <Text style={styles.emptyAIOnrampDesc}>AI builds your schedule from your answers</Text>
-              </View>
-              <ChevronRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-            </TouchableOpacity>
-
-            {/* Voice-build generates from the linked estimate — only offer it
-                when there is one, else it dead-ends at "Build it". */}
-            {!!selectedProject.linkedEstimate && (
-              <TouchableOpacity
-                style={styles.emptyAction}
-                onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
-                testID="open-copilot-schedule"
-              >
-                <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.emptyActionTitle}>Build by voice</Text>
-                  <Text style={styles.emptyActionDesc}>Speak the job — AI asks the smart questions, then builds it</Text>
-                </View>
-                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.emptyAction}
-              onPress={() => router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId, scratch: '1' } } as any)}
-              testID="open-schedule-wizard"
-            >
-              <CalendarDays size={20} color={themeColors.accent} strokeWidth={1.75} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emptyActionTitle}>Guided 4-step setup</Text>
-                <Text style={styles.emptyActionDesc}>Add tasks, preview the timeline, save</Text>
-              </View>
-              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.emptyAction} onPress={() => setIsAIBuilderOpen(true)}>
-              <MageAIMark size={20} color={themeColors.accent} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emptyActionTitle}>Generate with AI</Text>
-                <Text style={styles.emptyActionDesc}>Describe your project, get a full schedule in seconds</Text>
-              </View>
-              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.emptyAction} onPress={() => setIsTemplatePickerOpen(true)}>
-              <FileText size={20} color={themeColors.accent} strokeWidth={1.75} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emptyActionTitle}>Start from Template</Text>
-                <Text style={styles.emptyActionDesc}>Kitchen, bathroom, new home, and more</Text>
-              </View>
-              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
-
-            {hasEstimate && (
-              <TouchableOpacity style={styles.emptyAction} onPress={handleBuildFromEstimate}>
-                <BarChart3 size={20} color={themeColors.info} strokeWidth={1.75} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.emptyActionTitle}>Build from Estimate</Text>
-                  <Text style={styles.emptyActionDesc}>Auto-generate tasks from your estimate line items</Text>
-                </View>
-                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.emptyManualBtn}
-              onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setIsQuickAddOpen(true); }}
-            >
-              <Plus size={16} color={"#FFFFFF"} strokeWidth={1.75} />
-              <Text style={styles.emptyManualBtnText}>Add Tasks Manually</Text>
-            </TouchableOpacity>
+            <ScheduleOnRamp
+              hasEstimate={hasEstimate}
+              canBuildByVoice={!!selectedProject.linkedEstimate}
+              onPick={handleOnRampPick}
+            />
           </View>
         )}
 
