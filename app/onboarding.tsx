@@ -1,9 +1,8 @@
 // app/onboarding.tsx — first-run experience.
 //
-// Redesigned per the 2026 onboarding research: carousel killed, kept
-// to two screens (splash → routing question → home). Brand color is
-// the background (Cash App move). Display headline with italic emphasis
-// is the focal point. One primary CTA per screen. Skip always visible.
+// Redesigned per the 2026 onboarding research: straight to aha.
+// Flow: splash → preview cards → rates (seed costs) → estimate wizard.
+// The paywall is AFTER the first-bid value, not before it.
 //
 // What this screen DOES NOT do, on purpose:
 //   - No 7-slide carousel describing features. The product itself
@@ -12,15 +11,18 @@
 //     clipart" is the visual language of unserious software in 2026.
 //   - No forced auth wall. The auth screen is a separate route; we
 //     defer the prompt until after the user's seen value.
+//   - No size-band routing question or import step on day one.
+//     Import lives at app/import-pipeline.tsx; size-band config
+//     lives in settings. Neither blocks the aha.
 //
 // What this screen DOES do:
 //   - Splash with display-grade italic-mixed serif headline +
-//     edge-to-edge brand-green background.
-//   - One routing question — "how big is the job you're running?" —
-//     captured to AsyncStorage so home + estimator + AI prompts can
-//     personalize.
-//   - Drops the user on home where the existing OnboardingChecklist
-//     and DemoSeedPickerModal handle the rest.
+//     edge-to-edge brand-amber background.
+//   - Preview card stack (5 cards, tap to advance).
+//   - Seed-your-rates step: paste your costs → first estimate is
+//     built on your numbers, not a national average.
+//   - Hand-off to /estimate-wizard?onboarding=1 where the value
+//     is live before anything asks the user to upgrade.
 
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
@@ -47,14 +49,6 @@ import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
-import {
-  saveOnboardingProfile,
-  SIZE_BAND_LABELS,
-  SIZE_BAND_PERSONA,
-  suggestedDemoFlavorForBand,
-  type ProjectSizeBand,
-} from '@/utils/onboardingProfile';
-import { parseImportBlob, draftToLeadInput, type ImportedLeadDraft } from '@/utils/pipelineImport';
 import { parseSeedBlob, draftsToSeeds, type SeedParseResult } from '@/utils/costSeedCore';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { track, AnalyticsEvents } from '@/utils/analytics';
@@ -78,12 +72,8 @@ const BRAND = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type Step = 'splash' | 'preview' | 'routing' | 'import' | 'rates';
-
-// Flavor of the auto-seeded sample project. Derived from the size band on
-// the routing step. Inferred from suggestedDemoFlavorForBand so we don't
-// have to re-name the union here.
-type DemoFlavor = ReturnType<typeof suggestedDemoFlavorForBand>;
+// Three-step flow: splash → preview cards → rates (terminal → estimate wizard).
+type Step = 'splash' | 'preview' | 'rates';
 
 interface PreviewCard {
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -128,8 +118,7 @@ const PREVIEW_CARDS: PreviewCard[] = [
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const projectCtx = useProjects();
-  const { completeOnboarding, addLead } = projectCtx;
+  const { completeOnboarding } = useProjects();
   const { addSeeds } = useCostSeeds();
   const { colors: themeColors } = useTheme();
 
@@ -138,17 +127,6 @@ export default function OnboardingScreen() {
   // Card-stack progressive disclosure — which preview card is showing.
   const [cardIndex, setCardIndex] = useState(0);
 
-  // ── Import-your-pipeline step state. The size band picked on the routing
-  // step is held here until the import step finishes, so we can seed a tuned
-  // demo project only when the user *skips* import (a real paste makes their
-  // own clients the populated state — no fake sample project needed).
-  const [pendingBand, setPendingBand] = useState<ProjectSizeBand | null>(null);
-  const [blob, setBlob] = useState('');
-  const [drafts, setDrafts] = useState<ImportedLeadDraft[]>([]);
-  const [parsed, setParsed] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importHint, setImportHint] = useState<string | null>(null);
-
   // ── Seed-your-rates step state. THE cold-start fix: utils/costDatabase only
   // learns from jobs closed inside MAGE, so without this a twenty-year
   // contractor's first estimate is priced identically to a beginner's. Pasting
@@ -156,15 +134,11 @@ export default function OnboardingScreen() {
   // non-empty on day one. Rates land tagged "you set this" and never count as
   // closed jobs — see utils/costSeedCore.
   //
-  // Deliberately NOT tier-gated here: first-run happens before the paywall
-  // (this flow ends at /onboarding-paywall). The Pro gate lives on the
-  // management screen, app/cost-seed.
+  // Deliberately NOT tier-gated here: first-run happens before the paywall.
+  // The Pro gate lives on the management screen, app/cost-seed.
   const [rateBlob, setRateBlob] = useState('');
   const [rateReview, setRateReview] = useState<SeedParseResult | null>(null);
   const [rateHint, setRateHint] = useState<string | null>(null);
-  // Carried across the rates step so the demo-seed decision made on the import
-  // step still applies when the flow finally exits.
-  const [pendingSeedDemo, setPendingSeedDemo] = useState(true);
 
   // Respect iOS Accessibility → Reduce Motion. When on, we cross-fade
   // instead of slide-up + stagger. Apple HIG mandates this; premium apps
@@ -223,10 +197,9 @@ export default function OnboardingScreen() {
     ]).start();
   }, [step, eyebrowOpacity, headlineOpacity, bodyOpacity, ctaOpacity, lift, reduceMotion]);
 
-  // Activation funnel — mark the top of the import step so we can compute
+  // Activation funnel — mark the top of the rates step so we can compute
   // viewed→completed. Fires once when the step first renders.
   useEffect(() => {
-    if (step === 'import') track(AnalyticsEvents.ONBOARDING_IMPORT_VIEWED);
     if (step === 'rates') track(AnalyticsEvents.ONBOARDING_RATES_VIEWED);
   }, [step]);
 
@@ -241,7 +214,7 @@ export default function OnboardingScreen() {
 
   const handlePreviewNext = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setStep('routing');
+    setStep('rates');
   }, []);
 
   const handleSignIn = useCallback(() => {
@@ -249,90 +222,16 @@ export default function OnboardingScreen() {
     router.push('/login' as never);
   }, [router]);
 
-  // Seed a sample project tuned to the size band so a user who *doesn't*
-  // bring their own pipeline still lands on a populated home instead of an
-  // empty state. The dynamic require keeps demoSeed.ts out of the onboarding
-  // bundle until we actually need it. Non-fatal — empty state on failure.
-  const runDemoSeed = useCallback(async (flavor: DemoFlavor) => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { seedDemoProject } = require('@/utils/demoSeed');
-      await seedDemoProject({
-        addProject: projectCtx.addProject,
-        addInvoice: projectCtx.addInvoice,
-        addDailyReport: projectCtx.addDailyReport,
-        addPunchItem: projectCtx.addPunchItem,
-        addProjectPhoto: projectCtx.addProjectPhoto,
-        addRFI: projectCtx.addRFI,
-        addChangeOrder: projectCtx.addChangeOrder,
-        flavor,
-      });
-    } catch (e) {
-      console.warn('[onboarding] auto-seed skipped:', e);
-    }
-  }, [projectCtx]);
-
-  // Single exit. `seedDemo` is true only when the user lands on home without
-  // having imported a real pipeline (skip paths) — see the routing/import
-  // handlers below.
-  const finishToHome = useCallback(async (opts?: { seedDemo?: boolean; band?: ProjectSizeBand | null }) => {
-    if (opts?.seedDemo) {
-      const flavor: DemoFlavor = opts.band ? suggestedDemoFlavorForBand(opts.band) : 'medium';
-      await runDemoSeed(flavor);
-    }
+  // Terminal hand-off — lands the user inside the estimate wizard so they
+  // price a real bid before anything asks them to upgrade. Called by both
+  // the "Price your first bid →" CTA and the "I'll add rates later" skip.
+  // completeOnboarding() sets hasSeenOnboarding so the user is never
+  // re-looped back here. No demo-seed: the wizard itself is the aha.
+  const goPriceFirstBid = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await completeOnboarding();
-    router.replace('/onboarding-paywall' as never);
-  }, [runDemoSeed, completeOnboarding, router]);
-
-  const handleBandPick = useCallback(async (band: ProjectSizeBand) => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await saveOnboardingProfile({
-      completedAt: new Date().toISOString(),
-      sizeBand: band,
-    });
-    // Don't seed yet — advance to the import step. If they paste a real
-    // pipeline there we skip the sample project entirely; if they skip
-    // import, finishToHome seeds a band-tuned demo so home isn't empty.
-    setPendingBand(band);
-    setStep('import');
-  }, []);
-
-  // ── Import step ──────────────────────────────────────────────────────
-  const handleParse = useCallback(() => {
-    const next = parseImportBlob(blob);
-    if (next.length === 0) {
-      setImportHint('Paste one client per line — name first, then phone, email, project, or budget in any order.');
-      return;
-    }
-    setImportHint(null);
-    setDrafts(next);
-    setParsed(true);
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [blob]);
-
-  const handleImport = useCallback(async () => {
-    if (drafts.length === 0) return;
-    setImporting(true);
-    try {
-      for (const d of drafts) addLead(draftToLeadInput(d));
-      track(AnalyticsEvents.ONBOARDING_IMPORT_COMPLETED, { count: drafts.length });
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Real pipeline imported → their clients ARE the populated state, so
-      // skip the demo seed when the flow eventually exits.
-      setPendingSeedDemo(false);
-      setStep('rates');
-    } finally {
-      setImporting(false);
-    }
-  }, [drafts, addLead]);
-
-  const handleImportSkip = useCallback(() => {
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    track(AnalyticsEvents.ONBOARDING_IMPORT_SKIPPED);
-    setPendingSeedDemo(true);
-    setStep('rates');
-  }, []);
+    router.replace('/estimate-wizard?onboarding=1' as never);
+  }, [completeOnboarding, router]);
 
   // ── Seed-your-rates step ─────────────────────────────────────────────
   const handleRatesParse = useCallback(() => {
@@ -355,26 +254,24 @@ export default function OnboardingScreen() {
     const seeds = draftsToSeeds(rateReview.rows, { now: new Date().toISOString(), method: 'paste' });
     addSeeds(seeds);
     track(AnalyticsEvents.ONBOARDING_RATES_COMPLETED, { count: seeds.length });
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    void finishToHome({ seedDemo: pendingSeedDemo, band: pendingBand });
-  }, [rateReview, addSeeds, finishToHome, pendingSeedDemo, pendingBand]);
+    // goPriceFirstBid fires its own success haptic — skip the redundant one here.
+    void goPriceFirstBid();
+  }, [rateReview, addSeeds, goPriceFirstBid]);
 
   const handleRatesSkip = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     track(AnalyticsEvents.ONBOARDING_RATES_SKIPPED);
-    void finishToHome({ seedDemo: pendingSeedDemo, band: pendingBand });
-  }, [finishToHome, pendingSeedDemo, pendingBand]);
+    void goPriceFirstBid();
+  }, [goPriceFirstBid]);
 
-  // Top-bar Skip — bails out of the whole flow. Seeds a sample project so
-  // the user still lands on a populated home. `pendingBand` is null unless
-  // they'd already reached the import step, in which case we honor it.
-  // `pendingSeedDemo` starts true and is only cleared once real clients have
-  // been imported — bailing out from the rates step must not drop a fake
-  // sample project on top of a real pipeline.
-  const handleSkip = useCallback(() => {
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    void finishToHome({ seedDemo: pendingSeedDemo, band: pendingBand });
-  }, [finishToHome, pendingSeedDemo, pendingBand]);
+  // Top-bar Skip — bails out of the whole flow without seeding rates.
+  // Goes straight to the paywall (not the estimate wizard) — a hard-skipper
+  // on the splash or preview steps shouldn't be forced into the wizard arc.
+  const handleSkip = useCallback(async () => {
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await completeOnboarding();
+    router.replace('/onboarding-paywall' as never);
+  }, [router, completeOnboarding]);
 
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
@@ -400,13 +297,11 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Step indicator — three dots for splash → preview → routing.
+      {/* Step indicator — three dots for splash → preview → rates.
           The active dot grows wider; non-active stay small. */}
       <View style={styles.stepDots}>
         <View style={[styles.stepDot, step === 'splash' && styles.stepDotActive]} />
         <View style={[styles.stepDot, step === 'preview' && styles.stepDotActive]} />
-        <View style={[styles.stepDot, step === 'routing' && styles.stepDotActive]} />
-        <View style={[styles.stepDot, step === 'import' && styles.stepDotActive]} />
         <View style={[styles.stepDot, step === 'rates' && styles.stepDotActive]} />
       </View>
 
@@ -558,202 +453,14 @@ export default function OnboardingScreen() {
         </Animated.View>
       )}
 
-      {step === 'routing' && (
-        <Animated.View
-          style={[
-            styles.body,
-            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
-          ]}
-        >
-          <View style={{ flex: 1 }} />
-
-          <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-            <Text style={styles.eyebrowDot}>●</Text>  one quick question
-          </Animated.Text>
-
-          <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
-            <Text style={styles.headlineRoman}>How big is{' '}</Text>
-            <Text style={styles.headlineItalic}>your typical{' '}</Text>
-            <Text style={styles.headlineRoman}>job?</Text>
-          </Animated.Text>
-
-          <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
-            We&apos;ll set the right defaults so estimates, schedules, and the AI feel
-            tuned to how you actually work. Change anytime in settings.
-          </Animated.Text>
-
-          <Animated.View style={[styles.bandList, { opacity: ctaOpacity }]}>
-            {(['under_1m', '1_to_5m', '5_to_15m', 'over_15m'] as ProjectSizeBand[]).map(band => (
-              <Pressable
-                key={band}
-                onPress={() => handleBandPick(band)}
-                style={({ pressed }) => [
-                  styles.bandCard,
-                  pressed && styles.bandCardPressed,
-                ]}
-                accessibilityLabel={`I run jobs ${SIZE_BAND_LABELS[band]} — ${SIZE_BAND_PERSONA[band]}`}
-                accessibilityRole="button"
-                testID={`onboarding-band-${band}`}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bandLabel}>{SIZE_BAND_LABELS[band]}</Text>
-                  <Text style={styles.bandPersona} numberOfLines={2}>
-                    {SIZE_BAND_PERSONA[band]}
-                  </Text>
-                </View>
-                <View style={styles.bandArrow}>
-                  <ArrowRight size={16} color={BRAND.cream} strokeWidth={2.2} />
-                </View>
-              </Pressable>
-            ))}
-          </Animated.View>
-
-          <Animated.View style={{ opacity: ctaOpacity, marginTop: 12 }}>
-            <TouchableOpacity onPress={handleSkip} hitSlop={8}>
-              <Text style={styles.signInText}>
-                <Text style={styles.signInLink}>Skip — pick later</Text>
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </Animated.View>
-      )}
-
-      {/* Import-your-pipeline — the "bring your own clients" cold-start play
-          lands right here in first-run. Paste a client column, tap once, and
-          land on home with a populated pipeline instead of an empty CRM —
-          each lead one tap from an Instant Bid. Reuses the shared parser
-          (utils/pipelineImport); only the brand-styled UI is local. */}
-      {step === 'import' && (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={insets.top + 72}
-        >
-          <Animated.View
-            style={[
-              styles.body,
-              { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
-            ]}
-          >
-            <View style={{ flex: 1 }} />
-
-            <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-              <Text style={styles.eyebrowDot}>●</Text>  bring your book of business
-            </Animated.Text>
-
-            <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
-              <Text style={styles.headlineRoman}>Bring your{' '}</Text>
-              <Text style={styles.headlineItalic}>clients{' '}</Text>
-              <Text style={styles.headlineRoman}>with you.</Text>
-            </Animated.Text>
-
-            {!parsed ? (
-              <Animated.View style={{ opacity: bodyOpacity }}>
-                <Text style={styles.lede}>
-                  Paste your client list — one per line. We&apos;ll read the name, phone,
-                  email, project, and budget in any order. Each becomes a lead, ready for
-                  an Instant Bid.
-                </Text>
-                <TextInput
-                  style={styles.pasteInput}
-                  value={blob}
-                  onChangeText={(v) => { setBlob(v); setImportHint(null); }}
-                  placeholder={'John Smith, 555-123-4567, kitchen remodel, $80,000\nJane Garcia, jane@email.com, bathroom reno\nPatel Family, 312-555-0199, ADU, 150k'}
-                  placeholderTextColor={BRAND.fog}
-                  multiline
-                  textAlignVertical="top"
-                  testID="onboarding-import-blob"
-                />
-                {!!importHint && <Text style={styles.importHint}>{importHint}</Text>}
-                <Pressable
-                  onPress={handleParse}
-                  disabled={!blob.trim()}
-                  style={({ pressed }) => [
-                    styles.ctaPrimary,
-                    styles.ctaWide,
-                    !blob.trim() && { opacity: 0.5 },
-                    pressed && { opacity: 0.92 },
-                  ]}
-                  accessibilityLabel="Review clients to import"
-                  accessibilityRole="button"
-                  testID="onboarding-import-review"
-                >
-                  <Text style={styles.ctaPrimaryText}>Review clients</Text>
-                  <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
-                </Pressable>
-                <TouchableOpacity
-                  onPress={handleImportSkip}
-                  hitSlop={8}
-                  style={styles.importSkip}
-                  testID="onboarding-import-skip"
-                >
-                  <Text style={styles.signInText}>
-                    <Text style={styles.signInLink}>Skip — I&apos;ll add them later</Text>
-                  </Text>
-                </TouchableOpacity>
-              </Animated.View>
-            ) : (
-              <Animated.View style={{ opacity: bodyOpacity }}>
-                <View style={styles.confirmCard}>
-                  <View style={styles.confirmHeadRow}>
-                    <MageAIMark size={16} color={BRAND.orange} />
-                    <Text style={styles.confirmCount}>
-                      {drafts.length} client{drafts.length === 1 ? '' : 's'} ready to import
-                    </Text>
-                  </View>
-                  <View style={styles.nameChipRow}>
-                    {drafts.slice(0, 6).map((d, i) => (
-                      <View key={`${d.raw}-${i}`} style={styles.nameChip}>
-                        <Text style={styles.nameChipText} numberOfLines={1}>{d.name}</Text>
-                      </View>
-                    ))}
-                    {drafts.length > 6 && (
-                      <View style={styles.nameChip}>
-                        <Text style={styles.nameChipText}>+{drafts.length - 6} more</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <Pressable
-                  onPress={handleImport}
-                  disabled={importing}
-                  style={({ pressed }) => [
-                    styles.ctaPrimary,
-                    styles.ctaWide,
-                    importing && { opacity: 0.6 },
-                    pressed && { opacity: 0.92 },
-                  ]}
-                  accessibilityLabel={`Import ${drafts.length} clients`}
-                  accessibilityRole="button"
-                  testID="onboarding-import-commit"
-                >
-                  <Check size={18} color={BRAND.ink} strokeWidth={2.6} />
-                  <Text style={styles.ctaPrimaryText}>
-                    Import {drafts.length} client{drafts.length === 1 ? '' : 's'}
-                  </Text>
-                </Pressable>
-                <TouchableOpacity
-                  onPress={() => setParsed(false)}
-                  hitSlop={8}
-                  style={styles.importSkip}
-                >
-                  <Text style={styles.signInText}>
-                    <Text style={styles.signInLink}>Back to edit</Text>
-                  </Text>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
-          </Animated.View>
-        </KeyboardAvoidingView>
-      )}
-
       {/* Seed-your-rates — the cost-book cold-start fix. MAGE's whole pitch is
           "it learns your real costs", but utils/costDatabase only learns from
           jobs closed inside the app: a twenty-year contractor's day-one
           estimate was a beginner's, and stayed that way for 6-18 months.
           Pasting the rates they already know makes the very first estimate
           theirs. Parsed by the shared utils/costSeedCore; rates are stored
-          tagged "you set this" and never counted as closed jobs. */}
+          tagged "you set this" and never counted as closed jobs. Terminal step
+          — exits into the estimate wizard, not home. */}
       {step === 'rates' && (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -797,7 +504,7 @@ export default function OnboardingScreen() {
                   textAlignVertical="top"
                   testID="onboarding-rates-blob"
                 />
-                {!!rateHint && <Text style={styles.importHint}>{rateHint}</Text>}
+                {!!rateHint && <Text style={styles.rateHint}>{rateHint}</Text>}
                 <Pressable
                   onPress={handleRatesParse}
                   disabled={!rateBlob.trim()}
@@ -817,11 +524,11 @@ export default function OnboardingScreen() {
                 <TouchableOpacity
                   onPress={handleRatesSkip}
                   hitSlop={8}
-                  style={styles.importSkip}
+                  style={styles.rateSkip}
                   testID="onboarding-rates-skip"
                 >
                   <Text style={styles.signInText}>
-                    <Text style={styles.signInLink}>Skip — I&apos;ll add them later</Text>
+                    <Text style={styles.signInLink}>I&apos;ll add rates later</Text>
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -849,7 +556,7 @@ export default function OnboardingScreen() {
                     )}
                   </View>
                   {rateReview.rejected.length > 0 && (
-                    <Text style={styles.importHint}>
+                    <Text style={styles.rateHint}>
                       {rateReview.rejected.length} line{rateReview.rejected.length === 1 ? '' : 's'} skipped —
                       {' '}{rateReview.rejected[0].reason}
                     </Text>
@@ -866,19 +573,16 @@ export default function OnboardingScreen() {
                     styles.ctaWide,
                     pressed && { opacity: 0.92 },
                   ]}
-                  accessibilityLabel={`Add ${rateReview.rows.length} rates`}
+                  accessibilityLabel={`Save ${rateReview.rows.length} rate${rateReview.rows.length === 1 ? '' : 's'} and price your first bid`}
                   accessibilityRole="button"
                   testID="onboarding-rates-commit"
                 >
-                  <Check size={18} color={BRAND.ink} strokeWidth={2.6} />
-                  <Text style={styles.ctaPrimaryText}>
-                    Add {rateReview.rows.length} rate{rateReview.rows.length === 1 ? '' : 's'}
-                  </Text>
+                  <Text style={styles.ctaPrimaryText}>Price your first bid →</Text>
                 </Pressable>
                 <TouchableOpacity
                   onPress={() => setRateReview(null)}
                   hitSlop={8}
-                  style={styles.importSkip}
+                  style={styles.rateSkip}
                 >
                   <Text style={styles.signInText}>
                     <Text style={styles.signInLink}>Back to edit</Text>
@@ -1099,51 +803,7 @@ const styles = StyleSheet.create({
     width: 18,
   },
 
-  // ── Routing card list ───────────────────────────────────────────
-  bandList: {
-    gap: 10,
-    marginTop: 4,
-  },
-  bandCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: Tokens.radius.lg,
-    ...continuousCorners,
-    backgroundColor: 'rgba(244,239,230,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(244,239,230,0.12)',
-    minHeight: 64, // generous touch target — premium bar
-  },
-  bandCardPressed: {
-    backgroundColor: 'rgba(255,106,26,0.18)',
-    borderColor: BRAND.orange,
-  },
-  bandLabel: {
-    fontSize: Type.subheadline.fontSize,
-    fontWeight: '800',
-    color: BRAND.cream,
-    letterSpacing: -0.2,
-  },
-  bandPersona: {
-    fontSize: Type.caption1.fontSize,
-    fontWeight: '500',
-    color: BRAND.fog,
-    marginTop: 4,
-    lineHeight: 16,
-  },
-  bandArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: Tokens.radius.full,
-    backgroundColor: 'rgba(244,239,230,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // ── Import-your-pipeline step ───────────────────────────────────────
+  // ── Rates step paste / confirm UI ───────────────────────────────────
   pasteInput: {
     minHeight: 140,
     backgroundColor: 'rgba(244,239,230,0.08)',
@@ -1157,13 +817,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 12,
   },
-  importHint: {
+  rateHint: {
     fontSize: Type.footnote.fontSize,
     color: BRAND.orangeHot,
     lineHeight: 18,
     marginBottom: 12,
   },
-  importSkip: {
+  rateSkip: {
     marginTop: 14,
     alignSelf: 'center',
   },
