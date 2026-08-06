@@ -344,6 +344,10 @@ export default function ScheduleWizardScreen() {
       if (cancelled || !draft) return;
       // Never resume one job's draft inside another job.
       if (!draftMatchesEntry(draft, projectId ?? '')) return;
+      // On the blank path (scratch=1) never restore a template draft — a user
+      // who backgrounded a kitchen-remodel session and then taps "New schedule"
+      // should land on a blank canvas, not somebody else's task list.
+      if (documentMode && draft.templateId !== SCRATCH_ID) return;
       setTasks(repairChain(draft.tasks));
       if (draft.projectId) setPickedProjectId(draft.projectId);
       if (draft.startIso) setStartIso(draft.startIso);
