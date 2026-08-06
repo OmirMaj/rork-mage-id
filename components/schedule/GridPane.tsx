@@ -15,9 +15,8 @@
 // 2. On every edit, the parent re-runs `runCpm(tasks)` and passes the result
 //    back as `cpm`. We render Start/Finish/Float from that result, not from
 //    raw task fields, so Start and Finish are ALWAYS in sync with the math.
-// 3. Dependency edits are gated by `wouldCreateCycle()` — if the user tries
-//    to enter a cycle, we surface an inline error and DO NOT commit. This is
-//    the "forgiving UI" property from the playbook.
+// 3. Predecessor edits are validated by the PredecessorPicker UI; existing
+//    out-of-order links (legal DAG after move-up/down) are always preserved.
 // 4. Actual-start / actual-finish columns exist but are rendered faded until
 //    Phase 5 wires the field-reporting flow. We reserve the column space now
 //    so the layout doesn't shift later.
@@ -43,7 +42,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, TaskStatus, AnchorType } from '@/types';
 import {
-  runCpm, formatFloat, wouldCreateCycle,
+  runCpm, formatFloat,
   type CpmResult, type CpmTaskResult,
 } from '@/utils/cpm';
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
@@ -515,23 +514,6 @@ export default function GridPane({
 
   const selectedArray = useMemo(() => Array.from(selected), [selected]);
 
-  // Map of task.id → wbsCode, used to let users type "1.2" or "T5" as a
-  // predecessor instead of the machine id. Falls back to the id itself
-  // so power users can paste task uuids directly if they need to.
-  const wbsToIdMap = useMemo(() => {
-    const m = new Map<string, string>();
-    tasks.forEach((t, i) => {
-      if (t.wbsCode) m.set(t.wbsCode.trim(), t.id);
-      // Row-number shorthand. Matches the Gantt bar labels and the new
-      // predecessor display, so what you read in the cell is what you can
-      // type back into it.
-      m.set(`T${i + 1}`, t.id);
-      m.set(`t${i + 1}`, t.id);
-      m.set(t.id, t.id);
-    });
-    return m;
-  }, [tasks]);
-
   const idToWbsMap = useMemo(() => {
     const m = new Map<string, string>();
     // Only register real wbsCodes — fall through to idToRowLabel below
@@ -724,7 +706,7 @@ export default function GridPane({
     setDraft('');
     setCellError(null);
     return true;
-  }, [editing, draft, tasks, wbsToIdMap, onEdit, cancelEdit, dateToDayNumber]);
+  }, [editing, draft, tasks, onEdit, cancelEdit, dateToDayNumber]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation (web). iPad/mobile rely on tap-to-edit + blur.
@@ -1611,9 +1593,16 @@ export default function GridPane({
           taskLabel={predecessorPickerTask.title}
           candidates={(() => {
             const idx = tasks.findIndex(t => t.id === predecessorPickerTask.id);
-            return idx < 0
-              ? []
-              : tasks.slice(0, idx).map(t => ({ id: t.id, label: t.title, phase: t.phase }));
+            const earlier = idx < 0 ? [] : tasks.slice(0, idx);
+            const existingLinks = predecessorPickerTask.dependencyLinks
+              ?? predecessorPickerTask.dependencies.map(id => ({ taskId: id }));
+            const valueIds = new Set(existingLinks.map(l => l.taskId));
+            const extra = tasks.filter(
+              t => t.id !== predecessorPickerTask.id &&
+                valueIds.has(t.id) &&
+                !earlier.some(e => e.id === t.id)
+            );
+            return [...earlier, ...extra].map(t => ({ id: t.id, label: t.title, phase: t.phase }));
           })()}
           value={
             (predecessorPickerTask.dependencyLinks ?? predecessorPickerTask.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
