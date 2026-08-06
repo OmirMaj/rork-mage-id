@@ -1026,7 +1026,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [sortedTasks, projectStartDate, activeSchedule, selectedProject?.location]);
 
   const hasSchedule = sortedTasks.length > 0;
-  const hasEstimate = selectedProject?.estimate !== null || selectedProject?.linkedEstimate !== null;
+  const hasEstimate = !!selectedProject?.linkedEstimate || !!selectedProject?.estimate;
 
   const renderHealthBadge = useCallback(() => {
     const color = getHealthColor(healthScore);
@@ -2378,7 +2378,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <View style={styles.emptySchedule}>
             <ScheduleOnRamp
               hasEstimate={hasEstimate}
-              canBuildByVoice={!!selectedProject.linkedEstimate}
+              canBuildByVoice={true}
               onPick={handleOnRampPick}
             />
           </View>
