@@ -50,6 +50,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import {
@@ -190,6 +191,7 @@ export default function ScheduleWizardScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { canAccess } = useTierAccess();
+  const { isDesktop } = useResponsiveLayout();
   // Route to Schedule Pro only when the grid is both usable (wide screen) AND
   // unlocked for this tier. Otherwise land in the classic schedule — the
   // wizard's value is available to every tier, and free users shouldn't finish
@@ -645,92 +647,130 @@ export default function ScheduleWizardScreen() {
         })}
       </View>
 
-      {/* keyboardShouldPersistTaps: the task list is full of TextInputs, and
-          without this every tap on "+ Add task" / a chip while the keyboard is
-          up is swallowed dismissing the keyboard instead. */}
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="none"
-        // A row being dragged owns the vertical gesture. Leaving the
-        // ScrollView live means the list scrolls under the finger and the
-        // drop lands nowhere near where it was aimed.
-        scrollEnabled={!dragging}
-      >
-        {step === 0 && (
-          <ProjectStep
-            projects={projects}
-            pickedId={pickedProjectId}
-            // On the document path picking the job IS the whole step, so
-            // answering it advances — no "Next" to hunt for.
-            onPick={(id) => {
-              setPickedProjectId(id);
-              if (documentMode) {
-                setStep(1);
-                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+      {/* 7c — Desktop two-pane: tasks left, live Gantt right. TasksStep manages
+          its own paired ScrollViews; the outer ScrollView handles all other steps
+          and the phone flow unchanged. */}
+      {isDesktop && step === 1 ? (
+        <TasksStep
+          activeId={pickedTemplateId}
+          templates={SCHEDULE_TEMPLATES}
+          onPickTemplate={handlePickTemplate}
+          documentMode={documentMode}
+          documentTitle={project ? `${project.name} schedule` : 'New schedule'}
+          startDate={startDate}
+          onEditProject={() => goToStep(0)}
+          onBrowseTemplates={() => setTemplateSheetOpen(true)}
+          onEditStartDate={() => setDatePickerOpen(true)}
+          onQuickStart={(d) => setStartIso(toIsoDate(d))}
+          tasks={tasks}
+          setTasks={updateTasks}
+          totalDays={totalDays}
+          endDate={projectEndDate}
+          focusTaskId={focusTaskId}
+          setFocusTaskId={setFocusTaskId}
+          onOpenPhasePicker={setPhaseFor}
+          onOpenPredecessors={setPredFor}
+          onDraggingChange={setDragging}
+          savedAt={savedAt}
+          restored={restored}
+          onDiscardDraft={discardDraft}
+          scheduledTasks={scheduledTasks}
+          isDesktop={isDesktop}
+          wideEnoughForPro={wideEnoughForPro}
+        />
+      ) : (
+        /* keyboardShouldPersistTaps: the task list is full of TextInputs, and
+           without this every tap on "+ Add task" / a chip while the keyboard is
+           up is swallowed dismissing the keyboard instead. */
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
+          // A row being dragged owns the vertical gesture. Leaving the
+          // ScrollView live means the list scrolls under the finger and the
+          // drop lands nowhere near where it was aimed.
+          scrollEnabled={!dragging}
+        >
+          {step === 0 && (
+            <ProjectStep
+              projects={projects}
+              pickedId={pickedProjectId}
+              // On the document path picking the job IS the whole step, so
+              // answering it advances — no "Next" to hunt for.
+              onPick={(id) => {
+                setPickedProjectId(id);
+                if (documentMode) {
+                  setStep(1);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }
+              }}
+              documentMode={documentMode}
+              startDate={startDate}
+              projectEndDate={projectEndDate}
+              totalDays={totalDays}
+              onEditStartDate={() => setDatePickerOpen(true)}
+              onQuickStart={(d) => setStartIso(toIsoDate(d))}
+              onCreateProject={() => router.replace({ pathname: '/' as never, params: { openCreate: '1' } as never })}
+            />
+          )}
+          {step === 1 && (
+            <TasksStep
+              activeId={pickedTemplateId}
+              templates={SCHEDULE_TEMPLATES}
+              onPickTemplate={handlePickTemplate}
+              documentMode={documentMode}
+              documentTitle={project ? `${project.name} schedule` : 'New schedule'}
+              startDate={startDate}
+              onEditProject={() => goToStep(0)}
+              onBrowseTemplates={() => setTemplateSheetOpen(true)}
+              onEditStartDate={() => setDatePickerOpen(true)}
+              onQuickStart={(d) => setStartIso(toIsoDate(d))}
+              tasks={tasks}
+              setTasks={updateTasks}
+              totalDays={totalDays}
+              endDate={projectEndDate}
+              focusTaskId={focusTaskId}
+              setFocusTaskId={setFocusTaskId}
+              onOpenPhasePicker={setPhaseFor}
+              onOpenPredecessors={setPredFor}
+              onDraggingChange={setDragging}
+              savedAt={savedAt}
+              restored={restored}
+              onDiscardDraft={discardDraft}
+              scheduledTasks={scheduledTasks}
+              isDesktop={isDesktop}
+              wideEnoughForPro={wideEnoughForPro}
+            />
+          )}
+          {step === 2 && (
+            <ScheduleStep
+              scheduledTasks={scheduledTasks}
+              startDate={startDate}
+              totalDays={totalDays}
+              wideEnoughForPro={wideEnoughForPro}
+              onEditStartDate={() => setDatePickerOpen(true)}
+            />
+          )}
+          {step === 3 && project && (
+            <ReviewStep
+              project={project}
+              startingPoint={
+                pickedTemplateId === SCRATCH_ID
+                  ? 'Built from scratch'
+                  : edited ? `${template.name} (edited)` : template.name
               }
-            }}
-            documentMode={documentMode}
-            startDate={startDate}
-            projectEndDate={projectEndDate}
-            totalDays={totalDays}
-            onEditStartDate={() => setDatePickerOpen(true)}
-            onQuickStart={(d) => setStartIso(toIsoDate(d))}
-            onCreateProject={() => router.replace({ pathname: '/' as never, params: { openCreate: '1' } as never })}
-          />
-        )}
-        {step === 1 && (
-          <TasksStep
-            activeId={pickedTemplateId}
-            templates={SCHEDULE_TEMPLATES}
-            onPickTemplate={handlePickTemplate}
-            documentMode={documentMode}
-            documentTitle={project ? `${project.name} schedule` : 'New schedule'}
-            startDate={startDate}
-            onEditProject={() => goToStep(0)}
-            onBrowseTemplates={() => setTemplateSheetOpen(true)}
-            tasks={tasks}
-            setTasks={updateTasks}
-            totalDays={totalDays}
-            endDate={projectEndDate}
-            focusTaskId={focusTaskId}
-            setFocusTaskId={setFocusTaskId}
-            onOpenPhasePicker={setPhaseFor}
-            onOpenPredecessors={setPredFor}
-            onDraggingChange={setDragging}
-            savedAt={savedAt}
-            restored={restored}
-            onDiscardDraft={discardDraft}
-          />
-        )}
-        {step === 2 && (
-          <ScheduleStep
-            scheduledTasks={scheduledTasks}
-            startDate={startDate}
-            totalDays={totalDays}
-            wideEnoughForPro={wideEnoughForPro}
-            onEditStartDate={() => setDatePickerOpen(true)}
-          />
-        )}
-        {step === 3 && project && (
-          <ReviewStep
-            project={project}
-            startingPoint={
-              pickedTemplateId === SCRATCH_ID
-                ? 'Built from scratch'
-                : edited ? `${template.name} (edited)` : template.name
-            }
-            tasksCount={tasks.length}
-            milestoneCount={tasks.filter(t => t.duration === 0).length}
-            startDate={startDate}
-            endDate={projectEndDate}
-            totalDays={totalDays}
-            wideEnoughForPro={wideEnoughForPro}
-            onEditStartDate={() => setDatePickerOpen(true)}
-          />
-        )}
-      </ScrollView>
+              tasksCount={tasks.length}
+              milestoneCount={tasks.filter(t => t.duration === 0).length}
+              startDate={startDate}
+              endDate={projectEndDate}
+              totalDays={totalDays}
+              wideEnoughForPro={wideEnoughForPro}
+              onEditStartDate={() => setDatePickerOpen(true)}
+            />
+          )}
+        </ScrollView>
+      )}
 
       <PhasePickerSheet
         visible={phaseFor !== null}
@@ -818,9 +858,23 @@ export default function ScheduleWizardScreen() {
         onChange={(iso) => setStartIso(toIsoDate(new Date(iso)))}
       />
 
-      {/* Bottom CTA. The mock uses a single big primary button; we mirror it. */}
+      {/* Bottom CTA. The mock uses a single big primary button; we mirror it.
+          On desktop step 1 (two-pane) the user can save directly — the Gantt
+          is always visible so they don't need to advance through Timeline/Review. */}
       <View style={[styles.bottomCta, { paddingBottom: insets.bottom + 12 }]}>
-        {step < 3 ? (
+        {step === 3 || (isDesktop && step === 1) ? (
+          <TouchableOpacity
+            style={[styles.ctaBtn, !canAdvance && styles.ctaBtnDisabled]}
+            onPress={onSavePressed}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canAdvance }}
+            testID="wizard-save"
+          >
+            <Check size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
+            <Text style={styles.ctaBtnText}>Save schedule</Text>
+          </TouchableOpacity>
+        ) : step < 3 ? (
           <>
             {blockHint ? (
               <Text style={styles.blockHintText}>{blockHint}</Text>
@@ -836,18 +890,7 @@ export default function ScheduleWizardScreen() {
               <ChevronRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
             </TouchableOpacity>
           </>
-        ) : (
-          <TouchableOpacity
-            style={styles.ctaBtn}
-            onPress={onSavePressed}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            testID="wizard-save"
-          >
-            <Check size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
-            <Text style={styles.ctaBtnText}>Save schedule</Text>
-          </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -1086,6 +1129,8 @@ function TasksStep(props: {
   startDate: Date;
   onEditProject: () => void;
   onBrowseTemplates: () => void;
+  onEditStartDate: () => void;
+  onQuickStart: (d: Date) => void;
   tasks: TemplateTask[];
   setTasks: (next: TemplateTask[] | ((prev: TemplateTask[]) => TemplateTask[])) => void;
   totalDays: number;
@@ -1100,15 +1145,22 @@ function TasksStep(props: {
   /** True when this session resumed a draft from storage. */
   restored: boolean;
   onDiscardDraft: () => void;
+  /** CPM-scheduled tasks for the live Gantt preview (desktop two-pane). */
+  scheduledTasks: (TemplateTask & { startDay: number; endDay: number })[];
+  /** True when the screen is wide enough for side-by-side panes. */
+  isDesktop: boolean;
+  wideEnoughForPro: boolean;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { width } = useWindowDimensions();
   const {
     activeId, templates, onPickTemplate, documentMode, documentTitle, startDate,
-    onEditProject, onBrowseTemplates, tasks, setTasks, totalDays, endDate,
+    onEditProject, onBrowseTemplates, onEditStartDate, onQuickStart,
+    tasks, setTasks, totalDays, endDate,
     focusTaskId, setFocusTaskId, onOpenPhasePicker, onOpenPredecessors,
     onDraggingChange, savedAt, restored, onDiscardDraft,
+    scheduledTasks, isDesktop, wideEnoughForPro,
   } = props;
   const scratchActive = activeId === SCRATCH_ID;
   const wrapTemplates = width >= WRAP_TEMPLATES_WIDTH;
@@ -1239,8 +1291,11 @@ function TasksStep(props: {
     </>
   );
 
-  return (
-    <View style={styles.stepContent}>
+  // The task list + inline date pane — shared by both phone (single-column) and
+  // desktop left pane. Extracted so the two-pane layout can place it in a View
+  // with a fixed left flex without duplicating the JSX.
+  const taskListPane = (
+    <View style={isDesktop ? styles.desktopLeftPane : styles.stepContent}>
       {documentMode ? (
         // The "file" header. Says what this document is and which job it
         // belongs to, without asking anything.
@@ -1304,6 +1359,15 @@ function TasksStep(props: {
         </>
       )}
 
+      {/* 7b — Inline start date. Visible in the Tasks step so the user can set
+          the CPM anchor here without having to advance to Timeline. The Timeline
+          step (Step 3) still shows and allows date changes too. */}
+      <StartDateField
+        startDate={startDate}
+        onEdit={onEditStartDate}
+        onQuickStart={onQuickStart}
+      />
+
       <View style={[styles.tasksHeadRow, documentMode && styles.tasksHeadRowTight]}>
         <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Tasks ({tasks.length})</Text>
         {tasks.length > 0 && (
@@ -1335,9 +1399,8 @@ function TasksStep(props: {
         </View>
       ) : (
         <Text style={styles.helper}>
-          Type a name, press return for the next row · type or step the days ·
-          0 days makes it a milestone · drag the handle (or use the arrows) to
-          reorder · tap the sequence chip to choose which tasks it waits on
+          Name + duration is enough · tap Refine ▾ to set phase or sequence ·
+          drag the handle or use arrows to reorder · 0 days = milestone
         </Text>
       )}
 
@@ -1409,6 +1472,44 @@ function TasksStep(props: {
       )}
     </View>
   );
+
+  // 7c — Desktop two-pane: task list left, live timeline right.
+  // On phone the stepped flow is untouched — taskListPane IS the render.
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopTwoPaneRow}>
+        <ScrollView
+          style={{ flex: 1.2 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
+          // dragIndex !== null means a row is being dragged — disable scroll
+          // while it's active so the list doesn't scroll under the finger.
+          scrollEnabled={dragIndex === null}
+        >
+          {taskListPane}
+        </ScrollView>
+
+        {/* Right pane: live Gantt — updates as tasks/dates change. */}
+        <ScrollView
+          style={styles.desktopRightPane}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <ScheduleStep
+            scheduledTasks={scheduledTasks}
+            startDate={startDate}
+            totalDays={totalDays}
+            wideEnoughForPro={wideEnoughForPro}
+            onEditStartDate={onEditStartDate}
+          />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return taskListPane;
 }
 
 // ── One editable task row ─────────────────────────────────────────
@@ -1448,8 +1549,13 @@ function TaskRow(props: {
   const first = idx === 0;
   const last = idx === tasks.length - 1;
 
+  // 7a — per-row "Refine ▾" disclosure. Local state; collapses when a new
+  // row is added so the list stays compact as the user types through it.
+  const [refined, setRefined] = useState(false);
+
   return (
     <View style={[styles.taskRow, dragHandle.dragging && styles.taskRowDragging]}>
+      {/* Top row: drag handle · name · duration stepper · up/down · remove */}
       <View style={styles.taskTopRow}>
         {/* Grab area. The number badge doubles as the grip so the row doesn't
             grow a sixth control; PanResponder is scoped to THIS view so the
@@ -1482,6 +1588,30 @@ function TaskRow(props: {
           accessibilityLabel={`Task ${idx + 1} name`}
           testID={`task-name-${idx}`}
         />
+
+        {/* Duration stepper — always visible; phase/sequence move under Refine. */}
+        <View style={styles.durBox}>
+          <TouchableOpacity
+            onPress={() => onDuration(t.duration - 1)}
+            hitSlop={{ top: 10, right: 6, bottom: 10, left: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Shorten ${taskName(t)}`}
+            testID={`task-minus-${idx}`}
+          >
+            <Minus size={15} color={t.duration === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={2.25} />
+          </TouchableOpacity>
+          <DurationField value={t.duration} onCommit={onDuration} index={idx} />
+          <TouchableOpacity
+            onPress={() => onDuration(t.duration + 1)}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Lengthen ${taskName(t)}`}
+            testID={`task-plus-${idx}`}
+          >
+            <Plus size={15} color={themeColors.text} strokeWidth={2.25} />
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
           onPress={() => onMove(-1)}
           disabled={first}
@@ -1513,65 +1643,57 @@ function TaskRow(props: {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.taskChipRow}>
-        <TouchableOpacity
-          style={styles.phaseChip}
-          onPress={onOpenPhase}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={`Phase: ${t.phase}. Tap to change.`}
-          testID={`task-phase-${idx}`}
-        >
-          <View style={[styles.taskDot, { backgroundColor: phaseColor }]} />
-          <Text style={styles.chipText} numberOfLines={1}>{t.phase}</Text>
-          <ChevronDown size={13} color={themeColors.textMuted} strokeWidth={2} />
-        </TouchableOpacity>
+      {/* 7a — Refine ▾ disclosure. Phase + sequence live here; not required to
+          add a task or advance a step. Opens per-row, collapses independently. */}
+      <TouchableOpacity
+        style={styles.refineToggle}
+        onPress={() => setRefined(r => !r)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={refined ? 'Collapse refine options' : 'Expand refine options: phase and sequence'}
+        testID={`task-refine-${idx}`}
+      >
+        <Text style={styles.refineToggleText}>Refine</Text>
+        {refined
+          ? <ChevronUp size={13} color={themeColors.textMuted} strokeWidth={2} />
+          : <ChevronDown size={13} color={themeColors.textMuted} strokeWidth={2} />}
+      </TouchableOpacity>
 
-        {/* Duration. 0 days = milestone (the model's convention), so stepping
-            down to 0 turns the task into one. Typing beats 20 taps of "+". */}
-        <View style={styles.durBox}>
+      {refined && (
+        <View style={styles.taskChipRow}>
           <TouchableOpacity
-            onPress={() => onDuration(t.duration - 1)}
-            hitSlop={{ top: 10, right: 6, bottom: 10, left: 10 }}
+            style={styles.phaseChip}
+            onPress={onOpenPhase}
+            activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`Shorten ${taskName(t)}`}
-            testID={`task-minus-${idx}`}
+            accessibilityLabel={`Phase: ${t.phase}. Tap to change.`}
+            testID={`task-phase-${idx}`}
           >
-            <Minus size={15} color={t.duration === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={2.25} />
+            <View style={[styles.taskDot, { backgroundColor: phaseColor }]} />
+            <Text style={styles.chipText} numberOfLines={1}>{t.phase}</Text>
+            <ChevronDown size={13} color={themeColors.textMuted} strokeWidth={2} />
           </TouchableOpacity>
-          <DurationField value={t.duration} onCommit={onDuration} index={idx} />
+
+          {/* Sequence chip. Opens the multi-predecessor picker so any subset of
+              earlier rows can be expressed — not just three fixed states. */}
           <TouchableOpacity
-            onPress={() => onDuration(t.duration + 1)}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 6 }}
+            style={[styles.linkChip, first && styles.linkChipStatic]}
+            onPress={onOpenPredecessors}
+            disabled={first}
+            activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`Lengthen ${taskName(t)}`}
-            testID={`task-plus-${idx}`}
+            accessibilityLabel={
+              first
+                ? 'This is the first task, so it starts on day 1.'
+                : `${sequenceDetail(tasks, t.predecessorIds, t.lags)}. Tap to choose which tasks this one waits on, and how long after each.`
+            }
+            testID={`task-link-${idx}`}
           >
-            <Plus size={15} color={themeColors.text} strokeWidth={2.25} />
+            <LinkIcon size={13} color={themeColors.textSecondary} strokeWidth={2} />
+            <Text style={styles.chipText} numberOfLines={1}>{sequenceLabel(tasks, idx)}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Sequence chip. Used to cycle blindly through three fixed states on
-            tap; it now opens the picker, which can express those three AND any
-            set of earlier tasks — the real shape of "Rough Inspection waits on
-            plumbing, electrical and HVAC". */}
-        <TouchableOpacity
-          style={[styles.linkChip, first && styles.linkChipStatic]}
-          onPress={onOpenPredecessors}
-          disabled={first}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={
-            first
-              ? 'This is the first task, so it starts on day 1.'
-              : `${sequenceDetail(tasks, t.predecessorIds, t.lags)}. Tap to choose which tasks this one waits on, and how long after each.`
-          }
-          testID={`task-link-${idx}`}
-        >
-          <LinkIcon size={13} color={themeColors.textSecondary} strokeWidth={2} />
-          <Text style={styles.chipText} numberOfLines={1}>{sequenceLabel(tasks, idx)}</Text>
-        </TouchableOpacity>
-      </View>
+      )}
     </View>
   );
 }
@@ -2383,6 +2505,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.text,
     paddingVertical: 2,
   },
+  // 7a — "Refine ▾" per-row disclosure toggle. Compact so it reads as a
+  // secondary action rather than competing with Name/Duration for attention.
+  refineToggle: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    alignSelf: 'flex-start' as const,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1, borderColor: t.line,
+  },
+  refineToggleText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600' as const,
+    color: t.textMuted,
+  },
+
   addTaskBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -2397,6 +2538,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: t.accent,
+  },
+
+  // 7c — Desktop two-pane layout: task list (left, flex 1.2) + live Gantt
+  // (right, flex 1). Both panes scroll independently. On phone this is unused
+  // and the phone stepped flow is unchanged.
+  desktopTwoPaneRow: {
+    flexDirection: 'row' as const,
+    flex: 1,
+    gap: 0,
+  },
+  desktopLeftPane: {
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: 12,
+    gap: 12,
+  },
+  desktopRightPane: {
+    flex: 1,
+    borderLeftWidth: 1,
+    borderLeftColor: t.line,
   },
 
   timelineFrame: {
