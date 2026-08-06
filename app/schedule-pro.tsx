@@ -1666,11 +1666,34 @@ function ScheduleProScreenInner() {
           </View>
         </View>
         <ScheduleOnRamp
-          onAnswerQuestions={() => router.push({ pathname: '/schedule-builder', params: { projectId: project.id } } as never)}
-          onBuildWithAI={() => router.push({ pathname: '/generative-setup', params: { projectId: project.id } } as never)}
-          onStartFromTemplate={() => router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never)}
-          onAddManually={() => { setDismissedOnRamp(true); handleAddTask(); }}
-          onLoadExample={handleLoadDemo}
+          hasEstimate={!!project.linkedEstimate}
+          canBuildByVoice
+          onPick={(path) => {
+            switch (path) {
+              case 'estimate':
+                router.push({ pathname: '/generative-setup', params: { projectId: project.id } } as never);
+                break;
+              case 'interview':
+                router.push({ pathname: '/schedule-builder', params: { projectId: project.id } } as never);
+                break;
+              case 'blank':
+                setDismissedOnRamp(true);
+                break;
+              case 'template':
+                router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never);
+                break;
+              case 'voice':
+                setEditOpen(true);
+                break;
+              case 'example':
+                handleLoadDemo();
+                break;
+              case 'manual':
+                setDismissedOnRamp(true);
+                handleAddTask();
+                break;
+            }
+          }}
         />
       </View>
     );
