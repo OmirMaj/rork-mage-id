@@ -27,7 +27,7 @@ export default function DiscoverScheduleTool() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const s = useThemedStyles(makeStyles);
-  const { projects, addProject, updateProject } = useProjects();
+  const { projects, addProject } = useProjects();
 
   const projectsWithSchedules = projects.filter(p => p.schedule && p.schedule.tasks.length > 0);
 
