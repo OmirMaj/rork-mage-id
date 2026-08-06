@@ -43,7 +43,7 @@ import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check,
   Calendar as CalendarIcon, Building2, Hammer, Trees, Home as HomeIcon,
   Plus, Minus, Trash2, MapPin, PencilRuler, X, CornerDownRight, GitBranch,
-  Flag, FolderPlus, GripVertical, LayoutTemplate, GitMerge, Square, CheckSquare,
+  Flag, FolderPlus, GripVertical, LayoutTemplate, GitMerge,
   Timer,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -55,11 +55,12 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   SCHEDULE_TEMPLATES, repairChain, moveTask, removeTaskAt, insertTaskAt,
   readLinkMode, setTaskDuration, setPredecessors, predecessorOptions,
-  dropTargetIndex, setLags, getLag, clampLag, lagStepperLabel,
+  dropTargetIndex, setLags, getLag,
   taskName, sequenceLabel, sequenceDetail, toCpmTasks, remapDependencies,
 } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate, TemplateTask } from '@/constants/scheduleTemplates';
 import TaskRowDrag, { type TaskDragHandle } from '@/components/schedule/TaskRowDrag';
+import PredecessorPicker, { type PredecessorLink } from '@/components/schedule/PredecessorPicker';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { runCpm } from '@/utils/cpm';
 import { generateUUID } from '@/utils/generateId';
@@ -741,25 +742,55 @@ export default function ScheduleWizardScreen() {
 
       {/* Mounted only while open so its draft selection is seeded from props
           at mount — no effect syncing state to props, no stale checkboxes. */}
-      {predFor !== null && (
-        <PredecessorSheet
-          key={`pred-${predFor}`}
-          index={predFor}
-          tasks={tasks}
-          onClose={() => setPredFor(null)}
-          onApply={(ids, lags) => {
-            const idx = predFor;
-            setPredFor(null);
-            if (idx === null) return;
-            // setPredecessors ends in repairChain, exactly like every other
-            // write — the picker gets no special dispensation. setLags then
-            // re-derives the offsets from whatever predecessors SURVIVED that
-            // repair, so an id the picker offered but repairChain rejected
-            // can't leave an offset behind.
-            updateTasks(prev => setLags(setPredecessors(prev, idx, ids), idx, lags));
-          }}
-        />
-      )}
+      {predFor !== null && (() => {
+        const idx = predFor;
+        const task = tasks[idx];
+        if (!task) return null;
+        // Map wizard TemplateTask state to PredecessorPicker's public interface.
+        const options = predecessorOptions(tasks, idx);
+        const candidates = options.map((t, i) => ({
+          id: t.id,
+          label: `${i + 1}. ${taskName(t)}`,
+          phase: t.phase,
+        }));
+        const value: PredecessorLink[] = task.predecessorIds.map(id => ({
+          taskId: id,
+          type: 'FS' as const,
+          lagDays: task.lags?.[id] ?? 0,
+        }));
+        const prevTask = idx > 0 ? tasks[idx - 1] : null;
+        const prevLinks: PredecessorLink[] | undefined = prevTask
+          ? prevTask.predecessorIds.map(id => ({
+            taskId: id,
+            type: 'FS' as const,
+            lagDays: prevTask.lags?.[id] ?? 0,
+          }))
+          : undefined;
+        return (
+          <PredecessorPicker
+            key={`pred-${idx}`}
+            taskLabel={taskName(task)}
+            candidates={candidates}
+            value={value}
+            prevLinks={prevLinks}
+            onClose={() => setPredFor(null)}
+            onChange={(links) => {
+              setPredFor(null);
+              const ids = links.map(l => l.taskId);
+              const lags: Record<string, number> = {};
+              for (const l of links) {
+                if (l.lagDays !== 0) lags[l.taskId] = l.lagDays;
+              }
+              // setPredecessors ends in repairChain, exactly like every other
+              // write — the picker gets no special dispensation. setLags then
+              // re-derives the offsets from whatever predecessors SURVIVED that
+              // repair, so an id the picker offered but repairChain rejected
+              // can't leave an offset behind.
+              updateTasks(prev => setLags(setPredecessors(prev, idx, ids), idx, lags));
+            }}
+          />
+        );
+      })()}
 
       <TemplateSheet
         visible={templateSheetOpen}
@@ -1623,239 +1654,6 @@ function PhasePickerSheet(props: {
   );
 }
 
-// ── Multi-predecessor picker ──────────────────────────────────────
-//
-// The row's chip could only ever say "after the row above", "alongside the row
-// above" or "day 1". Real jobs aren't chains: Rough Inspection waits on
-// plumbing AND electrical AND HVAC, and a chain forces you to pick one and lie
-// about the other two — which then quietly under-runs the schedule.
-//
-// The invariant survives because this sheet only ever OFFERS earlier tasks
-// (`predecessorOptions`) and only ever COMMITS through `setPredecessors`,
-// which ends in `repairChain` like everything else. The three old modes are
-// still one tap — they're presets over the same selection — so nothing that
-// worked before got slower.
-//
-// It also owns the LAG stepper. That control belongs here rather than on the
-// row for two reasons: lag is a property of a LINK, and the row has no place
-// to put a per-link control (it shows one chip for the whole set); and the row
-// is already five controls wide on a phone, which is the ceiling.
-function PredecessorSheet(props: {
-  index: number;
-  tasks: TemplateTask[];
-  onClose: () => void;
-  onApply: (ids: string[], lags: Record<string, number>) => void;
-}) {
-  const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  const { index, tasks, onClose, onApply } = props;
-  const task = tasks[index];
-  const options = useMemo(() => predecessorOptions(tasks, index), [tasks, index]);
-  // Seeded once, at mount — the parent mounts this only while it's open, so
-  // there's no props-to-state sync to drift.
-  const [selected, setSelected] = useState<string[]>(() => task?.predecessorIds ?? []);
-  // Draft offsets, keyed by predecessor id. Same pruning rule as the model:
-  // an offset only exists while its link does.
-  const [draftLags, setDraftLags] = useState<Record<string, number>>(
-    () => ({ ...(task?.lags ?? {}) }),
-  );
-
-  const prev = index > 0 ? tasks[index - 1] : null;
-  const toggle = (id: string) => {
-    setSelected(cur => (cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]));
-    // Un-checking drops the offset WITH the link. Keeping it would mean
-    // re-checking the same task six taps later silently restores a wait the
-    // user thought they'd deleted — the exact resurrection the model prunes
-    // against, reproduced in the draft.
-    setDraftLags(cur => {
-      if (!(id in cur)) return cur;
-      const { [id]: _dropped, ...rest } = cur;
-      return rest;
-    });
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  };
-
-  const bumpLag = (id: string, delta: number) => {
-    setDraftLags(cur => ({ ...cur, [id]: clampLag((cur[id] ?? 0) + delta) }));
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  };
-
-  /** Tapping the caption clears the offset — the way back from 12 taps of "+". */
-  const clearLag = (id: string) => {
-    setDraftLags(cur => {
-      if (!(id in cur)) return cur;
-      const { [id]: _dropped, ...rest } = cur;
-      return rest;
-    });
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  };
-
-  const applyPreset = (ids: string[], lags: Record<string, number>) => {
-    setSelected(ids);
-    setDraftLags(lags);
-  };
-
-  // The three states the old one-tap chip could reach, as shortcuts over the
-  // same selection. "Alongside" is omitted when the row above starts on day 1,
-  // because there it means the identical thing as "Starts day 1" and two lit
-  // chips saying different words is worse than one.
-  //
-  // "Alongside it" carries the row above's OFFSETS too. Without them this row
-  // would start earlier than the row it claims to run alongside, which is the
-  // one thing the word promises.
-  const presets: { label: string; ids: string[]; lags: Record<string, number> }[] = prev
-    ? [
-      { label: 'After the task above', ids: [prev.id], lags: {} },
-      ...(prev.predecessorIds.length > 0
-        ? [{ label: 'Alongside it', ids: [...prev.predecessorIds], lags: { ...(prev.lags ?? {}) } }]
-        : []),
-      { label: 'Starts day 1', ids: [], lags: {} },
-    ]
-    : [];
-
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
-          <View style={styles.sheetHead}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sheetTitle}>Sequence</Text>
-              <Text style={styles.sheetSub} numberOfLines={1}>{taskName(task)}</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={19} color={themeColors.textMuted} strokeWidth={1.9} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.presetRow}>
-            {presets.map((p, pi) => {
-              const active = p.ids.length === selected.length
-                && p.ids.every(id => selected.includes(id))
-                // A preset with the right tasks but a different wait is NOT
-                // that preset — lighting it would claim a schedule the user
-                // isn't looking at.
-                && p.ids.every(id => (draftLags[id] ?? 0) === (p.lags[id] ?? 0));
-              return (
-                <TouchableOpacity
-                  key={p.label}
-                  style={[styles.presetChip, active && styles.presetChipActive]}
-                  onPress={() => applyPreset(p.ids, p.lags)}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  testID={`pred-preset-${pi}`}
-                >
-                  <Text style={[styles.presetChipText, active && styles.presetChipTextActive]} numberOfLines={1}>
-                    {p.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={[styles.sectionLabel, { marginTop: 14 }]}>Waits for</Text>
-          <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
-            {options.map((o, i) => {
-              const on = selected.includes(o.id);
-              const Box = on ? CheckSquare : Square;
-              const lag = draftLags[o.id] ?? 0;
-              return (
-                <View key={o.id} style={[styles.predRow, on && styles.predOptionActive]}>
-                  <TouchableOpacity
-                    style={styles.predOption}
-                    onPress={() => toggle(o.id)}
-                    activeOpacity={0.7}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on }}
-                    accessibilityLabel={taskName(o)}
-                    testID={`pred-option-${i}`}
-                  >
-                    <Box size={18} color={on ? themeColors.accent : themeColors.textMuted} strokeWidth={2} />
-                    <View style={[styles.taskDot, { backgroundColor: PHASE_COLORS[o.phase] ?? PHASE_COLORS.General }]} />
-                    <Text style={[styles.predOptionText, on && { color: themeColors.text }]} numberOfLines={1}>
-                      {i + 1}. {taskName(o)}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Lag / lead. Only shown for a task this row actually waits
-                      on — an offset with no link to sit on is meaningless, and
-                      the model would prune it on the way in anyway. Stepping
-                      below zero is the LEAD direction: this task overlaps the
-                      end of that one instead of waiting for it. */}
-                  {on && (
-                    <View style={styles.lagRow}>
-                      <TouchableOpacity
-                        onPress={() => bumpLag(o.id, -1)}
-                        hitSlop={{ top: 10, right: 8, bottom: 10, left: 10 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Start earlier relative to ${taskName(o)}`}
-                        testID={`pred-lag-minus-${i}`}
-                      >
-                        <Minus size={15} color={themeColors.text} strokeWidth={2.25} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => clearLag(o.id)}
-                        disabled={lag === 0}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          lag === 0
-                            ? `No wait after ${taskName(o)}`
-                            : `${lagStepperLabel(lag)} relative to ${taskName(o)}. Tap to clear.`
-                        }
-                        testID={`pred-lag-value-${i}`}
-                      >
-                        <Text style={[styles.lagValueText, lag !== 0 && styles.lagValueTextSet]}>
-                          {lagStepperLabel(lag)}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => bumpLag(o.id, 1)}
-                        hitSlop={{ top: 10, right: 10, bottom: 10, left: 8 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Wait longer after ${taskName(o)}`}
-                        testID={`pred-lag-plus-${i}`}
-                      >
-                        <Plus size={15} color={themeColors.text} strokeWidth={2.25} />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-            {options.length === 0 && (
-              <Text style={styles.helper}>
-                Nothing runs before this task, so it starts on day 1.
-              </Text>
-            )}
-          </ScrollView>
-
-          {options.length > 0 && (
-            <Text style={[styles.helper, { marginTop: 10 }]}>
-              Tick everything this task waits on. Add a wait when there has to be
-              a gap — curing, drying, an inspector&apos;s visit — or step below
-              zero to start early and overlap the task before it.
-            </Text>
-          )}
-
-          <Text style={[styles.helper, { marginTop: 12 }]} testID="pred-summary">
-            {sequenceDetail(tasks, selected, draftLags)}
-          </Text>
-          <TouchableOpacity
-            style={[styles.confirmBtn, { marginTop: 12 }]}
-            onPress={() => onApply(selected, draftLags)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            testID="pred-apply"
-          >
-            <Text style={styles.confirmBtnText}>Done</Text>
-          </TouchableOpacity>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
 // ── Template browser (document path, opt-in) ──────────────────────
 // The template strip used to be the first thing on this step even when the
 // user explicitly asked for a blank schedule. It lives here now: reachable in
@@ -2691,30 +2489,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: 2,
   },
 
-  // ── Predecessor picker ────────────────────────────────────────
-  // Presets first (the three states the old one-tap chip could reach), then
-  // the full set. Tapping a preset moves the CHECKBOXES, so the relationship
-  // between "after the task above" and "this specific row" is visible rather
-  // than something you have to be told.
-  presetRow: {
-    flexDirection: 'row' as const,
-    flexWrap: 'wrap' as const,
-    gap: 6,
-  },
-  presetChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: Tokens.radius.md,
-    backgroundColor: t.surfaceAlt,
-    borderWidth: 1, borderColor: t.line,
-  },
-  presetChipActive: { borderColor: t.accent, backgroundColor: t.accent + '12' },
-  presetChipText: {
-    fontSize: Type.caption1.fontSize,
-    fontWeight: '600' as const,
-    color: t.textSecondary,
-  },
-  presetChipTextActive: { color: t.accent, fontWeight: '700' as const },
+  // ── Shared option row styles — used by TemplateSheet ────────────
+  // (PredecessorPicker has its own copy of these in components/schedule/PredecessorPicker.tsx)
   predOption: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -2730,39 +2506,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '600' as const,
     color: t.textSecondary,
   },
-  // Wrapper so the checkbox line and the lag stepper share one tinted block —
-  // the stepper belongs to the task above it, not to the next one down.
-  predRow: {
-    borderRadius: Tokens.radius.md,
-  },
-  // Lag / lead stepper. Indented to the checkbox's text column so it reads as
-  // a property OF that row rather than another row.
-  lagRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'flex-start' as const,
-    gap: 14,
-    marginLeft: 38,
-    marginRight: 10,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    alignSelf: 'flex-start' as const,
-    borderRadius: Tokens.radius.md,
-    backgroundColor: t.surfaceAlt,
-    borderWidth: 1,
-    borderColor: t.line,
-  },
-  // Fixed width so the caption swapping between "No wait" and "Start 3 days
-  // early" doesn't shove the +/- buttons out from under the user's thumb.
-  lagValueText: {
-    minWidth: 116,
-    textAlign: 'center' as const,
-    fontSize: Type.caption1.fontSize,
-    fontWeight: '600' as const,
-    color: t.textMuted,
-  },
-  lagValueTextSet: { color: t.text, fontWeight: '700' as const },
   phaseOption: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
