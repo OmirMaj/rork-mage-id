@@ -620,16 +620,6 @@ export default function GridPane({
         cpmAtBegin?.ef ?? (task.startDay + Math.max(1, task.durationDays ?? 1) - 1),
       ); break;
       case 'deadline': seed = task.deadline ?? renderIso(cpmAtBegin?.ef ?? task.startDay); break;
-      case 'predecessors':
-        seed = (task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
-          .map(l => {
-            const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
-            const type = l.type && l.type !== 'FS' ? l.type : '';
-            const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
-            return `${wbs}${type}${lag}`;
-          })
-          .join(', ');
-        break;
     }
     setDraft(seed);
     setCellError(null);
@@ -725,37 +715,6 @@ export default function GridPane({
         // Normalize back to yyyy-mm-dd with zero-padded month/day.
         const [, ys, ms, ds] = m;
         patch.deadline = `${ys}-${ms.padStart(2, '0')}-${ds.padStart(2, '0')}`;
-        break;
-      }
-      case 'predecessors': {
-        // Parse "1.2, 2.1SS+2, 3.4FF-1" → DependencyLink[]
-        // Reject early if any token is malformed or would create a cycle.
-        const raw = draft.trim();
-        if (!raw) {
-          patch.dependencies = [];
-          patch.dependencyLinks = [];
-          break;
-        }
-        const tokens = raw.split(/[,;\s]+/).filter(Boolean);
-        const links: NonNullable<ScheduleTask['dependencyLinks']> = [];
-        for (const tok of tokens) {
-          const m = tok.match(/^([A-Za-z0-9._-]+?)(FS|SS|FF|SF)?([+\-]\d+)?$/i);
-          if (!m) { setCellError(`"${tok}" is not a valid dependency`); return false; }
-          const [, ref, typeRaw, lagRaw] = m;
-          const depId = wbsToIdMap.get(ref.trim());
-          if (!depId) { setCellError(`No task matches "${ref}"`); return false; }
-          if (depId === task.id) { setCellError('A task cannot depend on itself'); return false; }
-          // Cycle guard — the headline "forgiving UI" feature.
-          if (wouldCreateCycle(tasks, task.id, depId)) {
-            setCellError(`"${ref}" would create a dependency loop`);
-            return false;
-          }
-          const type = (typeRaw?.toUpperCase() ?? 'FS') as 'FS' | 'SS' | 'FF' | 'SF';
-          const lagDays = lagRaw ? Number.parseInt(lagRaw, 10) : 0;
-          links.push({ taskId: depId, type, lagDays });
-        }
-        patch.dependencies = links.map(l => l.taskId);
-        patch.dependencyLinks = links;
         break;
       }
     }
@@ -1648,12 +1607,13 @@ export default function GridPane({
       />
       {predecessorPickerTask && (
         <PredecessorPicker
+          key={predecessorPickerTask.id}
           taskLabel={predecessorPickerTask.title}
           candidates={(() => {
             const idx = tasks.findIndex(t => t.id === predecessorPickerTask.id);
-            return tasks
-              .slice(0, idx < 0 ? tasks.length : idx)
-              .map(t => ({ id: t.id, label: t.title, phase: t.phase }));
+            return idx < 0
+              ? []
+              : tasks.slice(0, idx).map(t => ({ id: t.id, label: t.title, phase: t.phase }));
           })()}
           value={
             (predecessorPickerTask.dependencyLinks ?? predecessorPickerTask.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
