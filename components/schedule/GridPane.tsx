@@ -56,6 +56,7 @@ import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import PredecessorPicker, { type PredecessorLink, type PredecessorCandidate } from '@/components/schedule/PredecessorPicker';
 
 // ---------------------------------------------------------------------------
 // Column definition — single source of truth for widths, alignment, editability
@@ -87,7 +88,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'finish',       label: 'Finish',         width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'float',        label: 'Float',          width: 96,  align: 'left',   kind: 'readonly' },
   { key: 'deadline',     label: 'Due by',         width: 110, align: 'left',   kind: 'custom' },
-  { key: 'predecessors', label: 'Predecessors',   width: 140, align: 'left',   kind: 'text' },
+  { key: 'predecessors', label: 'Predecessors',   width: 140, align: 'left',   kind: 'custom' },
   { key: 'crew',         label: 'Crew',           width: 140, align: 'left',   kind: 'text' },
   { key: 'status',       label: 'Status',         width: 110, align: 'center', kind: 'custom' },
   { key: 'progress',     label: '% Done',         width: 72,  align: 'right',  kind: 'number' },
@@ -419,6 +420,12 @@ export default function GridPane({
   // (rather than lifting to schedule-pro) because the trigger is per-row and
   // the modal is small; lifting would mean threading another callback.
   const [anchorFor, setAnchorFor] = useState<ScheduleTask | null>(null);
+
+  // Predecessor picker — opened by tapping the Predecessors cell. Replaces the
+  // old typed-syntax text-input edit (T5FS+3 etc.) as the primary edit path.
+  // The picker is mounted only while open (keyed on taskId) so its state is
+  // always seeded fresh from the task's current links.
+  const [predecessorPickerTask, setPredecessorPickerTask] = useState<ScheduleTask | null>(null);
 
   // Row context menu (indent/outdent, move up/down, milestone, complete,
   // delete). iOS fires the native ActionSheet imperatively; web/Android open
@@ -1148,16 +1155,31 @@ export default function GridPane({
         break;
       }
       case 'predecessors': {
+        // Tap-to-open PredecessorPicker replaces the typed T5FS+3 syntax.
+        // The summary text remains identical to before so the cell reads the same.
         const links = task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
-        if (links.length === 0) { display = <Text style={styles.cellTextMuted}>—</Text>; break; }
-        const labels = links.map(l => {
-          const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
-          const type = l.type && l.type !== 'FS' ? l.type : '';
-          const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
-          return `${wbs}${type}${lag}`;
-        });
-        display = <Text style={styles.cellText} numberOfLines={1}>{labels.join(', ')}</Text>;
-        break;
+        const summaryText = links.length === 0
+          ? null
+          : links.map(l => {
+              const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
+              const type = l.type && l.type !== 'FS' ? l.type : '';
+              const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
+              return `${wbs}${type}${lag}`;
+            }).join(', ');
+        return (
+          <TouchableOpacity
+            key={col.key}
+            style={[...cellStyle, styles.cellEditable]}
+            onPress={() => setPredecessorPickerTask(task)}
+            activeOpacity={0.6}
+            testID={`grid-cell-${rowIndex}-predecessors`}
+          >
+            {summaryText
+              ? <Text style={styles.cellText} numberOfLines={1}>{summaryText}</Text>
+              : <Text style={styles.cellTextMuted}>—</Text>
+            }
+          </TouchableOpacity>
+        );
       }
       case 'crew':
         display = <Text style={[styles.cellText, !task.crew && styles.cellTextMuted]}>{task.crew || '—'}</Text>;
@@ -1624,6 +1646,29 @@ export default function GridPane({
           setAnchorFor(null);
         }}
       />
+      {predecessorPickerTask && (
+        <PredecessorPicker
+          taskLabel={predecessorPickerTask.title}
+          candidates={(() => {
+            const idx = tasks.findIndex(t => t.id === predecessorPickerTask.id);
+            return tasks
+              .slice(0, idx < 0 ? tasks.length : idx)
+              .map(t => ({ id: t.id, label: t.title, phase: t.phase }));
+          })()}
+          value={
+            (predecessorPickerTask.dependencyLinks ?? predecessorPickerTask.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
+              .map(l => ({ taskId: l.taskId, type: (l.type ?? 'FS') as PredecessorLink['type'], lagDays: l.lagDays ?? 0 }))
+          }
+          onChange={(links) => {
+            onEdit(predecessorPickerTask.id, {
+              dependencies: links.map(l => l.taskId),
+              dependencyLinks: links,
+            });
+            setPredecessorPickerTask(null);
+          }}
+          onClose={() => setPredecessorPickerTask(null)}
+        />
+      )}
       <ScheduleRowMenu
         visible={rowMenu !== null}
         title={rowMenu?.title ?? ''}
