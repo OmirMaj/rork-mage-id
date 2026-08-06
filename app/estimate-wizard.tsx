@@ -524,8 +524,12 @@ function EstimateWizardScreenInner() {
     setShowSaveModal(false);
     setSavedProjectId(targetId);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
-  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples]);
+    if (isOnboarding) {
+      router.replace(ONBOARDING_PAYWALL_ROUTE);
+    } else {
+      router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
+    }
+  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples, isOnboarding]);
 
   // Create a NEW project from the wizard answers, hydrate its linkedEstimate,
   // and jump to it. The wizard answers are also stamped onto project.scope so
@@ -587,8 +591,12 @@ function EstimateWizardScreenInner() {
     setNewProjectName('');
     setSavedProjectId(id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push({ pathname: '/project-detail', params: { id } } as never);
-  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples]);
+    if (isOnboarding) {
+      router.replace(ONBOARDING_PAYWALL_ROUTE);
+    } else {
+      router.push({ pathname: '/project-detail', params: { id } } as never);
+    }
+  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, isOnboarding]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
@@ -985,7 +993,13 @@ function EstimateWizardScreenInner() {
             {hasProject ? (
               <TouchableOpacity
                 style={styles.resultPrimaryBtn}
-                onPress={() => router.push({ pathname: '/project-detail', params: { id: attachedId! } } as never)}
+                onPress={() => {
+                  if (isOnboarding) {
+                    router.replace(ONBOARDING_PAYWALL_ROUTE);
+                  } else {
+                    router.push({ pathname: '/project-detail', params: { id: attachedId! } } as never);
+                  }
+                }}
                 activeOpacity={0.85}
                 disabled={sharingPdf}
                 testID="wizard-view-project"
@@ -1044,7 +1058,13 @@ function EstimateWizardScreenInner() {
                 discoverable at the decision moment. */}
             <TouchableOpacity
               style={[styles.resultSecondaryBtn, { borderColor: themeColors.accent + '40' }]}
-              onPress={() => router.push('/win-optimizer' as never)}
+              onPress={() => {
+                if (isOnboarding) {
+                  router.replace(ONBOARDING_PAYWALL_ROUTE);
+                } else {
+                  router.push('/win-optimizer' as never);
+                }
+              }}
               activeOpacity={0.85}
               testID="wizard-win-optimizer"
             >
