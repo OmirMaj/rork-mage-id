@@ -81,8 +81,6 @@ import {
   SimulatedDayChip,
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { geocodeProjectLocation, type GeocodeResult } from '@/utils/geocodeProject';
-import { mageAI } from '@/utils/mageAI';
-import { z } from 'zod';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
@@ -200,9 +198,6 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const [showBaseline, setShowBaseline] = useState(false);
   const [collapsedPhases, setCollapsedPhases] = useState<Record<string, boolean>>({});
   const [quickAddCount, setQuickAddCount] = useState(0);
-  const [isAIBuilderOpen, setIsAIBuilderOpen] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isAILoading, setIsAILoading] = useState(false);
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
   const [showDepPicker, setShowDepPicker] = useState(false);
   const [weatherAlerts, setWeatherAlerts] = useState<{ taskName: string; date: string; condition: string }[]>([]);
@@ -786,149 +781,6 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [activeSchedule, saveSchedule, selectedProject]);
 
-  const handleAIGenerate = useCallback(async () => {
-    if (!aiPrompt.trim()) { showAlert('Describe your project first.'); return; }
-    setIsAILoading(true);
-    try {
-      const taskItemSchema = z.object({
-        id: z.string(),
-        name: z.string(),
-        phase: z.string(),
-        duration: z.number(),
-        predecessorIds: z.array(z.string()),
-        isMilestone: z.boolean(),
-        isCriticalPath: z.boolean(),
-        crewSize: z.number(),
-        wbs: z.string(),
-      });
-
-      const responseSchema = z.object({
-        tasks: z.array(taskItemSchema),
-      });
-
-      console.log('[Schedule] Starting AI generation with prompt:', aiPrompt.trim());
-
-      const aiResult = await mageAI({
-        prompt: `You are a professional construction scheduler. Generate a complete construction schedule for this project. Return a JSON object with a "tasks" array.
-
-Project description: ${aiPrompt.trim()}
-
-Each task in the tasks array must have: id (string like "t1", "t2"), name (string), phase (one of: Site Work, Demo, Foundation, Framing, Roofing, MEP, Plumbing, Electrical, HVAC, Insulation, Drywall, Interior, Finishes, Landscaping, Inspections, General), duration (number of working days), predecessorIds (array of id strings referencing other task ids), isMilestone (boolean), isCriticalPath (boolean), crewSize (number 1-8), wbs (string like "1.1", "2.3").
-
-Include a Project Start milestone (duration 0) and Project Complete milestone (duration 0). Group tasks into logical phases with realistic durations and dependencies. Generate 15-40 tasks depending on project size.`,
-        schema: responseSchema,
-        tier: 'smart',
-        maxTokens: 2000,
-      });
-
-      if (!aiResult.success) {
-        showAlert('AI Unavailable', aiResult.error || 'Try again.');
-        setIsAILoading(false);
-        return;
-      }
-
-      let parsed: any = aiResult.data;
-      console.log('[Schedule] AI raw response type:', typeof parsed);
-
-      if (typeof parsed === 'string') {
-        try {
-          parsed = JSON.parse(parsed);
-        } catch {
-          let cleaned = parsed.trim();
-          if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
-          if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
-          if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3);
-          try {
-            parsed = JSON.parse(cleaned.trim());
-          } catch {
-            console.log('[Schedule] Could not parse AI string response');
-            showAlert('Generation Failed', 'AI returned invalid data. Please try again.');
-            setIsAILoading(false);
-            return;
-          }
-        }
-      }
-
-      let taskArray: any[] | null = null;
-      if (Array.isArray(parsed)) {
-        taskArray = parsed;
-      } else if (parsed && Array.isArray(parsed.tasks)) {
-        taskArray = parsed.tasks;
-      } else if (parsed && typeof parsed === 'object') {
-        const firstArrayKey = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
-        if (firstArrayKey) taskArray = parsed[firstArrayKey];
-      }
-
-      console.log('[Schedule] AI response parsed, tasks count:', taskArray?.length);
-
-      const result = taskArray;
-
-      if (result && result.length > 0) {
-        const safeResult = result.map((t: any, idx: number) => ({
-          id: t.id || `t${idx + 1}`,
-          name: t.name || t.title || `Task ${idx + 1}`,
-          phase: t.phase || 'General',
-          duration: typeof t.duration === 'number' ? t.duration : (typeof t.durationDays === 'number' ? t.durationDays : 5),
-          predecessorIds: Array.isArray(t.predecessorIds) ? t.predecessorIds : (Array.isArray(t.dependencies) ? t.dependencies : []),
-          isMilestone: !!t.isMilestone,
-          isCriticalPath: !!t.isCriticalPath,
-          crewSize: typeof t.crewSize === 'number' ? t.crewSize : 2,
-          wbs: t.wbs || t.wbsCode || `${idx + 1}.0`,
-        }));
-        const tasks: ScheduleTask[] = safeResult.map((t: any, idx: number) => ({
-          id: createId('task'),
-          title: t.name,
-          phase: t.phase,
-          durationDays: Math.max(t.isMilestone ? 0 : 1, t.duration),
-          startDay: 1,
-          progress: 0,
-          crew: `Crew ${idx + 1}`,
-          crewSize: t.crewSize,
-          dependencies: [],
-          dependencyLinks: [],
-          notes: '',
-          status: 'not_started' as const,
-          isMilestone: t.isMilestone,
-          wbsCode: t.wbs,
-          isCriticalPath: t.isCriticalPath,
-          isWeatherSensitive: false,
-        }));
-
-        const idMap = new Map<string, string>();
-        safeResult.forEach((t: any, idx: number) => {
-          idMap.set(t.id, tasks[idx].id);
-        });
-
-        for (let i = 0; i < tasks.length; i++) {
-          const original = safeResult[i];
-          tasks[i].dependencyLinks = (original.predecessorIds ?? [])
-            .filter((pid: string) => idMap.has(pid))
-            .map((pid: string) => ({
-              taskId: idMap.get(pid)!,
-              type: 'FS' as DependencyType,
-              lagDays: 0,
-            }));
-          tasks[i].dependencies = tasks[i].dependencyLinks!.map(l => l.taskId);
-        }
-
-        const scheduleName = selectedProject ? `${selectedProject.name} Schedule` : 'AI Generated Schedule';
-        const schedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, tasks);
-        saveSchedule(schedule, selectedProject);
-        setIsAIBuilderOpen(false);
-        setAiPrompt('');
-        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        console.log('[Schedule] AI returned empty or no tasks');
-        showAlert('Generation Failed', 'AI returned no tasks. Please try a more detailed description.');
-      }
-    } catch (err) {
-      console.log('[Schedule] AI generation failed:', err);
-      showAlert('Generation Failed', 'Could not generate schedule. Please try again.');
-    } finally {
-      setIsAILoading(false);
-    }
-  }, [aiPrompt, saveSchedule, selectedProject]);
-
   const handleTemplateSelect = useCallback((template: ScheduleTemplate, _startDate: Date) => {
     const tasks: ScheduleTask[] = [];
     const idMap = new Map<string, string>();
@@ -1071,7 +923,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         void handleBuildFromEstimate();
         break;
       case 'interview':
-        router.push({ pathname: '/schedule-builder', params: { projectId: selectedProject?.id } } as never);
+        router.push({ pathname: '/schedule-builder', params: { projectId: selectedProjectId } } as never);
         break;
       case 'blank':
         router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId, scratch: '1' } } as any);
@@ -1888,49 +1740,6 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </TouchableOpacity>
           </Pressable>
         </Pressable>
-      </Modal>
-
-      {/* AI Builder Modal */}
-      <Modal visible={isAIBuilderOpen} transparent animationType="slide" onRequestClose={() => setIsAIBuilderOpen(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.bottomSheetOverlay}>
-            <Pressable style={{ flex: 1 }} onPress={() => setIsAIBuilderOpen(false)} />
-            <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-              <View style={styles.bottomSheetHandle} />
-              <View style={styles.aiHeader}>
-                <MageAIMark size={22} color={themeColors.accent} />
-                <Text style={styles.aiTitle}>AI Schedule Builder</Text>
-              </View>
-              <Text style={styles.aiSubtitle}>
-                Describe your project and we&apos;ll generate a complete schedule with phases, tasks, durations, and dependencies.
-              </Text>
-              <TextInput
-                style={styles.aiInput}
-                value={aiPrompt}
-                onChangeText={setAiPrompt}
-                placeholder="e.g. 3,000 sq ft home renovation. Gut kitchen and two bathrooms, new flooring throughout, paint the whole house. 12 weeks total."
-                placeholderTextColor={themeColors.textMuted}
-                multiline
-                textAlignVertical="top"
-              />
-              <TouchableOpacity
-                style={[styles.aiGenerateBtn, isAILoading && { opacity: 0.6 }]}
-                onPress={handleAIGenerate}
-                disabled={isAILoading}
-                activeOpacity={0.85}
-              >
-                {isAILoading ? (
-                  <ActivityIndicator color="#FFF" size="small" />
-                ) : (
-                  <MageAIMark size={16} color="#FFF" />
-                )}
-                <Text style={styles.aiGenerateBtnText}>
-                  {isAILoading ? 'Building your schedule...' : 'Generate Schedule'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
       </Modal>
 
       {/* What-If Scenarios */}
@@ -3537,15 +3346,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const },
 
   emptySchedule: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: 20, padding: 24, gap: 14, alignItems: 'center', borderWidth: 1, borderColor: themeColors.line },
-  emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line },
-  emptyActionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
-  emptyActionDesc: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 },
-  emptyManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4 },
-  emptyManualBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
-  emptyAIOnramp: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.accent },
-  emptyAIOnrampTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
-  emptyAIOnrampDesc: { fontSize: Type.caption1.fontSize, color: Colors.textOnAccent, marginTop: 2, opacity: 0.85 },
-
   weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
@@ -3915,13 +3715,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   detailEditBtn: { flex: 1, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent, alignItems: 'center', justifyContent: 'center' },
   detailEditBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
   detailDeleteBtn: { width: 46, height: 46, borderRadius: Tokens.radius.card, backgroundColor: '#FF3B3010', alignItems: 'center', justifyContent: 'center' },
-
-  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
-  aiTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text },
-  aiSubtitle: { fontSize: Type.footnote.fontSize, lineHeight: 19, color: themeColors.textSecondary, marginBottom: 4 },
-  aiInput: { minHeight: 100, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, paddingTop: 14, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
-  aiGenerateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent },
-  aiGenerateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
   templateCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: themeColors.line },
   templateInfo: { flex: 1, gap: 2 },
