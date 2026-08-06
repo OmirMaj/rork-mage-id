@@ -597,7 +597,7 @@ export default function ScheduleWizardScreen() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>{documentMode ? 'New schedule' : 'Create Schedule'}</Text>
-        {step === 3 ? (
+        {step === 3 || (isDesktop && step === 1) ? (
           <TouchableOpacity onPress={onSavePressed} style={styles.topBarSaveBtn} accessibilityRole="button" accessibilityLabel="Save schedule">
             <Text style={styles.topBarSaveText}>Save</Text>
           </TouchableOpacity>
@@ -863,17 +863,22 @@ export default function ScheduleWizardScreen() {
           is always visible so they don't need to advance through Timeline/Review. */}
       <View style={[styles.bottomCta, { paddingBottom: insets.bottom + 12 }]}>
         {step === 3 || (isDesktop && step === 1) ? (
-          <TouchableOpacity
-            style={[styles.ctaBtn, !canAdvance && styles.ctaBtnDisabled]}
-            onPress={onSavePressed}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canAdvance }}
-            testID="wizard-save"
-          >
-            <Check size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
-            <Text style={styles.ctaBtnText}>Save schedule</Text>
-          </TouchableOpacity>
+          <>
+            {blockHint ? (
+              <Text style={styles.blockHintText}>{blockHint}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.ctaBtn, !canAdvance && styles.ctaBtnDisabled]}
+              onPress={onSavePressed}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canAdvance }}
+              testID="wizard-save"
+            >
+              <Check size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
+              <Text style={styles.ctaBtnText}>Save schedule</Text>
+            </TouchableOpacity>
+          </>
         ) : step < 3 ? (
           <>
             {blockHint ? (
@@ -1503,6 +1508,7 @@ function TasksStep(props: {
             totalDays={totalDays}
             wideEnoughForPro={wideEnoughForPro}
             onEditStartDate={onEditStartDate}
+            hideDateRow
           />
         </ScrollView>
       </View>
@@ -1900,11 +1906,12 @@ function ScheduleStep(props: {
   totalDays: number;
   wideEnoughForPro: boolean;
   onEditStartDate: () => void;
+  hideDateRow?: boolean;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { width } = useWindowDimensions();
-  const { scheduledTasks, startDate, totalDays, wideEnoughForPro, onEditStartDate } = props;
+  const { scheduledTasks, startDate, totalDays, wideEnoughForPro, onEditStartDate, hideDateRow } = props;
   const PX_PER_DAY = 16;
   const WEEK_PX = PX_PER_DAY * 7;
   const gutter = width >= WRAP_TEMPLATES_WIDTH ? 180 : 116;
@@ -1919,18 +1926,20 @@ function ScheduleStep(props: {
         {totalDays === 1 ? '' : 's'} · finishes {fmtShort(addDays(startDate, Math.max(0, totalDays - 1)))}
       </Text>
 
-      <TouchableOpacity
-        style={styles.dateRow}
-        onPress={onEditStartDate}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={`Schedule starts ${fmtLong(startDate)}. Tap to change.`}
-      >
-        <CalendarIcon size={17} color={themeColors.accent} strokeWidth={1.9} />
-        <Text style={styles.dateValue}>Starts {fmtLong(startDate)}</Text>
-        <Text style={styles.dateChange}>Change</Text>
-        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
-      </TouchableOpacity>
+      {!hideDateRow && (
+        <TouchableOpacity
+          style={styles.dateRow}
+          onPress={onEditStartDate}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Schedule starts ${fmtLong(startDate)}. Tap to change.`}
+        >
+          <CalendarIcon size={17} color={themeColors.accent} strokeWidth={1.9} />
+          <Text style={styles.dateValue}>Starts {fmtLong(startDate)}</Text>
+          <Text style={styles.dateChange}>Change</Text>
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
+        </TouchableOpacity>
+      )}
 
       {/* Fixed name gutter + scrolling bars. Without the gutter every row was
           an unlabelled bar once you scrolled right, and short bars clipped
@@ -2546,9 +2555,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   desktopTwoPaneRow: {
     flexDirection: 'row' as const,
     flex: 1,
-    gap: 0,
   },
   desktopLeftPane: {
+    flex: 1,
     paddingHorizontal: Tokens.spacing.md,
     paddingTop: 12,
     gap: 12,
