@@ -265,12 +265,13 @@ export default function OnboardingScreen() {
   }, [goPriceFirstBid]);
 
   // Top-bar Skip — bails out of the whole flow without seeding rates.
-  // Routes to goPriceFirstBid so every onboarding exit lands in the
-  // wizard → paywall arc rather than dumping users on an empty home.
-  const handleSkip = useCallback(() => {
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    void goPriceFirstBid();
-  }, [goPriceFirstBid]);
+  // Goes straight to the paywall (not the estimate wizard) — a hard-skipper
+  // on the splash or preview steps shouldn't be forced into the wizard arc.
+  const handleSkip = useCallback(async () => {
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await completeOnboarding();
+    router.replace('/onboarding-paywall' as never);
+  }, [router, completeOnboarding]);
 
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
@@ -503,7 +504,7 @@ export default function OnboardingScreen() {
                   textAlignVertical="top"
                   testID="onboarding-rates-blob"
                 />
-                {!!rateHint && <Text style={styles.importHint}>{rateHint}</Text>}
+                {!!rateHint && <Text style={styles.rateHint}>{rateHint}</Text>}
                 <Pressable
                   onPress={handleRatesParse}
                   disabled={!rateBlob.trim()}
@@ -523,7 +524,7 @@ export default function OnboardingScreen() {
                 <TouchableOpacity
                   onPress={handleRatesSkip}
                   hitSlop={8}
-                  style={styles.importSkip}
+                  style={styles.rateSkip}
                   testID="onboarding-rates-skip"
                 >
                   <Text style={styles.signInText}>
@@ -555,7 +556,7 @@ export default function OnboardingScreen() {
                     )}
                   </View>
                   {rateReview.rejected.length > 0 && (
-                    <Text style={styles.importHint}>
+                    <Text style={styles.rateHint}>
                       {rateReview.rejected.length} line{rateReview.rejected.length === 1 ? '' : 's'} skipped —
                       {' '}{rateReview.rejected[0].reason}
                     </Text>
@@ -581,7 +582,7 @@ export default function OnboardingScreen() {
                 <TouchableOpacity
                   onPress={() => setRateReview(null)}
                   hitSlop={8}
-                  style={styles.importSkip}
+                  style={styles.rateSkip}
                 >
                   <Text style={styles.signInText}>
                     <Text style={styles.signInLink}>Back to edit</Text>
@@ -816,13 +817,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 12,
   },
-  importHint: {
+  rateHint: {
     fontSize: Type.footnote.fontSize,
     color: BRAND.orangeHot,
     lineHeight: 18,
     marginBottom: 12,
   },
-  importSkip: {
+  rateSkip: {
     marginTop: 14,
     alignSelf: 'center',
   },
