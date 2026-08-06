@@ -91,6 +91,10 @@ const ESTIMATE_THINKING_STEPS_COLD = [
 // redesign's trade-tile colors). Rotated by category index.
 const BREAKDOWN_COLORS = ['#FF6A1A', '#5FBF6B', '#90A4AE', '#4FC3F7', '#FFA726', '#8D6E63', '#EF5350', '#26C6DA'];
 
+// Single source of truth for the post-wizard paywall destination in onboarding
+// mode — avoids the cast being duplicated at every leave site.
+const ONBOARDING_PAYWALL_ROUTE = '/onboarding-paywall' as never;
+
 // Map an AI EstimateResult into a project LinkedEstimate. Item shape mirrors
 // utils/estimateAssemblies.ts applyAssembly and app/drawing-analyzer.tsx (the
 // canonical "AI lineItems → LinkedEstimate" mappers): bulkPrice = unitPrice,
@@ -476,7 +480,7 @@ function EstimateWizardScreenInner() {
       // router.replace here means we're already gone — the leave handler
       // won't fire for this session.
       if (isOnboarding) {
-        router.replace('/onboarding-paywall' as never);
+        router.replace(ONBOARDING_PAYWALL_ROUTE);
       }
     } catch (err) {
       showAlert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
@@ -628,7 +632,7 @@ function EstimateWizardScreenInner() {
 
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
-        <Stack.Screen options={{ title: 'Estimate' }} />
+        <Stack.Screen options={{ title: 'Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
         <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}>
           {/* "Client preview" banner — reminds the GC that what they see
               IS what the homeowner sees. Soft contextual cue at the top. */}
@@ -1126,7 +1130,7 @@ function EstimateWizardScreenInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'Quick Estimate' }} />
+      <Stack.Screen options={{ title: 'Quick Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.progressWrap}>
           <View style={styles.progressTrack}>
@@ -1172,7 +1176,7 @@ function EstimateWizardScreenInner() {
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             onPress={step === 0
-              ? () => (isOnboarding ? router.replace('/onboarding-paywall' as never) : router.back())
+              ? () => (isOnboarding ? router.replace(ONBOARDING_PAYWALL_ROUTE) : router.back())
               : back}
             style={[styles.secondaryBtn, styles.footerBtn]}
             activeOpacity={0.8}
@@ -1402,10 +1406,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.accent,
   },
   onboardingBannerSubtitle: {
-    fontSize: Type.footnote.fontSize,
+    ...Type.footnote,
     fontWeight: '500' as const,
     color: themeColors.textSecondary,
-    lineHeight: 18,
   },
   // "Client preview" banner at top of result screen
   previewBanner: {
