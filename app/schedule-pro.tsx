@@ -1692,6 +1692,11 @@ function ScheduleProScreenInner() {
                 setDismissedOnRamp(true);
                 handleAddTask();
                 break;
+              default: {
+                const _exhaustive: never = path;
+                void _exhaustive;
+                break;
+              }
             }
           }}
         />

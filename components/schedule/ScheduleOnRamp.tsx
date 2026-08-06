@@ -14,6 +14,8 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { recommendedOnRampPath, type OnRampPath } from '@/utils/scheduleOnRamp';
 
+const ICON_WRAP_SIZE = 36; // icon-wrapper convention used across ≥6 components
+
 export interface ScheduleOnRampProps {
   /** Whether the current project already has a linkedEstimate to build from. */
   hasEstimate: boolean;
@@ -179,7 +181,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: Tokens.spacing.md,
   },
   heroIcon: {
-    width: 36, height: 36, borderRadius: Tokens.radius.sm,
+    width: ICON_WRAP_SIZE, height: ICON_WRAP_SIZE, borderRadius: Tokens.radius.sm,
+    // translucent white overlay — intentional, no system token for accent-over-accent
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
@@ -189,7 +192,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroBadge: {
     ...Type.caption2, fontWeight: '700' as const, color: t.accent,
     backgroundColor: Colors.textOnAccent,
-    borderRadius: Tokens.radius.xs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 2,
+    borderRadius: Tokens.radius.xs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.hairline,
   },
   heroSubtitle: { ...Type.footnote, color: Colors.textOnAccent, opacity: 0.85 },
 
