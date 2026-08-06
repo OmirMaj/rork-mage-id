@@ -98,6 +98,7 @@ import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { showAlert } from '@/utils/alert';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
+import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 
 interface TaskDraft {
   title: string;
@@ -959,14 +960,33 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [saveSchedule, selectedProject]);
 
-  const handleBuildFromEstimate = useCallback(() => {
+  const handleBuildFromEstimate = useCallback(async () => {
     if (!selectedProject?.estimate && !selectedProject?.linkedEstimate) {
       showAlert('No Estimate', 'This project needs an estimate first.');
       return;
     }
 
-    const tasks: ScheduleTask[] = [];
     const linkedEst = selectedProject.linkedEstimate;
+
+    // PRIMARY: AI-refined generator — produces properly sequenced, phased
+    // tasks grounded in pace data. Navigates to the review screen so the GC
+    // can inspect and adjust before saving.
+    if (linkedEst) {
+      try {
+        const result = await generateScheduleFromEstimate(selectedProject, linkedEst, projects);
+        stashDraft(result);
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.push({ pathname: '/schedule-review', params: { projectId: selectedProject.id } } as any);
+        return;
+      } catch (aiErr) {
+        console.warn('[Schedule] AI estimate generator failed, falling back to heuristic:', aiErr);
+        // Fall through to the offline heuristic below so we never dead-end.
+      }
+    }
+
+    // FALLBACK (offline or AI failure): crude qty/50 heuristic — durations
+    // are rough but always produces something the GC can edit.
+    const tasks: ScheduleTask[] = [];
     const legacyEst = selectedProject.estimate;
 
     if (linkedEst) {
@@ -1042,7 +1062,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       saveSchedule(schedule, selectedProject);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-  }, [selectedProject, saveSchedule]);
+  }, [selectedProject, saveSchedule, projects, router]);
 
   const handleOnRampPick = useCallback((path: OnRampPath) => {
     switch (path) {
