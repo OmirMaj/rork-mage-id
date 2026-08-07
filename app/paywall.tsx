@@ -96,6 +96,7 @@ const AI_LIMITS: AILimitRow[] = [
   { label: 'Photo analyses /mo',   free: '—',   pro: '50',  business: '150', enterprise: '200' },
   { label: 'PDF takeoff pages /mo',free: '—',   pro: '30',  business: '100', enterprise: '300' },
   { label: 'Cost X-Ray analyses /mo', free: '—', pro: '—', business: '50', enterprise: '150' },
+  { label: 'Construction Answers /mo', free: '—', pro: '—', business: '100', enterprise: '300' },
 ];
 
 function FeatureCheck({ available, colors }: { available: boolean; colors: ThemeColors }) {
