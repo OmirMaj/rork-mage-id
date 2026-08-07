@@ -9,10 +9,11 @@
  *   for simple async utilities (e.g. `projectMemory`, `offlineQueue`). The
  *   heavier result-union pattern in `mageAI` is appropriate there because that
  *   function must convey 7+ error kinds + caching + partial-success all in one
- *   object; here we only need three cases:
+ *   object; here we only need four cases:
  *
- *     • `.code === 'needs_business'` → 402 from edge fn; show paywall nudge.
- *     • `.code === 'unauthenticated'` → no session; prompt sign-in.
+ *     • `.code === 'needs_business'` → 403 + {code:'tier_required'} from edge fn; show paywall nudge.
+ *     • `.code === 'limit_reached'`  → 429 + {code:'monthly_cap'};    show "monthly limit reached".
+ *     • `.code === 'unauthenticated'` → 401 / no session; prompt sign-in.
  *     • `.code === 'unavailable'`    → 404 / 503 / network / non-JSON; show retry.
  *
  *   The UI (Task 5) wraps the call in try/catch and branches on `err.code`.
@@ -38,9 +39,12 @@ const CONSTRUCTION_ANSWER_URL = `${SUPABASE_URL}/functions/v1/construction-answe
  * or just check `(err as ConstructionAnswerError).code`.
  */
 export class ConstructionAnswerError extends Error {
-  code: 'needs_business' | 'unauthenticated' | 'unavailable';
+  code: 'needs_business' | 'limit_reached' | 'unauthenticated' | 'unavailable';
 
-  constructor(code: 'needs_business' | 'unauthenticated' | 'unavailable', message: string) {
+  constructor(
+    code: 'needs_business' | 'limit_reached' | 'unauthenticated' | 'unavailable',
+    message: string,
+  ) {
     super(message);
     this.name = 'ConstructionAnswerError';
     this.code = code;
@@ -53,8 +57,9 @@ export class ConstructionAnswerError extends Error {
  * @param req - The question and optional project context.
  * @returns A `ConstructionAnswerResult` on success.
  * @throws `ConstructionAnswerError` with `.code`:
- *   - `'needs_business'`   → user is not on Business tier (HTTP 402)
- *   - `'unauthenticated'`  → no active Supabase session
+ *   - `'needs_business'`   → user is not on Business tier (HTTP 403 + {code:'tier_required'})
+ *   - `'limit_reached'`    → monthly cap hit (HTTP 429 + {code:'monthly_cap'})
+ *   - `'unauthenticated'`  → no active Supabase session (HTTP 401)
  *   - `'unavailable'`      → edge function not deployed, server error, or network failure
  */
 export async function askConstruction(
@@ -94,15 +99,43 @@ export async function askConstruction(
     );
   }
 
-  if (response.status === 402) {
-    throw new ConstructionAnswerError(
-      'needs_business',
-      'Construction Answers is on the Business plan.',
-    );
+  // Parse the JSON body up front (success AND error bodies are JSON). A missing
+  // or non-JSON body leaves `body` null; error mapping falls back to HTTP status.
+  let body: unknown = null;
+  let bodyParsed = false;
+  try {
+    body = await response.json();
+    bodyParsed = true;
+  } catch {
+    bodyParsed = false;
   }
 
+  const errCode =
+    body && typeof body === 'object' && typeof (body as { code?: unknown }).code === 'string'
+      ? (body as { code: string }).code
+      : undefined;
+  const errMessage =
+    body && typeof body === 'object' && typeof (body as { message?: unknown }).message === 'string'
+      ? (body as { message: string }).message
+      : undefined;
+
   if (!response.ok) {
-    // 401 → treat as unauthenticated (expired session)
+    // Insufficient tier → 403 + {code:'tier_required'}. (Keep 402 harmlessly
+    // mapped too, though requireTier never returns it.)
+    if (errCode === 'tier_required' || response.status === 403 || response.status === 402) {
+      throw new ConstructionAnswerError(
+        'needs_business',
+        'Construction Answers is on the Business plan.',
+      );
+    }
+    // Over monthly cap → 429 + {code:'monthly_cap'}. Surface the server message.
+    if (errCode === 'monthly_cap' || response.status === 429) {
+      throw new ConstructionAnswerError(
+        'limit_reached',
+        errMessage || "You've reached your monthly Construction Answers limit.",
+      );
+    }
+    // 401 / no session → unauthenticated (expired session)
     if (response.status === 401) {
       throw new ConstructionAnswerError(
         'unauthenticated',
@@ -116,11 +149,8 @@ export async function askConstruction(
     );
   }
 
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    // Non-JSON body (e.g. HTML error page from a misconfigured gateway)
+  if (!bodyParsed) {
+    // Non-JSON body on a 2xx (e.g. HTML error page from a misconfigured gateway)
     throw new ConstructionAnswerError(
       'unavailable',
       "Construction Answers isn't available yet.",

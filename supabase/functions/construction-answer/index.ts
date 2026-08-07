@@ -33,8 +33,8 @@
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import Anthropic from "npm:@anthropic-ai/sdk";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import Anthropic from "npm:@anthropic-ai/sdk@0.115.0";
+import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from "../_shared/auth.ts";
 
 // ── env ───────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -483,6 +483,21 @@ serve(async (req: Request) => {
     if (!question) return jsonResp({ error: "Missing question" }, 400);
     if (question.length > 4000) return jsonResp({ error: "Question too long" }, 400);
 
+    // 3b. Enforce the monthly cap BEFORE any Anthropic call. This is the GATE —
+    //     an over-cap user must never be able to trigger an expensive Opus-4.8
+    //     agentic run. `aiUsageGet` fails CLOSED (returns MAX_SAFE_INTEGER on a
+    //     failed read), so a glitchy counter denies rather than lets a costly
+    //     run through. The post-run `aiUsageIncrement` below records the charge.
+    const cap = MONTHLY_CAPS[auth.tier]?.construction_answer ?? 0;
+    const used = await aiUsageGet(auth.userId, "construction_answer");
+    if (used >= cap) {
+      return jsonResp({
+        error: "monthly_cap",
+        code: "monthly_cap",
+        message: `Monthly Construction Answers limit reached (${cap}/mo on ${auth.tier}). Resets the 1st of next month.`,
+      }, 429);
+    }
+
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
     // Tools: Anthropic's server-side web_search + our custom tools. Do NOT also
@@ -650,15 +665,12 @@ serve(async (req: Request) => {
       answer += "\n\n(This is my best answer so far — if it's incomplete, narrow the question to one specific figure or calculation.)";
     }
 
-    // 4. Record usage — ONE unit per real model run — and enforce the cap. We
-    //    charge after the run (the model already executed); the increment is the
-    //    audit + ceiling. Over cap → surface it but still return the answer we
-    //    produced (the run already happened this cycle).
-    const used = await aiUsageIncrement(auth.userId, "construction_answer");
-    const cap = MONTHLY_CAPS[auth.tier]?.construction_answer ?? 0;
-    const overCap = used > cap;
+    // 4. Record the charge — ONE unit per real model run. The cap was already
+    //    enforced BEFORE the loop (step 3b), so this is purely the audit/ceiling
+    //    increment for the run that just executed.
+    await aiUsageIncrement(auth.userId, "construction_answer");
 
-    const result: ConstructionAnswerResult & { overCap?: boolean } = {
+    const result: ConstructionAnswerResult = {
       answer: answer || "I couldn't produce an answer. Please try rephrasing.",
       citations: dedupeCitations(citations),
       calc: calc ?? null,
@@ -666,11 +678,6 @@ serve(async (req: Request) => {
       disclaimer: parsed.disclaimer,
       usedAI: true,
     };
-    if (overCap) {
-      result.overCap = true;
-      result.disclaimer = (result.disclaimer ? result.disclaimer + " " : "") +
-        `(You've reached your monthly Construction Answers limit of ${cap} on ${auth.tier}. Resets the 1st of next month.)`;
-    }
 
     return jsonResp(result);
   } catch (err) {
