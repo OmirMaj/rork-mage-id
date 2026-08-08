@@ -338,6 +338,14 @@ async function getProjectContext(userId: string, projectId: string | null, jwt: 
   };
 }
 
+// Recover the plan-sheet UUID from a doc_id ('plan-sheet:<id>' or '...#<n>') so
+// plan citations deep-link to /plan-viewer?sheetId=<uuid>. The human sheet number
+// stays the display label. Mirrors utils/plans/planChunk.ts sheetIdFromDocId.
+function sheetIdFromDocId(docId: string): string {
+  if (!docId.startsWith("plan-sheet:")) return "";
+  return docId.slice("plan-sheet:".length).split("#")[0];
+}
+
 async function searchPlans(userId: string, projectId: string | null, jwt: string, apikey: string, query: string): Promise<unknown> {
   if (!projectId) return { none: true };
   const q = (query || "").trim();
@@ -347,7 +355,7 @@ async function searchPlans(userId: string, projectId: string | null, jwt: string
   // carries the sheet label. Falls back to the most recent plan snippets when
   // the keyword match is empty so the model still has something to cite.
   const enc = (s: string) => encodeURIComponent(s);
-  const base = `memory_embeddings?user_id=eq.${enc(userId)}&project_id=eq.${enc(projectId)}&source=eq.Plan%20Sheet&select=ref,content&limit=6`;
+  const base = `memory_embeddings?user_id=eq.${enc(userId)}&project_id=eq.${enc(projectId)}&source=eq.Plan%20Sheet&select=ref,content,doc_id&limit=6`;
   let rows: Record<string, unknown>[] = [];
   if (q) {
     // PostgREST ilike: *term* — sanitize commas/parens that would break the filter.
@@ -360,7 +368,7 @@ async function searchPlans(userId: string, projectId: string | null, jwt: string
     rows = await callerRest<Record<string, unknown>>(`${base}&order=updated_at.desc`, jwt, apikey);
   }
   if (!rows.length) return { none: true };
-  return rows.map((r) => ({ sheet: String(r.ref ?? ""), text: String(r.content ?? "").slice(0, 1200) }));
+  return rows.map((r) => ({ sheet: String(r.ref ?? ""), sheetId: sheetIdFromDocId(String(r.doc_id ?? "")), text: String(r.content ?? "").slice(0, 1200) }));
 }
 
 async function listRfis(userId: string, projectId: string | null, jwt: string, apikey: string): Promise<unknown> {
@@ -594,8 +602,8 @@ serve(async (req: Request) => {
               const r = await searchPlans(auth.userId, projectId, callerJwt, callerApikey, String(input.query || ""));
               resultObj = r;
               if (Array.isArray(r)) {
-                for (const snip of r as { sheet: string }[]) {
-                  if (snip.sheet) citations.push({ label: "Sheet " + snip.sheet, kind: "plan", ref: snip.sheet });
+                for (const snip of r as { sheet: string; sheetId?: string }[]) {
+                  if (snip.sheet) citations.push({ label: "Sheet " + snip.sheet, kind: "plan", ref: snip.sheetId || snip.sheet });
                 }
               }
               break;
