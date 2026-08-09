@@ -30,7 +30,7 @@ import {
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
-  Clock, Scale,
+  Clock, Scale, MessageCircleQuestion,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -49,6 +49,7 @@ import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, scopeSummary } 
 import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
 import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
 import { showAlert } from '@/utils/alert';
+import AskConstructionMode from '@/components/construction/AskConstructionMode';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -273,7 +274,7 @@ function ConstructionAIScreenInner() {
   const router = useRouter();
 
   // ── Mode toggle ─────────────────────────────────────────────────────
-  const [mode, setMode] = useState<'code' | 'roadmap' | 'plan'>('code');
+  const [mode, setMode] = useState<'code' | 'roadmap' | 'plan' | 'ask'>('code');
 
   // ── Code-Check state ─────────────────────────────────────────────────
   const [codeCheckProjectId, setCodeCheckProjectId] = useState<string | null>(null);
@@ -616,6 +617,15 @@ Be specific to the cited location if possible. If the location is not in the US,
           >
             <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]}>Plan Review</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeToggleBtn, mode === 'ask' && styles.modeToggleBtnActive]}
+            onPress={() => setMode('ask')}
+            activeOpacity={0.8}
+            testID="mode-toggle-ask"
+          >
+            <MessageCircleQuestion size={14} color={mode === 'ask' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
+            <Text style={[styles.modeToggleText, mode === 'ask' && styles.modeToggleTextActive]}>Ask</Text>
           </TouchableOpacity>
         </View>
 
@@ -1112,6 +1122,8 @@ Be specific to the cited location if possible. If the location is not in the US,
               )
             ) : null}
           </ScrollView>
+        ) : mode === 'ask' ? (
+          <AskConstructionMode projects={projects} bottomInset={insets.bottom} />
         ) : null}
       </KeyboardAvoidingView>
 

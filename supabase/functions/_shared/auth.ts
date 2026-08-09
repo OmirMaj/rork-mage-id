@@ -308,6 +308,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     cost_xray: 0,
     project_memory: 0,
     plan_extract: 0,
+    construction_answer: 0,
   },
   pro: {
     analyze_drawings: 15,
@@ -329,6 +330,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     // loop; the hourly rate limit is the burst/shared-key-drain control.
     project_memory: 50000,
     plan_extract: 0,
+    construction_answer: 0,
   },
   business: {
     analyze_drawings: 50,
@@ -344,6 +346,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     cost_xray: 50,
     project_memory: 200000,
     plan_extract: 100,
+    construction_answer: 100,
   },
   enterprise: {
     analyze_drawings: 100,
@@ -359,5 +362,6 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     cost_xray: 150,
     project_memory: 600000,
     plan_extract: 300,
+    construction_answer: 300,
   },
 };
