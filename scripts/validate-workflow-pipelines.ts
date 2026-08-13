@@ -93,6 +93,12 @@ ok('workflowPipelines imports nothing at all', !/^\s*import\b/m.test(core),
   'the module must stay import-free so bun can execute it');
 ok('workflowPipelines has no require() or dynamic import either',
   !/\brequire\s*\(|\bimport\s*\(/.test(core));
+// `export * from './x'` and `export { a } from './b'` are imports in effect —
+// they load another module at require time and would drag react-native in
+// transitively — but they start with `export`, so neither check above sees them.
+ok('workflowPipelines re-exports nothing from another module',
+  !/^export\b.*\bfrom\b/m.test(core),
+  'a re-export loads the other module too, which is the same purity break');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
