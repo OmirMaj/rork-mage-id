@@ -1650,6 +1650,11 @@ export interface PricedLeakItem extends LeakItem {
   estimatedPrice: number | null;
   rateUsed: number | null;
   rateConfidence: LeakConfidence | null;
+  /** A cost-book entry priced this line. NOT "this came from closed jobs":
+   *  since cold-start seeding, a rate the contractor merely STATED produces a
+   *  book hit too, so this is true for seeded rates as well. Never caption or
+   *  gate on it alone — branch on `rateProvenance`. (Same trap, same wording,
+   *  as PricedLine.fromHistory in utils/judges/types.ts.) */
   fromHistory: boolean;
   /** Which kind of rate priced it. 'seeded' = the contractor STATED this rate;
    *  it must never be captioned "from your cost history". Optional so scans

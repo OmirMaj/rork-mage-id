@@ -19,21 +19,43 @@
 // silently — worse than never having them, because by then they had stopped
 // double-checking the numbers.
 //
-// ── PRE-MIGRATION BEHAVIOUR — READ THIS BEFORE DEBUGGING AN EMPTY SYNC ──────
-// public.cost_seeds does not exist until
-// supabase/migrations/20260805120000_cost_seeds.sql is applied (the founder
-// applies it; it is deliberately not auto-run). Until then the select below
-// errors, the catch falls through to AsyncStorage, and every write hits a
-// PostgREST schema-cache miss that utils/offlineQueue.ts classifies as
-// TRANSIENT — re-queued UNCHANGED, without burning the retry budget. Net
-// effect before the migration: seeding works fully on-device and syncs
-// nothing, losing nothing. After it lands the queue drains on the next
-// foreground and the same rows appear server-side. Nothing to migrate by hand.
+// ── MIGRATION STATE — READ THIS BEFORE DEBUGGING AN EMPTY SYNC ─────────────
+// public.cost_seeds (20260805120000_cost_seeds.sql) IS APPLIED in production.
+// Its follow-up, 20260812093000_cost_seeds_soft_delete.sql, adds the
+// deleted_at column the tombstone merge below writes — the founder applies it;
+// migrations are deliberately not auto-run.
+//
+// Until deleted_at exists, an upsert carrying it hits a PostgREST schema-cache
+// miss, which utils/offlineQueue.ts classifies as TRANSIENT and re-queues
+// UNCHANGED without burning the retry budget. Net effect: deletes take effect
+// on-device immediately and reach the server once the column lands — nothing
+// is lost, and there is nothing to migrate by hand. The same was true of the
+// whole table before 20260805120000 landed.
 //
 // Writes go through supabaseWrite (utils/offlineQueue), never supabase.from()
 // directly — that is the app-wide rule, and it is what makes the pre-migration
 // window safe. Reads use supabase.from().select() directly, the same
 // server-first-then-local shape as the delay-events query in ProjectContext.
+//
+// ── HOW LOCAL AND SERVER ARE MERGED ────────────────────────────────────────
+// A UNION, last-written-wins — never a server-wins replace, because an edit
+// still sitting in the offline queue would visibly revert. Three rules make
+// that union actually converge:
+//
+//   * A DELETE IS A TOMBSTONE (deleted_at), not a removal. A union cannot
+//     express absence: a hard-deleted row came straight back from whichever
+//     side had not heard about it — first from the server copy the queued
+//     delete had not reached, then, once it had, from the local copy the
+//     backfill pushed back up. costSeedCore.activeSeeds hides tombstones from
+//     consumers; pruneTombstones drops them after 180 days.
+//   * THE SERVER CLOCK OUTRANKS THE CLIENT'S. created_at is whatever the
+//     writing device's clock said; updated_at is stamped by the DB trigger.
+//     costSeedCore.seedStamp prefers updated_at and discards any stamp in the
+//     future, so a phone set a year fast cannot pin a stale rate forever.
+//   * THE BACKFILL COMPARES VALUES, not merely whether the key exists
+//     server-side. Presence alone skipped exactly the rows whose local copy
+//     had WON the merge, so a correction whose queued write was dropped never
+//     reached the server at all.
 //
 // ── IDS ────────────────────────────────────────────────────────────────────
 // SeededRate ids are deterministic from trade+unit (costSeedCore.seedId), so a
@@ -43,18 +65,25 @@
 // is NOT globally unique — every framing contractor produces 'seed-framing-sf'
 // — which is exactly why the PK is composite; see the migration header.
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import {
+  activeSeeds,
+  dedupeSeeds,
+  isPersistableSeed,
   mergeSeeds,
+  normalizeSeed,
+  pruneTombstones,
   reconcileSeeds,
   rowToSeed,
+  sameSeedValue,
   seedKey,
   seedToRow,
+  tombstoneSeed,
   type SeededRate,
   type SeedMergeResult,
 } from '@/utils/costSeedCore';
@@ -68,11 +97,12 @@ async function load(): Promise<SeededRate[]> {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Defensive: a hand-edited / half-written cache must not poison the book
-    // with NaN rates. Anything without a usable trade+unit+rate is dropped.
-    return (parsed as SeededRate[]).filter(
-      s => s && typeof s.trade === 'string' && typeof s.unit === 'string' &&
-        Number.isFinite(s.rate) && s.rate > 0,
+    // The cache is the one input nobody validates on the way in — it outlives
+    // app versions and half-written writes. normalizeSeed drops what could
+    // never price a line AND repairs unreadable timestamps, which matters
+    // because an unparseable stamp used to make a stale row win every merge.
+    return pruneTombstones(
+      parsed.map(normalizeSeed).filter((s): s is SeededRate => s !== null),
     );
   } catch {
     return [];
@@ -110,21 +140,29 @@ export function useCostSeeds() {
           .filter((s): s is SeededRate => s !== null);
         // Union, last-stated-wins. NOT a server-wins replace: an edit still
         // sitting in the offline queue would otherwise visibly revert.
-        const next = reconcileSeeds(local, fromServer);
-        await persist(next);
+        const next = pruneTombstones(reconcileSeeds(local, fromServer));
+        // Only write when reconcile actually changed something. A steady-state
+        // refetch (remount, tenant switch, invalidation) should cost nothing.
+        if (!sameSeedSet(local, next)) await persist(next);
 
-        // BACKFILL. A local row the server has never seen is a rate that is
-        // still one reinstall from being lost, and there are two ordinary ways
-        // to get one: seeds entered in app/onboarding before the auth session
-        // hydrated (canSync was false, so no write was ever attempted), and
-        // rows whose queued write was dropped when the offline queue hit its
-        // 1,000-entry cap during the pre-migration window. Re-upserting them
-        // is idempotent — the deterministic id means a row that IS already
-        // there is simply rewritten with the same values.
+        // BACKFILL. A local row the server does not have — or has a DIFFERENT
+        // version of — is a rate still one reinstall from being lost. Three
+        // ordinary ways to get one: seeds entered in app/onboarding before the
+        // auth session hydrated (canSync was false, so no write was attempted),
+        // rows whose queued write was dropped at the offline queue's
+        // 1,000-entry cap, and an edit that WON the reconcile while the server
+        // still holds the copy it beat.
+        //
+        // That last case is why this compares values instead of asking "is the
+        // key present server-side". Presence alone skipped exactly the rows
+        // whose local version was the newer one, so a correction whose queued
+        // write was dropped never reached the server at all.
         if (userId) {
-          const onServer = new Set(fromServer.map(s => seedKey(s.trade, s.unit)));
+          const serverByKey = new Map(fromServer.map(s => [seedKey(s.trade, s.unit), s]));
           for (const s of next) {
-            if (onServer.has(seedKey(s.trade, s.unit))) continue;
+            const theirs = serverByKey.get(seedKey(s.trade, s.unit));
+            if (theirs && sameSeedValue(theirs, s)) continue;
+            if (!isPersistableSeed(s)) continue;
             void supabaseWrite(TABLE, 'upsert', seedToRow(s, userId) as unknown as Record<string, unknown>);
           }
         }
@@ -152,7 +190,12 @@ export function useCostSeeds() {
   /** Commit a parsed batch. Same trade+unit merges into one row (incoming
    *  wins), so re-importing an updated spreadsheet corrects rather than
    *  duplicates. Returns the merge counts for the confirmation copy. */
-  const addSeeds = useCallback((incoming: SeededRate[]): SeedMergeResult => {
+  const addSeeds = useCallback((rawIncoming: SeededRate[]): SeedMergeResult => {
+    // Collapse the batch first: two rows that canonicalize to the same trade+
+    // unit share one deterministic id, so without this they enqueue two writes
+    // for one primary key. mergeSeeds already collapses them locally — this
+    // makes the wire agree with the cache.
+    const incoming = dedupeSeeds(rawIncoming);
     const result = mergeSeeds(current(), incoming);
     if (incoming.length > 0) {
       save.mutate(result.merged);
@@ -164,6 +207,7 @@ export function useCostSeeds() {
       // as an insert, which the queue classifies TERMINAL and discards.
       if (canSync && userId) {
         for (const s of incoming) {
+          if (!isPersistableSeed(s)) continue;
           void supabaseWrite(TABLE, 'upsert', seedToRow(s, userId) as unknown as Record<string, unknown>);
         }
       }
@@ -171,18 +215,49 @@ export function useCostSeeds() {
     return result;
   }, [save, current, canSync, userId]);
 
+  /**
+   * Remove a rate.
+   *
+   * A TOMBSTONE, not a hard delete. The read path unions local and server, and
+   * a union cannot express absence: a hard-deleted row simply came back from
+   * whichever side had not heard about it yet — first from the server copy the
+   * queued delete had not reached, then, once it had, from the local copy the
+   * backfill pushed back up. The rate returned forever. A tombstone is a row,
+   * so it can win the merge and stay won.
+   */
   const deleteSeed = useCallback((id: string) => {
-    save.mutate(current().filter(s => s.id !== id));
-    // RLS scopes the `.eq('id', …)` to this user's row — see the delete policy
-    // in the migration. Without it, one GC deleting 'seed-framing-sf' would
-    // delete every GC's.
-    if (canSync) void supabaseWrite(TABLE, 'delete', { id });
-  }, [save, current, canSync]);
+    const now = new Date().toISOString();
+    const gone = current().map(s => (s.id === id ? tombstoneSeed(s, now) : s));
+    save.mutate(gone);
+    if (canSync && userId) {
+      const dead = gone.find(s => s.id === id);
+      if (dead) {
+        void supabaseWrite(TABLE, 'upsert', seedToRow(dead, userId) as unknown as Record<string, unknown>);
+      }
+    }
+  }, [save, current, canSync, userId]);
 
   // Edits go through addSeeds: seed ids are deterministic from trade+unit, so
   // re-adding an edited row merges over the old one. A trade/unit RENAME moves
-  // the id, which is why app/cost-seed deletes the old row on that path.
-  return { seeds, isLoading, addSeeds, deleteSeed };
+  // the id — app/cost-seed's MANUAL edit path deletes the row the id moved off
+  // (it tracks editingId, so it knows). The PASTE path cannot: a re-import that
+  // renames a trade carries no signal that the new row supersedes an old one,
+  // so it leaves the old rate in place rather than guessing which of the
+  // contractor's rates to delete. Both then price takeoff lines; removing the
+  // stale one is a manual step on this screen.
+  const visible = useMemo(() => activeSeeds(seeds), [seeds]);
+  return { seeds: visible, isLoading, addSeeds, deleteSeed };
+}
+
+/** Cheap set equality for the gate above — same keys, same values. */
+function sameSeedSet(a: SeededRate[], b: SeededRate[]): boolean {
+  if (a.length !== b.length) return false;
+  const byKey = new Map(a.map(s => [seedKey(s.trade, s.unit), s]));
+  for (const s of b) {
+    const mine = byKey.get(seedKey(s.trade, s.unit));
+    if (!mine || !sameSeedValue(mine, s)) return false;
+  }
+  return true;
 }
 
 export default useCostSeeds;

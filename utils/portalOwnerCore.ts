@@ -76,8 +76,14 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** "Jun 7" / "Jun 7, 2026" — deterministic, locale-independent (the portal's
  *  own fmtDate() is locale-aware, but narrative TEXT is baked into the snapshot
- *  so it must not vary by which device built it). */
-export function formatShortDate(calendarDate: string, withYear = false): string {
+ *  so it must not vary by which device built it).
+ *
+ *  Takes a YYYY-MM-DD CALENDAR STRING. Named for that on purpose:
+ *  scheduleEngine exports a `formatShortDate` that takes a Date, and two
+ *  same-named exports with incompatible argument types is a wrong-import away
+ *  from `.split is not a function` at runtime. Not exported — nothing outside
+ *  this module needs it. */
+function formatCalendarDate(calendarDate: string, withYear = false): string {
   const [y, m, d] = calendarDate.split('-');
   const label = `${MONTHS[Number(m) - 1] ?? m} ${Number(d)}`;
   return withYear ? `${label}, ${y}` : label;
@@ -85,11 +91,11 @@ export function formatShortDate(calendarDate: string, withYear = false): string 
 
 /** "Jun 1 – Jun 30" (same year) or "Dec 20, 2025 – Jan 15, 2026". */
 export function formatDateRange(from: string, to: string): string {
-  if (from === to) return formatShortDate(from, true);
+  if (from === to) return formatCalendarDate(from, true);
   const sameYear = from.slice(0, 4) === to.slice(0, 4);
   return sameYear
-    ? `${formatShortDate(from)} – ${formatShortDate(to, true)}`
-    : `${formatShortDate(from, true)} – ${formatShortDate(to, true)}`;
+    ? `${formatCalendarDate(from)} – ${formatCalendarDate(to, true)}`
+    : `${formatCalendarDate(from, true)} – ${formatCalendarDate(to, true)}`;
 }
 
 function plural(n: number, one: string, many?: string): string {
@@ -365,7 +371,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
   }
   let headline = `${subject}.`;
   if (photoCount > 0 && photoFrom && photoTo) {
-    const range = photoFrom === photoTo ? formatShortDate(photoFrom) : `${formatShortDate(photoFrom)}–${formatShortDate(photoTo)}`;
+    const range = photoFrom === photoTo ? formatCalendarDate(photoFrom) : `${formatCalendarDate(photoFrom)}–${formatCalendarDate(photoTo)}`;
     headline = `${subject} — ${photoCount} ${plural(photoCount, 'photo')} from ${range}.`;
   }
 
@@ -385,7 +391,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
     bullets.push(`Work logged: ${note}`);
   }
   if (photoCount > 0 && photoFrom && photoTo) {
-    const range = photoFrom === photoTo ? formatShortDate(photoFrom, true) : formatDateRange(photoFrom, photoTo);
+    const range = photoFrom === photoTo ? formatCalendarDate(photoFrom, true) : formatDateRange(photoFrom, photoTo);
     bullets.push(`${photoCount} ${plural(photoCount, 'photo')} taken ${photoFrom === photoTo ? 'on' : 'between'} ${range} — see the Photos section.`);
   }
 
@@ -556,11 +562,11 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     const category = typeof sel.category === 'string' && sel.category.trim() ? tidy(sel.category, 60) : 'Selection';
     let detail: string;
     if (urgency === 'overdue') {
-      detail = `Was due ${formatShortDate(dueDate!, true)}. Your contractor can't order until you pick.`;
+      detail = `Was due ${formatCalendarDate(dueDate!, true)}. Your contractor can't order until you pick.`;
     } else if (urgency === 'due_soon') {
-      detail = `Due ${formatShortDate(dueDate!, true)}. Picking now keeps the crew and the delivery on schedule.`;
+      detail = `Due ${formatCalendarDate(dueDate!, true)}. Picking now keeps the crew and the delivery on schedule.`;
     } else if (dueDate) {
-      detail = `Due ${formatShortDate(dueDate, true)}. Pick when you're ready — earlier is easier to schedule.`;
+      detail = `Due ${formatCalendarDate(dueDate, true)}. Pick when you're ready — earlier is easier to schedule.`;
     } else {
       detail = 'Pick a finish so your contractor can order it and hold the schedule.';
     }
@@ -587,9 +593,9 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     const label = inv.number != null ? `Invoice #${inv.number}` : 'Invoice';
     let detail: string;
     if (urgency === 'overdue') {
-      detail = `Was due ${formatShortDate(dueDate!, true)}. Open it to review and pay.`;
+      detail = `Was due ${formatCalendarDate(dueDate!, true)}. Open it to review and pay.`;
     } else if (dueDate) {
-      detail = `Due ${formatShortDate(dueDate, true)}. Open it to review and pay.`;
+      detail = `Due ${formatCalendarDate(dueDate, true)}. Open it to review and pay.`;
     } else {
       detail = 'Open the invoice to review and pay.';
     }

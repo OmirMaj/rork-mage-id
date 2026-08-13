@@ -29,6 +29,9 @@
 // what the caller passes in. bun runs it directly (scripts/validate-cost-seed.ts).
 
 import type { CostSample } from '@/utils/costDatabase';
+// formatters is dependency-free (no React, no RN), so importing it keeps this
+// module runnable by bun for scripts/validate-cost-seed.ts.
+import { formatMoney } from '@/utils/formatters';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,6 +59,18 @@ export interface SeededRate {
   note?: string;
   createdAt: string;
   method: SeedEntryMethod;
+  /** Server-stamped `updated_at`, present only on a row that has been to
+   *  Postgres. THE conflict tiebreaker when both sides have one: createdAt is
+   *  client-supplied, so a device with a skewed clock could otherwise pin a
+   *  stale rate as permanently "newest". The DB trigger owns this value; the
+   *  client never sends it. */
+  updatedAt?: string;
+  /** Tombstone. A delete is a soft delete because a hard one cannot be
+   *  represented in a union-merge: the row simply reappeared from whichever
+   *  device had not yet heard about it. Set = this rate is gone; it stays in
+   *  the set (hidden by activeSeeds) long enough to out-live every stale copy,
+   *  then pruneTombstones drops it. */
+  deletedAt?: string;
 }
 
 /** A parsed-but-not-yet-committed row. The review step renders these. */
@@ -183,10 +198,34 @@ const MONEY = /^\$?\s*(\d+(?:\.\d+)?)\s*(?:(?:\/|per)\s*([a-z0-9 .\-]+))?$/i;
 
 /** Sanity ceiling. High enough for a real big-ticket EA line (a modular unit
  *  at $1.25M each is a legitimate rate); low enough to catch a fat-fingered
- *  paste before it poisons the price book. */
-const MAX_SEED_RATE = 10_000_000;
-/** A self-reported job count above this is not a job count. */
-const MAX_REPORTED_JOBS = 500;
+ *  paste before it poisons the price book.
+ *
+ *  EXPORTED because it is not just a parser limit: the cost_seeds CHECK
+ *  constraint mirrors it, and a row that breaks the CHECK fails its upsert with
+ *  "violates check constraint" — which utils/offlineQueue classifies TERMINAL
+ *  and DISCARDS. Any entry path that doesn't enforce this ceiling saves the rate
+ *  on device and silently never persists it. app/cost-seed enforces it on the
+ *  manual form; clampSeedRate below is the backstop for every other path. */
+export const MAX_SEED_RATE = 10_000_000;
+/** A self-reported job count above this is not a job count. Mirrored by the
+ *  reported_jobs CHECK — same terminal-discard consequence as MAX_SEED_RATE. */
+export const MAX_REPORTED_JOBS = 500;
+
+/** Round to cents and hold inside the table's CHECK. Returns null for anything
+ *  that could never be a rate, so callers drop the row rather than write a
+ *  value Postgres will reject. */
+export function clampSeedRate(raw: number): number | null {
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  return Math.min(Math.round(raw * 100) / 100, MAX_SEED_RATE);
+}
+
+/** Same for the display-only job count. Returns null to mean "don't store one". */
+export function clampReportedJobs(raw: number | undefined | null): number | null {
+  if (raw == null || !Number.isFinite(raw)) return null;
+  const n = Math.round(raw);
+  if (n <= 0) return null;
+  return Math.min(n, MAX_REPORTED_JOBS);
+}
 
 type Part =
   | { type: 'text'; text: string }
@@ -206,6 +245,15 @@ function collapseThousands(line: string): string {
     out = next;
   }
   return out;
+}
+
+/** A timestamp normalized to canonical ISO-8601 Z, or '' when it is missing or
+ *  unreadable. '' means UNKNOWN and is treated as such by seedStamp — never as
+ *  "very old", which is what the old `new Date(0)` fallback silently meant. */
+function isoOrEmpty(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw) return '';
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? '' : new Date(t).toISOString();
 }
 
 function pad2(n: number): string {
@@ -443,17 +491,27 @@ export function draftsToSeeds(
   opts: { now: string; method?: SeedEntryMethod },
 ): SeededRate[] {
   const method = opts.method ?? 'paste';
-  return drafts.map(d => ({
-    id: seedId(d.trade, d.unit),
-    trade: d.trade,
-    unit: d.unit,
-    rate: d.rate,
-    ...(d.reportedJobs != null ? { reportedJobs: d.reportedJobs } : {}),
-    ...(d.asOf ? { asOf: d.asOf } : {}),
-    ...(d.note ? { note: d.note } : {}),
-    createdAt: opts.now,
-    method,
-  }));
+  const out: SeededRate[] = [];
+  for (const d of drafts) {
+    // Clamp HERE, not only in the parser: app/cost-seed's manual form builds a
+    // draft directly, and a rate past the table's CHECK is a write the offline
+    // queue discards as terminal — saved on device, never persisted.
+    const rate = clampSeedRate(d.rate);
+    if (rate == null) continue;
+    const jobs = clampReportedJobs(d.reportedJobs);
+    out.push({
+      id: seedId(d.trade, d.unit),
+      trade: d.trade,
+      unit: d.unit,
+      rate,
+      ...(jobs != null ? { reportedJobs: jobs } : {}),
+      ...(d.asOf ? { asOf: d.asOf } : {}),
+      ...(d.note ? { note: d.note } : {}),
+      createdAt: opts.now,
+      method,
+    });
+  }
+  return out;
 }
 
 export interface SeedMergeResult {
@@ -544,6 +602,11 @@ export interface CostSeedRow {
   note: string | null;
   method: SeedEntryMethod;
   created_at: string;
+  /** Soft-delete tombstone — see SeededRate.deletedAt. Added by
+   *  supabase/migrations/20260812093000_cost_seeds_soft_delete.sql.
+   *  NOT `updated_at`: that column is owned by the BEFORE UPDATE trigger, and a
+   *  client-supplied value would defeat the whole point of trusting it. */
+  deleted_at: string | null;
 }
 
 /**
@@ -559,12 +622,17 @@ export function seedToRow(s: SeededRate, userId: string): CostSeedRow {
     user_id: userId,
     trade: s.trade,
     unit: s.unit,
-    rate: s.rate,
-    reported_jobs: s.reportedJobs ?? null,
+    // Last line of defence before PostgREST: a rate or job count past the
+    // table's CHECK fails the upsert with "violates check constraint", which
+    // utils/offlineQueue treats as TERMINAL and drops. Clamping beats
+    // discarding — the contractor keeps a rate, just a sane one.
+    rate: clampSeedRate(s.rate) ?? 0,
+    reported_jobs: clampReportedJobs(s.reportedJobs),
     as_of: s.asOf ?? null,
     note: s.note ?? null,
     method: s.method === 'manual' ? 'manual' : 'paste',
     created_at: s.createdAt,
+    deleted_at: s.deletedAt ?? null,
   };
 }
 
@@ -588,22 +656,27 @@ export function rowToSeed(raw: unknown): SeededRate | null {
   const rate = Number(r.rate);
   if (!trade || !unit || !Number.isFinite(rate) || rate <= 0) return null;
 
-  const reported = Number(r.reported_jobs);
-  const createdRaw = typeof r.created_at === 'string' ? r.created_at : '';
-  const createdAt = createdRaw && !Number.isNaN(Date.parse(createdRaw))
-    ? new Date(createdRaw).toISOString()
-    : new Date(0).toISOString();
+  const reported = clampReportedJobs(Number(r.reported_jobs));
+  // NOT `new Date(0)` on an unreadable stamp. Epoch is not "unknown" — it is
+  // "older than everything", so an unparseable server row used to lose every
+  // reconcile forever. An empty string means unknown, and seedStamp treats
+  // unknown as unknown (see the resolution table in reconcileSeeds).
+  const createdAt = isoOrEmpty(r.created_at);
+  const updatedAt = isoOrEmpty(r.updated_at);
+  const deletedAt = isoOrEmpty(r.deleted_at);
 
   return {
     id: typeof r.id === 'string' && r.id ? r.id : seedId(trade, unit),
     trade,
     unit,
     rate,
-    ...(Number.isFinite(reported) && reported > 0 ? { reportedJobs: reported } : {}),
+    ...(reported != null ? { reportedJobs: reported } : {}),
     ...(typeof r.as_of === 'string' && r.as_of ? { asOf: r.as_of } : {}),
     ...(typeof r.note === 'string' && r.note ? { note: r.note } : {}),
     createdAt,
     method: r.method === 'manual' ? 'manual' : 'paste',
+    ...(updatedAt ? { updatedAt } : {}),
+    ...(deletedAt ? { deletedAt } : {}),
   };
 }
 
@@ -621,22 +694,168 @@ export function rowToSeed(raw: unknown): SeededRate | null {
  * the empty local set. Comparing the timestamp gets both right, and the reads
  * are unioned so a row that exists on only one side is never dropped.
  */
-export function reconcileSeeds(local: SeededRate[], server: SeededRate[]): SeededRate[] {
+export function reconcileSeeds(
+  local: SeededRate[],
+  server: SeededRate[],
+  opts?: { now?: number },
+): SeededRate[] {
+  const now = opts?.now ?? Date.now();
   const byKey = new Map<string, SeededRate>();
   for (const s of local) byKey.set(seedKey(s.trade, s.unit), s);
   for (const s of server) {
     const key = seedKey(s.trade, s.unit);
     const mine = byKey.get(key);
-    // Ties go to the server: it is the copy every other device will also see.
-    if (!mine || Date.parse(s.createdAt) >= Date.parse(mine.createdAt)) byKey.set(key, s);
+    if (!mine || serverWins(s, mine, now)) byKey.set(key, s);
   }
   return Array.from(byKey.values());
 }
 
-/** One-line human summary for the review step / settings row. */
+/**
+ * The resolution table, stated once.
+ *
+ *   server stamp | local stamp | winner   why
+ *   -------------+-------------+---------------------------------------------
+ *   known        | known       | later one (ties → server)
+ *   known        | UNKNOWN     | server    a stamp we can read beats one we can't
+ *   UNKNOWN      | known       | local     same rule, other direction
+ *   UNKNOWN      | UNKNOWN     | server    the copy every other device also sees
+ *
+ * The old form was `Date.parse(server) >= Date.parse(local)`, which collapses
+ * all three unknown cases into "local wins" — because every comparison against
+ * NaN is false. That is how one unreadable timestamp made a stale local rate
+ * permanently unbeatable.
+ */
+function serverWins(server: SeededRate, local: SeededRate, now: number): boolean {
+  const s = seedStamp(server, now);
+  const l = seedStamp(local, now);
+  if (s == null && l == null) return true;
+  if (s == null) return false;
+  if (l == null) return true;
+  return s >= l;
+}
+
+/**
+ * When this copy was last written, as a comparable number — or null if we
+ * genuinely cannot tell.
+ *
+ * The latest of updated_at / deleted_at / created_at that is not in the future.
+ * updated_at is stamped by the DB trigger, so for anything that has synced the
+ * SERVER is the ordering authority; created_at is only whatever the writing
+ * device's clock said. deleted_at is in the list because for a tombstone that
+ * IS the moment it was last written, and a delete has to be able to out-rank
+ * the live copy it is deleting.
+ */
+export function seedStamp(s: SeededRate, now: number = Date.now()): number | null {
+  let best: number | null = null;
+  for (const raw of [s.updatedAt, s.deletedAt, s.createdAt]) {
+    if (!raw) continue;
+    const t = Date.parse(raw);
+    // A stamp in the future is not late, it is WRONG — the writing device's
+    // clock is off. Discarding it as unknown (rather than clamping it to now,
+    // which would still make it the newest thing in the set) is what stops a
+    // skewed phone from pinning a stale rate as permanently authoritative.
+    if (Number.isNaN(t) || t > now) continue;
+    if (best == null || t > best) best = t;
+  }
+  return best;
+}
+
+/** The seeds a consumer should actually see. Tombstones stay in the stored set
+ *  so the delete can still be pushed and can still beat a stale copy — but they
+ *  are not rates, and nothing downstream should ever price from one. */
+export function activeSeeds(seeds: SeededRate[]): SeededRate[] {
+  return seeds.filter(s => !s.deletedAt);
+}
+
+/** Mark a seed deleted rather than dropping it. `now` is injected so this stays
+ *  pure (and so the validator can pin the stamp). */
+export function tombstoneSeed(s: SeededRate, now: string): SeededRate {
+  return { ...s, deletedAt: now, updatedAt: undefined };
+}
+
+/**
+ * Drop tombstones old enough that no device can still be holding a copy that
+ * predates them. Without this the set grows forever; with too short a window a
+ * device offline past it would resurrect the rate on its next sync. 180 days is
+ * far past any plausible offline window and still bounds the cache.
+ */
+export function pruneTombstones(
+  seeds: SeededRate[],
+  opts?: { now?: number; maxAgeDays?: number },
+): SeededRate[] {
+  const now = opts?.now ?? Date.now();
+  const maxAge = (opts?.maxAgeDays ?? 180) * 86400000;
+  return seeds.filter(s => {
+    if (!s.deletedAt) return true;
+    const t = Date.parse(s.deletedAt);
+    if (Number.isNaN(t)) return false;
+    return now - t < maxAge;
+  });
+}
+
+/**
+ * Repair a cached seed before it is allowed to decide a merge.
+ *
+ * The local cache is the one input nobody validates on the way in — it survives
+ * app versions, hand edits, and half-written writes. Returns null for anything
+ * that could never price a line, so a bad row is dropped rather than carried.
+ */
+export function normalizeSeed(raw: unknown): SeededRate | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as Record<string, unknown>;
+  const trade = typeof s.trade === 'string' ? s.trade.trim() : '';
+  const unit = typeof s.unit === 'string' ? s.unit.trim() : '';
+  const rate = clampSeedRate(Number(s.rate));
+  if (!trade || !unit || rate == null) return null;
+  const jobs = clampReportedJobs(Number(s.reportedJobs));
+  return {
+    id: typeof s.id === 'string' && s.id ? s.id : seedId(trade, unit),
+    trade,
+    unit,
+    rate,
+    ...(jobs != null ? { reportedJobs: jobs } : {}),
+    ...(typeof s.asOf === 'string' && s.asOf ? { asOf: s.asOf } : {}),
+    ...(typeof s.note === 'string' && s.note ? { note: s.note } : {}),
+    createdAt: isoOrEmpty(s.createdAt),
+    method: s.method === 'manual' ? 'manual' : 'paste',
+    ...(isoOrEmpty(s.updatedAt) ? { updatedAt: isoOrEmpty(s.updatedAt) } : {}),
+    ...(isoOrEmpty(s.deletedAt) ? { deletedAt: isoOrEmpty(s.deletedAt) } : {}),
+  };
+}
+
+/** True when a seed can actually be written to cost_seeds — every CHECK the
+ *  table declares, asserted before the row goes near the offline queue (which
+ *  discards a constraint violation as terminal). */
+export function isPersistableSeed(s: SeededRate): boolean {
+  return clampSeedRate(s.rate) != null && !!(s.trade ?? '').trim() && !!(s.unit ?? '').trim();
+}
+
+/** Collapse a batch onto one row per deterministic id, last wins — the same
+ *  rule mergeSeeds applies locally. Without it a batch carrying two rows that
+ *  canonicalize to the same id enqueues two writes for one primary key. */
+export function dedupeSeeds(seeds: SeededRate[]): SeededRate[] {
+  const byKey = new Map<string, SeededRate>();
+  for (const s of seeds) byKey.set(seedKey(s.trade, s.unit), s);
+  return Array.from(byKey.values());
+}
+
+/** True when two copies of a rate carry the same user-visible values, so the
+ *  backfill can tell "the server already has this" from "the server has a
+ *  DIFFERENT one and needs mine". */
+export function sameSeedValue(a: SeededRate, b: SeededRate): boolean {
+  return a.rate === b.rate &&
+    (a.reportedJobs ?? null) === (b.reportedJobs ?? null) &&
+    (a.asOf ?? '') === (b.asOf ?? '') &&
+    (a.note ?? '') === (b.note ?? '') &&
+    (a.deletedAt ? 1 : 0) === (b.deletedAt ? 1 : 0);
+}
+
+/** One-line human summary for the review step / settings row. formatMoney (not
+ *  toFixed) so a $12,500/EA modular unit reads like every other price in the
+ *  app instead of '$12500.00'. */
 export function describeSeed(s: SeededRate): string {
   const jobs = s.reportedJobs != null
     ? ` · you say ${s.reportedJobs} job${s.reportedJobs === 1 ? '' : 's'}`
     : '';
-  return `$${s.rate.toFixed(2)}/${s.unit}${jobs}`;
+  return `${formatMoney(s.rate, 2)}/${s.unit}${jobs}`;
 }

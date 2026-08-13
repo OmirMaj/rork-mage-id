@@ -33,8 +33,8 @@
 import {
   parseSeedLine, parseSeedBlob, canonicalSeedUnit, seedKey, seedId,
   draftsToSeeds, mergeSeeds, seedsToCostSamples, isSeedSample, describeSeed,
-  seedToRow, rowToSeed, reconcileSeeds,
-  SEED_PROJECT_PREFIX, SEED_UNITS,
+  seedToRow, rowToSeed, reconcileSeeds, activeSeeds, pruneTombstones,
+  SEED_PROJECT_PREFIX, SEED_UNITS, MAX_SEED_RATE, MAX_REPORTED_JOBS,
   type SeededRate, type SeededRateDraft,
 } from '../utils/costSeedCore';
 import { buildCostDatabase, lookupRate } from '../utils/costDatabase';
@@ -604,7 +604,11 @@ ok('writes go through supabaseWrite (utils/offlineQueue), never a raw write',
   !/supabase\.from\([^)]*\)\s*\.\s*(insert|update|delete|upsert)/.test(hook));
 ok('the write is an UPSERT — a deterministic id re-insert is a terminal dup-key',
   /supabaseWrite\(TABLE, 'upsert'/.test(hook));
-ok('deletes are queued too', /supabaseWrite\(TABLE, 'delete'/.test(hook));
+// Deletes are queued as a TOMBSTONE upsert, not a hard delete: the read path
+// unions local and server, and a union cannot express absence — a hard-deleted
+// row just came back from whichever side had not synced yet. See §14.
+ok('deletes are queued too — as a tombstone the merge can honour',
+  /tombstoneSeed/.test(hook) && !/supabaseWrite\(TABLE, 'delete'/.test(hook));
 ok('the seed→row mapper is used, so user_id rides along for RLS',
   /seedToRow\(s, userId\)/.test(hook));
 ok('the query is keyed by user so a tenant switch refetches',
@@ -614,8 +618,14 @@ ok('the pre-migration schema-cache behaviour is documented, not discovered',
 // A local row the server has never seen is a rate still one reinstall from
 // being lost — seeds entered in onboarding before the auth session hydrated,
 // or a queued write dropped at the offline queue's 1,000-entry cap.
+//
+// It must compare VALUES, not merely whether the key exists server-side: a
+// presence check skips exactly the rows whose local copy WON the reconcile,
+// so a correction whose queued write was dropped never reached the server.
 ok('local rows the server has never seen are backfilled on sync',
-  /BACKFILL/.test(hook) && /onServer\.has\(seedKey\(s\.trade, s\.unit\)\)/.test(hook));
+  /BACKFILL/.test(hook) && /serverByKey\.get\(/.test(hook));
+ok('…and so are rows the server has a DIFFERENT version of',
+  /sameSeedValue\(theirs, s\)\) continue/.test(hook));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 12. REACH — the arg exists and the callers pass it
@@ -900,6 +910,138 @@ expect('…and every entry still counts zero jobs',
   SEEDED_ONLY.entries.every(e => e.jobCount === 0), true);
 expect('…with every seeded sample still bidUnit 0',
   SEEDED_ONLY.entries.every(e => e.samples.every(s => !isSeedSample(s) || s.bidUnit === 0)), true);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §14. SYNC HARDENING — the failure modes a union-with-timestamps merge has.
+//
+// The V2 round-trip (§11) made seeds durable. It did not make them CONVERGENT:
+// reconcileSeeds unioned local and server and never removed anything, so a
+// delete was undone by the next refetch; the tiebreaker compared two CLIENT
+// clocks through Date.parse, so one unparseable or skewed stamp pinned a stale
+// rate forever; and the backfill re-pushed only rows the server had never seen,
+// so a won local edit whose queued write was dropped never reached the server.
+// Each check below is one of those, stated as the behaviour it must have.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const T_OLD = '2026-01-01T00:00:00.000Z';
+const T_MID = '2026-03-01T00:00:00.000Z';
+const T_NEW = '2026-06-01T00:00:00.000Z';
+const base: SeededRate = draftsToSeeds(
+  [{ trade: 'Framing', unit: 'SF', rate: 12.5, raw: '' }], { now: T_OLD, method: 'manual' },
+)[0];
+
+// ── A DELETE MUST STICK. The bug: deleteSeed dropped the row locally and
+// queued a server delete; any refetch before that flushed re-added the server
+// copy, and the backfill then re-upserted it — the rate came back forever.
+const tombstone: SeededRate = { ...base, deletedAt: T_NEW };
+ok('a local tombstone is not resurrected by the server copy still being there',
+  activeSeeds(reconcileSeeds([tombstone], [base])).length === 0);
+ok('…and a tombstone from ANOTHER device removes the row here',
+  activeSeeds(reconcileSeeds([base], [{ ...base, deletedAt: T_NEW }])).length === 0);
+ok('…while a re-statement AFTER a delete brings the rate back',
+  activeSeeds(reconcileSeeds([tombstone], [{ ...base, rate: 14, createdAt: T_NEW, updatedAt: T_NEW }]))
+    .length === 1);
+ok('the tombstone itself survives reconcile so the delete can still be pushed',
+  reconcileSeeds([tombstone], [base]).some(s => !!s.deletedAt));
+ok('activeSeeds hides tombstones from every consumer',
+  activeSeeds([base, { ...base, trade: 'Drywall', deletedAt: T_NEW }]).length === 1);
+ok('pruneTombstones drops a tombstone once it can no longer be contradicted',
+  pruneTombstones([tombstone], { now: Date.parse(T_NEW) + 200 * 86400000 }).length === 0);
+ok('…but keeps a fresh one', pruneTombstones([tombstone], { now: Date.parse(T_NEW) + 86400000 }).length === 1);
+
+// ── NaN MUST NOT DECIDE A MERGE. `x >= NaN` is false, so an unparseable local
+// stamp silently made the local row unbeatable.
+const localNaN: SeededRate = { ...base, rate: 1, createdAt: 'not-a-date' };
+expect('a server row still wins over a local row with an unparseable stamp',
+  reconcileSeeds([localNaN], [{ ...base, rate: 20, createdAt: T_NEW }])[0].rate, 20);
+expect('…and an unparseable SERVER stamp does not beat a known local one',
+  reconcileSeeds([{ ...base, rate: 7, createdAt: T_MID }], [{ ...base, rate: 20, createdAt: 'junk' }])[0].rate, 7);
+expect('two unknown stamps still resolve — ties go to the server',
+  reconcileSeeds([localNaN], [{ ...base, rate: 20, createdAt: '' }])[0].rate, 20);
+
+// ── THE SERVER CLOCK IS THE AUTHORITY. created_at is client-supplied, so a
+// device with a skewed clock could pin a stale rate as permanently "newest".
+// updated_at is stamped by the DB trigger and outranks it.
+expect('server updated_at outranks a client createdAt as the tiebreaker',
+  reconcileSeeds(
+    [{ ...base, rate: 5, createdAt: '2099-01-01T00:00:00.000Z' }],   // skewed clock
+    [{ ...base, rate: 20, createdAt: T_OLD, updatedAt: T_NEW }],
+  )[0].rate, 20);
+expect('a future client stamp is clamped, not trusted',
+  reconcileSeeds(
+    [{ ...base, rate: 5, createdAt: '2099-01-01T00:00:00.000Z' }],
+    [{ ...base, rate: 20, createdAt: T_NEW }],
+    { now: Date.parse(T_NEW) + 1000 },
+  )[0].rate, 20);
+expect('a genuine pending local edit still survives a stale server copy',
+  reconcileSeeds([{ ...base, rate: 5, createdAt: T_NEW }], [{ ...base, rate: 20, createdAt: T_OLD }])[0].rate, 5);
+
+// ── THE PARSER'S LIMITS ARE THE TABLE'S LIMITS. The migration CHECKs mirror
+// MAX_SEED_RATE / MAX_REPORTED_JOBS. Any path that can produce a row breaking
+// them writes a value the offline queue classifies TERMINAL and DISCARDS — the
+// rate shows as saved on device and never reaches Postgres.
+ok('MAX_SEED_RATE / MAX_REPORTED_JOBS are exported so the UI can enforce them',
+  MAX_SEED_RATE === 10_000_000 && MAX_REPORTED_JOBS === 500);
+const wild = draftsToSeeds(
+  [{ trade: 'Gold leaf', unit: 'SF', rate: 99_000_000, reportedJobs: 9_999, raw: '' }],
+  { now: NOW, method: 'manual' },
+)[0];
+ok('draftsToSeeds refuses a rate past the table CHECK rather than storing it',
+  wild === undefined || wild.rate <= MAX_SEED_RATE);
+ok('…and never emits a reported-job count past the CHECK',
+  wild === undefined || (wild.reportedJobs ?? 0) <= MAX_REPORTED_JOBS);
+const wildRow = seedToRow({ ...base, rate: 99_000_000, reportedJobs: 9_999 }, UID);
+ok('seedToRow is the last line of defence — the row it emits satisfies both CHECKs',
+  wildRow.rate > 0 && wildRow.rate <= MAX_SEED_RATE &&
+  (wildRow.reported_jobs === null || (wildRow.reported_jobs > 0 && wildRow.reported_jobs <= MAX_REPORTED_JOBS)));
+ok('the manual entry form enforces the same ceiling it will be written under',
+  /MAX_SEED_RATE/.test(src('app/cost-seed.tsx')) && /MAX_REPORTED_JOBS/.test(src('app/cost-seed.tsx')));
+
+// ── THE TOMBSTONE ON THE WIRE.
+const delRow = seedToRow(tombstone, UID);
+expect('a tombstone reaches Postgres as a soft delete, not a vanished row',
+  delRow.deleted_at, T_NEW);
+expect('…and comes back as a tombstone', rowToSeed(delRow)?.deletedAt, T_NEW);
+expect('a live row carries no deleted_at', seedToRow(base, UID).deleted_at, null);
+expect('rowToSeed reads the server updated_at', rowToSeed({ ...pgRow, updated_at: T_NEW })?.updatedAt, T_NEW);
+ok('seedToRow does NOT send updated_at — the DB trigger owns it',
+  !('updated_at' in (seedToRow(base, UID) as unknown as Record<string, unknown>)));
+
+// ── THE HOOK'S SIDE OF IT. Source-level because the failures are structural:
+// what the backfill compares, and what a delete writes.
+const hookSrc = src('hooks/useCostSeeds.ts');
+ok('the backfill compares VALUES, not merely whether the key exists server-side',
+  /seedsDiffer|sameSeedValue|fingerprint/.test(hookSrc) && !/onServer\.has\([^)]*\)\) continue/.test(hookSrc));
+ok('a delete writes a tombstone through the queue rather than a hard delete',
+  /tombstoneSeed\(s, now\)/.test(hookSrc) &&
+  /supabaseWrite\(TABLE, 'upsert', seedToRow\(dead, userId\)/.test(hookSrc) &&
+  !/supabaseWrite\(TABLE, 'delete'/.test(hookSrc));
+ok('the hook hands consumers ACTIVE seeds only', /activeSeeds/.test(hookSrc));
+ok('the local cache is sanitized on load so a bad stamp cannot poison a merge',
+  /normalizeSeed|sanitize/.test(hookSrc) || /normalizeSeed/.test(src('utils/costSeedCore.ts')));
+ok('addSeeds does not enqueue two writes for one deterministic id',
+  /dedupeSeeds|mergeSeeds\(\[\], incoming\)|byId/.test(hookSrc));
+
+// ── THE FOLLOW-UP MIGRATION. cost_seeds is already applied in production, so
+// the tombstone column arrives as its own append-only file — never by editing
+// 20260805120000_cost_seeds.sql, which the deployed database has already run.
+const tombstoneMigration = readdirSync(MIGRATIONS).find(f => /cost_seeds_soft_delete\.sql$/.test(f));
+ok('a follow-up migration adds the tombstone column', !!tombstoneMigration, String(tombstoneMigration));
+const tmig = tombstoneMigration ? readFileSync(join(MIGRATIONS, tombstoneMigration), 'utf8') : '';
+const tddl = tmig.replace(/^[ \t]*--.*$/gm, '');
+ok('…as an ADD COLUMN IF NOT EXISTS, so re-running it is safe',
+  /ALTER TABLE public\.cost_seeds/.test(tddl) && /ADD COLUMN IF NOT EXISTS deleted_at/.test(tddl));
+ok('…nullable with no default — an existing row is live, not tombstoned',
+  !/deleted_at timestamptz NOT NULL/.test(tddl));
+ok('the already-applied migration was NOT edited to add it',
+  !/deleted_at/.test(mig));
+
+// ── AND THE FIREWALL, ONE MORE TIME: none of this promotes a claim.
+const afterSync = activeSeeds(reconcileSeeds([base], [{ ...base, rate: 14, updatedAt: T_NEW }]));
+const syncedDb = buildCostDatabase(emptyProjects, emptyCommitments, [], [], afterSync);
+expect('a rate that survived a cross-device merge is still a claim',
+  lookupRate(syncedDb, 'Framing', 'SF')?.provenance, 'seeded');
+expect('…and still counts zero closed jobs', syncedDb.jobsAnalyzed, 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
