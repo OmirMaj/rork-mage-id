@@ -6,9 +6,8 @@
 //
 //   medianResponseDays / factLine  — ROUND TRIP. dateSubmitted to
 //     dateResponded. Useful for planning (how long should I buffer for an
-//     answer), useless as a delay claim, because it includes the GC's own
-//     turnaround. Caddell Constr. Co. v. United States lost partly on exactly
-//     this measure.
+//     answer), useless as a measure of anyone else's responsiveness, because
+//     it includes the GC's own turnaround.
 //
 //   hold / holdFactLine            — OWNER-SIDE HOLD TIME. Only the intervals
 //     where the architect, engineer, or owner had the ball, folded out of the

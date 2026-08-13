@@ -1292,7 +1292,7 @@ export async function generateChangeOrderPDFUri(
 // SignaturePad), render the strokes as inline SVG; when it's absent
 // (homeowner-side counter-sign via the portal RPC, which captures only
 // a typed name), render the typed name + signedAt timestamp instead.
-// Both forms are legal-grade per ESIGN Act intent-to-sign + identity.
+// Both forms record the signer's name and the time they signed.
 // ──────────────────────────────────────────────────────────────────────
 
 function buildSignatureBlock(label: string, sig: ContractSignature | undefined): string {

@@ -4,8 +4,8 @@
 // ProjectSchedule.weatherDelayLog — the record a GC later hands an owner to
 // justify a delay. Before this module, that log could not distinguish a real
 // OpenWeather reading from `getSimulatedForecast()`'s seeded pseudo-random
-// invention, and the UI labelled neither. Fiction was being logged as delay
-// documentation.
+// invention, and the UI labelled neither. Fiction was being written into the
+// delay log.
 //
 // Every DayForecast now carries a `source`, and it travels with the day
 // through the reschedule math into the log entry. Simulated days are
@@ -44,7 +44,7 @@ export const SIMULATED_WEATHER_HEADLINE = 'SIMULATED WEATHER — NOT A FORECAST'
 /** Body copy under the headline. Says what it is, and what to do about it. */
 export const SIMULATED_WEATHER_BODY =
   'These conditions are generated from the calendar date, not observed, and have no relation to this jobsite. ' +
-  `Not valid as delay documentation. Set ${WEATHER_API_KEY_ENV} to show the live forecast.`;
+  `Do not record them as a weather delay. Set ${WEATHER_API_KEY_ENV} to show the live forecast.`;
 
 /** Short per-day chip label for a single non-live day. */
 export const SIMULATED_DAY_LABEL = 'SIM';

@@ -40,8 +40,10 @@ import Paywall from '@/components/Paywall';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import {
   parseSeedBlob, draftsToSeeds, canonicalSeedUnit, SEED_UNITS,
+  MAX_SEED_RATE, MAX_REPORTED_JOBS,
   type SeededRate, type SeededRateDraft, type SeedParseResult,
 } from '@/utils/costSeedCore';
+import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -149,10 +151,24 @@ function CostSeedInner() {
     if (!Number.isFinite(rate) || rate <= 0) {
       setFormError('Enter a price greater than zero.'); return;
     }
+    // These ceilings are the TABLE's, not just the parser's: cost_seeds CHECKs
+    // rate <= MAX_SEED_RATE and reported_jobs <= MAX_REPORTED_JOBS, and a row
+    // breaking one fails its upsert with "violates check constraint" — which
+    // utils/offlineQueue classifies TERMINAL and drops. Catching it here is the
+    // difference between a correctable typo and a rate that reads as saved on
+    // this device and exists nowhere else.
+    if (rate > MAX_SEED_RATE) {
+      setFormError(`That's higher than we can store — keep it under ${formatMoney(MAX_SEED_RATE)} per unit.`);
+      return;
+    }
     const jobsRaw = formJobs.trim();
     const jobs = jobsRaw ? Number(jobsRaw) : undefined;
     if (jobsRaw && (!Number.isFinite(jobs) || (jobs as number) <= 0)) {
       setFormError('Jobs must be a whole number, or leave it blank.'); return;
+    }
+    if (jobs != null && jobs > MAX_REPORTED_JOBS) {
+      setFormError(`Enter up to ${MAX_REPORTED_JOBS} jobs — it's a rough count, not an exact ledger.`);
+      return;
     }
 
     const draft: SeededRateDraft = {

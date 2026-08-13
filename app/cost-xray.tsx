@@ -30,11 +30,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { priceTell, routeByConfidence, verifyOnlyReason, normalizeTells } from '@/utils/costXray';
-import type { ConditionTell } from '@/utils/costXray';
+import type { ConditionTell, PricedTell } from '@/utils/costXray';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { createId } from '@/utils/scheduleEngine';
 import { formatMoney } from '@/utils/jobCostEngine';
@@ -61,6 +62,9 @@ interface ReviewTell {
   category: XrayCategory;
   origBand: Band;
   hasLearnedRate: boolean;
+  /** Which kind of rate priced it — see PricedTell.rateBasis. A seeded rate is
+   *  the GC's own claim and must never be captioned as their job history. */
+  rateBasis: PricedTell['rateBasis'];
   sourcePhotoId: string;
   sourcePhotoUri: string;
   status: 'pending' | 'accepted' | 'rejected';
@@ -80,6 +84,18 @@ const CAT_LABEL: Record<XrayCategory, string> = {
   plumbing: 'Plumbing',
   structural: 'Structural',
   moisture: 'Moisture',
+};
+
+/** How the allowance was priced, in the contractor's words. 'seeded' gets its
+ *  own phrasing on purpose: a rate they typed is theirs, but it is not history,
+ *  and captioning it as history is the one thing that would make the whole cost
+ *  book untrustworthy. 'mixed' has real closed jobs behind it, so it reads as
+ *  history. */
+const RATE_BASIS_LABEL: Record<PricedTell['rateBasis'], string> = {
+  earned: 'your job history',
+  mixed: 'your job history',
+  seeded: 'the rate you set yourself',
+  catalog: 'a catalog allowance',
 };
 
 const MAX_PHOTOS = 8;
@@ -104,6 +120,11 @@ export default function CostXrayScreen() {
   const { canAccess } = useTierAccess();
   const { projects, commitments, updateProject, addProjectPhoto, deleteProjectPhoto, addPunchItem } = useProjects();
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds. Cost X-Ray is the most visible AI surface after the
+  // estimate: without these, a contractor who pasted their whole rate sheet
+  // still gets every hidden-condition allowance priced off a generic catalog
+  // number rather than their own.
+  const { seeds } = useCostSeeds();
 
   // Business gate — redirect locked tiers to the paywall (design decision 3).
   const locked = !canAccess('cost_xray');
@@ -128,7 +149,7 @@ export default function CostXrayScreen() {
   }, [projectId, projects]);
 
   // The cost-learning engine — same source estimate-confidence uses.
-  const db = useMemo(() => buildCostDatabase(projects, commitments, receipts), [projects, commitments, receipts]);
+  const db = useMemo(() => buildCostDatabase(projects, commitments, receipts, [], seeds), [projects, commitments, receipts, seeds]);
 
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [busy, setBusy] = useState(false);
@@ -246,6 +267,7 @@ export default function CostXrayScreen() {
           category: remapped.category,
           origBand: priced.band,
           hasLearnedRate: priced.hasLearnedRate,
+          rateBasis: priced.rateBasis,
           sourcePhotoId: src.id,
           sourcePhotoUri: src.uri,
           status: 'pending',
@@ -559,7 +581,7 @@ export default function CostXrayScreen() {
                     {r.route === 'price' ? (
                       <>
                         <Text style={styles.rationale}>
-                          {r.tell.likelihood}% likely to need work · priced off {r.hasLearnedRate ? 'your job history' : 'a catalog allowance'}.
+                          {r.tell.likelihood}% likely to need work · priced off {RATE_BASIS_LABEL[r.rateBasis]}.
                         </Text>
                         <View style={styles.bandRow}>
                           <Text style={styles.bandExpected}>{formatMoney(band.expected)}</Text>

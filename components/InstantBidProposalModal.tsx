@@ -26,6 +26,7 @@ import { useCompanies } from '@/contexts/CompaniesContext';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import type { Lead, TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
@@ -49,6 +50,10 @@ export default function InstantBidProposalModal({
   // rates into the cost book that grounds the ROM.
   const laborSamples = useLaborCostSamples();
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds — and note the guard change below: this is the ONE screen
+  // where a seeded contractor most likely has zero projects, so the old
+  // "projects.length > 0" gate would have thrown their rates away.
+  const { seeds } = useCostSeeds();
 
   const [proposal, setProposal] = useState<TieredProposal | null>(null);
   const [selectedTier, setSelectedTier] = useState<ProposalTierKey>('better');
@@ -114,9 +119,13 @@ export default function InstantBidProposalModal({
         budgetMax: budgetHint ?? lead.budgetMax ?? undefined,
         projectType: lead.projectType ?? undefined,
       };
+      // Seeds alone are enough to ground. A contractor who just pasted their
+      // rate sheet and hasn't created a project yet is EXACTLY the cold start
+      // seeding exists for — gating on projects.length would have silently
+      // discarded the only real pricing data they have.
       const groundingContext =
-        Array.isArray(projects) && projects.length > 0
-          ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], receipts, laborSamples }
+        (Array.isArray(projects) && projects.length > 0) || seeds.length > 0
+          ? { projects: (Array.isArray(projects) ? projects : []) as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], receipts, laborSamples, seeds }
           : undefined;
       const p = await generateInstantBid(rfp, {
         companyName: company?.companyName,
@@ -132,7 +141,7 @@ export default function InstantBidProposalModal({
     } finally {
       if (runId === runIdRef.current) setGenerating(false);
     }
-  }, [lead, generating, company, settings, projects, allCommitments, receipts, laborSamples]);
+  }, [lead, generating, company, settings, projects, allCommitments, receipts, laborSamples, seeds]);
 
   const handleGenerate = useCallback(async () => {
     if (!lead) return;

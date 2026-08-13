@@ -49,6 +49,10 @@ export function priceLines(lines: JudgesLine[], costDb: CostDatabase): PricedLin
       lineTrueCost: qty * usedUnit,
       confidence: fromHistory ? hit!.confidence : 'low',
       fromHistory,
+      // Entries built before the seeding feature (and the hand-built literals in
+      // the validators) have no provenance — those are all earned by
+      // construction, so an absent value reads 'earned', never 'seeded'.
+      provenance: fromHistory ? (hit!.provenance ?? 'earned') : null,
       bookKey: fromHistory ? hit!.key : null,
     };
   });

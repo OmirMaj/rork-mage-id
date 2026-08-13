@@ -17,6 +17,12 @@ export function buildNarrationPrompt(v: BidVerdict): string {
     `Recommended bid: ${Math.round(v.recommendedLow)}–${Math.round(v.recommendedHigh)} (mid ${Math.round(v.recommendedMid)}).`,
     `Margin at mid: ${Math.round(v.marginAtMid * 100)}%.`,
     `Cost confidence: ${v.costConfidence}; ${Math.round(v.coveragePct * 100)}% of scope priced from history.`,
+    // The model must never phrase a self-reported rate as measured history —
+    // "your framing costs $12.50, I've watched it" is the one sentence that
+    // would cost the product its credibility. State the split explicitly.
+    ...(v.seededCoveragePct > 0
+      ? [`${Math.round(v.seededCoveragePct * 100)}% of scope priced from rates the contractor SET THEMSELVES (self-reported, not measured on any job here). Do NOT describe these as history, past jobs, or measured costs.`]
+      : []),
     ...v.drivers.map((d) => `- (${d.polarity}) ${d.detail}`),
     ...v.disclaimers.map((s) => `- Note: ${s}`),
   ].join('\n');

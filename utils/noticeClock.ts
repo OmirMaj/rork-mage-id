@@ -1,30 +1,18 @@
-// utils/noticeClock.ts — the notice clock.
+// utils/noticeClock.ts — the notice reminder clock.
 //
-// Spec: docs/superpowers/specs/2026-08-03-claim-defense-design.md §3.
-//
-// ── WHY THIS IS THE HIGHEST-VALUE PIECE OF THE WHOLE FEATURE ────────────────
-// Most construction contracts make written notice a CONDITION PRECEDENT to any
-// claim for time or money. Miss the window and the claim is waived — not
-// weakened, waived — even when the entitlement was completely real.
-//
-//   Greg Opinski Construction, Inc. v. City of Oakdale, 199 Cal.App.4th 1107
-//   (2011): the contractor was held liable for liquidated damages DESPITE
-//   owner-caused delay, because "since the contractor did not use either of the
-//   available contract procedures to obtain a change order to extend the
-//   contract time, the time was not extended, regardless of which party was to
-//   blame for the late completion." Accord Dugan & Meyers Constr. Co. v. Ohio
-//   Dept. of Admin. Servs., 113 Ohio St.3d 226 (2007).
-//
-// Excusability is necessary but not sufficient — the extension has to actually
-// be obtained through the contract's machinery. Every other part of this
-// feature documents a loss. This part prevents one.
+// ── WHAT THIS IS ────────────────────────────────────────────────────────────
+// A countdown against a number the user typed in. The GC opens their own
+// contract, reads how many days it gives them to put a delay in writing, and
+// enters that number on the project. This module counts from the date they
+// first saw the problem to the date that window runs out, and sorts the
+// results so the nearest one is on top.
 //
 // ── WHAT THIS MODULE MAY AND MAY NOT SAY ───────────────────────────────────
 // It reminds a GC about a period THEY entered from THEIR contract. It does not
-// read contracts, does not opine on whether late notice is fatal (courts split:
-// strict-compliance jurisdictions waive the claim outright; others excuse late
-// notice on actual notice without prejudice, waiver by conduct, or substantial
-// compliance), and never states MAGE's reading of anyone's agreement.
+// read contracts, does not interpret them, and never tells the user what any
+// agreement or any law requires of them. Every date it produces is described
+// as the reminder the user configured — see NOTICE_REMINDER_DISCLAIMER, which
+// every surface that renders one of these dates must show.
 //
 // Pure: no React, no react-native, no network, no clock — the caller passes
 // `nowMs`. Same contract as utils/systemOfAction.ts:13 and the reason
@@ -37,22 +25,17 @@ import type {
 
 const DAY_MS = 86400000;
 
-// ── Contract setting ────────────────────────────────────────────────────────
+// ── The user's setting ──────────────────────────────────────────────────────
 
 /**
- * The presets offered when the app asks. Deliberately the three real-world
- * windows and nothing else:
- *   21 — AIA A201-2017 §15.1.3.1 Notice of Claim.
- *   14 — A201-2017 §3.7.4 concealed/unknown conditions (shortened from 21 in
- *        the 2007 edition); also the common ConsensusDocs 200 family window.
- *    7 — the short end of the residential / GC-authored range.
- * "Custom" and "I don't know" are handled by the caller.
+ * Shortcut buttons on the ask. These are just the numbers people enter most
+ * often; any other value goes in through the custom field.
  */
 export const NOTICE_PERIOD_PRESETS: readonly number[] = [7, 14, 21];
 
 /**
- * What "I don't know" resolves to. Conservative on purpose: a clock that runs
- * SHORT is a nuisance, a clock that runs LONG is a waived claim. Everything
+ * What "I don't know" resolves to. Short on purpose: a reminder that fires
+ * early is a nuisance, a reminder that fires late is useless. Everything
  * derived from it is labelled assumed.
  */
 export const ASSUMED_NOTICE_PERIOD_DAYS = 7;
@@ -61,18 +44,27 @@ export const ASSUMED_NOTICE_PERIOD_DAYS = 7;
 export const ASSUMED_LABEL = 'assumed — verify your contract';
 
 /**
- * §3.5. Recording a notice in MAGE is not the same act as serving notice under
- * the contract, and the product must never let those two blur. Any screen that
- * records a notice renders this.
+ * Recording a notice in MAGE is not the same act as sending it, and the
+ * product must never let those two blur. Any screen that records a notice
+ * renders this.
  */
 export const RECORDING_IS_NOT_SERVING =
-  'Recording a notice here is not the same as serving it under your contract. ' +
-  'Send it the way your agreement requires, then log it.';
+  'Recording a notice here is not the same as sending it. ' +
+  'Send it the way your agreement requires, then log it here.';
+
+/**
+ * The one line every surface that renders a derived notice date must show.
+ * Kept short and plain, in the spirit of PDF_DISCLAIMERS (utils/pdfDesign.ts):
+ * say what the date is, say what it isn't, stop.
+ */
+export const NOTICE_REMINDER_DISCLAIMER =
+  'This date is a reminder MAGE counted from the notice window you entered for this job. ' +
+  'It is not legal advice — check your contract.';
 
 /** The question the app asks when noticePeriodDays is unset. */
 export const NOTICE_PERIOD_QUESTION =
-  "What does your contract give you for written notice of a delay? " +
-  "Check your agreement — it's usually 7, 14, or 21 days.";
+  'How many days do you want to allow for written notice of a delay on this job? ' +
+  'Check your agreement and enter what it gives you.';
 
 // ── Day math ────────────────────────────────────────────────────────────────
 //
@@ -81,7 +73,7 @@ export const NOTICE_PERIOD_QUESTION =
 // (portalOwnerCore) and parseISODate (useSmartInbox) all coexist. This reuses
 // daysPast's NOON-ANCHORED parse, which is the one that handles a bare
 // YYYY-MM-DD without timezone drift. That drift is exactly the failure mode
-// that would silently move a legal deadline by a day.
+// that would silently move a reminder date by a day.
 
 /** Parse an ISO date or datetime to ms, anchoring bare dates at local noon. */
 export function parseNoticeDate(iso: string | undefined | null): number | null {
@@ -116,10 +108,10 @@ function toISODate(ms: number): string {
 }
 
 /**
- * The deadline itself. DERIVED, NEVER STORED — a stored deadline goes stale the
- * moment the contract setting is corrected, and a stale legal deadline is worse
- * than none. Same grain as buildChaseList deriving daysOverdue from
- * dateRequired (utils/systemOfAction.ts:40-45).
+ * The date itself. DERIVED, NEVER STORED — a stored date goes stale the moment
+ * the user corrects the window, and a stale reminder is worse than none. Same
+ * grain as buildChaseList deriving daysOverdue from dateRequired
+ * (utils/systemOfAction.ts:40-45).
  *
  * Counts from `firstObservedDate` — the date the GC first knew — not from when
  * the event was entered. A GC logging Monday's washout on Wednesday does not
@@ -137,11 +129,11 @@ export function noticeDeadline(
 
 /**
  * The effective period for a project, and whether it was assumed.
- * `days: null` means UNSET — the app must ask (§3.3). It must not fall back to
- * 21, or to anything else: shipping a default is the product telling a
- * contractor what their contract says, and it does not know. A GC on a 7-day
- * residential agreement given a 21-day clock has a false sense of safety, which
- * is strictly worse than no clock.
+ * `days: null` means UNSET — the app must ask. It must not fall back to 21, or
+ * to anything else: shipping a default is the product putting words in the
+ * user's contract, and it does not know what is in there. A GC on a 7-day
+ * agreement given a 21-day reminder has a false sense of safety, which is
+ * strictly worse than no reminder.
  */
 export function effectiveNoticePeriod(project: Pick<Project, 'noticePeriodDays' | 'noticePeriodAssumed'> | undefined | null): {
   days: number | null;
@@ -152,20 +144,16 @@ export function effectiveNoticePeriod(project: Pick<Project, 'noticePeriodDays' 
   return { days: Math.floor(raw), assumed: project?.noticePeriodAssumed === true };
 }
 
-// ── Notice validity ─────────────────────────────────────────────────────────
+// ── Form completeness ───────────────────────────────────────────────────────
 
 /**
- * Mingus Constructors, Inc. v. United States, 812 F.2d 1387 (Fed. Cir. 1987)
- * requires that "specific claims be excepted in stated amounts." The court
- * called generic language a "blunderbuss exception" and held: "Vague, broad
- * exceptions … are insufficient as a matter of law to constitute 'claims'."
- * Still quoted by the CBCA — Enfield Enterprises v. DHS, CBCA 7684 (2024).
+ * A reservation is three structured fields — what you are reserving, and how
+ * much of it — rather than a checkbox plus a notes box, so that the record
+ * says something specific rather than something generic.
  *
- * This is why the reservation is three structured fields and not a checkbox
- * plus a notes box. A free-text "reserves all rights" is the anti-pattern, not
- * the feature.
- *
- * Returns the list of what is missing; empty means valid.
+ * Returns the list of fields still empty; empty array means the form is
+ * complete. This is a completeness check on a form, not an opinion about the
+ * notice.
  */
 export function reservationViolations(notice: Pick<DelayNotice, 'kind' | 'reservedClaimDescription' | 'reservedAmount' | 'reservedDaysClaimed'>): string[] {
   if (notice.kind !== 'reservation_of_rights') return [];
@@ -182,18 +170,18 @@ export function reservationViolations(notice: Pick<DelayNotice, 'kind' | 'reserv
 }
 
 /**
- * Zafer Taahhut Insaat v. United States, 833 F.3d 1356, 1362 (Fed. Cir. 2016):
- * an open-ended extension request fails Fraser elements 2 and 3. Every notice
- * that asks for time must state how much.
+ * A notice that asks for time has a field for how much. This checks it was
+ * filled in — nothing more.
  */
 export function extensionRequestViolations(notice: Pick<DelayNotice, 'kind' | 'daysRequested'>): string[] {
   if (notice.kind === 'reservation_of_rights') return [];
   const d = notice.daysRequested;
   if (typeof d === 'number' && Number.isFinite(d) && d > 0) return [];
-  return ['a number of days — an open-ended extension request is not a sufficient request'];
+  return ['a number of days'];
 }
 
-/** Everything wrong with a notice, in one call. Empty means it can be saved. */
+/** Every empty required field on a notice, in one call. Empty means it can be
+ *  saved. */
 export function noticeViolations(notice: DelayNotice): string[] {
   return [...reservationViolations(notice), ...extensionRequestViolations(notice)];
 }
@@ -212,16 +200,11 @@ export function noticeMethodLabel(m: DelayNoticeMethod): string {
 }
 
 /**
- * §3.5 — THE ONE THING THE CLOCK MUST SAY OUT LOUD.
- *
- * AIA A201-2017 §15.1.3.2 requires written notice "by certified or registered
- * mail, or by courier providing proof of delivery." An ordinary email does not
- * satisfy it unless the §1.6 electronic-transmission provisions are set up in
- * the agreement, and a message in a vendor's portal certainly does not.
- *
- * So when the contract requires certified mail or courier and the GC records a
- * notice sent through the portal or by email, say so. Returns null when there
- * is nothing to warn about.
+ * A mismatch between the delivery method the user recorded for this job and
+ * the one they just logged. Reports the two settings back to them and says
+ * nothing about what follows from the difference. Returns null when they
+ * recorded no requirement, or when the method they used carries proof of
+ * delivery.
  */
 export function noticeMethodWarning(
   requiredMethod: DelayNoticeMethod | undefined | null,
@@ -230,26 +213,24 @@ export function noticeMethodWarning(
   if (requiredMethod !== 'certified_mail' && requiredMethod !== 'courier') return null;
   if (usedMethod === 'certified_mail' || usedMethod === 'courier' || usedMethod === 'hand_delivered') return null;
   return (
-    'Your contract requires certified mail or courier with proof of delivery. ' +
-    `A ${METHOD_LABEL[usedMethod].toLowerCase()} notice may not satisfy A201 §15.1.3.2.`
+    `You set ${METHOD_LABEL[requiredMethod].toLowerCase()} as the delivery this job requires. ` +
+    `This one is logged as ${METHOD_LABEL[usedMethod].toLowerCase()}.`
   );
 }
 
 // ── Classification ──────────────────────────────────────────────────────────
 
 /**
- * §5.3 — SUGGEST, NEVER CONCLUDE. This returns a starting point for a human to
- * accept or override. The stored `classification` default is 'unclassified' and
- * nothing in the app may set it silently: an entitlement call is the GC's
- * assertion and their attorney's argument, not a finding software makes.
+ * SUGGEST, NEVER CONCLUDE. Returns a starting point for a human to accept or
+ * override. The stored `classification` default is 'unclassified' and nothing
+ * in the app may set it silently — this is the user's own label on their own
+ * delay, and MAGE only pre-fills the obvious ones.
  *
  * Returns null where there is no honest suggestion to make.
  */
 export function suggestClassification(cause: DelayCause): DelayClassification | null {
   switch (cause) {
     case 'weather':
-      // Excusable if unusually severe; time but not money. "Unusually severe"
-      // is itself a contested question, which is why this is a suggestion.
       return 'excusable_noncompensable';
     case 'owner_directed_change':
     case 'late_rfi_response':
@@ -261,8 +242,8 @@ export function suggestClassification(cause: DelayCause): DelayClassification | 
     case 'differing_site_condition':
     case 'permit_or_inspection':
     case 'other':
-      // Genuinely depends on who bears the risk under this contract. Offering a
-      // guess here would be the app deciding entitlement.
+      // Depends entirely on the job and the agreement. A guess here would be
+      // MAGE putting a label on something it cannot see.
       return null;
     default:
       return null;
@@ -322,10 +303,11 @@ export interface NoticeStatus {
   urgency: NoticeUrgency;
   /** When an initial notice was recorded, its timestamp. */
   noticeRecordedAt?: string;
-  /** §3.5 — set when the recorded method may not satisfy the contract. */
+  /** Set when the method logged differs from the one recorded for the job. */
   methodWarning?: string;
-  /** §3.4 Fraser element 4 — the second notice nobody remembers. */
-  accelerationPrompt?: string;
+  /** Set when a notice is on the record and the owner has not answered inside
+   *  the response window. A fact about elapsed time, nothing more. */
+  ownerSilencePrompt?: string;
   /** One-line headline for a card or an inbox row. */
   headline: string;
   detail: string;
@@ -334,10 +316,8 @@ export interface NoticeStatus {
 }
 
 /**
- * How long the owner gets to answer an extension request before the app raises
- * the constructive-acceleration prompt. Fraser element 3 is "denied the request
- * or failed to act on it within a reasonable time"; what is reasonable is a
- * question of fact, so this is a nudge threshold and nothing more.
+ * How long a recorded notice can sit unanswered before MAGE surfaces it again.
+ * A display threshold, not a rule about anything.
  */
 export const OWNER_RESPONSE_WINDOW_DAYS = 14;
 
@@ -350,39 +330,26 @@ function hasSupplementalNotice(event: DelayEvent): boolean {
 }
 
 /**
- * §3.4 — CONSTRUCTIVE ACCELERATION NEEDS THE NOTICE TWICE, AND EVERYONE MISSES
- * THE SECOND ONE.
+ * A notice went out and nothing came back. States how long it has been, so a
+ * delay event that has gone quiet does not simply drop off the list.
  *
- *   Fraser Construction Co. v. United States, 384 F.3d 1354, 1361 (Fed. Cir.
- *   2004): "(1) … a delay that is excusable under the contract; (2) … a timely
- *   and sufficient request for an extension; (3) … the government denied the
- *   request or failed to act on it within a reasonable time; (4) … the
- *   government insisted on completion … within a shorter period …, AFTER WHICH
- *   THE CONTRACTOR NOTIFIED THE GOVERNMENT THAT IT REGARDED THE ALLEGED ORDER
- *   TO ACCELERATE AS A CONSTRUCTIVE CHANGE IN THE CONTRACT; and (5) … the
- *   contractor was required to expend extra resources."
- *
- * Element 4 is a second, separate notice. It is the most-missed element in this
- * body of law. Fires when: an initial notice exists, no CO has resolved the
- * event, no supplemental notice has been sent, and the owner has been sitting
- * on it past the response window.
+ * Fires when: an initial notice exists, no CO has resolved the event, no
+ * follow-up notice has been recorded, and the wait is past the response
+ * window. It reports the elapsed time and stops there — what to do about it
+ * is the user's call.
  */
-export function accelerationPromptFor(
+export function ownerSilencePromptFor(
   event: DelayEvent,
   nowMs: number,
   responseWindowDays: number = OWNER_RESPONSE_WINDOW_DAYS,
 ): string | null {
   const initial = initialNotice(event);
   if (!initial) return null;
-  if (event.changeOrderId) return null;           // resolved — nothing to escalate
-  if (hasSupplementalNotice(event)) return null;  // already sent
+  if (event.changeOrderId) return null;           // resolved — nothing outstanding
+  if (hasSupplementalNotice(event)) return null;  // already followed up
   const waited = daysSince(initial.sentAt, nowMs);
   if (waited === null || waited < responseWindowDays) return null;
-  return (
-    `The owner hasn't responded in ${waited} days. If they're still holding you to the ` +
-    'original completion date, you may need to notify them in writing that you regard that ' +
-    'as constructive acceleration — that second notice is a separate element of the claim.'
-  );
+  return `No response recorded in the ${waited} days since you logged this notice.`;
 }
 
 function urgencyFor(daysRemaining: number): Exclude<NoticeUrgency, 'unset' | 'given'> {
@@ -417,7 +384,7 @@ export interface BuildNoticeStatusOpts {
  * The whole clock, for every open delay event. Sorted most-urgent first
  * (blown before critical, and within a bucket the fewest days remaining).
  *
- * Events on a project with no notice period produce an 'unset' status — that
+ * Events on a project with no notice window produce an 'unset' status — that
  * is the ASK, not a silent skip. Dropping them would hide the one thing the
  * user has to do for the clock to work at all.
  */
@@ -433,17 +400,17 @@ export function buildNoticeStatus(opts: BuildNoticeStatusOpts): NoticeStatus[] {
     const { days, assumed } = effectiveNoticePeriod(project);
     const label = `DE-${String(e.number).padStart(3, '0')}`;
     const initial = initialNotice(e);
-    const accelerationPrompt = accelerationPromptFor(e, nowMs, opts.responseWindowDays) ?? undefined;
+    const ownerSilencePrompt = ownerSilencePromptFor(e, nowMs, opts.responseWindowDays) ?? undefined;
 
     const methodWarning = initial
       ? noticeMethodWarning(project?.noticeMethodRequired, initial.method) ?? undefined
       : undefined;
 
     // Notice already on the record — the clock has stopped. Keep it only when
-    // asked for, or when there is an acceleration prompt or a method warning to
-    // surface, because those are live obligations of their own.
+    // asked for, or when the owner has gone quiet or the method differs from
+    // the one recorded for the job, because those are still open threads.
     if (initial) {
-      if (!includeGiven && !accelerationPrompt && !methodWarning) continue;
+      if (!includeGiven && !ownerSilencePrompt && !methodWarning) continue;
       out.push({
         eventId: e.id,
         projectId: e.projectId,
@@ -458,12 +425,12 @@ export function buildNoticeStatus(opts: BuildNoticeStatusOpts): NoticeStatus[] {
         urgency: 'given',
         noticeRecordedAt: initial.sentAt,
         methodWarning,
-        accelerationPrompt,
-        headline: accelerationPrompt
-          ? `${label} · owner hasn't responded`
+        ownerSilencePrompt,
+        headline: ownerSilencePrompt
+          ? `${label} · no response recorded`
           : `${label} · notice recorded`,
-        detail: accelerationPrompt ?? methodWarning ?? `Notice recorded ${initial.sentAt.slice(0, 10)} · ${noticeMethodLabel(initial.method)}`,
-        severity: accelerationPrompt ? 2 : methodWarning ? 2 : 1,
+        detail: ownerSilencePrompt ?? methodWarning ?? `Notice recorded ${initial.sentAt.slice(0, 10)} · ${noticeMethodLabel(initial.method)}`,
+        severity: ownerSilencePrompt ? 2 : methodWarning ? 2 : 1,
       });
       continue;
     }
@@ -481,11 +448,11 @@ export function buildNoticeStatus(opts: BuildNoticeStatusOpts): NoticeStatus[] {
         noticePeriodDays: null,
         assumed: false,
         urgency: 'unset',
-        accelerationPrompt,
-        headline: `${label} · set your notice period`,
+        ownerSilencePrompt,
+        headline: `${label} · set your notice window`,
         detail:
-          `${projectName} has no written-notice window recorded, so MAGE can't tell you when ` +
-          "notice is due. " + NOTICE_PERIOD_QUESTION,
+          `${projectName} has no notice window recorded, so there is nothing for MAGE to ` +
+          'count down. ' + NOTICE_PERIOD_QUESTION,
         severity: 2,
       });
       continue;
@@ -516,7 +483,7 @@ export function buildNoticeStatus(opts: BuildNoticeStatusOpts): NoticeStatus[] {
       noticePeriodDays: days,
       assumed,
       urgency,
-      accelerationPrompt,
+      ownerSilencePrompt,
       headline,
       detail:
         `${CAUSE_LABEL[e.cause]} first observed ${e.firstObservedDate} · ` +
@@ -540,16 +507,16 @@ export function noticeSummary(statuses: NoticeStatus[]): {
   blown: number;
   critical: number;
   unset: number;
-  needsSecondNotice: number;
+  awaitingResponse: number;
 } {
-  let blown = 0, critical = 0, unset = 0, needsSecondNotice = 0;
+  let blown = 0, critical = 0, unset = 0, awaitingResponse = 0;
   for (const s of statuses) {
     if (s.urgency === 'blown') blown += 1;
     if (s.urgency === 'critical') critical += 1;
     if (s.urgency === 'unset') unset += 1;
-    if (s.accelerationPrompt) needsSecondNotice += 1;
+    if (s.ownerSilencePrompt) awaitingResponse += 1;
   }
-  return { total: statuses.length, blown, critical, unset, needsSecondNotice };
+  return { total: statuses.length, blown, critical, unset, awaitingResponse };
 }
 
 /** Next per-project event number, rendered "DE-004". Mirrors

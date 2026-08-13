@@ -8,6 +8,7 @@ import { buildCostDatabase } from '@/utils/costDatabase';
 import type { Commitment } from '@/types';
 import type { MaterialReceipt } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
+import type { SeededRate } from '@/utils/costSeedCore';
 
 export interface EstimateSnapshotPayload {
   estimateId: string;
@@ -28,12 +29,22 @@ export function buildEstimateSnapshotPayload(
   commitments: Commitment[],
   receipts: MaterialReceipt[] = [],
   laborSamples: CostSample[] = [],
+  /** Cold-start seeds (hooks/useCostSeeds). Additive; [] = prior behavior.
+   *
+   *  SAFE FOR coveragePct BY CONSTRUCTION, and worth stating because this
+   *  payload is what the brain later GRADES itself against: coveragePct is
+   *  report.backedPct, which only counts lines whose entry is medium/high
+   *  confidence AND aligned. A seeded-only entry is always 'low' confidence
+   *  (jobCount 0 ⇒ n=0 ⇒ neither the n>=5 nor the n>=3 branch fires), so a
+   *  stated rate can move a line off 'no_history' but can NEVER raise the
+   *  coverage the brain scores itself on. */
+  seeds: SeededRate[] = [],
 ): EstimateSnapshotPayload | null {
   const estimate = project.linkedEstimate;
   if (!estimate) return null;
 
   // Build the cost DB so we can get per-line confidence bands from history.
-  const costDb = buildCostDatabase(allProjects, commitments, receipts, laborSamples);
+  const costDb = buildCostDatabase(allProjects, commitments, receipts, laborSamples, seeds);
   const report: EstimateConfidenceReport = computeEstimateConfidence(project, costDb);
 
   // Build a map from materialId → confidence so we can annotate each line.

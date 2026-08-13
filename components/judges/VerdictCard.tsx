@@ -70,6 +70,9 @@ export function VerdictCard({ result }: { result: JudgesResult }) {
         <View style={styles.badge}>
           <Text style={styles.badgeText}>
             {CONFIDENCE_LABEL[v.costConfidence]} confidence · {Math.round(v.coveragePct * 100)}% from your history
+            {/* Never folded into the history figure — a rate you set is not a
+                rate we measured. */}
+            {v.seededCoveragePct > 0 ? ` · ${Math.round(v.seededCoveragePct * 100)}% from rates you set` : ''}
           </Text>
         </View>
       </View>

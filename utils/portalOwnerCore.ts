@@ -76,8 +76,14 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** "Jun 7" / "Jun 7, 2026" — deterministic, locale-independent (the portal's
  *  own fmtDate() is locale-aware, but narrative TEXT is baked into the snapshot
- *  so it must not vary by which device built it). */
-export function formatShortDate(calendarDate: string, withYear = false): string {
+ *  so it must not vary by which device built it).
+ *
+ *  Takes a YYYY-MM-DD CALENDAR STRING. Named for that on purpose:
+ *  scheduleEngine exports a `formatShortDate` that takes a Date, and two
+ *  same-named exports with incompatible argument types is a wrong-import away
+ *  from `.split is not a function` at runtime. Not exported — nothing outside
+ *  this module needs it. */
+function formatCalendarDate(calendarDate: string, withYear = false): string {
   const [y, m, d] = calendarDate.split('-');
   const label = `${MONTHS[Number(m) - 1] ?? m} ${Number(d)}`;
   return withYear ? `${label}, ${y}` : label;
@@ -85,11 +91,11 @@ export function formatShortDate(calendarDate: string, withYear = false): string 
 
 /** "Jun 1 – Jun 30" (same year) or "Dec 20, 2025 – Jan 15, 2026". */
 export function formatDateRange(from: string, to: string): string {
-  if (from === to) return formatShortDate(from, true);
+  if (from === to) return formatCalendarDate(from, true);
   const sameYear = from.slice(0, 4) === to.slice(0, 4);
   return sameYear
-    ? `${formatShortDate(from)} – ${formatShortDate(to, true)}`
-    : `${formatShortDate(from, true)} – ${formatShortDate(to, true)}`;
+    ? `${formatCalendarDate(from)} – ${formatCalendarDate(to, true)}`
+    : `${formatCalendarDate(from, true)} – ${formatCalendarDate(to, true)}`;
 }
 
 function plural(n: number, one: string, many?: string): string {
@@ -365,7 +371,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
   }
   let headline = `${subject}.`;
   if (photoCount > 0 && photoFrom && photoTo) {
-    const range = photoFrom === photoTo ? formatShortDate(photoFrom) : `${formatShortDate(photoFrom)}–${formatShortDate(photoTo)}`;
+    const range = photoFrom === photoTo ? formatCalendarDate(photoFrom) : `${formatCalendarDate(photoFrom)}–${formatCalendarDate(photoTo)}`;
     headline = `${subject} — ${photoCount} ${plural(photoCount, 'photo')} from ${range}.`;
   }
 
@@ -385,7 +391,7 @@ export function buildPeriodNarrative(input: PeriodActivityInput): PeriodNarrativ
     bullets.push(`Work logged: ${note}`);
   }
   if (photoCount > 0 && photoFrom && photoTo) {
-    const range = photoFrom === photoTo ? formatShortDate(photoFrom, true) : formatDateRange(photoFrom, photoTo);
+    const range = photoFrom === photoTo ? formatCalendarDate(photoFrom, true) : formatDateRange(photoFrom, photoTo);
     bullets.push(`${photoCount} ${plural(photoCount, 'photo')} taken ${photoFrom === photoTo ? 'on' : 'between'} ${range} — see the Photos section.`);
   }
 
@@ -556,11 +562,11 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     const category = typeof sel.category === 'string' && sel.category.trim() ? tidy(sel.category, 60) : 'Selection';
     let detail: string;
     if (urgency === 'overdue') {
-      detail = `Was due ${formatShortDate(dueDate!, true)}. Your contractor can't order until you pick.`;
+      detail = `Was due ${formatCalendarDate(dueDate!, true)}. Your contractor can't order until you pick.`;
     } else if (urgency === 'due_soon') {
-      detail = `Due ${formatShortDate(dueDate!, true)}. Picking now keeps the crew and the delivery on schedule.`;
+      detail = `Due ${formatCalendarDate(dueDate!, true)}. Picking now keeps the crew and the delivery on schedule.`;
     } else if (dueDate) {
-      detail = `Due ${formatShortDate(dueDate, true)}. Pick when you're ready — earlier is easier to schedule.`;
+      detail = `Due ${formatCalendarDate(dueDate, true)}. Pick when you're ready — earlier is easier to schedule.`;
     } else {
       detail = 'Pick a finish so your contractor can order it and hold the schedule.';
     }
@@ -587,9 +593,9 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     const label = inv.number != null ? `Invoice #${inv.number}` : 'Invoice';
     let detail: string;
     if (urgency === 'overdue') {
-      detail = `Was due ${formatShortDate(dueDate!, true)}. Open it to review and pay.`;
+      detail = `Was due ${formatCalendarDate(dueDate!, true)}. Open it to review and pay.`;
     } else if (dueDate) {
-      detail = `Due ${formatShortDate(dueDate, true)}. Open it to review and pay.`;
+      detail = `Due ${formatCalendarDate(dueDate, true)}. Open it to review and pay.`;
     } else {
       detail = 'Open the invoice to review and pay.';
     }
@@ -630,14 +636,14 @@ export function summarizeOwnerDecisions(decisions: OwnerDecision[]): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. Change-order e-signature consent record (ESIGN / UETA)
+// 4. Change-order e-signature consent record
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // A homeowner "approving" a $12K change order behind a browser confirm() +
-// prompt() is a consent CLICK, not an electronic signature. ESIGN/UETA want:
-// intent to sign, consent to do business electronically, association of the
-// signature with the record, and a retainable copy. The canonical record below
-// is the retainable artifact — the portal hashes it (SHA-256) and the
+// prompt() is a consent CLICK, not a signature. This flow captures the four
+// things that make a signature worth keeping: the signer's stated intent, the
+// record they were looking at, a drawn mark, and a copy they can keep. The
+// canonical record below is that copy — the portal hashes it (SHA-256) and the
 // portal_submit_co_approval_signed RPC re-hashes it server-side before storing,
 // so any later byte-level edit to the stored record breaks the stored hash.
 // Same tamper-evidence property as the contract flow's seal-document fn.
@@ -648,11 +654,10 @@ export function summarizeOwnerDecisions(decisions: OwnerDecision[]): string {
 
 /** Bump when the disclosure text or the field set changes — a stored record
  *  must always be re-verifiable against the disclosure the signer actually saw. */
-export const ESIGN_DISCLOSURE_VERSION = 'co-esign-1';
+export const ESIGN_DISCLOSURE_VERSION = 'co-esign-2';
 
 export const ESIGN_DISCLOSURE_TEXT =
   'By typing your legal name, drawing your signature, and selecting "I agree", you consent to sign this change order electronically. ' +
-  'Your electronic signature has the same legal effect as a handwritten one under the U.S. E-SIGN Act and UETA. ' +
   'You are approving the scope described above and the resulting change to your contract total. ' +
   'You may decline instead, or ask for a paper copy at no charge, by messaging your contractor. ' +
   'A copy of this record is retained by your contractor and is available to you on request.';
@@ -724,7 +729,7 @@ export function buildCOAuditDetail(input: {
   if (input.decision === 'approved') {
     return (
       'Electronically signed via the client portal ' +
-      `(E-SIGN/UETA consent ${ESIGN_DISCLOSURE_VERSION}` +
+      `(signing consent ${ESIGN_DISCLOSURE_VERSION}` +
       (input.signatureStrokeCount != null ? `, ${input.signatureStrokeCount} signature strokes` : '') +
       (input.documentHash ? `, record SHA-256 ${input.documentHash.slice(0, 16)}…` : '') +
       ').'

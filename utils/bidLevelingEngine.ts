@@ -32,6 +32,7 @@
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import type { SeededRate } from '@/utils/costSeedCore';
 import type { BidPackage, BidPackageBid, Project, Commitment, MaterialReceipt } from '@/types';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -82,6 +83,10 @@ interface LevelOpts {
   commitments?: Commitment[];
   /** Snapped material receipts — additive learned rates. */
   receipts?: MaterialReceipt[];
+  /** Cold-start seeds (hooks/useCostSeeds) — rates the GC stated before they
+   *  had closed-job history here. Without them a seeded GC levels bids against
+   *  an EMPTY cost book and every adjustment falls back to 'market_guess'. */
+  seeds?: SeededRate[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,9 +98,10 @@ function buildCostBookFacts(
   projects: Project[],
   commitments: Commitment[],
   receipts: MaterialReceipt[],
-): { facts: string; entryCount: number } {
-  const db = buildCostDatabase(projects, commitments, receipts);
-  if (db.entries.length === 0) return { facts: '', entryCount: 0 };
+  seeds: SeededRate[],
+): { facts: string; entryCount: number; seededCount: number } {
+  const db = buildCostDatabase(projects, commitments, receipts, [], seeds);
+  if (db.entries.length === 0) return { facts: '', entryCount: 0, seededCount: 0 };
 
   // Surface entries relevant to this package's trade / CSI.  We match
   // loosely: the package's CSI division prefix or its name words against
@@ -113,6 +119,11 @@ function buildCostBookFacts(
     : db.entries.sort((a, b) => b.totalActual - a.totalActual).slice(0, 4);
 
   const lines = topEntries.map(e => {
+    // A seeded-only rate is the GC's own claim, not something we measured.
+    // "(1 sample, low confidence)" would read as evidence, so say what it is.
+    if (e.provenance === 'seeded') {
+      return `  • ${e.trade} / ${e.unit}: $${e.suggestedRate.toFixed(2)}/unit (SELF-REPORTED — the GC set this rate themselves; nothing here has measured it)`;
+    }
     const confLabel = e.confidence === 'high' ? 'high confidence' : e.confidence === 'medium' ? 'medium confidence' : 'low confidence';
     const bias = e.bidBias > 0.05
       ? `, you bid LOW by ${Math.round(e.bidBias * 100)}%`
@@ -122,22 +133,25 @@ function buildCostBookFacts(
     return `  • ${e.trade} / ${e.unit}: $${e.suggestedRate.toFixed(2)}/unit (${e.sampleCount} samples, ${confLabel}${bias})`;
   });
 
-  const facts = `LEARNED COST BOOK (${db.jobsAnalyzed} closed job${db.jobsAnalyzed === 1 ? '' : 's'} analyzed):\n${lines.join('\n')}`;
-  return { facts, entryCount: topEntries.length };
+  const seededCount = topEntries.filter(e => e.provenance === 'seeded').length;
+  // jobsAnalyzed already excludes seeds by construction, so this header stays
+  // true even for a book that is entirely self-reported ("0 closed jobs").
+  const facts = `THE GC'S OWN RATES (${db.jobsAnalyzed} closed job${db.jobsAnalyzed === 1 ? '' : 's'} analyzed):\n${lines.join('\n')}`;
+  return { facts, entryCount: topEntries.length, seededCount };
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
-  const { pkg, bids, projects = [], commitments = [], receipts = [] } = opts;
+  const { pkg, bids, projects = [], commitments = [], receipts = [], seeds = [] } = opts;
   // Leveling requires at least 2 bids — otherwise there's nothing to
   // normalize against. The screen guards this too, but utilities exposed
   // module-wide should defend themselves (code-review #5).
   if (bids.length < 2) return { adjustments: [], summary: '', recommendedWinnerBidId: '', recommendedWinnerReason: '' };
 
   // Build cost-book grounding block.
-  const { facts: costBookFacts, entryCount: costBookEntries } = buildCostBookFacts(
-    pkg, projects, commitments, receipts,
+  const { facts: costBookFacts, entryCount: costBookEntries, seededCount: costBookSeeded } = buildCostBookFacts(
+    pkg, projects, commitments, receipts, seeds,
   );
 
   // Build the prompt with each bid's raw text.
@@ -151,8 +165,8 @@ export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
   }).join('\n\n');
 
   const costBookSection = costBookFacts
-    ? `\n${costBookFacts}\n\nWhen pricing an adjustment, use the LEARNED COST BOOK rates above whenever the missing scope matches a trade/unit in it. Set adjustmentBasis='your_history' for those rows. For scope the book doesn't cover, fall back to typical residential costs and set adjustmentBasis='market_guess', capping that confidence at 49.`
-    : `\nNo learned cost-book data available — use typical residential costs and set adjustmentBasis='market_guess', capping confidence at 49.`;
+    ? `\n${costBookFacts}\n\nWhen pricing an adjustment, use the rates above whenever the missing scope matches a trade/unit in it. Set adjustmentBasis='your_history' for rows priced off a MEASURED rate. A rate marked SELF-REPORTED is the GC's own stated number, not measured history — you may still price from it, but cap that row's confidence at 49 and never describe it as their history or job experience. For scope no rate covers, fall back to typical residential costs and set adjustmentBasis='market_guess', capping that confidence at 49.`
+    : `\nNo cost-book data available — use typical residential costs and set adjustmentBasis='market_guess', capping confidence at 49.`;
 
   const r = await mageAI({
     prompt: `You are a residential GC's buyout / bid leveling assistant. The GC has received multiple bids on the same scope of work and needs you to compute the ADJUSTMENT to add to each bid so they can be compared apples-to-apples.
@@ -212,7 +226,15 @@ YOUR JOB
 
   // Attach a grounding summary to the summary so the GC understands the basis.
   if (costBookEntries > 0 && result.summary) {
-    result.summary = `(Adjustments priced from your cost history · ${costBookEntries} learned trade${costBookEntries === 1 ? '' : 's'}) ${result.summary}`;
+    // Count earned and self-reported trades separately — a GC whose book is
+    // entirely seeded must not be told the adjustments came from their history.
+    const earned = costBookEntries - costBookSeeded;
+    const parts = [
+      earned > 0 ? `${earned} learned trade${earned === 1 ? '' : 's'}` : '',
+      costBookSeeded > 0 ? `${costBookSeeded} rate${costBookSeeded === 1 ? '' : 's'} you set yourself` : '',
+    ].filter(Boolean);
+    const lead = earned > 0 ? 'Adjustments priced from your cost book' : 'Adjustments priced from rates you set yourself';
+    result.summary = `(${lead} · ${parts.join(' + ')}) ${result.summary}`;
   }
 
   return result;

@@ -31,6 +31,7 @@ import { generateUUID } from '@/utils/generateId';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import type { TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney } from '@/utils/formatters';
@@ -124,6 +125,9 @@ export default function SubmitBidResponseScreen() {
   // rates into the cost book that grounds the instant-bid ROM.
   const laborSamples = useLaborCostSamples();
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds. A sub bidding an RFP may have no projects in MAGE at all
+  // — see the relaxed groundingContext guard below.
+  const { seeds } = useCostSeeds();
 
   const [estimateAmount, setEstimateAmount]   = useState('');
   const [estimateSummary, setEstimateSummary] = useState('');
@@ -178,9 +182,12 @@ export default function SubmitBidResponseScreen() {
           companyName: company?.companyName,
           financing: settings?.financing,
           contractorNote: message.trim() || undefined,
+          // Seeds alone ground the ROM. Gating on projects.length would drop the
+          // stated rate sheet of a contractor who hasn't created a project yet
+          // — the exact cold start seeding exists to fix.
           groundingContext:
-            Array.isArray(projects) && projects.length > 0
-              ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], receipts, laborSamples }
+            (Array.isArray(projects) && projects.length > 0) || seeds.length > 0
+              ? { projects: (Array.isArray(projects) ? projects : []) as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], receipts, laborSamples, seeds }
               : undefined,
         },
       );

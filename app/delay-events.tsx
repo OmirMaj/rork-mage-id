@@ -1,12 +1,13 @@
 // app/delay-events.tsx — the delay register.
 //
-// Spec: docs/superpowers/specs/2026-08-03-claim-defense-design.md §2.2–§3.5.
-//
 // The app already captures six kinds of delay evidence and NONE of them
 // reference each other: there is no object that says "this photo, this weather
 // day, this RFI, and this CO are the same delay." This screen is that object,
-// plus the clock that keeps a real claim from being waived on a missed notice
-// window.
+// plus a countdown against the notice window the user entered for the job.
+//
+// COPY RULE FOR THIS SCREEN: it describes what MAGE recorded and what the user
+// configured. It does not tell anyone what their contract or the law requires,
+// and it does not say what any of this will be worth later.
 //
 // Entry points that write here:
 //   * app/daily-report.tsx — the Issues & Delays field
@@ -43,6 +44,7 @@ import {
   effectiveNoticePeriod, noticeDeadline,
   CAUSE_LABEL, CLASSIFICATION_LABEL, NOTICE_PERIOD_PRESETS, ASSUMED_NOTICE_PERIOD_DAYS,
   ASSUMED_LABEL, NOTICE_PERIOD_QUESTION, RECORDING_IS_NOT_SERVING,
+  NOTICE_REMINDER_DISCLAIMER,
   type NoticeStatus,
 } from '@/utils/noticeClock';
 import type {
@@ -66,8 +68,8 @@ const METHODS: DelayNoticeMethod[] = [
 const NOTICE_KINDS: DelayNotice['kind'][] = ['initial', 'supplemental', 'reservation_of_rights'];
 
 const NOTICE_KIND_LABEL: Record<DelayNotice['kind'], string> = {
-  initial: 'Notice of claim',
-  supplemental: 'Acceleration notice',
+  initial: 'Initial notice',
+  supplemental: 'Follow-up notice',
   reservation_of_rights: 'Reservation of rights',
 };
 
@@ -214,9 +216,9 @@ export default function DelayEventsScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
 
-  // ── §3.3 — the contract notice period ─────────────────────────────────────
+  // ── The notice window the user sets for this job ──────────────────────────
   // Setting it is a project-level write. `assumed` marks the "I don't know"
-  // path so every downstream deadline can be labelled.
+  // path so every downstream date can be labelled.
   const setNoticePeriod = useCallback((days: number | null, assumed: boolean) => {
     if (!project) return;
     updateProject(project.id, {
@@ -254,8 +256,8 @@ export default function DelayEventsScreen() {
       claimedDays: toInt(formClaimed),
       concurrentDays: formConcurrent.trim() ? toInt(formConcurrent) : undefined,
       notices: [],
-      // §1.3 / §5.3 — the app does NOT guess entitlement. A suggestion is
-      // offered on the event card; nothing is decided here.
+      // The app does NOT label the delay for the user. A suggestion is offered
+      // on the event card; nothing is set here.
       classification: 'unclassified',
       createdAt: now,
       updatedAt: now,
@@ -264,10 +266,9 @@ export default function DelayEventsScreen() {
     resetForm();
     setShowLogModal(false);
 
-    // §3.3 — the FIRST delay event on a project with no notice period BLOCKS on
-    // the ask. Not a toast, not a badge: without the period there is no clock,
-    // and a delay register with no clock is the exact thing this feature exists
-    // to prevent.
+    // The FIRST delay event on a project with no notice window BLOCKS on the
+    // ask. Not a toast, not a badge: without the window there is nothing to
+    // count down, and the countdown is half of what this screen is for.
     //
     // It also takes precedence over opening the event detail, so exactly ONE
     // modal transitions per tick — presenting two while a third dismisses is
@@ -302,8 +303,8 @@ export default function DelayEventsScreen() {
     }
     // Weather delay log lives on the schedule blob. `source` rides along in the
     // note so an entry can never be read as evidence without its provenance —
-    // a 'mixed' entry contains days that came from SIMULATED weather and are
-    // not admissible as delay documentation.
+    // a 'mixed' entry contains days that came from SIMULATED weather, which is
+    // generated from the calendar and has no relation to the jobsite.
     for (const w of project?.schedule?.weatherDelayLog ?? []) {
       out.push({
         kind: 'weather_log',
@@ -377,13 +378,12 @@ export default function DelayEventsScreen() {
                 : `${events.length} delay${events.length === 1 ? '' : 's'} on the record`}
             </Text>
             <Text style={styles.heroSub}>
-              Every delay, dated, evidenced and notice-tracked. Most contracts make written
-              notice a condition of any claim for time or money — a real claim can be waived
-              purely on a missed window.
+              Every delay, dated and evidenced, counted against the notice window you set for
+              this job.
             </Text>
           </View>
 
-          {/* ── §3.3 — the contract notice period ─────────────────────────── */}
+          {/* ── The notice window for this job ────────────────────────────── */}
           <TouchableOpacity
             style={[styles.card, period.days === null && styles.cardWarn]}
             onPress={() => { haptic(); setShowPeriodModal(true); }}
@@ -401,22 +401,22 @@ export default function DelayEventsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>
                   {period.days === null
-                    ? 'Set your contract notice period'
+                    ? 'Set your notice window'
                     : `${period.days}-day written notice${period.assumed ? ` · ${ASSUMED_LABEL}` : ''}`}
                 </Text>
                 <Text style={styles.cardMeta}>
                   {period.days === null
                     ? NOTICE_PERIOD_QUESTION
                     : project?.noticeMethodRequired
-                      ? `Delivery required: ${noticeMethodLabel(project.noticeMethodRequired)}`
-                      : 'No required delivery method recorded'}
+                      ? `Delivery you recorded: ${noticeMethodLabel(project.noticeMethodRequired)}`
+                      : 'No delivery method recorded'}
                 </Text>
               </View>
               <ChevronRight size={14} color={t.textMuted} strokeWidth={2} />
             </View>
           </TouchableOpacity>
 
-          {(summary.blown > 0 || summary.critical > 0 || summary.needsSecondNotice > 0) && (
+          {(summary.blown > 0 || summary.critical > 0 || summary.awaitingResponse > 0) && (
             <View style={[styles.card, styles.cardDanger]}>
               <View style={styles.cardTop}>
                 <View style={[styles.iconWrap, { backgroundColor: t.dangerSoft }]}>
@@ -428,11 +428,10 @@ export default function DelayEventsScreen() {
                       ? `${summary.blown} notice window${summary.blown === 1 ? '' : 's'} closed`
                       : summary.critical > 0
                         ? `${summary.critical} notice${summary.critical === 1 ? '' : 's'} due within 3 days`
-                        : `${summary.needsSecondNotice} awaiting an owner response`}
+                        : `${summary.awaitingResponse} with no response recorded`}
                   </Text>
                   <Text style={styles.cardMeta}>
-                    A missed window can waive a claim you would have won — and you can still
-                    owe liquidated damages on a delay that was not your fault.
+                    Counted against the notice window you set for this job.
                   </Text>
                 </View>
               </View>
@@ -495,8 +494,8 @@ export default function DelayEventsScreen() {
                     {s?.methodWarning && (
                       <Text style={styles.warnLine}>{s.methodWarning}</Text>
                     )}
-                    {s?.accelerationPrompt && (
-                      <Text style={styles.warnLine}>{s.accelerationPrompt}</Text>
+                    {s?.ownerSilencePrompt && (
+                      <Text style={styles.warnLine}>{s.ownerSilencePrompt}</Text>
                     )}
                   </TouchableOpacity>
                 );
@@ -505,13 +504,12 @@ export default function DelayEventsScreen() {
           )}
 
           <Text style={styles.footNote}>
-            MAGE assembles and narrates. It does not decide entitlement, and recording a
-            notice here is not the same act as serving it under your contract.
+            {NOTICE_REMINDER_DISCLAIMER} {RECORDING_IS_NOT_SERVING}
           </Text>
         </View>
       </ScrollView>
 
-      {/* ── §3.3 The ask ──────────────────────────────────────────────────── */}
+      {/* ── The ask ───────────────────────────────────────────────────────── */}
       <NoticePeriodModal
         visible={showPeriodModal}
         styles={styles}
@@ -551,7 +549,7 @@ export default function DelayEventsScreen() {
 
               <Text style={styles.fieldLabel}>Date you first knew</Text>
               <Text style={styles.fieldHint}>
-                This starts the notice clock — not the day you got round to typing it up.
+                The countdown runs from this date — not the day you got round to typing it up.
               </Text>
               <TextInput
                 style={styles.input}
@@ -588,9 +586,8 @@ export default function DelayEventsScreen() {
 
               <Text style={styles.fieldLabel}>Days another delay ran concurrently</Text>
               <Text style={styles.fieldHint}>
-                Optional, and worth being honest about. When your own delay overlaps the
-                owner&apos;s, the usual US rule gives you the time but not the money — a
-                register that can&apos;t show it gets taken apart in one question.
+                Optional, and worth being honest about. If one of your own delays overlapped
+                this one, record how many days overlapped.
               </Text>
               <TextInput
                 style={styles.input}
@@ -648,21 +645,24 @@ export default function DelayEventsScreen() {
                     <Text style={styles.cardTitle}>{openStatus.headline}</Text>
                     <Text style={styles.cardMeta}>{openStatus.detail}</Text>
                     {openStatus.deadlineDate && (
-                      <Text style={styles.cardMeta}>
-                        Derived from {openStatus.firstObservedDate} + your {openStatus.noticePeriodDays}-day
-                        contract setting{openStatus.assumed ? ` (${ASSUMED_LABEL})` : ''}.
-                      </Text>
+                      <>
+                        <Text style={styles.cardMeta}>
+                          Counted from {openStatus.firstObservedDate} + the {openStatus.noticePeriodDays}-day
+                          window you set{openStatus.assumed ? ` (${ASSUMED_LABEL})` : ''}.
+                        </Text>
+                        <Text style={styles.cardMeta}>{NOTICE_REMINDER_DISCLAIMER}</Text>
+                      </>
                     )}
                     {openStatus.methodWarning && <Text style={styles.warnLine}>{openStatus.methodWarning}</Text>}
-                    {openStatus.accelerationPrompt && <Text style={styles.warnLine}>{openStatus.accelerationPrompt}</Text>}
+                    {openStatus.ownerSilencePrompt && <Text style={styles.warnLine}>{openStatus.ownerSilencePrompt}</Text>}
                   </View>
                 )}
 
-                {/* §5.3 — SUGGEST, NEVER CONCLUDE. */}
+                {/* SUGGEST, NEVER CONCLUDE. */}
                 <Text style={styles.fieldLabel}>Your classification</Text>
                 <Text style={styles.fieldHint}>
-                  Yours to assert, not ours to decide. We can suggest a starting point from the
-                  cause; the call is yours and your attorney&apos;s.
+                  Yours to set. MAGE can suggest a starting point from the cause; the call is
+                  yours.
                 </Text>
                 <View style={styles.chipWrap}>
                   {CLASSIFICATIONS.map((c) => {
@@ -803,7 +803,7 @@ export default function DelayEventsScreen() {
 }
 
 // ---------------------------------------------------------------------------
-// §3.3 — the notice-period ask
+// The notice-window ask
 // ---------------------------------------------------------------------------
 
 function NoticePeriodModal({
@@ -833,8 +833,8 @@ function NoticePeriodModal({
           <ScrollView>
             <Text style={styles.fieldHint}>{NOTICE_PERIOD_QUESTION}</Text>
             <Text style={styles.fieldHint}>
-              We deliberately don&apos;t assume one. Guessing 21 days when your contract says 7
-              would hand you a clock that runs two weeks long and a false sense of safety.
+              MAGE deliberately doesn&apos;t assume one. Guessing 21 days when your agreement
+              gives you 7 would hand you a countdown that runs two weeks long.
             </Text>
 
             <View style={styles.chipWrap}>
@@ -891,9 +891,8 @@ function NoticePeriodModal({
 
             <Text style={styles.fieldLabel}>Delivery your contract requires</Text>
             <Text style={styles.fieldHint}>
-              AIA A201-2017 §15.1.3.2 calls for certified or registered mail, or a courier with
-              proof of delivery. Set it and we&apos;ll flag a notice logged through a channel
-              that may not satisfy the clause.
+              If your agreement names how notice has to go out, record it here and MAGE will
+              flag any notice you log through a different channel.
             </Text>
             <View style={styles.chipWrap}>
               {METHODS.map((m) => (
@@ -913,10 +912,13 @@ function NoticePeriodModal({
             </View>
 
             {current.days !== null && (
-              <Text style={styles.fieldHint}>
-                Example: a delay first observed {todayISO()} would need notice by{' '}
-                {noticeDeadline(todayISO(), current.days)}.
-              </Text>
+              <>
+                <Text style={styles.fieldHint}>
+                  Example: a delay first observed {todayISO()} would come due{' '}
+                  {noticeDeadline(todayISO(), current.days)}.
+                </Text>
+                <Text style={styles.fieldHint}>{NOTICE_REMINDER_DISCLAIMER}</Text>
+              </>
             )}
           </ScrollView>
         </View>
@@ -926,7 +928,7 @@ function NoticePeriodModal({
 }
 
 // ---------------------------------------------------------------------------
-// Record a notice — where Mingus and Zafer are enforced
+// Record a notice
 // ---------------------------------------------------------------------------
 
 function NoticeFormModal({
@@ -1005,10 +1007,8 @@ function NoticeFormModal({
             </View>
             {kind === 'supplemental' && (
               <Text style={styles.fieldHint}>
-                The second notice. If the owner sat on your extension request and still holds
-                you to the original date, you have to tell them in writing that you regard that
-                as acceleration — it is a separate element of the claim, and it is the one
-                almost everybody forgets.
+                A later notice on the same delay — for example when the first one went
+                unanswered. Recorded alongside the first, not in place of it.
               </Text>
             )}
 
@@ -1043,8 +1043,7 @@ function NoticeFormModal({
               <>
                 <Text style={styles.fieldLabel}>Days of extension requested</Text>
                 <Text style={styles.fieldHint}>
-                  Required. An open-ended request for &quot;an appropriate extension&quot; is not a
-                  sufficient request — it fails the claim on its own.
+                  Required. Record the number of days you asked for.
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -1058,21 +1057,17 @@ function NoticeFormModal({
               </>
             ) : (
               <>
-                {/* Mingus: "specific claims … excepted in stated amounts." A
-                    generic "reserves all rights" is a blunderbuss exception and
-                    insufficient as a matter of law — so this is three fields,
-                    not a checkbox and a notes box. */}
+                {/* Three structured fields rather than a checkbox and a notes
+                    box, so the record says which claim and how much. */}
                 <Text style={styles.fieldLabel}>Which claim you are reserving</Text>
                 <Text style={styles.fieldHint}>
-                  Name it specifically. Generic &quot;reserves all rights&quot; language has been held
-                  insufficient as a matter of law — the exception has to identify the claim and
-                  state an amount.
+                  Name it specifically, and state an amount in dollars, days, or both.
                 </Text>
                 <TextInput
                   style={[styles.input, styles.inputArea]}
                   value={resDesc}
                   onChangeText={setResDesc}
-                  placeholder="Acceleration costs for the May stair re-work, not included in this change order."
+                  placeholder="Extra crew hours for the May stair re-work, not included in this change order."
                   placeholderTextColor={t.textMuted}
                   multiline
                   textAlignVertical="top"

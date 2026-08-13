@@ -30,6 +30,7 @@ import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { VerdictCard } from '@/components/judges/VerdictCard';
 import { draftLinesFromScope, runJudges } from '@/utils/judges/runJudges';
 import type { JudgesResult } from '@/utils/judges/runJudges';
@@ -73,6 +74,10 @@ function JudgesInner() {
   // Self-perform labor samples (D6) — crew hours × configured loaded rates
   // fold into the cost book the judges score against.
   const laborSamples = useLaborCostSamples();
+  // Cold-start seeds — the rates the GC stated before closing a job here.
+  // Without them JUDGES scores a seeded contractor against an empty cost book
+  // and the verdict falls back to their own bid assumptions.
+  const { seeds } = useCostSeeds();
 
   // ── Entry mode ────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>('describe');
@@ -91,8 +96,8 @@ function JudgesInner() {
 
   // ── Context object ────────────────────────────────────────────────────
   const ctx = useMemo(
-    () => ({ projects, commitments, changeOrders, invoices, receipts, laborSamples }),
-    [projects, commitments, changeOrders, invoices, receipts, laborSamples],
+    () => ({ projects, commitments, changeOrders, invoices, receipts, laborSamples, seeds }),
+    [projects, commitments, changeOrders, invoices, receipts, laborSamples, seeds],
   );
 
   // ── Timeline window builder ───────────────────────────────────────────

@@ -23,13 +23,28 @@ const NEUTRAL_SCORE = 55;
 /** Mirrors costDatabase BLEND_K — the blend constant behind suggestedRate. */
 const BLEND_K = 3;
 
-function exposureConfidence(lines: PricedLine[]): { level: ConfidenceLevel; score: number; coveragePct: number } {
+/** Coverage is split, and the split is the firewall.
+ *
+ *  `coveragePct` counts only $ priced from something MEASURED (a closed job, a
+ *  scanned receipt, clocked labor — or a 'mixed' entry, which has real jobs
+ *  behind it). `seededCoveragePct` counts $ priced from a rate the contractor
+ *  merely STATED. Folding the two together would let a contractor who has
+ *  closed nothing see "100% of this scope is priced from your own history" and,
+ *  worse, would let confWeight below hand the engine full license to move the
+ *  verdict off neutral on numbers nobody has ever verified. */
+function exposureConfidence(lines: PricedLine[]): {
+  level: ConfidenceLevel; score: number; coveragePct: number; seededCoveragePct: number;
+} {
   const total = lines.reduce((a, l) => a + l.lineTrueCost, 0);
-  if (total <= 0) return { level: 'low', score: 0.33, coveragePct: 0 };
+  if (total <= 0) return { level: 'low', score: 0.33, coveragePct: 0, seededCoveragePct: 0 };
   const wScore = lines.reduce((a, l) => a + l.lineTrueCost * CONF_SCORE[l.confidence], 0) / total;
-  const coveragePct = lines.reduce((a, l) => a + (l.fromHistory ? l.lineTrueCost : 0), 0) / total;
+  const isSeeded = (l: PricedLine) => l.provenance === 'seeded';
+  const coveragePct =
+    lines.reduce((a, l) => a + (l.fromHistory && !isSeeded(l) ? l.lineTrueCost : 0), 0) / total;
+  const seededCoveragePct =
+    lines.reduce((a, l) => a + (l.fromHistory && isSeeded(l) ? l.lineTrueCost : 0), 0) / total;
   const level: ConfidenceLevel = wScore >= 0.8 ? 'high' : wScore >= 0.5 ? 'medium' : 'low';
-  return { level, score: wScore, coveragePct };
+  return { level, score: wScore, coveragePct, seededCoveragePct };
 }
 
 /** Exposure-weighted RESIDUAL bid bias — only the share suggestedRate hasn't already absorbed. */
@@ -124,7 +139,12 @@ export function computeBidVerdict(input: BidVerdictInput): BidVerdict {
     kind: 'cost_confidence',
     polarity: conf.level === 'low' ? 'negative' : 'positive',
     weight: 0,
-    detail: `Cost confidence is ${conf.level} — ${Math.round(conf.coveragePct * 100)}% of this scope is priced from your own history.`,
+    detail: `Cost confidence is ${conf.level} — ${Math.round(conf.coveragePct * 100)}% of this scope is priced from your own history`
+      + (conf.seededCoveragePct > 0
+        // Named separately and never added to the history figure. "You set
+        // this" and "we measured this" are different claims.
+        ? `, plus ${Math.round(conf.seededCoveragePct * 100)}% from rates you set yourself.`
+        : '.'),
   });
   if (trueCost > 0) {
     drivers.push({
@@ -138,6 +158,11 @@ export function computeBidVerdict(input: BidVerdictInput): BidVerdict {
   const disclaimers: string[] = [];
   if (trueCost <= 0) disclaimers.push('No scope to price yet — add line items or describe the job.');
   else if (conf.coveragePct < 0.5) disclaimers.push('Based on your bid assumptions, not yet your history — this sharpens as you close jobs.');
+  // Say it out loud whenever a stated rate is carrying real weight. The number
+  // is better than a generic guess, but it is still the contractor's own claim.
+  if (trueCost > 0 && conf.seededCoveragePct >= 0.1) {
+    disclaimers.push(`${Math.round(conf.seededCoveragePct * 100)}% of this scope is priced from rates you set yourself — your numbers, but nothing here has measured them yet. Closing jobs replaces them.`);
+  }
   if (trueCost > 0 && unpricedCount > 0) {
     disclaimers.push(`${unpricedCount} line${unpricedCount === 1 ? ' has' : 's have'} no price yet and ${unpricedCount === 1 ? 'is' : 'are'} excluded from the total — price ${unpricedCount === 1 ? 'it' : 'them'} before relying on this number.`);
   }
@@ -148,6 +173,7 @@ export function computeBidVerdict(input: BidVerdictInput): BidVerdict {
     verdict, fitScore, trueCost,
     recommendedLow, recommendedHigh, recommendedMid, marginAtMid, targetMargin, bidBiasNudge,
     costConfidence: conf.level, coveragePct: conf.coveragePct,
+    seededCoveragePct: conf.seededCoveragePct,
     lines, drivers, disclaimers,
   };
 }

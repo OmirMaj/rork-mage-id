@@ -55,6 +55,15 @@ export interface PricedTell {
   remediation: Remediation | null;
   band: { low: number; expected: number; high: number };
   hasLearnedRate: boolean;
+  /** WHERE the unit cost came from. `hasLearnedRate` alone cannot label the UI
+   *  once cold-start seeds reach this engine: it is true for a rate the
+   *  contractor merely STATED, and the screen would then print "priced off your
+   *  job history" over a number no job here has measured.
+   *    'earned'  — closed jobs / receipts / clocked labor
+   *    'mixed'   — both (real jobs behind it, so it does read as history)
+   *    'seeded'  — the contractor set this rate themselves
+   *    'catalog' — none of theirs; REMEDIATION.baseAllowance */
+  rateBasis: 'earned' | 'mixed' | 'seeded' | 'catalog';
 }
 
 /** The contractor's learned rate for a trade category. Prefers an exact trade+unit
@@ -77,10 +86,22 @@ export function priceTell(tell: ConditionTell, db: CostDatabase): PricedTell {
   const qty = rem?.typicalQty ?? 1;
   const p = clamp01(tell.likelihood / 100);
   const expected = Math.round(p * unitCost * qty);
-  const variability = learned?.variability ?? DEFAULT_VARIABILITY;
+  // A seeded-only entry has exactly ONE stated sample, so its computed
+  // variability is 0 — which collapses the allowance to "$2,500–$2,500",
+  // presenting a self-reported number with MORE apparent certainty than a
+  // six-job average. Use the catalog band width for those instead.
+  const seededOnly = learned?.provenance === 'seeded';
+  const variability = learned && !seededOnly ? learned.variability : DEFAULT_VARIABILITY;
   const low = Math.max(0, Math.round(expected * (1 - variability)));
   const high = Math.round(expected * (1 + variability));
-  return { tell, remediation: rem, band: { low, expected, high }, hasLearnedRate: !!learned };
+  const rateBasis: PricedTell['rateBasis'] = !learned
+    ? 'catalog'
+    // Entries built before seeding shipped carry no provenance; those are
+    // earned by construction.
+    : learned.provenance === 'seeded' ? 'seeded'
+      : learned.provenance === 'mixed' ? 'mixed'
+        : 'earned';
+  return { tell, remediation: rem, band: { low, expected, high }, hasLearnedRate: !!learned, rateBasis };
 }
 
 /** Low-confidence tells become a field-verify task instead of a priced line.

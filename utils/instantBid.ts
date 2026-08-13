@@ -12,6 +12,7 @@
 import { mageAI } from '@/utils/mageAI';
 import { illustrativeMonthly } from '@/utils/financing';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
+import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import type {
   FinancingConfig,
@@ -62,6 +63,11 @@ export interface InstantBidOptions {
     /** Self-perform labor samples (utils/laborSamples.ts) — crew hours at
      *  the GC's configured loaded rates. Optional cost-book input. */
     laborSamples?: CostSample[];
+    /** Cold-start seeds (hooks/useCostSeeds) — rates the contractor STATED
+     *  before they had closed-job history here. Reported separately from
+     *  earned rates everywhere downstream: they never set basis='history' and
+     *  never count into groundingRateCount. */
+    seeds?: SeededRate[];
   };
 }
 
@@ -147,24 +153,39 @@ function resultText(r: { success: boolean; data: unknown; raw?: string }): strin
 /**
  * Build cost-book grounding facts for the ROM prompt, mirroring the
  * try/catch-additive shape of utils/copilot/estimate/estimateGrounding.ts.
- * Returns { facts, rateCount } — rateCount=0 means no data.
+ * Returns { facts, rateCount, seededRateCount } — rateCount=0 means no measured
+ * data. The two counts are kept APART on purpose: rateCount is what sets
+ * basis='history' and fills groundingRateCount (which the brain's prediction
+ * ledger grades against), and a rate the contractor merely stated must never
+ * make a proposal claim it was anchored on their closed jobs.
  */
 function buildInstantBidGrounding(
   opts: Pick<InstantBidOptions, 'groundingContext'>,
   rfp: InstantBidRfp,
-): { facts: string[]; rateCount: number } {
+): { facts: string[]; rateCount: number; seededRateCount: number } {
   const facts: string[] = [];
   let rateCount = 0;
-  if (!opts.groundingContext) return { facts, rateCount };
-  const { projects, commitments, receipts, laborSamples } = opts.groundingContext;
+  let seededRateCount = 0;
+  if (!opts.groundingContext) return { facts, rateCount, seededRateCount };
+  const { projects, commitments, receipts, laborSamples, seeds } = opts.groundingContext;
   try {
-    const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
+    const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
     // Pull the most-relevant entries (high-confidence first, up to 4 facts).
     const sorted = [...db.entries].sort((a, b) => {
       const rankConf = (e: typeof a) => e.confidence === 'high' ? 2 : e.confidence === 'medium' ? 1 : 0;
       return rankConf(b) - rankConf(a) || b.totalActual - a.totalActual;
     });
     for (const e of sorted.slice(0, 4)) {
+      // A seeded-only entry is the contractor's own claim. Say so in the fact
+      // itself — "from your 0 jobs" would be nonsense, and anything softer
+      // would let the model narrate a stated rate as measured history.
+      if (e.provenance === 'seeded') {
+        facts.push(
+          `${e.trade}: $${e.suggestedRate.toFixed(2)}/${e.unit} — a rate this contractor SET THEMSELVES (self-reported, not measured on any job here).`,
+        );
+        seededRateCount++;
+        continue;
+      }
       const biasNote = Math.abs(e.bidBias) > 0.05
         ? ` (you run ${e.bidBias > 0 ? '+' : ''}${(e.bidBias * 100).toFixed(0)}% vs your bid)`
         : '';
@@ -210,7 +231,7 @@ function buildInstantBidGrounding(
   } catch {
     // ignore — grounding is additive, never blocks generation
   }
-  return { facts, rateCount };
+  return { facts, rateCount, seededRateCount };
 }
 
 /** Ask the AI for a rough order-of-magnitude midpoint. Returns null on any
@@ -218,12 +239,15 @@ function buildInstantBidGrounding(
 async function aiMidpoint(
   rfp: InstantBidRfp,
   opts: Pick<InstantBidOptions, 'groundingContext'>,
-): Promise<{ value: number | null; rateCount: number }> {
-  const { facts, rateCount } = buildInstantBidGrounding(opts, rfp);
+): Promise<{ value: number | null; rateCount: number; seededRateCount: number }> {
+  const { facts, rateCount, seededRateCount } = buildInstantBidGrounding(opts, rfp);
 
+  // Header must not say "CLOSED JOBS" once seeded rates can appear in the list
+  // — each line already declares which kind it is, and the header would
+  // otherwise relabel every one of them as measured.
   const groundingSection =
     facts.length > 0
-      ? `\n\nLEARNED RATES FROM THIS CONTRACTOR'S CLOSED JOBS:\n${facts.map(f => `• ${f}`).join('\n')}\nAnchor the ROM on these learned rates when the scope overlaps. When a rate covers a line item, use it.`
+      ? `\n\nTHIS CONTRACTOR'S OWN RATES (each line states whether it came from closed jobs or the contractor set it themselves):\n${facts.map(f => `• ${f}`).join('\n')}\nAnchor the ROM on these rates when the scope overlaps. When a rate covers a line item, use it.`
       : '';
 
   const prompt =
@@ -239,10 +263,10 @@ async function aiMidpoint(
   try {
     const r = await mageAI({ prompt, tier: 'fast', maxTokens: 24 });
     const text = resultText(r);
-    return { value: text ? firstNumber(text) : null, rateCount };
+    return { value: text ? firstNumber(text) : null, rateCount, seededRateCount };
   } catch (e) {
     console.warn('[instantBid] aiMidpoint failed', e);
-    return { value: null, rateCount };
+    return { value: null, rateCount, seededRateCount };
   }
 }
 
@@ -283,7 +307,7 @@ export async function generateInstantBid(
   // Establish the recommended midpoint. Prefer the grounded AI ROM; blend
   // toward the homeowner's stated budget when both exist so we never ignore
   // their number.
-  const { value: aiMid, rateCount } = await aiMidpoint(rfp, opts);
+  const { value: aiMid, rateCount, seededRateCount } = await aiMidpoint(rfp, opts);
   let midUsd: number;
   let source: 'ai' | 'heuristic';
   let basis: TieredProposal['basis'];
@@ -294,6 +318,11 @@ export async function generateInstantBid(
       basis = 'budget'; // blended — budget was the anchor
     } else {
       midUsd = aiMid;
+      // Deliberately EARNED-only. A seeded-only book anchors the ROM (which is
+      // the whole point of seeding) but must not set basis='history' — that
+      // flag drives the "anchored on your closed jobs" copy in the UI and the
+      // brain's instant_bid_sent prediction row. Understating it as 'ai_guess'
+      // is the safe direction; the assumptions list below tells the truth.
       basis = rateCount > 0 ? 'history' : 'ai_guess';
     }
     source = 'ai';
@@ -307,6 +336,10 @@ export async function generateInstantBid(
     'Rough order-of-magnitude based on the scope provided — final price set after a site visit.',
     budgetMid > 0 ? 'Blended toward the budget range you posted.' : 'No budget range posted; numbers are indicative.',
     ...(rateCount > 0 ? [`Anchored on ${rateCount} learned rate${rateCount === 1 ? '' : 's'} from your closed jobs.`] : []),
+    // Separate line, separate wording. Never merged into the count above.
+    ...(seededRateCount > 0
+      ? [`Anchored on ${seededRateCount} rate${seededRateCount === 1 ? '' : 's'} you set yourself — your numbers, not yet measured on a job here.`]
+      : []),
   ];
 
   const scopeBullets = scopeToBullets(rfp.scopeDescription);

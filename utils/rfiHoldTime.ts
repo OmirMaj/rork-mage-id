@@ -3,15 +3,13 @@
 //
 // WHY THIS IS NOT ROUND-TRIP TIME
 // ------------------------------------------------------------------------
-// Caddell Constr. Co. v. United States (Fed. Cl. 2007) is the cautionary
-// case. The claimant measured total RFI turnaround "including the time the
-// RFIs were in Caddell's hands" and lost on it. Elapsed-time-from-open-to-
-// answered is not a claim measure — it is a number that contains the GC's own
-// turnaround and therefore proves nothing about the owner's responsiveness.
-// The same court also noted that merely issuing a lot of RFIs "is not an
-// indication that the plans were defective," so the count is not the claim
-// either. The claimable number is HOLD TIME: the summed duration of the
-// intervals during which a non-GC party had the ball.
+// "Days from submitted to answered" contains the GC's own turnaround, so it
+// says nothing about how fast the other side moved. If an RFI sat on the
+// superintendent's phone for a week before it went out, that week is in the
+// round-trip number and it is not the architect's. The useful figure is HOLD
+// TIME: the summed duration of the intervals during which a non-GC party
+// actually had the ball. Round trip is still computed and shown, labelled as
+// what it is, so the two are never mistaken for each other.
 //
 // MAGE already captures the input. RFIHandoff (types/index.ts) is an
 // append-only custody chain of {fromParty, toParty, at, ...}. Between
@@ -23,29 +21,24 @@
 // RFIBallInCourt is 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' |
 // 'closed'. Owner-side is 'architect' | 'engineer' | 'owner' only.
 //
-// A subcontractor is the GC's own party. Under the standard prime-contract
-// structure the GC is answerable for its subs; there is no privity between
-// the owner and the sub, and the owner is not the cause of a delay that
-// happened inside the GC's own tier. Rolling `sub` into the owner-side figure
-// would be exactly the Caddell defect one level down — padding the number
-// with time the claimant itself controlled. A defense expert would find it in
-// one pass through the handoff log and the whole figure would lose its
-// credibility, not just the sub portion.
+// A subcontractor is the GC's own party — the GC picked them and the GC
+// manages them. Rolling `sub` into the owner-side figure is the same defect
+// one level down: padding a number about somebody else's responsiveness with
+// time the GC's own side controlled. Anyone reading the handoff log would spot
+// it in one pass and stop trusting the whole figure, not just the sub part.
 //
-// So `sub` days are counted, reported, and kept OUT of the claim number. They
-// are tracked separately from `gc` days rather than merged into them, because
-// "I sat on it for nine days" and "my framer sat on it for nine days" are
-// different management problems even though they are the same claim answer:
-// neither is the owner's fault.
+// So `sub` days are counted, reported, and kept OUT of the owner-side number.
+// They are tracked separately from `gc` days rather than merged into them,
+// because "I sat on it for nine days" and "my framer sat on it for nine days"
+// are different management problems even though neither is the owner's.
 //
-// Caveat worth stating out loud: 'architect'/'engineer' are treated as
-// owner-side because under the usual design-bid-build arrangement the design
-// professional is the owner's agent. On a design-build job where the GC holds
-// the design contract, that mapping is wrong and the architect is GC-side.
-// MAGE has no field that records the delivery method, so this module does not
-// guess — it applies the design-bid-build mapping and the UI labels the figure
-// "owner side (architect, engineer, owner)" so a design-build GC can see what
-// was counted.
+// Caveat worth stating out loud: 'architect'/'engineer' are counted as
+// owner-side because on the usual job the design team works for the owner. On
+// a design-build job where the GC holds the design contract, that mapping is
+// wrong and the architect belongs on the GC's side. MAGE has no field that
+// records the delivery method, so this module does not guess — it applies the
+// common mapping and the UI labels the figure "owner side (architect,
+// engineer, owner)" so a design-build GC can see exactly what was counted.
 //
 // LEGACY ROWS
 // ------------------------------------------------------------------------
@@ -61,7 +54,7 @@ import type { RFI, RFIBallInCourt, RFIHandoff } from '@/types';
 
 const MS_PER_DAY = 86_400_000;
 
-/** The parties whose hold time is claimable against the owner. */
+/** The parties whose hold time is counted as owner-side. */
 export const OWNER_SIDE_PARTIES: readonly RFIBallInCourt[] = ['architect', 'engineer', 'owner'];
 
 /** Which bucket a party's hold time lands in. */
@@ -98,16 +91,16 @@ export interface RfiHoldSegment {
 }
 
 export interface RfiHoldTime {
-  /** Days held by architect / engineer / owner. THE claim measure. */
+  /** Days held by architect / engineer / owner. The owner-side figure. */
   ownerSideDays: number;
-  /** Days held by the GC. The GC's own turnaround — never claimable. */
+  /** Days held by the GC. The GC's own turnaround — never owner-side. */
   gcDays: number;
   /** Days held by a subcontractor. GC-side. Reported, never added to
    *  ownerSideDays. See the header note. */
   subDays: number;
   /** Total elapsed days from dateSubmitted to resolution (or now). This is
    *  the ROUND-TRIP figure. Kept so a surface can show both, clearly
-   *  labelled — it is not a claim measure. */
+   *  labelled — it includes the GC's own turnaround. */
   elapsedDays: number;
   /** False when the RFI has no handoff chain. All day counts above are 0 and
    *  mean UNKNOWN, not zero. Branch on this before rendering. */
@@ -159,7 +152,7 @@ const EMPTY: RfiHoldTime = {
  * `dateResponded` when that is later than the last handoff, otherwise at the
  * last handoff itself (contributing zero). Closing short rather than long is
  * deliberate — a hold figure that over-counts is worth less than one that
- * under-counts, because the whole point is that it survives cross-examination.
+ * under-counts, because the whole point is that the number can be trusted.
  *
  * Bounces sum correctly because the per-side totals accumulate in
  * milliseconds and are converted to days once, at the end.

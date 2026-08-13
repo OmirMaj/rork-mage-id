@@ -3,23 +3,18 @@
 // The daily log's completeness, stated as a number, on the screen the GC opens
 // every morning.
 //
-// Why this exists, and why it is not a streak toy: daily reports are business
-// records. Under FRE 803(6) the element that actually decides cases is (C) —
-// that making the record was a REGULAR PRACTICE. "Self-serving" is expressly
-// not a ground for exclusion, so nothing is gained by writing more carefully.
-// What loses is irregularity: in Meltech Corp. (ASBCA No. 61765) the PM "did
-// not 'make[] a habit of noting'" problems and the later testimony got "little
-// credence." A gap-free boring log beats a sparse detailed one. A missing
-// Tuesday is worse than a Tuesday that says "rain, no work."
+// Why this exists, and why it is not a streak toy: a log with holes in it
+// tells you nothing about the days in the holes, however detailed the days
+// around them are. A gap-free boring log beats a sparse detailed one, and a
+// missing Tuesday costs more than a Tuesday that says "rain, no work."
 //
 // So the card states two things and asks for one: how much of the record
 // exists, that a day with nothing on it still counts, and that today is the
 // day to file. It never offers to backfill a gap — a report typed weeks later
-// is not contemporaneous, and retro-annotating the log is how Vistas
-// Construction destroyed its own witnesses. Gaps are reported as facts.
+// carries the date it was typed. Gaps are reported as facts.
 //
-// No score, no badge, no streak flame, no exclamation mark. This is
-// evidentiary hygiene, not a game.
+// No score, no badge, no streak flame, no exclamation mark. This is record
+// keeping, not a game.
 //
 // Self-hides when there is nothing to act on — a card that reads "all good"
 // every morning teaches the user to ignore it forever
@@ -113,9 +108,9 @@ export default function DailyLogCard() {
 
       <Text style={styles.headline}>{headline}</Text>
       <Text style={styles.sub}>
-        A daily log carries weight because it is routine, not because it is detailed. If nothing
-        happened on site, file the day and say so — that still counts. A day with no log at all is
-        the gap that gets the whole record attacked, and filing it late does not close it.
+        A daily log is worth more for being complete than for being detailed. If nothing happened
+        on site, file the day and say so — that still counts. A day filed later carries the date
+        you filed it, not the day it covers, so the gap stays.
       </Text>
 
       <View style={styles.list}>

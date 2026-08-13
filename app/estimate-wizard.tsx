@@ -414,7 +414,7 @@ function EstimateWizardScreenInner() {
           try {
             const projectWithEstimate = { ...scopedProject, linkedEstimate };
             const snapshotPayload = buildEstimateSnapshotPayload(
-              projectWithEstimate, projects, commitments, receipts, laborSamples,
+              projectWithEstimate, projects, commitments, receipts, laborSamples, seeds,
             );
             if (snapshotPayload) {
               recordPrediction(
@@ -509,7 +509,7 @@ function EstimateWizardScreenInner() {
       if (targetProject) {
         const projectWithEstimate = { ...targetProject, linkedEstimate };
         const snapshotPayload = buildEstimateSnapshotPayload(
-          projectWithEstimate, projects, commitments, receipts, laborSamples,
+          projectWithEstimate, projects, commitments, receipts, laborSamples, seeds,
         );
         if (snapshotPayload) {
           recordPrediction(
@@ -529,7 +529,7 @@ function EstimateWizardScreenInner() {
     } else {
       router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
     }
-  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples, isOnboarding]);
+  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
 
   // Create a NEW project from the wizard answers, hydrate its linkedEstimate,
   // and jump to it. The wizard answers are also stamped onto project.scope so
@@ -576,7 +576,7 @@ function EstimateWizardScreenInner() {
     // G4: fire-and-forget capture — ledger failure must never break project create
     try {
       const snapshotPayload = buildEstimateSnapshotPayload(
-        withEstimate, [...projects, withEstimate], commitments, receipts, laborSamples,
+        withEstimate, [...projects, withEstimate], commitments, receipts, laborSamples, seeds,
       );
       if (snapshotPayload) {
         recordPrediction(
@@ -596,7 +596,7 @@ function EstimateWizardScreenInner() {
     } else {
       router.push({ pathname: '/project-detail', params: { id } } as never);
     }
-  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, isOnboarding]);
+  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 

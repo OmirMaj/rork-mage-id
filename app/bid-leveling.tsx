@@ -26,6 +26,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import {
@@ -55,6 +56,9 @@ function BidLevelingInner() {
   const { packageId } = useLocalSearchParams<{ packageId?: string }>();
   const { projects, commitments, getBidPackage, getBidsForPackage, getSubcontractor, updateBidPackageBid } = useProjects();
   const { receipts } = useMaterialReceipts();
+  // Cold-start seeds — without them a seeded GC levels bids against an empty
+  // cost book and every adjustment degrades to 'market_guess'.
+  const { seeds } = useCostSeeds();
 
   const pkg = useMemo(() => (packageId ? getBidPackage(packageId) : null), [packageId, getBidPackage]);
   const bids = useMemo(() => (packageId ? getBidsForPackage(packageId) : []), [packageId, getBidsForPackage]);
@@ -84,7 +88,7 @@ function BidLevelingInner() {
     setAiBusy(true);
     setAiMsg(null);
     try {
-      const result = await levelBids({ pkg, bids, projects, commitments, receipts });
+      const result = await levelBids({ pkg, bids, projects, commitments, receipts, seeds });
       if (result.adjustments.length === 0) {
         setAiMsg("No adjustments suggested. Add each bid's exclusions and try again.");
         return;
@@ -118,7 +122,7 @@ function BidLevelingInner() {
     } finally {
       setAiBusy(false);
     }
-  }, [pkg, bids, projects, commitments, receipts, aiBusy, updateBidPackageBid]);
+  }, [pkg, bids, projects, commitments, receipts, seeds, aiBusy, updateBidPackageBid]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>

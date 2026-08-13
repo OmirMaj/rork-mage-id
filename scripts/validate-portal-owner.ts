@@ -5,7 +5,7 @@
 //  1. CHANGE-ORDER E-SIGNATURE. Approving a change order used to be a browser
 //     confirm() + prompt('Your name (for the record):') — a consent click, not
 //     an electronic signature. A homeowner disputing a $12K CO could credibly
-//     argue it never met ESIGN/UETA. The portal now captures a drawn signature,
+//     argue nobody ever signed anything. The portal now captures a drawn signature,
 //     a typed legal name, and an affirmative consent against a disclosure, and
 //     seals a canonical record whose SHA-256 the server recomputes. If ANY of
 //     that regresses — the disclosure text drifting between the TS module and
@@ -478,7 +478,7 @@ ok('NEGATIVE: the dollar-figure check actually fires on a leaked figure',
   /\$|\b\d{1,3}(,\d{3})+\b/.test('This period covers $14,200 of finishes.'));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. Change-order e-signature (ESIGN / UETA) — drift guards
+// 6. Change-order e-signature — drift guards
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\nportal owner — change-order e-signature:');
 
@@ -524,10 +524,25 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
   expect('portal disclosure text matches utils/portalOwnerCore.ts exactly', joined, ESIGN_DISCLOSURE_TEXT);
   ok('portal disclosure version matches',
     portalHtml.includes(`var ESIGN_DISCLOSURE_VERSION = '${ESIGN_DISCLOSURE_VERSION}'`));
-  ok('the disclosure names E-SIGN and UETA',
-    /E-SIGN Act and UETA/.test(ESIGN_DISCLOSURE_TEXT));
+  // The disclosure describes the ACT the signer is performing and the rights
+  // they keep. It deliberately does NOT tell them what a statute makes of it —
+  // MAGE ships without legal review, so it does not state the law.
+  ok('the disclosure names the act of signing electronically',
+    /consent to sign this change order electronically/.test(ESIGN_DISCLOSURE_TEXT));
+  ok('the disclosure states what is being approved',
+    /approving the scope described above/.test(ESIGN_DISCLOSURE_TEXT));
   ok('the disclosure offers a paper copy at no charge',
     /paper copy at no charge/.test(ESIGN_DISCLOSURE_TEXT));
+  ok('the disclosure says a copy is retained and available',
+    /retained by your contractor and is available to you/.test(ESIGN_DISCLOSURE_TEXT));
+  ok('the disclosure cites no statute and claims no legal effect',
+    !/E-?SIGN|UETA|U\.S\.C|legal effect|legally binding|same (force|effect) as/i.test(ESIGN_DISCLOSURE_TEXT),
+    ESIGN_DISCLOSURE_TEXT);
+  ok('NEGATIVE: that check fires on the statutory sentence it replaced',
+    /E-?SIGN|UETA|legal effect/i.test(
+      'Your electronic signature has the same legal effect as a handwritten one under the U.S. E-SIGN Act and UETA.'));
+  ok('the portal shows no statutory claim next to the signature either',
+    !/E-SIGN Act and UETA/.test(portalHtml), 'marketing/portal/index.html');
 }
 
 // Canonical record: order-fixed, carries every element a dispute needs.
@@ -587,7 +602,7 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
   // we lift the portal's copy out of the HTML and run it head-to-head. A silent
   // divergence here would make a browser-signed CO unverifiable against an
   // app-signed one — exactly the failure a sealed record exists to prevent.
-  const start = portalHtml.indexOf("var ESIGN_DISCLOSURE_VERSION = 'co-esign-1';");
+  const start = portalHtml.indexOf(`var ESIGN_DISCLOSURE_VERSION = '${ESIGN_DISCLOSURE_VERSION}';`);
   const stop = portalHtml.indexOf('// Canvas signature pad.', start);
   ok('portal e-signature block is extractable for a head-to-head check', start >= 0 && stop > start);
   if (start >= 0 && stop > start) {
@@ -645,7 +660,7 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
   const cv = read('app/client-view.tsx');
   ok('client-view still writes an auditTrail entry', /auditTrail: \[\.\.\.existingAudit, auditEntry\]/.test(cv));
   ok('client-view builds the shared consent record', /buildCOConsentRecord\(/.test(cv));
-  ok('client-view requires the E-SIGN consent checkbox before approving',
+  ok('client-view requires the signing-consent checkbox before approving',
     /!esignConsent/.test(cv) && /Consent Required/.test(cv));
   ok('client-view persists the sealed record columns',
     /consent_record:/.test(cv) && /document_hash:/.test(cv));
