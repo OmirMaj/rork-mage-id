@@ -40,19 +40,31 @@ export const PUBLIC_PATHS = new Set<string>([
   'reset-password',
 ]);
 
+// A well-formed in-app route: one or more '/'-separated segments of
+// [a-z0-9-], optionally followed by a query string. This lets EVERY real
+// route through to the router/auth-gate instead of the old behaviour of
+// silently rewriting ~99 routes to Home. Unknown routes fall to +not-found.
+const IN_APP_ROUTE = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/i;
+
+export function isInAppRoute(route: string): boolean {
+  return IN_APP_ROUTE.test(route);
+}
+
 /**
- * Resolve an incoming system path to an in-app route. Whitelisted public paths
- * pass through with their query string intact; anything else goes to '/'.
+ * Resolve an incoming system path to an in-app route. Public paths and
+ * well-formed in-app routes pass through with their query string intact;
+ * genuinely malformed paths go to '/'.
  */
 export function resolveDeepLinkPath(path: string): string {
   try {
     const cleaned = stripAppScheme(path);
+    if (!cleaned) return '/';
     const [route] = cleaned.split('?');
-    if (route && PUBLIC_PATHS.has(route)) {
-      return '/' + cleaned;
-    }
+    if (!route) return '/';
+    if (PUBLIC_PATHS.has(route)) return '/' + cleaned;       // pre-login public
+    if (isInAppRoute(route)) return '/' + cleaned;           // authenticated in-app
   } catch {
-    // fall through to home
+    // fall through
   }
-  return '/';
+  return '/';                                                // genuinely malformed
 }

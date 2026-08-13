@@ -692,8 +692,14 @@ for (const h of CALLER_HANDOFFS) {
   ok(`${h.caller} passes seeds onward (${h.why})`, h.pattern.test(src(h.caller)));
 }
 // estimate-wizard calls the snapshot builder from three separate commit paths.
+// Matched on the CALL, not on "laborSamples, seeds," — that text also appears in
+// the useCallback dependency arrays, so the old count silently drifted the
+// moment a dep list gained an entry after seeds.
+const wizardSrc = src('app/estimate-wizard.tsx');
+const snapshotCalls = (wizardSrc.match(/buildEstimateSnapshotPayload\(/g) ?? []).length;
+expect('estimate-wizard still commits a snapshot from three paths', snapshotCalls, 3);
 expect('all three estimate-wizard snapshot calls carry seeds',
-  (src('app/estimate-wizard.tsx').match(/laborSamples, seeds,/g) ?? []).length, 3);
+  (wizardSrc.match(/buildEstimateSnapshotPayload\([^)]*\bseeds\b/g) ?? []).length, snapshotCalls);
 
 // A seeded contractor most plausibly has ZERO projects — they pasted a rate
 // sheet and haven't created a job yet. Both instant-bid callers used to gate

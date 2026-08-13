@@ -1,0 +1,464 @@
+<title>MAGE ID — Path to a Billion</title>
+<style>
+  :root{
+    --paper:#F3F5F6;
+    --paper-2:#FFFFFF;
+    --ink:#10222E;
+    --ink-soft:#3E515B;
+    --ink-faint:#788790;
+    --line:#D7DDE0;
+    --line-strong:#C3CBCF;
+    --amber:#DD7A11;
+    --amber-soft:#FBEEDD;
+    --blue:#1C5D7A;
+    --crit:#B23A2E;
+    --warn:#C07714;
+    --build:#2C6F66;
+    --good:#2C6F66;
+    --mono:ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0}
+  .page{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:17px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+    padding:0 20px;
+  }
+  .wrap{
+    max-width:840px;
+    margin:0 auto;
+    padding:64px 0 96px;
+  }
+  @media(max-width:640px){ .wrap{padding:40px 0 64px} .page{font-size:16px} }
+
+  /* ---- type ---- */
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--amber);
+    margin:0 0 18px;
+    display:flex;align-items:center;gap:12px;
+  }
+  .eyebrow::after{content:"";height:1px;flex:1;background:var(--line-strong)}
+  h1{
+    font-size:clamp(34px,6.2vw,54px);
+    line-height:1.02;
+    letter-spacing:-.022em;
+    font-weight:800;
+    margin:0 0 20px;
+    text-wrap:balance;
+  }
+  h1 .thin{color:var(--ink-soft);font-weight:600}
+  .thesis{
+    font-size:clamp(19px,2.4vw,22px);
+    line-height:1.42;
+    color:var(--ink-soft);
+    max-width:64ch;
+    margin:0 0 28px;
+    font-weight:400;
+  }
+  .thesis b{color:var(--ink);font-weight:650}
+  .meta{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--ink-faint);
+    line-height:1.7;
+    border-top:1px solid var(--line);
+    padding-top:16px;
+    display:flex;flex-wrap:wrap;gap:6px 26px;
+  }
+  .meta span{white-space:nowrap}
+  .meta b{color:var(--ink-soft);font-weight:600}
+
+  h2{
+    font-size:clamp(23px,3.2vw,29px);
+    letter-spacing:-.015em;
+    font-weight:750;
+    margin:0 0 6px;
+    text-wrap:balance;
+  }
+  .sec{margin-top:64px}
+  .sec-num{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.14em;
+    color:var(--amber);
+    text-transform:uppercase;
+    display:block;
+    margin-bottom:10px;
+  }
+  .lede{color:var(--ink-soft);max-width:66ch;margin:10px 0 0}
+  p{margin:0 0 16px}
+  p:last-child{margin-bottom:0}
+  a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(28,93,122,.3)}
+  strong{font-weight:650}
+  code{font-family:var(--mono);font-size:.86em;background:#E7EBED;padding:1px 5px;border-radius:4px;color:var(--ink)}
+
+  /* ---- reframe callout ---- */
+  .reframe{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-left:4px solid var(--amber);
+    border-radius:4px;
+    padding:26px 30px;
+    margin-top:36px;
+  }
+  .reframe p{font-size:18px;line-height:1.55}
+  .reframe .kicker{
+    font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 12px;
+  }
+
+  /* ---- data table ---- */
+  .tablewrap{overflow-x:auto;margin-top:26px;border:1px solid var(--line);border-radius:4px;background:var(--paper-2)}
+  table{border-collapse:collapse;width:100%;min-width:520px}
+  caption{caption-side:top;text-align:left;font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);padding:14px 18px 0}
+  th,td{padding:11px 18px;text-align:left;border-bottom:1px solid var(--line)}
+  thead th{
+    font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:600;border-bottom:1px solid var(--line-strong);
+  }
+  tbody tr:last-child td{border-bottom:none}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;font-weight:650;white-space:nowrap}
+  td .sig{font-weight:600}
+  td .read{color:var(--ink-soft);font-size:14.5px}
+  tr.zero td.num{color:var(--crit)}
+  tr.zero .sig{color:var(--crit)}
+
+  /* ---- equation scorecard ---- */
+  .grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:26px}
+  @media(max-width:560px){.grid4{grid-template-columns:1fr}}
+  .factor{
+    background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:18px 20px;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .factor h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.01em}
+  .factor p{margin:0;font-size:14px;color:var(--ink-soft);line-height:1.45}
+  .chip{
+    align-self:flex-start;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 9px;border-radius:100px;font-weight:600;
+  }
+  .chip.have{background:#E1EFE9;color:var(--good)}
+  .chip.miss{background:#F7E4DF;color:var(--crit)}
+  .chip.broken{background:var(--amber-soft);color:var(--warn)}
+
+  /* ---- tiers ---- */
+  .tier{
+    background:var(--paper-2);border:1px solid var(--line);border-radius:4px;
+    padding:24px 28px 22px;margin-top:22px;position:relative;overflow:hidden;
+  }
+  .tier::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px}
+  .tier.t0::before{background:var(--crit)}
+  .tier.t1::before{background:var(--amber)}
+  .tier.t2::before{background:var(--build)}
+  .tier-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+  .tier-tag{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .t0 .tier-tag{color:var(--crit)}
+  .t1 .tier-tag{color:var(--warn)}
+  .t2 .tier-tag{color:var(--build)}
+  .tier h3{margin:0;font-size:19px;font-weight:750;letter-spacing:-.012em}
+  .tier .sub{color:var(--ink-faint);font-size:14px;font-family:var(--mono)}
+  ol.items,ul.items{margin:16px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px}
+  ol.items li{display:flex;gap:14px}
+  ol.items{counter-reset:it}
+  ol.items li::before{
+    counter-increment:it;content:counter(it);
+    font-family:var(--mono);font-size:12px;font-weight:700;
+    flex:0 0 24px;height:24px;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;
+    background:#EBEEF0;color:var(--ink-soft);margin-top:2px;
+  }
+  .t0 ol.items li::before{background:#F7E4DF;color:var(--crit)}
+  .items li .body{flex:1}
+  .items li .body b{font-weight:700}
+  .items li .body .ev{display:block;margin-top:3px;font-size:14px;color:var(--ink-soft)}
+  .items li .body .ev code{font-size:12.5px}
+
+  /* ---- roadmap timeline ---- */
+  .phases{margin-top:30px;display:flex;flex-direction:column;gap:0}
+  .phase{
+    display:grid;grid-template-columns:56px 1fr;gap:22px;
+    padding:0 0 30px;position:relative;
+  }
+  .phase:not(:last-child)::before{
+    content:"";position:absolute;left:27px;top:44px;bottom:-4px;width:2px;background:var(--line-strong);
+  }
+  .pnum{
+    grid-column:1;width:54px;height:54px;border-radius:50%;
+    background:var(--ink);color:var(--paper);
+    font-family:var(--mono);font-weight:700;font-size:19px;
+    display:flex;align-items:center;justify-content:center;position:relative;z-index:1;
+  }
+  .phase.now .pnum{background:var(--amber)}
+  .pbody{grid-column:2;padding-top:5px}
+  .pbody h3{margin:0 0 3px;font-size:19px;font-weight:750;letter-spacing:-.012em}
+  .pbody .goal{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:12px}
+  .pbody ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+  .pbody li{display:flex;gap:10px;font-size:15.5px;line-height:1.45;color:var(--ink-soft)}
+  .pbody li b{color:var(--ink);font-weight:650}
+  .pbody li::before{content:"";flex:0 0 7px;height:7px;border-radius:2px;background:var(--amber);margin-top:8px}
+  .taglabel{
+    display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    font-weight:600;padding:1px 7px;border-radius:4px;margin-left:6px;vertical-align:1.5px;
+  }
+  .tag-owner{background:#E7EEF2;color:var(--blue)}
+  .tag-code{background:var(--amber-soft);color:var(--warn)}
+  .exit{
+    margin-top:6px;font-size:13.5px;color:var(--ink-faint);font-style:italic;
+  }
+
+  /* ---- metrics ---- */
+  .funnel{display:flex;flex-direction:column;gap:2px;margin-top:24px;font-family:var(--mono)}
+  .fstep{display:flex;align-items:center;gap:14px;background:var(--paper-2);border:1px solid var(--line);padding:12px 16px;border-radius:4px}
+  .fstep .fl{font-size:14px;font-weight:600;font-family:var(--sans);flex:1}
+  .fstep .fn{font-size:13px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .fstep .bar{height:8px;border-radius:100px;background:var(--amber);flex:0 0 auto}
+  .arrow{text-align:center;color:var(--line-strong);font-size:12px;line-height:1}
+
+  /* ---- dont ---- */
+  .dont{background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:22px 26px;margin-top:24px}
+  .dont ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px}
+  .dont li{display:flex;gap:12px;font-size:15.5px;line-height:1.45}
+  .dont li .x{color:var(--crit);font-family:var(--mono);font-weight:700;flex:0 0 auto}
+  .dont li b{font-weight:700}
+
+  footer{margin-top:70px;border-top:1px solid var(--line);padding-top:20px;font-family:var(--mono);font-size:12px;color:var(--ink-faint);line-height:1.7}
+
+  @media(prefers-reduced-motion:no-preference){
+    .sec,.reframe,.tier,.phase{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+    @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  }
+</style>
+
+<div class="page">
+<div class="wrap">
+
+  <p class="eyebrow">Strategic Roadmap · Internal + Advisor</p>
+  <h1>The gap isn't the product.<br><span class="thin">It's everything between built and paid.</span></h1>
+  <p class="thesis">MAGE ID has <b>more product than a billion-dollar app needs</b> — ~140 screens and a genuine cost-learning moat — and a marketing message that pitches it at a 9/10 level. What it has almost none of: <b>a public launch, proof anyone uses it, working monetization, and a growth loop that's actually running.</b> This document sequences the fix.</p>
+  <div class="meta">
+    <span><b>Prepared</b> 2026-08-04</span>
+    <span><b>Sources</b> PostHog (180d) · live web audit · UX audit 08-03</span>
+    <span><b>Verdict</b> pre-launch, not pre-product</span>
+  </div>
+
+  <!-- REFRAME -->
+  <div class="reframe">
+    <p class="kicker">The one-sentence reframe</p>
+    <p>A cost-learning flywheel with no users closing jobs never spins — so the highest-leverage work right now is <strong>not another feature.</strong> It's making the app launchable, trustworthy, and monetizable, then turning on the loops that feed it real contractors and real cost data.</p>
+  </div>
+
+  <!-- SECTION 1: WHERE WE ARE -->
+  <section class="sec">
+    <span class="sec-num">01 — Ground truth</span>
+    <h2>Where we actually are</h2>
+    <p class="lede">Every surface tells the same story. The instrumentation is live; the traffic isn't. Over the trailing 180 days, across the App Store app, the web app, and the marketing site:</p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Product analytics — trailing 180 days (PostHog)</caption>
+        <thead>
+          <tr><th scope="col">Signal</th><th scope="col" style="text-align:right">Count</th><th scope="col">What it means</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="sig">App installs</span></td><td class="num">1</td><td><span class="read">One device — yours. All activity in May.</span></td></tr>
+          <tr><td><span class="sig">Marketing visitors</span></td><td class="num">57</td><td><span class="read">~93 pageviews across three months.</span></td></tr>
+          <tr><td><span class="sig">Logins</span></td><td class="num">3</td><td><span class="read">You plus two test accounts.</span></td></tr>
+          <tr><td><span class="sig">People who created a project</span></td><td class="num">2</td><td><span class="read">Almost nobody has done the core action.</span></td></tr>
+          <tr><td><span class="sig">Paywall views</span></td><td class="num">2</td><td><span class="read">Two people ever reached pricing.</span></td></tr>
+          <tr class="zero"><td><span class="sig">Paid conversions</span></td><td class="num">0</td><td><span class="read">Nobody has ever paid. Revenue is unproven end-to-end.</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:26px"><strong>The web app is strong</strong> — it boots fast, the desktop nav and the grounded "morning brief" home actually work, and signup is a low-friction 3 fields with Apple/Google. <strong>The marketing site is strong</strong> — moat-forward messaging, real competitor pages, a working markup-vs-margin calculator, an embeddable estimate widget. The problem is not craft. It's that the top of the funnel can't convert traffic it never receives, and the handoffs between surfaces are quietly broken.</p>
+  </section>
+
+  <!-- SECTION 2: THE EQUATION -->
+  <section class="sec">
+    <span class="sec-num">02 — The scoreboard</span>
+    <h2>The billion-dollar equation</h2>
+    <p class="lede">A billion-dollar app is the product of four factors. A zero in any one zeroes the result. MAGE has the two hardest to manufacture — and is missing or has broken the two that are mostly execution.</p>
+
+    <div class="grid4">
+      <div class="factor">
+        <span class="chip have">Have it</span>
+        <h3>A massive market</h3>
+        <p>Millions of SMB residential contractors and remodelers. Real, underserved, software-hungry.</p>
+      </div>
+      <div class="factor">
+        <span class="chip have">Have it</span>
+        <h3>Product depth &amp; a moat</h3>
+        <p>Cost-learning loop + margin defense no competitor ships. The message lands. The hard part is done.</p>
+      </div>
+      <div class="factor">
+        <span class="chip broken">Unproven</span>
+        <h3>Working monetization</h3>
+        <p>0 conversions from 2 paywall views. RevenueCat webhook is still an open owner action; web key is sandbox.</p>
+      </div>
+      <div class="factor">
+        <span class="chip miss">Missing</span>
+        <h3>A compounding loop</h3>
+        <p>The growth playbook exists on paper. Nothing runs. 57 visitors in three months is a standing start.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: GAP MAP -->
+  <section class="sec">
+    <span class="sec-num">03 — The gap map</span>
+    <h2>What's missing, by tier</h2>
+    <p class="lede">Ordered so that fixing a lower tier is wasted if the tier above it still leaks. Do not skip ahead.</p>
+
+    <div class="tier t0">
+      <div class="tier-head">
+        <span class="tier-tag">Tier 0 · Blockers</span>
+        <span class="sub">makes growth spend pointless</span>
+      </div>
+      <h3>Fix before a single real user</h3>
+      <ol class="items">
+        <li><div class="body"><b>You're not launched.</b><span class="ev">iOS — the primary platform — is TestFlight-invite-only behind a 24-hour human gate. No public App Store listing means no installs, no store-search discovery, no ratings to use as proof.</span></div></li>
+        <li><div class="body"><b>Monetization is unproven and possibly unplumbed.</b><span class="ev">The RevenueCat webhook + secrets are still listed as an outstanding owner action ("required or paid purchases won't unlock"). Confirm one real purchase unlocks a tier end-to-end — until then, revenue is architecturally impossible.</span></div></li>
+        <li><div class="body"><b>Integrity bugs that break trust on contact.</b><span class="ev">A fabricated <code>bulkSavings</code> figure prints in the client's estimate PDF by default; prediction/confidence defaults render invented numbers as fact; 7 money screens dead-end from search; <code>resolveDeepLinkPath</code> silently rewrites ~99 routes to Home — which is <em>also</em> why the marketing <code>?plan=/?trial=</code> handoff is lost. One fix closes a product bug and a conversion leak.</span></div></li>
+      </ol>
+    </div>
+
+    <div class="tier t1">
+      <div class="tier-head">
+        <span class="tier-tag">Tier 1 · The engine</span>
+        <span class="sub">exists on paper; nothing is running</span>
+      </div>
+      <h3>Turn a great pitch into compounding growth</h3>
+      <ol class="items">
+        <li><div class="body"><b>Zero social proof.</b><span class="ev">No testimonials, logos, review badges, case studies, or founder story. The entire site asks for trust and offers none from peers — the single highest-leverage marketing fix.</span></div></li>
+        <li><div class="body"><b>The flagship moat asset is empty.</b><span class="ev">The MAGE Price Index reads "still building." The most defensible, viral, SEO-able page is vaporware until seeded. Programmatic permit + license ingestion populates it <em>and</em> the marketplace in one build — and produces the real cost data that is the pitch.</span></div></li>
+        <li><div class="body"><b>No compounding acquisition.</b><span class="ev">The "Built with MAGE ID" loop and comparison pages exist, but with ~0 users nothing compounds, and there's no top-of-funnel content/SEO engine feeding the high-intent queries this ICP searches.</span></div></li>
+        <li><div class="body"><b>Flying blind on activation.</b><span class="ev">Only ~8 event types are instrumented. There's no defined "aha" funnel (install → create project → price a bid off your own costs → send). You can't optimize what you can't see.</span></div></li>
+      </ol>
+    </div>
+
+    <div class="tier t2">
+      <div class="tier-head">
+        <span class="tier-tag">Tier 2 · Subtract</span>
+        <span class="sub">the counterintuitive one</span>
+      </div>
+      <h3>Narrow the wedge — depth beats breadth</h3>
+      <ol class="items">
+        <li><div class="body"><b>140 screens is a liability at 0 users.</b><span class="ev">Billion-dollar apps win by nailing one wedge's activation, not by breadth. The UX audit already found dead-ends and orphan routes.</span></div></li>
+        <li><div class="body"><b>The cold-start problem is the real product risk.</b><span class="ev">The moat needs closed jobs to learn, but a new contractor has none. <code>cost-seed</code> handles this honestly, but the day-one path must be ruthlessly narrowed to the one aha — <em>price one bid off your own numbers</em> — with everything else deferred.</span></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- SECTION 4: ROADMAP -->
+  <section class="sec">
+    <span class="sec-num">04 — The sequence</span>
+    <h2>The path, in order</h2>
+    <p class="lede">The order is the thesis: seal the bucket, prove it converts, seed the moat, then open the taps. Each phase has a single exit condition before the next begins.</p>
+
+    <div class="phases">
+      <div class="phase now">
+        <div class="pnum">1</div>
+        <div class="pbody">
+          <h3>Make it launchable</h3>
+          <p class="goal">Exit: a real user can install, use, and pay — without hitting a lie or a dead end</p>
+          <ul>
+            <li>Delete or compute <b>bulkSavings</b>; null-gate every prediction/confidence default to "—". <span class="taglabel tag-code">code</span></li>
+            <li>Rebuild the deep-link resolver — one fix restores QBO OAuth, crew-claim QR, push notifications, <b>and</b> the marketing plan/trial handoff. <span class="taglabel tag-code">code</span></li>
+            <li>Give the 7 dead-end money screens the project picker <code>field-ticket</code> already has. <span class="taglabel tag-code">code</span></li>
+            <li>Configure the RevenueCat webhook + swap the sandbox web key; verify one purchase unlocks a tier. <span class="taglabel tag-owner">owner</span></li>
+            <li>Ship the public App Store listing (privacy label, IAP "Ready to Submit"). <span class="taglabel tag-owner">owner</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pnum">2</div>
+        <div class="pbody">
+          <h3>Prove it converts</h3>
+          <p class="goal">Exit: a defined activation funnel, instrumented, with the first handful of paying design partners</p>
+          <ul>
+            <li>Define + instrument the <b>aha funnel</b> in PostHog; narrow day-one onboarding to the one moment. <span class="taglabel tag-code">code</span></li>
+            <li>Fix the marketing→app value gap: a value-first landing / demo artifact instead of a cold login wall. <span class="taglabel tag-code">code</span></li>
+            <li>Recruit ~10 design-partner contractors by hand — for real data and real testimonials. <span class="taglabel tag-owner">owner</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pnum">3</div>
+        <div class="pbody">
+          <h3>Seed the moat &amp; the proof</h3>
+          <p class="goal">Exit: the Price Index is a live, rankable page and the site shows peer proof</p>
+          <ul>
+            <li>Build the <b>permit + license ingestion</b> engine (CSLB/DBPR free files + Socrata cities) — populates the Price Index and marketplace, kills two cold-starts. <span class="taglabel tag-code">code</span></li>
+            <li>Wire testimonials + a Capterra/G2 badge + App Store rating into the marketing hero. <span class="taglabel tag-code">code</span></li>
+            <li>Publish the Price Index with methodology, even sparse — turn vaporware into an asset. <span class="taglabel tag-owner">owner</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pnum">4</div>
+        <div class="pbody">
+          <h3>Open the taps</h3>
+          <p class="goal">Exit: at least one loop with a measured, positive coefficient</p>
+          <ul>
+            <li>Verify the "Built with MAGE ID" badge fires on high-frequency client surfaces; measure k. <span class="taglabel tag-code">code</span></li>
+            <li>Ship the content/SEO engine: comparison pages (built) + city/trade cost guides off the calculator. <span class="taglabel tag-owner">owner</span></li>
+            <li>Permit-triggered compliant cold email to the ingested list; double-sided referral. <span class="taglabel tag-owner">owner</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 5: METRICS -->
+  <section class="sec">
+    <span class="sec-num">05 — Instrument this</span>
+    <h2>The one funnel that matters</h2>
+    <p class="lede">Today only ~8 event types exist and no funnel is defined. This is the activation path to instrument first — the north star is not signups, it's contractors who reach the moment the moat pays off.</p>
+
+    <div class="funnel">
+      <div class="fstep"><span class="fl">Install / land on web</span><span class="bar" style="width:180px"></span><span class="fn">top</span></div>
+      <div class="arrow">↓</div>
+      <div class="fstep"><span class="fl">Create account</span><span class="bar" style="width:150px"></span><span class="fn">signup</span></div>
+      <div class="arrow">↓</div>
+      <div class="fstep"><span class="fl">Create first project</span><span class="bar" style="width:120px"></span><span class="fn">core action</span></div>
+      <div class="arrow">↓</div>
+      <div class="fstep"><span class="fl">Seed rates / import costs</span><span class="bar" style="width:92px"></span><span class="fn">setup</span></div>
+      <div class="arrow">↓</div>
+      <div class="fstep"><span class="fl" style="font-weight:700;color:var(--amber)">Price a bid off their own numbers</span><span class="bar" style="width:64px;background:var(--ink)"></span><span class="fn">★ aha</span></div>
+      <div class="arrow">↓</div>
+      <div class="fstep"><span class="fl">Send it to a client</span><span class="bar" style="width:44px"></span><span class="fn">value out + viral surface</span></div>
+    </div>
+  </section>
+
+  <!-- SECTION 6: DONT -->
+  <section class="sec">
+    <span class="sec-num">06 — Discipline</span>
+    <h2>What <em>not</em> to do</h2>
+    <div class="dont">
+      <ul>
+        <li><span class="x">✕</span><div><b>Don't build another feature.</b> The 141st screen doesn't move a number when the first 140 have two users. Feature work is the comfortable trap here.</div></li>
+        <li><span class="x">✕</span><div><b>Don't spend on acquisition before Phase 1 ships.</b> Paid traffic into a login wall with a broken plan-link and a fabricated PDF figure is money set on fire.</div></li>
+        <li><span class="x">✕</span><div><b>Don't mass-generate SEO doorway pages.</b> Empty "[city] construction software" pages trip Google's scaled-content-abuse policy and can suppress the whole domain. The calculator and real cost data are what earn the pages.</div></li>
+        <li><span class="x">✕</span><div><b>Don't let the Price Index stay "still building."</b> It's the entire cost-learning story's payoff. Empty, it reads as vaporware to every prospect who clicks it.</div></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    MAGE ID — Path to a Billion · synthesized from PostHog product analytics, live audits of app.mageid.app + mageid.app, and the 2026-08-03 UX audit.<br>
+    A strategy document, not a launch. Every Phase-1 item is a small, known scope — days, not weeks.
+  </footer>
+
+</div>
+</div>

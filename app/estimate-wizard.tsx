@@ -40,6 +40,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
 import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import { estimateGroundingProps } from '@/utils/activationSignals';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import UpgradeSheet from '@/components/UpgradeSheet';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
@@ -66,6 +67,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // Two variants, because claiming to price "from your history" when the cost book
 // is empty is a lie the user can't see through — and it's the exact promise the
@@ -88,6 +90,10 @@ const ESTIMATE_THINKING_STEPS_COLD = [
 // On-brand cost-distribution bar palette (no purple/pink — matches the
 // redesign's trade-tile colors). Rotated by category index.
 const BREAKDOWN_COLORS = ['#FF6A1A', '#5FBF6B', '#90A4AE', '#4FC3F7', '#FFA726', '#8D6E63', '#EF5350', '#26C6DA'];
+
+// Single source of truth for the post-wizard paywall destination in onboarding
+// mode — avoids the cast being duplicated at every leave site.
+const ONBOARDING_PAYWALL_ROUTE = '/onboarding-paywall' as never;
 
 // Map an AI EstimateResult into a project LinkedEstimate. Item shape mirrors
 // utils/estimateAssemblies.ts applyAssembly and app/drawing-analyzer.tsx (the
@@ -208,7 +214,8 @@ function EstimateWizardScreenInner() {
   const { seeds } = useCostSeeds();
   const { tier } = useSubscription();
 
-  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { projectId, onboarding } = useLocalSearchParams<{ projectId?: string; onboarding?: string }>();
+  const isOnboarding = onboarding === '1';
   const scopedProject = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId, getProject]);
 
   const [step, setStep] = useState<number>(0);
@@ -279,13 +286,21 @@ function EstimateWizardScreenInner() {
   // closed jobs (same grounding the estimate copilot uses). Injected into
   // the prompt so a quick estimate prices from YOUR history, not a generic
   // national average. Best-effort — an empty book just means no grounding.
+  //
+  // costDb is exposed as its own memo so the analytics emit path can attach
+  // estimateGroundingProps (used_learned_costs / learned_rate_count /
+  // jobs_analyzed) to estimate_generated without rebuilding the DB twice.
+  const costDb = useMemo(
+    () => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds),
+    [projects, commitments, receipts, laborSamples, seeds],
+  );
+
   const groundingFacts = useMemo<string[]>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
       // Seeded rates are told to the model as told-to-us, never as measured
       // history. Handing the LLM "runs $X on your jobs" for a number the
       // contractor typed would launder a claim into evidence.
-      const facts = db.entries.slice(0, 6).map((e) =>
+      const facts = costDb.entries.slice(0, 6).map((e) =>
         e.provenance === 'seeded'
           ? `${e.trade}: the contractor's own stated rate is $${e.suggestedRate.toFixed(2)}/${e.unit} (self-reported, no closed job yet — use it, but don't call it measured)`
           : `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
@@ -297,7 +312,7 @@ function EstimateWizardScreenInner() {
     } catch {
       return [];
     }
-  }, [projects, commitments, receipts, laborSamples, seeds]);
+  }, [costDb, projects, commitments]);
 
   const next = useCallback(() => {
     if (!canAdvance) return;
@@ -371,6 +386,15 @@ function EstimateWizardScreenInner() {
         const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
         setResult(data);
 
+        // Activation funnel: enriched aha event — attaches whether this
+        // estimate was priced from the contractor's own learned cost data.
+        track(AnalyticsEvents.ESTIMATE_GENERATED, {
+          path: 'wizard_generated',
+          grand_total: data.total,
+          item_count: data.lineItems?.length ?? 0,
+          ...estimateGroundingProps(costDb),
+        });
+
         // Project-aware link-back. When the wizard was launched with a
         // ?projectId (from a project's "estimate now" entry point), fold
         // the AI line items into that project's linkedEstimate so the
@@ -416,7 +440,7 @@ function EstimateWizardScreenInner() {
     } finally {
       setLoading(false);
     }
-  }, [answers, groundingFacts, loading, tier, router, projectId, scopedProject, updateProject]);
+  }, [answers, groundingFacts, costDb, loading, tier, router, projectId, scopedProject, updateProject]);
 
   // Escape hatch for the loading screen. We don't actually abort the
   // in-flight fetch (the AbortController is internal to mageAI), but
@@ -445,6 +469,19 @@ function EstimateWizardScreenInner() {
         logoUri:       settings?.branding?.logoUri,
       };
       await shareQuickEstimatePDF(result, answers, branding);
+      // Activation funnel: the final funnel step — priced estimate sent to client.
+      track(AnalyticsEvents.ESTIMATE_SHARED, {
+        method: 'pdf_share',
+        source: 'estimate_wizard',
+        grand_total: result?.total ?? 0,
+      });
+      // Onboarding arc: after a successful send, route to the value-first
+      // paywall. The leave handler (Cancel/back) also routes there, but
+      // router.replace here means we're already gone — the leave handler
+      // won't fire for this session.
+      if (isOnboarding) {
+        router.replace(ONBOARDING_PAYWALL_ROUTE);
+      }
     } catch (err) {
       showAlert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
     } finally {
@@ -487,8 +524,12 @@ function EstimateWizardScreenInner() {
     setShowSaveModal(false);
     setSavedProjectId(targetId);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
-  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds]);
+    if (isOnboarding) {
+      router.replace(ONBOARDING_PAYWALL_ROUTE);
+    } else {
+      router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
+    }
+  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
 
   // Create a NEW project from the wizard answers, hydrate its linkedEstimate,
   // and jump to it. The wizard answers are also stamped onto project.scope so
@@ -550,8 +591,12 @@ function EstimateWizardScreenInner() {
     setNewProjectName('');
     setSavedProjectId(id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push({ pathname: '/project-detail', params: { id } } as never);
-  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds]);
+    if (isOnboarding) {
+      router.replace(ONBOARDING_PAYWALL_ROUTE);
+    } else {
+      router.push({ pathname: '/project-detail', params: { id } } as never);
+    }
+  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
@@ -595,7 +640,7 @@ function EstimateWizardScreenInner() {
 
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
-        <Stack.Screen options={{ title: 'Estimate' }} />
+        <Stack.Screen options={{ title: 'Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
         <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}>
           {/* "Client preview" banner — reminds the GC that what they see
               IS what the homeowner sees. Soft contextual cue at the top. */}
@@ -948,7 +993,13 @@ function EstimateWizardScreenInner() {
             {hasProject ? (
               <TouchableOpacity
                 style={styles.resultPrimaryBtn}
-                onPress={() => router.push({ pathname: '/project-detail', params: { id: attachedId! } } as never)}
+                onPress={() => {
+                  if (isOnboarding) {
+                    router.replace(ONBOARDING_PAYWALL_ROUTE);
+                  } else {
+                    router.push({ pathname: '/project-detail', params: { id: attachedId! } } as never);
+                  }
+                }}
                 activeOpacity={0.85}
                 disabled={sharingPdf}
                 testID="wizard-view-project"
@@ -1007,7 +1058,13 @@ function EstimateWizardScreenInner() {
                 discoverable at the decision moment. */}
             <TouchableOpacity
               style={[styles.resultSecondaryBtn, { borderColor: themeColors.accent + '40' }]}
-              onPress={() => router.push('/win-optimizer' as never)}
+              onPress={() => {
+                if (isOnboarding) {
+                  router.replace(ONBOARDING_PAYWALL_ROUTE);
+                } else {
+                  router.push('/win-optimizer' as never);
+                }
+              }}
               activeOpacity={0.85}
               testID="wizard-win-optimizer"
             >
@@ -1093,7 +1150,7 @@ function EstimateWizardScreenInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'Quick Estimate' }} />
+      <Stack.Screen options={{ title: 'Quick Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.progressWrap}>
           <View style={styles.progressTrack}>
@@ -1122,6 +1179,12 @@ function EstimateWizardScreenInner() {
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
+          {isOnboarding && (
+            <View style={styles.onboardingBanner} testID="estimate-onboarding-banner">
+              <Text style={styles.onboardingBannerTitle}>Your first bid</Text>
+              <Text style={styles.onboardingBannerSubtitle}>Priced off your rate — send it when it looks right.</Text>
+            </View>
+          )}
           <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
         </ScrollView>
 
@@ -1132,7 +1195,9 @@ function EstimateWizardScreenInner() {
         ) : null}
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
-            onPress={step === 0 ? () => router.back() : back}
+            onPress={step === 0
+              ? () => (isOnboarding ? router.replace(ONBOARDING_PAYWALL_ROUTE) : router.back())
+              : back}
             style={[styles.secondaryBtn, styles.footerBtn]}
             activeOpacity={0.8}
             testID="wizard-back"
@@ -1343,6 +1408,28 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   voiceBannerTitle: { ...Type.subheadEmphasized, color: themeColors.accent },
   voiceBannerDesc: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 1 },
+  // Onboarding-mode framing banner — shown at the top of the wizard when
+  // launched with ?onboarding=1. Frames the moment without changing any
+  // estimate logic.
+  onboardingBanner: {
+    backgroundColor: themeColors.accentSoft,
+    borderWidth: 1,
+    borderColor: themeColors.accentSoft,
+    borderRadius: Tokens.radius.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    gap: 4,
+  },
+  onboardingBannerTitle: {
+    ...Type.subheadEmphasized,
+    color: themeColors.accent,
+  },
+  onboardingBannerSubtitle: {
+    ...Type.footnote,
+    fontWeight: '500' as const,
+    color: themeColors.textSecondary,
+  },
   // "Client preview" banner at top of result screen
   previewBanner: {
     backgroundColor: themeColors.accent + '12',

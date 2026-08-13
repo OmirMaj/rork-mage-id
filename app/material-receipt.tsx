@@ -44,6 +44,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 export default function MaterialReceiptScreen() {
   const router = useRouter();
@@ -180,6 +181,10 @@ function MaterialReceiptInner() {
       updatedAt: new Date().toISOString(),
     };
     addReceipt(toSave);
+    track(AnalyticsEvents.MATERIAL_RECEIPT_SAVED, {
+      item_count: draft.lines.length,
+      source: 'material_receipt',
+    });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
     setDraft(null);

@@ -243,7 +243,6 @@ export default function DevSeederScreen() {
           grandTotal: GRAND_TOTAL,
           pricePerSqFt: 336.29,
           estimatedDuration: '11-12 months',
-          bulkSavingsTotal: 38_600,
           materials: [],
         },
         status: 'in_progress',

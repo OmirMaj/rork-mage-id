@@ -33,6 +33,7 @@ import {
   getRecentMaterials, type SavedMaterial, type RecentMaterial,
 } from '@/utils/materialDatabase';
 import { generateAndSharePDF, generateEstimatePDFUri } from '@/utils/pdfGenerator';
+import { computeBulkSavings } from '@/utils/bulkSavings';
 import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
@@ -63,6 +64,7 @@ import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -141,7 +143,7 @@ export default function EstimateScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
-  const { projects, updateProject, settings, updateSettings, contacts, commitments } = useProjects();
+  const { projects, updateProject, settings, updateSettings, contacts, commitments, getBidPackagesForProject } = useProjects();
   const { isFree, canAccess } = useTierAccess();
   // Shared materials cart (used by the Materials browser too). All cart
   // mutations now flow through the context — local setCart() calls were
@@ -243,6 +245,19 @@ export default function EstimateScreen() {
   const [showConfirmLink, setShowConfirmLink] = useState(false);
   const [estimateName, setEstimateName] = useState('');
   const [pendingLinkProject, setPendingLinkProject] = useState<Project | null>(null);
+  // Compute real buyout-derived savings for the pending-link project so both
+  // PDFPreSendSheet sites can show the "Bulk Savings Breakdown" toggle, and the
+  // send handler can inject the real figure into the generated PDF. Guarded:
+  // only non-null when pendingLinkProject is set and has actual awarded packages
+  // with resolvable Commitments. Never fabricated.
+  const pendingProjectBulkSavings = useMemo(() => {
+    if (!pendingLinkProject) return null;
+    const pkgs = getBidPackagesForProject(pendingLinkProject.id);
+    return computeBulkSavings(pendingLinkProject.id, pkgs, commitments);
+  }, [pendingLinkProject, getBidPackagesForProject, commitments]);
+  const showBulkSavings = !!(
+    pendingProjectBulkSavings?.hasRealData && (pendingProjectBulkSavings?.bulkSavings ?? 0) > 0
+  );
   const [showPDFPreSend, setShowPDFPreSend] = useState(false);
   const [activeTab, setActiveTab] = useState<EstimateTab>('materials');
   const [laborCart, setLaborCart] = useState<LaborCartItem[]>([]);
@@ -981,7 +996,13 @@ export default function EstimateScreen() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         estimate: null,
-        linkedEstimate: buildLinkedEstimate(),
+        linkedEstimate: {
+          ...buildLinkedEstimate(),
+          // Inject real buyout-derived savings so the printed PDF reflects the
+          // actual awarded-commitment delta. undefined when no real savings →
+          // generator already guards (bulkSavingsTotal ?? 0) > 0 before rendering.
+          bulkSavingsTotal: showBulkSavings ? (pendingProjectBulkSavings?.bulkSavings ?? undefined) : undefined,
+        },
         status: 'estimated',
       };
       const pdfUri = await generateEstimatePDFUri(tempProject, branding);
@@ -997,6 +1018,11 @@ export default function EstimateScreen() {
       });
 
       if (result.success) {
+        track(AnalyticsEvents.ESTIMATE_SHARED, {
+          method: 'email',
+          source: 'estimate_full',
+          grand_total: grandTotal ?? 0,
+        });
         showAlert('Email Sent', `Estimate emailed to ${options.recipient}`);
       } else if (result.error === 'cancelled') {
         return;
@@ -1041,7 +1067,13 @@ export default function EstimateScreen() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       estimate: null,
-      linkedEstimate: buildLinkedEstimate(),
+      linkedEstimate: {
+        ...buildLinkedEstimate(),
+        // Inject real buyout-derived savings so the printed PDF reflects the
+        // actual awarded-commitment delta. undefined when no real savings →
+        // generator already guards (bulkSavingsTotal ?? 0) > 0 before rendering.
+        bulkSavingsTotal: showBulkSavings ? (pendingProjectBulkSavings?.bulkSavings ?? undefined) : undefined,
+      },
       status: 'estimated',
     };
     try {
@@ -1052,7 +1084,7 @@ export default function EstimateScreen() {
       console.error('[Estimate] PDF share error:', e);
       showAlert('Error', 'Failed to generate PDF. Please try again.');
     }
-  }, [cart, settings, buildLinkedEstimate, cartTotal, isFree]);
+  }, [cart, settings, buildLinkedEstimate, cartTotal, isFree, showBulkSavings, pendingProjectBulkSavings]);
 
   const handleShareEmail = useCallback(() => {
     let text = '';
@@ -2672,7 +2704,7 @@ export default function EstimateScreen() {
         <SquareFootEstimator visible={showSqftEstimator} onClose={() => setShowSqftEstimator(false)} locationFactor={locationMultiplier} />
         <ProductivityCalculator visible={showProductivityCalc} onClose={() => setShowProductivityCalc(false)} />
         <EstimateComparison visible={showComparison} onClose={() => setShowComparison(false)} currentCart={cart} currentLaborCart={laborCart} currentAssemblyCart={assemblyCart} currentMaterialsTotal={cartTotal} currentLaborTotal={laborTotal} currentAssemblyTotal={assemblyTotal} currentGrandTotal={grandTotal} />
-        <PDFPreSendSheet visible={showPDFPreSend} onClose={() => setShowPDFPreSend(false)} onSend={handlePDFSend} documentType="estimate" projectName={pendingLinkProject?.name ?? 'Estimate'} contacts={contacts} pdfNaming={settings.pdfNaming} onPdfNumberUsed={() => { if (settings.pdfNaming?.enabled) { updateSettings({ pdfNaming: { ...settings.pdfNaming, nextNumber: settings.pdfNaming.nextNumber + 1 } }); } }} />
+        <PDFPreSendSheet visible={showPDFPreSend} onClose={() => setShowPDFPreSend(false)} onSend={handlePDFSend} documentType="estimate" projectName={pendingLinkProject?.name ?? 'Estimate'} contacts={contacts} pdfNaming={settings.pdfNaming} onPdfNumberUsed={() => { if (settings.pdfNaming?.enabled) { updateSettings({ pdfNaming: { ...settings.pdfNaming, nextNumber: settings.pdfNaming.nextNumber + 1 } }); } }} hasBulkSavings={showBulkSavings} />
         <AssemblyEditorModal
           visible={editorVisible}
           initial={editorInitial}
@@ -3303,6 +3335,7 @@ export default function EstimateScreen() {
             updateSettings({ pdfNaming: { ...settings.pdfNaming, nextNumber: settings.pdfNaming.nextNumber + 1 } });
           }
         }}
+        hasBulkSavings={showBulkSavings}
       />
 
       {/* Confirm Link Modal */}

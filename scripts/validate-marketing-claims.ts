@@ -163,15 +163,21 @@ for (const { pattern, why } of PRICING_BANNED) {
   // own explanatory comment counts as a third occurrence.
   const pdfCode = pdf.split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
   const clientFacingBulkSavings = [...pdfCode.matchAll(/Bulk Savings/g)];
-  ok('client PDF renders Bulk Savings only when > 0',
+  ok('legacy HTML PDF renders Bulk Savings only when > 0',
     /\(legacyEst\.bulkSavingsTotal \?\? 0\) > 0 \?/.test(pdf),
-    'the HTML proposal row must be guarded — it reaches the contractor\'s customer');
-  ok('text export renders Bulk Savings only when > 0',
+    'the legacy HTML proposal row must be guarded — it reaches the contractor\'s customer');
+  ok('legacy text export renders Bulk Savings only when > 0',
     /if \(\(legacyEst\.bulkSavingsTotal \?\? 0\) > 0\) \{/.test(pdf),
-    'the plain-text export must be guarded too');
+    'the legacy plain-text export must be guarded too');
+  ok('linked-estimate HTML PDF renders Bulk Savings only when > 0',
+    /\(est\.bulkSavingsTotal \?\? 0\) > 0 \?/.test(pdf),
+    'the linkedEstimate HTML row must be guarded — it reaches the contractor\'s customer');
+  ok('linked-estimate text export renders Bulk Savings only when > 0',
+    /if \(\(est\.bulkSavingsTotal \?\? 0\) > 0\) \{/.test(pdf),
+    'the linkedEstimate plain-text export must be guarded too');
   ok('every Bulk Savings site in the PDF generator is guarded',
-    clientFacingBulkSavings.length === 2,
-    `found ${clientFacingBulkSavings.length} — a new unguarded site may have been added`);
+    clientFacingBulkSavings.length === 4,
+    `found ${clientFacingBulkSavings.length} — expected 4 (2 legacyEst + 2 linkedEstimate), a new unguarded site may have been added`);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -332,7 +338,7 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
   // "placeholder rates", so a bare text search would pass with no chip at all.
   ok('plan intelligence chips rooms priced off a placeholder rate',
     /r\.rateSource === 'default' &&/.test(plan) &&
-    /defaultRateChipText}>placeholder rate</.test(plan),
+    /defaultRateChipText}>[^<]*not your rate</.test(plan),
     'a room on DEFAULT_ROOM_RATES must say so — "your rate" absent is not "not your rate"');
   ok('plan intelligence discloses placeholder rates in the total',
     /plan-intel-placeholder-note/.test(plan),

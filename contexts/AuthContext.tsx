@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
+import { PENDING_DEEPLINK_KEY } from '@/utils/pendingDeepLink';
+import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
 import { processOfflineQueue, getOfflineQueue } from '@/utils/offlineQueue';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import * as SecureStore from 'expo-secure-store';
@@ -77,6 +79,16 @@ const LOCAL_USER_CACHE_KEYS = [
   // Universal Search: the last 5 search queries (components/UniversalSearch).
   // Queries are per-user (project names, client names) — wipe on tenant switch.
   'mageid_recent_searches',
+  // Pending deep-link stash (utils/pendingDeepLink): the in-app route a
+  // deauthenticated user was headed to, replayed after sign-in. Per-user
+  // by definition (targets protected screens) — wipe on tenant switch so
+  // user-A's stashed destination never sends user-B to the wrong screen.
+  PENDING_DEEPLINK_KEY,
+  // Marketing-site signup intent (utils/signupIntent): the ?plan= & ?trial=
+  // params captured from app.mageid.app/?plan=pro&trial=14. Wiped after the
+  // paywall consumes it (clearSignupIntent), AND wiped on tenant switch so
+  // user-A's intent never pre-selects a plan for user-B on a shared device.
+  SIGNUP_INTENT_KEY,
 ] as const;
 
 // The re-fetchable caches (mageid_*) are always safe to wipe —

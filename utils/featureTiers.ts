@@ -51,6 +51,7 @@ export type FeatureKey =
   | 'bid_scoring'
   | 'ask_your_plans'
   | 'brain_accuracy'
+  | 'construction_answer'
   // The portfolio-level margin moat — lifted out of job_costing (Pro) up to
   // Business so the profit-defense engine anchors the higher tier.
   | 'portfolio_margin'
@@ -93,6 +94,7 @@ export const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   bid_scoring: 'business',
   ask_your_plans: 'business',
   brain_accuracy: 'business',
+  construction_answer: 'business',
   // Win Optimizer, Portfolio Margin, Estimate Calibration — the cross-job
   // margin intelligence that defends profit. Business tier (the moat lives here,
   // not at the Pro entry price). Basic job_costing stays Pro.

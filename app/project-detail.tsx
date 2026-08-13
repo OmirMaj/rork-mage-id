@@ -42,6 +42,7 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
+import { computeBulkSavings } from '@/utils/bulkSavings';
 import {
   buildPhotoSharePayload,
   encodePhotoShareToken,
@@ -179,7 +180,7 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -228,6 +229,8 @@ export default function ProjectDetailScreen() {
   const projectAIAPayApps = useMemo(() => getAIAPayAppsForProject(id ?? ''), [id, getAIAPayAppsForProject]);
   const projectPlans = useMemo(() => getPlanSheetsForProject(id ?? ''), [id, getPlanSheetsForProject]);
   const projectPermits = useMemo(() => getPermitsForProject(id ?? ''), [id, getPermitsForProject]);
+  const projectBidPackages = useMemo(() => getBidPackagesForProject(id ?? ''), [id, getBidPackagesForProject]);
+  const projectCommitments = useMemo(() => getCommitmentsForProject(id ?? ''), [id, getCommitmentsForProject]);
 
   // Pre-cache plan PNGs the moment a project opens. The marketing site
   // promises plans work offline; for that to be true, the bytes have to
@@ -441,6 +444,15 @@ export default function ProjectDetailScreen() {
   // depend on it unconditionally — moving them below the `if (!project)` early
   // return would violate rules of hooks.
   const estimate = useMemo(() => project?.estimate, [project]);
+
+  // Real buyout savings — derived from awarded BidPackages + signed Commitments.
+  // Shows NOTHING when no packages have been awarded yet (hasRealData = false).
+  const bulkSavingsSummary = useMemo(
+    () => computeBulkSavings(id ?? '', projectBidPackages, projectCommitments),
+    [id, projectBidPackages, projectCommitments],
+  );
+  const totalBulkSavings = bulkSavingsSummary.bulkSavings;
+  const showBulkSavings = bulkSavingsSummary.hasRealData && bulkSavingsSummary.bulkSavings > 0;
 
   // Count of Outbox-worthy items (drafts + recalled + unsent edits) for this project.
   // Drives the entry-row badge shown in the Client Portal section of the tile grid.
@@ -730,12 +742,25 @@ export default function ProjectDetailScreen() {
     if (!project) return;
     try {
       setShowShareModal(false);
-      await generateAndSharePDF(project, branding, 'share');
+      // Inject the real buyout-derived savings into the project's estimate
+      // before passing to the PDF generator so the printed figure is real.
+      // undefined when no packages are awarded yet — the generator already
+      // guards (bulkSavingsTotal ?? 0) > 0 before printing the line.
+      const projectForPdf = project.estimate
+        ? {
+            ...project,
+            estimate: {
+              ...project.estimate,
+              bulkSavingsTotal: showBulkSavings ? totalBulkSavings : undefined,
+            },
+          }
+        : project;
+      await generateAndSharePDF(projectForPdf, branding, 'share');
     } catch (e) {
       console.error('[ProjectDetail] PDF share error:', e);
       showAlert('Error', 'Failed to generate PDF. Please try again.');
     }
-  }, [project, branding]);
+  }, [project, branding, showBulkSavings, totalBulkSavings]);
 
   // Copy the client-portal share link to the clipboard. The previous
   // version of the inline portal section called showAlert('Copied', …)
@@ -764,12 +789,23 @@ export default function ProjectDetailScreen() {
       ? `${branding.companyName} - Estimate: ${project.name}`
       : `Estimate: ${project.name}`;
 
-    const body = buildEstimateTextForEmail(project, branding);
+    // Mirror the same patched-project pattern used by handleSharePDF so the
+    // emailed estimate text and the PDF agree on the bulk-savings figure.
+    const projectForEmail = project.estimate
+      ? {
+          ...project,
+          estimate: {
+            ...project.estimate,
+            bulkSavingsTotal: showBulkSavings ? totalBulkSavings : undefined,
+          },
+        }
+      : project;
+    const body = buildEstimateTextForEmail(projectForEmail, branding);
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     Linking.openURL(mailtoUrl).catch(() => {
       showAlert('Unable to open email', 'Please check your email app is configured.');
     });
-  }, [project, branding]);
+  }, [project, branding, showBulkSavings, totalBulkSavings]);
 
   const handleShareText = useCallback(() => {
     if (!project) return;
@@ -807,12 +843,21 @@ export default function ProjectDetailScreen() {
     if (!project) return;
     try {
       setShowShareModal(false);
-      await generateAndSharePDF(project, branding, 'share');
+      const projectForPdf = project.estimate
+        ? {
+            ...project,
+            estimate: {
+              ...project.estimate,
+              bulkSavingsTotal: showBulkSavings ? totalBulkSavings : undefined,
+            },
+          }
+        : project;
+      await generateAndSharePDF(projectForPdf, branding, 'share');
     } catch (e) {
       console.error('[ProjectDetail] Schedule PDF share error:', e);
       showAlert('Error', 'Failed to generate schedule PDF.');
     }
-  }, [project, branding]);
+  }, [project, branding, showBulkSavings, totalBulkSavings]);
 
   // Export the project's complete RFI log as a PDF — the document a GC would
   // hand the architect at the project meeting or attach to a closeout binder.
@@ -1069,12 +1114,12 @@ export default function ProjectDetailScreen() {
     const materials = Array.isArray(estimate.materials) ? estimate.materials : [];
     const itemsWithSavings = materials.filter(m => (m.savings ?? 0) > 0);
     const topSavers = [...itemsWithSavings].sort((a, b) => (b.savings ?? 0) - (a.savings ?? 0)).slice(0, 8);
-    const totalBulkSavings = estimate.bulkSavingsTotal ?? 0;
-    const savingsRate = (estimate.grandTotal ?? 0) > 0 ? (totalBulkSavings / ((estimate.grandTotal ?? 0) + totalBulkSavings)) * 100 : 0;
+    // Use the buyout-derived savings (real), not a seeded fabricated field.
+    const savingsRate = (estimate.grandTotal ?? 0) > 0 && showBulkSavings ? (totalBulkSavings / ((estimate.grandTotal ?? 0) + totalBulkSavings)) * 100 : 0;
     const itemsAtBulk = itemsWithSavings.length;
     const totalItems = materials.length;
     return { topSavers, totalBulkSavings, savingsRate, itemsAtBulk, totalItems };
-  }, [estimate]);
+  }, [estimate, totalBulkSavings, showBulkSavings]);
 
   const openDetail = useCallback((type: 'total' | 'savings') => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1104,10 +1149,12 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.heroChipLabel}>${(estimate.pricePerSqFt ?? 0).toFixed(2)}</Text>
               <Text style={detailStyles.heroChipSub}>per sq ft</Text>
             </View>
-            <View style={[detailStyles.heroChip, { backgroundColor: themeColors.successSoft }]}>
-              <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal ?? 0)}</Text>
-              <Text style={[detailStyles.heroChipSub, { color: themeColors.success }]}>savings applied</Text>
-            </View>
+            {showBulkSavings ? (
+              <View style={[detailStyles.heroChip, { backgroundColor: themeColors.successSoft }]}>
+                <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>-{formatMoney(totalBulkSavings)}</Text>
+                <Text style={[detailStyles.heroChipSub, { color: themeColors.success }]}>savings applied</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -1151,16 +1198,20 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.additionalPct}>{totalBreakdown.contingencyRate.toFixed(1)}%</Text>
             </View>
           </View>
-          <View style={detailStyles.additionalDivider} />
-          <View style={detailStyles.additionalRow}>
-            <View style={detailStyles.additionalLeft}>
-              <View style={[detailStyles.additionalDot, { backgroundColor: themeColors.success }]} />
-              <Text style={[detailStyles.additionalLabel, { color: themeColors.success }]}>Bulk Savings</Text>
-            </View>
-            <View style={detailStyles.additionalRight}>
-              <Text style={[detailStyles.additionalValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal ?? 0)}</Text>
-            </View>
-          </View>
+          {showBulkSavings ? (
+            <>
+              <View style={detailStyles.additionalDivider} />
+              <View style={detailStyles.additionalRow}>
+                <View style={detailStyles.additionalLeft}>
+                  <View style={[detailStyles.additionalDot, { backgroundColor: themeColors.success }]} />
+                  <Text style={[detailStyles.additionalLabel, { color: themeColors.success }]}>Bulk Savings</Text>
+                </View>
+                <View style={detailStyles.additionalRight}>
+                  <Text style={[detailStyles.additionalValue, { color: themeColors.success }]}>-{formatMoney(totalBulkSavings)}</Text>
+                </View>
+              </View>
+            </>
+          ) : null}
         </View>
 
         <Text style={detailStyles.sectionLabel}>Full Breakdown</Text>
@@ -1192,10 +1243,12 @@ export default function ProjectDetailScreen() {
             <Text style={detailStyles.breakdownLabel}>+ Contingency</Text>
             <Text style={detailStyles.breakdownValue}>{formatMoney(estimate.contingency)}</Text>
           </View>
-          <View style={detailStyles.breakdownRow}>
-            <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Bulk Savings</Text>
-            <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal ?? 0)}</Text>
-          </View>
+          {showBulkSavings ? (
+            <View style={detailStyles.breakdownRow}>
+              <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Bulk Savings</Text>
+              <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(totalBulkSavings)}</Text>
+            </View>
+          ) : null}
           <View style={detailStyles.breakdownDividerThick} />
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.grandLabel}>Grand Total</Text>
@@ -1215,13 +1268,15 @@ export default function ProjectDetailScreen() {
           <View style={[detailStyles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
             <TrendingDown size={28} color={themeColors.success} strokeWidth={1.75} />
           </View>
-          <Text style={[detailStyles.heroAmount, { color: themeColors.success }]}>{formatMoney(savingsBreakdown.totalBulkSavings)}</Text>
+          <Text style={[detailStyles.heroAmount, { color: themeColors.success }]}>{formatMoney(totalBulkSavings)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
           <View style={detailStyles.heroChips}>
-            <View style={[detailStyles.heroChip, { backgroundColor: themeColors.successSoft }]}>
-              <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>{(savingsBreakdown.savingsRate ?? 0).toFixed(1)}%</Text>
-              <Text style={[detailStyles.heroChipSub, { color: themeColors.success }]}>savings rate</Text>
-            </View>
+            {showBulkSavings && (savingsBreakdown.savingsRate ?? 0) > 0 ? (
+              <View style={[detailStyles.heroChip, { backgroundColor: themeColors.successSoft }]}>
+                <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>{(savingsBreakdown.savingsRate ?? 0).toFixed(1)}%</Text>
+                <Text style={[detailStyles.heroChipSub, { color: themeColors.success }]}>savings rate</Text>
+              </View>
+            ) : null}
             <View style={detailStyles.heroChip}>
               <Text style={detailStyles.heroChipLabel}>{savingsBreakdown.itemsAtBulk}/{savingsBreakdown.totalItems}</Text>
               <Text style={detailStyles.heroChipSub}>items w/ savings</Text>
@@ -1229,36 +1284,45 @@ export default function ProjectDetailScreen() {
           </View>
         </View>
 
-        <Text style={detailStyles.sectionLabel}>How Bulk Savings Work</Text>
-        <View style={detailStyles.infoCard}>
-          <View style={detailStyles.infoRow}>
-            <View style={[detailStyles.infoStep, { backgroundColor: themeColors.accent + '15' }]}>
-              <Text style={[detailStyles.infoStepNum, { color: themeColors.accent }]}>1</Text>
+        {/* Provenance chip — shows only when savings are from real buyout data */}
+        {showBulkSavings ? (
+          <>
+            <Text style={detailStyles.sectionLabel}>Source</Text>
+            <View style={[detailStyles.infoCard, { paddingVertical: 12 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ArrowDownRight size={16} color={themeColors.success} strokeWidth={1.75} />
+                <Text style={[detailStyles.infoDesc, { flex: 1 }]}>
+                  Measured from your buyout · {bulkSavingsSummary.awardedPackageCount} awarded package{bulkSavingsSummary.awardedPackageCount !== 1 ? 's' : ''}
+                </Text>
+              </View>
             </View>
-            <View style={detailStyles.infoTextWrap}>
-              <Text style={detailStyles.infoTitle}>Volume Thresholds</Text>
-              <Text style={detailStyles.infoDesc}>Each material has a minimum bulk quantity. Once met, a lower per-unit price is unlocked.</Text>
-            </View>
-          </View>
-          <View style={detailStyles.infoRow}>
-            <View style={[detailStyles.infoStep, { backgroundColor: themeColors.success + '15' }]}>
-              <Text style={[detailStyles.infoStepNum, { color: themeColors.success }]}>2</Text>
-            </View>
-            <View style={detailStyles.infoTextWrap}>
-              <Text style={detailStyles.infoTitle}>Automatic Application</Text>
-              <Text style={detailStyles.infoDesc}>When your estimate quantities exceed bulk thresholds, savings are calculated automatically.</Text>
-            </View>
-          </View>
-          <View style={detailStyles.infoRow}>
-            <View style={[detailStyles.infoStep, { backgroundColor: themeColors.accent + '15' }]}>
-              <Text style={[detailStyles.infoStepNum, { color: themeColors.accent }]}>3</Text>
-            </View>
-            <View style={detailStyles.infoTextWrap}>
-              <Text style={detailStyles.infoTitle}>Reflected in Total</Text>
-              <Text style={detailStyles.infoDesc}>Bulk savings are deducted from the grand total, reducing your overall project cost.</Text>
-            </View>
-          </View>
-        </View>
+
+            {bulkSavingsSummary.byPackage.length > 0 && (
+              <>
+                <Text style={detailStyles.sectionLabel}>By Package</Text>
+                <View style={detailStyles.topSaversCard}>
+                  {bulkSavingsSummary.byPackage.map((pkg, idx) => (
+                    <View key={pkg.packageId}>
+                      <View style={detailStyles.saverRow}>
+                        <View style={detailStyles.saverInfo}>
+                          <Text style={detailStyles.saverName} numberOfLines={1}>{pkg.packageName}</Text>
+                          <Text style={detailStyles.saverMeta}>Budget {formatMoney(pkg.estimateBudget)} · Awarded {formatMoney(pkg.awardedAmount)}</Text>
+                        </View>
+                        <View style={detailStyles.saverSavings}>
+                          <Text style={[detailStyles.saverAmount, pkg.savings < 0 ? { color: themeColors.danger } : {}]}>
+                            {pkg.savings < 0 ? '+' : '-'}{formatMoney(Math.abs(pkg.savings))}
+                          </Text>
+                          <Text style={detailStyles.saverPct}>{pkg.savings >= 0 ? 'saved' : 'over'}</Text>
+                        </View>
+                      </View>
+                      {idx < bulkSavingsSummary.byPackage.length - 1 && <View style={detailStyles.saverDivider} />}
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </>
+        ) : null}
 
         {savingsBreakdown.topSavers.length > 0 && (
           <>
@@ -1288,26 +1352,9 @@ export default function ProjectDetailScreen() {
             </View>
           </>
         )}
-
-        {savingsBreakdown.itemsAtBulk < savingsBreakdown.totalItems && (
-          <>
-            <Text style={detailStyles.sectionLabel}>Optimization Tip</Text>
-            <View style={[detailStyles.infoCard, { backgroundColor: themeColors.accentSoft, borderColor: themeColors.accent + '30' }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-                <MageAIMark size={18} color={themeColors.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
-                  <Text style={detailStyles.infoDesc}>
-                    {savingsBreakdown.totalItems - savingsBreakdown.itemsAtBulk} material(s) aren't yet at bulk thresholds. Increasing quantities on those items could unlock additional discounts.
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </>
-        )}
       </ScrollView>
     );
-  }, [estimate, savingsBreakdown, insets.bottom]);
+  }, [estimate, savingsBreakdown, showBulkSavings, bulkSavingsSummary, insets.bottom, themeColors]);
 
   // Memoized so the options object reference is stable between renders.
   // Inline `<Stack.Screen options={{ headerRight: () => ... }} />` allocates
@@ -1439,18 +1486,20 @@ export default function ProjectDetailScreen() {
                       <Text style={styles.smallStatLabel}>Duration</Text>
                       <Text style={styles.smallStatValue}>{estimate.estimatedDuration}</Text>
                     </View>
-                    <TouchableOpacity
-                      style={styles.heroStatSmall}
-                      onPress={() => openDetail('savings')}
-                      activeOpacity={0.7}
-                      testID="hero-savings-tap"
-                    >
-                      <Text style={styles.smallStatLabel}>Bulk Savings</Text>
-                      <Text style={[styles.smallStatValue, { color: themeColors.success }]}>
-                        {formatMoney(estimate.bulkSavingsTotal)}
-                      </Text>
-                      <ArrowDownRight size={10} color={themeColors.textMuted} strokeWidth={1.75} />
-                    </TouchableOpacity>
+                    {showBulkSavings ? (
+                      <TouchableOpacity
+                        style={styles.heroStatSmall}
+                        onPress={() => openDetail('savings')}
+                        activeOpacity={0.7}
+                        testID="hero-savings-tap"
+                      >
+                        <Text style={styles.smallStatLabel}>Bulk Savings</Text>
+                        <Text style={[styles.smallStatValue, { color: themeColors.success }]}>
+                          {formatMoney(totalBulkSavings)}
+                        </Text>
+                        <ArrowDownRight size={10} color={themeColors.textMuted} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    ) : null}
                   </>
                 )}
                 {!estimate && linkedEstimate && (
@@ -2399,15 +2448,17 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.summaryLabel}>Contingency</Text>
                     <Text style={styles.summaryValue}>{formatMoney(estimate.contingency)}</Text>
                   </View>
-                  <View style={styles.summaryRow}>
-                    <View style={styles.savingsHighlight}>
-                      <TrendingDown size={14} color={themeColors.success} strokeWidth={1.75} />
-                      <Text style={[styles.summaryLabel, { color: themeColors.success }]}>Bulk Savings</Text>
+                  {showBulkSavings ? (
+                    <View style={styles.summaryRow}>
+                      <View style={styles.savingsHighlight}>
+                        <TrendingDown size={14} color={themeColors.success} strokeWidth={1.75} />
+                        <Text style={[styles.summaryLabel, { color: themeColors.success }]}>Bulk Savings</Text>
+                      </View>
+                      <Text style={[styles.summaryValue, { color: themeColors.success }]}>
+                        -{formatMoney(totalBulkSavings)}
+                      </Text>
                     </View>
-                    <Text style={[styles.summaryValue, { color: themeColors.success }]}>
-                      -{formatMoney(estimate.bulkSavingsTotal)}
-                    </Text>
-                  </View>
+                  ) : null}
                   <View style={styles.grandTotalDivider} />
                   <View style={styles.summaryRow}>
                     <Text style={styles.grandTotalLabel}>Grand Total</Text>

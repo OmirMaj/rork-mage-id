@@ -15,9 +15,8 @@
 // 2. On every edit, the parent re-runs `runCpm(tasks)` and passes the result
 //    back as `cpm`. We render Start/Finish/Float from that result, not from
 //    raw task fields, so Start and Finish are ALWAYS in sync with the math.
-// 3. Dependency edits are gated by `wouldCreateCycle()` — if the user tries
-//    to enter a cycle, we surface an inline error and DO NOT commit. This is
-//    the "forgiving UI" property from the playbook.
+// 3. Predecessor edits are validated by the PredecessorPicker UI; existing
+//    out-of-order links (legal DAG after move-up/down) are always preserved.
 // 4. Actual-start / actual-finish columns exist but are rendered faded until
 //    Phase 5 wires the field-reporting flow. We reserve the column space now
 //    so the layout doesn't shift later.
@@ -43,7 +42,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, TaskStatus, AnchorType } from '@/types';
 import {
-  runCpm, formatFloat, wouldCreateCycle,
+  runCpm, formatFloat,
   type CpmResult, type CpmTaskResult,
 } from '@/utils/cpm';
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
@@ -56,6 +55,7 @@ import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import PredecessorPicker, { type PredecessorLink, type PredecessorCandidate } from '@/components/schedule/PredecessorPicker';
 
 // ---------------------------------------------------------------------------
 // Column definition — single source of truth for widths, alignment, editability
@@ -87,7 +87,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'finish',       label: 'Finish',         width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'float',        label: 'Float',          width: 96,  align: 'left',   kind: 'readonly' },
   { key: 'deadline',     label: 'Due by',         width: 110, align: 'left',   kind: 'custom' },
-  { key: 'predecessors', label: 'Predecessors',   width: 140, align: 'left',   kind: 'text' },
+  { key: 'predecessors', label: 'Predecessors',   width: 140, align: 'left',   kind: 'custom' },
   { key: 'crew',         label: 'Crew',           width: 140, align: 'left',   kind: 'text' },
   { key: 'status',       label: 'Status',         width: 110, align: 'center', kind: 'custom' },
   { key: 'progress',     label: '% Done',         width: 72,  align: 'right',  kind: 'number' },
@@ -420,6 +420,12 @@ export default function GridPane({
   // the modal is small; lifting would mean threading another callback.
   const [anchorFor, setAnchorFor] = useState<ScheduleTask | null>(null);
 
+  // Predecessor picker — opened by tapping the Predecessors cell. Replaces the
+  // old typed-syntax text-input edit (T5FS+3 etc.) as the primary edit path.
+  // The picker is mounted only while open (keyed on taskId) so its state is
+  // always seeded fresh from the task's current links.
+  const [predecessorPickerTask, setPredecessorPickerTask] = useState<ScheduleTask | null>(null);
+
   // Row context menu (indent/outdent, move up/down, milestone, complete,
   // delete). iOS fires the native ActionSheet imperatively; web/Android open
   // the <ScheduleRowMenu> modal. Triggered by row long-press / right-click —
@@ -507,23 +513,6 @@ export default function GridPane({
   }, [tasks, setSelection]);
 
   const selectedArray = useMemo(() => Array.from(selected), [selected]);
-
-  // Map of task.id → wbsCode, used to let users type "1.2" or "T5" as a
-  // predecessor instead of the machine id. Falls back to the id itself
-  // so power users can paste task uuids directly if they need to.
-  const wbsToIdMap = useMemo(() => {
-    const m = new Map<string, string>();
-    tasks.forEach((t, i) => {
-      if (t.wbsCode) m.set(t.wbsCode.trim(), t.id);
-      // Row-number shorthand. Matches the Gantt bar labels and the new
-      // predecessor display, so what you read in the cell is what you can
-      // type back into it.
-      m.set(`T${i + 1}`, t.id);
-      m.set(`t${i + 1}`, t.id);
-      m.set(t.id, t.id);
-    });
-    return m;
-  }, [tasks]);
 
   const idToWbsMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -613,16 +602,6 @@ export default function GridPane({
         cpmAtBegin?.ef ?? (task.startDay + Math.max(1, task.durationDays ?? 1) - 1),
       ); break;
       case 'deadline': seed = task.deadline ?? renderIso(cpmAtBegin?.ef ?? task.startDay); break;
-      case 'predecessors':
-        seed = (task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
-          .map(l => {
-            const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
-            const type = l.type && l.type !== 'FS' ? l.type : '';
-            const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
-            return `${wbs}${type}${lag}`;
-          })
-          .join(', ');
-        break;
     }
     setDraft(seed);
     setCellError(null);
@@ -720,37 +699,6 @@ export default function GridPane({
         patch.deadline = `${ys}-${ms.padStart(2, '0')}-${ds.padStart(2, '0')}`;
         break;
       }
-      case 'predecessors': {
-        // Parse "1.2, 2.1SS+2, 3.4FF-1" → DependencyLink[]
-        // Reject early if any token is malformed or would create a cycle.
-        const raw = draft.trim();
-        if (!raw) {
-          patch.dependencies = [];
-          patch.dependencyLinks = [];
-          break;
-        }
-        const tokens = raw.split(/[,;\s]+/).filter(Boolean);
-        const links: NonNullable<ScheduleTask['dependencyLinks']> = [];
-        for (const tok of tokens) {
-          const m = tok.match(/^([A-Za-z0-9._-]+?)(FS|SS|FF|SF)?([+\-]\d+)?$/i);
-          if (!m) { setCellError(`"${tok}" is not a valid dependency`); return false; }
-          const [, ref, typeRaw, lagRaw] = m;
-          const depId = wbsToIdMap.get(ref.trim());
-          if (!depId) { setCellError(`No task matches "${ref}"`); return false; }
-          if (depId === task.id) { setCellError('A task cannot depend on itself'); return false; }
-          // Cycle guard — the headline "forgiving UI" feature.
-          if (wouldCreateCycle(tasks, task.id, depId)) {
-            setCellError(`"${ref}" would create a dependency loop`);
-            return false;
-          }
-          const type = (typeRaw?.toUpperCase() ?? 'FS') as 'FS' | 'SS' | 'FF' | 'SF';
-          const lagDays = lagRaw ? Number.parseInt(lagRaw, 10) : 0;
-          links.push({ taskId: depId, type, lagDays });
-        }
-        patch.dependencies = links.map(l => l.taskId);
-        patch.dependencyLinks = links;
-        break;
-      }
     }
 
     onEdit(task.id, patch);
@@ -758,7 +706,7 @@ export default function GridPane({
     setDraft('');
     setCellError(null);
     return true;
-  }, [editing, draft, tasks, wbsToIdMap, onEdit, cancelEdit, dateToDayNumber]);
+  }, [editing, draft, tasks, onEdit, cancelEdit, dateToDayNumber]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation (web). iPad/mobile rely on tap-to-edit + blur.
@@ -1148,16 +1096,31 @@ export default function GridPane({
         break;
       }
       case 'predecessors': {
+        // Tap-to-open PredecessorPicker replaces the typed T5FS+3 syntax.
+        // The summary text remains identical to before so the cell reads the same.
         const links = task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
-        if (links.length === 0) { display = <Text style={styles.cellTextMuted}>—</Text>; break; }
-        const labels = links.map(l => {
-          const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
-          const type = l.type && l.type !== 'FS' ? l.type : '';
-          const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
-          return `${wbs}${type}${lag}`;
-        });
-        display = <Text style={styles.cellText} numberOfLines={1}>{labels.join(', ')}</Text>;
-        break;
+        const summaryText = links.length === 0
+          ? null
+          : links.map(l => {
+              const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
+              const type = l.type && l.type !== 'FS' ? l.type : '';
+              const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
+              return `${wbs}${type}${lag}`;
+            }).join(', ');
+        return (
+          <TouchableOpacity
+            key={col.key}
+            style={[...cellStyle, styles.cellEditable]}
+            onPress={() => setPredecessorPickerTask(task)}
+            activeOpacity={0.6}
+            testID={`grid-cell-${rowIndex}-predecessors`}
+          >
+            {summaryText
+              ? <Text style={styles.cellText} numberOfLines={1}>{summaryText}</Text>
+              : <Text style={styles.cellTextMuted}>—</Text>
+            }
+          </TouchableOpacity>
+        );
       }
       case 'crew':
         display = <Text style={[styles.cellText, !task.crew && styles.cellTextMuted]}>{task.crew || '—'}</Text>;
@@ -1624,6 +1587,37 @@ export default function GridPane({
           setAnchorFor(null);
         }}
       />
+      {predecessorPickerTask && (
+        <PredecessorPicker
+          key={predecessorPickerTask.id}
+          taskLabel={predecessorPickerTask.title}
+          candidates={(() => {
+            const idx = tasks.findIndex(t => t.id === predecessorPickerTask.id);
+            const earlier = idx < 0 ? [] : tasks.slice(0, idx);
+            const existingLinks = predecessorPickerTask.dependencyLinks
+              ?? predecessorPickerTask.dependencies.map(id => ({ taskId: id }));
+            const valueIds = new Set(existingLinks.map(l => l.taskId));
+            const extra = tasks.filter(
+              t => t.id !== predecessorPickerTask.id &&
+                valueIds.has(t.id) &&
+                !earlier.some(e => e.id === t.id)
+            );
+            return [...earlier, ...extra].map(t => ({ id: t.id, label: t.title, phase: t.phase }));
+          })()}
+          value={
+            (predecessorPickerTask.dependencyLinks ?? predecessorPickerTask.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
+              .map(l => ({ taskId: l.taskId, type: (l.type ?? 'FS') as PredecessorLink['type'], lagDays: l.lagDays ?? 0 }))
+          }
+          onChange={(links) => {
+            onEdit(predecessorPickerTask.id, {
+              dependencies: links.map(l => l.taskId),
+              dependencyLinks: links,
+            });
+            setPredecessorPickerTask(null);
+          }}
+          onClose={() => setPredecessorPickerTask(null)}
+        />
+      )}
       <ScheduleRowMenu
         visible={rowMenu !== null}
         title={rowMenu?.title ?? ''}
