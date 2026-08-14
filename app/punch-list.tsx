@@ -442,18 +442,6 @@ function PunchListScreenInner() {
           const pc = getPriorityConfig(themeColors, item.priority);
           return (
             <View key={item.id} style={styles.punchCard}>
-              <StatusPipeline
-                stages={stagesFor('punch')}
-                current={visualStageFor('punch', item.status)}
-                startedAt={item.createdAt}
-                dueAt={item.dueDate || undefined}
-                onAdvance={(next) => {
-                  updatePunchItem(item.id, {
-                    status: next as PunchItem['status'],
-                    updatedAt: new Date().toISOString(),
-                  });
-                }}
-              />
               <View style={styles.punchCardTop}>
                 <View style={[styles.priorityDot, { backgroundColor: pc.color }]} />
                 <View style={{ flex: 1 }}>
@@ -613,6 +601,29 @@ function PunchListScreenInner() {
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
+
+                {/* Only when EDITING an existing item — a new one has no lifecycle
+                    to show yet, and the list cards already carry a status badge
+                    plus the Start / Submit / Close actions. Same gate
+                    app/permits.tsx uses (`editingPermit &&`): the breadcrumb
+                    belongs in single-item context, not once per row. */}
+                {editingItem && (
+                  <View style={{ marginBottom: 14 }}>
+                    <StatusPipeline
+                      stages={stagesFor('punch')}
+                      current={visualStageFor('punch', editingItem.status)}
+                      startedAt={editingItem.createdAt}
+                      dueAt={editingItem.dueDate || undefined}
+                      onAdvance={(next) => {
+                        updatePunchItem(editingItem.id, {
+                          status: next as PunchItem['status'],
+                          updatedAt: new Date().toISOString(),
+                        });
+                        setEditingItem({ ...editingItem, status: next as PunchItem['status'] });
+                      }}
+                    />
+                  </View>
+                )}
 
                 {attachedPhotoUri ? (
                   <View style={styles.photoPreview}>
