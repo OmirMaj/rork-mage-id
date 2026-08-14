@@ -143,3 +143,78 @@ export function visualStageFor(kind: WorkflowKind, status: string): string {
   if (!isSideBranch(kind, status)) return status;
   return PIPELINES[kind][0].key;
 }
+
+// ---------------------------------------------------------------------------
+// Derived statuses — for the two workflows that have no action to advance.
+// ---------------------------------------------------------------------------
+// A certificate of insurance has no status field at all; a warranty's status
+// union is `active|expiring_soon|expired|claimed|void`, of which the first
+// three are facts about the calendar rather than steps anyone takes. Showing
+// an "Advance →" button on either would invite the user to perform an action
+// that does not exist. Both compute instead, and `now` is injected so these
+// stay pure and the tests stay deterministic.
+
+const DAY_MS = 86400000;
+
+/** Days before expiry at which we start warning, when nothing else is set. */
+export const DEFAULT_EXPIRY_WINDOW_DAYS = 30;
+
+export type DerivedTone = 'neutral' | 'good' | 'warn' | 'bad';
+
+export interface DerivedStatus {
+  key: 'unknown' | 'active' | 'expiring' | 'expiring_soon' | 'expired' | 'claimed' | 'void';
+  label: string;
+  tone: DerivedTone;
+}
+
+/**
+ * A certificate is only as good as its soonest-lapsing policy, so the EARLIEST
+ * `expiresAt` across coverages decides. No parseable expiry reads 'unknown' —
+ * never 'active', because "we have no idea" must not look like "you're covered".
+ */
+export function coiStatus(
+  coi: { coverages?: { expiresAt?: string }[] },
+  now: number,
+): DerivedStatus {
+  const stamps = (coi.coverages ?? [])
+    .map(c => (typeof c.expiresAt === 'string' ? Date.parse(c.expiresAt) : NaN))
+    .filter(t => !Number.isNaN(t));
+
+  if (stamps.length === 0) {
+    return { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
+  }
+  const days = Math.floor((Math.min(...stamps) - now) / DAY_MS);
+  if (days < 0) return { key: 'expired', label: 'Expired', tone: 'bad' };
+  if (days <= DEFAULT_EXPIRY_WINDOW_DAYS) {
+    return { key: 'expiring', label: `Expires in ${days}d`, tone: 'warn' };
+  }
+  return { key: 'active', label: 'Active', tone: 'good' };
+}
+
+/**
+ * Void first (an explicit decision outranks the calendar), then an open claim,
+ * then the dates. The warning window is the warranty's OWN `reminderDays` when
+ * set — a GC who asked for 90 days' notice should be warned at 90, not 30.
+ */
+export function warrantyStatus(
+  w: { status?: string; endDate?: string; reminderDays?: number; claims?: unknown[] },
+  now: number,
+): DerivedStatus {
+  if (w.status === 'void') return { key: 'void', label: 'Void', tone: 'neutral' };
+  if ((w.claims?.length ?? 0) > 0) {
+    return { key: 'claimed', label: 'Claim open', tone: 'warn' };
+  }
+  const end = typeof w.endDate === 'string' ? Date.parse(w.endDate) : NaN;
+  if (Number.isNaN(end)) {
+    return { key: 'unknown', label: 'No end date', tone: 'neutral' };
+  }
+  const days = Math.floor((end - now) / DAY_MS);
+  const windowDays = Number.isFinite(w.reminderDays) && (w.reminderDays as number) > 0
+    ? (w.reminderDays as number)
+    : DEFAULT_EXPIRY_WINDOW_DAYS;
+  if (days < 0) return { key: 'expired', label: 'Expired', tone: 'bad' };
+  if (days <= windowDays) {
+    return { key: 'expiring_soon', label: `Expires in ${days}d`, tone: 'warn' };
+  }
+  return { key: 'active', label: 'Active', tone: 'good' };
+}

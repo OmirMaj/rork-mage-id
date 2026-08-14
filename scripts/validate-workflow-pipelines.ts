@@ -11,7 +11,7 @@
 // Run: bun run scripts/validate-workflow-pipelines.ts
 import {
   stagesFor, advanceTargetFor, isSideBranch, sideBranchesFor, visualStageFor,
-  WORKFLOW_KINDS,
+  WORKFLOW_KINDS, coiStatus, warrantyStatus,
 } from '../utils/workflowPipelines';
 // fileURLToPath + join because the repo path contains a space.
 import { readFileSync } from 'node:fs';
@@ -99,6 +99,43 @@ ok('workflowPipelines has no require() or dynamic import either',
 ok('workflowPipelines re-exports nothing from another module',
   !/^export\b.*\bfrom\b/m.test(core),
   'a re-export loads the other module too, which is the same purity break');
+
+console.log('\nderived — COI (earliest coverage expiry wins):');
+const NOW = Date.UTC(2026, 7, 13, 12, 0, 0); // fixed clock — no flaky tests
+const day = (n: number) => new Date(NOW + n * 86400000).toISOString();
+
+expect('no coverages reads unknown, never active',
+  coiStatus({ coverages: [] }, NOW).key, 'unknown');
+expect('coverages with no expiry date read unknown',
+  coiStatus({ coverages: [{}] }, NOW).key, 'unknown');
+expect('an unparseable expiry is ignored, not treated as expired',
+  coiStatus({ coverages: [{ expiresAt: 'not-a-date' }] }, NOW).key, 'unknown');
+expect('an expired coverage reads expired',
+  coiStatus({ coverages: [{ expiresAt: day(-1) }] }, NOW).key, 'expired');
+expect('31 days out is still active',
+  coiStatus({ coverages: [{ expiresAt: day(31) }] }, NOW).key, 'active');
+expect('29 days out is expiring',
+  coiStatus({ coverages: [{ expiresAt: day(29) }] }, NOW).key, 'expiring');
+// One lapsed policy makes the whole certificate untrustworthy.
+expect('the EARLIEST coverage decides the certificate',
+  coiStatus({ coverages: [{ expiresAt: day(300) }, { expiresAt: day(-2) }] }, NOW).key, 'expired');
+
+console.log('\nderived — warranties (honours the user\'s own reminder window):');
+expect('a void warranty reads void',
+  warrantyStatus({ status: 'void', endDate: day(400) }, NOW).key, 'void');
+expect('an open claim outranks the calendar',
+  warrantyStatus({ endDate: day(400), claims: [{ id: 'c1' }] }, NOW).key, 'claimed');
+expect('past its end date reads expired',
+  warrantyStatus({ endDate: day(-1) }, NOW).key, 'expired');
+expect('default window is 30 days — 31 out is active',
+  warrantyStatus({ endDate: day(31) }, NOW).key, 'active');
+// A GC who asked for 90 days' notice must see the warning at 90, not 30.
+expect('reminderDays 90 reports expiring at 60 days out',
+  warrantyStatus({ endDate: day(60), reminderDays: 90 }, NOW).key, 'expiring_soon');
+expect('...and the same warranty is active with the default window',
+  warrantyStatus({ endDate: day(60) }, NOW).key, 'active');
+expect('a missing end date reads unknown, never active',
+  warrantyStatus({}, NOW).key, 'unknown');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
