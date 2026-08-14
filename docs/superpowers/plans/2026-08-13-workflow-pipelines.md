@@ -14,6 +14,37 @@
 
 `docs/superpowers/specs/2026-08-13-workflow-pipelines-design.md`
 
+## STATUS — resume here
+
+**Tasks 1-3 are DONE and committed** on `claude/workflow-pipelines-spec`. The
+entire pure core exists and is verified: `utils/workflowPipelines.ts` (zero
+imports, enforced) and `scripts/validate-workflow-pipelines.ts` (**112
+assertions, all passing**; `npx tsc --noEmit` silent).
+
+**Tasks 4-9 remain** — all screen wiring. Start at Task 4.
+
+Three things the first session learned that are not obvious from the task text:
+
+1. **Task 5 was rewritten.** `app/permits.tsx` is ALREADY wired to
+   `StatusPipeline`, and wired wrong — `mapPermitStatus()` folds four of the
+   eight real states onto two visual ones, so an `expired` permit and a FAILED
+   inspection both render as "Approved". Task 5 is a correction of shipped UI,
+   not a new feature. Read it in full before touching that file.
+2. **The purity constraint is enforced, and will fail you.** Adding any
+   `import`, `require()`, dynamic `import()`, or `export … from` to
+   `utils/workflowPipelines.ts` breaks three assertions on purpose. If you need
+   a type from `types/index.ts` in that module, take it as a structural
+   parameter type instead — that is why `coiStatus` takes
+   `{ coverages?: { expiresAt?: string }[] }` rather than `CertificateOfInsurance`.
+3. **The exhaustiveness guard is proven, not assumed.** It was deliberately
+   broken in both directions (an invented state, and a deleted side branch) and
+   observed to fail each time. If it fails for you, fix the MODEL to match
+   `types/index.ts` — never edit a union to match the model.
+
+Of the seven pipeline screens, only permits was pre-wired. `app/punch-list.tsx`,
+`app/lien-waivers.tsx`, `app/selections.tsx`, `app/prequal-manager.tsx`,
+`app/oac-meeting.tsx` and `app/buyout-package.tsx` are untouched.
+
 ## File structure
 
 | File | Responsibility |
