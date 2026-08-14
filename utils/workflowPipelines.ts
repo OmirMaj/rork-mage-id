@@ -107,12 +107,16 @@ const SIDE_BRANCHES: Record<WorkflowKind, string[]> = {
   bidPackage: ['cancelled'],
 };
 
+// Both return copies. The arrays are module-level and live for the whole
+// process, so handing out the original lets one caller's `.push()` corrupt the
+// model for everyone — including the exhaustiveness guard, which would then
+// cheerfully report invented states as legitimate.
 export function stagesFor(kind: WorkflowKind): WorkflowStage[] {
-  return PIPELINES[kind];
+  return PIPELINES[kind].slice();
 }
 
 export function sideBranchesFor(kind: WorkflowKind): string[] {
-  return SIDE_BRANCHES[kind];
+  return SIDE_BRANCHES[kind].slice();
 }
 
 export function isSideBranch(kind: WorkflowKind, status: string): boolean {
@@ -159,6 +163,26 @@ const DAY_MS = 86400000;
 /** Days before expiry at which we start warning, when nothing else is set. */
 export const DEFAULT_EXPIRY_WINDOW_DAYS = 30;
 
+/**
+ * Whole days remaining, rounded UP — `Math.ceil`, not `Math.floor`.
+ *
+ * This is not a taste call. `app/warranties.tsx:62` and
+ * `contexts/ProjectContext.tsx:4082` already compute a warranty's remaining
+ * days with `Math.ceil`, and the warranty screen renders BOTH that number and
+ * (once wired) the status derived here. Rounding down would put them one day
+ * apart for any partial day: a warranty with 30.4 days left would read
+ * "Expiring soon" in the breadcrumb and "Active" in the summary card beside
+ * it, on the same screen, for the same warranty.
+ *
+ * Callers must check `end < now` for expiry BEFORE calling this. Ceil alone
+ * cannot decide expiry — something that lapsed 12 hours ago gives
+ * `ceil(-0.5) === -0`, which is not negative, so it would read "expires in 0d"
+ * instead of expired. ProjectContext orders it the same way.
+ */
+function daysLeft(end: number, now: number): number {
+  return Math.ceil((end - now) / DAY_MS);
+}
+
 export type DerivedTone = 'neutral' | 'good' | 'warn' | 'bad';
 
 export interface DerivedStatus {
@@ -183,8 +207,10 @@ export function coiStatus(
   if (stamps.length === 0) {
     return { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
   }
-  const days = Math.floor((Math.min(...stamps) - now) / DAY_MS);
-  if (days < 0) return { key: 'expired', label: 'Expired', tone: 'bad' };
+  const earliest = Math.min(...stamps);
+  // Expiry is decided by the INSTANT, not the day count — see daysLeft below.
+  if (earliest < now) return { key: 'expired', label: 'Expired', tone: 'bad' };
+  const days = daysLeft(earliest, now);
   if (days <= DEFAULT_EXPIRY_WINDOW_DAYS) {
     return { key: 'expiring', label: `Expires in ${days}d`, tone: 'warn' };
   }
@@ -208,11 +234,13 @@ export function warrantyStatus(
   if (Number.isNaN(end)) {
     return { key: 'unknown', label: 'No end date', tone: 'neutral' };
   }
-  const days = Math.floor((end - now) / DAY_MS);
+  // Same order as contexts/ProjectContext.tsx's warranty rollup: the instant
+  // decides expiry, THEN the rounded day count decides the warning window.
+  if (end < now) return { key: 'expired', label: 'Expired', tone: 'bad' };
+  const days = daysLeft(end, now);
   const windowDays = Number.isFinite(w.reminderDays) && (w.reminderDays as number) > 0
     ? (w.reminderDays as number)
     : DEFAULT_EXPIRY_WINDOW_DAYS;
-  if (days < 0) return { key: 'expired', label: 'Expired', tone: 'bad' };
   if (days <= windowDays) {
     return { key: 'expiring_soon', label: `Expires in ${days}d`, tone: 'warn' };
   }

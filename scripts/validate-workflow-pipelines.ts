@@ -138,6 +138,33 @@ expect('...and the same warranty is active with the default window',
 expect('a missing end date reads unknown, never active',
   warrantyStatus({}, NOW).key, 'unknown');
 
+// ── PARTIAL DAYS. Every test above uses whole-day offsets, so they pass under
+// EITHER rounding direction — they never pinned the thing that matters.
+// app/warranties.tsx:62 and contexts/ProjectContext.tsx:4082 both round UP. If
+// this module rounded down, a warranty with 30.5 days left would read
+// "Expiring soon" in the breadcrumb and "Active" in the summary card beside
+// it, same screen, same warranty. These cases pin the agreement.
+const hours = (n: number) => new Date(NOW + n * 3600000).toISOString();
+
+expect('30.5 days left is ACTIVE — rounds up to 31, matching the summary card',
+  warrantyStatus({ endDate: hours(30 * 24 + 12) }, NOW).key, 'active');
+expect('...and the same instant reads active for a COI',
+  coiStatus({ coverages: [{ expiresAt: hours(30 * 24 + 12) }] }, NOW).key, 'active');
+expect('exactly 30 days left is expiring — the window boundary is inclusive',
+  warrantyStatus({ endDate: day(30) }, NOW).key, 'expiring_soon');
+expect('...same boundary for a COI',
+  coiStatus({ coverages: [{ expiresAt: day(30) }] }, NOW).key, 'expiring');
+
+// ceil(-0.5) is -0, which is NOT < 0. So expiry has to be decided by the
+// instant before any rounding, or a warranty that lapsed at lunchtime reads
+// "expires in 0d" for the rest of the day.
+expect('lapsed 12 hours ago is EXPIRED, not "expires in 0d"',
+  warrantyStatus({ endDate: hours(-12) }, NOW).key, 'expired');
+expect('...and a COI that lapsed 12 hours ago is expired too',
+  coiStatus({ coverages: [{ expiresAt: hours(-12) }] }, NOW).key, 'expired');
+expect('12 hours REMAINING is still expiring, not expired',
+  warrantyStatus({ endDate: hours(12) }, NOW).key, 'expiring_soon');
+
 // ── EXHAUSTIVENESS. The one that earns its keep.
 // Every value in every real status union must be either on a happy path or
 // explicitly classified as a side branch. The roadmap this work came from
