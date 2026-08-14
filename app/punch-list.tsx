@@ -20,6 +20,8 @@ import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import type { PunchItem, PunchItemStatus, PunchItemPriority, SubTrade } from '@/types';
+import { StatusPipeline } from '@/components/StatusPipeline';
+import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
@@ -440,6 +442,18 @@ function PunchListScreenInner() {
           const pc = getPriorityConfig(themeColors, item.priority);
           return (
             <View key={item.id} style={styles.punchCard}>
+              <StatusPipeline
+                stages={stagesFor('punch')}
+                current={visualStageFor('punch', item.status)}
+                startedAt={item.createdAt}
+                dueAt={item.dueDate || undefined}
+                onAdvance={(next) => {
+                  updatePunchItem(item.id, {
+                    status: next as PunchItem['status'],
+                    updatedAt: new Date().toISOString(),
+                  });
+                }}
+              />
               <View style={styles.punchCardTop}>
                 <View style={[styles.priorityDot, { backgroundColor: pc.color }]} />
                 <View style={{ flex: 1 }}>
