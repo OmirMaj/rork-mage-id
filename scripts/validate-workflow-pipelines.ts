@@ -13,6 +13,7 @@ import {
   stagesFor, advanceTargetFor, isSideBranch, sideBranchesFor, visualStageFor,
   WORKFLOW_KINDS, coiStatus, warrantyStatus,
 } from '../utils/workflowPipelines';
+import type { WorkflowKind } from '../utils/workflowPipelines';
 // fileURLToPath + join because the repo path contains a space.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -136,6 +137,55 @@ expect('...and the same warranty is active with the default window',
   warrantyStatus({ endDate: day(60) }, NOW).key, 'active');
 expect('a missing end date reads unknown, never active',
   warrantyStatus({}, NOW).key, 'unknown');
+
+// ── EXHAUSTIVENESS. The one that earns its keep.
+// Every value in every real status union must be either on a happy path or
+// explicitly classified as a side branch. The roadmap this work came from
+// proposed stages that do not exist ('walk_scheduled', 'walked') and missed
+// states that do ('exceeded', the whole permit inspection cycle). A union that
+// grows later now fails this check until someone classifies the new value.
+console.log('\nexhaustiveness — every real status is classified:');
+
+const TYPES_SRC = readFileSync(join(ROOT, 'types/index.ts'), 'utf8');
+
+function unionValues(typeName: string): string[] {
+  const m = new RegExp(`export type ${typeName} =([\\s\\S]*?);`).exec(TYPES_SRC);
+  if (!m) return [];
+  return Array.from(m[1].matchAll(/'([a-z_]+)'/g)).map(x => x[1]);
+}
+
+// kind(s) that together must cover the union
+const COVERAGE: { union: string; kinds: WorkflowKind[] }[] = [
+  { union: 'PunchItemStatus', kinds: ['punch'] },
+  { union: 'PermitStatus', kinds: ['permit', 'permitInspection'] },
+  { union: 'LienWaiverStatus', kinds: ['lienWaiver'] },
+  { union: 'PrequalStatus', kinds: ['prequal'] },
+  { union: 'OACMeetingStatus', kinds: ['oac'] },
+  { union: 'SelectionCategoryStatus', kinds: ['selection'] },
+  { union: 'BidPackageStatus', kinds: ['bidPackage'] },
+];
+
+for (const { union, kinds } of COVERAGE) {
+  const values = unionValues(union);
+  ok(`${union}: found in types/index.ts`, values.length > 0,
+    'the union was renamed or removed — update COVERAGE above');
+
+  const classified = new Set<string>();
+  for (const k of kinds) {
+    for (const s of stagesFor(k)) classified.add(s.key);
+    for (const b of sideBranchesFor(k)) classified.add(b);
+  }
+  const unclassified = values.filter(v => !classified.has(v));
+  ok(`${union}: every value is a stage or a side branch`,
+    unclassified.length === 0,
+    unclassified.length ? `unclassified: ${unclassified.join(', ')}` : undefined);
+
+  // The other direction: we must not invent stages the union doesn't have.
+  // This is the exact failure the roadmap made with 'walk_scheduled'/'walked'.
+  const invented = [...classified].filter(c => !values.includes(c));
+  ok(`${union}: no invented states`, invented.length === 0,
+    invented.length ? `not in the union: ${invented.join(', ')}` : undefined);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
