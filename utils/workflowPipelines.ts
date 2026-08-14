@@ -185,6 +185,13 @@ function daysLeft(end: number, now: number): number {
 
 export type DerivedTone = 'neutral' | 'good' | 'warn' | 'bad';
 
+/**
+ * NOTE the two different "expiring" keys: `coiStatus` returns `'expiring'`,
+ * `warrantyStatus` returns `'expiring_soon'` (matching the warranty union's own
+ * spelling in types/index.ts). A consumer testing `key === 'expiring'` will
+ * silently miss every warranty. Branch on `tone` when you want "is this a
+ * warning", and on `key` only when you know which function produced it.
+ */
 export interface DerivedStatus {
   key: 'unknown' | 'active' | 'expiring' | 'expiring_soon' | 'expired' | 'claimed' | 'void';
   label: string;
@@ -221,6 +228,11 @@ export function coiStatus(
  * Void first (an explicit decision outranks the calendar), then an open claim,
  * then the dates. The warning window is the warranty's OWN `reminderDays` when
  * set — a GC who asked for 90 days' notice should be warned at 90, not 30.
+ *
+ * Pass the WHOLE Warranty. `claims` is optional here only so the parameter type
+ * stays structural (this module imports nothing), but a partial object without
+ * it silently skips the `claimed` branch and reports a date-derived status for
+ * a warranty that is actually under claim.
  */
 export function warrantyStatus(
   w: { status?: string; endDate?: string; reminderDays?: number; claims?: unknown[] },

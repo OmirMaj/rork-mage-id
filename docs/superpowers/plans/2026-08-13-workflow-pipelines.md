@@ -45,6 +45,23 @@ Of the seven pipeline screens, only permits was pre-wired. `app/punch-list.tsx`,
 `app/lien-waivers.tsx`, `app/selections.tsx`, `app/prequal-manager.tsx`,
 `app/oac-meeting.tsx` and `app/buyout-package.tsx` are untouched.
 
+### Known debt carried into Tasks 4-9
+
+- **`contexts/ProjectContext.tsx:4080-4084` duplicates `warrantyStatus`.** The
+  new function was deliberately made to agree with it (verified at twelve probes
+  from -24h to +90d), but they are still two copies of one rule. When Task 8
+  wires the warranty screen, consider collapsing that rollup onto this module
+  rather than leaving both. `app/warranties.tsx:46,62` has the same day math a
+  third time.
+- **The exhaustiveness regex stops at the first `;`.** If anyone adds a line
+  comment containing a semicolon inside one of the seven status unions in
+  `types/index.ts`, the guard silently truncates and stops checking the values
+  after it. Safe today (no union has one). Fix if you touch it: strip `//`
+  comments before extracting values.
+- **`coiStatus` returns key `'expiring'`, `warrantyStatus` returns
+  `'expiring_soon'`.** Documented on `DerivedStatus`. Branch on `tone` for "is
+  this a warning"; use `key` only where you know which function produced it.
+
 ## File structure
 
 | File | Responsibility |
