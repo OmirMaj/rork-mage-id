@@ -418,6 +418,25 @@ console.log('\nsurfaces:');
     /invoices-ar-summary/.test(detailSrc));
   ok('...and reuses computeARAgingReport rather than reimplementing A/R',
     /computeARAgingReport/.test(detailSrc));
+
+  // ── THE HERO STAT ROW WHEN A PROJECT CARRIES BOTH ESTIMATES.
+  // commitEstimatePatch sets linkedEstimate and never clears the legacy
+  // project.estimate, so "both present" is the NORMAL state for any project
+  // that had an estimate before one was attached. The row has two mutually
+  // exclusive blocks, and gating BOTH off in that state renders it EMPTY —
+  // which is what shipped when PR #116 restored only one half of the pair from
+  // the closed PR #81. Pinned here because it has now regressed twice.
+  ok('the legacy hero stats yield to the linked estimate when both exist',
+    /\{estimate && !linkedEstimate && \(/.test(detailSrc));
+  ok('...and the linked block owns the row whenever a linkedEstimate exists',
+    /\{linkedEstimate && \(/.test(detailSrc) &&
+    !/\{!estimate && linkedEstimate && \(/.test(detailSrc));
+  // The breakdown modal is computed from the LEGACY estimate only, while
+  // heroTotal comes from effectiveEstimateTotal (which prefers linkedEstimate).
+  // Offering the tap when both exist puts two disagreeing numbers on one card.
+  ok('the breakdown tap is withheld when the legacy estimate is not the headline',
+    /estimate && !linkedEstimate \? openDetail\('total'\) : undefined/.test(detailSrc) &&
+    !/\{heroLabel\}\{estimate \? ' · Tap for breakdown' : ''\}/.test(detailSrc));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

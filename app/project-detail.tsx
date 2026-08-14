@@ -1442,10 +1442,19 @@ export default function ProjectDetailScreen() {
 
           {hasAnyEstimate && (
             <View style={styles.heroStats}>
+              {/* The breakdown modal is computed ENTIRELY from the legacy
+                  project.estimate (materialTotal / laborTotal / permits /
+                  overhead), while heroTotal comes from effectiveEstimateTotal,
+                  which prefers linkedEstimate. When a project carries both,
+                  opening it puts stale legacy figures under a headline derived
+                  from the linked grandTotal — two numbers on one card that
+                  disagree. So the tap is only offered when the legacy estimate
+                  IS the headline. Residual of PR #81; PR #116 restored the
+                  sibling gate below but not this one. */}
               <TouchableOpacity
                 style={styles.heroStatMain}
-                onPress={() => estimate ? openDetail('total') : undefined}
-                activeOpacity={estimate ? 0.7 : 1}
+                onPress={() => estimate && !linkedEstimate ? openDetail('total') : undefined}
+                activeOpacity={estimate && !linkedEstimate ? 0.7 : 1}
                 testID="hero-total-tap"
               >
                 <Text style={styles.heroStatLabel}>Total Estimate</Text>
@@ -1457,7 +1466,7 @@ export default function ProjectDetailScreen() {
                   style={styles.heroStatValue}
                   duration={900}
                 />
-                <Text style={styles.heroTapHint}>{heroLabel}{estimate ? ' · Tap for breakdown' : ''}</Text>
+                <Text style={styles.heroTapHint}>{heroLabel}{estimate && !linkedEstimate ? ' · Tap for breakdown' : ''}</Text>
               </TouchableOpacity>
               <View style={{ marginTop: 10, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <BidConfidenceBadge project={project} variant="light" />
@@ -1502,7 +1511,16 @@ export default function ProjectDetailScreen() {
                     ) : null}
                   </>
                 )}
-                {!estimate && linkedEstimate && (
+                {/* `linkedEstimate &&`, NOT `!estimate && linkedEstimate &&`.
+                    With both present the legacy block above is off (its
+                    !linkedEstimate guard) — so gating this one on !estimate too
+                    left the row rendering NOTHING for exactly the projects that
+                    have both, which is every project that had a legacy estimate
+                    before one was attached (commitEstimatePatch sets
+                    linkedEstimate and never clears project.estimate). The
+                    linked estimate is the authoritative one whenever it exists,
+                    so it owns the row. */}
+                {linkedEstimate && (
                   <>
                     <View style={styles.heroStatSmall}>
                       <Text style={styles.smallStatLabel}>Markup</Text>
