@@ -634,70 +634,145 @@ git commit -m "feat(punch): visible lifecycle on a punch item"
 
 ---
 
-### Task 5: Wire permits — two pipelines
+### Task 5: CORRECT the permits pipeline — it is already wired, and wrong
+
+> **This task changed after the plan was written.** `docs/workflow-audit-roadmap.md`
+> lists permits as TODO. It is not — `app/permits.tsx` has been wired to
+> `StatusPipeline` since before this work started, as exactly the flattened
+> single line the spec argued against. This is a **correction of shipped UI that
+> currently lies to the user**, not a new feature.
 
 **Files:**
 - Modify: `app/permits.tsx`
 
-- [ ] **Step 1: Find the permit detail render**
+#### What is there now, and why it is wrong
 
-```bash
-grep -n "updatePermit" app/permits.tsx
-grep -n "PermitStatus" app/permits.tsx | head
-```
-
-- [ ] **Step 2: Add imports**
+`app/permits.tsx:163-168`:
 
 ```ts
-import { StatusPipeline } from '@/components/StatusPipeline';
+const PERMIT_PIPELINE_STAGES: PipelineStage<PermitStatus>[] = [
+  { key: 'applied', label: 'Applied' },
+  { key: 'under_review', label: 'In Review' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'inspection_passed', label: 'Inspected', terminal: true },
+];
+
+function mapPermitStatus(s: PermitStatus): PermitStatus {
+  if (s === 'denied') return 'under_review';
+  if (s === 'expired' || s === 'inspection_scheduled' || s === 'inspection_failed') return 'approved';
+  return s;
+}
+```
+
+Four of the eight real states are misrepresented, two of them dangerously:
+
+| Real state | Currently displays as | Why it matters |
+|---|---|---|
+| `denied` | "In Review" | The application was refused; the UI says it's still pending |
+| `expired` | **"Approved"** | An expired permit reads as a live one — work could proceed uninspected |
+| `inspection_scheduled` | "Approved" | Loses the distinction entirely |
+| `inspection_failed` | **"Approved"** | A FAILED inspection reads as approved |
+
+The advance button (`app/permits.tsx:607-612`) also jumps `approved → inspection_passed`,
+skipping `inspection_scheduled`, so an inspection cannot be scheduled through the
+pipeline at all.
+
+- [ ] **Step 1: Confirm the current state before changing it**
+
+```bash
+cd "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE"
+sed -n '163,175p' app/permits.tsx     # the stages + mapPermitStatus
+sed -n '596,616p' app/permits.tsx     # the JSX usage
+```
+
+Confirm both match what is quoted above. If they have drifted, adapt — but do not
+delete a state distinction to make the code simpler.
+
+- [ ] **Step 2: Replace the local constant with the shared model**
+
+Delete `PERMIT_PIPELINE_STAGES` and `mapPermitStatus` entirely (lines ~163-175),
+and remove the now-unused `PipelineStage` type import if nothing else in the file
+uses it. Add:
+
+```ts
 import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
 ```
 
 - [ ] **Step 3: Render the application path, then the inspection cycle**
 
-At the top of the permit detail view, where `permit` is the `Permit`:
+Replace the single `<StatusPipeline>` block at `app/permits.tsx:598-614` with:
 
 ```tsx
-{/* Application path. Ends at "Issued" — inspections are a separate cycle
-    below, not a continuation, so they are not one eight-stage line. */}
+{/* The application path. Ends at Approved — the permit is issued.
+    Inspections are a SEPARATE cycle below, not a continuation: a permit does
+    not pass through `denied` on its way to an inspection, and collapsing them
+    onto one line is what made `expired` and `inspection_failed` both render
+    as "Approved". */}
 <StatusPipeline
   stages={stagesFor('permit')}
-  current={visualStageFor('permit', permit.status)}
-  startedAt={permit.appliedDate}
-  onAdvance={isSideBranch('permit', permit.status) ? undefined : (next) => {
-    updatePermit(permit.projectId, permit.id, {
-      status: next as Permit['status'],
-    });
+  current={visualStageFor('permit', form.status)}
+  startedAt={form.appliedDate ? new Date(form.appliedDate).toISOString() : undefined}
+  onAdvance={isSideBranch('permit', form.status) ? undefined : (next) => {
+    setForm(f => ({ ...f, status: next as PermitStatus }));
   }}
+  advanceLabel={
+    form.status === 'applied' ? 'Move to review'
+    : form.status === 'under_review' ? 'Mark approved'
+    : undefined
+  }
 />
 
-{/* The second loop. Only meaningful once the permit is issued. */}
-{permit.status.startsWith('inspection_') && (
+{/* The second loop, shown once the permit is issued. inspection_failed is a
+    side branch of THIS pipeline — a failed inspection gets rescheduled, so it
+    anchors back at Scheduled rather than pretending to be Passed. */}
+{(form.status === 'approved' || form.status.startsWith('inspection_')) && (
   <StatusPipeline
     stages={stagesFor('permitInspection')}
-    current={visualStageFor('permitInspection', permit.status)}
-    onAdvance={(next) => {
-      updatePermit(permit.projectId, permit.id, {
-        status: next as Permit['status'],
-      });
+    current={visualStageFor('permitInspection', form.status)}
+    dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
+    onAdvance={isSideBranch('permitInspection', form.status) ? undefined : (next) => {
+      setForm(f => ({ ...f, status: next as PermitStatus }));
     }}
+    advanceLabel={
+      form.status === 'approved' ? 'Schedule inspection'
+      : form.status === 'inspection_scheduled' ? 'Mark inspection passed'
+      : undefined
+    }
   />
 )}
 ```
 
-- [ ] **Step 4: Type-check**
+Note the `approved` case now advances to `inspection_scheduled` (schedule it)
+rather than leaping to `inspection_passed`.
+
+- [ ] **Step 4: Verify no state is silently collapsed any more**
 
 ```bash
+grep -n "mapPermitStatus" app/permits.tsx    # expect: no matches
 npx tsc --noEmit
 ```
 
-Expected: no output. Correct the `updatePermit` call and the date field name (`appliedDate`) against the real `Permit` interface in `types/index.ts` if they differ.
+Expected: `mapPermitStatus` is gone, tsc silent. Then read the file and confirm
+`denied`, `expired`, and `inspection_failed` are each still reachable through the
+existing status picker further down the form — the point is that they stop being
+*misdisplayed*, not that they stop being *settable*.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add app/permits.tsx
-git commit -m "feat(permits): application path and inspection cycle as separate pipelines"
+git commit -m "fix(permits): stop showing denied, expired and failed inspections as Approved
+
+The pipeline was one flattened line with a mapPermitStatus() that folded four
+of the eight real states onto two visual ones — an expired permit and a FAILED
+inspection both rendered as 'Approved', and a denied one as 'In Review'. It also
+advanced approved -> inspection_passed, so an inspection could never be
+scheduled through the pipeline.
+
+Now two pipelines, from the shared model: the application path (applied ->
+under_review -> approved, with denied/expired as side branches) and the
+inspection cycle (scheduled -> passed, with failed as a side branch that
+anchors back to scheduled for rescheduling)."
 ```
 
 ---
