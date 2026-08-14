@@ -44,6 +44,8 @@ import {
   type PrequalStatus,
   type Subcontractor,
 } from '@/types';
+import { StatusPipeline } from '@/components/StatusPipeline';
+import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
 
 // ─────────────────────────────────────────────────────────────
 // Root
@@ -298,6 +300,7 @@ function PrequalManagerInner() {
         onApprove={handleApprove}
         onNeedsChanges={handleNeedsChanges}
         onReject={handleReject}
+        upsertPrequalPacket={upsertPrequalPacket}
       />
     </View>
   );
@@ -406,13 +409,16 @@ function InviteModal({ sub, onClose, onSend }: {
 
 // ─── Review modal ────────────────────────────────────────────
 
-function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject }: {
+function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject, upsertPrequalPacket }: {
   packet: PrequalPacket | null;
   sub: Subcontractor | null;
   onClose: () => void;
   onApprove: (packet: PrequalPacket) => void;
   onNeedsChanges: (packet: PrequalPacket, note: string) => void;
   onReject: (packet: PrequalPacket, note: string) => void;
+  /** Passed down from PrequalManagerInner — upsertPrequalPacket is not in scope
+   *  inside this component, so it is threaded in as a prop. */
+  upsertPrequalPacket: (packet: PrequalPacket) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -436,6 +442,35 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
 
           <ScrollView style={{ maxHeight: 560 }}>
             <View style={{ padding: 16 }}>
+              {/* Lifecycle breadcrumb — shows the packet's position in the
+                  draft → invited → in_progress → submitted → approved pipeline.
+                  The advance button is blocked on side branches (needs_changes /
+                  rejected / expired) and on "submitted": advancing submitted →
+                  approved must go through handleApprove, which also computes
+                  expiresAt via computePrequalExpiry and snapshots
+                  autoReviewFindings. A bare status write here would approve the
+                  packet without either. Use the Approve / Needs changes / Reject
+                  footer buttons for those transitions. */}
+              <View style={{ marginBottom: 12 }}>
+                <StatusPipeline
+                  stages={stagesFor('prequal')}
+                  current={visualStageFor('prequal', packet.status)}
+                  startedAt={packet.createdAt}
+                  dueAt={packet.expiresAt || undefined}
+                  onAdvance={
+                    isSideBranch('prequal', packet.status) || packet.status === 'submitted'
+                      ? undefined
+                      : (next) => {
+                          upsertPrequalPacket({
+                            ...packet,
+                            status: next as PrequalPacket['status'],
+                            updatedAt: new Date().toISOString(),
+                          });
+                        }
+                  }
+                />
+              </View>
+
               {/* Summary */}
               {review && (
                 <View style={[styles.reviewSummary, {
