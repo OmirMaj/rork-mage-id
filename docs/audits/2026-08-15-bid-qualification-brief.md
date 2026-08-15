@@ -58,14 +58,64 @@ Scope this carefully before building. Plausible ladder, cheapest first:
 2. Share-sheet from a browser on iOS (matches how a GC actually finds these).
 3. Feeds/integrations only if 1-2 prove demand.
 
-## Questions to settle in the brainstorm
+## DECISIONS MADE (brainstorm session 1, 2026-08-15)
 
-- What does "qualify" mean concretely — hard blockers (no license class, bond too
-  small) vs soft signals (never done this trade, geography is 3h away)?
-- Does it output a yes/no, or a ranked "here's what's missing to qualify"? The
-  latter is more useful and creates a to-do list inside the product.
-- Which persona? This is arguably the **Expeditor** — a documented persona with
-  NO surface in the app today.
+Three of the five open questions are settled. Resume the brainstorm from here.
+
+### 1. Scope — BOTH public solicitations and private invitations, one engine
+
+One qualification engine, two feeds. **But they decompose, and the build order
+matters:**
+
+- **Private invitations first.** MAGE ID already owns this data — bid packages,
+  prequal packets, subcontractor records. **Zero ingestion problem.** Prove the
+  engine here.
+- **Public solicitations second.** County portals, state procurement, plan
+  rooms, PDFs — no common schema. This is the hard, expensive half, and the
+  investment should follow evidence that the engine is valuable, not precede it.
+
+Two specs. The engine + private feed is the first one.
+
+### 2. Output — a GAP LIST, not a verdict
+
+Not yes/no. A checklist:
+
+```
+✓ GC license class B — current
+✓ GL $2M / $4M — meets the $1M/$2M minimum
+✗ Bond capacity $2M short of the $5M requirement
+✗ COI expires 2026-10-02, before the 2026-11-15 close
+```
+
+Every ✗ becomes an actionable to-do inside the app. This makes the feature a
+**coach rather than a gate** — a bare "no" gives the contractor nothing and they
+stop opening it. A gap list turns a rejection into a path forward, and that is
+also what brings them back.
+
+### 3. Profile — UPLOAD DOCUMENTS, AI EXTRACTS
+
+Snap or upload the license, the COI, the bond letter; AI reads class, limits,
+expiry and capacity, and fills the profile.
+
+Chosen over a manual form because it matches how contractors actually hold this
+(a PDF from their agent), because the documents are needed as bid attachments
+anyway, and because parsing the expiry sets up renewal reminders for free.
+
+**The gap this exposes:** MAGE ID's existing COI vault and prequal packets are
+about **SUBS**, not about the GC themselves. The COI vault stores subcontractor
+certificates; prequal packets are what the GC *sends* to subs. So the
+contractor's OWN qualification profile does not really exist yet — and
+`contractor_licenses` (orphaned, no CREATE TABLE anywhere in git) is the closest
+thing. See `2026-08-15-orphaned-tables.md`: this decision promotes that table
+from KEEP-DORMANT to load-bearing, and its schema must be recorded first.
+
+## Questions still open
+
+- Within the gap list, which checks are HARD blockers (no license class, bond
+  too small — you literally cannot bid) versus SOFT signals (never done this
+  trade, site is 3h away)? The rendering should differ.
+- Which persona owns the surface? This is arguably the **Expeditor** — a
+  documented persona with NO surface in the app today.
 - Does the answer get better with the cost book (win-rate history by bid type)?
   That would make it compound, which is the moat pattern that matters.
 - Public/government work only, or private invitations too?
