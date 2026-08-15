@@ -581,6 +581,20 @@ function PermitsScreenInner() {
 
               {editingPermit && (
                 <View style={{ marginBottom: 12 }}>
+                  {/* A side branch has no position in either sequence, so the
+                      breadcrumb anchors it at the first stage. Without this badge
+                      the screen would claim an EXPIRED permit is "Applied" —
+                      quieter than the old bug that called it "Approved", but still
+                      wrong. The badge carries the real state; the breadcrumb just
+                      stays rendered instead of collapsing. */}
+                  {(isSideBranch('permit', form.status) || isSideBranch('permitInspection', form.status)) && (
+                    <View style={styles.permitSideBranchBadge}>
+                      <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={2} />
+                      <Text style={styles.permitSideBranchText}>
+                        {(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status} — not on the normal path
+                      </Text>
+                    </View>
+                  )}
                   {/* The application path. Ends at Approved — the permit is issued.
                       Inspections are a SEPARATE cycle below, not a continuation: a permit
                       does not pass through `denied` on the way to an inspection, and
@@ -1167,6 +1181,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line,
   },
   formPickerText: { fontSize: Type.subhead.fontSize, color: t.text, flex: 1 },
+  permitSideBranchBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    alignSelf: 'flex-start', marginBottom: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1, borderColor: t.dangerLabel,
+  },
+  permitSideBranchText: {
+    fontSize: Type.caption1.fontSize, color: t.dangerLabel, fontWeight: '700' as const,
+  },
   pickerOptions: { backgroundColor: t.surface, borderRadius: Tokens.radius.md, marginTop: 6, borderWidth: 1, borderColor: t.line, maxHeight: 220 },
   pickerRow: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line + '60' },
   pickerRowActive: { backgroundColor: t.accent + '14' },
