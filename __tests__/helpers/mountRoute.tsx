@@ -245,8 +245,14 @@ export async function mountRouteChecked(
   const crash = findSwallowedCrash(tree);
   if (crash) {
     const wrapped = new Error(`${url} — ${crash.message}`);
-    // Keep the app's stack, not this helper's: the useful frame is the screen.
-    if (crash.stack) wrapped.stack = crash.stack;
+    // Keep the app's stack frames, not this helper's — the useful frame is the
+    // screen, and jest renders a code frame from it. The header line is
+    // rewritten to carry the route so the printed failure is self-describing
+    // even when read out of context.
+    if (crash.stack) {
+      const frames = crash.stack.split('\n').slice(1).join('\n');
+      wrapped.stack = `${wrapped.message}\n${frames}`;
+    }
     throw wrapped;
   }
 
