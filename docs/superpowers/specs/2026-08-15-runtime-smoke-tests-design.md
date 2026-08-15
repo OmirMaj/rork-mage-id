@@ -16,9 +16,11 @@ seven screens no longer dead-end without a projectId"* and *"fix: revive the
 still-valid parts of PR #81 and #85"*. A source-level grep cannot catch a screen
 that throws on mount, and neither can a validator that never imports React.
 
-There are **200 route files** under `app/` and **31 providers** in
-`app/_layout.tsx`. Nothing currently verifies that any of them survive contact
-with each other.
+There are **~200 `.tsx` files** under `app/` and **31 providers** in
+`app/_layout.tsx`. (That file count includes `_layout` and other non-routes the
+suite skips, so the true route count is somewhat lower — the suite derives it
+rather than assuming.) Nothing currently verifies that any of them survive
+contact with each other.
 
 ## What this is NOT
 
@@ -146,7 +148,8 @@ nobody has seen fail is not known to work.
 
 ## Success criteria
 
-1. `bun run test:smoke` (or `npx jest`) mounts all 200 routes in both states.
+1. `bun run test:smoke` (or `npx jest`) mounts every DISCOVERED route in both
+   states — the count comes from the filesystem walk, not from this document.
 2. A screen that throws on mount fails the run and names itself.
 3. Adding a new screen to `app/` puts it under test with no other action.
 4. The existing 137 `bun` validators are untouched and still pass.
