@@ -39,3 +39,31 @@ export function knownFailureFor(
 ): KnownFailure | undefined {
   return KNOWN_FAILURES.find((f) => f.href === href && f.states.includes(state));
 }
+
+// ---------------------------------------------------------------------------
+// Tile-section failures (project-detail-tile-sections.test.tsx)
+// ---------------------------------------------------------------------------
+
+/**
+ * A section modal that crashes on mount — or on interaction once the modal
+ * is open. Same rules as KnownFailure above: real error, delete on fix.
+ */
+export type KnownTileSectionFailure = {
+  /** The SectionKey passed to ?tile=. */
+  sectionKey: string;
+  /** The actual thrown message, trimmed. Regex-matched. */
+  error: string;
+  /** Where it throws, for whoever picks it up. */
+  where: string;
+};
+
+export const KNOWN_TILE_SECTION_FAILURES: KnownTileSectionFailure[] = [
+  // Entries are added here by the smoke run when a section crashes.
+  // Format: { sectionKey: 'xxx', error: 'actual thrown message', where: 'component/line' }
+];
+
+export function knownTileSectionFailureFor(
+  sectionKey: string
+): KnownTileSectionFailure | undefined {
+  return KNOWN_TILE_SECTION_FAILURES.find((f) => f.sectionKey === sectionKey);
+}
