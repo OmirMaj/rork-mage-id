@@ -46,20 +46,12 @@ function addMonths(isoDate: string, months: number): string {
 
 // Derive the warranty's status at READ time from its endDate — the stored
 // `w.status` is only recomputed inside add/updateWarranty, so a warranty that
-// silently crossed its endDate keeps rendering a stale "Active" pill. Mirrors
-// ProjectContext.computeWarrantyStatus so the pill, metric cards, and daysText
-// all agree. Terminal states (claimed/void) are never auto-recomputed.
+// silently crossed its endDate keeps rendering a stale "Active" pill. Delegates
+// to the single shared warrantyStatus from workflowPipelines so there is one
+// source of truth. 'unknown' is not in WarrantyStatus; the cast is safe because
+// endDate is a required field on a fully-constructed Warranty.
 function deriveStatus(w: Warranty): Warranty['status'] {
-  if (w.status === 'claimed' || w.status === 'void') return w.status;
-  const end = new Date(w.endDate).getTime();
-  if (Number.isNaN(end)) return w.status;
-  const now = Date.now();
-  if (end < now) return 'expired';
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const daysLeft = Math.ceil((end - now) / msPerDay);
-  const threshold = w.reminderDays ?? 30;
-  if (daysLeft <= threshold) return 'expiring_soon';
-  return 'active';
+  return warrantyStatus(w, Date.now()).key as Warranty['status'];
 }
 
 function formatDate(iso: string): string {
