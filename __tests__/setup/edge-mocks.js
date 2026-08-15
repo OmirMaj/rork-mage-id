@@ -25,17 +25,71 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 // ---------------------------------------------------------------------------
+// @tanstack/react-query — NOT mocked. The real library, with one addition:
+// every QueryClient constructed anywhere in the app is recorded.
+//
+// This is not about faking behaviour, it is about test isolation.
+// app/_layout.tsx creates its QueryClient at MODULE scope, so one client is
+// shared by every mount in a jest worker. Measured consequence: after the
+// populated state seeded a project, the next mount in the empty state was
+// served the cached project list and rendered as if data existed. A suite
+// whose two states silently bleed into each other is not testing two states.
+//
+// __getQueryClients() lets the harness call .clear() between mounts. The
+// client itself is untouched real code.
+// ---------------------------------------------------------------------------
+jest.mock('@tanstack/react-query', () => {
+  const actual = jest.requireActual('@tanstack/react-query');
+  const clients = [];
+  class TrackedQueryClient extends actual.QueryClient {
+    constructor(...args) {
+      super(...args);
+      clients.push(this);
+    }
+  }
+  return {
+    ...actual,
+    QueryClient: TrackedQueryClient,
+    __getQueryClients: () => clients,
+  };
+});
+
+// ---------------------------------------------------------------------------
 // RevenueCat. Needs a native SDK + a network round trip for offerings.
-// `getCustomerInfo` returns a free-tier customer: no entitlements. Screens that
-// gate on tier therefore render their locked/upsell branch, which is the
-// branch a brand-new tester sees.
+//
+// getCustomerInfo returns an ENTERPRISE customer, on purpose. This was
+// measured, not assumed: with the obvious free-tier stub, /rfi and /punch-list
+// both rendered "Upgrade Required" and the suite passed without ever executing
+// a line of either screen. Tier rank is monotonic (free < pro < business <
+// enterprise — see hooks/useTierAccess.ts), so the top tier is the only setting
+// under which every screen body actually runs.
+//
+// The cost of this choice: the locked/paywalled branches are NOT covered by
+// the smoke suite. That is the right trade — a paywall stub rendering is not
+// evidence that the screen behind it renders, and the paywall itself is one
+// screen (/paywall) which the suite mounts directly.
 // ---------------------------------------------------------------------------
 jest.mock('react-native-purchases', () => {
+  const entitlement = (id) => ({
+    identifier: id,
+    isActive: true,
+    willRenew: true,
+    periodType: 'NORMAL',
+    latestPurchaseDate: '2026-08-01T00:00:00Z',
+    originalPurchaseDate: '2026-01-01T00:00:00Z',
+    expirationDate: '2027-01-01T00:00:00Z',
+    store: 'APP_STORE',
+    productIdentifier: `com.mageid.${id}.monthly`,
+    isSandbox: true,
+    unsubscribeDetectedAt: null,
+    billingIssueDetectedAt: null,
+  });
+  const active = { enterprise: entitlement('enterprise') };
   const customerInfo = {
-    entitlements: { active: {}, all: {} },
-    activeSubscriptions: [],
-    allPurchasedProductIdentifiers: [],
-    latestExpirationDate: null,
+    entitlements: { active, all: active },
+    activeSubscriptions: ['com.mageid.enterprise.monthly'],
+    allPurchasedProductIdentifiers: ['com.mageid.enterprise.monthly'],
+    latestExpirationDate: '2027-01-01T00:00:00Z',
     originalAppUserId: 'smoke-test-user',
     managementURL: null,
     requestDate: new Date().toISOString(),
@@ -147,6 +201,13 @@ jest.mock('@sentry/react-native', () => {
     nativeCrash: jest.fn(),
     reactNavigationIntegration: jest.fn(() => ({ name: 'ReactNavigation' })),
     mobileReplayIntegration: jest.fn(() => ({ name: 'MobileReplay' })),
+    feedbackIntegration: jest.fn(() => ({ name: 'Feedback' })),
+    reactNativeTracingIntegration: jest.fn(() => ({ name: 'ReactNativeTracing' })),
+    browserReplayIntegration: jest.fn(() => ({ name: 'BrowserReplay' })),
+    startSpan: jest.fn((_opts, fn) => (typeof fn === 'function' ? fn() : undefined)),
+    getCurrentScope: jest.fn(() => ({ setUser: jest.fn(), setTag: jest.fn() })),
+    flush: jest.fn(async () => true),
+    close: jest.fn(async () => {}),
     ErrorBoundary: ({ children }) => children,
     ReactNativeTracing: jest.fn(),
     Severity: { Error: 'error', Warning: 'warning', Info: 'info' },

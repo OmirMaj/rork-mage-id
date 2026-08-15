@@ -36,6 +36,12 @@ const emptyListResult = (): QueryResult => ({ ...emptyResult(), data: [] });
  */
 function makeBuilder(): any {
   let resolvesToList = true;
+  // Forward-declared so every chainable method can return the PROXY, not the
+  // bare target. Returning the target was a real bug caught by the Stage-2
+  // probe: `.from('projects').select('*')` worked but `.order(...)` on the
+  // result threw "order is not a function", because `select` handed back an
+  // object the proxy's catch-all `get` was no longer wrapping.
+  let proxy: any;
 
   const builder: any = {
     then(onFulfilled: (v: QueryResult) => unknown, onRejected?: (e: unknown) => unknown) {
@@ -50,40 +56,61 @@ function makeBuilder(): any {
     },
     single() {
       resolvesToList = false;
-      return builder;
+      return proxy;
     },
     maybeSingle() {
       resolvesToList = false;
-      return builder;
+      return proxy;
     },
     csv() {
       resolvesToList = false;
-      return builder;
+      return proxy;
     },
     abortSignal() {
-      return builder;
+      return proxy;
     },
     throwOnError() {
-      return builder;
+      return proxy;
     },
   };
 
   // Anything else (select, insert, update, upsert, delete, eq, neq, in, gt,
   // order, limit, range, filter, or, match, is, contains, ...) chains.
-  return new Proxy(builder, {
+  proxy = new Proxy(builder, {
     get(target, prop: string) {
       if (prop in target) return target[prop];
       if (typeof prop === 'symbol') return undefined;
-      return () => builder;
+      return () => proxy;
     },
   });
+  return proxy;
 }
 
 const noopSubscription = { unsubscribe: () => {} };
 
+/**
+ * The signed-in session, controlled by the test harness.
+ *
+ * Both smoke states are AUTHENTICATED. "Empty" in the spec means "contexts
+ * hydrate from nothing" — no projects, no RFIs — not "logged out". A
+ * logged-out run would be worthless: RootLayoutNav bounces every unauthed
+ * path to /login, so all ~190 protected routes would silently render the
+ * login screen and pass. Auth is the precondition for the suite testing
+ * anything at all.
+ */
+let currentSession: unknown = null;
+
+export function __setSmokeSession(session: unknown): void {
+  currentSession = session;
+}
+
+export function __getSmokeSession(): unknown {
+  return currentSession;
+}
+
 const authMock = {
-  getSession: async () => ({ data: { session: null }, error: null }),
-  getUser: async () => ({ data: { user: null }, error: null }),
+  getSession: async () => ({ data: { session: currentSession }, error: null }),
+  getUser: async () => ({ data: { user: (currentSession as any)?.user ?? null }, error: null }),
   onAuthStateChange: (_cb?: unknown) => ({ data: { subscription: noopSubscription } }),
   signInWithPassword: async () => ({ data: { user: null, session: null }, error: null }),
   signInWithOAuth: async () => ({ data: { provider: null, url: null }, error: null }),
