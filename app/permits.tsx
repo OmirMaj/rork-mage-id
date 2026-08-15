@@ -35,7 +35,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO, SPECIAL_INSPECTION_LABELS } from '@/mocks/permits';
-import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
+import { StatusPipeline } from '@/components/StatusPipeline';
+import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
 import DatePickerModal from '@/components/DatePickerModal';
 import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
 import { formatMoney } from '@/utils/formatters';
@@ -156,22 +157,6 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
   );
 }
 
-// Permit acquisition + inspection lifecycle — happy path. Side branches
-// (denied, expired, inspection_failed) map back to the visual stage they
-// most resemble; the user can still pick those explicitly via the status
-// picker further down the form.
-const PERMIT_PIPELINE_STAGES: PipelineStage<PermitStatus>[] = [
-  { key: 'applied', label: 'Applied' },
-  { key: 'under_review', label: 'In Review' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'inspection_passed', label: 'Inspected', terminal: true },
-];
-
-function mapPermitStatus(s: PermitStatus): PermitStatus {
-  if (s === 'denied') return 'under_review';
-  if (s === 'expired' || s === 'inspection_scheduled' || s === 'inspection_failed') return 'approved';
-  return s;
-}
 
 interface PermitFormState {
   projectId: string;
@@ -596,21 +581,43 @@ function PermitsScreenInner() {
 
               {editingPermit && (
                 <View style={{ marginBottom: 12 }}>
+                  {/* The application path. Ends at Approved — the permit is issued.
+                      Inspections are a SEPARATE cycle below, not a continuation: a permit
+                      does not pass through `denied` on the way to an inspection, and
+                      collapsing them onto one line is what made `expired` and
+                      `inspection_failed` both render as "Approved". */}
                   <StatusPipeline
-                    stages={PERMIT_PIPELINE_STAGES}
-                    current={mapPermitStatus(form.status)}
+                    stages={stagesFor('permit')}
+                    current={visualStageFor('permit', form.status)}
                     startedAt={form.appliedDate ? new Date(form.appliedDate).toISOString() : undefined}
-                    dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
-                    onAdvance={(next) => {
-                      setForm(f => ({ ...f, status: next }));
+                    onAdvance={isSideBranch('permit', form.status) ? undefined : (next) => {
+                      setForm(f => ({ ...f, status: next as PermitStatus }));
                     }}
                     advanceLabel={
                       form.status === 'applied' ? 'Move to review'
                       : form.status === 'under_review' ? 'Mark approved'
-                      : form.status === 'approved' || form.status === 'inspection_scheduled' ? 'Mark inspection passed'
                       : undefined
                     }
                   />
+
+                  {/* The second loop, shown once the permit is issued. inspection_failed is a
+                      side branch of THIS pipeline — a failed inspection gets rescheduled, so
+                      it anchors back at Scheduled rather than pretending to be Passed. */}
+                  {(form.status === 'approved' || form.status.startsWith('inspection_')) && (
+                    <StatusPipeline
+                      stages={stagesFor('permitInspection')}
+                      current={visualStageFor('permitInspection', form.status)}
+                      dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
+                      onAdvance={isSideBranch('permitInspection', form.status) ? undefined : (next) => {
+                        setForm(f => ({ ...f, status: next as PermitStatus }));
+                      }}
+                      advanceLabel={
+                        form.status === 'approved' ? 'Schedule inspection'
+                        : form.status === 'inspection_scheduled' ? 'Mark inspection passed'
+                        : undefined
+                      }
+                    />
+                  )}
                 </View>
               )}
 
