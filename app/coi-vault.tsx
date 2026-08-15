@@ -38,6 +38,8 @@ import type { CertificateOfInsurance, COIValidationResult, Subcontractor } from 
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { coiStatus } from '@/utils/workflowPipelines';
+import type { DerivedStatus } from '@/utils/workflowPipelines';
 
 export default function COIVaultScreen() {
   const { colors: themeColors } = useTheme();
@@ -294,6 +296,17 @@ function COIVaultInner() {
           subcontractors.map(sub => {
             const stat = subStatus.get(sub.id) ?? { worst: 'none' as const };
             const { Icon, color, label } = statusToVisuals(stat.worst);
+            const expiry: DerivedStatus = stat.latest
+              ? coiStatus(stat.latest, Date.now())
+              : { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
+            const expiryColor = expiry.tone === 'bad' ? themeColors.dangerLabel
+              : expiry.tone === 'warn' ? themeColors.warningLabel
+              : expiry.tone === 'good' ? themeColors.success
+              : themeColors.textMuted;
+            const expiryBg = expiry.tone === 'bad' ? themeColors.dangerSoft
+              : expiry.tone === 'warn' ? themeColors.warningSoft
+              : expiry.tone === 'good' ? themeColors.successSoft
+              : themeColors.surfaceAlt;
             return (
               <TouchableOpacity
                 key={sub.id}
@@ -310,6 +323,9 @@ function COIVaultInner() {
                   <Text style={styles.subMeta}>
                     {sub.trade}{stat.latest ? ` · last upload ${new Date(stat.latest.uploadedAt).toLocaleDateString()}` : ' · no COI on file'}
                   </Text>
+                  <View style={[styles.expiryBadge, { backgroundColor: expiryBg }]}>
+                    <Text style={[styles.expiryBadgeText, { color: expiryColor }]}>{expiry.label}</Text>
+                  </View>
                 </View>
                 <View style={[styles.statusPill, { backgroundColor: color + '20' }]}>
                   <Text style={[styles.statusPillText, { color }]}>{label}</Text>
@@ -508,6 +524,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full,
   },
   statusPillText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+  expiryBadge: {
+    alignSelf: 'flex-start' as const,
+    paddingHorizontal: 7, paddingVertical: 2,
+    borderRadius: Tokens.radius.full,
+    marginTop: 5,
+  },
+  expiryBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
 
   detailHeader: {
     flexDirection: 'row' as const,
