@@ -26,6 +26,7 @@ import {
 } from '@/utils/photoUploadCore';
 import { queuePhotoUpload } from '@/utils/photoUploadQueue';
 import { resolvePhotoUrls, deleteProjectPhotoObject } from '@/utils/storage';
+import { warrantyStatus } from '@/utils/workflowPipelines';
 
 // ─── Photo durability ────────────────────────────────────────────────────────
 // Every image the app captures used to have its raw `file://` URI written
@@ -4074,15 +4075,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, []);
 
   const computeWarrantyStatus = useCallback((w: Warranty): Warranty['status'] => {
-    if (w.status === 'claimed' || w.status === 'void') return w.status;
-    const end = new Date(w.endDate).getTime();
-    const now = Date.now();
-    if (end < now) return 'expired';
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const daysLeft = Math.ceil((end - now) / msPerDay);
-    const threshold = w.reminderDays ?? 30;
-    if (daysLeft <= threshold) return 'expiring_soon';
-    return 'active';
+    // Delegate to the single shared implementation in utils/workflowPipelines.
+    // 'unknown' is not in WarrantyStatus because endDate is a required field;
+    // the cast is safe — NaN endDate cannot occur on a fully-constructed Warranty.
+    return warrantyStatus(w, Date.now()).key as Warranty['status'];
   }, []);
 
   const warrantyToRow = useCallback((w: Warranty) => ({
