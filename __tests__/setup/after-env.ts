@@ -16,6 +16,7 @@
 
 import '@testing-library/react-native/dont-cleanup-after-each';
 import { cleanup } from '@testing-library/react-native';
+import { consumeConsoleErrorAllowance } from '@/__tests__/setup/strict-mode';
 
 // RNTL's auto-cleanup is opted out of above so each smoke test can control
 // unmount ordering explicitly; we still clean up after every test.
@@ -36,11 +37,49 @@ const realLog = console.log;
 // when a screen fails and the thrown message alone is not enough.
 const verbose = process.env.SMOKE_VERBOSE === '1';
 
+/**
+ * SMOKE_STRICT=1 promotes console.error to a test failure.
+ *
+ * This is the spec's stated follow-up ("promote console.error to a failure in a
+ * follow-up change, fix the fallout, and keep it strict from then on"),
+ * pre-wired but OFF by default so the decision to flip it stays deliberate.
+ *
+ * It is here rather than left for later because the fallout was measured while
+ * building this: across all 183 routes in the empty state, the app currently
+ * emits ZERO console.error calls. The 2,931 pre-existing lint warnings the spec
+ * worries about are lint warnings; they do not reach console.error at runtime.
+ * So the follow-up costs nothing today — which is worth knowing now, while
+ * someone is looking, rather than being rediscovered in six months.
+ *
+ * Flipping it means changing the default here. Do that as its own commit.
+ */
+const strict = process.env.SMOKE_STRICT === '1';
+let consoleErrors: string[] = [];
+
+beforeEach(() => {
+  consoleErrors = [];
+});
+
 beforeAll(() => {
   if (verbose) return;
-  console.error = () => {};
+  console.error = strict
+    ? (...args: unknown[]) => {
+        consoleErrors.push(args.map((a) => String(a)).join(' ').slice(0, 300));
+      }
+    : () => {};
   console.warn = () => {};
   console.log = () => {};
+});
+
+afterEach(() => {
+  const wasAllowed = consumeConsoleErrorAllowance();
+  if (!strict || wasAllowed || consoleErrors.length === 0) return;
+  const captured = consoleErrors;
+  consoleErrors = [];
+  throw new Error(
+    `SMOKE_STRICT: ${captured.length} console.error call(s) during this test:\n`
+      + captured.map((e) => `  - ${e}`).join('\n')
+  );
 });
 
 afterAll(() => {

@@ -21,6 +21,7 @@
 import { discoverRoutes } from '@/__tests__/helpers/routes';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { knownFailureFor } from '@/__tests__/smoke/known-failures';
+import { expectedRedirectFor } from '@/__tests__/smoke/expected-redirects';
 
 const routes = discoverRoutes();
 
@@ -34,7 +35,14 @@ describe('every route mounts — empty state', () => {
       // The assertion. mountRouteChecked throws on any crash, including one
       // the app's ErrorBoundary swallowed, with the route name on the front of
       // the message.
-      await mountRouteChecked(href);
+      const tree = await mountRouteChecked(href);
+
+      // And the second assertion, which is what stops the first from being
+      // vacuous: we landed on the route we asked for. Without this, an auth
+      // regression that bounced everything to /login would read as 183 passes.
+      const landed = tree.getPathname();
+      const redirect = expectedRedirectFor(href, 'empty');
+      expect(landed).toBe(redirect ? redirect.to : href);
       return;
     }
 

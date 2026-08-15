@@ -25,6 +25,7 @@ import * as Sentry from '@sentry/react-native';
 import * as reactQuery from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { __setSmokeSession } from '@/__tests__/mocks/supabase';
+import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { seedWorld, clearWorld, SMOKE_USER } from '@/__tests__/fixtures/world';
 
 export type WorldState = 'empty' | 'populated';
@@ -124,6 +125,20 @@ export async function primeWorld(state: WorldState): Promise<void> {
   }
 }
 
+/**
+ * Signed out, nothing on disk. The state a brand-new install is in.
+ *
+ * Needed because both smoke states are signed in, which means RootLayoutNav
+ * bounces /login and /signup straight to home and the two screens every single
+ * user sees first are the two the route suite never renders. Found by the
+ * landing assertion, which is exactly the sort of hole it exists to expose.
+ */
+export async function primeSignedOut(): Promise<void> {
+  await clearWorld();
+  resetQueryCache();
+  __setSmokeSession(null);
+}
+
 export type MountResult = ReturnType<typeof renderRouter>;
 
 /**
@@ -146,6 +161,11 @@ export function mountInjectedRoute(
   routeName: string,
   Component: () => React.ReactElement | null
 ): MountResult {
+  // Under SMOKE_STRICT the React "The above error occurred in <...>" log that
+  // an intentional crash produces would fail the very test proving the crash
+  // was detected. Declared here rather than pattern-matched, because the
+  // pattern would also swallow the real ones.
+  allowConsoleErrors();
   return renderRouter(
     { appDir: 'app', overrides: { [`./${routeName}.tsx`]: Component } },
     { initialUrl: `/${routeName}` }

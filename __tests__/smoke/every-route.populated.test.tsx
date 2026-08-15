@@ -25,6 +25,7 @@
 import { discoverRoutes } from '@/__tests__/helpers/routes';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { knownFailureFor } from '@/__tests__/smoke/known-failures';
+import { expectedRedirectFor } from '@/__tests__/smoke/expected-redirects';
 import { PROJECT_ID, ESTIMATE_ID, PORTAL_TOKEN } from '@/__tests__/fixtures/world';
 
 const routes = discoverRoutes();
@@ -67,7 +68,13 @@ describe('every route mounts — populated state', () => {
     const url = `${href}?${POPULATED_PARAMS}`;
 
     if (!known) {
-      await mountRouteChecked(url);
+      const tree = await mountRouteChecked(url);
+
+      // Landing check — see expected-redirects.ts. Without it, an auth
+      // regression that bounced everything to /login would read as 183 passes.
+      const landed = tree.getPathname();
+      const redirect = expectedRedirectFor(href, 'populated');
+      expect(landed).toBe(redirect ? redirect.to : href);
       return;
     }
 
