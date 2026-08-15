@@ -214,5 +214,48 @@ for (const { union, kinds } of COVERAGE) {
     invented.length ? `not in the union: ${invented.join(', ')}` : undefined);
 }
 
+// ── THE SCREENS. Source-level, matching this repo's convention: grep proves the
+// wiring exists, not that it renders — the known limit of having no runtime
+// harness. Four screens carry a pipeline. The other seven workflows the
+// roadmap listed were dropped with reasons recorded in the plan: two need a
+// data model, one has no lifecycle union at all, and four are LIST screens
+// whose per-row status controls are the better pattern.
+console.log('\nscreens consume the model:');
+const WIRED: { file: string; kind: string; gate: string }[] = [
+  { file: 'app/punch-list.tsx', kind: 'punch', gate: 'editingItem &&' },
+  { file: 'app/oac-meeting.tsx', kind: 'oac', gate: 'if (active)' },
+  { file: 'app/prequal-manager.tsx', kind: 'prequal', gate: 'if (!packet) return null' },
+];
+for (const { file, kind } of WIRED) {
+  const s = readFileSync(join(ROOT, file), 'utf8');
+  ok(`${file} renders the ${kind} pipeline`,
+    s.includes(`stagesFor('${kind}')`) && /<StatusPipeline/.test(s));
+  ok(`${file} anchors side branches through visualStageFor`,
+    s.includes(`visualStageFor('${kind}'`));
+}
+
+// THE PLACEMENT RULE. A breadcrumb answers "where is THIS item in its
+// lifecycle" — a question about one item. The first pass at punch-list put one
+// inside filteredItems.map(), stacking dozens down a list and duplicating the
+// per-card action buttons. Every pipeline must sit in single-item context.
+const punchSrc = readFileSync(join(ROOT, 'app/punch-list.tsx'), 'utf8');
+ok('punch-list renders the pipeline in the edit sheet, NOT once per row',
+  punchSrc.indexOf('<StatusPipeline') > punchSrc.indexOf('filteredItems.map') &&
+  /\{editingItem && \(/.test(punchSrc));
+
+// ── THE TRANSACTION GUARDS. Both of these statuses are the visible half of an
+// action with side effects, so a one-tap advance into them would record the
+// outcome without performing it.
+const oacSrc = readFileSync(join(ROOT, 'app/oac-meeting.tsx'), 'utf8');
+ok("oac advance stops at 'concluded' — handleDistribute sends the emails",
+  /concluded' \? undefined/.test(oacSrc));
+ok("...and 'distributed' is still written in exactly one place",
+  (oacSrc.match(/status: 'distributed'/g) ?? []).length === 1);
+
+const prequalSrc = readFileSync(join(ROOT, 'app/prequal-manager.tsx'), 'utf8');
+ok("prequal advance stops at 'submitted' — handleApprove computes expiresAt",
+  /packet\.status === 'submitted'\s*\?\s*undefined/.test(prequalSrc.replace(/\s+/g, ' ')) ||
+  /'submitted'[\s\S]{0,40}\? undefined/.test(prequalSrc));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

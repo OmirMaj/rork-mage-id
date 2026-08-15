@@ -20,6 +20,8 @@ import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
+import { warrantyStatus } from '@/utils/workflowPipelines';
+import type { DerivedStatus } from '@/utils/workflowPipelines';
 
 const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'general', label: 'General' },
@@ -40,11 +42,6 @@ function addMonths(isoDate: string, months: number): string {
   if (Number.isNaN(d.getTime())) return new Date().toISOString();
   d.setMonth(d.getMonth() + months);
   return d.toISOString();
-}
-
-function daysBetween(a: string, b: string): number {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return Math.ceil((new Date(a).getTime() - new Date(b).getTime()) / msPerDay);
 }
 
 // Derive the warranty's status at READ time from its endDate — the stored
@@ -241,7 +238,11 @@ export default function WarrantiesScreen() {
           list.map(w => {
             const meta = statusMeta(themeColors)[w.status];
             const StatusIcon = meta.Icon;
-            const daysLeft = daysBetween(w.endDate, new Date().toISOString());
+            const derived: DerivedStatus = warrantyStatus(w, Date.now());
+            const derivedColor = derived.tone === 'bad' ? themeColors.dangerLabel
+              : derived.tone === 'warn' ? themeColors.warningLabel
+              : derived.tone === 'good' ? themeColors.success
+              : themeColors.textMuted;
             return (
               <TouchableOpacity key={w.id} style={styles.card} onPress={() => openEdit(w)} activeOpacity={0.85}>
                 <View style={styles.cardHeader}>
@@ -256,9 +257,7 @@ export default function WarrantiesScreen() {
                 <Text style={styles.cardProvider}>Provider: {w.provider}</Text>
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>{formatDate(w.startDate)} → {formatDate(w.endDate)}</Text>
-                  <Text style={[styles.daysText, { color: daysLeft < 0 ? "#C84038" : daysLeft <= 30 ? Colors.warning : "#9AA3AD" }]}>
-                    {daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
-                  </Text>
+                  <Text style={[styles.daysText, { color: derivedColor }]}>{derived.label}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.deleteBtn}

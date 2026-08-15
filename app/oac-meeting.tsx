@@ -46,6 +46,8 @@ import { showAlert } from '@/utils/alert';
 import {
   buildAgendaFromProjectState, mergeAgenda, generateMinutesFromTranscript,
 } from '@/utils/oacEngine';
+import { StatusPipeline } from '@/components/StatusPipeline';
+import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import type {
   OACMeeting, OACAgendaItem, OACAgendaSection, OACAttendee, OACActionItem,
 } from '@/types';
@@ -443,6 +445,27 @@ function OACMeetingInner() {
             <Text style={styles.oacHeroSub}>
               {new Date(active.scheduledAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </Text>
+          </View>
+
+          {/* Lifecycle breadcrumb — shows where this meeting sits in the
+              draft → scheduled → in_progress → concluded → distributed
+              pipeline. The advance button is intentionally disabled once the
+              meeting reaches "concluded": the final step ("distributed") is
+              EARNED by handleDistribute, which actually sends emails to
+              attendees and writes the distributionLog. A bare status write
+              here would mark the minutes distributed without sending them. */}
+          <View style={{ marginBottom: 12 }}>
+            <StatusPipeline
+              stages={stagesFor('oac')}
+              current={visualStageFor('oac', active.status)}
+              startedAt={active.createdAt}
+              onAdvance={active.status === 'concluded' ? undefined : (next) => {
+                ctx.updateOACMeeting?.(active.id, {
+                  status: next as OACMeeting['status'],
+                  updatedAt: new Date().toISOString(),
+                });
+              }}
+            />
           </View>
 
           {/* Attendees */}

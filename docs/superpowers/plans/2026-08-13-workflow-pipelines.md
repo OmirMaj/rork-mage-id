@@ -16,12 +16,15 @@
 
 ## STATUS — resume here
 
-**Tasks 1-3 are DONE and committed** on `claude/workflow-pipelines-spec`. The
-entire pure core exists and is verified: `utils/workflowPipelines.ts` (zero
-imports, enforced) and `scripts/validate-workflow-pipelines.ts` (**112
-assertions, all passing**; `npx tsc --noEmit` silent).
+**Tasks 1-4 are DONE.** Tasks 1-3 (the whole pure core) are **merged to main**
+via PR #125: `utils/workflowPipelines.ts` (zero imports, enforced) and
+`scripts/validate-workflow-pipelines.ts` — **119 assertions, all passing**,
+`npx tsc --noEmit` silent. Task 4 (`app/punch-list.tsx`) is committed on
+`claude/workflow-pipelines-screens`.
 
-**Tasks 4-9 remain** — all screen wiring. Start at Task 4.
+**Remaining: Task 5, Task 6a, Task 6b, Task 8, Task 9.** Tasks 6 and 7 as
+originally written are SUPERSEDED — read the SCOPE CORRECTION below first, it
+drops three screens with reasons.
 
 Three things the first session learned that are not obvious from the task text:
 
@@ -41,9 +44,138 @@ Three things the first session learned that are not obvious from the task text:
    observed to fail each time. If it fails for you, fix the MODEL to match
    `types/index.ts` — never edit a union to match the model.
 
-Of the seven pipeline screens, only permits was pre-wired. `app/punch-list.tsx`,
-`app/lien-waivers.tsx`, `app/selections.tsx`, `app/prequal-manager.tsx`,
-`app/oac-meeting.tsx` and `app/buyout-package.tsx` are untouched.
+Of the seven pipeline screens, only permits was pre-wired (wrongly — see Task 5).
+`app/punch-list.tsx` is now done. `app/oac-meeting.tsx` and
+`app/prequal-manager.tsx` remain, as Tasks 6a/6b. `app/lien-waivers.tsx`,
+`app/selections.tsx` and `app/buyout-package.tsx` are DROPPED — see the scope
+correction below.
+
+### SCOPE CORRECTION (2026-08-14) — Tasks 6 and 7 are superseded
+
+The wiring tasks were written assuming every target screen has a single-item
+detail view. **That assumption was wrong**, and it produced a real defect: the
+first pass at Task 4 rendered a breadcrumb inside `filteredItems.map()`, stacking
+dozens down a punch list and duplicating the Start / Submit / Close buttons
+already on each card.
+
+The rule, learned from the one screen that was already wired correctly
+(`app/permits.tsx` gates on `editingPermit &&`):
+
+> **`StatusPipeline` belongs only in single-item context** — an edit sheet, a
+> detail modal, or a screen that IS one record. Never once per row. A breadcrumb
+> answers "where is THIS item in its lifecycle", which is a question about one
+> item, not a list.
+
+An audit of the five remaining screens against that rule:
+
+| Screen | Single-item context | Verdict |
+|---|---|---|
+| `app/oac-meeting.tsx` | `activeId` → `active` (L105-109), gates detail at L418 | **WIRE** — best fit |
+| `app/prequal-manager.tsx` | `reviewingPacket` (L70) → `ReviewModal` (L295) | **WIRE** |
+| `app/buyout-package.tsx` | whole screen is one `BidPackage` (L66-80) | **DROP** — see below |
+| `app/lien-waivers.tsx` | none — flat `waivers.map()` (L311) | **DROP** |
+| `app/selections.tsx` | none — flat list (L262) | **DROP** |
+
+**Why the three drops** (record these so nobody re-adds them):
+
+- **`lien-waivers.tsx`** — no single-item state exists at all; `addModal` is a
+  create-only form. It already has a complete status-aware action rail at
+  L406-423 ("Mark signed" / "Mark received" / "Void") plus a per-status pill at
+  L371-374. A pipeline could only live inside `WaiverCard`, which is exactly the
+  per-row stacking the punch-list fix established as wrong, and it would
+  duplicate buttons that are already better suited to a list.
+- **`selections.tsx`** — no single-item state, AND no screen-level status
+  setter. `.status` is *derived* inside the engine from which option was chosen
+  (`chooseSelectionOption`, L137); `saveSelectionCategory` only creates. A manual
+  "Advance" would desync the status from the chosen option — it would make the
+  data wrong, not just the UI noisy.
+- **`buyout-package.tsx`** — structurally valid (the screen is one package), but
+  it already renders a hero status pill (L423-426) *and* its own days-in-status
+  counter ("Stale package · N days open", L476-484), which is the same signal
+  `StatusPipeline` shows via `startedAt`. Worse, `onAdvance` has nothing safe to
+  call: `awarded` requires picking a specific bid and minting a Commitment
+  (`awardBidPackage`, L237), and `updateBidPackage` is destructured at L69 but
+  never called. A one-tap advance here would either do nothing or award a
+  package without a winning bid.
+
+**Net:** of the roadmap's original eleven, seven were never suitable —
+two need a data model (AIA pay apps, closeout binder), one had no lifecycle at
+all (bid response), and four are list screens whose existing per-row affordances
+are the better pattern. That is a finding about the roadmap, not a failure of
+this work: "every workflow gets a breadcrumb" was a premise, and it has now been
+wrong about warranty states, permit states, bid-response states, permits already
+being wired, and screen shape.
+
+Tasks 6 and 7 below are SUPERSEDED by Tasks 6a and 6b.
+
+---
+
+### Task 6a: Wire `app/oac-meeting.tsx` (best fit)
+
+**Single-item gate:** `activeId` (L105) → `active: OACMeeting | null` (L106-109),
+detail branch at L418 (`if (active) {`).
+
+**Insert after L446** — below the hero block, above the Attendees card, inside
+the `ScrollView` so it scrolls rather than pinning a card-sized band under the
+header.
+
+```tsx
+<StatusPipeline
+  stages={stagesFor('oac')}
+  current={visualStageFor('oac', active.status)}
+  startedAt={active.createdAt}
+  // Cap at `concluded`. `distributed` is EARNED by handleDistribute (L353-395),
+  // which actually sends the emails and writes distributionLog — a one-tap
+  // advance into it would mark the minutes distributed without sending them.
+  onAdvance={active.status === 'concluded' ? undefined : (next) => {
+    ctx.updateOACMeeting?.(active.id, {
+      status: next as OACMeeting['status'],
+      updatedAt: new Date().toISOString(),
+    });
+  }}
+/>
+```
+
+Verify: `npx tsc --noEmit` silent, `npx eslint app/oac-meeting.tsx` 0 errors,
+and confirm "Distribute to attendees" (L603-612) is still the only path to
+`distributed`.
+
+### Task 6b: Wire `app/prequal-manager.tsx`
+
+**Single-item gate:** `reviewingPacket` (L70), passed to `ReviewModal` (L295),
+guarded inside at L424 (`if (!packet) return null;`).
+
+**Insert after L438**, first child of the modal's scroll body, above the
+auto-review summary. Inside that modal the only status UI today is a plain text
+`DetailLine` (L483), so a breadcrumb adds real information.
+
+```tsx
+<StatusPipeline
+  stages={stagesFor('prequal')}
+  current={visualStageFor('prequal', packet.status)}
+  startedAt={packet.createdAt}
+  dueAt={packet.expiresAt || undefined}
+  // Stop short of `approved`. handleApprove (L136-150) also computes expiresAt
+  // via computePrequalExpiry and snapshots autoReviewFindings; a bare status
+  // write would approve the packet without either.
+  onAdvance={
+    isSideBranch('prequal', packet.status) || packet.status === 'submitted'
+      ? undefined
+      : (next) => {
+          upsertPrequalPacket({
+            ...packet,
+            status: next as PrequalPacket['status'],
+            updatedAt: new Date().toISOString(),
+          });
+        }
+  }
+/>
+```
+
+The existing Approve / Needs changes / Reject footer buttons (L509-526) stay —
+they are how `approved` and the side branches are reached.
+
+---
 
 ### Known debt carried into Tasks 4-9
 
@@ -825,7 +957,7 @@ anchors back to scheduled for rescheduling)."
 
 ---
 
-### Task 6: Wire lien waivers
+### Task 6: Wire lien waivers — SUPERSEDED, SEE SCOPE CORRECTION ABOVE (dropped)
 
 `app/lien-waivers.tsx:175` already has a status-change handler using `saveLienWaiver({ ...w, id: w.id, status })` — reuse it.
 
@@ -877,7 +1009,7 @@ git commit -m "feat(lien-waivers): visible lifecycle on a waiver"
 
 ---
 
-### Task 7: Wire selections, prequal, OAC, and bid package
+### Task 7: Wire selections, prequal, OAC, and bid package — SUPERSEDED by Tasks 6a/6b (selections and bid package dropped)
 
 Four screens, identical shape. Do them one at a time, type-checking and committing after each — not as one batch.
 

@@ -20,6 +20,8 @@ import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import type { PunchItem, PunchItemStatus, PunchItemPriority, SubTrade } from '@/types';
+import { StatusPipeline } from '@/components/StatusPipeline';
+import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
@@ -599,6 +601,29 @@ function PunchListScreenInner() {
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
+
+                {/* Only when EDITING an existing item — a new one has no lifecycle
+                    to show yet, and the list cards already carry a status badge
+                    plus the Start / Submit / Close actions. Same gate
+                    app/permits.tsx uses (`editingPermit &&`): the breadcrumb
+                    belongs in single-item context, not once per row. */}
+                {editingItem && (
+                  <View style={{ marginBottom: 14 }}>
+                    <StatusPipeline
+                      stages={stagesFor('punch')}
+                      current={visualStageFor('punch', editingItem.status)}
+                      startedAt={editingItem.createdAt}
+                      dueAt={editingItem.dueDate || undefined}
+                      onAdvance={(next) => {
+                        updatePunchItem(editingItem.id, {
+                          status: next as PunchItem['status'],
+                          updatedAt: new Date().toISOString(),
+                        });
+                        setEditingItem({ ...editingItem, status: next as PunchItem['status'] });
+                      }}
+                    />
+                  </View>
+                )}
 
                 {attachedPhotoUri ? (
                   <View style={styles.photoPreview}>
