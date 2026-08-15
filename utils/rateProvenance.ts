@@ -25,6 +25,19 @@
 // can never be the thing a caption or a colour is gated on. Everything here
 // branches on `provenance`, and `tone` is 'measured' if and only if provenance
 // is 'earned', so a stated rate can never inherit an earned rate's treatment.
+//
+// VOCABULARY UNIFICATION (takeoffPricing.ts::priceSourceLabel)
+// ------------------------------------------------------------
+// The takeoff screen has its own sentence-style provenance label
+// (priceSourceLabel). Both it and the chip answer the same question:
+// "what may this provenance claim?" The answer lives HERE, in
+// provenanceClaimModel — one decision, two presentations.
+//
+// provenanceClaimModel takes the minimal shared shape { provenance, jobCount },
+// which both CostBookEntry and OwnRateMatch satisfy.
+// priceSourceLabel delegates the earned/seeded/mixed determination to it, then
+// renders its own sentence. The takeoff screen keeps its sentence layout; the
+// estimate screen keeps its chip. No forced visual merge, but a single firewall.
 
 import type { CostBookEntry } from '@/utils/costDatabase';
 import { isSeedSample } from '@/utils/costSeedCore';
@@ -40,6 +53,48 @@ export interface RateProvenanceChipModel {
 }
 
 /**
+ * The minimal shape needed to classify what a provenance may claim.
+ * Both CostBookEntry and OwnRateMatch (from takeoffPricing.ts) carry these two
+ * fields, so this is the shared input to the single authoritative decision.
+ */
+export interface ProvenanceInput {
+  provenance: 'earned' | 'seeded' | 'mixed';
+  jobCount: number;
+}
+
+/**
+ * The single authoritative classification of what a provenance may claim.
+ *
+ * Returns null when the evidence is insufficient to make any claim — an
+ * 'earned' entry that has never actually measured a job says nothing, because
+ * silence is honest and a guess is not.
+ *
+ * Pure and React-free so the bun validators can call it. Callers that need a
+ * chip use rateProvenanceChipModel (below). Callers that need a sentence —
+ * such as priceSourceLabel in takeoffPricing.ts — read .tone / .provenance /
+ * .jobCount and compose their own words, while delegating this decision here.
+ */
+export function provenanceClaimModel(
+  input: ProvenanceInput,
+): RateProvenanceChipModel | null {
+  const { provenance, jobCount } = input;
+  const jobs = `${jobCount} job${jobCount === 1 ? '' : 's'}`;
+
+  if (provenance === 'earned') {
+    // jobCount EXCLUDES seed samples by construction. An 'earned' entry that
+    // still counts zero measured jobs has nothing to claim, so it says nothing.
+    if (jobCount < 1) return null;
+    return { provenance: 'earned', label: `MEASURED · ${jobs}`, tone: 'measured', jobCount };
+  }
+  if (provenance === 'mixed') {
+    return { provenance: 'mixed', label: `MIXED · ${jobs}`, tone: 'stated', jobCount };
+  }
+  // seeded — the contractor's own stated rate, nothing measured. Neutral tone,
+  // and it never cites a job count, because there are none.
+  return { provenance: 'seeded', label: 'YOU SET THIS', tone: 'stated', jobCount: 0 };
+}
+
+/**
  * What the chip may say for a cost-book entry.
  *
  * Returns null — meaning RENDER NOTHING — when there is no book hit, no
@@ -51,21 +106,7 @@ export function rateProvenanceChipModel(
   entry: CostBookEntry | null | undefined,
 ): RateProvenanceChipModel | null {
   if (!entry || !entry.provenance) return null;
-  const jobCount = entry.jobCount ?? 0;
-  const jobs = `${jobCount} job${jobCount === 1 ? '' : 's'}`;
-
-  if (entry.provenance === 'earned') {
-    // jobCount EXCLUDES seed samples by construction. An 'earned' entry that
-    // still counts zero measured jobs has nothing to claim, so it says nothing.
-    if (jobCount < 1) return null;
-    return { provenance: 'earned', label: `MEASURED · ${jobs}`, tone: 'measured', jobCount };
-  }
-  if (entry.provenance === 'mixed') {
-    return { provenance: 'mixed', label: `MIXED · ${jobs}`, tone: 'stated', jobCount };
-  }
-  // seeded — the contractor's own stated rate, nothing measured. Neutral tone,
-  // and it never cites a job count, because there are none.
-  return { provenance: 'seeded', label: 'YOU SET THIS', tone: 'stated', jobCount: 0 };
+  return provenanceClaimModel({ provenance: entry.provenance, jobCount: entry.jobCount ?? 0 });
 }
 
 function monthLabel(iso: string): string {

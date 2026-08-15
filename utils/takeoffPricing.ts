@@ -17,8 +17,16 @@
 // Priority the caller should apply: YOURS > engine catalog > AI guess.
 //
 // Pure: no React, no network, no clock.
+//
+// VOCABULARY UNIFICATION
+// ----------------------
+// priceSourceLabel's earned/seeded/mixed determination delegates to
+// provenanceClaimModel (utils/rateProvenance.ts) — the same function the
+// estimate-row chip uses. One decision, two visual languages: this file renders
+// a sentence; the chip renders a pill. See rateProvenance.ts §VOCABULARY.
 
 import type { CostBookEntry } from '@/utils/costDatabase';
+import { provenanceClaimModel } from '@/utils/rateProvenance';
 
 export type PriceSource = 'yours' | 'engine' | 'ai' | 'manual';
 
@@ -141,19 +149,33 @@ export function matchOwnRate(
   return best;
 }
 
-/** Human provenance line shown under a priced row. */
+/**
+ * Human provenance sentence shown under a priced row on the takeoff screen.
+ *
+ * The earned/seeded/mixed determination is delegated to provenanceClaimModel
+ * (utils/rateProvenance.ts) — the same function the estimate-row chip uses.
+ * This keeps the sentence format the takeoff layout needs while sharing the
+ * single firewall that decides what may be claimed.
+ */
 export function priceSourceLabel(source: PriceSource, match?: OwnRateMatch | null): string {
   if (source === 'yours' && match) {
-    // A seeded rate is the contractor's own number, but it was TOLD to us, not
-    // measured. Saying "0 jobs" would read as a bug; claiming jobs would be a
-    // lie. Say exactly what happened.
-    if (match.provenance === 'seeded') {
+    const claim = provenanceClaimModel({ provenance: match.provenance, jobCount: match.jobCount });
+
+    // A seeded rate (claim === null is impossible here since seeded always
+    // returns a model, but we handle claim?.provenance directly for clarity).
+    if (claim?.provenance === 'seeded') {
+      // The contractor TOLD us this rate — not measured. Saying "0 jobs" would
+      // read as a bug; claiming jobs would be a lie. Say exactly what happened.
       return `Your rate — ${match.trade}, you set this (no closed jobs yet)`;
     }
     const jobs = `${match.jobCount} job${match.jobCount === 1 ? '' : 's'}`;
     const spread = match.variability > 0 ? ` · ±${Math.round(match.variability * 100)}%` : '';
-    const seeded = match.provenance === 'mixed' ? ' · started from your set rate' : '';
-    return `Your rate — ${match.trade}, ${jobs}${spread}${seeded}`;
+    if (claim?.provenance === 'mixed') {
+      // Started from a stated rate but real jobs have begun to correct it.
+      return `Your rate — ${match.trade}, ${jobs}${spread} · started from your set rate`;
+    }
+    // earned — measured from closed jobs. The tone is 'measured' only here.
+    return `Your rate — ${match.trade}, ${jobs}${spread}`;
   }
   if (source === 'engine') return 'Catalog rate — not your history';
   if (source === 'ai') return 'AI estimate — no history for this yet';
