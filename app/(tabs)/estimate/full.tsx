@@ -61,7 +61,8 @@ import { Tokens } from '@/constants/designTokens';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
-import { buildCostDatabase } from '@/utils/costDatabase';
+import { buildCostDatabase, lookupRate, type CostBookEntry } from '@/utils/costDatabase';
+import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
 import { track, AnalyticsEvents } from '@/utils/analytics';
@@ -177,13 +178,37 @@ export default function EstimateScreen() {
   // being priced off a national average.
   const { seeds } = useCostSeeds();
 
+  // The learned price book, as its own memo. Two consumers now: the AI
+  // grounding facts below, and the per-row rate-provenance chip — building it
+  // twice for the same render would be wasteful.
+  const costDb = useMemo(
+    () => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds),
+    [projects, commitments, receipts, laborSamples, seeds],
+  );
+
+  // Resolve the cost-book entry behind a cart row's rate. The key MUST be
+  // built exactly the way this screen writes it into a LinkedEstimate (see
+  // buildLinkedEstimate below: CATEGORY_META label, then material.unit) —
+  // that is what utils/estimateActuals later re-reads as trade|unit, so this
+  // lookup returns the very entry that row's history feeds. A miss returns
+  // null and the chip renders nothing rather than guessing.
+  const rateEntryFor = useCallback(
+    (trade: string, unit: string): CostBookEntry | null => {
+      try {
+        return lookupRate(costDb, trade, unit);
+      } catch {
+        return null;
+      }
+    },
+    [costDb],
+  );
+
   const quickEstimateGrounding = useMemo<{ facts: string[]; rateCount: number }>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
       // A rate the contractor SEEDED is told to the model as told-to-us. Handing
       // the LLM "runs $X on your jobs" for a number they typed would launder a
       // claim into evidence — see utils/costSeedCore.
-      const facts = db.entries.slice(0, 6).map(
+      const facts = costDb.entries.slice(0, 6).map(
         e => e.provenance === 'seeded'
           ? `${e.trade}: the contractor's own stated rate is $${e.suggestedRate.toFixed(2)}/${e.unit} (self-reported, no closed job yet — use it, but don't call it measured)`
           : `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`,
@@ -192,11 +217,11 @@ export default function EstimateScreen() {
       if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
         facts.push(cal.categories[0].detail);
       }
-      return { facts, rateCount: db.entries.length };
+      return { facts, rateCount: costDb.entries.length };
     } catch {
       return { facts: [], rateCount: 0 };
     }
-  }, [projects, commitments, receipts, laborSamples, seeds]);
+  }, [costDb, projects, commitments]);
 
   // Stable seed — previously Date.now()/10000 which caused prices to drift by a cent
   // on every refresh (app resume, 5min interval, location change). Pricing is now
@@ -1241,6 +1266,13 @@ export default function EstimateScreen() {
     const eqCostPerUnit = item.material.equipmentCostPerUnit ?? (factors ? base * factors.equipmentFactor : 0);
     const installTrade = item.material.installTrade ?? factors?.installTrade ?? '';
     const installHrs = item.material.installHoursPerUnit ?? factors?.installHoursPerUnit ?? 0;
+    // Same trade+unit key this row is written under when the cart becomes a
+    // LinkedEstimate (buildLinkedEstimate), so the chip reports the entry this
+    // very line's closed-job history feeds.
+    const rateEntry = rateEntryFor(
+      CATEGORY_META[item.material.category]?.label ?? item.material.category,
+      item.material.unit,
+    );
 
     return (
       <View key={item.material.id} style={styles.cartItem}>
@@ -1260,6 +1292,15 @@ export default function EstimateScreen() {
             {isExpanded ? <ChevronUp size={16} color={Colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={16} color={Colors.textMuted} strokeWidth={1.75} />}
           </View>
         </TouchableOpacity>
+
+        {/* Where this row's rate stands in your cost book: measured on closed
+            jobs, or a rate you stated. Sits OUTSIDE the header touchable so
+            tapping it opens the drill-down instead of collapsing the row.
+            Renders nothing when the book has no entry for this trade+unit. */}
+        <RateProvenanceChip
+          entry={rateEntry}
+          testID={`rate-provenance-${item.material.id}`}
+        />
 
         {(labCostPerUnit > 0 || eqCostPerUnit > 0) && (
           <TouchableOpacity
@@ -1353,7 +1394,7 @@ export default function EstimateScreen() {
         )}
       </View>
     );
-  }, [expandedItem, expandedCostBreakdown, updateQuantity, updateItemMarkup, removeFromCart]);
+  }, [expandedItem, expandedCostBreakdown, updateQuantity, updateItemMarkup, removeFromCart, rateEntryFor]);
 
   const listHeaderComponent = useMemo(() => (
     <View>
@@ -3105,6 +3146,11 @@ export default function EstimateScreen() {
                                 </TouchableOpacity>
                               </View>
                             </View>
+                            {/* Labor lines are written as trade 'Labor', unit 'hrs'. */}
+                            <RateProvenanceChip
+                              entry={rateEntryFor('Labor', 'hrs')}
+                              testID={`rate-provenance-labor-${item.labor.id}`}
+                            />
                           </View>
                         ))}
                       </View>
@@ -3129,6 +3175,11 @@ export default function EstimateScreen() {
                                 </TouchableOpacity>
                               </View>
                             </View>
+                            {/* Assemblies are written as trade 'Assemblies' at the assembly's own unit. */}
+                            <RateProvenanceChip
+                              entry={rateEntryFor('Assemblies', item.assembly.unit)}
+                              testID={`rate-provenance-assembly-${item.assembly.id}`}
+                            />
                           </View>
                         ))}
                       </View>

@@ -12,12 +12,19 @@ import { ChevronRight, ChevronDown, Layers } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
+import type { CostBookEntry } from '@/utils/costDatabase';
+import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
 
 export interface DivisionItemRow {
   name: string;
   qty: number;
   unit: string;
   total: number;
+  /** Cost-book entry behind this line's rate, for the rate-provenance chip.
+   *  Undefined/null = nothing to show, and the chip renders nothing.
+   *  CONTRACTOR-ONLY: provenance is internal. The caller must leave this unset
+   *  in any client-facing rendering — see app/(tabs)/estimate/review.tsx. */
+  rateEntry?: CostBookEntry | null;
 }
 export interface DivisionRow {
   /** CSI number ('03') or 'other'. */
@@ -95,6 +102,12 @@ export function EstimateDivisionTable({ divisions }: { divisions: DivisionRow[] 
                       <View style={styles.itemNameWrap}>
                         <Text style={styles.itemName} numberOfLines={1}>{it.name}</Text>
                         <Text style={styles.itemQty}>{it.qty} {it.unit}</Text>
+                        {/* Measured on your jobs, or a rate you stated. Absent
+                            entry (incl. every client-facing caller) = nothing. */}
+                        <RateProvenanceChip
+                          entry={it.rateEntry}
+                          testID={`rate-provenance-${d.key}-${j}`}
+                        />
                       </View>
                       <Text style={styles.itemTotal}>{money(it.total)}</Text>
                     </View>

@@ -47,6 +47,7 @@ import { buildNarrationPrompt } from '../utils/judges/narrateVerdict';
 import { priceTell, DEFAULT_VARIABILITY } from '../utils/costXray';
 import { priceLeakItems } from '../utils/profitLeak/priceLeakItems';
 import { checkSubBid } from '../utils/profitLeak/subBidCheck';
+import { rateProvenanceChipModel, measuredWindow } from '../utils/rateProvenance';
 import type { Project, Commitment, LinkedEstimate } from '../types';
 // fileURLToPath + join because the repo path contains a space.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -879,6 +880,52 @@ expect('…priced at the stated rate (100 SF × $12.50)', subVerdict.expected, 1
 expect('…and flags the 36%-under bid', subVerdict.verdict, 'low');
 ok('the sub-bid copy never cites a job count for a seeded rate',
   !/\d+ jobs?\b/.test(subVerdict.detail), subVerdict.detail);
+
+// ── RATE-PROVENANCE CHIP ON THE ESTIMATE ROW. Until this shipped, the whole
+// firewall was a backend invariant with no pixels: our AI estimate and a
+// competitor's both emit plausible lines with plausible numbers, and the only
+// real difference — where the rate came from — was invisible. The chip makes
+// it visible, so it is now a surface that can lie, and gets pinned like one.
+const seededChip = rateProvenanceChipModel(lookupRate(SEEDED_ONLY, 'Framing', 'SF'));
+const earnedChip = rateProvenanceChipModel(lookupRate(EARNED_ONLY, 'Framing', 'SF'));
+expect('the chip on a stated rate reads YOU SET THIS', seededChip?.label, 'YOU SET THIS');
+ok('…and never cites a job count, because there are none',
+  !/\d+ jobs?\b/.test(seededChip?.label ?? ''), seededChip?.label);
+expect('…in the NEUTRAL tone, never the measured one', seededChip?.tone, 'stated');
+expect('the chip on a measured rate says how many jobs', earnedChip?.label, 'MEASURED · 1 job');
+expect('…and only IT may wear the measured tone', earnedChip?.tone, 'measured');
+ok("tone 'measured' is reachable ONLY from provenance 'earned' — the firewall, in one line",
+  [SEEDED_ONLY, EARNED_ONLY, buildCostDatabase(emptyProjects, emptyCommitments, [], [realSample], SEEDS)]
+    .map(db => lookupRate(db, 'Framing', 'SF'))
+    .every(e => (rateProvenanceChipModel(e)?.tone === 'measured') === (e?.provenance === 'earned')));
+expect('a mixed rate is labelled apart from both',
+  rateProvenanceChipModel(lookupRate(
+    buildCostDatabase(emptyProjects, emptyCommitments, [], [realSample], SEEDS), 'Framing', 'SF',
+  ))?.label, 'MIXED · 1 job');
+ok('no book hit renders NO chip rather than a guess',
+  rateProvenanceChipModel(null) === null && rateProvenanceChipModel(undefined) === null);
+ok('…and so does a legacy entry carrying no provenance stamp',
+  rateProvenanceChipModel({ ...lookupRate(EARNED_ONLY, 'Framing', 'SF')!, provenance: undefined }) === null);
+ok('…and an earned entry with nothing actually measured behind it',
+  rateProvenanceChipModel({ ...lookupRate(EARNED_ONLY, 'Framing', 'SF')!, jobCount: 0 }) === null);
+ok('the drill-down shows no sample window for a stated rate',
+  measuredWindow(lookupRate(SEEDED_ONLY, 'Framing', 'SF')!) === null);
+ok('…but does for a measured one',
+  !!measuredWindow(lookupRate(EARNED_ONLY, 'Framing', 'SF')!));
+// The screens must branch on provenance, never on the fromHistory trap, and
+// client view must never be handed provenance at all.
+ok('the chip component branches on provenance, not fromHistory',
+  /provenance === 'earned'/.test(src('utils/rateProvenance.ts')) &&
+  !/fromHistory/.test(src('components/estimate/RateProvenanceChip.tsx')));
+ok('the estimate review screen resolves provenance only in contractor mode',
+  /const contractorView = mode === 'contractor'/.test(src('app/(tabs)/estimate/review.tsx')) &&
+  /rateEntry = contractorView\s*\?\s*lookupRate\(/.test(src('app/(tabs)/estimate/review.tsx')) &&
+  /:\s*null;/.test(src('app/(tabs)/estimate/review.tsx')));
+ok('…so the client-facing estimate view is never handed a provenance entry',
+  !/RateProvenanceChip/.test(src('components/estimate/EstimateClientView.tsx')));
+ok('the wizard result view — an explicit client preview — carries no chip',
+  /This is the estimate your client will see/.test(src('app/estimate-wizard.tsx')) &&
+  !/RateProvenanceChip/.test(src('app/estimate-wizard.tsx')));
 
 // ── AI GROUNDING FACTS. Every prompt that can now see a seeded rate must say
 // so in the prompt text — the model is the surface most likely to launder a

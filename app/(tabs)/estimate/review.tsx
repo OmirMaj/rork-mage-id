@@ -19,6 +19,11 @@ import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterForm
 import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
 import type { LinkedEstimate } from '@/types';
+import { CATEGORY_META } from '@/constants/materials';
+import { buildCostDatabase, lookupRate } from '@/utils/costDatabase';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -39,7 +44,10 @@ export default function EstimateReviewScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { cart, globalMarkup } = useMaterialCart();
-  const { settings } = useProjects();
+  const { settings, projects, commitments } = useProjects();
+  const { receipts } = useMaterialReceipts();
+  const laborSamples = useLaborCostSamples();
+  const { seeds } = useCostSeeds();
   const layout = useResponsiveLayout();
   const isDesktop = layout.isDesktop;
   const [mode, setMode] = useState<'contractor' | 'client'>('contractor');
@@ -61,25 +69,45 @@ export default function EstimateReviewScreen() {
     return { directCost: base, markups: withMarkup - base, itemCount: cart.length };
   }, [cart]);
 
+  // The learned price book — only consulted for the CONTRACTOR view's
+  // rate-provenance chips. See the divisions memo below for why it is gated.
+  const costDb = useMemo(
+    () => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds),
+    [projects, commitments, receipts, laborSamples, seeds],
+  );
+
   // Group the cart into CSI divisions for the contractor scope table. Materials
   // carry no explicit csiDivision, so classify from name then category.
+  //
+  // CLIENT-VIEW FIREWALL: rate provenance ("measured on 4 jobs" / "you set
+  // this") is INTERNAL — it exposes how the cost was derived, which is exactly
+  // the class of information client view exists to withhold. So the entry is
+  // resolved only while mode === 'contractor'; in client mode `rateEntry` is
+  // never even computed, and RateProvenanceChip renders nothing without it.
   const divisions: DivisionRow[] = useMemo(() => {
+    const contractorView = mode === 'contractor';
     const rows = cart.map(item => {
       const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
       const total = p * (1 + item.markup / 100) * item.quantity;
       const csi = classifyToCSIDivision(item.material.name)
         ?? classifyToCSIDivision(item.material.category)
         ?? undefined;
-      return { csiDivision: csi, name: item.material.name, qty: item.quantity, unit: item.material.unit, total };
+      // Key it exactly as the cart is written into a LinkedEstimate (the
+      // CATEGORY_META label, then the material unit) — that is what the cost
+      // book is later built from, so a hit here is genuinely this line's rate.
+      const rateEntry = contractorView
+        ? lookupRate(costDb, CATEGORY_META[item.material.category]?.label ?? item.material.category, item.material.unit)
+        : null;
+      return { csiDivision: csi, name: item.material.name, qty: item.quantity, unit: item.material.unit, total, rateEntry };
     });
     return groupByCSIDivision(rows).map(g => ({
       key: g.division?.number ?? 'other',
       number: g.division?.number ?? null,
       title: g.division?.title ?? 'Other scope',
       total: g.items.reduce((s, r) => s + r.total, 0),
-      items: g.items.map(r => ({ name: r.name, qty: r.qty, unit: r.unit, total: r.total })),
+      items: g.items.map(r => ({ name: r.name, qty: r.qty, unit: r.unit, total: r.total, rateEntry: r.rateEntry })),
     }));
-  }, [cart]);
+  }, [cart, costDb, mode]);
 
   // Client-safe projection — build a LinkedEstimate from the cart (base line
   // totals + grand total) and run the validated transform. It strips every
