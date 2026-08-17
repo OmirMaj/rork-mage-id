@@ -182,6 +182,31 @@ function PunchListScreenInner() {
     setAttachedPhotoUri(undefined);
   }, []);
 
+  // The only path that puts a REAL item in `editingItem`. Before this every
+  // route into the sheet ran resetForm() first, which meant `editingItem` was
+  // never anything but null — so the status breadcrumb gated on it was dead
+  // code and the sheet could only ever create. Mirrors openEditForm in
+  // app/permits.tsx: hydrate the form from the record, then open.
+  const openEditForm = useCallback((item: PunchItem) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEditingItem(item);
+    setDescription(item.description);
+    setLocation(item.location ?? '');
+    setAssignedSub(item.assignedSub ?? '');
+    // The field is declared YYYY-MM-DD; Supabase-synced items can carry a full
+    // ISO timestamp. Slice to the form's own format (same as permits) rather
+    // than seeding the input with a value it doesn't accept.
+    setDueDate((item.dueDate ?? '').slice(0, 10));
+    setPriority(item.priority);
+    setLinkedTaskId(item.linkedTaskId ?? '');
+    // The sheet has no photo control — only a preview for the annotator's
+    // "Add to Punch List" prefill — and handleSave's update branch does not
+    // touch photoUri. Clearing avoids showing a previous prefill's photo (with
+    // a remove button that would do nothing) on top of someone else's item.
+    setAttachedPhotoUri(undefined);
+    setShowForm(true);
+  }, []);
+
   const closedCount = items.filter(i => i.status === 'closed').length;
   const totalCount = items.length;
   const progressPercent = totalCount > 0 ? Math.round((closedCount / totalCount) * 100) : 0;
@@ -450,8 +475,28 @@ function PunchListScreenInner() {
               <View style={styles.punchCardTop}>
                 <View style={[styles.priorityDot, { backgroundColor: pc.color }]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.punchDesc}>{item.description}</Text>
-                  {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
+                  {/* Tapping the item's own text opens it for editing. This is
+                      the affordance the row was missing — without it nothing
+                      ever put a real item in `editingItem`, so the edit sheet
+                      could only create and its status breadcrumb was dead code.
+                      Same gesture app/permits.tsx uses on its cards.
+
+                      Scoped to the description + location deliberately. Wrapping
+                      the whole card would make it one accessibility element on
+                      iOS and swallow the status badge ("tap to advance") and the
+                      "On plan" chip, which are their own affordances. They stay
+                      siblings; the action row below stays outside too. */}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => openEditForm(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit punch item: ${item.description}`}
+                    accessibilityHint="Opens this item for editing"
+                    testID={`punch-item-${item.id}`}
+                  >
+                    <Text style={styles.punchDesc}>{item.description}</Text>
+                    {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
+                  </TouchableOpacity>
                   {item.planSheetId ? (
                     <TouchableOpacity
                       style={styles.onPlanChip}
