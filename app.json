@@ -126,7 +126,8 @@
             }
           ]
         }
-      ]
+      ],
+      "./plugins/withQuotedXcodeScriptPaths"
     ],
     "experiments": {
       "typedRoutes": true
