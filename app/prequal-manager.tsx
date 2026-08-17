@@ -47,6 +47,18 @@ import {
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
 
+/**
+ * Sentence-case labels for the three OFF-PATH prequal states, for the
+ * side-branch badge in the review modal. StatusBadge's labels are LIST labels
+ * ("CHANGES" inside an 82px pill); this badge is a sentence, so "Needs changes"
+ * rather than "Changes".
+ */
+const PREQUAL_SIDE_BRANCH_LABEL: Record<string, string> = {
+  needs_changes: 'Needs changes',
+  rejected: 'Rejected',
+  expired: 'Expired',
+};
+
 // ─────────────────────────────────────────────────────────────
 // Root
 // ─────────────────────────────────────────────────────────────
@@ -452,6 +464,21 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                   packet without either. Use the Approve / Needs changes / Reject
                   footer buttons for those transitions. */}
               <View style={{ marginBottom: 12 }}>
+                {/* Same treatment as app/permits.tsx, deliberately — one visual
+                    language for "this item is off the normal path". A side
+                    branch has no position in the sequence, so the breadcrumb
+                    anchors it at Draft; without this badge the modal claims a
+                    REJECTED packet is a draft, with a filled dot and nothing to
+                    contradict it. The badge carries the real state, the
+                    breadcrumb just stays rendered instead of collapsing. */}
+                {isSideBranch('prequal', packet.status) && (
+                  <View style={styles.sideBranchBadge}>
+                    <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={2} />
+                    <Text style={styles.sideBranchText}>
+                      {PREQUAL_SIDE_BRANCH_LABEL[packet.status] ?? packet.status} — not on the normal path
+                    </Text>
+                  </View>
+                )}
                 <StatusPipeline
                   stages={stagesFor('prequal')}
                   current={visualStageFor('prequal', packet.status)}
@@ -471,8 +498,16 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                 />
               </View>
 
-              {/* Summary */}
-              {review && (
+              {/* Summary. "Auto-review passed. Ready for approval." is a
+                  RECOMMENDATION, and on a side branch a human (or the calendar)
+                  has already overruled it — a rejected packet is not ready for
+                  approval, and an expired one is not either. Showing the green
+                  banner anyway is half of the contradiction the audit flagged,
+                  so the pass banner is suppressed there; nothing is lost,
+                  because every criterion it summarises is listed in full
+                  directly below. The fail / needs-info banners stay: those
+                  AGREE with a side branch and explain how it got there. */}
+              {review && !(review.overall === 'pass' && isSideBranch('prequal', packet.status)) && (
                 <View style={[styles.reviewSummary, {
                   backgroundColor: review.overall === 'pass' ? themeColors.successSoft : review.overall === 'fail' ? themeColors.dangerSoft : themeColors.warningSoft,
                   borderLeftColor: review.overall === 'pass' ? themeColors.success : review.overall === 'fail' ? themeColors.danger : Colors.warning,
@@ -644,6 +679,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   input: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: t.text },
   inviteHelp: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 15 },
+
+  // Matches app/permits.tsx's permitSideBranchBadge token for token — same
+  // meaning, same look. dangerLabel (not danger) is the AA-contrast red.
+  sideBranchBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    alignSelf: 'flex-start', marginBottom: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1, borderColor: t.dangerLabel,
+  },
+  sideBranchText: {
+    fontSize: Type.caption1.fontSize, color: t.dangerLabel, fontWeight: '700' as const,
+  },
 
   reviewSummary: { borderRadius: Tokens.radius.md, padding: 12, borderLeftWidth: 3, marginBottom: 14 },
   reviewSummaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
