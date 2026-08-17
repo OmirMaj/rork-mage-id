@@ -38,8 +38,13 @@ function createId(_prefix: string): string {
 
 function getStatusConfig(t: ThemeColors, status: PunchItemStatus): { label: string; color: string; bg: string } {
   switch (status) {
-    case 'open': return { label: 'Open', color: t.danger, bg: t.danger };
-    case 'in_progress': return { label: 'In Progress', color: t.info, bg: t.info };
+    // Soft fill + label/saturated foreground, matching the two cases below.
+    // These badges are tappable to advance status, so the label and its "›"
+    // have to stay readable — fg === bg rendered them as solid colour blobs.
+    // There is no `infoSoft` token, so in-progress uses the repo-wide
+    // `info + '1F'` soft fill (payments.tsx, warranties.tsx, ui/Badge.tsx).
+    case 'open': return { label: 'Open', color: t.dangerLabel, bg: t.dangerSoft };
+    case 'in_progress': return { label: 'In Progress', color: t.info, bg: t.info + '1F' };
     case 'ready_for_review': return { label: 'Review', color: t.accent, bg: t.accentSoft };
     case 'closed': return { label: 'Closed', color: t.success, bg: t.successSoft };
   }
@@ -493,7 +498,7 @@ function PunchListScreenInner() {
 
               {item.rejectionNote ? (
                 <View style={styles.rejectionBox}>
-                  <MessageSquare size={12} color={themeColors.danger} strokeWidth={1.75} />
+                  <MessageSquare size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
                   <Text style={styles.rejectionText}>{item.rejectionNote}</Text>
                 </View>
               ) : null}
@@ -517,9 +522,9 @@ function PunchListScreenInner() {
                       <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={[styles.punchActionText, { color: themeColors.success }]}>Close</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.danger }]} onPress={() => { setShowRejectModal(item.id); setRejectionNote(''); }}>
-                      <X size={14} color={themeColors.danger} strokeWidth={1.75} />
-                      <Text style={[styles.punchActionText, { color: themeColors.danger }]}>Reject</Text>
+                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.dangerSoft }]} onPress={() => { setShowRejectModal(item.id); setRejectionNote(''); }}>
+                      <X size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                      <Text style={[styles.punchActionText, { color: themeColors.dangerLabel }]}>Reject</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -529,7 +534,7 @@ function PunchListScreenInner() {
                     { text: 'Delete', style: 'destructive', onPress: () => deletePunchItem(item.id) },
                   ]);
                 }} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+                  <Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1033,12 +1038,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   punchBadgeChevron: { fontSize: (Type.caption2.fontSize ?? 11) + 2, fontWeight: '900' as const, marginTop: -1, opacity: 0.85 },
   punchMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingLeft: 18 },
   punchMetaText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
-  rejectionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: themeColors.danger, borderRadius: Tokens.radius.sm, padding: 10, marginLeft: 18 },
-  rejectionText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.danger, lineHeight: 17 },
+  rejectionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: themeColors.dangerSoft, borderRadius: Tokens.radius.sm, padding: 10, marginLeft: 18 },
+  rejectionText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.dangerLabel, lineHeight: 17 },
   punchActions: { flexDirection: 'row', gap: 8, paddingLeft: 18, flexWrap: 'wrap' },
   punchActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
   punchActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
-  punchDeleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.danger, alignItems: 'center', justifyContent: 'center' },
+  punchDeleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.dangerSoft, alignItems: 'center', justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
