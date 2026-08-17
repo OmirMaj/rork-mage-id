@@ -53,6 +53,18 @@ interface Props<S extends string> {
   onAdvance?: (next: S) => void;
   /** Optional override label for the advance button (e.g. "Mark answered"). */
   advanceLabel?: string;
+  /**
+   * The item has not ENTERED this pipeline yet, so no dot is current — which is
+   * the honest picture; a permit that is merely `approved` has reached no
+   * inspection stage — but the advance action still targets the FIRST stage.
+   *
+   * Opt-in, because the component cannot tell the difference between "hasn't
+   * started" and "this status has nothing to do with this pipeline": both land
+   * at `currentIdx === -1`. Only the caller's model knows. Treating them the
+   * same is what made "Schedule inspection" unreachable on an approved permit —
+   * the pipeline rendered blank AND withheld the only way into it.
+   */
+  notStarted?: boolean;
 }
 
 function daysSince(iso: string): number {
@@ -74,12 +86,18 @@ export function StatusPipeline<S extends string>({
   dueAt,
   onAdvance,
   advanceLabel,
+  notStarted,
 }: Props<S>) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const currentIdx = stages.findIndex(s => s.key === current);
   const currentStage = stages[currentIdx];
-  const nextStage = currentIdx >= 0 && !currentStage?.terminal ? stages[currentIdx + 1] : null;
+  // `notStarted` is the only case where an item off the pipeline still has a
+  // next step, and it is the way IN: the first stage. Everything else needs a
+  // real position (`currentIdx >= 0`) before there is anything to advance to.
+  const nextStage = notStarted
+    ? (currentIdx < 0 ? stages[0] ?? null : null)
+    : (currentIdx >= 0 && !currentStage?.terminal ? stages[currentIdx + 1] ?? null : null);
 
   const inDays = startedAt ? daysSince(startedAt) : null;
   const dueDays = dueAt ? daysUntil(dueAt) : null;
