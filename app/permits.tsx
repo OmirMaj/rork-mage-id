@@ -37,7 +37,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO, SPECIAL_INSPECTION_LABELS } from '@/mocks/permits';
 import { StatusPipeline } from '@/components/StatusPipeline';
-import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
+import { stagesFor, visualStageFor, isSideBranch, pipelinePositionFor, advanceTargetFor } from '@/utils/workflowPipelines';
 import DatePickerModal from '@/components/DatePickerModal';
 import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
 import { formatMoney } from '@/utils/formatters';
@@ -49,6 +49,21 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
 const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection', 'other'];
+
+/**
+ * The permit is issued but its inspection cycle has not begun. The inspection
+ * breadcrumb is then correctly all-empty — nothing has been scheduled — and
+ * this is what keeps "Schedule inspection" reachable anyway.
+ *
+ * Both halves come from the model so the screen cannot drift from it:
+ * `pipelinePositionFor` says the status belongs to the application path, and
+ * `advanceTargetFor` refuses unless that path has actually FINISHED, so a
+ * permit still `under_review` is not offered an inspection.
+ */
+function inspectionNotStarted(status: PermitStatus): boolean {
+  return pipelinePositionFor('permitInspection', status) === 'not_started'
+    && advanceTargetFor('permitInspection', status) !== null;
+}
 
 // IBC Ch.17 categories ordered the way they typically appear on a project
 const SPECIAL_INSPECTION_TYPES: SpecialInspectionCategory[] = [
@@ -638,12 +653,16 @@ function PermitsScreenInner() {
 
                     {/* The second loop, shown once the permit is issued. inspection_failed is a
                         side branch of THIS pipeline — a failed inspection gets rescheduled, so
-                        it anchors back at Scheduled rather than pretending to be Passed. */}
+                        it anchors back at Scheduled rather than pretending to be Passed.
+                        On a freshly `approved` permit both dots are empty because no
+                        inspection has happened; `notStarted` is what still offers the
+                        way in. */}
                     {(form.status === 'approved' || form.status.startsWith('inspection_')) && (
                       <StatusPipeline
                         stages={stagesFor('permitInspection')}
                         current={visualStageFor('permitInspection', form.status)}
                         dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
+                        notStarted={inspectionNotStarted(form.status)}
                         onAdvance={isSideBranch('permitInspection', form.status) ? undefined : (next) => {
                           setForm(f => ({ ...f, status: next as PermitStatus }));
                         }}

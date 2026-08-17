@@ -11,7 +11,7 @@
 // Run: bun run scripts/validate-workflow-pipelines.ts
 import {
   stagesFor, advanceTargetFor, isSideBranch, sideBranchesFor, visualStageFor,
-  WORKFLOW_KINDS, coiStatus, warrantyStatus,
+  pipelinePositionFor, WORKFLOW_KINDS, coiStatus, warrantyStatus,
 } from '../utils/workflowPipelines';
 import type { WorkflowKind } from '../utils/workflowPipelines';
 // fileURLToPath + join because the repo path contains a space.
@@ -213,6 +213,91 @@ for (const { union, kinds } of COVERAGE) {
   ok(`${union}: no invented states`, invented.length === 0,
     invented.length ? `not in the union: ${invented.join(', ')}` : undefined);
 }
+
+// ── RENDERABILITY. The gap the exhaustiveness check above leaves open.
+//
+// That check proves every status is CLASSIFIED. It does not prove any status
+// RENDERS, and the two are not the same thing: `inspection_scheduled` is
+// correctly classified — a stage of `permitInspection` — and still resolved to
+// nothing at all inside the `permit` breadcrumb, because classification is
+// per-KIND while rendering is per-PIPELINE-INSTANCE. Every check above passed
+// green while app/permits.tsx drew three empty grey dots for a permit that had
+// been approved for two months, sitting under a red "Failed" badge.
+//
+// So: for every <StatusPipeline> a screen mounts, take every status that
+// instance can actually be handed, and require it to land on a stage that
+// instance actually HAS. The one licensed exception is a pipeline that has not
+// begun (`approved` in the inspection cycle), which renders deliberately blank
+// — and even that must prove there is a way IN, or the screen is a dead end.
+console.log('\nrenderability — every status a screen can pass lands somewhere real:');
+
+const permitsSrc = readFileSync(join(ROOT, 'app/permits.tsx'), 'utf8');
+
+// The statuses each rendered pipeline can receive. Anything read from a union
+// is the WHOLE union: those screens render their breadcrumb for any item.
+const RENDERED: { kind: WorkflowKind; where: string; statuses: string[] }[] = [
+  { kind: 'punch', where: 'app/punch-list.tsx', statuses: unionValues('PunchItemStatus') },
+  { kind: 'oac', where: 'app/oac-meeting.tsx', statuses: unionValues('OACMeetingStatus') },
+  { kind: 'prequal', where: 'app/prequal-manager.tsx', statuses: unionValues('PrequalStatus') },
+  // The application path renders for EVERY permit in the edit sheet — including
+  // the inspection states, which is the whole defect.
+  { kind: 'permit', where: 'app/permits.tsx (application)', statuses: unionValues('PermitStatus') },
+  // The inspection cycle is gated; the gate is pinned by the grep below so this
+  // list cannot quietly go stale when someone widens it.
+  {
+    kind: 'permitInspection',
+    where: 'app/permits.tsx (inspections)',
+    statuses: ['approved', 'inspection_scheduled', 'inspection_passed', 'inspection_failed'],
+  },
+];
+
+ok("the inspection pipeline's gate still matches the statuses listed above",
+  permitsSrc.includes("form.status === 'approved' || form.status.startsWith('inspection_')"),
+  'app/permits.tsx changed which statuses reach the inspection pipeline — update RENDERED');
+
+for (const { kind, where, statuses } of RENDERED) {
+  const keys = stagesFor(kind).map(s => s.key);
+  const unresolved: string[] = [];
+  const deadEnds: string[] = [];
+
+  for (const status of statuses) {
+    const position = pipelinePositionFor(kind, status);
+    const visual = visualStageFor(kind, status);
+    if (position === 'not_started') {
+      // Blank ON PURPOSE — but only if the user can still get in. A blank
+      // breadcrumb with no advance button is the "Schedule inspection" bug.
+      if (advanceTargetFor(kind, status) !== keys[0]) deadEnds.push(status);
+      // ...and it must not fake a position either.
+      if (keys.includes(visual)) unresolved.push(`${status} → ${visual} (should render blank)`);
+      continue;
+    }
+    if (position === 'unknown' || !keys.includes(visual)) {
+      unresolved.push(`${status} → ${visual === status ? 'NOTHING' : visual} (${position})`);
+    }
+  }
+
+  ok(`${where}: every status resolves to a stage of the ${kind} pipeline`,
+    unresolved.length === 0,
+    unresolved.length ? `does not render: ${unresolved.join('; ')}` : undefined);
+  ok(`${where}: a not-yet-started pipeline still offers the way in`,
+    deadEnds.length === 0,
+    deadEnds.length ? `blank with no advance target: ${deadEnds.join(', ')}` : undefined);
+}
+
+// The direction matters as much as the fact of anchoring. Anchoring everything
+// unrecognized at the FIRST stage draws a permit under inspection as never
+// filed; anchoring everything at the TERMINAL stage draws an approved permit as
+// already inspected. Pin both ends.
+expect('a permit under inspection shows the application path COMPLETE',
+  visualStageFor('permit', 'inspection_scheduled'), 'approved');
+expect('...a failed inspection too — it was still applied for and approved',
+  visualStageFor('permit', 'inspection_failed'), 'approved');
+expect('but an approved permit is NOT drawn as inspected',
+  visualStageFor('permitInspection', 'approved'), 'approved');
+expect('...it is offered the way in instead',
+  advanceTargetFor('permitInspection', 'approved'), 'inspection_scheduled');
+expect('a permit still in review is offered no inspection',
+  advanceTargetFor('permitInspection', 'under_review'), null);
 
 // ── THE SCREENS. Source-level, matching this repo's convention: grep proves the
 // wiring exists, not that it renders — the known limit of having no runtime

@@ -95,6 +95,24 @@ const PIPELINES: Record<WorkflowKind, WorkflowStage[]> = {
   ],
 };
 
+// Pipelines that only BEGIN once another pipeline has finished. A permit's
+// inspection cycle starts where the application path ends (`approved`), and
+// app/permits.tsx renders both on the same sheet from one status field — so
+// each pipeline is routinely handed a status belonging to the other.
+//
+// This map is what tells us WHICH END an unrecognized status sits past, and
+// that is the whole fix. `inspection_scheduled` is past the END of `permit`
+// (the permit was applied for, reviewed and approved to get there), while
+// `approved` is before the START of `permitInspection` (no inspection has
+// happened yet). Guessing without this direction is how the bug happened:
+// anchoring everything unrecognized at the FIRST stage draws a permit under
+// inspection as never filed, and anchoring everything at the TERMINAL stage
+// draws an approved permit as already inspected. Both are lies, in opposite
+// directions, so neither blanket rule is available.
+const CONTINUES_FROM: Partial<Record<WorkflowKind, WorkflowKind>> = {
+  permitInspection: 'permit',
+};
+
 // States the item can really hold that are NOT steps toward completion.
 const SIDE_BRANCHES: Record<WorkflowKind, string[]> = {
   punch: [],
@@ -123,29 +141,107 @@ export function isSideBranch(kind: WorkflowKind, status: string): boolean {
   return SIDE_BRANCHES[kind].includes(status);
 }
 
-/**
- * The next stage, or null when there isn't one — at a terminal stage, on a side
- * branch, or for a status this kind doesn't recognize. Returning null rather
- * than guessing is what keeps "Advance" from appearing on a denied permit.
- */
-export function advanceTargetFor(kind: WorkflowKind, current: string): string | null {
-  if (isSideBranch(kind, current)) return null;
-  const stages = PIPELINES[kind];
-  const i = stages.findIndex(s => s.key === current);
-  if (i < 0 || stages[i].terminal) return null;
-  return stages[i + 1]?.key ?? null;
+/** True when the status is a stage OR a declared side branch of this kind. */
+function belongsTo(kind: WorkflowKind, status: string): boolean {
+  return PIPELINES[kind].some(s => s.key === status) || SIDE_BRANCHES[kind].includes(status);
 }
 
 /**
- * Which stage the breadcrumb should highlight. A side branch has no position in
- * the sequence, so it anchors at the first stage and the screen renders a
- * side-branch badge alongside — the badge carries the meaning, the breadcrumb
- * just stays rendered instead of collapsing. (Same approach app/rfi.tsx already
- * takes with `current={status === 'void' ? 'open' : status}`.)
+ * Where a status sits RELATIVE TO THE PIPELINE BEING RENDERED — which is a
+ * different question from "is this status classified", and the difference is
+ * the bug. `inspection_scheduled` is perfectly classified (a stage of
+ * `permitInspection`) and still had no position at all in `permit`, so the
+ * permit application breadcrumb resolved to index -1 and drew three empty dots
+ * for a permit that had been approved for two months.
+ *
+ * Every screen renders a pipeline, and every status it can hand that pipeline
+ * must land in one of these five buckets. `unknown` is the failure case: the
+ * model does not claim the status, so nothing can be drawn honestly and the
+ * screen must not be showing it. scripts/validate-workflow-pipelines.ts asserts
+ * no screen can produce one.
+ */
+export type PipelinePosition =
+  /** The status IS one of this pipeline's steps. */
+  | 'stage'
+  /** A declared off-path state of THIS pipeline (denied, voided, expired…). */
+  | 'side_branch'
+  /** Belongs to the pipeline this one continues from — this one has not begun. */
+  | 'not_started'
+  /** Belongs to a pipeline that continues from this one — this one is finished. */
+  | 'completed'
+  /** Nothing in the model claims it. */
+  | 'unknown';
+
+export function pipelinePositionFor(kind: WorkflowKind, status: string): PipelinePosition {
+  if (PIPELINES[kind].some(s => s.key === status)) return 'stage';
+  if (SIDE_BRANCHES[kind].includes(status)) return 'side_branch';
+  const from = CONTINUES_FROM[kind];
+  if (from && belongsTo(from, status)) return 'not_started';
+  for (const k of WORKFLOW_KINDS) {
+    if (CONTINUES_FROM[k] === kind && belongsTo(k, status)) return 'completed';
+  }
+  return 'unknown';
+}
+
+/**
+ * The next stage, or null when there isn't one — at a terminal stage, on a side
+ * branch, past the end of the pipeline, or for a status this kind doesn't
+ * recognize. Returning null rather than guessing is what keeps "Advance" from
+ * appearing on a denied permit.
+ *
+ * The one status that is NOT on the pipeline and still advances is the
+ * predecessor's terminal stage: an `approved` permit's next step on the
+ * inspection cycle is to schedule it. That is the "Schedule inspection" button,
+ * and it never appeared because the old lookup treated "hasn't started" and
+ * "not a real status" as the same thing. A permit still `under_review` gets
+ * nothing — the application path has to finish first.
+ */
+export function advanceTargetFor(kind: WorkflowKind, current: string): string | null {
+  const stages = PIPELINES[kind];
+  switch (pipelinePositionFor(kind, current)) {
+    case 'stage': {
+      const i = stages.findIndex(s => s.key === current);
+      return stages[i].terminal ? null : (stages[i + 1]?.key ?? null);
+    }
+    case 'not_started': {
+      const from = CONTINUES_FROM[kind];
+      const previous = from ? PIPELINES[from] : null;
+      const previousIsDone = !!previous && previous[previous.length - 1].key === current;
+      return previousIsDone ? stages[0].key : null;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Which stage the breadcrumb should highlight.
+ *
+ * - `stage` → itself.
+ * - `side_branch` → the FIRST stage, with the screen rendering a side-branch
+ *   badge alongside: the badge carries the meaning, the breadcrumb just stays
+ *   rendered instead of collapsing. (Same approach app/rfi.tsx already takes
+ *   with `current={status === 'void' ? 'open' : status}`.)
+ * - `completed` → the TERMINAL stage. A permit sitting in `inspection_failed`
+ *   necessarily completed the application path to get there, so the application
+ *   breadcrumb reads Applied ✓ In Review ✓ Approved, which is the truth. This
+ *   used to return the status unchanged, land at index -1, and draw three empty
+ *   grey dots next to "61d in pipeline" — a permit that was approved two months
+ *   ago, drawn as one that was never filed.
+ * - `not_started` / `unknown` → returned unchanged, so no dot highlights. For a
+ *   pipeline that has not begun, every empty dot IS the honest picture: an
+ *   approved permit has reached no inspection stage. The way IN is
+ *   `advanceTargetFor`, not a filled dot — filling one here would claim the
+ *   inspection is already scheduled.
  */
 export function visualStageFor(kind: WorkflowKind, status: string): string {
-  if (!isSideBranch(kind, status)) return status;
-  return PIPELINES[kind][0].key;
+  const stages = PIPELINES[kind];
+  switch (pipelinePositionFor(kind, status)) {
+    case 'stage': return status;
+    case 'side_branch': return stages[0].key;
+    case 'completed': return stages[stages.length - 1].key;
+    default: return status;
+  }
 }
 
 // ---------------------------------------------------------------------------
