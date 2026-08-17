@@ -21,6 +21,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Pressable, TextInput, KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -220,6 +221,15 @@ function PermitsScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const insetTopWeb = (insets.top || 16) + 4;
+  const { height: windowHeight } = useWindowDimensions();
+  // The edit sheet is a bottom sheet (`justifyContent: 'flex-end'`), so a card
+  // taller than its container overflows off the TOP — which is how the title
+  // ended up drawn over the status-bar clock and, on a tall special-inspection
+  // permit, put the X close button entirely off-screen. Cap the card at the
+  // screen minus the top safe-area inset (plus a small gap) so it can never
+  // reach the notch / Dynamic Island. `flexShrink` on the card and its scroll
+  // body then absorbs any further squeeze from the keyboard.
+  const maxSheetHeight = Math.max(320, windowHeight - insets.top - 8);
   const { projects, permits, addPermit, updatePermit, deletePermit } = useProjects();
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [editingPermit, setEditingPermit] = useState<Permit | null>(null);
@@ -572,70 +582,81 @@ function PermitsScreenInner() {
 
       <Modal visible={showForm} transparent animationType="slide" onRequestClose={closeForm}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Pressable style={styles.modalOverlay} onPress={closeForm}>
-            <Pressable style={[styles.modalCard, { paddingTop: Platform.OS === 'web' ? insetTopWeb : 16 }]} onPress={() => undefined}>
+          {/* The overlay itself is inset from the top so that `flex-end` has
+              nowhere above the safe area to push the card into — this is what
+              keeps the header on screen when the keyboard shrinks the
+              available height below `maxSheetHeight`. */}
+          <Pressable style={[styles.modalOverlay, { paddingTop: insets.top + 8 }]} onPress={closeForm}>
+            <Pressable
+              style={[styles.modalCard, { paddingTop: Platform.OS === 'web' ? insetTopWeb : 16, maxHeight: maxSheetHeight }]}
+              onPress={() => undefined}
+            >
+              {/* Header and the save/delete row stay PINNED; everything between
+                  them scrolls. Both pipelines used to sit outside the scroll
+                  body, so tall permits pushed this header off the top of the
+                  screen. */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingPermit ? 'Edit Permit' : 'New Permit'}</Text>
                 <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
 
-              {editingPermit && (
-                <View style={{ marginBottom: 12 }}>
-                  {/* A side branch has no position in either sequence, so the
-                      breadcrumb anchors it at the first stage. Without this badge
-                      the screen would claim an EXPIRED permit is "Applied" —
-                      quieter than the old bug that called it "Approved", but still
-                      wrong. The badge carries the real state; the breadcrumb just
-                      stays rendered instead of collapsing. */}
-                  {(isSideBranch('permit', form.status) || isSideBranch('permitInspection', form.status)) && (
-                    <View style={styles.permitSideBranchBadge}>
-                      <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={2} />
-                      <Text style={styles.permitSideBranchText}>
-                        {(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status} — not on the normal path
-                      </Text>
-                    </View>
-                  )}
-                  {/* The application path. Ends at Approved — the permit is issued.
-                      Inspections are a SEPARATE cycle below, not a continuation: a permit
-                      does not pass through `denied` on the way to an inspection, and
-                      collapsing them onto one line is what made `expired` and
-                      `inspection_failed` both render as "Approved". */}
-                  <StatusPipeline
-                    stages={stagesFor('permit')}
-                    current={visualStageFor('permit', form.status)}
-                    startedAt={form.appliedDate ? new Date(form.appliedDate).toISOString() : undefined}
-                    onAdvance={isSideBranch('permit', form.status) ? undefined : (next) => {
-                      setForm(f => ({ ...f, status: next as PermitStatus }));
-                    }}
-                    advanceLabel={
-                      form.status === 'applied' ? 'Move to review'
-                      : form.status === 'under_review' ? 'Mark approved'
-                      : undefined
-                    }
-                  />
-
-                  {/* The second loop, shown once the permit is issued. inspection_failed is a
-                      side branch of THIS pipeline — a failed inspection gets rescheduled, so
-                      it anchors back at Scheduled rather than pretending to be Passed. */}
-                  {(form.status === 'approved' || form.status.startsWith('inspection_')) && (
+              <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled">
+                {editingPermit && (
+                  <View style={{ marginBottom: 12 }}>
+                    {/* A side branch has no position in either sequence, so the
+                        breadcrumb anchors it at the first stage. Without this badge
+                        the screen would claim an EXPIRED permit is "Applied" —
+                        quieter than the old bug that called it "Approved", but still
+                        wrong. The badge carries the real state; the breadcrumb just
+                        stays rendered instead of collapsing. */}
+                    {(isSideBranch('permit', form.status) || isSideBranch('permitInspection', form.status)) && (
+                      <View style={styles.permitSideBranchBadge}>
+                        <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={2} />
+                        <Text style={styles.permitSideBranchText}>
+                          {(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status} — not on the normal path
+                        </Text>
+                      </View>
+                    )}
+                    {/* The application path. Ends at Approved — the permit is issued.
+                        Inspections are a SEPARATE cycle below, not a continuation: a permit
+                        does not pass through `denied` on the way to an inspection, and
+                        collapsing them onto one line is what made `expired` and
+                        `inspection_failed` both render as "Approved". */}
                     <StatusPipeline
-                      stages={stagesFor('permitInspection')}
-                      current={visualStageFor('permitInspection', form.status)}
-                      dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
-                      onAdvance={isSideBranch('permitInspection', form.status) ? undefined : (next) => {
+                      stages={stagesFor('permit')}
+                      current={visualStageFor('permit', form.status)}
+                      startedAt={form.appliedDate ? new Date(form.appliedDate).toISOString() : undefined}
+                      onAdvance={isSideBranch('permit', form.status) ? undefined : (next) => {
                         setForm(f => ({ ...f, status: next as PermitStatus }));
                       }}
                       advanceLabel={
-                        form.status === 'approved' ? 'Schedule inspection'
-                        : form.status === 'inspection_scheduled' ? 'Mark inspection passed'
+                        form.status === 'applied' ? 'Move to review'
+                        : form.status === 'under_review' ? 'Mark approved'
                         : undefined
                       }
                     />
-                  )}
-                </View>
-              )}
 
-              <ScrollView style={{ maxHeight: 520 }} keyboardShouldPersistTaps="handled">
+                    {/* The second loop, shown once the permit is issued. inspection_failed is a
+                        side branch of THIS pipeline — a failed inspection gets rescheduled, so
+                        it anchors back at Scheduled rather than pretending to be Passed. */}
+                    {(form.status === 'approved' || form.status.startsWith('inspection_')) && (
+                      <StatusPipeline
+                        stages={stagesFor('permitInspection')}
+                        current={visualStageFor('permitInspection', form.status)}
+                        dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
+                        onAdvance={isSideBranch('permitInspection', form.status) ? undefined : (next) => {
+                          setForm(f => ({ ...f, status: next as PermitStatus }));
+                        }}
+                        advanceLabel={
+                          form.status === 'approved' ? 'Schedule inspection'
+                          : form.status === 'inspection_scheduled' ? 'Mark inspection passed'
+                          : undefined
+                        }
+                      />
+                    )}
+                  </View>
+                )}
+
                 <Text style={styles.formLabel}>Project *</Text>
                 <TouchableOpacity style={styles.formPicker} onPress={() => setPickerOpen(pickerOpen === 'project' ? null : 'project')}>
                   <Text style={styles.formPickerText}>{selectedProjectName}</Text>
@@ -1161,6 +1182,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingBottom: 24,
+    // Lets the card shrink when KeyboardAvoidingView squeezes the overlay
+    // below `maxSheetHeight`. Without it a bottom sheet taller than its
+    // container overflows off the TOP, which is what hid the header.
+    flexShrink: 1,
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
