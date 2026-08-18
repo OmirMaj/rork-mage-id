@@ -25,7 +25,7 @@ import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain
 // clients/subs (they have no account and must see only what's shared), and the
 // pre-auth / onboarding flow.
 const HIDDEN_ROOTS: ReadonlySet<string> = new Set([
-  'shared-estimate', 'shared-photos', 'shared-schedule', 'client-view',
+  'shared-estimate', 'shared-photos', 'shared-schedule', 'shared-plan', 'client-view',
   'prequal-form', 'claim-crew',
   'login', 'signup', 'reset-password', 'onboarding', 'persona-select', 'onboarding-paywall',
 ]);

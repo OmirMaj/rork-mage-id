@@ -29,6 +29,7 @@ import { TeamTab } from './TeamTab';
 import { LivingFloorPlan } from './LivingFloorPlan';
 import { PlanZoneEditor } from './PlanZoneEditor';
 import { displayText } from '@/utils/formatters';
+import { showAlert } from '@/utils/alert';
 
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
 const MS_DAY = 24 * 60 * 60 * 1000;
@@ -497,6 +498,7 @@ function LivingFloorPlanContainer({
     getPlanZonesForProject,
     getPinsForPlan,
     getPhotosForProject,
+    settings,
   } = useProjects();
 
   const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
@@ -509,9 +511,57 @@ function LivingFloorPlanContainer({
   const photos = getPhotosForProject(project.id);
   const photoById = (photoId: string) => { const p = photos.find((ph) => ph.id === photoId); return p ? { uri: p.uri, createdAt: p.createdAt } : undefined; };
 
+  // Hand the homeowner a link to their own floor plan. Same magic-link idiom
+  // as "Share photo timeline" on project-detail: a client-safe payload
+  // (buildPlanSharePayload strips everything internal) base64'd into the URL,
+  // no login for the recipient. See utils/planShareToken.ts.
+  const handleShare = useCallback(async () => {
+    if (!firstSheet) {
+      showAlert('Share floor plan', 'Add a floor plan first, then draw the rooms you want your client to see.');
+      return;
+    }
+    if (zones.length === 0) {
+      showAlert('Share floor plan', 'Draw at least one zone (tap "Edit zones") so there’s something for your client to watch fill in.');
+      return;
+    }
+    const { buildPlanSharePayload, encodePlanShareToken, PLAN_SHARE_MAX_PHOTOS } =
+      await import('@/utils/planShareToken');
+    const { payload, droppedLocal, droppedExcess, planNotSynced } = buildPlanSharePayload({
+      projectName: project.name ?? 'Project',
+      gcName: settings?.branding?.companyName,
+      scheduleStartDate: project.schedule?.startDate,
+      sheet: firstSheet,
+      zones,
+      tasks: project.schedule?.tasks ?? [],
+      pins,
+      photos,
+    });
+    if (planNotSynced) {
+      showAlert('Share floor plan', 'This plan hasn’t synced yet, so the link would open blank. Wait until the offline-sync pill shows "Synced," then try again.');
+      return;
+    }
+    const token = encodePlanShareToken(payload);
+    const base = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://mageid.app';
+    const url = `${base}/shared-plan?t=${token}`;
+    const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
+    const extras: string[] = [];
+    if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);
+    if (droppedExcess > 0) extras.push(`oldest ${droppedExcess} trimmed (cap ${PLAN_SHARE_MAX_PHOTOS})`);
+    const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
+    if (ok) {
+      showAlert('Floor plan link copied', `Paste it into a text or email. Your client sees rooms, trades, and photos — never costs or task detail.${detail}`);
+    } else {
+      showAlert('Floor plan link', `${url}${detail}`);
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [firstSheet, zones, project, settings?.branding?.companyName, pins, photos]);
+
   return (
     <LivingFloorPlan
-      project={project}
+      tasks={project.schedule?.tasks ?? []}
+      scheduleStartDate={project.schedule?.startDate}
       planSheetId={firstSheet?.id ?? ''}
       zones={zones}
       pins={pins}
@@ -520,6 +570,7 @@ function LivingFloorPlanContainer({
       imageW={firstSheet?.width}
       imageH={firstSheet?.height}
       onEdit={onShowEditor}
+      onShare={() => { void handleShare(); }}
       onAddPlan={() => router.push('/plans' as never)}
     />
   );
