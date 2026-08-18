@@ -10,6 +10,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Globe } from 'lucide-react-native';
 import { MageCostDb, MageAIMark } from '@/components/icons';
@@ -58,6 +59,9 @@ function CostDatabaseInner() {
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
@@ -126,7 +130,7 @@ function CostDatabaseInner() {
           onSecondaryAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
-        <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 40 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+        <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
           {/* Public Price Index opt-in. OFF by default and stated plainly —
               your rates stay private unless you choose to publish, and even
               then only an anonymous median across 5+ contractors is shown. */}

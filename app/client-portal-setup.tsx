@@ -5,6 +5,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
@@ -169,6 +170,9 @@ function ClientPortalSetupScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { id: paramId } = useLocalSearchParams<{ id: string }>();
   const {
@@ -730,8 +734,9 @@ function ClientPortalSetupScreenInner() {
         }}
       />
       <ScrollView
+        {...fabScroll}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >
         {/* Portal Link */}

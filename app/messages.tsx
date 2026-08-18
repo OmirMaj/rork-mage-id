@@ -2,7 +2,9 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform,
   Animated,
+  type LayoutChangeEvent,
 } from 'react-native';
+import { useBrainFabLift } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Send, ChevronDown, MessageCircle } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
@@ -19,6 +21,19 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function MessagesScreen() {
+  // A chat screen: the composer sits at the bottom of the flex column, which is
+  // exactly where the global Brain FAB rests — it was drawn over the Send
+  // button (iOS visual audit 2026-08-16, defect #5). Bottom padding on the
+  // message list cannot reach a sibling below it, so measure the composer and
+  // lift the FAB by its height.
+  //
+  // No {...fabScroll} here: this list already owns onScroll for the "New
+  // messages" affordance, and the spread's handler would replace it.
+  const [composerH, setComposerH] = useState(0);
+  const onComposerLayout = useCallback((e: LayoutChangeEvent) => {
+    setComposerH(e.nativeEvent.layout.height);
+  }, []);
+  useBrainFabLift(composerH);
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -176,7 +191,7 @@ export default function MessagesScreen() {
           </Animated.View>
         )}
 
-        <View style={styles.inputBar}>
+        <View style={styles.inputBar} onLayout={onComposerLayout}>
           <TextInput
             style={styles.textInput}
             value={text}
