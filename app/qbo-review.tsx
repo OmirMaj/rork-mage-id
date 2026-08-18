@@ -19,9 +19,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, CheckCircle2, X, AlertTriangle, FolderOpen, Inbox,
@@ -76,6 +78,15 @@ function QboReviewInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const { projects } = useProjects();
   const { stagedLines, confirmedLines, isLoading, patchLine } = useQboCostLines();
@@ -171,6 +182,7 @@ function QboReviewInner() {
     () => stagedLines.filter(row => effectiveProject(row) != null && !duplicateOf(row)),
     [stagedLines, effectiveProject, duplicateOf],
   );
+  useBrainFabLift(bulkEligible.length > 1 ? bottomBarH : 0);
 
   const onConfirmAllMapped = useCallback(() => {
     if (bulkEligible.length === 0) return;
@@ -242,7 +254,7 @@ function QboReviewInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 96 }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 96 }} showsVerticalScrollIndicator={false}>
         {stagedLines.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Inbox size={32} color={t.textMuted} strokeWidth={1.5} />
@@ -349,7 +361,7 @@ function QboReviewInner() {
 
       {/* Explicit, counted bulk confirm — mapped + non-duplicate only (G11). */}
       {bulkEligible.length > 1 && (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
           <TouchableOpacity
             style={styles.bulkBtn}
             onPress={onConfirmAllMapped}

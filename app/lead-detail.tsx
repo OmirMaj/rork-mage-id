@@ -13,8 +13,10 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Platform, KeyboardAvoidingView, Modal,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -60,6 +62,16 @@ export default function LeadDetailScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
+  useBrainFabLift(bottomBarH);
   const router = useRouter();
   const { leadId, mode } = useLocalSearchParams<{ leadId?: string; mode?: string }>();
   const { getLead, addLead, updateLead, deleteLead, addLeadTouch, convertLeadToProject, settings } = useProjects();
@@ -230,7 +242,7 @@ export default function LeadDetailScreen() {
     <>
       <Stack.Screen options={{ title: isNew ? 'New lead' : existing?.name ?? 'Lead', headerLargeTitle: false }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView style={styles.root} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} keyboardShouldPersistTaps="handled">
+        <ScrollView {...fabScroll} style={styles.root} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} keyboardShouldPersistTaps="handled">
           {/* Quick actions row */}
           {existing && (
             <View style={styles.quickRow}>
@@ -485,7 +497,7 @@ export default function LeadDetailScreen() {
         </ScrollView>
 
         {/* Sticky bottom save bar */}
-        <View style={[styles.saveBar, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.saveBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
           {existing && (
             <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
           )}

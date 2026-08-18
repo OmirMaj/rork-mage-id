@@ -19,8 +19,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Modal, Platform, KeyboardAvoidingView, Switch,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -75,6 +77,15 @@ function PlanIntelligenceInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, getPlanSheetsForProject, updateProject } = useProjects();
@@ -92,6 +103,7 @@ function PlanIntelligenceInner() {
   const [imageAspect, setImageAspect] = useState(1.4);
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
+  useBrainFabLift(phase === 'review' && rooms.length > 0 ? bottomBarH : 0);
   const [editing, setEditing] = useState<PlanRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [taught, setTaught] = useState(false);
@@ -254,7 +266,7 @@ function PlanIntelligenceInner() {
           ]}
         />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* Memory status — the trust-builder. */}
           <View style={styles.memoryChip}>
             <GraduationCap size={14} color={trainedLine ? t.accent : t.textMuted} strokeWidth={1.75} />
@@ -406,7 +418,7 @@ function PlanIntelligenceInner() {
 
       {/* Sticky totals + actions. */}
       {phase === 'review' && rooms.length > 0 && (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 10 }]}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 10 }]} onLayout={onBottomBarLayout}>
           <View style={styles.footerTotals}>
             <Text style={styles.footerTotalsTop}>{totals.roomCount} rooms · {totals.totalSqft.toLocaleString()} SF</Text>
             <Text style={styles.footerTotalsMain}>{formatMoney(totals.totalCost)}</Text>

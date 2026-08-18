@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -32,6 +34,15 @@ export default function ClientUpdateScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const {
@@ -45,6 +56,7 @@ export default function ClientUpdateScreen() {
   const [drafting, setDrafting] = useState(false);
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState<WeeklyUpdateDraft | null>(null);
+  useBrainFabLift(draft ? bottomBarH : 0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const project = projectId ? getProject(projectId) : undefined;
@@ -219,6 +231,7 @@ export default function ClientUpdateScreen() {
       keyboardVerticalOffset={insets.top}
     >
       <ScrollView
+        {...fabScroll}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -415,7 +428,7 @@ export default function ClientUpdateScreen() {
       </ScrollView>
 
       {draft && (
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
           <TouchableOpacity
             style={[styles.sendBtn, sending && styles.sendBtnDisabled]}
             onPress={handleSend}

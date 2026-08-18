@@ -32,9 +32,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Save, Plus, Trash2, AlertTriangle,
@@ -239,6 +241,15 @@ function TakeoffEstimateInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, updateProject, settings, commitments } = useProjects();
@@ -263,6 +274,7 @@ function TakeoffEstimateInner() {
   const [pricing, setPricing] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [lines, setLines] = useState<PricedLine[]>([]);
+  useBrainFabLift(!pricing && lines.length > 0 ? bottomBarH : 0);
 
   const [globalMarkup, setGlobalMarkup] = useState(15); // % default
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -636,7 +648,7 @@ function TakeoffEstimateInner() {
         )}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 220 }}>
+      <ScrollView {...fabScroll} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 220 }}>
         {/* Pricing in flight */}
         {pricing && (
           <View style={[styles.banner, { backgroundColor: themeColors.accent + '12' }]}>
@@ -703,7 +715,7 @@ function TakeoffEstimateInner() {
 
       {/* Sticky totals + save */}
       {!pricing && lines.length > 0 && (
-        <View style={[styles.totalsBar, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.totalsBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
           {lines.length > 0 && (
             <View style={styles.totalsRow}>
               <Text style={styles.totalsLabel}>

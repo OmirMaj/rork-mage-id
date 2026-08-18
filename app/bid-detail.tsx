@@ -1,7 +1,9 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Platform,
+  type LayoutChangeEvent,
 } from 'react-native';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
@@ -117,6 +119,16 @@ export default function BidDetailScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const layout = useResponsiveLayout();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The action bar is position:absolute, so bottom padding cannot clear it —
+  // measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
+  useBrainFabLift(!layout.isDesktop ? bottomBarH : 0);
   const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
   const router = useRouter();
   const { bids: localBids } = useBids();
@@ -281,7 +293,7 @@ export default function BidDetailScreen() {
         headerTintColor: themeColors.accent,
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
         {layout.isDesktop ? (
           <View style={bidDesktopStyles.twoCol}>
             <View style={bidDesktopStyles.mainCol}>
@@ -627,7 +639,7 @@ export default function BidDetailScreen() {
         )}
       </ScrollView>
 
-      {!layout.isDesktop && <View style={styles.actionBar}>
+      {!layout.isDesktop && <View style={styles.actionBar} onLayout={onBottomBarLayout}>
         <TouchableOpacity
           style={[styles.actionBtn, trackedBid ? styles.actionBtnSaved : styles.actionBtnOutline]}
           onPress={handleToggleSave}

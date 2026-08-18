@@ -9,8 +9,10 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, useWindowDimensions,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, AlertTriangle, RefreshCcw, Check } from 'lucide-react-native';
@@ -53,6 +55,16 @@ export default function ScheduleReviewScreen() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
+  useBrainFabLift(bottomBarH);
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { getProject, updateProject, projects } = useProjects();
@@ -376,7 +388,7 @@ export default function ScheduleReviewScreen() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 120 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: 120 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryRow}>
           <MageAIMark size={16} color={t.accent} />
           <Text style={styles.summaryText}>
@@ -463,7 +475,7 @@ export default function ScheduleReviewScreen() {
         })}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
         <View style={styles.footerRow}>
           {canRegenerate && (
             <TouchableOpacity
