@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   Shield, Plus, X, Trash2, AlertTriangle, CheckCircle2, Clock,
@@ -76,6 +77,9 @@ export default function WarrantiesScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const {
@@ -196,7 +200,8 @@ export default function WarrantiesScreen() {
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        {...fabScroll}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>

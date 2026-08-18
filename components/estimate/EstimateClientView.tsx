@@ -12,6 +12,7 @@ import { Lock } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
+import { useHideBrainFab } from '@/components/brain/brainFabState';
 import type { ClientEstimateView, PaymentMilestone } from '@/utils/clientEstimateView';
 
 function money(n: number): string {
@@ -20,6 +21,18 @@ function money(n: number): string {
 
 export function EstimateClientView({ view, projectName, paymentSchedule }: { view: ClientEstimateView; projectName?: string; paymentSchedule?: PaymentMilestone[] }) {
   const styles = useThemedStyles(makeStyles);
+
+  // The global MAGE Brain FAB does not belong on a client-facing proposal.
+  // Two reasons, and both are load-bearing:
+  //   1. Product — this is the document a homeowner opens to read what the job
+  //      costs. The contractor's AI assistant is not theirs to see.
+  //   2. Correctness — it is a 56pt opaque circle in the bottom-right, which is
+  //      where every amount in this view is right-aligned. The iOS visual audit
+  //      (2026-08-16, defect #5) caught it sitting on the FINAL PAYMENT amount.
+  //      Suppressing it is the only fix that holds for an estimate of any
+  //      length at any scroll position; bottom padding only ever fixes the last
+  //      row of a list long enough to scroll.
+  useHideBrainFab();
 
   return (
     <View>
