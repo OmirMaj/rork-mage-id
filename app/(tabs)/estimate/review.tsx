@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { PackageOpen, Share2 } from 'lucide-react-native';
-import { BrandBackdrop } from '@/components/BrandBackdrop';
+import { BrandBackdrop, OnInk } from '@/components/BrandBackdrop';
 import { EstimateSummaryHeader } from '@/components/estimate/EstimateSummaryHeader';
 import { EstimateMetricGrid } from '@/components/estimate/EstimateMetricGrid';
 import { EstimateSummaryCard } from '@/components/estimate/EstimateSummaryCard';
@@ -283,10 +283,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden' },
   // Type.eyebrow is the house uppercase micro-label (11 / 700 / 1.4 tracking).
   // Hand-rolled weight '800' is off the four-weight ladder in typography.ts.
-  heroEyebrow: { ...Type.eyebrow, color: '#FF8533', marginBottom: 4 },
+  // The three hero foregrounds are `OnInk`, not ThemeColors, because `hero`
+  // renders <BrandBackdrop /> — an OPAQUE ink field (#0B0D10 → #14181D) that is
+  // identical in light and dark mode. See components/BrandBackdrop.tsx.
+  heroEyebrow: { ...Type.eyebrow, color: OnInk.eyebrow, marginBottom: 4 },
   // Fraunces display face — same hero band as the estimate hub + wizard.
-  heroTitle: { ...Type.serifTitle, color: '#F4EFE6' },
-  heroSub: { ...Type.subhead, color: '#C9C3B8', marginTop: 4 },
+  heroTitle: { ...Type.serifTitle, color: OnInk.title },
+  heroSub: { ...Type.subhead, color: OnInk.subtitle, marginTop: 4 },
   toggle: { flexDirection: 'row', gap: 4, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, padding: 4, marginBottom: 16 },
   seg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: Tokens.radius.sm },
   segOn: { backgroundColor: t.accent },

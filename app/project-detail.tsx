@@ -4018,7 +4018,7 @@ export default function ProjectDetailScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.7}>
-          <Trash2 size={18} color={themeColors.danger} strokeWidth={1.75} />
+          <Trash2 size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
           <Text style={styles.deleteButtonText}>Delete Project</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -4740,8 +4740,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   editTypeChipActive: { backgroundColor: themeColors.accent },
   editTypeChipLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   editTypeChipLabelActive: { color: "#FFFFFF" },
-  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.danger, borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: themeColors.danger + '30' },
-  deleteButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: themeColors.danger },
+  // fg === bg: "Delete Project" and its Trash2 icon were `danger` on a solid
+  // `danger` fill. The `danger + '30'` border it already carries only makes
+  // sense over a soft fill, which is what this was before the alpha was lost.
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.dangerSoft, borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: themeColors.danger + '30' },
+  deleteButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: themeColors.dangerLabel },
   shareModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'center', padding: 20 },
   shareModalCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 14, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   shareModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -4799,8 +4802,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   coApproveRow: { flexDirection: 'row', gap: 8, paddingTop: 8 },
   coApproveBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.successSoft, alignItems: 'center', borderWidth: 1, borderColor: themeColors.success + '30' },
   coApproveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.success },
-  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: themeColors.danger, alignItems: 'center', borderWidth: 1, borderColor: themeColors.danger + '30' },
-  coRejectBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.danger },
+  // fg === bg. Its sibling coApproveBtn is already successSoft + success — this
+  // is the exact Close/Reject pair punch-list.tsx had, with the same fix.
+  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: themeColors.dangerSoft, alignItems: 'center', borderWidth: 1, borderColor: themeColors.danger + '30' },
+  coRejectBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.dangerLabel },
   coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '10', borderWidth: 1, borderColor: themeColors.accent + '20', marginTop: 8 },
   coAddBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   invBtnRow: { flexDirection: 'row', gap: 8 },
@@ -4968,7 +4973,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   commEventContent: { flex: 1, gap: 2 },
   commEventSummary: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: themeColors.text, lineHeight: 18 },
   commEventTime: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
-  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.info, marginTop: 8 },
+  // fg === bg: "Add Internal Note" and its Plus icon were `info` on `info`.
+  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.info + '1F', marginTop: 8 },
   commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.info },
   quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
   copilotHubBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.accentSoft },
