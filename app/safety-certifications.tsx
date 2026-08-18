@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Plus, X, Award, Trash2, FileText, User, AlertTriangle } from 'lucide-react-native';
@@ -53,6 +54,9 @@ export default function SafetyCertificationsScreen() {
 
 function SafetyCertificationsInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -185,7 +189,7 @@ function SafetyCertificationsInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'Certifications' }} />
-      <ScrollView contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {/* Expiring-soon summary banner */}
         <View style={[styles.banner, expiringCount > 0 ? { backgroundColor: themeColors.accent + '14', borderColor: themeColors.accent + '26' } : { backgroundColor: themeColors.success + '12', borderColor: themeColors.success + '22' }]}>
           <AlertTriangle size={18} color={expiringCount > 0 ? themeColors.accent : themeColors.success} strokeWidth={1.75} />

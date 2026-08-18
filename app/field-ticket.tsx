@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -121,6 +122,9 @@ function money(n: number): string {
 
 function FieldTicketInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -504,7 +508,7 @@ function FieldTicketInner() {
             </TouchableOpacity>
           }
         />
-        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]}>
+        <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
           {/* Seal banner — why nothing here is editable. */}
           {openTicket.status !== 'draft' && (
             <View style={styles.sealBanner}>
@@ -715,7 +719,8 @@ function FieldTicketInner() {
           keyboardVerticalOffset={insets.top + 60}
         >
           <ScrollView
-            contentContainerStyle={[styles.body, { paddingBottom: 140 }]}
+            {...fabScroll}
+            contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
             keyboardShouldPersistTaps="handled"
           >
             {/* 1. What work */}
@@ -1034,7 +1039,7 @@ function FieldTicketInner() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <ToolHeader eyebrow="T&M TICKET · MAGE" title={project.name} />
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 100 }]}>
+      <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
         {unbilled.length > 0 && (
           <View style={styles.unbilledCard}>
             <Text style={styles.unbilledLabel}>Signed, not yet billed</Text>

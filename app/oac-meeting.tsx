@@ -18,6 +18,7 @@ import {
   Alert, Platform, ActivityIndicator, Modal, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -95,6 +96,9 @@ function OACMeetingInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const ctx = useProjects() as any;
@@ -431,7 +435,7 @@ function OACMeetingInner() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
           {/* Centered icon-circle hero — matches the new design language so
               the OAC meeting screen reads as a sibling of the AI screens.
               Keeps the existing eyebrow / project / date structure but
@@ -754,7 +758,7 @@ function OACMeetingInner() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {meetings.length === 0 ? (
           <View style={styles.emptyState}>
             <Calendar size={36} color={themeColors.textMuted} strokeWidth={1.75} />

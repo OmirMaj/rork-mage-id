@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
@@ -29,6 +30,9 @@ import {
 export default function ProjectScopeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { colors: c } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -131,7 +135,8 @@ export default function ProjectScopeScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
+          {...fabScroll}
+          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

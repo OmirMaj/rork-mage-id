@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import {
@@ -55,6 +56,9 @@ export default function ScopeSheetScreen() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { getProject } = useProjects();
   const { tier } = useSubscription();
@@ -178,7 +182,7 @@ export default function ScopeSheetScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Scope Sheet' }} />
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         {/* Header card */}
         <View style={styles.headerCard}>
           <Text style={styles.projectName} numberOfLines={1}>{project.name}</Text>

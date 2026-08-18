@@ -13,8 +13,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Platform, ActivityIndicator,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -128,6 +130,16 @@ function AiPunchScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky CTA is position:absolute, so bottom padding cannot clear it —
+  // measure it and lift the FAB by its height instead.
+  const [ctaH, setCtaH] = useState(0);
+  const onCtaLayout = useCallback((e: LayoutChangeEvent) => {
+    setCtaH(e.nativeEvent.layout.height);
+  }, []);
+  useBrainFabLift(ctaH > 0 ? ctaH + 18 : 0);
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const { projects, getProject, getPhotosForProject, addPunchItem, addPunchItems } = useProjects();
@@ -414,7 +426,7 @@ function AiPunchScreenInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <ToolHeader eyebrow="AI PUNCH · MAGE" title={project.name} />
-        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
               subtitle). All AI feature screens share this look so the user
@@ -603,7 +615,7 @@ function AiPunchScreenInner() {
         </ScrollView>
 
         {/* Sticky CTA */}
-        <View style={[styles.fab, { bottom: insets.bottom + 18 }]}>
+        <View style={[styles.fab, { bottom: insets.bottom + 18 }]} onLayout={onCtaLayout}>
           {!reviewMode ? (
             <TouchableOpacity
               style={[styles.fabPrimary, (busy || pickedPhotos.length === 0) && styles.fabPrimaryDisabled]}
