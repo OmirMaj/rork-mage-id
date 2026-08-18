@@ -1879,7 +1879,8 @@ function ScheduleProScreenInner() {
                 <View style={styles.body}>
                   <View style={styles.paneFull}>
                     <LivingFloorPlan
-                      project={project}
+                      tasks={project.schedule?.tasks ?? []}
+                      scheduleStartDate={project.schedule?.startDate}
                       planSheetId={firstSheet?.id ?? ''}
                       zones={zones}
                       pins={pins}

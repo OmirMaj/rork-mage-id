@@ -12,7 +12,6 @@ import type { ScheduleTask, TaskStatus } from '@/types';
 import { getPhaseColor, getStatusLabel, getStatusColor, createId } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { TaskChecklist } from './TaskChecklist';
-import { FourDComingSoon } from './FourDComingSoon';
 import { PercentSlider } from './PercentSlider';
 import { showAlert } from '@/utils/alert';
 
@@ -213,8 +212,19 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
                   <Trash2 size={16} color={colors.danger} strokeWidth={1.75} />
                   <Text style={styles.deleteText}>Delete task</Text>
                 </TouchableOpacity>
-
-                <View style={{ marginTop: 12 }}><FourDComingSoon compact /></View>
+                {/* A "4D model — coming soon" card used to live here. The 4D
+                    feature SHIPPED — the Living Floor Plan renders in the
+                    "4D Model" sub-tab of MobileScheduleScreen, one tap away
+                    from this sheet — so the card was advertising a delivered
+                    capability as future work.
+                    We did NOT replace it with a scoped LivingFloorPlan:
+                    that component owns a PanResponder timeline scrubber and
+                    its own zone Modal, and this sheet is already a Modal
+                    wrapping a ScrollView. Nesting them means a drag gesture
+                    fighting the sheet's scroll and a modal-over-modal on iOS.
+                    Zones are also per-plan-sheet, not per-task, so most tasks
+                    would render an empty plan. Removing the false promise is
+                    the honest outcome. */}
               </>
             )}
             {tab === 'resources' && (

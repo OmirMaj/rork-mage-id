@@ -157,6 +157,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/schedule-wizard': 'Schedule wizard',
     '/schedule-builder': 'AI Schedule Builder',
     '/shared-schedule': 'Schedule',
+    '/shared-plan': 'Floor plan',
     '/estimate-wizard': 'Estimate',
     '/bid-detail': 'Bid',
     '/submit-bid-response': 'Submit bid',
@@ -220,6 +221,7 @@ const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   'onboarding', 'persona-select', 'onboarding-paywall',
   // 2 — external / tokenized viewers
   'client-view', 'prequal-form', 'claim-crew', 'shared-schedule', 'shared-photos', 'shared-estimate',
+  'shared-plan',
   // 3 — presentation:'modal' routes
   'ask', 'schedule-wizard', 'schedule-builder', 'copilot', 'copilot-hub',
   'schedule-import', 'scan', 'paywall', 'cost-xray', 'import-pipeline',
@@ -489,7 +491,8 @@ function RootLayoutNav() {
     // breaking the entire "Share with client" feature.
     const inSharedView = (segments[0] as string) === 'shared-schedule'
       || (segments[0] as string) === 'shared-photos'
-      || (segments[0] as string) === 'shared-estimate';
+      || (segments[0] as string) === 'shared-estimate'
+      || (segments[0] as string) === 'shared-plan';
 
     // Public magic-link destinations: never redirect away from these, even
     // when the user is unauthenticated. The prequal-form route is opened by

@@ -46,6 +46,7 @@
     "test:ai-feature-gating": "bun run scripts/validate-ai-feature-gating.ts",
     "test:edge-security": "bun run scripts/validate-edge-security.ts",
     "test:portal-security": "bun run scripts/validate-portal-security.ts",
+    "test:plan-share": "bun run scripts/validate-plan-share.ts",
     "test:scheme": "bun run scripts/validate-scheme-routing.ts",
     "test:copilot-ask": "bun run scripts/validate-copilot-ask-decision.ts",
     "test:copilot-reducer": "bun run scripts/validate-copilot-turn-reducer.ts",
