@@ -32,7 +32,7 @@ import {
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrainCard } from '@/components/brain/BrainCard';
-import { BrandBackdrop } from '@/components/BrandBackdrop';
+import { BrandBackdrop, OnInk } from '@/components/BrandBackdrop';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -1302,12 +1302,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   heroEyebrow: {
     fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 1.6,
-    color: '#FF8533', marginBottom: 8,
+    color: OnInk.eyebrow, marginBottom: 8,
   },
   heroTotal: {
-    fontFamily: 'Fraunces_700Bold', fontSize: 46, color: '#F4EFE6', letterSpacing: -1,
+    fontFamily: 'Fraunces_700Bold', fontSize: 46, color: OnInk.title, letterSpacing: -1,
   },
-  heroSubtitle: { fontSize: Type.footnote.fontSize, color: '#C9C3B8', marginTop: 8 },
+  heroSubtitle: { fontSize: Type.footnote.fontSize, color: OnInk.subtitle, marginTop: 8 },
   heroChip: {
     alignSelf: 'flex-start' as const, marginTop: 12,
     backgroundColor: 'rgba(255,106,26,0.18)', borderWidth: 1, borderColor: 'rgba(255,106,26,0.4)',

@@ -436,7 +436,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
   const confidenceBadge = (c: string) => {
     switch (c) {
       case 'confirmed': return { bg: themeColors.successSoft, text: themeColors.success, label: 'Confirmed' };
-      case 'expected': return { bg: themeColors.info, text: themeColors.info, label: 'Expected' };
+      // fg === bg — an invisible chip, the punch-list.tsx / invoice.tsx bug.
+      // Soft fill + saturated foreground like the sibling cases. There is no
+      // `infoSoft` token, so this uses the repo-wide `info + '1F'` fill.
+      case 'expected': return { bg: themeColors.info + '1F', text: themeColors.info, label: 'Expected' };
       default: return { bg: themeColors.accentSoft, text: themeColors.accent, label: 'Hopeful' };
     }
   };
@@ -451,9 +454,11 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
   const priorityConfig = (p: string) => {
     switch (p) {
-      case 'urgent': return { bg: themeColors.danger, text: themeColors.danger };
+      // Both non-'important' cases were fg === bg. `recCard` derives its border
+      // from `pc.text + '30'`, so the fill was always meant to be the soft tint.
+      case 'urgent': return { bg: themeColors.dangerSoft, text: themeColors.dangerLabel };
       case 'important': return { bg: themeColors.accentSoft, text: themeColors.accent };
-      default: return { bg: themeColors.info, text: themeColors.info };
+      default: return { bg: themeColors.info + '1F', text: themeColors.info };
     }
   };
 
@@ -633,7 +638,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           <View style={styles.section}>
             <View style={styles.dangerCard}>
               <View style={styles.dangerHeader}>
-                <AlertTriangle size={18} color={themeColors.danger} strokeWidth={1.75} />
+                <AlertTriangle size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
                 <Text style={styles.dangerTitle}>Danger Zone</Text>
               </View>
               {summary.dangerWeeks.map((dw, i) => (
@@ -1151,12 +1156,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyListText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center', paddingVertical: 12 },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 4 },
   addItemText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accent },
-  dangerCard: { backgroundColor: themeColors.danger, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: themeColors.danger + '40', gap: 10, shadowColor: themeColors.danger, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 },
+  // Whole-card fg === bg: a solid `danger` fill with `danger` title/balance text
+  // inside it, so the entire "Danger Zone" card rendered as a featureless red
+  // block. Its own `danger + '40'` border and `danger + '15'` row rules are the
+  // tell that the fill was always meant to be the soft tint.
+  dangerCard: { backgroundColor: themeColors.dangerSoft, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: themeColors.danger + '40', gap: 10, shadowColor: themeColors.danger, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 },
   dangerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dangerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: themeColors.danger, letterSpacing: 0.2 },
+  dangerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: themeColors.dangerLabel, letterSpacing: 0.2 },
   dangerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 26, paddingVertical: 4, borderTopWidth: 1, borderTopColor: themeColors.danger + '15' },
   dangerDate: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const },
-  dangerBalance: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.danger, letterSpacing: -0.3 },
+  dangerBalance: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.dangerLabel, letterSpacing: -0.3 },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   summaryItem: { flex: 1, minWidth: '45%' as any, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: themeColors.line, gap: 6 },
   summaryIconWrap: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const, marginBottom: -8 },
