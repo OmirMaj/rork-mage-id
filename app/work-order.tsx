@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Wrench, Building2, Send, UserCheck, X, Trash2, Check,
@@ -58,6 +59,9 @@ export default function WorkOrderScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const params = useLocalSearchParams<{ workOrderId?: string }>();
   const workOrderId = params.workOrderId ?? '';
@@ -167,7 +171,7 @@ export default function WorkOrderScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {/* Title + status */}
         <View style={styles.titleRow}>
           <View style={styles.titleIcon}><Wrench size={20} color={themeColors.accent} strokeWidth={1.75} /></View>

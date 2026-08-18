@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { MapPin, Star, StarHalf, ArrowLeft, Navigation, AlertCircle, Phone, Globe } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
@@ -168,6 +169,9 @@ export default function CachedCompaniesScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { location, loading: locationLoading } = useUserLocation();
   const [selectedRadius, setSelectedRadius] = useState<number>(50);
@@ -291,10 +295,11 @@ export default function CachedCompaniesScreen() {
         </View>
       ) : (
         <FlatList
+          {...fabScroll}
           data={filteredCompanies}
           renderItem={renderCompany}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <MageRefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} />

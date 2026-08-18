@@ -13,6 +13,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, HardHat } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
@@ -31,6 +32,9 @@ export default function SubProfileScreen() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { isDesktop } = useResponsiveLayout();
   const { user } = useAuth();
@@ -87,7 +91,8 @@ export default function SubProfileScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop]}
+        {...fabScroll}
+        contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
         showsVerticalScrollIndicator={false}
       >
         <SubNetworkProfileView

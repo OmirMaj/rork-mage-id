@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, Platform, FlatList, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   Search, X, Star, Truck, Clock, MapPin, Phone, Mail, Globe,
@@ -33,6 +34,9 @@ export default function MarketplaceScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [viewMode, setViewMode] = useState<ViewMode>('suppliers');
@@ -258,6 +262,7 @@ export default function MarketplaceScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        {...fabScroll}
         data={viewMode === 'suppliers' ? [] : []}
         renderItem={() => null}
         keyExtractor={(_, idx) => `marketplace-${idx}`}
@@ -355,7 +360,7 @@ export default function MarketplaceScreen() {
           </View>
         }
         ListFooterComponent={
-          <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, gap: 10 }}>
+          <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, gap: 10 }}>
             {viewMode === 'suppliers'
               ? filteredSuppliers.map(supplier => (
                   <View key={supplier.id}>

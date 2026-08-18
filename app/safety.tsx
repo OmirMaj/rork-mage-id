@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { HardHat, Megaphone, ShieldAlert, TriangleAlert, ChevronRight, ClipboardCheck, BadgeCheck, FileText } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -32,6 +33,9 @@ export default function SafetyScreen() {
 
 function SafetyHubInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -101,7 +105,7 @@ function SafetyHubInner() {
   return (
     <View style={[styles.container, { backgroundColor: t.bg }]}>
       <Stack.Screen options={{ title: project ? `Safety — ${project.name}` : 'Safety' }} />
-      <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + 40, gap: 12 }, isDesktop && styles.contentDesktop]}>
+      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, gap: 12 }, isDesktop && styles.contentDesktop]}>
         {project ? (
           <>
             <Text style={styles.sectionLabel}>Project</Text>

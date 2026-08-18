@@ -2,6 +2,8 @@ import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter, Stack } from 'expo-router';
 import { ChevronDown, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -49,6 +51,10 @@ function countMyPostsThisMonth(bids: PublicBid[], myUserId: string | null): numb
 }
 
 export default function PostBidScreen() {
+  const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -182,7 +188,7 @@ export default function PostBidScreen() {
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
           {/* Usage badge — honest gate: shows how many posts remain this month */}
           {isFinite(monthlyLimit) && (
             <View style={[styles.usageBadge, atLimit && styles.usageBadgeAtLimit]}>

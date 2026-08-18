@@ -23,6 +23,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, Platform, TextInput, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -81,6 +82,9 @@ const CSI_DIVISIONS = [
 
 export default function BuyoutScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -257,7 +261,7 @@ export default function BuyoutScreen() {
             <Text style={styles.emptyDesc}>Pick a project above to see its buyout dashboard.</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}>
+          <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
             {/* ── KPI band ─────────────────────────────────────── */}
             <View style={styles.kpiBand}>
               <View style={styles.kpiTile}>

@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Share, ActivityIndicator,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -127,6 +129,15 @@ export default function InvoiceScreen() {
 
 function InvoiceInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The action bar is position:absolute, so bottom padding cannot clear it —
+  // measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -1000,6 +1011,18 @@ function InvoiceInner() {
     showAlert('Retention Released', `${formatCurrency(amt)} marked as released.`);
   }, [existingInvoice, retentionReleaseAmount, retentionReleaseMethod, retentionReleaseNote, retentionPending, retentionReleased, updateInvoice]);
 
+  // Use the effective status so an unpaid-but-past-due invoice flips to "overdue"
+  // in the UI without anyone having to run a cron to mutate the record, and a
+  // fully-paid invoice reads as "paid" even if the stored status lagged behind.
+  const effectiveStatus = existingInvoice ? getEffectiveInvoiceStatus(existingInvoice) : null;
+  // A locked invoice hides the action bar, so it must not keep lifting the FAB.
+  // Derived above the early return below so the hook order never changes.
+  const isLocked = effectiveStatus === 'paid'
+    || effectiveStatus === 'sent'
+    || effectiveStatus === 'partially_paid'
+    || effectiveStatus === 'overdue';
+  useBrainFabLift(!isLocked ? bottomBarH : 0);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -1021,10 +1044,6 @@ function InvoiceInner() {
     );
   }
 
-  // Use the effective status so an unpaid-but-past-due invoice flips to "overdue"
-  // in the UI without anyone having to run a cron to mutate the record, and a
-  // fully-paid invoice reads as "paid" even if the stored status lagged behind.
-  const effectiveStatus = existingInvoice ? getEffectiveInvoiceStatus(existingInvoice) : null;
   const daysPastDue = existingInvoice ? getDaysPastDue(existingInvoice) : 0;
 
   // Audit-2026-05-21 (#28.2 MED): tighten lock from paid-only to "anything
@@ -1036,10 +1055,6 @@ function InvoiceInner() {
   // line-item edits + pickers; status-action buttons (Mark paid, Generate
   // pay link, Send) are gated independently by effectiveStatus checks and
   // continue to work post-send.
-  const isLocked = effectiveStatus === 'paid'
-    || effectiveStatus === 'sent'
-    || effectiveStatus === 'partially_paid'
-    || effectiveStatus === 'overdue';
 
   const statusColor = effectiveStatus ? getInvoiceStatusColors(themeColors, effectiveStatus) : null;
   const statusLabel = effectiveStatus ? (
@@ -1060,6 +1075,7 @@ function InvoiceInner() {
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
+          {...fabScroll}
           contentContainerStyle={[{ paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -1597,7 +1613,7 @@ function InvoiceInner() {
         )}
 
         {!isLocked && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
             {existingInvoice && existingInvoice.status !== 'draft' && existingInvoice.status !== 'paid' && (
               <TouchableOpacity
                 style={styles.markPaidBtn}

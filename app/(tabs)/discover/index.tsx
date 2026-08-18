@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   Gavel, Building2, Briefcase, ExternalLink,
@@ -170,6 +171,9 @@ function NavigationCard({
 
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const tabScrollRef = useRef<ScrollView>(null);
   const { colors: themeColors } = useTheme();
@@ -237,7 +241,8 @@ export default function DiscoverScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        {...fabScroll}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >
         {/* All three quick-action tints unified on the brand accent.

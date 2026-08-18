@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Globe, Copy, Send, Eye, Quote,
@@ -31,6 +32,9 @@ export default function PublicProfileSetupScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getProject, updateProject, settings, getPhotosForProject } = useProjects();
 
@@ -112,8 +116,9 @@ export default function PublicProfileSetupScreen() {
         }}
       />
       <ScrollView
+        {...fabScroll}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
       >
         {/* Hero */}
         <View style={styles.hero}>

@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
   ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown, ShoppingCart, BarChart3,
   // Category icons (rendered via CATEGORY_ICONS map below) — replaces
@@ -49,6 +50,9 @@ interface CategorySummary {
 
 export default function MaterialsScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -484,12 +488,13 @@ export default function MaterialsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        {...fabScroll}
         data={filteredCategories}
         renderItem={renderCategory}
         keyExtractor={keyExtractor}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={
-          <View style={{ paddingBottom: insets.bottom + 110 }}>
+          <View style={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
             <View style={styles.sourceNote}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
                 <BarChart3 size={13} color={themeColors.textMuted} strokeWidth={1.75} />

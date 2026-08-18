@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Users, Package, FileText, DollarSign, Shield, Receipt } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -47,6 +48,9 @@ function QboSetupScreenInner() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   // Staged cost-line count for the review entry badge (F6). Read-only,
   // RLS-scoped; 5-min stale via the shared hook.
   const { pendingCount } = useQboCostLines();
@@ -116,7 +120,7 @@ function QboSetupScreenInner() {
         <Text style={styles.title}>QuickBooks</Text>
         <View style={{ width: 22 }} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {loading ? <ActivityIndicator color={colors.accent} /> :
           (!status || status.status === 'disconnected') ? (
             <>

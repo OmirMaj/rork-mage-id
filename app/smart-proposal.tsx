@@ -17,6 +17,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import {
   ChevronLeft, FileSignature, Share2, CheckCircle2, XCircle, Lock, Star, Check, User,
@@ -72,6 +73,9 @@ function SmartProposalInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId, leadId } = useLocalSearchParams<{ projectId?: string; leadId?: string }>();
   const { getProject, leads, updateLead } = useProjects();
@@ -216,7 +220,7 @@ function SmartProposalInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Inputs */}
         <View style={styles.inputCard}>
           <View style={styles.inputRow}>

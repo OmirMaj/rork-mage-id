@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
   ChevronLeft, Bell, MessageSquare, HandCoins, CheckCircle2, Inbox,
   Trash2, X, CheckCheck, Settings,
@@ -264,6 +265,9 @@ export default function NotificationsInboxScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const feed = useNotificationFeed();
 
   const handleTap = useCallback((item: NotificationFeedItem) => {
@@ -317,9 +321,10 @@ export default function NotificationsInboxScreen() {
       </View>
 
       <FlatList
+        {...fabScroll}
         data={feed.items}
         keyExtractor={i => i.id}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32, paddingHorizontal: 16, paddingTop: 8 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, paddingHorizontal: 16, paddingTop: 8 }}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Bell size={40} color={"#9AA3AD"} strokeWidth={1.75} />

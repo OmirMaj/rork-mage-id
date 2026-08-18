@@ -18,6 +18,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -70,6 +71,9 @@ function LastPlannerInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const layout = useResponsiveLayout();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -122,7 +126,7 @@ function LastPlannerInner() {
               onAction={() => router.push('/(tabs)/(home)' as never)}
             />
           ) : (
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }}>
+            <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
               <Text style={styles.sectionTitle}>Pick a project</Text>
               {projects.map(p => (
                 <TouchableOpacity key={p.id} style={styles.pickRow} onPress={() => setProjectId(p.id)} activeOpacity={0.8}>
@@ -167,7 +171,8 @@ function LastPlannerInner() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 90 + insets.bottom, alignItems: 'center' }}
+        {...fabScroll}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, alignItems: 'center' }}
         showsVerticalScrollIndicator={false}
       >
         <View style={{ width: '100%', maxWidth: contentWidth }}>

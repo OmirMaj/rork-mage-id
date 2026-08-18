@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, TrendingUp, Lock, FileSpreadsheet, X, AlertTriangle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -68,6 +69,9 @@ export default function WipReportScreen() {
 function WipReportScreenInner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -250,7 +254,7 @@ function WipReportScreenInner() {
         <TrendingUp size={22} color={themeColors.accent} strokeWidth={1.75} />
       </View>
 
-      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]}>
+      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
         {/* Portfolio totals */}
         <View style={[styles.card, isDesktop && styles.cardDesktop]}>
           <Text style={styles.sectionTitle}>Portfolio</Text>

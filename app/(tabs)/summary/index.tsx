@@ -2,6 +2,7 @@ import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { FolderOpen, ChevronRight, Briefcase } from 'lucide-react-native';
@@ -64,6 +65,9 @@ function todayScheduleDayNumber(baseMs: number, now: Date, workingDaysPerWeek?: 
 
 export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projects, isLoading } = useCoreData();
   const { invoices } = useFinancialsData();
@@ -230,8 +234,9 @@ export default function SummaryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <ScrollView
+        {...fabScroll}
         contentContainerStyle={[
-          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 },
+          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE },
           isDesktop && styles.contentDesktop,
         ]}
         showsVerticalScrollIndicator={false}

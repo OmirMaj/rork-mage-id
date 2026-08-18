@@ -14,6 +14,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Copy, Check, ExternalLink, AlertTriangle, Code } from 'lucide-react-native';
@@ -35,6 +36,9 @@ export default function WidgetSetupScreen() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { isDesktop } = useResponsiveLayout();
   const { settings } = useCoreData();
@@ -80,7 +84,8 @@ export default function WidgetSetupScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop]}
+        {...fabScroll}
+        contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>

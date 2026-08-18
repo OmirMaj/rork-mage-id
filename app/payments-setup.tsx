@@ -25,6 +25,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking, ActivityIndicator, TextInput, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
@@ -54,6 +55,9 @@ export default function PaymentsSetupScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { user } = useAuth();
   const { settings, updateSettings } = useProjects();
@@ -217,7 +221,7 @@ export default function PaymentsSetupScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={themeColors.accent} />

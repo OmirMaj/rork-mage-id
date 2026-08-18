@@ -13,6 +13,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -83,6 +84,9 @@ export default function WeeklySnapshotScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const {
@@ -234,7 +238,7 @@ export default function WeeklySnapshotScreen() {
         adding a SECOND chunk of dead space (~110px on iOS) above the
         hero card. Now we just add a small gap below the native header.
       */}
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: insets.bottom + 30 }]}>
+      <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
         <BlueprintReveal>
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>{range.label}</Text>

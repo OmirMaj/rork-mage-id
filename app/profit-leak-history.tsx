@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, TrendingDown, CheckCircle2, XCircle, Clock,
@@ -110,6 +111,9 @@ function ProfitLeakHistoryInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { isDesktop } = useResponsiveLayout();
 
@@ -196,8 +200,9 @@ function ProfitLeakHistoryInner() {
         </View>
       ) : (
         <ScrollView
+          {...fabScroll}
           style={styles.scroll}
-          contentContainerStyle={[contentStyle, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[contentStyle, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
         >
           {/* Summary row */}
           <View style={styles.summaryRow}>

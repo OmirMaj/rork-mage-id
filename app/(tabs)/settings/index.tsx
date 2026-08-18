@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, TextIn
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -87,6 +88,9 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { settings, updateSettings, projects, deleteProject, userRole } = useCoreData();
   const { user, logout, deleteAccount, isAuthenticated } = useAuth();
@@ -458,7 +462,8 @@ export default function SettingsScreen() {
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        contentContainerStyle={[{ paddingTop: insets.top, paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}
+        {...fabScroll}
+        contentContainerStyle={[{ paddingTop: insets.top, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

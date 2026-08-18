@@ -9,8 +9,10 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Platform, ActivityIndicator,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -63,6 +65,15 @@ function GenerativeSetupInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const { tier } = useSubscription();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -92,6 +103,11 @@ function GenerativeSetupInner() {
   const [includeSchedule, setIncludeSchedule] = useState(false);
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<ApplyResult | null>(null);
+
+  // The sticky CTA only renders once there is an estimate and no result yet.
+  // Derived here — above the project-picker early return — so the lift hook
+  // runs on every render path.
+  useBrainFabLift(!result && (project?.linkedEstimate?.items.length ?? 0) > 0 ? bottomBarH : 0);
 
   const handleGenerate = useCallback(async () => {
     if (!project || !plan) return;
@@ -179,7 +195,7 @@ function GenerativeSetupInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {result ? (
           <SuccessView
             result={result}
@@ -300,7 +316,7 @@ function GenerativeSetupInner() {
       </ScrollView>
 
       {!result && hasEstimate && (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
           <TouchableOpacity
             style={[styles.cta, (applying || nothingToDo || (!includePackages && !includeSubmittals && !includeSchedule)) && styles.ctaDisabled]}
             onPress={handleGenerate}

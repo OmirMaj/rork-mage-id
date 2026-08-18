@@ -1,8 +1,10 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -75,6 +77,16 @@ export default function BillFromEstimateScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The sticky bar below is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
+  useBrainFabLift(bottomBarH);
   const router = useRouter();
   const { projectId, type } = useLocalSearchParams<{ projectId: string; type?: string }>();
   const { getProject, getInvoicesForProject, addInvoice, settings } = useProjects();
@@ -337,7 +349,7 @@ export default function BillFromEstimateScreen() {
           headerTintColor: themeColors.accent,
           headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         }} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 16 }}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, gap: 16 }}>
           <View style={styles.emptyCard}>
             <ClipboardList size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No estimate yet</Text>
@@ -371,6 +383,7 @@ export default function BillFromEstimateScreen() {
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
+          {...fabScroll}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 180, gap: 14 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -549,7 +562,7 @@ export default function BillFromEstimateScreen() {
         </ScrollView>
 
         {/* Sticky totals / create button */}
-        <View style={[styles.footer, { paddingBottom: Math.max(12, insets.bottom) }]}>
+        <View style={[styles.footer, { paddingBottom: Math.max(12, insets.bottom) }]} onLayout={onBottomBarLayout}>
           {allFullyBilled ? (
             <Text style={styles.allBilledText}>All lines on this estimate are fully billed.</Text>
           ) : billingHint ? (

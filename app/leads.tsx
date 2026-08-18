@@ -21,6 +21,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import {
   Plus, Phone, Mail, Clock, TrendingUp, Mic, ChevronRight, Upload,
@@ -51,6 +52,9 @@ export default function LeadsScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { leads, addLead, getLeadsByStage } = useProjects();
 
@@ -204,7 +208,7 @@ export default function LeadsScreen() {
                   <Text style={styles.countPillText}>{grouped[stage].length}</Text>
                 </View>
               </View>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.cardsCol}>
+              <ScrollView {...fabScroll} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.cardsCol, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
                 {grouped[stage].length === 0 ? (
                   <Text style={styles.emptyColumn}>—</Text>
                 ) : (

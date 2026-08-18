@@ -24,6 +24,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Image, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -144,6 +145,9 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   // Look up the project for AI-context (description -> location/trade/priority).
   // We only need it for the voice parser; the rest of WalkInner uses projectName.
@@ -358,7 +362,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 + insets.bottom }} keyboardShouldPersistTaps="handled">
+        <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
 
           {/* Location — sticky context bar */}
           <View style={styles.locationRow}>
@@ -569,6 +573,9 @@ function ProjectPicker({ projects, onPick, onBack }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -579,7 +586,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
           <Text style={styles.headerTitle}>Pick a project</Text>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
             <AlertTriangle size={18} color={Colors.warning} strokeWidth={1.75} />

@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -25,6 +26,9 @@ const ICONS: Record<string, LucideIcon> = {
 export default function EstimateHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
 
@@ -66,9 +70,10 @@ export default function EstimateHubScreen() {
       </View>
 
       <ScrollView
+        {...fabScroll}
         style={styles.scroll}
         contentContainerStyle={[
-          { padding: 16, paddingBottom: insets.bottom + 32 },
+          { padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE },
           isDesktop && styles.contentDesktop,
         ]}
         showsVerticalScrollIndicator={false}

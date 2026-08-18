@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, FlatList,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -83,6 +85,15 @@ export default function ChangeOrderScreen() {
 
 function ChangeOrderInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The action bar is position:absolute, so bottom padding cannot clear it —
+  // measure it and lift the FAB by its height instead.
+  const [bottomBarH, setBottomBarH] = useState(0);
+  const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setBottomBarH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -507,6 +518,11 @@ function ChangeOrderInner() {
     handleSave('submitted', sendRecipientName, sendRecipientEmail);
   }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, changeAmount, newContractTotal]);
 
+  // A locked CO hides the action bar, so it must not keep lifting the FAB.
+  // Derived above the early return below so the hook order never changes.
+  const isLocked = existingCO?.status === 'approved' || existingCO?.status === 'rejected' || existingCO?.status === 'void';
+  useBrainFabLift(!isLocked ? bottomBarH : 0);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
@@ -528,8 +544,6 @@ function ChangeOrderInner() {
     );
   }
 
-  const isLocked = existingCO?.status === 'approved' || existingCO?.status === 'rejected' || existingCO?.status === 'void';
-
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -539,6 +553,7 @@ function ChangeOrderInner() {
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
+          {...fabScroll}
           contentContainerStyle={[{ paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -924,7 +939,7 @@ function ChangeOrderInner() {
         )}
 
         {!isLocked && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
             <Button
               label="Save to Project"
               onPress={() => handleSave('draft')}

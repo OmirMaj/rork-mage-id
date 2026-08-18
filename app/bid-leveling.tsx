@@ -16,6 +16,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Scale, Trophy, BadgeDollarSign, AlertTriangle, Star } from 'lucide-react-native';
@@ -52,6 +53,9 @@ function BidLevelingInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { packageId } = useLocalSearchParams<{ packageId?: string }>();
   const { projects, commitments, getBidPackage, getBidsForPackage, getSubcontractor, updateBidPackageBid } = useProjects();
@@ -152,7 +156,7 @@ function BidLevelingInner() {
           onAction={() => router.back()}
         />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
           {/* Recommendation */}
           {report.recommendedId && (() => {
             const rec = report.bids.find(b => b.isRecommended)!;

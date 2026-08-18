@@ -25,6 +25,7 @@ import {
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -80,6 +81,9 @@ function CostSeedInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { isDesktop } = useResponsiveLayout();
   const router = useRouter();
   const { seeds, addSeeds, deleteSeed } = useCostSeeds();
@@ -252,8 +256,9 @@ function CostSeedInner() {
         keyboardVerticalOffset={insets.top + 56}
       >
         <ScrollView
+          {...fabScroll}
           contentContainerStyle={[
-            { padding: 16, paddingBottom: 48 + insets.bottom },
+            { padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE },
             isDesktop && styles.contentDesktop,
           ]}
           keyboardShouldPersistTaps="handled"
