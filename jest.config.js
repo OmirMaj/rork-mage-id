@@ -76,7 +76,7 @@ module.exports = {
     // wrapper explodes at module-eval time. Jest needs the same redirect or
     // anything pulling pdf-lib dies with
     // "Cannot destructure property '__extends' of 'tslib.default'".
-    '^tslib$': '<rootDir>/node_modules/tslib/tslib.js',
+    '^tslib$': tslibCjsPath,
     // tsconfig paths: `@/*` -> repo root.
     '^@/(.*)$': '<rootDir>/$1',
   },
