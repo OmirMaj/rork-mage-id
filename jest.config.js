@@ -8,6 +8,23 @@
 // "does the screen render?". This one mounts real components. Neither replaces
 // the other — `testMatch` below is narrow on purpose so jest never tries to
 // collect the bun validators.
+
+// Resolved, not hard-coded. metro.config.js does the same thing (see the tslib
+// note there) and for the same reason: the only path that is guaranteed correct
+// is the one node resolution hands back.
+//
+// This used to be the literal string '<rootDir>/node_modules/tslib/tslib.js'.
+// That is a *file path assertion*, and it is false in any checkout whose
+// node_modules is not a full local install — notably an agent worktree, where
+// node_modules is typically a symlink to the main checkout or absent entirely.
+// When the asserted file is not there jest does not fall back to node
+// resolution; it hard-errors "Could not locate module tslib mapped as ...",
+// which takes down every route that reaches pdf-lib (which imports tslib):
+// /plans, /takeoff, /drawing-analyzer, /compare-drawings, /extract-submittals
+// — 5 routes x 2 world states = the 10 failures this repeatedly produced.
+// require.resolve walks up from this file, so it finds a hoisted tslib.
+const tslibCjsPath = require.resolve('tslib');
+
 module.exports = {
   preset: 'jest-expo',
 
@@ -16,13 +33,20 @@ module.exports = {
   testMatch: ['<rootDir>/__tests__/**/*.test.[jt]s?(x)'],
 
   // Never look at the bun validators, the built web bundle, or native dirs.
+  //
+  // `.claude/` MUST be anchored to <rootDir>. Agent worktrees live at
+  // <main-checkout>/.claude/worktrees/<id>/, so when jest runs *inside* one of
+  // them every absolute test path contains `/.claude/` and an unanchored
+  // pattern silently ignores the entire suite ("No tests found", 402 -> 0).
+  // Anchoring means we only skip worktrees nested under the checkout we are
+  // actually standing in, which is the thing this entry was ever for.
   testPathIgnorePatterns: [
     '/node_modules/',
     '/dist/',
     '/ios/',
     '/android/',
     '/.expo/',
-    '/.claude/',
+    '<rootDir>/.claude/',
   ],
 
   // Agent worktrees under .claude/ and the exported web bundle under dist/
