@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -26,6 +27,9 @@ export default function ActivityFeedScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
@@ -77,9 +81,10 @@ export default function ActivityFeedScreen() {
         />
       ) : (
         <FlatList
+          {...fabScroll}
           data={items}
           keyExtractor={item => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 40 }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
           renderItem={({ item }) => (
             <ActivityRow item={item} onPress={handleRowPress} onLongPress={handleRowLongPress} />
           )}

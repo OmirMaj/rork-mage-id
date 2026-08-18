@@ -18,6 +18,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform, TextInput, Modal, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 // expo-document-picker provides the native PDF picker. Pinned in package.json
@@ -47,6 +48,9 @@ import { showAlert } from '@/utils/alert';
 
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -252,7 +256,7 @@ export default function PlansScreen() {
         <TakeoffQuotaBadge variant="inline" onUpgrade={() => router.push('/paywall' as never)} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {sheets.length === 0 ? (
           <View style={styles.emptyCard}>
             <FileImage size={28} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -431,6 +435,9 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
   onBack: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   return (
@@ -443,7 +450,7 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
           <Text style={styles.headerTitle}>Pick a project</Text>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
             <ImageIcon size={28} color={themeColors.textMuted} strokeWidth={1.75} />

@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, Platform, Modal, KeyboardAvoidingView, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -59,6 +60,9 @@ export default function ContactsScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { navigateTo } = useEntityNavigation();
   const { contacts, addContact, updateContact, deleteContact, projects, getInvoicesForProject } = useProjects();
 
@@ -285,10 +289,11 @@ export default function ContactsScreen() {
       </View>
 
       <FlatList
+        {...fabScroll}
         data={filteredContacts}
         keyExtractor={item => item.id}
         renderItem={renderContact}
-        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={{ minHeight: 360 }}>

@@ -8,6 +8,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronDown, ChevronUp, Award, HardHat } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -57,6 +58,9 @@ function SubScorecardInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   // punchItems + projects feed the D7 factors: punch rework (items bounced
   // at review, attributed via assignedSubId) and schedule reliability
@@ -106,7 +110,7 @@ function SubScorecardInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         <Text style={styles.lede}>
           {graded > 0
             ? `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} ranked from your signed commitments and compliance records. ${graded} ha${graded === 1 ? 's' : 've'} job history behind the grade.`

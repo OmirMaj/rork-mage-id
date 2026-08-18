@@ -15,6 +15,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import {
@@ -78,6 +79,9 @@ function PrequalManagerInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { subcontractors, upsertPrequalPacket, getPrequalPacketForSub } = useProjects();
 
@@ -201,7 +205,7 @@ function PrequalManagerInner() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
 
         {/* Counts */}
         <View style={styles.statsRow}>

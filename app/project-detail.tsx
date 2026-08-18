@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -165,6 +166,9 @@ function statusToStage(s: string | undefined): LifecycleStage {
 
 export default function ProjectDetailScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
@@ -1421,7 +1425,8 @@ export default function ProjectDetailScreen() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={stackScreenOptions} />
       <ScrollView
-        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]}
+        {...fabScroll}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]}
         showsVerticalScrollIndicator={false}
       >
         {/* The hero card unrolls like a blueprint when the project opens. */}
