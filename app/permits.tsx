@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -235,6 +236,9 @@ function PermitsScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const insetTopWeb = (insets.top || 16) + 4;
   const { height: windowHeight } = useWindowDimensions();
   // The edit sheet is a bottom sheet (`justifyContent: 'flex-end'`), so a card
@@ -438,7 +442,11 @@ function PermitsScreenInner() {
           <TouchableOpacity onPress={openNewForm} style={{ paddingHorizontal: 12, paddingVertical: 6 }} testID="new-permit-btn" accessibilityRole="button" accessibilityLabel="Add"><Plus size={22} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
         ),
       }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        {...fabScroll}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Next-inspection hero — biggest visual on screen when there
             is one. Calculates days countdown live so "tomorrow" shows
             up amber. Tap to jump to the permit detail. */}

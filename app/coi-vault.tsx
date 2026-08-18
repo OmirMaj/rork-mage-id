@@ -16,6 +16,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, ActivityIndicator, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -63,6 +64,9 @@ function COIVaultInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { subId: initialSubId } = useLocalSearchParams<{ subId?: string }>();
   const ctx = useProjects() as any;
@@ -200,7 +204,7 @@ function COIVaultInner() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
           <View style={styles.titleBlock}>
             <Text style={styles.eyebrow}>Insurance vault</Text>
             <Text style={styles.title}>{activeSub.companyName}</Text>
@@ -283,7 +287,7 @@ function COIVaultInner() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {subcontractors.length === 0 ? (
           <View style={styles.emptyState}>
             <Shield size={36} color={"#9AA3AD"} strokeWidth={1.75} />

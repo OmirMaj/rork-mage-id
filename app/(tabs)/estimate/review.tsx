@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -14,6 +15,7 @@ import { EstimateCostBreakdown } from '@/components/estimate/EstimateCostBreakdo
 import { EstimateDivisionTable, type DivisionRow } from '@/components/estimate/EstimateDivisionTable';
 import { EstimateTotalsBar } from '@/components/estimate/EstimateTotalsBar';
 import { EstimateClientView } from '@/components/estimate/EstimateClientView';
+import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
@@ -56,6 +58,21 @@ export default function EstimateReviewScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setMode(m);
   }, []);
+
+  // The totals bar is pinned to the bottom, which is exactly where the global
+  // Brain FAB rests — the iOS visual audit (2026-08-16, defect #5) caught the
+  // FAB drawn straight over GRAND TOTAL and its value. Bottom padding cannot
+  // fix a fixed bar, so measure the bar and raise the FAB by its height. The
+  // FAB's resting offset already clears the tab bar with a margin, so lifting
+  // by exactly the bar height keeps that same margin above the bar.
+  const [totalsBarH, setTotalsBarH] = useState(0);
+  const onTotalsBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setTotalsBarH(e.nativeEvent.layout.height);
+  }, []);
+  const showTotalsBar = cart.length > 0 && mode === 'contractor';
+  useBrainFabLift(showTotalsBar ? totalsBarH : 0);
+  // Scrolling down slides the FAB away so it stops covering division rows.
+  const fabScroll = useBrainFabScroll();
 
   const { directCost, markups, itemCount } = useMemo(() => {
     const base = cart.reduce((sum, item) => {
@@ -173,8 +190,9 @@ export default function EstimateReviewScreen() {
       </View>
 
       <ScrollView
+        {...fabScroll}
         contentContainerStyle={[
-          { padding: 16, paddingBottom: insets.bottom + (cart.length > 0 && mode === 'contractor' ? 88 : 40) },
+          { padding: 16, paddingBottom: insets.bottom + (showTotalsBar ? 88 : 40) },
           isDesktop && styles.scrollDesktop,
         ]}
         showsVerticalScrollIndicator={false}
@@ -245,8 +263,8 @@ export default function EstimateReviewScreen() {
         )}
       </ScrollView>
 
-      {cart.length > 0 && mode === 'contractor' && (
-        <View style={[styles.totalsBarWrap, { paddingBottom: insets.bottom }]}>
+      {showTotalsBar && (
+        <View style={[styles.totalsBarWrap, { paddingBottom: insets.bottom }]} onLayout={onTotalsBarLayout}>
           <EstimateTotalsBar
             itemCount={itemCount}
             divisionCount={divisions.length}

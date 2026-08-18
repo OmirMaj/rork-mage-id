@@ -5,6 +5,7 @@ import {
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -103,9 +104,12 @@ export default function HomeScreen() {
   const { openCreate } = useLocalSearchParams<{ openCreate?: string }>();
   const openCreateConsumed = useRef(false);
 
-  // The old home-only FAB stack (and its scroll-hide) was retired — the one
-  // global MAGE Brain FAB (app/_layout → components/brain/BrainSurface) now
-  // carries AI, voice, and help on every screen.
+  // The old home-only FAB stack was retired — the one global MAGE Brain FAB
+  // (app/_layout → components/brain/BrainSurface) now carries AI, voice, and
+  // help on every screen. Its scroll-hide came back as a shared behaviour: the
+  // FAB was sitting on the checklist's "Try it free" chip and the inbox rows
+  // (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
@@ -648,14 +652,15 @@ export default function HomeScreen() {
         refreshControl={
           <MageRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
-        scrollEventThrottle={32}
+        {...fabScroll}
         contentContainerStyle={[
           styles.listContent,
           responsive.isDesktop && styles.listContentDesktop,
           // Bottom padding clears the single MAGE Brain FAB (bottom:
           // insets.bottom + 70, 56px) plus a margin so the last rows aren't
-          // tucked under it: 70 + 56 + 24 = 150.
-          { paddingTop: insets.top, paddingBottom: insets.bottom + 150 },
+          // tucked under it: 70 + 56 + 24 = 150. Now shared, so every screen
+          // that clears the FAB uses the one number.
+          { paddingTop: insets.top, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE },
           projects.length === 0 && styles.emptyList,
         ]}
         ListHeaderComponent={
