@@ -10,6 +10,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -37,6 +38,9 @@ export default function DataImportScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projects, contacts, subcontractors, importData } = useProjects();
 
@@ -142,7 +146,7 @@ export default function DataImportScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={styles.heroIcon}><FolderInput size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.heroTitle}>Import data</Text>

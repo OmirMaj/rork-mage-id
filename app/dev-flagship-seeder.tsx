@@ -19,6 +19,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, Redirect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Gem, AlertTriangle } from 'lucide-react-native';
@@ -60,6 +61,9 @@ export default function DevFlagshipSeederScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { user } = useAuth();
   const {
@@ -1319,7 +1323,7 @@ export default function DevFlagshipSeederScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         <View style={styles.warningCard}>
           <AlertTriangle size={18} color={Colors.warning} strokeWidth={1.75} />
           <Text style={styles.warningText}>

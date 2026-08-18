@@ -21,6 +21,7 @@ import {
   TextInput, Platform, type GestureResponderEvent, type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -129,6 +130,9 @@ function AreaTakeoffInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const {
@@ -457,7 +461,7 @@ function AreaTakeoffInner() {
           </TouchableOpacity>
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
           {/* Kind toggle */}
           <View style={styles.kindRow}>
             <KindBtn active={kind === 'area'} icon={<Square size={14} color={kind === 'area' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label="Area" onPress={() => switchKind('area')} t={t} styles={styles} />

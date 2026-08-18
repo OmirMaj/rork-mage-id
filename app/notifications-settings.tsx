@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import {
@@ -146,6 +147,9 @@ export default function NotificationsSettingsScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { user } = useAuth();
   const { settings, updateSettings, projects } = useProjects();
   const { pushToken } = useNotifications();
@@ -445,8 +449,9 @@ export default function NotificationsSettingsScreen() {
         }}
       />
       <ScrollView
+        {...fabScroll}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
       >
         <View style={styles.hero}>
           <View style={styles.heroIcon}>

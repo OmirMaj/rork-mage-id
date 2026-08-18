@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
@@ -46,6 +47,9 @@ export default function CompareDrawingsScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const { projects, getProject, getPlanSheetsForProject } = useProjects();
@@ -161,7 +165,7 @@ export default function CompareDrawingsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE" title={project.name} />
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+      <ScrollView {...fabScroll} style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
 
         {/* ── Step 1: pick the OLD sheet ─────────────────────────── */}
         {step === 'pickOld' && (
