@@ -11,6 +11,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ShieldAlert, BellRing } from 'lucide-react-native';
@@ -72,6 +73,9 @@ function PortfolioMarginInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projects, changeOrders, commitments, invoices } = useProjects();
 
@@ -156,7 +160,7 @@ function PortfolioMarginInner() {
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
           {/* Portfolio KPIs */}
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}>

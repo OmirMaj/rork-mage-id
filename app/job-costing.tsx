@@ -17,6 +17,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus,
@@ -75,6 +76,9 @@ function JobCostingInner() {
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const {
@@ -180,7 +184,7 @@ function JobCostingInner() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 80 + insets.bottom }, isDesktop && styles.contentDesktop]}>
+      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
 
         {/* KPI cards */}
         <View style={styles.kpiGrid}>

@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, KeyboardAvoidingView, ActivityIndicator, FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -154,6 +155,9 @@ export default function CashFlowScreen() {
 
 function CashFlowScreenInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -480,7 +484,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
       }} />
 
       <ScrollView
-        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]}
+        {...fabScroll}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
       >
         <FeatureHeader

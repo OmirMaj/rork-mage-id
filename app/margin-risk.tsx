@@ -8,6 +8,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { ChevronLeft, ShieldAlert, ArrowRight, Activity } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -50,6 +51,9 @@ function MarginRiskInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, changeOrders, commitments, invoices } = useProjects();
@@ -98,7 +102,7 @@ function MarginRiskInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {!risk?.hasBasis ? (
           <View style={styles.infoCard}>
             <ShieldAlert size={26} color={t.accent} strokeWidth={1.7} />

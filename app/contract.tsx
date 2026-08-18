@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileText, Plus, Trash2, DollarSign, Calendar, Send,
@@ -101,6 +102,9 @@ export default function ContractScreen() {
 
 function ContractScreenInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
@@ -583,7 +587,7 @@ function ContractScreenInner() {
         <StatusPill status={contract.status} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {/* Centered icon-circle hero — matches the AI-feature screens
             (Construction AI, AI Punch, Payment Predictions) so the
             contract screen reads as part of the same design language. */}

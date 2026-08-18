@@ -14,6 +14,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ShieldCheck, AlertTriangle, HelpCircle, CheckCircle2, Info, Wand2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -71,6 +72,9 @@ function EstimateConfidenceInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, commitments, updateProject } = useProjects();
@@ -149,7 +153,7 @@ function EstimateConfidenceInner() {
           onAction={() => router.back()}
         />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
           {/* Score hero */}
           <View style={[styles.hero, { borderColor: scoreColor + '55' }]}>
             <View style={[styles.scoreCircle, { backgroundColor: scoreColor + '1A', borderColor: scoreColor }]}>

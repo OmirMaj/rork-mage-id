@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -64,6 +65,9 @@ export default function BudgetDashboardScreen() {
 
 function BudgetDashboardScreenInner() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   // Reactive chart width, derived from the chart card's MEASURED width — not
   // the window. This screen renders inside the 240px desktop sidebar shell
   // (it is not in DESKTOP_SHELL_EXEMPT), so window-based math overflows the
@@ -298,7 +302,7 @@ Be specific and actionable. Use construction industry terminology.`;
         headerTintColor: themeColors.accent,
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <FeatureHeader
           eyebrow="Earned Value"
           title="Are you making or losing money on this job?"
