@@ -16,6 +16,7 @@ import {
 import { SkeletonCard } from '@/components/Skeleton';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useQuery } from '@tanstack/react-query';
 import {
   Plus, MapPin, Inbox, ChevronRight, Clock, DollarSign, Crosshair,
@@ -73,6 +74,9 @@ type Mode = 'browse' | 'mine';
 
 export default function MageIdBidsTabScreen() {
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
@@ -336,7 +340,8 @@ export default function MageIdBidsTabScreen() {
       )}
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
+        {...fabScroll}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />

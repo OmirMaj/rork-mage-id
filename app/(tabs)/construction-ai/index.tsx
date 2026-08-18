@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
   Gavel, MapPin, Hammer, AlertTriangle, CheckCircle,
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
@@ -269,6 +270,9 @@ export default function ConstructionAITab() {
 function ConstructionAIScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const { tier } = useTierAccess();
   const { user } = useAuth();
   const router = useRouter();
@@ -631,7 +635,8 @@ Be specific to the cited location if possible. If the location is not in the US,
 
         {mode === 'code' ? (
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
+            {...fabScroll}
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -808,7 +813,8 @@ Be specific to the cited location if possible. If the location is not in the US,
         ) : mode === 'roadmap' ? (
           /* ── Project Roadmap mode ── */
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
+            {...fabScroll}
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.hero}>
@@ -981,7 +987,8 @@ Be specific to the cited location if possible. If the location is not in the US,
         ) : mode === 'plan' ? (
           /* ── Plan Review mode ── */
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
+            {...fabScroll}
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.hero}>

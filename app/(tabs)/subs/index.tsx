@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -173,6 +174,9 @@ const makeVStyles = (themeColors: ThemeColors) => StyleSheet.create({
 export default function SubsScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // row content (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, projects, prequalPackets } = useProjects();
   const { tier } = useSubscription();
@@ -376,10 +380,11 @@ export default function SubsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        {...fabScroll}
         data={filtered}
         renderItem={renderSub}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 110 }}
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>

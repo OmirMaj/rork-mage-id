@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Animated, Platform, FlatList, Modal, KeyboardAvoidingView, Pressable,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   Search, X, Plus, Minus, Trash2, ChevronDown, ChevronUp,
@@ -142,6 +144,15 @@ export default function EstimateScreen() {
   const dStyles = useThemedStyles(makeDStyles);
   const aiStyles = useThemedStyles(makeAiStyles);
   const insets = useSafeAreaInsets();
+  // Scrolling down slides the global Brain FAB away so it stops covering
+  // catalog rows and their prices (iOS visual audit 2026-08-16, defect #5).
+  const fabScroll = useBrainFabScroll();
+  // The floating cart is position:absolute, so bottom padding cannot clear
+  // it — measure it and lift the FAB by its height instead.
+  const [cartBarH, setCartBarH] = useState(0);
+  const onCartBarLayout = useCallback((e: LayoutChangeEvent) => {
+    setCartBarH(e.nativeEvent.layout.height);
+  }, []);
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { projects, updateProject, settings, updateSettings, contacts, commitments, getBidPackagesForProject } = useProjects();
@@ -734,8 +745,12 @@ export default function EstimateScreen() {
     );
   }, [calculateAssemblyCost]);
 
+  const showFloatingCart = cart.length > 0 && !showCart;
+  // With the floating cart up the FAB is lifted above it, so the list only has
+  // to clear the cart. With no cart the list has to clear the FAB itself.
+  useBrainFabLift(showFloatingCart ? cartBarH + 16 : 0);
   const listBottomPadding = useMemo(() => {
-    const floatingCartHeight = cart.length > 0 && !showCart ? 108 : 24;
+    const floatingCartHeight = cart.length > 0 && !showCart ? 108 : BRAIN_FAB_CLEARANCE;
     return insets.bottom + floatingCartHeight;
   }, [cart.length, insets.bottom, showCart]);
 
@@ -2771,6 +2786,7 @@ export default function EstimateScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {activeTab === 'materials' && <FlatList
+        {...fabScroll}
         data={filteredMaterials}
         keyExtractor={item => item.id}
         renderItem={renderMaterialCard}
@@ -2789,6 +2805,7 @@ export default function EstimateScreen() {
       />}
 
       {activeTab === 'labor' && <FlatList
+        {...fabScroll}
         data={filteredLabor}
         keyExtractor={item => item.id}
         renderItem={renderLaborCard}
@@ -2808,6 +2825,7 @@ export default function EstimateScreen() {
         <View style={{ flex: 1 }}>
           {assemblyListHeader}
           <FlatList
+            {...fabScroll}
             data={filteredAssemblies}
             keyExtractor={item => item.id}
             renderItem={renderAssemblyCard}
@@ -2825,6 +2843,7 @@ export default function EstimateScreen() {
       )}
 
       {activeTab === 'templates' && <FlatList
+        {...fabScroll}
         data={filteredTemplates}
         keyExtractor={item => item.id}
         renderItem={renderTemplateCard}
@@ -2842,6 +2861,7 @@ export default function EstimateScreen() {
       {totalItemCount > 0 && !showCart && (
         <TouchableOpacity
           style={[styles.floatingCart, { bottom: 16 }]}
+          onLayout={onCartBarLayout}
           onPress={() => setShowCart(true)}
           activeOpacity={0.9}
           testID="floating-cart"
