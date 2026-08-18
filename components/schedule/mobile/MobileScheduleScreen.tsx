@@ -26,7 +26,6 @@ import { ExportCenterSheet } from './ExportCenterSheet';
 import { exportScheduleIcal } from '@/utils/scheduleExportIcal';
 import { ProgressTab } from './ProgressTab';
 import { TeamTab } from './TeamTab';
-import { FourDComingSoon } from './FourDComingSoon';
 import { LivingFloorPlan } from './LivingFloorPlan';
 import { PlanZoneEditor } from './PlanZoneEditor';
 import { displayText } from '@/utils/formatters';
