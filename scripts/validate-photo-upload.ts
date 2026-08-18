@@ -280,8 +280,14 @@ ok('the photo queue is drained by OfflineSyncManager',
 ok('queueing also kicks an opportunistic drain',
   /scheduleOpportunisticDrain/.test(readFileSync('utils/photoUploadQueue.ts', 'utf8')),
   'a user who stays in the foreground would otherwise wait for a background/foreground cycle');
+// The key itself moved to utils/localCacheKeys.ts (OFFLINE_WRITE_QUEUE_KEYS)
+// when wipeLocalUserCache became a prefix sweep; AuthContext now removes it via
+// that constant. Assert both halves so neither can quietly drop the other.
+ok('the photo queue rides the offline-write-queue exemption',
+  /'mageid_photo_upload_queue'/.test(readFileSync('utils/localCacheKeys.ts', 'utf8')),
+  'it is a pending WRITE, not a cache — it must not be dropped on a same-user re-auth');
 ok('the photo queue is wiped on tenant switch, like the offline write queue',
-  /mageid_photo_upload_queue/.test(readFileSync('contexts/AuthContext.tsx', 'utf8')),
+  /multiRemove\(OFFLINE_WRITE_QUEUE_KEYS/.test(readFileSync('contexts/AuthContext.tsx', 'utf8')),
   'a pending upload must not follow one user onto the next tenant on a shared device');
 
 // ── Testability invariant ───────────────────────────────────────────────────

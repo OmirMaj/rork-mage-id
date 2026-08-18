@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { PENDING_DEEPLINK_KEY } from '@/utils/pendingDeepLink';
 import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
+import { OFFLINE_WRITE_QUEUE_KEYS, selectTenantKeysToWipe } from '@/utils/localCacheKeys';
 import { processOfflineQueue, getOfflineQueue } from '@/utils/offlineQueue';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import * as SecureStore from 'expo-secure-store';
@@ -22,14 +23,19 @@ WebBrowser.maybeCompleteAuthSession();
 const AUTH_EMAIL_KEY = 'mageid_auth_email';
 const AUTH_PASSWORD_KEY = 'mageid_auth_password';
 
-// AsyncStorage keys that hold per-user app data. Wiped on logout,
-// deleteAccount, AND every successful sign-in path so a shared device
-// can't leak user-A's projects/DFRs/punch items into user-B's session
-// while Supabase is still hydrating the new user's rows.
+// FALLBACK LIST — not the mechanism any more.
 //
-// Keep in sync with the Project/Bids/Companies/Hire context persistence
-// layer — adding a new mageid_* prefix without listing it here is how
-// cross-tenant leaks happen.
+// These are the highest-value per-user keys, removed by an explicit
+// multiRemove so that they still go even if AsyncStorage.getAllKeys() throws.
+// The actual coverage guarantee is the prefix sweep in wipeLocalUserCache
+// (utils/localCacheKeys.ts `selectTenantKeysToWipe`), which removes EVERY
+// app-owned key without anyone having to remember to enumerate it.
+//
+// You do NOT need to add a new key here. Keeping the list in sync by hand is
+// precisely what failed: ~70 of the app's `mageid_*` keys were never added, and
+// the whole `buildwise_*` / `tertiary_*` namespace left by the 2026-07-16
+// de-brand was never added either, so logout never cleared any of it.
+// scripts/validate-storage-hygiene.ts now asserts the sweep's coverage.
 const LOCAL_USER_CACHE_KEYS = [
   'mageid_projects', 'mageid_settings', 'mageid_user_role',
   'mageid_client_rfp_credits_v1', 'mageid_client_sub_state_v1',
@@ -99,6 +105,25 @@ const LOCAL_USER_CACHE_KEYS = [
 // deliberate sign-out or fresh sign-in where losing the queue is intended).
 // Same-user re-auth paths (magic link / password reset) pass false so pending
 // offline writes survive — see onNewSessionEstablished.
+//
+// ── How this wipes, and why it is not a list any more ────────────────────────
+// The authoritative pass is a PREFIX SWEEP over AsyncStorage.getAllKeys()
+// (`selectTenantKeysToWipe`, utils/localCacheKeys.ts). The hand-maintained
+// LOCAL_USER_CACHE_KEYS list above kept losing the race: the app writes ~125
+// `mageid_*`/`mage_*` keys and the list named ~55 of them, so ~70 per-user keys
+// survived every logout — plus the whole `buildwise_*` / `tertiary_*` namespace
+// that the 2026-07-16 de-brand renamed in code and abandoned on disk. Under the
+// sweep a key is covered the moment it is written, and the only way to exempt
+// one is DEVICE_SCOPED_KEYS, in the open, with a reason.
+//
+// The sweep is prefix-scoped, never AsyncStorage.clear(): on web AsyncStorage
+// IS window.localStorage, so getAllKeys() also returns Supabase's own
+// `sb-<ref>-auth-token` session plus Stripe/RevenueCat/Sentry state. See the
+// header of utils/localCacheKeys.ts.
+//
+// The explicit multiRemove of LOCAL_USER_CACHE_KEYS is kept as a FALLBACK for
+// the one failure mode the sweep has: if getAllKeys() throws, the highest-value
+// keys still go. Do NOT add new keys to that list — the sweep already has them.
 async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promise<void> {
   const dropOfflineQueue = opts?.dropOfflineQueue ?? true;
   if (dropOfflineQueue) {
@@ -108,7 +133,7 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
       // anywhere. It rides the dropOfflineQueue flag so a same-user re-auth
       // (magic link / password reset) keeps un-uploaded jobsite photos, while a
       // deliberate sign-out still leaves nothing behind for the next tenant.
-      await AsyncStorage.multiRemove(['mageid_offline_queue', 'mageid_photo_upload_queue']);
+      await AsyncStorage.multiRemove(OFFLINE_WRITE_QUEUE_KEYS as string[]);
     } catch (err) {
       console.log('[Auth] Failed to clear offline queue:', err);
     }
@@ -118,21 +143,20 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
   } catch (err) {
     console.log('[Auth] Failed to clear local data cache:', err);
   }
-  // AI result caches — grounded outputs derived from THIS user's bid
-  // history / cost book / pace facts / profile:
-  //   `mageid_ai_cache_*` (utils/aiService.ts AI_CACHE_PREFIX, e.g.
-  //   bidscore_<id>_…) and `mage_ai_cache_*` (utils/mageAI.ts CACHE_PREFIX,
-  //   e.g. gen-…, sb_followups_…). They're dynamic-suffix keys, so they
-  //   can't live in the static list above; sweep by prefix or a signed-out
-  //   user's grounded results replay for the next tenant on a shared device.
+  // The sweep. Covers, in one pass and without enumerating anything:
+  //   • every `mageid_*` / `mage_*` key the app writes, including the
+  //     dynamic-suffix ones no static list could hold — `mageid_ai_cache_*`
+  //     (utils/aiService.ts) and `mage_ai_cache_*` (utils/mageAI.ts) grounded
+  //     AI outputs, `mageid_copilot_*` histories, `mageid_takeoff::*`;
+  //   • the legacy `buildwise_*` / `tertiary_*` residue the de-brand left
+  //     behind, which no live code can even read any more;
+  //   • the app's few un-namespaced keys (`bids_*`, `post-rfp:draft:*`).
   try {
     const allKeys = await AsyncStorage.getAllKeys();
-    const aiCacheKeys = allKeys.filter(
-      k => k.startsWith('mageid_ai_cache_') || k.startsWith('mage_ai_cache_'),
-    );
-    if (aiCacheKeys.length > 0) await AsyncStorage.multiRemove(aiCacheKeys);
+    const doomed = selectTenantKeysToWipe(allKeys, { dropOfflineQueue });
+    if (doomed.length > 0) await AsyncStorage.multiRemove(doomed);
   } catch (err) {
-    console.log('[Auth] Failed to clear AI result cache:', err);
+    console.log('[Auth] Failed to sweep local app storage:', err);
   }
 }
 
