@@ -15,9 +15,22 @@
 //
 // Rationale: we know we'll pay out the remaining commitment balance (that
 // work is signed). If budget exceeds what's been committed, we still owe
-// that work to sub-buy (so it acts as a floor). If commitments already
-// exceed budget, the variance shows up negative — which is the signal a PM
-// needs to kill the project before it bleeds further.
+// that work to sub-buy (so it acts as a floor).
+//
+// SIGN CONVENTION — variance = projectedFinal - budget, so POSITIVE = OVER
+// BUDGET and negative = under. If commitments already exceed budget then
+// EAC collapses to `committed`, and variance = committed - budget > 0 — the
+// signal a PM needs to kill the project before it bleeds further.
+//
+// This comment used to claim the opposite ("shows up negative"), which the
+// formula three lines below never did and arithmetically could not. The Job
+// Costing screen believed the prose instead of the code and told a GC he was
+// "$49K UNDER budget" while he was $49K over (docs/audits/2026-08-17-web-audit.md).
+// Note this is the OPPOSITE of the EVM convention in utils/scheduleEarnedValue.ts,
+// where `varianceAtCompletion = BAC - EAC` and positive means under. Do not
+// carry a sign across the two engines. Render through `describeVariance`
+// below rather than re-deriving `variance >= 0` at a call site; that
+// re-derivation is exactly what shipped the bug.
 //
 // NOTE: we intentionally don't include progress-weighted EAC variants
 // (CPI / SPI-based) here — those require earned-value output which is a
@@ -46,12 +59,14 @@ export interface JobCostLine {
   actual: number;
   /** Projected final cost using the MAGE EAC method (see header). */
   projectedFinal: number;
-  /** projectedFinal - budget. Negative = over budget. */
+  /** projectedFinal - budget. Positive = over budget (see header). */
   variance: number;
   /** Ratio of actual to budget, clamped to [0, 2]. */
   burnRatio: number;
-  /** Status classification for dashboard chips. */
-  status: 'on_track' | 'warning' | 'over';
+  /** Status classification for dashboard chips. `unbudgeted` = real money
+   *  landed on a phase carrying no budget, so there is nothing to be on
+   *  track against. */
+  status: 'on_track' | 'warning' | 'over' | 'unbudgeted';
   /** How many commitments, invoices, change orders, material receipts, and
    *  crew time entries contributed. */
   sources: { commitments: number; invoices: number; changeOrders: number; receipts: number; timeEntries: number };
@@ -67,11 +82,13 @@ export interface JobCostSummary {
   actual: number;
   /** Sum of projected finals. */
   projectedFinal: number;
-  /** projectedFinal - budget. Negative = projecting over budget. */
+  /** projectedFinal - budget. Positive = projecting over budget (see header). */
   variance: number;
-  /** 0-100. Share of budget that's been committed (signed). */
+  /** Percent of budget committed (signed). NOT capped at 100 — 175% means
+   *  you've signed $1.75 of subs for every budgeted dollar, and capping it
+   *  is how an over-budget job used to look on-budget. */
   commitmentCoverage: number;
-  /** 0-100. Share of budget spent. */
+  /** Percent of budget spent. NOT capped at 100 — see commitmentCoverage. */
   spendPercent: number;
   byPhase: JobCostLine[];
   /** Top three phases by variance magnitude. */
@@ -111,14 +128,30 @@ function estimateItemPhase(
 
 /**
  * Classify a phase by how its actual + projected stack up.
- * - over:    projectedFinal > budget (or burnRatio > 1 if no budget)
- * - warning: actual is 90% of budget but phase isn't visibly done
- * - on_track: everything else
+ * - over:       projectedFinal exceeds a real budget by more than 2%
+ * - warning:    actual is 90% of budget but the phase isn't visibly done
+ * - unbudgeted: money landed on a phase the estimate never priced
+ * - on_track:   everything else
  */
 function classify(line: Omit<JobCostLine, 'status'>): JobCostLine['status'] {
-  if (line.budget > 0 && line.projectedFinal > line.budget * 1.02) return 'over';
-  if (line.budget > 0 && line.actual / line.budget > 0.9 && line.committed > line.actual * 1.05) return 'warning';
-  if (line.budget <= 0 && line.committed > 0 && line.actual > line.committed * 0.9) return 'warning';
+  if (line.budget > 0) {
+    if (line.projectedFinal > line.budget * 1.02) return 'over';
+    if (line.actual / line.budget > 0.9 && line.committed > line.actual * 1.05) return 'warning';
+    return 'on_track';
+  }
+  // No budget line at all. `variance` for this phase is its ENTIRE projected
+  // cost, so calling it "on track" is the same lie the KPI card used to tell:
+  // in the Henderson case a whole $49K of untraceable payments sat in
+  // '(Uncategorized)' behind a green "On track" chip. A 2% tolerance is
+  // meaningless against a $0 budget — any dollar is infinitely over it.
+  //
+  // Deliberately NOT 'over': this money isn't necessarily an overrun, it's
+  // money the estimate never accounted for, which is a different and often
+  // fixable thing (an invoice line that lost its estimate-item link, a
+  // commitment tagged with a phase name the estimate spells differently,
+  // self-perform labor that was never estimated as its own scope). Naming
+  // that honestly beats both a false green and a false red.
+  if (line.projectedFinal > 0) return 'unbudgeted';
   return 'on_track';
 }
 
@@ -325,8 +358,13 @@ export function computeJobCost({ project, commitments, invoices, changeOrders, r
     actual: totalActual,
     projectedFinal: totalProjected,
     variance: totalProjected - totalBudget,
-    commitmentCoverage: totalBudget > 0 ? Math.min(100, (totalCommitted / totalBudget) * 100) : 0,
-    spendPercent: totalBudget > 0 ? Math.min(100, (totalActual / totalBudget) * 100) : 0,
+    // NOT clamped to 100. These are reported numbers, not bar widths: a
+    // Math.min(100, …) here made $49K spent against a $48K budget read
+    // "100% of budget", so an over-budget job could never look over-budget
+    // (docs/audits/2026-08-17-web-audit.md). Anything drawing a progress bar
+    // from these must clamp the WIDTH at the call site, never the value.
+    commitmentCoverage: totalBudget > 0 ? (totalCommitted / totalBudget) * 100 : 0,
+    spendPercent: totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0,
     byPhase,
     biggestVariances,
     overcommittedCommitments: overcommitted,
@@ -363,4 +401,73 @@ export function formatMoney(n: number, opts?: { sign?: boolean }): string {
 
 export function formatMoneyFull(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Variance presentation
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Below this many dollars a variance displays as `$0`, so it must not read
+ * as a direction — otherwise float noise paints the card red or green.
+ */
+export const VARIANCE_EPSILON = 0.5;
+
+export type VarianceTone = 'over' | 'under' | 'on_budget';
+
+export interface VarianceDisplay {
+  /** Which side of budget this lands on. */
+  tone: VarianceTone;
+  /** KPI card label — pair with `amount`, e.g. "Over by" + "$49K". */
+  label: string;
+  /** One-sentence projection banner. */
+  banner: string;
+  /** Magnitude in dollars, always >= 0. */
+  amount: number;
+  /** Theme colour family. Map to `colors.danger` / `.success` at the call site. */
+  colorKey: 'danger' | 'success' | 'neutral';
+  /** Trend arrow direction. */
+  trend: 'up' | 'down' | 'flat';
+}
+
+/**
+ * Turn a signed variance into the words and colour that go on screen.
+ *
+ * Pure and exported so it can be tested without rendering a screen —
+ * see scripts/validate-job-cost-variance.ts.
+ */
+export function describeVariance(variance: number): VarianceDisplay {
+  const amount = Math.abs(variance);
+  // variance = projectedFinal - budget, so POSITIVE MEANS OVER. Read the
+  // arithmetic at the top of computeJobCost, not any prose about it.
+  if (variance > VARIANCE_EPSILON) {
+    return {
+      tone: 'over',
+      label: 'Over by',
+      banner: `Projecting ${formatMoney(amount)} over budget`,
+      amount,
+      colorKey: 'danger',
+      trend: 'up',
+    };
+  }
+  if (variance < -VARIANCE_EPSILON) {
+    return {
+      tone: 'under',
+      label: 'Under by',
+      banner: `On track to finish ${formatMoney(amount)} under budget`,
+      amount,
+      colorKey: 'success',
+      trend: 'down',
+    };
+  }
+  // Landing on the number is neither a win nor a loss, and must not be
+  // painted as one — `formatMoney` would render "$0" beside "Under by".
+  return {
+    tone: 'on_budget',
+    label: 'On budget',
+    banner: 'Projecting to finish on budget',
+    amount: 0,
+    colorKey: 'neutral',
+    trend: 'flat',
+  };
 }
