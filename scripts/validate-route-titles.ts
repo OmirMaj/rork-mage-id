@@ -28,7 +28,8 @@ function assert(cond: boolean, msg: string) {
 }
 
 const REPO = path.resolve(__dirname, '..');
-const TABS = path.join(REPO, 'app', '(tabs)');
+const APP = path.join(REPO, 'app');
+const TABS = path.join(APP, '(tabs)');
 
 /** Every route reachable under app/(tabs)/, as the URL the browser shows. */
 function tabRoutes(): string[] {
@@ -52,6 +53,21 @@ function tabRoutes(): string[] {
     }
   };
   walk(TABS, '');
+  return out.sort();
+}
+
+/** Every top-level static route file directly under app/ (the root stack), as
+ *  the URL the browser shows. Excludes the (tabs) group (covered above),
+ *  Expo-special files (_layout, +html, +not-found, …) and dynamic segments. */
+function rootStackRoutes(): string[] {
+  const out: string[] = [];
+  for (const entry of fs.readdirSync(APP, { withFileTypes: true })) {
+    const name = entry.name;
+    if (!entry.isFile() || !name.endsWith('.tsx')) continue;
+    if (name === '_layout.tsx' || name.startsWith('+')) continue;
+    if (name.includes('[')) continue;
+    out.push('/' + name.replace(/\.tsx$/, ''));
+  }
   return out.sort();
 }
 
@@ -97,8 +113,19 @@ if (failures > 0) {
   process.exit(1);
 }
 console.log('\nAll route-title tests passed');
+
+// Coverage report (NOT enforced): actually enumerate and COUNT the root-stack
+// routes outside app/(tabs) that still resolve to null. The tab tree above is a
+// hard gate; these are a backlog — each needs a product copy decision, and a
+// wrong label is worse than the honest "MAGE ID" fallback, so shipping without
+// one does not fail the build. This replaces a previous hard-coded sentence with
+// a dead `${''}` interpolation that counted nothing.
+const rootRoutes = rootStackRoutes();
+const untitledRoot = rootRoutes.filter(r => pathToDocumentTitle(r) === null);
 console.log(
-  `\nNOTE (not enforced): ${''}root-stack screens outside app/(tabs) still have gaps in the map ` +
-  '(e.g. /safety-*, /week-close, /work-order). Each needs a product copy decision; ' +
-  'they fall back to plain "MAGE ID" rather than an invented label.',
+  `\nCoverage (not enforced): ${rootRoutes.length - untitledRoot.length}/${rootRoutes.length} ` +
+  `root-stack routes under app/ have a browser-tab title; ${untitledRoot.length} still fall back to "MAGE ID".`,
 );
+if (untitledRoot.length > 0) {
+  console.log(`Untitled (needs a copy decision): ${untitledRoot.join(', ')}`);
+}

@@ -1407,7 +1407,12 @@ export default Sentry.wrap(function RootLayout() {
                                 own profiles + brain_predictions load AND its
                                 own copy of the demotion/promotion transition
                                 detector, duplicating receipts. Must sit below
-                                AuthProvider — it reads useAuth().user. */}
+                                AuthProvider (reads useAuth().user) AND below
+                                ProjectProvider — its load is gated on
+                                projects.length > 0 (useCoreData), so a signed-in
+                                user with no projects triggers no request. The
+                                provider is always mounted for context shape; only
+                                the LOAD is deferred. */}
                             <AutonomyProvider>
                             <SearchProvider>
                               <MagicLinkHandler />

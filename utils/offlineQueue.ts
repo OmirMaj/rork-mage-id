@@ -14,6 +14,33 @@ export interface OfflineMutation {
   retryCount: number;
 }
 
+// ── Flush listeners ─────────────────────────────────────────────────────────
+// A queued write lands on the server LATER, during a flush — not at supabaseWrite
+// call time. Any read cache that was invalidated synchronously at call time (and
+// then re-populated by a read before the flush landed) is stale until the flush
+// completes and nothing tells it to drop that snapshot. Modules that cache reads
+// of a table can register here and invalidate when that table's queued writes
+// actually flush. Kept as a tiny registry so offlineQueue takes NO dependency on
+// its consumers (predictionLedger etc.) — the dependency is inverted.
+type FlushListener = (tables: Set<string>) => void;
+const flushListeners = new Set<FlushListener>();
+
+/** Register a callback invoked after a flush that SUCCESSFULLY processed at least
+ *  one write, with the set of tables whose writes landed. Returns an unsubscribe.
+ *  Listener errors are swallowed — telemetry/cache plumbing must never wedge the
+ *  queue. */
+export function onQueueFlushed(listener: FlushListener): () => void {
+  flushListeners.add(listener);
+  return () => { flushListeners.delete(listener); };
+}
+
+function notifyFlushed(tables: Set<string>): void {
+  if (tables.size === 0 || flushListeners.size === 0) return;
+  for (const listener of flushListeners) {
+    try { listener(tables); } catch { /* never let a listener break the flush */ }
+  }
+}
+
 // Serializes every read-modify-write of the persisted queue behind a single
 // promise chain. Without this, a mutation enqueued DURING a flush races the
 // flush's write-back: both read the queue, then the flush's wholesale
@@ -184,11 +211,12 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
   }
 
   // Process one group serially; return its accounting totals.
-  async function processGroup(group: OfflineMutation[]): Promise<{ processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[] }> {
+  async function processGroup(group: OfflineMutation[]): Promise<{ processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[]; processedTables: Set<string> }> {
     let gProcessed = 0;
     let gFailed = 0;
     const gRemaining: OfflineMutation[] = [];
     const gDropped: OfflineMutation[] = [];
+    const gProcessedTables = new Set<string>();
 
     for (const mutation of group) {
       try {
@@ -219,6 +247,7 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
         }
 
         gProcessed++;
+        gProcessedTables.add(mutation.table);
         console.log('[OfflineQueue] Processed:', mutation.table, mutation.operation);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -250,13 +279,13 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
       }
     }
 
-    return { processed: gProcessed, failed: gFailed, remaining: gRemaining, dropped: gDropped };
+    return { processed: gProcessed, failed: gFailed, remaining: gRemaining, dropped: gDropped, processedTables: gProcessedTables };
   }
 
   // Bounded-concurrency async pool: at most MAX_CONCURRENCY groups in flight.
   const MAX_CONCURRENCY = 5;
   const groups = [...groupMap.values()];
-  const results: { processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[] }[] = [];
+  const results: { processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[]; processedTables: Set<string> }[] = [];
   for (let i = 0; i < groups.length; i += MAX_CONCURRENCY) {
     const batch = groups.slice(i, i + MAX_CONCURRENCY);
     const batchResults = await Promise.all(batch.map(processGroup));
@@ -266,6 +295,7 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
   // Reduce all group results into final accounting.
   const remaining: OfflineMutation[] = [];
   const dropped: OfflineMutation[] = [];
+  const processedTables = new Set<string>();
   let processed = 0;
   let failed = 0;
   for (const r of results) {
@@ -273,6 +303,7 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
     failed += r.failed;
     remaining.push(...r.remaining);
     dropped.push(...r.dropped);
+    for (const table of r.processedTables) processedTables.add(table);
   }
   // Permanent discards must be visible — silent loss is the one unforgivable
   // failure mode for an offline-first app.
@@ -304,6 +335,10 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
     await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(next));
     return next.length;
   });
+
+  // A queued write for a cached table just landed on the server — tell any read
+  // cache to drop its snapshot so the next read re-queries the now-current row.
+  notifyFlushed(processedTables);
 
   console.log('[OfflineQueue] Done. Processed:', processed, 'Failed:', failed, 'Remaining:', remainingCount);
   return { processed, failed, remaining: remainingCount };

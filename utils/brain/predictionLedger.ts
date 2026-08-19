@@ -4,7 +4,7 @@
 // G5: use generateUUID from utils/generateId.ts for id generation
 // No React imports allowed
 
-import { supabaseWrite } from '@/utils/offlineQueue';
+import { supabaseWrite, onQueueFlushed } from '@/utils/offlineQueue';
 import { supabase } from '@/lib/supabase';
 import type { PredictionKind, BrainPredictionRow, BrainPredictionReadRow } from './types';
 import { buildPredictionRow as _buildPredictionRow, dedupeBySubject as _dedupeBySubject } from './predictionLedgerCore';
@@ -57,6 +57,19 @@ function ensureAuthInvalidation(): void {
     supabase.auth.onAuthStateChange(() => { readCache.clear(); });
   } catch {
     // Never let telemetry plumbing break a read.
+  }
+  // recordPrediction/resolvePrediction invalidate synchronously at CALL time, but
+  // the write itself is offline-queued (supabaseWrite) and lands on the server
+  // LATER, during a flush. A read issued in that window re-queries, misses the
+  // not-yet-landed row, and pins that pre-write snapshot for the whole TTL. So
+  // ALSO invalidate when brain_predictions writes actually flush, closing that
+  // window: the next read after the flush re-queries the now-current rows.
+  try {
+    onQueueFlushed((tables) => {
+      if (tables.has('brain_predictions')) readCache.clear();
+    });
+  } catch {
+    // Registry failure must never break a read.
   }
 }
 
@@ -128,9 +141,19 @@ export async function fetchOpenPredictions(
       return [];
     }
   });
-  // Hand every caller its own array. The cached one is shared across five
-  // consumers and at least one of them sorts its result — an in-place sort on
-  // a shared array would silently reorder someone else's data.
+  // Hand every caller its own array reference, not the one the cache holds.
+  // Verified 2026-08: none of the five current consumers (useAutonomy,
+  // useBrainGrading, useMorningBrief, oneMind/factBlocks, profit-leak-history)
+  // sorts, reverses or otherwise mutates THIS array — profit-leak-history sorts
+  // a fresh `.map(buildLeakRow)` array, not this one — so this .slice() is
+  // defensive, not load-bearing today: it stops a FUTURE consumer that does an
+  // in-place `.sort()`/`.reverse()`/`.push()` from silently reordering the
+  // shared cached array under the other four.
+  //
+  // NB: .slice() is a SHALLOW copy — the row OBJECTS are still shared across all
+  // consumers. That is safe only because no consumer mutates a row object in
+  // place (they read fields, filter into new arrays, reduce, or dedupe). If a
+  // consumer ever needs to mutate a row, it must clone the row, not rely on this.
   return rows.slice();
 }
 

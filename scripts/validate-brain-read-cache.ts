@@ -116,24 +116,61 @@ async function main() {
   }
 
   // ── 6. A clear() racing an in-flight load must not resurrect stale data ─
-  // recordPrediction/resolvePrediction clear synchronously; a read that was
-  // already in flight when the write happened describes the PRE-write world
-  // and must not be written back into the cache.
+  // recordPrediction/resolvePrediction (and an auth/tenant change) clear
+  // synchronously. The DANGEROUS ordering — the one that leaks the previous
+  // tenant's RLS-scoped rows — is: a load is in flight, clear() happens, and a
+  // SECOND get is issued WHILE THE PRE-CLEAR LOAD IS STILL PENDING. If clear()
+  // left the in-flight entry joinable, that second get would join the pre-clear
+  // load and be handed pre-clear rows.
+  //
+  // The earlier version of this test resolved the deferred and AWAITED it before
+  // the second get, so the pre-clear load had already settled and been evicted —
+  // a guaranteed miss that never exercised the join window. This version issues
+  // the second get with the pre-clear load STILL in flight, then resolves the
+  // pre-clear load LAST, and asserts the second reader never saw its rows.
   {
     const clock = makeClock();
     const cache = createAsyncCache<string[]>({ ttlMs: 30_000, now: clock.now });
-    const d = deferred<string[]>();
+    const preClear = deferred<string[]>();
     let calls = 0;
-    const slow = () => { calls++; return d.promise; };
-    const fast = async () => { calls++; return ['post-write']; };
+    const slow = () => { calls++; return preClear.promise; };
+    const fast = async () => { calls++; return ['post-clear']; };
 
-    const inflight = cache.get('k', slow);
-    cache.clear();                 // a write lands mid-flight
-    d.resolve(['pre-write']);
-    assert((await inflight)[0] === 'pre-write', 'the in-flight caller still gets its own result');
-    const next = await cache.get('k', fast);
-    assert(next[0] === 'post-write', 'a read after the write is NOT served the pre-write snapshot');
-    assert(calls === 2, 'the post-clear read actually hit the loader');
+    const inflight = cache.get('k', slow); // pre-clear load starts
+    cache.clear();                         // write / auth change lands mid-flight
+    const next = cache.get('k', fast);     // ← issued while pre-clear load STILL pending
+    preClear.resolve(['pre-clear']);       // pre-clear load settles LAST
+
+    assert((await inflight)[0] === 'pre-clear', 'the in-flight caller still gets its own result');
+    assert((await next)[0] === 'post-clear', 'a get issued after clear() is NOT joined to the still-pending pre-clear load');
+    assert(calls === 2, 'the post-clear get started a fresh load rather than joining the pre-clear one');
+  }
+
+  // ── 6b. A stale (pre-clear) load settling late must not evict the NEWER
+  // in-flight entry that now owns the key ────────────────────────────────
+  // With a naive inFlight.clear()+delete-on-settle, the stale load's .then would
+  // delete the fresh entry, un-deduping every subsequent joiner. The settle path
+  // must only evict its OWN entry (identity check).
+  {
+    const clock = makeClock();
+    const cache = createAsyncCache<string[]>({ ttlMs: 30_000, now: clock.now });
+    const staleD = deferred<string[]>();
+    const freshD = deferred<string[]>();
+    let calls = 0;
+    const stale = () => { calls++; return staleD.promise; };
+    const fresh = () => { calls++; return freshD.promise; };
+
+    const a = cache.get('k', stale); // gen 0 load
+    cache.clear();                   // gen -> 1, in-flight dropped
+    const b = cache.get('k', fresh); // gen 1 load now owns 'k'
+    staleD.resolve(['stale']);       // stale load settles — must NOT evict b's entry
+    await a;
+    // A joiner issued while b is still pending must JOIN b, not start a 3rd load.
+    const c = cache.get('k', () => { calls++; throw new Error('must join b, not start a new load'); });
+    freshD.resolve(['newest']);
+    assert((await b)[0] === 'newest', 'the newer in-flight load resolves to its own value');
+    assert((await c)[0] === 'newest', 'a joiner after the stale settle still joined the NEWER entry');
+    assert(calls === 2, `stale settle did not evict the newer entry (saw ${calls} loads, expected 2)`);
   }
 
   // ── 7. Failures are never cached ───────────────────────────────────────

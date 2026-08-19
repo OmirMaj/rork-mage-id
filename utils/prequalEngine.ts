@@ -51,14 +51,47 @@ function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+/**
+ * Same corruption class as the array fields, one level up: `packet.safety`,
+ * `.insurance`, `.financials` and `.criteria` are typed non-optional objects but
+ * arrive from user-authored JSON, so any of them can be missing, null, or a
+ * primitive. `packet.safety.emr3yr` on a null `safety` threw
+ * "undefined is not an object (evaluating 'packet.safety.emr3yr')" — the closest
+ * corruption to the reported crash. `?? {}` gives an empty object whose fields
+ * all read as undefined, which every downstream check already treats as "not on
+ * file" (missingFields collects them, the packet degrades to needs_info — it is
+ * never silently approved; test 6 in the validator pins that). A non-object
+ * (number/string) is also coerced to {} so a `.<sub>` access can't throw. */
+function asObject<T>(value: unknown): Partial<T> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Partial<T>)
+    : {};
+}
+
 export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult {
-  const c: PrequalCriteria = packet.criteria;
+  const rawCriteria = asObject<PrequalCriteria>(packet.criteria);
+  // The numeric criteria are read straight into `.toLocaleString()` / `.toFixed()`
+  // in the finding labels, so a missing `criteria` (or a criteria object with a
+  // missing/non-numeric threshold) must default to a concrete number or those
+  // format calls throw. `0` means "no minimum" — the same as an unset threshold —
+  // which is the safe, non-inventive default when the GC hasn't set a bar.
+  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const c: PrequalCriteria = {
+    ...rawCriteria,
+    minCglPerOccurrence: num(rawCriteria.minCglPerOccurrence),
+    minCglAggregate: num(rawCriteria.minCglAggregate),
+    maxEmr: num(rawCriteria.maxEmr),
+    minYearsInBusiness: num(rawCriteria.minYearsInBusiness),
+  } as PrequalCriteria;
+  const safety = asObject<PrequalPacket['safety']>(packet.safety);
+  const financials = asObject<PrequalPacket['financials']>(packet.financials);
+  const insurance = asObject<PrequalPacket['insurance']>(packet.insurance);
   const findings: PrequalFinding[] = [];
   const missingFields: string[] = [];
   const today = new Date().toISOString().slice(0, 10);
 
   // ─── Insurance ────────────────────────────────────────────────
-  const cglOcc = packet.insurance.cglPerOccurrence ?? 0;
+  const cglOcc = insurance.cglPerOccurrence ?? 0;
   findings.push({
     criterion: 'cgl_per_occurrence',
     label: `CGL per occurrence ≥ $${c.minCglPerOccurrence.toLocaleString()}`,
@@ -68,7 +101,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   });
   if (cglOcc === 0) missingFields.push('CGL per-occurrence limit');
 
-  const cglAgg = packet.insurance.cglAggregate ?? 0;
+  const cglAgg = insurance.cglAggregate ?? 0;
   findings.push({
     criterion: 'cgl_aggregate',
     label: `CGL aggregate ≥ $${c.minCglAggregate.toLocaleString()}`,
@@ -82,38 +115,38 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
     findings.push({
       criterion: 'workers_comp',
       label: 'Workers Comp active',
-      passed: !!packet.insurance.workersCompActive,
-      note: packet.insurance.workersCompCarrier ?? undefined,
+      passed: !!insurance.workersCompActive,
+      note: insurance.workersCompCarrier ?? undefined,
       severity: 'blocker',
     });
-    if (!packet.insurance.workersCompActive) missingFields.push('Workers Comp confirmation');
+    if (!insurance.workersCompActive) missingFields.push('Workers Comp confirmation');
   }
 
   if (c.requireCG2010) {
     findings.push({
       criterion: 'cg_20_10',
       label: 'CG 20 10 (ongoing ops, additional insured)',
-      passed: !!packet.insurance.hasCG2010,
-      note: packet.insurance.hasCG2010 ? 'Attested' : 'Missing endorsement',
+      passed: !!insurance.hasCG2010,
+      note: insurance.hasCG2010 ? 'Attested' : 'Missing endorsement',
       severity: 'blocker',
     });
-    if (!packet.insurance.hasCG2010) missingFields.push('CG 20 10 endorsement');
+    if (!insurance.hasCG2010) missingFields.push('CG 20 10 endorsement');
   }
 
   if (c.requireCG2037) {
     findings.push({
       criterion: 'cg_20_37',
       label: 'CG 20 37 (completed ops, additional insured)',
-      passed: !!packet.insurance.hasCG2037,
-      note: packet.insurance.hasCG2037 ? 'Attested' : 'Missing endorsement',
+      passed: !!insurance.hasCG2037,
+      note: insurance.hasCG2037 ? 'Attested' : 'Missing endorsement',
       severity: 'blocker',
     });
-    if (!packet.insurance.hasCG2037) missingFields.push('CG 20 37 endorsement');
+    if (!insurance.hasCG2037) missingFields.push('CG 20 37 endorsement');
   }
 
   // COI expiry — fail if expired, warn if within 30 days.
-  if (packet.insurance.coiExpiry) {
-    const days = daysBetween(packet.insurance.coiExpiry, today);
+  if (insurance.coiExpiry) {
+    const days = daysBetween(insurance.coiExpiry, today);
     if (days < 0) {
       findings.push({
         criterion: 'coi_expiry',
@@ -135,7 +168,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
         criterion: 'coi_expiry',
         label: 'COI valid',
         passed: true,
-        note: `Expires ${packet.insurance.coiExpiry}`,
+        note: `Expires ${insurance.coiExpiry}`,
         severity: 'advisory',
       });
     }
@@ -162,7 +195,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   }
 
   if (c.minYearsInBusiness > 0) {
-    const years = packet.financials.yearsInBusiness ?? 0;
+    const years = financials.yearsInBusiness ?? 0;
     findings.push({
       criterion: 'years_in_business',
       label: `${c.minYearsInBusiness}+ years in business`,
@@ -175,7 +208,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
 
   // ─── Safety ───────────────────────────────────────────────────
   if (c.maxEmr < 2.0) {
-    const emrs = asArray<number | undefined>(packet.safety.emr3yr);
+    const emrs = asArray<number | undefined>(safety.emr3yr);
     const latest = emrs.find(v => typeof v === 'number' && Number.isFinite(v));
     if (typeof latest === 'number') {
       findings.push({
@@ -191,7 +224,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   findings.push({
     criterion: 'written_safety_program',
     label: 'Written safety program',
-    passed: !!packet.safety.writtenSafetyProgram,
+    passed: !!safety.writtenSafetyProgram,
     severity: 'advisory',
   });
 

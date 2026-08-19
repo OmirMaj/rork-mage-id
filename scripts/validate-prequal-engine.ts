@@ -119,6 +119,56 @@ for (const [label, value] of [
   }
 }
 
+// ── 3b. A whole packet SUBOBJECT is missing / null / a primitive ─────────
+// The reported crash class one level up: `packet.safety.emr3yr` on a null
+// `safety` threw "undefined is not an object". safety:null is the closest
+// corruption to the report. Every top-level subobject must degrade, not throw.
+for (const field of ['safety', 'financials', 'insurance', 'criteria'] as const) {
+  for (const [label, value] of [
+    ['missing', undefined],
+    ['null', null],
+    ['a primitive', 7],
+    ['a string', 'nope'],
+  ] as const) {
+    // Build a packet then blow away one subobject.
+    const p = makePacket();
+    (p as any)[field] = value;
+    survives(`packet.${field} = ${label} does not throw`, p as PrequalPacket);
+  }
+}
+
+// safety:null specifically must skip the EMR check rather than inventing one.
+const nullSafety = makePacket();
+(nullSafety as any).safety = null;
+const nullSafetyResult = survives('safety:null (closest to the reported crash) does not throw', nullSafety);
+if (nullSafetyResult) {
+  assert(!nullSafetyResult.findings.some(f => f.criterion === 'emr'),
+    'safety:null → EMR check skipped, not invented');
+  assert(nullSafetyResult.findings.some(f => f.criterion === 'written_safety_program' && !f.passed),
+    'safety:null → written safety program reads as not-on-file (advisory, not a throw)');
+}
+
+// criteria missing must not throw on the `.toLocaleString()` / `.toFixed()` in
+// the finding labels (undefined thresholds default to 0 = no minimum).
+const noCriteria = makePacket();
+delete (noCriteria as any).criteria;
+const noCriteriaResult = survives('packet.criteria missing does not throw on label formatting', noCriteria);
+if (noCriteriaResult) {
+  assert(noCriteriaResult.findings.some(f => f.criterion === 'cgl_per_occurrence'),
+    'a missing criteria still produces the CGL finding (threshold defaults to 0)');
+}
+
+// insurance missing must still record the COI-missing blocker rather than throw.
+const noInsurance = makePacket();
+delete (noInsurance as any).insurance;
+const noInsuranceResult = survives('packet.insurance missing does not throw', noInsurance);
+if (noInsuranceResult) {
+  assert(noInsuranceResult.missingFields.includes('COI expiry date'),
+    'insurance missing → COI expiry recorded as missing, not swallowed');
+  assert(noInsuranceResult.overall !== 'pass',
+    'insurance missing does not silently auto-approve');
+}
+
 // ── 4. A malformed packet must not silently become an approval ───────────
 // Degrading to "nothing on file" is only safe because the blockers are judged
 // on their own fields — prove a genuinely failing packet still fails even with
