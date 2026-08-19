@@ -1239,7 +1239,7 @@ export default function EstimateScreen() {
             </View>
             <View style={styles.priceDivider} />
             <View style={styles.priceBlock}>
-              <Text style={[styles.priceLabel, { color: themeColors.success }]}>Bulk</Text>
+              <Text style={[styles.priceLabel, { color: themeColors.successLabel }]}>Bulk</Text>
               <Text style={styles.bulkPrice}>${item.baseBulkPrice.toFixed(2)}</Text>
               <Text style={styles.priceUnit}>/{item.unit}</Text>
             </View>
@@ -2984,7 +2984,7 @@ export default function EstimateScreen() {
                     <Text style={styles.popupPriceUnit}>/{selectedMaterial.unit}</Text>
                   </View>
                   <View style={styles.popupPriceBlock}>
-                    <Text style={[styles.popupPriceLabel, { color: themeColors.success }]}>Bulk</Text>
+                    <Text style={[styles.popupPriceLabel, { color: themeColors.successLabel }]}>Bulk</Text>
                     <Text style={styles.popupBulk}>${selectedMaterial.baseBulkPrice.toFixed(2)}</Text>
                     <Text style={styles.popupPriceUnit}>/{selectedMaterial.unit}</Text>
                   </View>
@@ -4461,7 +4461,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   bulkPrice: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: themeColors.success,
+    // The deal price is the row's headline figure, so it uses the deeper
+    // successLabel (6.1:1 on the priceRow bg vs success's 4.8:1) — money should
+    // be the MOST legible thing on an estimator row, not merely AA-passing.
+    color: themeColors.successLabel,
     letterSpacing: -0.3,
   },
   priceUnit: {
