@@ -116,6 +116,22 @@ console.log('\nthe punch list renders a formatted due date:');
     (punch.match(/.*Due: \{item\.dueDate\}.*/g) ?? []).join('\n       '));
 }
 
+console.log('\nthe same off-by-one is fixed on the other calendar-day surfaces:');
+{
+  const safety = read('app/safety-hazards.tsx');
+  ok('safety-hazards imports formatCalendarDay',
+    /import \{ formatCalendarDay \} from '@\/utils\/calendarDate'/.test(safety));
+  ok('safety-hazards due meta formats the calendar day, not the raw field',
+    /due \$\{formatCalendarDay\(item\.dueDate\)\}/.test(safety) && !/due \$\{item\.dueDate\}/.test(safety),
+    (safety.match(/.*due \$\{item\.dueDate\}.*/g) ?? []).join('\n       '));
+
+  const pipe = read('components/StatusPipeline.tsx');
+  ok('StatusPipeline imports parseCalendarDay',
+    /import \{ parseCalendarDay \} from '@\/utils\/calendarDate'/.test(pipe));
+  ok('StatusPipeline.daysUntil resolves the due day via parseCalendarDay before falling back to Date.parse',
+    /const day = parseCalendarDay\(iso\)/.test(pipe) && /day \? day\.getTime\(\) : Date\.parse\(iso\)/.test(pipe));
+}
+
 // ── 5. The filter rail can share its row with the More-filters button ────
 // Yoga's DefaultFlexShrink is 0.0f on native (Style.h), so a horizontal
 // ScrollView sized from its own content cannot give width back to a sibling —

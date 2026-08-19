@@ -1886,7 +1886,7 @@ export default function EstimateScreen() {
           <View style={styles.opportunityGrid}>
             {opportunities.map(item => {
               const IconComp = item.icon;
-              const toneColor = item.tone === 'positive' ? themeColors.success : item.tone === 'warning' ? themeColors.warningLabel : themeColors.info;
+              const toneColor = item.tone === 'positive' ? themeColors.successLabel : item.tone === 'warning' ? themeColors.warningLabel : themeColors.info;
               const toneBg = item.tone === 'positive' ? themeColors.successSoft : item.tone === 'warning' ? themeColors.warningSoft : themeColors.info + '1F';
               return (
                 <View key={item.id} style={[styles.opportunityCard, { backgroundColor: toneBg }]}>
@@ -3055,7 +3055,7 @@ export default function EstimateScreen() {
                         </Text>
                         <Text style={[
                           styles.popupBreakdownValue,
-                          { color: regionDelta >= 0 ? themeColors.warningLabel : themeColors.success },
+                          { color: regionDelta >= 0 ? themeColors.warningLabel : themeColors.successLabel },
                         ]}>
                           {regionDelta >= 0 ? '+' : '−'}${Math.abs(regionDelta).toFixed(2)}
                         </Text>
@@ -3067,16 +3067,16 @@ export default function EstimateScreen() {
                         </Text>
                       </View>
                       <View style={styles.popupBreakdownRow}>
-                        <Text style={[styles.popupBreakdownLabel, { color: themeColors.success }]}>
+                        <Text style={[styles.popupBreakdownLabel, { color: themeColors.successLabel }]}>
                           Bulk @ {selectedMaterial.bulkMinQty}+ ({bulkPct.toFixed(0)}% off)
                         </Text>
-                        <Text style={[styles.popupBreakdownValue, { color: themeColors.success }]}>
+                        <Text style={[styles.popupBreakdownValue, { color: themeColors.successLabel }]}>
                           ${selectedMaterial.baseBulkPrice.toFixed(2)}
                         </Text>
                       </View>
                       <View style={styles.popupBreakdownRow}>
                         <Text style={styles.popupBreakdownLabel}>You save / unit</Text>
-                        <Text style={[styles.popupBreakdownValue, { color: themeColors.success }]}>
+                        <Text style={[styles.popupBreakdownValue, { color: themeColors.successLabel }]}>
                           ${bulkSavings.toFixed(2)}
                         </Text>
                       </View>
