@@ -1077,7 +1077,7 @@ export default function ProjectDetailScreen() {
   const handleDelete = useCallback(() => {
     showAlert(
       'Delete Project',
-      'Are you sure you want to delete this project? This cannot be undone.',
+      'Delete this project and everything in it? This permanently removes the project along with all of its invoices, change orders, daily reports, punch items, photos, RFIs, submittals, permits, COIs, warranties, OAC meetings, and field tickets. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {

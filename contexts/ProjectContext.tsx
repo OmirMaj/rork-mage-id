@@ -1849,13 +1849,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }
   }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
 
-  const deleteProject = useCallback((id: string) => {
-    const toDelete = projects.find(p => p.id === id);
-    const updated = projects.filter(p => p.id !== id);
-    setProjects(updated);
-    saveProjectsMutation.mutate(updated);
-    if (toDelete) syncProjectToSupabase(toDelete, 'delete');
-  }, [projects, saveProjectsMutation, syncProjectToSupabase]);
+  // deleteProject is defined further down (just before the bucket memos) so it
+  // can reference every project-scoped collection's persist fn / mutation for a
+  // full local cascade. Those persist helpers (persistWarranties, persistPlan*,
+  // persistPermitRoadmaps, persistPortalMessages) are declared later in this
+  // component body, so defining the cascade here would hit their temporal dead
+  // zone in the dependency array. See the `deleteProject` below.
 
   const getProject = useCallback((id: string) => projects.find(p => p.id === id) ?? null, [projects]);
 
@@ -4529,6 +4528,154 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const deletePermitRoadmap = useCallback((id: string) => {
     persistPermitRoadmaps(permitRoadmaps.filter((r) => r.id !== id));
   }, [permitRoadmaps, persistPermitRoadmaps]);
+
+  // Deleting a project CASCADES: the project row AND every project-scoped child
+  // record across every collection are removed. Without this, deleting a project
+  // orphaned every child on disk — a privacy/storage leak, and on web
+  // AsyncStorage is shared per-origin localStorage. Kept next to the persist
+  // helpers so each collection is torn down through its OWN persistence path
+  // (mutation or persistX), never a raw setState that skips the write.
+  //
+  // Scope rules:
+  //  - COIs: CertificateOfInsurance.projectId is OPTIONAL. A null/undefined
+  //    projectId is the sub's blanket cert on file — keep it. Only project-
+  //    specific COIs (projectId === id) are removed.
+  //  - Equipment / Subcontractors / contacts / leads / priceAlerts / commEvents
+  //    are company-global, NOT project-scoped, so they are intentionally NOT
+  //    cascaded. (Equipment.currentProjectId is a soft assignment, not
+  //    ownership — the asset survives the project.)
+  //  - plan sub-collections (drawingPins/planZones/planReviews/planMarkups/
+  //    planCalibrations) each carry a `projectId` of their own, so they can be
+  //    filtered directly; we also clear the parent planSheets in the same pass.
+  //
+  // Server side: syncProjectToSupabase(toDelete, 'delete') issues the parent
+  // row delete only; child tables are expected to clean up via ON DELETE
+  // CASCADE foreign keys (same contract deletePlanSheet already relies on).
+  const deleteProject = useCallback((id: string) => {
+    const toDelete = projects.find(p => p.id === id);
+
+    // 1) Remove the project row.
+    const updatedProjects = projects.filter(p => p.id !== id);
+    setProjects(updatedProjects);
+    saveProjectsMutation.mutate(updatedProjects);
+
+    // 2) Cascade every project-scoped child collection through its own
+    //    persistence mechanism. Each block: filter out this project's records,
+    //    set state, persist. Only touch a collection if it actually shrank, so
+    //    we don't churn AsyncStorage / query cache for projects with no data of
+    //    that kind.
+    const cascadeMutation = <T extends { projectId?: string }>(
+      list: T[],
+      setState: (next: T[]) => void,
+      mutation: { mutate: (next: T[]) => void },
+    ) => {
+      const next = list.filter(r => r.projectId !== id);
+      if (next.length === list.length) return;
+      setState(next);
+      mutation.mutate(next);
+    };
+    const cascadePersist = <T extends { projectId?: string }>(
+      list: T[],
+      persist: (next: T[]) => void,
+    ) => {
+      const next = list.filter(r => r.projectId !== id);
+      if (next.length === list.length) return;
+      persist(next);
+    };
+
+    // --- collections persisted via saveXMutation (state setter + mutation) ---
+    cascadeMutation(changeOrders, setChangeOrders, saveChangeOrdersMutation);
+    cascadeMutation(invoices, setInvoices, saveInvoicesMutation);
+    cascadeMutation(commitments, setCommitments, saveCommitmentsMutation);
+    cascadeMutation(dailyReports, setDailyReports, saveDailyReportsMutation);
+    cascadeMutation(fieldTickets, setFieldTickets, saveFieldTicketsMutation);
+    cascadeMutation(delayEvents, setDelayEvents, saveDelayEventsMutation);
+    cascadeMutation(punchItems, setPunchItems, savePunchItemsMutation);
+    cascadeMutation(projectPhotos, setProjectPhotos, savePhotosMutation);
+    cascadeMutation(rfis, setRfis, saveRfisMutation);
+    cascadeMutation(submittals, setSubmittals, saveSubmittalsMutation);
+    cascadeMutation(oacMeetings, setOacMeetings, saveOACMeetingsMutation);
+    cascadeMutation(permits, setPermits, savePermitsMutation);
+    cascadeMutation(aiaPayApps, setAiaPayApps, saveAiaPayAppsMutation);
+    cascadeMutation(subPortalLinks, setSubPortalLinks, saveSubPortalLinksMutation);
+    // commEvents are project-scoped (CommunicationEvent.projectId is required and
+    // getCommEventsForProject filters on it), so they cascade like the rest.
+    cascadeMutation(commEvents, setCommEvents, saveCommEventsMutation);
+
+    // COIs: keep blanket certs (projectId undefined/null) and other projects'
+    // certs — only drop this project's project-specific COIs.
+    {
+      const nextCois = cois.filter(c => c.projectId !== id);
+      if (nextCois.length !== cois.length) {
+        setCois(nextCois);
+        saveCOIsMutation.mutate(nextCois);
+      }
+    }
+
+    // Bid packages + their dependent bids. Bids key off packageId, so first
+    // collect the doomed package ids for this project, then drop both.
+    {
+      const nextPackages = bidPackages.filter(p => p.projectId !== id);
+      if (nextPackages.length !== bidPackages.length) {
+        const doomedPackageIds = new Set(
+          bidPackages.filter(p => p.projectId === id).map(p => p.id),
+        );
+        setBidPackages(nextPackages);
+        saveBidPackagesMutation.mutate(nextPackages);
+        const nextBids = bidPackageBids.filter(b => !doomedPackageIds.has(b.packageId));
+        if (nextBids.length !== bidPackageBids.length) {
+          setBidPackageBids(nextBids);
+          saveBidPackageBidsMutation.mutate(nextBids);
+        }
+      }
+    }
+
+    // --- collections persisted via a persistX helper (does its own setState) ---
+    cascadePersist(warranties, persistWarranties);
+    cascadePersist(portalMessages, persistPortalMessages);
+    cascadePersist(permitRoadmaps, persistPermitRoadmaps);
+
+    // Plan collections: parent sheets + every sheet-linked sub-collection. Each
+    // sub-collection carries its own projectId, so filter directly.
+    cascadePersist(planSheets, persistPlanSheets);
+    cascadePersist(drawingPins, persistDrawingPins);
+    cascadePersist(planZones, persistPlanZones);
+    cascadePersist(planReviews, persistPlanReviews);
+    cascadePersist(planMarkups, persistPlanMarkups);
+    cascadePersist(planCalibrations, persistPlanCalibrations);
+
+    // 3) Server: parent delete (children fall to FK cascade — see note above).
+    if (toDelete) syncProjectToSupabase(toDelete, 'delete');
+  }, [
+    projects, saveProjectsMutation, syncProjectToSupabase,
+    changeOrders, saveChangeOrdersMutation,
+    invoices, saveInvoicesMutation,
+    commitments, saveCommitmentsMutation,
+    dailyReports, saveDailyReportsMutation,
+    fieldTickets, saveFieldTicketsMutation,
+    delayEvents, saveDelayEventsMutation,
+    punchItems, savePunchItemsMutation,
+    projectPhotos, savePhotosMutation,
+    rfis, saveRfisMutation,
+    submittals, saveSubmittalsMutation,
+    oacMeetings, saveOACMeetingsMutation,
+    permits, savePermitsMutation,
+    aiaPayApps, saveAiaPayAppsMutation,
+    subPortalLinks, saveSubPortalLinksMutation,
+    commEvents, saveCommEventsMutation,
+    cois, saveCOIsMutation,
+    bidPackages, saveBidPackagesMutation,
+    bidPackageBids, saveBidPackageBidsMutation,
+    warranties, persistWarranties,
+    portalMessages, persistPortalMessages,
+    permitRoadmaps, persistPermitRoadmaps,
+    planSheets, persistPlanSheets,
+    drawingPins, persistDrawingPins,
+    planZones, persistPlanZones,
+    planReviews, persistPlanReviews,
+    planMarkups, persistPlanMarkups,
+    planCalibrations, persistPlanCalibrations,
+  ]);
 
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
