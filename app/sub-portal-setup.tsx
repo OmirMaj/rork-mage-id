@@ -767,7 +767,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   invCtaApprove: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 11, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   invCtaReject: {
     paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6,

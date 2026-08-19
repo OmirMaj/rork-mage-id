@@ -1282,7 +1282,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   footerBtn: { flex: 1 },
   primaryBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 6, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14,
+    gap: 6, backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14,
   },
   primaryBtnDisabled: { opacity: 0.5 },
   primaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF' },

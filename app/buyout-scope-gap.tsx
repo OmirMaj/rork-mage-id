@@ -334,7 +334,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   aiError: { fontSize: Type.footnote.fontSize, color: t.danger, marginBottom: 10 },
   aiBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 14,
+    gap: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 14,
   },
   aiBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
   aiItem: { gap: 3 },

@@ -380,7 +380,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 14, paddingHorizontal: 20,
+    backgroundColor: t.accentFill, paddingVertical: 14, paddingHorizontal: 20,
     borderRadius: Tokens.radius.card, marginTop: 6, alignSelf: 'stretch',
   },
   primaryBtnText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: Type.subhead.fontSize },
@@ -427,6 +427,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: t.surfaceAlt,
   },
-  barBtnPrimary: { backgroundColor: t.accent },
-  barBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
+  barBtnPrimary: { backgroundColor: t.accentFill },
+  barBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accentLabel },
 });

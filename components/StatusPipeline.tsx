@@ -345,7 +345,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   advanceBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: t.accent,
+    // Orange TEXT at caption size on the soft accent+'14' tint: brand accent
+    // #FF6A1A is only 2.87:1 on white. accentLabel (#B23E08 light / #FF6A1A
+    // dark) clears 4.5:1 here — 5.38 on surface, 5.10 on bg, 4.76 on surfaceAlt.
+    color: t.accentLabel,
     letterSpacing: 0.1,
   },
 });
