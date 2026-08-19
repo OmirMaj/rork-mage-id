@@ -12,8 +12,20 @@
 // G12: mageid_autonomy_gate_state is registered in LOCAL_USER_CACHE_KEYS (F0 AuthContext edit).
 // G13: demotion is LOUD in receipts (didForYou line) but silent in behavior (falls
 //      back to suggest). Promotion also gets a line.
+//
+// SHARED, NOT PER-CONSUMER (2026-08): this used to be a plain hook. Three
+// screens call it — app/notifications-settings.tsx, app/schedule-review.tsx and
+// hooks/useLeakCoDrafts.ts — so every consumer ran the whole load
+// independently: its own profiles select, its own resolved-predictions read,
+// and, worse, its own copy of the transition detector. Two consumers mounted
+// together meant the demotion/promotion receipt was written TWICE and both
+// raced to overwrite mageid_autonomy_gate_state. It is now a context
+// (createContextHook, same shape as every contexts/* provider) mounted once in
+// app/_layout.tsx, so the load and the receipt happen exactly once per session.
+// The hook name and return type are unchanged — consumers did not have to move.
 
 import { useEffect, useCallback, useState, useMemo, useRef } from 'react';
+import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -66,7 +78,19 @@ export interface UseAutonomyResult {
   loading: boolean;
 }
 
-export function useAutonomy(): UseAutonomyResult {
+/** Value served when `useAutonomy` is called outside AutonomyProvider. Gates
+ *  closed, prefs empty, setPref a no-op — the same shape the real provider
+ *  reports before its first load resolves, so a mis-mounted consumer degrades
+ *  to "ask first" rather than crashing or silently acting autonomously. */
+const AUTONOMY_FALLBACK: UseAutonomyResult = {
+  paceTradeGates: new Map(),
+  leakGate: { n: 0, billedRate: 0, passed: false },
+  prefs: {},
+  setPref: () => {},
+  loading: false,
+};
+
+export const [AutonomyProvider, useAutonomy] = createContextHook<UseAutonomyResult>(() => {
   const { user } = useAuth();
 
   const [paceTradeGates, setPaceTradeGates] = useState<Map<string, TradeGateResult>>(new Map());
@@ -191,4 +215,4 @@ export function useAutonomy(): UseAutonomyResult {
     () => ({ paceTradeGates, leakGate, prefs, setPref, loading }),
     [paceTradeGates, leakGate, prefs, setPref, loading],
   );
-}
+}, AUTONOMY_FALLBACK);

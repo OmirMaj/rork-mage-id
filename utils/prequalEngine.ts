@@ -10,7 +10,7 @@
 // 'needs_changes' with a pointer to the missing field — the sub doesn't
 // get stuck, they get a clear checklist.
 
-import type { PrequalPacket, PrequalCriteria } from '@/types';
+import type { PrequalPacket, PrequalCriteria, PrequalLicense } from '@/types';
 
 export interface PrequalFinding {
   criterion: string;
@@ -33,6 +33,22 @@ export interface PrequalReviewResult {
 
 function daysBetween(a: string, b: string): number {
   return Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86_400_000);
+}
+
+/**
+ * Packets are user-authored JSON round-tripped through Supabase/AsyncStorage,
+ * so a field the TYPE says is an array can arrive as an object, a bare number
+ * or a JSON string. `?? []` only guards null/undefined — a non-array sails
+ * through and blows up on `.find` / `.filter` / `.length`.
+ *
+ * app/prequal-manager.tsx has no route-level error boundary; the only one in
+ * the tree wraps the whole app, so a single malformed packet used to blank the
+ * entire screen. An empty array is the state this engine already handles
+ * correctly for "nothing on file", so it is a safe — not silently wrong —
+ * default here.
+ */
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
 }
 
 export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult {
@@ -159,8 +175,8 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
 
   // ─── Safety ───────────────────────────────────────────────────
   if (c.maxEmr < 2.0) {
-    const emrs = packet.safety.emr3yr ?? [];
-    const latest = emrs.find(v => v !== undefined);
+    const emrs = asArray<number | undefined>(packet.safety.emr3yr);
+    const latest = emrs.find(v => typeof v === 'number' && Number.isFinite(v));
     if (typeof latest === 'number') {
       findings.push({
         criterion: 'emr',
@@ -182,7 +198,10 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   // ─── License ──────────────────────────────────────────────────
   // We don't require a license for every trade (e.g. painting in many
   // states), but if one is present it must not be expired.
-  const expiredLicenses = packet.licenses.filter(l => l.expiresAt && daysBetween(l.expiresAt, today) < 0);
+  // Same non-array hazard as emr3yr above: `packet.licenses` is typed
+  // non-optional but arrives from JSON, and `.filter` on a bare object threw.
+  const licenses = asArray<PrequalLicense>(packet.licenses);
+  const expiredLicenses = licenses.filter(l => l?.expiresAt && daysBetween(l.expiresAt, today) < 0);
   if (expiredLicenses.length > 0) {
     findings.push({
       criterion: 'license_expired',
@@ -191,12 +210,12 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
       note: `${expiredLicenses.length} expired (${expiredLicenses.map(l => l.state).join(', ')})`,
       severity: 'blocker',
     });
-  } else if (packet.licenses.length > 0) {
+  } else if (licenses.length > 0) {
     findings.push({
       criterion: 'license_current',
       label: 'Licenses current',
       passed: true,
-      note: `${packet.licenses.length} on file`,
+      note: `${licenses.length} on file`,
       severity: 'advisory',
     });
   }
