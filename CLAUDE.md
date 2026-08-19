@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **New session? Read `docs/START-HERE.md` FIRST** — session state, the
+> operational gotchas that cost hours (worktree test harness, port 8081, Fast
+> Refresh, theme token names), what is blocked on the founder, and the lesson
+> this codebase keeps teaching: documents lie, code doesn't.
+>
 > **New session? Read `docs/PRODUCT-BIBLE.md` first** — the full picture of what MAGE ID is, who it's for, why it beats competitors, the cost-learning moat, the feature map, the three surfaces, and architecture/security. This CLAUDE.md is the build/command reference; the bible is the product/strategy reference.
 
 ## Project
