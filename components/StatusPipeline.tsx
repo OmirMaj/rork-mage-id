@@ -20,7 +20,7 @@
 // ============================================================================
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { ChevronRight, Clock, CheckCircle2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
@@ -114,14 +114,24 @@ export function StatusPipeline<S extends string>({
 
   return (
     <View style={styles.root}>
-      <View style={styles.pipelineRow}>
+      {/* Horizontally scrollable, not a fixed row. The stages carry the only
+          text in this component and they must never be the thing that gives
+          way: `contentContainerStyle` grows to fill the width when everything
+          fits (so short pipelines look exactly as before), and overflows into
+          a scroll when it does not. See `stage` / `connector` below. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        alwaysBounceHorizontal={false}
+        contentContainerStyle={styles.pipelineRow}
+      >
         {stages.map((stage, i) => {
           const isPast = i < currentIdx;
           const isCurrent = i === currentIdx;
           const isFuture = i > currentIdx;
           return (
             <React.Fragment key={stage.key}>
-              <View style={styles.stage}>
+              <View style={styles.stage} testID={`pipeline-stage-${stage.key}`}>
                 <View style={[
                   styles.dot,
                   isPast && styles.dotPast,
@@ -139,15 +149,15 @@ export function StatusPipeline<S extends string>({
                 </Text>
               </View>
               {i < stages.length - 1 ? (
-                <View style={[
-                  styles.connector,
-                  isPast && styles.connectorPast,
-                ]} />
+                <View
+                  style={[styles.connector, isPast && styles.connectorPast]}
+                  testID={`pipeline-connector-${stage.key}`}
+                />
               ) : null}
             </React.Fragment>
           );
         })}
-      </View>
+      </ScrollView>
 
       {(inDays !== null || dueDays !== null || nextStage) ? (
         <View style={styles.metaRow}>
@@ -207,17 +217,28 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
   },
+  // contentContainerStyle of the horizontal ScrollView. `flexGrow: 1` makes it
+  // fill the available width when the stages fit, which is what keeps the
+  // connectors looking like long rules on a 2- or 3-stage pipeline.
   pipelineRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexGrow: 1,
   },
+  // `flexShrink: 0` is the fix, and it is deliberate: a stage is sized by its
+  // label and is never compressed. It used to be `flexShrink: 1` next to
+  // `connector: { flex: 1 }` — i.e. flexBasis 0 — so the connectors soaked up
+  // every spare pixel while the stages absorbed 100% of the shortfall down to
+  // a 48px floor, which at Type.caption2 truncated the 5-stage OAC pipeline to
+  // "Schedu… / In Progr… / Conclu… / Distribu…". Now the row overflows into a
+  // scroll instead of eating the words.
   stage: {
     flexDirection: 'column',
     alignItems: 'center',
     gap: 5,
     minWidth: 48,
-    flexShrink: 1,
+    flexShrink: 0,
   },
   dot: {
     width: 18,
@@ -256,8 +277,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   stageLabelFuture: {
     color: t.textMuted,
   },
+  // Takes the leftover width when there is any (flexGrow) and gives up nothing
+  // when there is not (flexShrink 0, floored at flexBasis). The connector is
+  // decoration; it may stretch, it may not squeeze a label.
   connector: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: 12,
+    minWidth: 12,
     height: 2,
     backgroundColor: 'rgba(60,60,67,0.12)',
     marginHorizontal: 2,

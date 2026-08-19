@@ -73,6 +73,36 @@ const SPECIAL_INSPECTION_TYPES: SpecialInspectionCategory[] = [
 ];
 const PERMIT_STATUSES: PermitStatus[] = ['applied', 'under_review', 'approved', 'denied', 'expired', 'inspection_scheduled', 'inspection_passed', 'inspection_failed'];
 
+/**
+ * The drop-down body for every picker on the permit form.
+ *
+ * It exists because `maxHeight` on a plain `<View>` does not mean "scroll
+ * after this" — it means "clip here", and clipped rows are unreachable. The
+ * lists are longer than the box: 8 statuses, 10 permit types, 10 IBC Ch.17
+ * categories, and however many projects the account has. At ~38px a row
+ * (paddingVertical 10 + a 17px line) only ~5.8 rows fit in 220px, so the tail
+ * of every list was untappable — including `inspection_scheduled` /
+ * `inspection_passed` / `inspection_failed`, the three statuses the permit
+ * inspection pipeline exists to drive.
+ *
+ * `maxHeight` is deliberately NOT a whole number of rows: the half-row peeking
+ * out of the bottom edge is the affordance that says there is more below.
+ * Every picker renders through here so a new one cannot re-acquire the bug.
+ */
+function PickerOptions({ children, testID }: { children: React.ReactNode; testID?: string }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <ScrollView
+      style={styles.pickerOptions}
+      nestedScrollEnabled
+      keyboardShouldPersistTaps="handled"
+      testID={testID}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
 function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -690,7 +720,7 @@ function PermitsScreenInner() {
                   <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
                 {pickerOpen === 'project' && (
-                  <View style={styles.pickerOptions}>
+                  <PickerOptions testID="permit-project-options">
                     {projects.length === 0 ? (
                       <Text style={styles.pickerEmpty}>No projects yet — create one first.</Text>
                     ) : projects.map(p => (
@@ -702,7 +732,7 @@ function PermitsScreenInner() {
                         <Text style={[styles.pickerRowText, form.projectId === p.id && styles.pickerRowTextActive]}>{p.name}</Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </PickerOptions>
                 )}
 
                 <Text style={styles.formLabel}>Type</Text>
@@ -711,7 +741,7 @@ function PermitsScreenInner() {
                   <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
                 {pickerOpen === 'type' && (
-                  <View style={styles.pickerOptions}>
+                  <PickerOptions testID="permit-type-options">
                     {PERMIT_TYPES.map(t => (
                       <TouchableOpacity
                         key={t}
@@ -721,7 +751,7 @@ function PermitsScreenInner() {
                         <Text style={[styles.pickerRowText, form.type === t && styles.pickerRowTextActive]}>{PERMIT_TYPE_INFO[t]?.label ?? t}</Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </PickerOptions>
                 )}
 
                 {/* IBC Ch.17 sub-fields — only render when the user
@@ -741,7 +771,7 @@ function PermitsScreenInner() {
                       <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                     {pickerOpen === 'specialCategory' && (
-                      <View style={styles.pickerOptions}>
+                      <PickerOptions testID="permit-special-category-options">
                         {SPECIAL_INSPECTION_TYPES.map(c => (
                           <TouchableOpacity
                             key={c}
@@ -753,7 +783,7 @@ function PermitsScreenInner() {
                             </Text>
                           </TouchableOpacity>
                         ))}
-                      </View>
+                      </PickerOptions>
                     )}
 
                     <Text style={styles.formLabel}>Inspector / agency</Text>
@@ -795,7 +825,7 @@ function PermitsScreenInner() {
                   <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
                 {pickerOpen === 'status' && (
-                  <View style={styles.pickerOptions}>
+                  <PickerOptions testID="permit-status-options">
                     {PERMIT_STATUSES.map(s => (
                       <TouchableOpacity
                         key={s}
@@ -805,7 +835,7 @@ function PermitsScreenInner() {
                         <Text style={[styles.pickerRowText, form.status === s && styles.pickerRowTextActive]}>{PERMIT_STATUS_INFO[s]?.label ?? s}</Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </PickerOptions>
                 )}
 
                 <Text style={styles.formLabel}>Permit Number</Text>
@@ -1244,6 +1274,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   permitSideBranchText: {
     fontSize: Type.caption1.fontSize, color: t.dangerLabel, fontWeight: '700' as const,
   },
+  // maxHeight only bounds the box — the scrolling comes from <PickerOptions>,
+  // which is the ONLY thing this style may be applied to. 220 is ~5.8 rows on
+  // purpose: the clipped row is the "there is more" affordance.
   pickerOptions: { backgroundColor: t.surface, borderRadius: Tokens.radius.md, marginTop: 6, borderWidth: 1, borderColor: t.line, maxHeight: 220 },
   pickerRow: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line + '60' },
   pickerRowActive: { backgroundColor: t.accent + '14' },
