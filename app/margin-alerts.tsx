@@ -135,7 +135,7 @@ function MarginAlertsInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Margin Alerts · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Margin Alerts · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>What changed</Text>
         </View>
         {alerts.length > 0 ? (

@@ -357,7 +357,7 @@ export default function ScheduleReviewScreen() {
             <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Review schedule · MAGE</Text>
+            <Text style={styles.headerEyebrow}>Review schedule · MAGE ID</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>Draft schedule</Text>
           </View>
           <View style={styles.headerBtn} />
@@ -382,7 +382,7 @@ export default function ScheduleReviewScreen() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Review schedule · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Review schedule · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Draft schedule'}</Text>
         </View>
         <View style={styles.headerBtn} />

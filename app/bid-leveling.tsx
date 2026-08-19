@@ -137,7 +137,7 @@ function BidLevelingInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Bid Leveling · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Bid Leveling · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{pkg?.name ?? 'Level bids'}</Text>
         </View>
         <View style={styles.headerBtn} />

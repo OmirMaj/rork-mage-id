@@ -527,7 +527,7 @@ function ChangeOrderInner() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="CHANGE ORDERS · MAGE" title="Change Orders" />
+        <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Orders" />
         <EmptyState
           icon={<MageChangeOrder size={36} color={themeColors.accent} />}
           title="No change order open yet"
@@ -548,7 +548,7 @@ function ChangeOrderInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <ToolHeader
-        eyebrow="CHANGE ORDERS · MAGE"
+        eyebrow="CHANGE ORDERS · MAGE ID"
         title={existingCO ? `CO #${existingCO.number}` : 'New Change Order'}
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

@@ -425,7 +425,7 @@ function CostSeedInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Cost Database · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Cost Database · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Seed your rates</Text>
         </View>
         <View style={styles.headerBtn} />{/* spacer keeps the title optically centred */}

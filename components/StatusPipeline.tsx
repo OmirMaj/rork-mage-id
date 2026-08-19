@@ -29,6 +29,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 export interface PipelineStage<S extends string> {
   /** Internal state value (e.g. 'open', 'answered'). Pass-through to onPress. */
@@ -74,7 +75,15 @@ function daysSince(iso: string): number {
 }
 
 function daysUntil(iso: string): number {
-  const t = Date.parse(iso);
+  // `dueAt` is a calendar day (app/punch-list.tsx passes item.dueDate, a bare
+  // 'YYYY-MM-DD'). Date.parse of a bare date is UTC midnight, so west of
+  // Greenwich the day lands one calendar day early and the overdue/urgent
+  // badge fires a day too soon — the same off-by-one utils/calendarDate.ts
+  // fixes elsewhere. parseCalendarDay lands on LOCAL midnight of that day;
+  // for a full ISO instant it truncates to the date part. Fall back to
+  // Date.parse only when the value is not a recognisable calendar day.
+  const day = parseCalendarDay(iso);
+  const t = day ? day.getTime() : Date.parse(iso);
   if (!Number.isFinite(t)) return 0;
   return Math.floor((t - Date.now()) / 86400000);
 }

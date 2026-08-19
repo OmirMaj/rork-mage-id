@@ -248,7 +248,7 @@ function JudgesInner() {
             <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Bid Advisor · MAGE</Text>
+            <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
             <Text style={styles.headerTitle}>Verdict</Text>
           </View>
           <TouchableOpacity onPress={handleReset} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Judge another">
@@ -278,7 +278,7 @@ function JudgesInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Bid Advisor · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
           <Text style={styles.headerTitle}>Should I bid this?</Text>
         </View>
         <View style={styles.headerBtn} />

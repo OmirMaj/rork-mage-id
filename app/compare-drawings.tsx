@@ -150,7 +150,7 @@ export default function CompareDrawingsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE" title="Find what changed" />
+        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title="Find what changed" />
         <ToolProjectPicker
           toolName="Compare Drawings"
           message="Compare Drawings diffs a new revision against the sheet in the field and flags every scope, dimension, and note change with its likely cost or schedule impact."
@@ -164,7 +164,7 @@ export default function CompareDrawingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE" title={project.name} />
+      <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
 
         {/* ── Step 1: pick the OLD sheet ─────────────────────────── */}

@@ -196,7 +196,7 @@ export default function ExtractSubmittalsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="SPEC BOOK · MAGE" title="Extract Submittals" />
+        <ToolHeader eyebrow="SPEC BOOK · MAGE ID" title="Extract Submittals" />
         <ToolProjectPicker
           toolName="Extract Submittals"
           message="Spec Book reads a specification PDF and drafts the submittal log — every product data, shop drawing, and sample the spec calls for, filed into the project."
@@ -210,7 +210,7 @@ export default function ExtractSubmittalsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="SPEC BOOK · MAGE" title={project.name} />
+      <ToolHeader eyebrow="SPEC BOOK · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {step === 'idle' && (
           <>

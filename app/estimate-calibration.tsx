@@ -99,7 +99,7 @@ function EstimateCalibrationInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate Calibration · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Estimate Calibration · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Cross-job bias</Text>
         </View>
         <View style={styles.headerBtn} />

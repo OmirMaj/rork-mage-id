@@ -476,7 +476,7 @@ function FieldTicketInner() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="T&M TICKET · MAGE" title="Field Ticket" />
+        <ToolHeader eyebrow="T&M TICKET · MAGE ID" title="Field Ticket" />
         <ToolProjectPicker
           toolName="T&M Field Ticket"
           message="Capture extra work and get it signed on site, before anyone forgets it happened."
@@ -1038,7 +1038,7 @@ function FieldTicketInner() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="T&M TICKET · MAGE" title={project.name} />
+      <ToolHeader eyebrow="T&M TICKET · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
         {unbilled.length > 0 && (
           <View style={styles.unbilledCard}>

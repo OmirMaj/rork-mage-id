@@ -77,7 +77,7 @@ function EstimateAccuracyInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate Accuracy · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Estimate Accuracy · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Bid vs actual'}</Text>
         </View>
         <View style={styles.headerBtn} />

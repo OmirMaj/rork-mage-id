@@ -1634,7 +1634,7 @@ function ScheduleProScreenInner() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="SCHEDULE PRO · MAGE" title="Schedule Pro" />
+        <ToolHeader eyebrow="SCHEDULE PRO · MAGE ID" title="Schedule Pro" />
         <ToolProjectPicker
           toolName="Schedule Pro"
           message="Schedule Pro drives the CPM grid, float and baselines for one project at a time."
