@@ -33,6 +33,7 @@ import SignaturePad from '@/components/SignaturePad';
 import Tutorial from '@/components/Tutorial';
 import Paywall from '@/components/Paywall';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { fetchQboStatus, type QboStatus } from '@/utils/qboSync';
@@ -318,7 +319,7 @@ export default function SettingsScreen() {
   }, [location, taxRate, contingency, updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, selectedTheme, biometricsEnabled, pdfNaming]);
 
   const handleClearAll = useCallback(() => {
-    showAlert('Clear All Data', 'This will permanently delete all projects and estimates. This cannot be undone.', [
+    showAlert('Clear All Data', 'This permanently deletes every project, estimate, and cached record this app stored on this device — change orders, invoices, daily reports, photos, bids, and the rest — INCLUDING any changes not yet synced and jobsite photos not yet uploaded, which cannot be recovered. Your appearance/theme setting is kept. This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete Everything', style: 'destructive',
@@ -342,21 +343,24 @@ export default function SettingsScreen() {
           for (const id of ids) deleteProject(id);
 
           const userId = user?.id ?? null;
-          // Namespaced keys the app persists to: mageid_* core +
-          // the mageid_* project sub-collections. Keep in sync with
-          // ProjectContext's *_KEY constants.
-          await AsyncStorage.multiRemove([
-            'mageid_projects',
-            'mageid_change_orders',
-            'mageid_invoices',
-            'mageid_daily_reports',
-            'mageid_punch_items',
-            'mageid_photos',
-            'mageid_rfis',
-            'mageid_submittals',
-            'mageid_warranties',
-            'mageid_portal_messages',
-          ]);
+          // Wipe EVERY app-owned key, not a hand-maintained list. The old
+          // list named ~10 keys while the app writes ~125 (mageid_* core +
+          // sub-collections, mage_* cashflow/bids/voice/ai, and the
+          // un-namespaced bids_*/post-rfp:draft:* strays), so "Clear All
+          // Data" left the majority of cached records behind. Reuse the
+          // tenant-wipe sweep — the single source of truth in
+          // utils/localCacheKeys.ts — which selects app-owned keys by
+          // PREFIX over the actual getAllKeys(), so a new key is covered
+          // the moment it is written. It deliberately KEEPS the two
+          // device-scoped survivors (mageid_theme and the rotating
+          // mage_analytics_distinct_id): a user clearing their data is not
+          // asking to reset their appearance. It is NOT AsyncStorage.clear()
+          // — on web AsyncStorage IS window.localStorage, so clear() would
+          // take out Supabase's own sb-*-auth-token session plus
+          // Stripe/RevenueCat/Sentry state (see CLAUDE.md).
+          const allKeys = await AsyncStorage.getAllKeys();
+          const keysToWipe = selectTenantKeysToWipe(allKeys);
+          if (keysToWipe.length > 0) await AsyncStorage.multiRemove(keysToWipe);
 
           // Empty the in-memory lists now. setQueryData (not invalidate)
           // updates the cached data reference so ProjectContext's
@@ -369,6 +373,15 @@ export default function SettingsScreen() {
           ];
           for (const name of emptyQueryKeys) {
             queryClient.setQueryData([name, userId], []);
+          }
+          // The widened sweep also removed the config keys (mageid_settings,
+          // mageid_user_role, mageid_onboarding_complete). Drop their query
+          // caches too, so a surviving in-memory cache cannot immediately
+          // re-persist its pre-wipe value — the same re-persist race the list
+          // caches above are emptied to avoid. (Account-level settings on the
+          // server are untouched; a device clear is not an account delete.)
+          for (const key of [['settings', userId], ['user_role', userId], ['onboarding', userId]] as const) {
+            queryClient.removeQueries({ queryKey: key });
           }
 
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
