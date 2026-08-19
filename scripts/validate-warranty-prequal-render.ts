@@ -55,12 +55,16 @@ function ok(name: string, condition: boolean, detail?: string) {
  * Strip block comments, JSX comments and line comments so prose that merely
  * *describes* a defect is never mistaken for the defect. Every check below
  * runs on the stripped text.
+ *
+ * Removed text is replaced by its own newlines, so line numbers in failure
+ * messages still point at the real line in the real file.
  */
+const blankOut = (m: string) => m.replace(/[^\n]/g, '');
 function stripComments(src: string): string {
   return src
-    .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, blankOut)
+    .replace(/\/\*[\s\S]*?\*\//g, blankOut)
+    .replace(/(^|[^:])\/\/.*$/gm, (_m, lead: string) => lead);
 }
 
 /** Quoted string literals inside a bracketed/braced source fragment. */
