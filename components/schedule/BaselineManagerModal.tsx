@@ -765,7 +765,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.lg,
   },
   footerBtnPrimary: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   footerBtnSecondary: {
     backgroundColor: t.surfaceAlt,

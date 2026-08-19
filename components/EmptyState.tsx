@@ -70,6 +70,11 @@ export default function EmptyState({
   const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
 
   const accentColor = accent ?? colors.accent;
+  // The CTA carries WHITE text, so its fill must clear 4.5:1 for white — the
+  // brand #FF6A1A only reaches 2.87:1. accentFill (#BC440C, white 5.29:1) is
+  // that accessible fill. The halo/icon/step chrome keep accentColor (large
+  // non-text, 3:1) so the brand hue still reads on the empty state.
+  const buttonFill = colors.accentFill;
 
   const handlePrimary = () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -119,7 +124,7 @@ export default function EmptyState({
 
       {actionLabel && onAction && (
         <TouchableOpacity
-          style={[styles.button, { backgroundColor: accentColor, shadowColor: accentColor }]}
+          style={[styles.button, { backgroundColor: buttonFill, shadowColor: buttonFill }]}
           onPress={handlePrimary}
           activeOpacity={0.85}
         >

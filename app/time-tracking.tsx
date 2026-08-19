@@ -825,7 +825,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   statLabel: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   clockInButton: {
     marginHorizontal: 16,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -971,7 +971,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: t.line,
   },
-  alertPickerChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  alertPickerChipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   alertPickerChipText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   alertPickerChipTextActive: { color: '#FFFFFF' },
   actionBtn: {
@@ -1007,7 +1007,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32, gap: 8 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 320 },
-  emptyCtaBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accent, borderRadius: Tokens.radius.md },
+  emptyCtaBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accentFill, borderRadius: Tokens.radius.md },
   emptyCtaText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: {
@@ -1044,7 +1044,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rosterEmpty: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: 16, gap: 8 },
   rosterEmptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
   rosterEmptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 300 },
-  rosterEmptyBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accent, borderRadius: Tokens.radius.md },
+  rosterEmptyBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accentFill, borderRadius: Tokens.radius.md },
   rosterEmptyBtnText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   projectPickerRow: {
     flexDirection: 'row',

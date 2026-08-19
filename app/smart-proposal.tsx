@@ -348,7 +348,7 @@ function SmartProposalInner() {
             ))}
 
             {/* Actions */}
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: t.accent }]} onPress={handleShare} activeOpacity={0.85} testID="proposal-share">
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: t.accentFill }]} onPress={handleShare} activeOpacity={0.85} testID="proposal-share">
               <Share2 size={18} color={t.bg} strokeWidth={1.75} />
               <Text style={[styles.primaryBtnText, { color: t.bg }]}>Share with client</Text>
             </TouchableOpacity>

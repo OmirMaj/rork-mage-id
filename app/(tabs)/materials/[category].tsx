@@ -517,10 +517,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 4 },
   directionRow: { flexDirection: 'row', gap: 8 },
   directionBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: t.surfaceAlt, alignItems: 'center' },
-  directionBtnActive: { backgroundColor: t.accent },
+  directionBtnActive: { backgroundColor: t.accentFill },
   directionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
   directionBtnTextActive: { color: '#fff' },
   modalInput: { height: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: t.text },
-  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14 },
+  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14 },
   modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
 });

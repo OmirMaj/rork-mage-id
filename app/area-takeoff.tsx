@@ -734,7 +734,7 @@ function KindBtn({ active, icon, label, onPress, t, styles }: {
   t: ThemeColors; styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <TouchableOpacity style={[styles.kindBtn, active && { backgroundColor: t.accent, borderColor: t.accent }]} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity style={[styles.kindBtn, active && { backgroundColor: t.accentFill, borderColor: t.accent }]} onPress={onPress} activeOpacity={0.8}>
       {icon}
       <Text style={[styles.kindBtnText, active && { color: Colors.textOnAccent }]}>{label}</Text>
     </TouchableOpacity>
@@ -746,7 +746,7 @@ function ModeBtn({ active, icon, label, onPress, disabled, t, styles }: {
   t: ThemeColors; styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <TouchableOpacity style={[styles.modeBtn, active && { backgroundColor: t.accent, borderColor: t.accent }, disabled && { opacity: 0.4 }]} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
+    <TouchableOpacity style={[styles.modeBtn, active && { backgroundColor: t.accentFill, borderColor: t.accent }, disabled && { opacity: 0.4 }]} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
       {icon}
       <Text style={[styles.modeBtnText, active && { color: Colors.textOnAccent }]}>{label}</Text>
     </TouchableOpacity>
@@ -780,7 +780,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sheetCalMuted: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   primaryBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-    backgroundColor: t.accent, paddingHorizontal: 22, paddingVertical: 13, borderRadius: Tokens.radius.lg, marginTop: 6,
+    backgroundColor: t.accentFill, paddingHorizontal: 22, paddingVertical: 13, borderRadius: Tokens.radius.lg, marginTop: 6,
   },
   primaryBtnText: { color: Colors.textOnAccent, fontSize: Type.callout.fontSize, fontWeight: '700' as const },
 
@@ -844,7 +844,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1, alignItems: 'center' as const, paddingVertical: 7,
     borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt,
   },
-  wastePillActive: { backgroundColor: t.accent, borderColor: t.accent },
+  wastePillActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   wastePillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
   wastePillTextActive: { color: Colors.textOnAccent },
 
@@ -862,7 +862,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   addBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 7,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 12, marginTop: 4,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 12, marginTop: 4,
   },
   addBtnText: { color: Colors.textOnAccent, fontSize: Type.callout.fontSize, fontWeight: '700' as const },
 
@@ -891,6 +891,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalBtns: { flexDirection: 'row' as const, gap: 10, marginTop: 6 },
   modalCancel: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: 12, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: t.line },
   modalCancelText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
-  modalConfirm: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.sm, backgroundColor: t.accent },
+  modalConfirm: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.sm, backgroundColor: t.accentFill },
   modalConfirmText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
 });

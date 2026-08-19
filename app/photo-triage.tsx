@@ -668,7 +668,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   analyzeBtn: {
     marginHorizontal: 16, paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
   },
   analyzeText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' as const },

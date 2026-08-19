@@ -597,7 +597,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   aiBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 14, marginBottom: 8,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 14, marginBottom: 8,
   },
   aiBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
 

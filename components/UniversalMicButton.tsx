@@ -996,7 +996,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   ctaPrimary: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 13, borderRadius: 11,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   ctaPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
 

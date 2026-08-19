@@ -24,7 +24,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { useSmartProposals } from '@/hooks/useSmartProposals';
 import { buildQuickQuote, proposalToShareText, type SmartProposal } from '@/utils/proposalBuilder';
@@ -331,13 +331,13 @@ export default function QuickQuoteScreen() {
 
         {/* Primary action */}
         <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: t.accent }]}
+          style={[styles.primaryBtn, { backgroundColor: t.accentFill }]}
           onPress={handleCreateAndSend}
           activeOpacity={0.85}
           testID="quick-quote-send"
         >
-          <Share2 size={18} color={t.bg} strokeWidth={1.75} />
-          <Text style={[styles.primaryBtnText, { color: t.bg }]}>Create &amp; send quote</Text>
+          <Share2 size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
+          <Text style={[styles.primaryBtnText, { color: Colors.textOnAccent }]}>Create &amp; send quote</Text>
         </TouchableOpacity>
 
         {/* Recent quotes */}

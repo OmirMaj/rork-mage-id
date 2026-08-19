@@ -569,7 +569,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: 12,
     height: 48,
     borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

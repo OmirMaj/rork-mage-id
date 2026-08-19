@@ -362,7 +362,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   propMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   propMetaText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' },
   propSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 3, fontWeight: '600' },
-  openBadge: { backgroundColor: t.accent, borderRadius: Tokens.radius.full, minWidth: 22, height: 22, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  openBadge: { backgroundColor: t.accentFill, borderRadius: Tokens.radius.full, minWidth: 22, height: 22, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   openBadgeText: { fontSize: 11, fontWeight: '800', color: '#FFF' },
 
   // Add-property modal
@@ -379,7 +379,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   modalCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 18,
+    backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 18,
   },
   modalCtaDisabled: { opacity: 0.5 },
   modalCtaText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '800' },

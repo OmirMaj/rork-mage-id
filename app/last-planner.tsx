@@ -219,7 +219,7 @@ function LastPlannerInner() {
 // ─────────────────────────────────────────────────────────────────────
 function Segment({ label, active, onPress, t, styles }: { label: string; active: boolean; onPress: () => void; t: ThemeColors; styles: S }) {
   return (
-    <TouchableOpacity style={[styles.segment, active && { backgroundColor: t.accent }]} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.segment, active && { backgroundColor: t.accentFill }]} onPress={onPress} activeOpacity={0.85}>
       <Text style={[styles.segmentText, active && { color: Colors.textOnAccent }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -579,7 +579,7 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
           <Text style={styles.fieldLabel}>Type</Text>
           <View style={styles.catWrap}>
             {cats.map(c => (
-              <TouchableOpacity key={c} style={[styles.catChip, category === c && { backgroundColor: t.accent, borderColor: t.accent }]} onPress={() => setCategory(c)}>
+              <TouchableOpacity key={c} style={[styles.catChip, category === c && { backgroundColor: t.accentFill, borderColor: t.accent }]} onPress={() => setCategory(c)}>
                 <Text style={[styles.catChipText, category === c && { color: Colors.textOnAccent }]}>{CONSTRAINT_LABELS[c]}</Text>
               </TouchableOpacity>
             ))}
@@ -747,7 +747,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   catWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 7 },
   catChip: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface },
   catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
-  modalSave: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 7, backgroundColor: t.accent, borderRadius: Tokens.radius.full, paddingVertical: 13, marginTop: 16 },
+  modalSave: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 7, backgroundColor: t.accentFill, borderRadius: Tokens.radius.full, paddingVertical: 13, marginTop: 16 },
   modalSaveText: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: Colors.textOnAccent },
   outcomeBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, borderWidth: 1.5, borderRadius: Tokens.radius.card, padding: 16 },
   outcomeText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },

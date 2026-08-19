@@ -1372,7 +1372,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 11, paddingVertical: 8, borderRadius: Tokens.radius.full,
     backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
   },
-  chipOn: { backgroundColor: t.accent, borderColor: t.accent },
+  chipOn: { backgroundColor: t.accentFill, borderColor: t.accent },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
   chipTextSm: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textSecondary },
   chipTextOn: { color: '#FFFFFF' },
@@ -1458,7 +1458,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   signBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 18, height: Tokens.touchTarget.comfortable,
-    borderRadius: Tokens.radius.md, backgroundColor: t.accent,
+    borderRadius: Tokens.radius.md, backgroundColor: t.accentFill,
   },
   signBtnDisabled: { backgroundColor: t.surfaceAlt },
   signBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFFFFF' },
@@ -1579,7 +1579,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalConfirm: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     height: Tokens.touchTarget.comfortable, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   modalConfirmText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFFFFF' },
   sealNote: {

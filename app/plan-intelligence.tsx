@@ -643,7 +643,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   footerTotalsWarn: { fontSize: Type.caption2.fontSize, color: t.warningLabel, fontWeight: '600' as const },
   footerBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.full,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.full,
     paddingHorizontal: 16, paddingVertical: 11,
   },
   footerBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
@@ -668,7 +668,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   includeRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginTop: 4 },
   modalSave: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 7,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.full, paddingVertical: 13, marginTop: 16,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.full, paddingVertical: 13, marginTop: 16,
   },
   modalSaveText: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: Colors.textOnAccent },
 });

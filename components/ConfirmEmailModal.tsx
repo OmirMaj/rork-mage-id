@@ -328,7 +328,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   primaryBtn: {
     alignSelf: 'stretch',
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     alignItems: 'center',

@@ -346,7 +346,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   filterChipActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   filterChipText: {
     fontSize: Type.footnote.fontSize,
@@ -494,7 +494,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
   },
   typeChipActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   typeChipText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -530,7 +530,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   catChipActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   catChipText: {
     fontSize: Type.caption1.fontSize,
@@ -545,7 +545,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 10,
   },
   saveBtn: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     alignItems: 'center' as const,
@@ -589,7 +589,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     lineHeight: 22,
   },
   upgradeBtn: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,

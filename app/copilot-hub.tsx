@@ -201,7 +201,7 @@ function makeStyles(colors: ThemeColors) {
       padding: Tokens.spacing.md, minHeight: 88, textAlignVertical: 'top',
     },
     goBtn: {
-      backgroundColor: colors.accent, borderRadius: Tokens.radius.full,
+      backgroundColor: colors.accentFill, borderRadius: Tokens.radius.full,
       paddingVertical: Tokens.spacing.md, alignItems: 'center', justifyContent: 'center',
       marginTop: Tokens.spacing.xs,
     },

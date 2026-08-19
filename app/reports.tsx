@@ -562,7 +562,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   actionBtnSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   actionBtnPrimary: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 11, backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: 11, backgroundColor: t.accentFill,
     shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 10, elevation: 4,
   },

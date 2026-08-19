@@ -376,7 +376,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg,
   },
   topSection: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingBottom: 28,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 32,
@@ -470,7 +470,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,

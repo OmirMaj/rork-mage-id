@@ -338,7 +338,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },
   chipRow: { flexDirection: 'row', marginBottom: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: t.bg, marginRight: 6 },
-  chipActive: { backgroundColor: t.accent },
+  chipActive: { backgroundColor: t.accentFill },
   chipText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
   list: { padding: 16, paddingBottom: 100 },

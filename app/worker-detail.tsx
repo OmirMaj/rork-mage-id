@@ -260,7 +260,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   jobTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text, marginBottom: 2 },
   jobMeta: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   actionSection: { padding: 20, gap: 12 },
-  messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card, gap: 8 },
+  messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentFill, paddingVertical: 16, borderRadius: Tokens.radius.card, gap: 8 },
   messageBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
   contactRow: { flexDirection: 'row', gap: 10 },
   contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent + '12', paddingVertical: 14, borderRadius: Tokens.radius.card, gap: 8 },

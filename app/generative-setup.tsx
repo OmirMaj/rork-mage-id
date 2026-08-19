@@ -492,7 +492,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   cta: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 16,
+    gap: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 16,
   },
   ctaDisabled: { opacity: 0.45 },
   ctaText: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
@@ -508,7 +508,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   successStat: { fontSize: Type.subhead.fontSize, color: t.textSecondary, textAlign: 'center' as const },
   successPrimary: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.card,
+    gap: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.card,
     paddingVertical: 14, paddingHorizontal: 28, marginTop: 4,
   },
   successPrimaryText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },

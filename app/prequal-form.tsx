@@ -707,7 +707,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
   },
   submitBtnDisabled: { backgroundColor: t.textMuted },
   submitBtnText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
@@ -721,6 +721,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   errorTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 12 },
   errorBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
-  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
   errorBtnText: { color: '#FFFFFF', fontWeight: '700' },
 });

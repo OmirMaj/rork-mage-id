@@ -203,7 +203,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   btn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.md, marginTop: 12,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   btnDisabled: { opacity: 0.5 },
   btnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },

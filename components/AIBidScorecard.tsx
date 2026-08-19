@@ -407,7 +407,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   title: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   subtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   refreshBtn: { width: 30, height: 30, borderRadius: Tokens.radius.sm, backgroundColor: t.surfaceAlt, alignItems: 'center' as const, justifyContent: 'center' as const },
-  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: t.accent },
+  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill },
   runBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
   errorText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 6 },
   gaugeCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 14 },

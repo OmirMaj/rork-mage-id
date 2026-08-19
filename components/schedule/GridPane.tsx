@@ -2204,7 +2204,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accent + '12',
   },
   bulkBtnAI: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   bulkBtnDanger: {
     backgroundColor: t.danger + '15',

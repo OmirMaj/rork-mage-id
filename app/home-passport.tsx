@@ -199,7 +199,7 @@ const makeStyles = (t: ThemeColors) =>
       backgroundColor: t.surface,
       maxWidth: 240,
     },
-    homeChipOn: { backgroundColor: t.accent, borderColor: t.accent },
+    homeChipOn: { backgroundColor: t.accentFill, borderColor: t.accent },
     homeChipText: { ...Type.caption1, color: t.textSecondary, fontWeight: '600' },
     homeChipTextOn: { color: '#FFFFFF' },
     empty: {

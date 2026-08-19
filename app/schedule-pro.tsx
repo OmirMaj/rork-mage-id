@@ -2240,7 +2240,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 8 },
   emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
   primaryBtn: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   primaryBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.bodyCompact.fontSize },

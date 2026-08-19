@@ -533,7 +533,7 @@ function makeStyles(t: ThemeColors) {
       justifyContent: 'center',
       paddingVertical: 14,
       borderRadius: Tokens.radius.card,
-      backgroundColor: t.accent,
+      backgroundColor: t.accentFill,
     },
     confirmBtnText: {
       fontSize: Type.bodyCompact.fontSize,

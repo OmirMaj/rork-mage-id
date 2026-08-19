@@ -364,7 +364,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroSub: { ...Type.subhead, color: OnInk.subtitle, marginTop: 4 },
   toggle: { flexDirection: 'row', gap: 4, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, padding: 4, marginBottom: 16 },
   seg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: Tokens.radius.sm },
-  segOn: { backgroundColor: t.accent },
+  segOn: { backgroundColor: t.accentFill },
   segText: { fontSize: 13, fontWeight: '700', color: t.textMuted },
   segTextOn: { color: t.surface },
   totalsBarWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: t.surfaceAlt },
@@ -376,7 +376,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // just a far less cramped one than the old 640.
   scrollDesktop: { width: '100%', maxWidth: 1500, alignSelf: 'center', paddingHorizontal: 24 },
   clientDesktopWrap: { maxWidth: 900, alignSelf: 'center', width: '100%' },
-  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
+  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
   shareBtnText: { ...Type.subheadEmphasized, color: t.surface },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
   emptyTitle: { color: t.text, fontSize: Type.headline.fontSize, fontWeight: '700' },

@@ -78,7 +78,7 @@ function makeStyles(colors: ThemeColors) {
     critRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingVertical: Tokens.spacing.xxs },
     warn: { ...Type.body, color: colors.accent },
     reject: { ...Type.footnote, color: colors.textMuted, paddingVertical: Tokens.spacing.xxs },
-    apply: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: Tokens.radius.full, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },
+    apply: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentFill, borderRadius: Tokens.radius.full, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },
     applyOff: { opacity: 0.4 },
     applyText: { ...Type.subheadEmphasized, color: Colors.textOnAccent },
     discard: { flexDirection: 'row', gap: Tokens.spacing.xxs, alignItems: 'center', justifyContent: 'center', paddingVertical: Tokens.spacing.sm },

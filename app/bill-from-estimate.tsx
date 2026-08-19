@@ -602,7 +602,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   center: { justifyContent: 'center', alignItems: 'center', padding: 24 },
   notFoundText: { fontSize: Type.callout.fontSize, color: t.textSecondary, marginBottom: 12 },
-  backBtn: { backgroundColor: t.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Tokens.radius.md },
+  backBtn: { backgroundColor: t.accentFill, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Tokens.radius.md },
   backBtnText: { color: '#FFFFFF', fontWeight: '600' as const },
 
   hero: {
@@ -716,7 +716,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
   },
-  miniPresetActive: { backgroundColor: t.accent },
+  miniPresetActive: { backgroundColor: t.accentFill },
   miniPresetText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   miniPresetTextActive: { color: '#FFFFFF' },
 
@@ -769,7 +769,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },

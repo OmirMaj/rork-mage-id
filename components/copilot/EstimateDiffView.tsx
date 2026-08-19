@@ -72,7 +72,7 @@ function makeStyles(colors: ThemeColors) {
     up: { ...Type.body, color: colors.danger, paddingVertical: Tokens.spacing.xxs },
     down: { ...Type.body, color: colors.success, paddingVertical: Tokens.spacing.xxs },
     reject: { ...Type.footnote, color: colors.textMuted, paddingVertical: Tokens.spacing.xxs },
-    apply: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: Tokens.radius.full, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },
+    apply: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentFill, borderRadius: Tokens.radius.full, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },
     applyOff: { opacity: 0.4 },
     applyText: { ...Type.subheadEmphasized, color: Colors.textOnAccent },
     discard: { flexDirection: 'row', gap: Tokens.spacing.xxs, alignItems: 'center', justifyContent: 'center', paddingVertical: Tokens.spacing.sm },

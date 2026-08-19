@@ -157,7 +157,7 @@ const makeStyles = (t: ThemeColors) =>
       gap: 6,
       minHeight: Tokens.touchTarget.min,
       borderRadius: Tokens.radius.md,
-      backgroundColor: t.accent,
+      backgroundColor: t.accentFill,
       ...Tokens.continuousCorners,
     },
     sendBtnText: { ...Type.footnoteEmphasized, color: t.surface },

@@ -518,7 +518,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 14,
   },
   subCardFeatured: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
     shadowColor: t.accent,
     shadowOffset: { width: 0, height: 8 },

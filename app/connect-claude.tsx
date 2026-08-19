@@ -327,7 +327,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1, fontSize: Type.caption1.fontSize, color: t.text,
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
-  dismissBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  dismissBtn: { marginTop: 12, alignItems: 'center', paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
   dismissText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnAccent },
 
   sectionLabel: {
@@ -344,7 +344,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   createBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 13, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 13, borderRadius: Tokens.radius.card,
   },
   createBtnDisabled: { opacity: 0.6 },
   createBtnText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: Type.subhead.fontSize },

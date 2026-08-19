@@ -432,7 +432,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   feeItemValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   sendButton: {
     marginHorizontal: 16,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     flexDirection: 'row',

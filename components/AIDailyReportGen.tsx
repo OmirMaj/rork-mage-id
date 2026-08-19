@@ -83,7 +83,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.card,
     marginVertical: 8,
   },

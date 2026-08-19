@@ -794,7 +794,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt,
     borderWidth: 1, borderColor: 'transparent',
   },
-  pillActive: { backgroundColor: t.accent, borderColor: t.accent },
+  pillActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   pillText: { fontSize: 12.5, color: t.textSecondary, fontWeight: '600' as const, letterSpacing: -0.1 },
   pillTextActive: { color: '#FFF' },
 
@@ -806,7 +806,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.full,
     backgroundColor: t.surfaceAlt,
   },
-  subChipActive: { backgroundColor: t.accent },
+  subChipActive: { backgroundColor: t.accentFill },
   subChipText: { fontSize: 12.5, color: t.textSecondary, fontWeight: '600' as const },
   subChipTextActive: { color: '#FFF' },
   cityChip: {
@@ -874,7 +874,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8, paddingHorizontal: 32 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 6 },
   emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
-  retryButton: { marginTop: 14, backgroundColor: t.accent, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
+  retryButton: { marginTop: 14, backgroundColor: t.accentFill, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
   retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
 
   // ─── Modal (sort + set-aside)

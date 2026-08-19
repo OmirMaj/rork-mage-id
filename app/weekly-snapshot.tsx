@@ -378,7 +378,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   scroll: { paddingHorizontal: 16, gap: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg },
   notFound: { fontSize: Type.callout.fontSize, color: t.textSecondary, marginBottom: 16 },
-  backBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accent, borderRadius: Tokens.radius.md },
+  backBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accentFill, borderRadius: Tokens.radius.md },
   backBtnText: { color: '#fff', fontWeight: '600' },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingLeft: 4, minWidth: 72 },
   headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: t.accent },

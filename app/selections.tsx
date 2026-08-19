@@ -554,7 +554,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
@@ -580,7 +580,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bigCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11,
-    backgroundColor: t.accent, marginTop: 8,
+    backgroundColor: t.accentFill, marginTop: 8,
   },
   bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
@@ -614,7 +614,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   curateCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 8, elevation: 4,
   },
@@ -676,7 +676,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: t.bg, alignItems: 'center', borderWidth: 1, borderColor: t.line },
   modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: t.accent },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: t.accentFill },
   modalConfirmDisabled: { opacity: 0.45 },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

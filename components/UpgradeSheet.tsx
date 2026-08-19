@@ -101,7 +101,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   body: { fontSize: Type.bodyCompact.fontSize, color: t.text, lineHeight: 21 },
   upgradeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.lg, paddingVertical: 16, marginTop: 4,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 16, marginTop: 4,
   },
   upgradeBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '800', letterSpacing: 0.2 },
   notNowBtn: { alignItems: 'center', paddingVertical: 6 },

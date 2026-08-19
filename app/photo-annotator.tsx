@@ -411,7 +411,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.md,
   },
   saveText: { color: t.surface, fontWeight: '800', fontSize: Type.footnote.fontSize },
 
@@ -439,7 +439,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
     backgroundColor: t.surface,
   },
-  toolBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
+  toolBtnActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   toolText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   toolTextActive: { color: t.surface },
 

@@ -105,7 +105,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   primaryBtn: {
     paddingHorizontal: 18, paddingVertical: 12, marginTop: 16,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   primaryBtnText: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.surface },
 });

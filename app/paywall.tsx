@@ -900,7 +900,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   popularTag: {
     position: 'absolute' as const,
     top: -10,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
@@ -943,7 +943,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
   },
   ctaBtn: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: Tokens.radius.md,

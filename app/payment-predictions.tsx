@@ -397,7 +397,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   featureRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 },
   featureChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.fillSecondary },
   featureText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600' as const },
-  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent, marginTop: 4 },
+  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill, marginTop: 4 },
   runBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
   forecastGateText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 18, marginTop: 8 },
 

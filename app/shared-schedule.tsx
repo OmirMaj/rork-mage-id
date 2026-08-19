@@ -495,7 +495,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   lockBadgeText: { fontSize: 10, fontWeight: '700', color: t.textSecondary },
   body: { flex: 1, padding: 12 },
   primaryBtn: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
@@ -614,6 +614,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   modalBtnSecondary: { backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line },
   modalBtnSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
-  modalBtnPrimary: { backgroundColor: t.accent },
+  modalBtnPrimary: { backgroundColor: t.accentFill },
   modalBtnPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
 });

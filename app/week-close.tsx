@@ -274,7 +274,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   doneBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: Tokens.spacing.xs,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: Tokens.spacing.md,
     marginTop: Tokens.spacing.md,

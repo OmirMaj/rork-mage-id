@@ -1150,7 +1150,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   verifyBtn: {
     paddingHorizontal: 18, paddingVertical: 12,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent + 'CC',
+    // Opaque accentFill (not accent+'CC'): the 80% tint left white text below AA.
+    backgroundColor: t.accentFill,
     alignItems: 'center', justifyContent: 'center',
     minWidth: 80,
   },
@@ -1277,7 +1278,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     paddingVertical: 14, paddingHorizontal: 22,
     borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     minWidth: 160,
     shadowColor: t.accent, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28, shadowRadius: 14, elevation: 4,

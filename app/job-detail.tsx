@@ -240,7 +240,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   workerMeta: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   actionSection: { padding: 20, gap: 10 },
   applicantInfo: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, marginBottom: 4 },
-  applyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card, gap: 8 },
+  applyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentFill, paddingVertical: 16, borderRadius: Tokens.radius.card, gap: 8 },
   appliedBtn: { backgroundColor: t.textMuted },
   applyBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
   messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent + '12', paddingVertical: 14, borderRadius: Tokens.radius.card, gap: 8 },

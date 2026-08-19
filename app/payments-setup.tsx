@@ -481,7 +481,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     marginTop: 8,

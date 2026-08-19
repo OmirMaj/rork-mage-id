@@ -136,7 +136,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     paddingVertical: 13,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   primaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' as const },
   secondary: {

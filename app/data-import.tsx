@@ -303,7 +303,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   importBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   importBtnDisabled: { opacity: 0.5 },
   importBtnText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: Type.subhead.fontSize },
@@ -316,7 +316,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   resultDetail: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' },
   doneBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
-    backgroundColor: t.accent, paddingVertical: 12, paddingHorizontal: 24, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 12, paddingHorizontal: 24, borderRadius: Tokens.radius.card,
   },
   doneBtnText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: Type.subhead.fontSize },
 });

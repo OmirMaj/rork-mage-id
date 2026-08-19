@@ -101,6 +101,14 @@ export const Colors = {
   get accent() { return _customAccent || '#FF6A1A'; },
   accentLight: '#FFCC00',
   accentMuted: '#FFE0A0',
+  // Accent FILL under WHITE text — founder decision #1. The brand hue gives
+  // white only 2.87:1 (fails AA); this darkened companion clears 4.5:1 (white
+  // on #BC440C = 5.29:1). A GETTER mirroring `get accent()` so the five button
+  // files that read `Colors.accentFill` (rather than the themed `t.accentFill`)
+  // resolve it the same way. #BC440C is the same value in light and its dark
+  // equivalent — white clears AA on it in either theme — so it returns
+  // unconditionally, matching Theme.light.accentFill / Theme.dark.accentFill.
+  get accentFill() { return '#BC440C'; },
 
   // ── Surfaces — THEME-AWARE GETTERS (read _currentTheme at access) ──
   get background()       { return _currentTheme === 'dark' ? '#0B0D10' : '#F2F2F7'; },
@@ -230,6 +238,7 @@ export type ThemeColors = {
   accentHot: string;
   accentSoft: string;
   accentLabel: string;
+  accentFill: string;
   success: string;
   successSoft: string;
   successLabel: string;
@@ -253,7 +262,22 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accent: '#FF6A1A',
     accentHot: '#FF8533',
     accentSoft: 'rgba(255,106,26,0.12)',
-    accentLabel: '#C44A0F',
+    // Orange TEXT on a light background (caption sizes included). The brand
+    // #FF6A1A measures only 2.87:1 on surface — unreadable as text. The old
+    // accentLabel #C44A0F cleared 4.5:1 on plain surface (4.85) and bg (4.57)
+    // but FELL BELOW it on the tinted surfaces the label actually lands on:
+    // 4.23:1 on surfaceAlt #F4EFE6, and 4.04:1 on accentSoft-over-bg (a chip
+    // tint). #B23E08 keeps the hue (HSL 19°, essentially the same orange as
+    // #FF6A1A's 21°) while clearing 4.5:1 on EVERY light backdrop it can sit on:
+    //   surface #FFFFFF 5.86 · bg #FBF8F2 5.53 · surfaceAlt #F4EFE6 5.11 ·
+    //   accentSoft/surface 5.16 · accentSoft/bg 4.89 · accentSoft/surfaceAlt 4.55.
+    accentLabel: '#B23E08',
+    // White TEXT on an orange FILL (buttons: "Next", "Mark paid", "Create your
+    // first project"). The brand #FF6A1A gives white only 2.87:1. accent stays
+    // #FF6A1A for large non-text chrome (icons, burn bars, progress) where the
+    // 3:1 rule applies; button fills that carry white text use this darker
+    // #BC440C, on which white measures 5.29:1. Same hue family (HSL 19°).
+    accentFill: '#BC440C',
     success: '#2E7D44',
     successSoft: 'rgba(46,125,68,0.12)',
     // Caption-size green text (Custom badge, bulk labels) on successSoft sat at
@@ -284,7 +308,15 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accent: '#FF6A1A',
     accentHot: '#FF8533',
     accentSoft: 'rgba(255,106,26,0.16)',
+    // On dark surfaces the brand orange is already bright enough as text —
+    // #FF6A1A measures 6.22:1 on surface #14181D, 6.79:1 on bg #0B0D10,
+    // 5.78:1 on surfaceAlt #1A1F26, and 5.01:1 on accentSoft-over-surface —
+    // so accentLabel mirrors accent here (as successLabel/dangerLabel do).
     accentLabel: '#FF6A1A',
+    // White text on an orange fill still needs 4.5:1; brand #FF6A1A gives white
+    // 2.87:1 in either theme, so the button fill darkens to #BC440C (white 5.29:1)
+    // in dark mode too. It still reads clearly orange against the dark surface.
+    accentFill: '#BC440C',
     success: '#4ED37A',
     successSoft: 'rgba(78,211,122,0.12)',
     // Dark surfaces need bright ink; #4ED37A is 7.40:1 on dark successSoft, so

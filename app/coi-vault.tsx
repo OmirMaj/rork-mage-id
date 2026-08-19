@@ -550,7 +550,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
     gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.md,
   },
   uploadBtnText: { color: '#fff', fontWeight: '800' as const, fontSize: Type.caption1.fontSize },
   btnDisabled: { opacity: 0.5 },

@@ -353,7 +353,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line,
   },
   btnSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
-  btnPrimary: { backgroundColor: t.accent },
+  btnPrimary: { backgroundColor: t.accentFill },
   btnDisabled: { opacity: 0.4 },
   btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.textOnAccent },
 });

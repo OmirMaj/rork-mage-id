@@ -448,7 +448,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
   title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
   emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   heroCard: {

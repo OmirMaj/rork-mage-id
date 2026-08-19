@@ -203,7 +203,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: Tokens.spacing.xxs + 2,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.accentFill,
   },
   fixBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.textOnAccent },
   headerRow: {

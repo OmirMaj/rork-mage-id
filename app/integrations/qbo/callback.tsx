@@ -182,7 +182,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     minWidth: 220,
   },
   primaryText: {

@@ -379,7 +379,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 8 },
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text, marginTop: 4 },
   templateChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },
-  templateChipActive: { backgroundColor: themeColors.accent },
+  templateChipActive: { backgroundColor: themeColors.accentFill },
   templateChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   templateChipTextActive: { color: '#fff' },
   itemRow: { marginTop: 10, padding: 12, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, borderWidth: 0.5, borderColor: themeColors.line, gap: 8 },
@@ -398,6 +398,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   deleteBtn: { width: 48, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.danger + '14', alignItems: 'center' as const, justifyContent: 'center' as const },
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center' as const, justifyContent: 'center' as const },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center' as const, justifyContent: 'center' as const },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
 });

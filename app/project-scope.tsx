@@ -175,11 +175,11 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   progressLabel: { ...Type.caption1, color: c.textMuted },
   footer: { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, backgroundColor: c.bg },
   stepHintText: { ...Type.footnote, color: c.danger, textAlign: 'center' as const, marginBottom: 8 },
-  nextBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: c.accent, borderRadius: 14, paddingVertical: 16 },
+  nextBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: c.accentFill, borderRadius: 14, paddingVertical: 16 },
   nextBtnDisabled: { opacity: 0.4 },
   nextBtnText: { ...Type.bodyEmphasized, color: '#FFF' },
   missingTitle: { ...Type.title3, color: c.text, textAlign: 'center' as const, marginBottom: 6 },
   missingBody: { ...Type.body, color: c.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32, marginBottom: 20 },
-  primaryBtn: { alignSelf: 'center' as const, backgroundColor: c.accent, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+  primaryBtn: { alignSelf: 'center' as const, backgroundColor: c.accentFill, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
   primaryBtnText: { ...Type.bodyEmphasized, color: '#FFF' },
 });

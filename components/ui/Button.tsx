@@ -143,7 +143,12 @@ const makeStyles = (t: ThemeColors) =>
       ...Tokens.continuousCorners,
     },
     primary: {
-      backgroundColor: t.accent,
+      // White label sits on this fill (textColor === '#FFFFFF' above), so the
+      // fill must clear 4.5:1 for white — brand accent #FF6A1A is only 2.87:1.
+      // accentFill (#BC440C, white 5.29:1) is the accessible button fill; the
+      // brand hue still reads (HSL 19°). Shadow stays the brighter accent — a
+      // shadow carries no text, so the 4.5:1 rule does not apply to it.
+      backgroundColor: t.accentFill,
       shadowColor: t.accent,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.25,

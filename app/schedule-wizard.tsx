@@ -2122,11 +2122,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1.5, borderColor: t.line,
   },
   stepCircleActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   stepCircleDone: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   stepCircleText: {
@@ -2302,7 +2302,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     paddingVertical: 13,
     borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     marginTop: 2,
   },
   emptyBtnText: {
@@ -2699,7 +2699,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center' as const,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   confirmBtnText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -2773,7 +2773,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   ctaBtnDisabled: {
     opacity: 0.4,

@@ -326,7 +326,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
     shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   submitBtnDisabled: { opacity: 0.6 },
@@ -342,7 +342,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   successBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 20, maxWidth: 320 },
   doneBtn: {
     marginTop: 12, paddingHorizontal: 32, paddingVertical: 13, borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   doneBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF' },
 });

@@ -261,7 +261,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.xs,
     backgroundColor: t.surfaceAlt,
   },
-  chipActive: { backgroundColor: t.accent },
+  chipActive: { backgroundColor: t.accentFill },
   chipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
   chipTextActive: { color: '#fff' },
   segControl: {
@@ -285,6 +285,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   btnGhost: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs },
   btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
-  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs, backgroundColor: t.accent },
+  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs, backgroundColor: t.accentFill },
   btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
 });
