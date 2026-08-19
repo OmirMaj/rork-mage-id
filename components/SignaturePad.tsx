@@ -218,7 +218,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   saveBtnDisabled: {
     backgroundColor: t.surfaceAlt,

@@ -317,7 +317,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   timestampText: { fontSize: 10, color: t.textMuted, marginTop: 4 },
   commitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: 14, backgroundColor: t.accent,
+    padding: 14, backgroundColor: t.accentFill,
     borderTopWidth: 1, borderTopColor: t.line,
   },
   commitBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },

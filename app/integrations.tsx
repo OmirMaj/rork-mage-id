@@ -355,7 +355,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   categoryChipActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   categoryChipText: {

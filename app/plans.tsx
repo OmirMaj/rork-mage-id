@@ -519,7 +519,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentFill, paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
   },
   primaryBtnText: { color: '#FFFFFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
 

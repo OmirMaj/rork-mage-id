@@ -1067,7 +1067,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.line,
   },
   pickerOptionActive: {
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
   },
   pickerOptionText: {
     fontSize: Type.footnote.fontSize,
@@ -1082,7 +1082,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 28,
@@ -1172,7 +1172,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     marginTop: 16,

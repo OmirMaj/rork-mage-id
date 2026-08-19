@@ -19,7 +19,7 @@
 //
 // Pure node:fs + a tiny colour engine — no react-native import (that crashes bun).
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -131,4 +131,320 @@ if (rawAsText >= 4.5) { failures += 1; rows.push(`  FAIL  sanity: raw #FF6A1A on
 
 console.log(rows.join('\n'));
 console.log('');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// USAGE GUARD — completeness authority for founder decision #1.
+//
+// The token checks above prove the tokens are correct. They do NOT prove every
+// button ACTUALLY USES accentFill. This section is the second half of the
+// decision: it scans every StyleSheet in app/ + components/ and FAILS if any
+// button style paints white/near-white/cream TEXT on the RAW brand `accent`
+// fill (which measures only 2.87:1 for white — the very failure accentFill
+// exists to fix).
+//
+// What counts as an offender (must clear 4.5:1, so must move to accentFill):
+//   a StyleSheet entry whose object literal has `backgroundColor: <tok>.accent`
+//   — RAW accent, i.e. NOT accentSoft/Hot/Label/Fill/Muted/Light and NOT a
+//   `<tok>.accent + 'NN'` alpha tint — AND that has white-ish TEXT via ONE of:
+//     (a) an inline `color:` in the SAME literal, or
+//     (b) a sibling `<name>Text`-style entry (broad naming variants) whose
+//         color is white-ish, or
+//     (c) a <Text> descendant, in the JSX element that uses styles.<name>,
+//         whose color resolves white-ish.
+//   White-ish = '#FFF' / '#FFFFFF' (and near-white/cream ≥ 245/238/230),
+//   'white', Colors.textOnAccent / .textOnPrimary, or <tok>.surface / <tok>.bg
+//   (both render white/cream in the light theme).
+//
+// What is NOT an offender (large non-text chrome — WCAG's 3:1 rule, brand hue
+// is KEPT): icon-only buttons (a Lucide icon's `color` prop is not <Text>),
+// progress/burn bars, unread dots, switch tracks/knobs, checkboxes, radios,
+// bullets, section rules, and badges/circles with NO text label. These have no
+// paired <Text>, so they are excluded — recoloring them would wrongly drift the
+// brand hue on non-text chrome.
+//
+// This is the completeness authority: it lists EVERY offender by file + style
+// name, and the ship is green only when the list is empty.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Directories the brand-orange work must not touch (owned by other tracks).
+const USAGE_EXCLUDE_PREFIXES = [
+  'app/coi-vault',
+  'app/(tabs)/settings/',
+  'app/(tabs)/estimate/',
+  'contexts/',
+];
+function usageExcluded(rel: string): boolean {
+  return USAGE_EXCLUDE_PREFIXES.some((p) => rel === p.replace(/\/$/, '') || rel.startsWith(p));
+}
+
+function walk(dir: string, acc: string[]): string[] {
+  let ents: string[];
+  try { ents = readdirSync(dir); } catch { return acc; }
+  for (const name of ents) {
+    if (name === 'node_modules' || name === '.git') continue;
+    const full = join(dir, name);
+    let st;
+    try { st = statSync(full); } catch { continue; }
+    if (st.isDirectory()) walk(full, acc);
+    else if (name.endsWith('.tsx')) acc.push(full);
+  }
+  return acc;
+}
+
+/** White / near-white / cream text signal. Mirrors the tokens above: raw white,
+ *  the textOn* tokens, and surface/bg (white/cream in the light theme). */
+function isWhiteText(rawVal: string): boolean {
+  const val = rawVal.trim().replace(/,+$/, '').trim();
+  const hexM = /^['"]#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})['"]$/.exec(val);
+  if (hexM) {
+    let h = hexM[1];
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return r >= 245 && g >= 238 && b >= 230;
+  }
+  if (/\.(textOnAccent|textOnPrimary|surface|bg)$/.test(val)) return true;
+  if (val === "'white'" || val === '"white"') return true;
+  return false;
+}
+
+/** Does a style object literal paint its background on the RAW accent (not a
+ *  tint, not accentSoft/Fill/…)? */
+function hasRawAccentBg(objSrc: string): boolean {
+  const re = /backgroundColor:\s*[A-Za-z_][A-Za-z0-9_]*\.accent(?![A-Za-z])(\s*\+)?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(objSrc)) !== null) {
+    if (m[1]) continue; // `accent + 'NN'` → alpha tint, not a raw fill
+    return true;
+  }
+  return false;
+}
+
+function colorValuesIn(objSrc: string): string[] {
+  const out: string[] = [];
+  const re = /\bcolor:\s*([^,}\n]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(objSrc)) !== null) out.push(m[1]);
+  return out;
+}
+
+/** Find each `StyleSheet.create({ … })` body; return inner-brace [start,end). */
+function findStyleSheets(src: string): [number, number][] {
+  const res: [number, number][] = [];
+  const re = /StyleSheet\.create\s*\(\s*/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    let i = m.index + m[0].length;
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== '{') continue;
+    let depth = 0, instr: string | null = null;
+    const start = i;
+    for (let j = i; j < src.length; j++) {
+      const ch = src[j];
+      if (instr) { if (ch === '\\') { j++; continue; } if (ch === instr) instr = null; continue; }
+      if (ch === "'" || ch === '"' || ch === '`') instr = ch;
+      else if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) { res.push([start + 1, j]); break; } }
+    }
+  }
+  return res;
+}
+
+/** Split a StyleSheet body into top-level `name -> objectLiteralSource`. */
+function splitEntries(body: string): Record<string, string> {
+  const entries: Record<string, string> = {};
+  let i = 0; const n = body.length;
+  while (i < n) {
+    while (i < n && /[\s,]/.test(body[i])) i++;
+    if (i >= n) break;
+    if (body.startsWith('//', i)) { while (i < n && body[i] !== '\n') i++; continue; }
+    if (body.startsWith('/*', i)) { const e = body.indexOf('*/', i); i = e >= 0 ? e + 2 : n; continue; }
+    const keyM = /^([A-Za-z0-9_$]+|'[^']*'|"[^"]*")\s*:/.exec(body.slice(i));
+    if (!keyM) { i++; continue; }
+    const key = keyM[1].replace(/^['"]|['"]$/g, '');
+    i += keyM[0].length;
+    while (i < n && /\s/.test(body[i])) i++;
+    if (body[i] === '{') {
+      let depth = 0, instr: string | null = null; const vs = i;
+      for (; i < n; i++) {
+        const ch = body[i];
+        if (instr) { if (ch === '\\') { i++; continue; } if (ch === instr) instr = null; continue; }
+        if (ch === "'" || ch === '"' || ch === '`') instr = ch;
+        else if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { entries[key] = body.slice(vs, i + 1); i++; break; } }
+      }
+    } else {
+      // non-object value (array/expr) — skip to the next top-level comma
+      let depth = 0, instr: string | null = null;
+      for (; i < n; i++) {
+        const ch = body[i];
+        if (instr) { if (ch === '\\') { i++; continue; } if (ch === instr) instr = null; continue; }
+        if (ch === "'" || ch === '"' || ch === '`') instr = ch;
+        else if ('{[('.includes(ch)) depth++;
+        else if ('}])'.includes(ch)) depth--;
+        else if (ch === ',' && depth === 0) break;
+      }
+    }
+  }
+  return entries;
+}
+
+/** From an index inside a JSX opening tag, find that tag's own '>' honoring
+ *  strings and {…} nesting. Returns [gtIndex, selfClosing]. */
+function findTagGt(src: string, from: number): [number, boolean] {
+  let i = from, brace = 0; let instr: string | null = null; const n = src.length;
+  while (i < n) {
+    const ch = src[i];
+    if (instr) { if (ch === '\\') { i += 2; continue; } if (ch === instr) instr = null; i++; continue; }
+    if (ch === "'" || ch === '"' || ch === '`') { instr = ch; i++; continue; }
+    if (ch === '{') { brace++; i++; continue; }
+    if (ch === '}') { brace--; i++; continue; }
+    if (brace === 0 && ch === '>') return [i, src[i - 1] === '/'];
+    i++;
+  }
+  return [-1, false];
+}
+
+/** Walk back to the '<' that opens the tag enclosing `off`, honoring {…}. */
+function openingTagStart(src: string, off: number): number {
+  let i = off, brace = 0;
+  while (i > 0) {
+    const ch = src[i];
+    if (ch === '}') brace++;
+    else if (ch === '{') { if (brace > 0) brace--; }
+    else if (ch === '<' && brace <= 0 && /[A-Za-z]/.test(src[i + 1] || '')) return i;
+    i--;
+  }
+  return -1;
+}
+
+/** Inner-JSX substring of the element whose opening tag contains `off`. */
+function elementSubtree(src: string, off: number): string {
+  const lt = openingTagStart(src, off);
+  if (lt < 0) return '';
+  const tm = /^<([A-Za-z][A-Za-z0-9_.]*)/.exec(src.slice(lt));
+  if (!tm) return '';
+  const tag = tm[1];
+  const [gt, selfClose] = findTagGt(src, lt + 1);
+  if (gt < 0 || selfClose) return '';
+  const innerStart = gt + 1;
+  let depth = 1, pos = innerStart;
+  const tagTok = new RegExp('<(/?)(' + tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?=[\\s/>])', 'g');
+  while (pos < src.length) {
+    tagTok.lastIndex = pos;
+    const mm = tagTok.exec(src);
+    if (!mm) break;
+    const [g, sc] = findTagGt(src, mm.index + mm[0].length);
+    if (g < 0) break;
+    if (mm[1] === '/') {
+      depth--;
+      if (depth === 0) return src.slice(innerStart, mm.index);
+      pos = g + 1;
+    } else {
+      if (!sc) depth++;
+      pos = g + 1;
+    }
+  }
+  return src.slice(innerStart);
+}
+
+/** Does the JSX subtree of styles.<name> contain a <Text> with white color? */
+function subtreeHasWhiteText(src: string, off: number, styleWhite: Record<string, boolean>): string | null {
+  const sub = elementSubtree(src, off);
+  if (!sub) return null;
+  const tRe = /<Text\b([^>]*)>/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = tRe.exec(sub)) !== null) {
+    const attrs = tm[1];
+    const cRe = /color:\s*([^,}\]]+)/g;
+    let cm: RegExpExecArray | null;
+    while ((cm = cRe.exec(attrs)) !== null) if (isWhiteText(cm[1])) return 'jsx-inline';
+    const sRe = /styles\.([A-Za-z0-9_]+)/g;
+    let sm: RegExpExecArray | null;
+    while ((sm = sRe.exec(attrs)) !== null) if (styleWhite[sm[1]]) return 'jsx-styleref';
+  }
+  return null;
+}
+
+/** Generate candidate sibling text-style names for a button style name. */
+function textSiblingCandidates(name: string): string[] {
+  const out = new Set<string>();
+  const addVariants = (stem: string, suf = '') => {
+    for (const tw of ['Text', 'Label', 'Title', 'Txt', 'Caption', 'Value']) {
+      out.add(stem + tw + suf);
+      out.add(stem + tw);
+    }
+  };
+  addVariants(name);
+  const mvar = /^(.*?)(Active|Selected|On|Enabled|Primary|Filled|Solid|Highlighted|Accept|Hot|Rec|Saved|Track|Current|Past|Mine)$/.exec(name);
+  let base = name, varsuf = '';
+  if (mvar) { base = mvar[1]; varsuf = mvar[2]; addVariants(base, varsuf); addVariants(base); }
+  const suffixM = /(Btn|Button|Cta|CTA|Pill|Chip|Tab|Toggle|Segment|Option|Bubble|Card|Section|Header)$/.exec(base);
+  if (suffixM) {
+    const stem = base.slice(0, suffixM.index);
+    if (stem) { addVariants(stem, varsuf); addVariants(stem); }
+  }
+  return [...out];
+}
+
+console.log('brand-orange USAGE guard (white text on raw accent fill):');
+
+const SRC_ROOTS = ['app', 'components'];
+const offenders: { file: string; style: string; why: string }[] = [];
+
+for (const root of SRC_ROOTS) {
+  for (const file of walk(join(ROOT, root), [])) {
+    const rel = file.slice(ROOT.length + 1);
+    if (usageExcluded(rel)) continue;
+    const src = readFileSync(file, 'utf8');
+    if (!src.includes('.accent')) continue;
+
+    // Collect every style entry across all StyleSheets in the file, plus a
+    // name -> hasWhiteColor map for sibling / JSX-styleref resolution.
+    const entries: Record<string, string> = {};
+    for (const [bs, be] of findStyleSheets(src)) Object.assign(entries, splitEntries(src.slice(bs, be)));
+    const styleWhite: Record<string, boolean> = {};
+    for (const [nm, obj] of Object.entries(entries)) {
+      styleWhite[nm] = colorValuesIn(obj).some(isWhiteText);
+    }
+    // Index every `styles.<name>` JSX use.
+    const jsxIdx: Record<string, number[]> = {};
+    const useRe = /styles\.([A-Za-z0-9_]+)/g;
+    let um: RegExpExecArray | null;
+    while ((um = useRe.exec(src)) !== null) (jsxIdx[um[1]] ||= []).push(um.index);
+
+    for (const [name, obj] of Object.entries(entries)) {
+      if (!hasRawAccentBg(obj)) continue;
+      let why: string | null = null;
+      // (a) inline color in the same literal
+      if (colorValuesIn(obj).some(isWhiteText)) why = 'inline';
+      // (b) sibling <name>Text-ish style with white color
+      if (!why) {
+        for (const c of textSiblingCandidates(name)) {
+          if (entries[c] !== undefined && styleWhite[c]) { why = 'sibling:' + c; break; }
+        }
+      }
+      // (c) JSX <Text> descendant with white color
+      if (!why) {
+        for (const off of jsxIdx[name] || []) {
+          const r = subtreeHasWhiteText(src, off, styleWhite);
+          if (r) { why = r; break; }
+        }
+      }
+      if (why) offenders.push({ file: rel, style: name, why });
+    }
+  }
+}
+
+if (offenders.length === 0) {
+  console.log(`  PASS  0 white-text-on-raw-accent button styles (all such fills use accentFill).\n`);
+} else {
+  failures += offenders.length;
+  console.log(`  FAIL  ${offenders.length} button style(s) paint white text on the RAW accent fill —`);
+  console.log(`        move each style's backgroundColor from \`.accent\` to \`.accentFill\`:`);
+  for (const o of offenders.sort((a, b) => (a.file + a.style).localeCompare(b.file + b.style))) {
+    console.log(`          ${o.file}  ::  ${o.style}   [${o.why}]`);
+  }
+  console.log('');
+}
+
 process.exit(failures === 0 ? 0 : 1);

@@ -322,7 +322,7 @@ function makeStyles(colors: ThemeColors) {
     radio: { width: 18, height: 18, borderRadius: Tokens.radius.full, borderWidth: 2, borderColor: colors.line },
     radioRec: { borderColor: colors.accent, backgroundColor: colors.accent },
     suggested: { ...Type.monoLabel, color: colors.accent },
-    primaryBtn: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderRadius: Tokens.radius.full, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.xs },
+    primaryBtn: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentFill, borderRadius: Tokens.radius.full, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.xs },
     primaryBtnText: { ...Type.subheadEmphasized, color: Colors.textOnAccent },
     skip: { alignItems: 'center', paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.xs },
     skipText: { ...Type.footnote, color: colors.textMuted },

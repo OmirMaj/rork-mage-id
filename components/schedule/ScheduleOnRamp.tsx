@@ -177,7 +177,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Hero card
   hero: {
     flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.sm,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.md,
     padding: Tokens.spacing.md,
   },
   heroIcon: {

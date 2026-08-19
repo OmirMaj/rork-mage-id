@@ -353,7 +353,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 16, marginTop: 14,
     paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   exportBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
   disclaimerText: {

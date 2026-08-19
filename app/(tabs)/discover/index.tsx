@@ -544,7 +544,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // cleanly in BOTH light (amber on cream) and dark (amber on ink) mode.
   // The earlier pattern (bg = Colors.text) inverted oddly in dark mode.
   tabPillActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   tabPillText: {

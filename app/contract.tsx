@@ -1272,7 +1272,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   milestoneBillBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     marginTop: 12, paddingVertical: 11, borderRadius: Tokens.radius.md,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     minHeight: 44,
   },
   milestoneBillBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
@@ -1313,7 +1313,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     lineHeight: 16,
   },
   rebalanceBtn: {
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -1352,7 +1352,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   primaryBtn: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 8, elevation: 4,
   },
@@ -1389,6 +1389,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10 },
   modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: themeColors.bg, alignItems: 'center', borderWidth: 1, borderColor: themeColors.line },
   modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: themeColors.accent },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: themeColors.accentFill },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

@@ -842,7 +842,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   formActions: { flexDirection: 'row' as const, gap: 10, marginTop: 16 },
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center' as const, justifyContent: 'center' as const },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center' as const, justifyContent: 'center' as const },
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
 
@@ -900,14 +900,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   projectChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: themeColors.accentSoft },
   projectChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   assignChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: themeColors.line, maxWidth: 200 },
-  assignChipActive: { backgroundColor: themeColors.accent },
+  assignChipActive: { backgroundColor: themeColors.accentFill },
   assignChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   assignChipTextActive: { color: '#FFFFFF' },
   claimedRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: themeColors.successSoft, borderRadius: Tokens.radius.md, padding: 12 },
   claimedRowText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   inviteBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
-    paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill,
   },
   inviteBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
   deleteBtn: {

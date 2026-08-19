@@ -101,6 +101,14 @@ export const Colors = {
   get accent() { return _customAccent || '#FF6A1A'; },
   accentLight: '#FFCC00',
   accentMuted: '#FFE0A0',
+  // Accent FILL under WHITE text — founder decision #1. The brand hue gives
+  // white only 2.87:1 (fails AA); this darkened companion clears 4.5:1 (white
+  // on #BC440C = 5.29:1). A GETTER mirroring `get accent()` so the five button
+  // files that read `Colors.accentFill` (rather than the themed `t.accentFill`)
+  // resolve it the same way. #BC440C is the same value in light and its dark
+  // equivalent — white clears AA on it in either theme — so it returns
+  // unconditionally, matching Theme.light.accentFill / Theme.dark.accentFill.
+  get accentFill() { return '#BC440C'; },
 
   // ── Surfaces — THEME-AWARE GETTERS (read _currentTheme at access) ──
   get background()       { return _currentTheme === 'dark' ? '#0B0D10' : '#F2F2F7'; },

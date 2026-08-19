@@ -274,7 +274,7 @@ const makeStyles = (t: ThemeColors) =>
       backgroundColor: t.surfaceAlt,
       ...Tokens.continuousCorners,
     },
-    actionBtnPrimary: { backgroundColor: t.accent, borderColor: t.accent },
+    actionBtnPrimary: { backgroundColor: t.accentFill, borderColor: t.accent },
     actionText: { ...Type.footnoteEmphasized, color: t.text },
   });
 

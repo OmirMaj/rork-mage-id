@@ -941,7 +941,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Empty state
   emptyBox: { alignItems: 'center', padding: 20 },
   emptyText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, textAlign: 'center', marginTop: 8, marginBottom: 8 },
-  emptyCta: { backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.sm },
+  emptyCta: { backgroundColor: t.accentFill, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.sm },
   emptyCtaText: { color: '#FFFFFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   footerNote: { fontSize: 10, color: t.textMuted, textAlign: 'center', marginTop: 16, lineHeight: 14, paddingHorizontal: 16 },
@@ -958,7 +958,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   btnGhost: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
   btnGhostText: { color: t.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
-  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
   btnPrimaryText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Form
@@ -977,7 +977,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   subList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   subChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
-  subChipActive: { backgroundColor: t.accent },
+  subChipActive: { backgroundColor: t.accentFill },
   subChipText: { fontSize: Type.caption1.fontSize, color: t.text },
   subChipTextActive: { color: '#FFFFFF', fontWeight: '700' },
 

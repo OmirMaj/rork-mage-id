@@ -577,14 +577,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
   title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: t.accent },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: t.accentFill },
   addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28, alignItems: 'center', gap: 10, marginTop: 22, borderWidth: 1, borderColor: t.line },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
   emptyBody:  { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
-  bigCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11, backgroundColor: t.accent, marginTop: 8 },
+  bigCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11, backgroundColor: t.accentFill, marginTop: 8 },
   bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   disclaimer: {
@@ -615,7 +615,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sigPreviewText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text },
 
   waiverActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  actionPrimary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: t.accent },
+  actionPrimary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: t.accentFill },
   actionPrimaryText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#FFF' },
   actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
   actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
@@ -642,7 +642,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: t.bg, alignItems: 'center', borderWidth: 1, borderColor: t.line },
   modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: t.accent },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: t.accentFill },
   modalConfirmDisabled: { opacity: 0.45 },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

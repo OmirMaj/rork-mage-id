@@ -407,7 +407,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: 12,
     paddingVertical: 13,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   primaryText: {
     color: '#FFFFFF',

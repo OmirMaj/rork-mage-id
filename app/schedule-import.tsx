@@ -639,7 +639,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   importBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   importBtnDisabled: { opacity: 0.5 },
   importBtnText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: Type.subhead.fontSize },
@@ -654,7 +654,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   lockSub: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20 },
   upgradeBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
-    backgroundColor: t.accent, paddingVertical: 13, paddingHorizontal: 24, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 13, paddingHorizontal: 24, borderRadius: Tokens.radius.card,
   },
   upgradeBtnText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: Type.subhead.fontSize },
 });

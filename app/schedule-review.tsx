@@ -583,7 +583,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cta: {
     flex: 1,
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 16,
+    gap: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 16,
   },
   ctaDisabled: { opacity: 0.45 },
   ctaText: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },

@@ -552,7 +552,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   draftBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 20,
+    backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 20,
   },
   draftBtnDisabled: { opacity: 0.6 },
   draftBtnTxt: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.subhead.fontSize },
@@ -623,7 +623,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   sendBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   sendBtnDisabled: { opacity: 0.6 },
   sendBtnTxt: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.subhead.fontSize },

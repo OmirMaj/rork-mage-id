@@ -95,7 +95,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   body: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, marginBottom: 6 },
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    width: '100%', paddingVertical: 13, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    width: '100%', paddingVertical: 13, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
   },
   shareBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF' },
   laterBtn: { paddingVertical: 8 },

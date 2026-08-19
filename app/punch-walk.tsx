@@ -647,7 +647,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
   sessionChip: {
     minWidth: 28, height: 28, borderRadius: Tokens.radius.lg, paddingHorizontal: 8,
-    backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: t.accentFill, alignItems: 'center', justifyContent: 'center',
   },
   sessionChipText: { color: '#FFFFFF', fontWeight: '800', fontSize: Type.caption1.fontSize },
 
@@ -713,7 +713,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 14, marginTop: 14, paddingVertical: 16, borderRadius: Tokens.radius.lg,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   saveBtnDisabled: { backgroundColor: t.textMuted },
   saveBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: Type.subhead.fontSize },

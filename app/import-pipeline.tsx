@@ -297,7 +297,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
   },
   primaryBtnDisabled: { opacity: 0.5 },
   primaryBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF' },
@@ -318,7 +318,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   draftChipText: { fontSize: Type.caption2.fontSize, color: t.text, fontWeight: '600' },
   draftProject: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4 },
   draftRemove: { padding: 6 },
-  addPill: { backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.full },
+  addPill: { backgroundColor: t.accentFill, paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.full },
   addPillText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#FFF' },
 
   reviewActions: { flexDirection: 'row', gap: 10, marginTop: 8 },

@@ -138,6 +138,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   benefitsRow: { flexDirection: 'row' as const, gap: 6, flexWrap: 'wrap' as const },
   benefitChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: t.accent + '12' },
   benefitText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '600' as const },
-  actionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  actionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
   actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

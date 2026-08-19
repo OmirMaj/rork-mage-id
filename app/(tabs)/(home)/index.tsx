@@ -1203,7 +1203,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1248,7 +1248,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     paddingRight: 32, // room for the absolute-positioned close button
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     shadowColor: t.accent,
     shadowOffset: { width: 0, height: 6 },
@@ -1478,7 +1478,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt,
   },
   typeChipActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   typeChipLabel: {
     fontSize: Type.footnote.fontSize,
@@ -1489,7 +1489,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: '#FFFFFF',
   },
   createBtn: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1594,7 +1594,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   filterChipActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   filterChipLabel: {

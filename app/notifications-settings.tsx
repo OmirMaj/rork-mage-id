@@ -930,7 +930,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   permBody: { fontSize: 12.5, color: '#D8DDE3', lineHeight: 18, marginBottom: 10 },
   permCta: {
     alignSelf: 'flex-start',
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
   },
   permCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
@@ -1041,7 +1041,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   previewBtn: {
     marginTop: 14, paddingVertical: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   previewBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },

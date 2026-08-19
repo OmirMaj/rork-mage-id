@@ -397,7 +397,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   statLabel: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   createButton: {
     marginHorizontal: 16,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     flexDirection: 'row',
@@ -421,7 +421,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: t.line,
   },
-  filterChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  filterChipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   filterChipTextActive: { color: '#fff' },
   listSection: { paddingHorizontal: 16 },

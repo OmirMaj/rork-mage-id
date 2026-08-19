@@ -704,7 +704,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     position: 'absolute',
     top: -9,
     right: 10,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 5,

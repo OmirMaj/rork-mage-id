@@ -2052,7 +2052,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   uploadCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
-    backgroundColor: themeColors.accent, marginTop: 10,
+    backgroundColor: themeColors.accentFill, marginTop: 10,
     shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
@@ -2219,7 +2219,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   ctaSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
   ctaPrimary: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.accent,
+    paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.accentFill,
   },
   ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
@@ -2284,7 +2284,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   specCardCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: themeColors.accent, alignSelf: 'flex-start',
+    backgroundColor: themeColors.accentFill, alignSelf: 'flex-start',
   },
   specCardCtaText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
   specCardStatRow: {

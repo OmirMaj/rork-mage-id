@@ -695,7 +695,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  shareBtnPrimary: { backgroundColor: t.accent, borderColor: t.accent },
+  shareBtnPrimary: { backgroundColor: t.accentFill, borderColor: t.accent },
   shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   lastShared: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 8 },
 

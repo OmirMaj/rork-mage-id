@@ -663,14 +663,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line, backgroundColor: t.surfaceAlt,
     minHeight: 36, justifyContent: 'center' as const,
   },
-  chipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  chipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   chipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
   chipTextActive: { color: Colors.textOnPrimary },
 
   primaryBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
     gap: 7, marginTop: 12,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
     minHeight: 48,
   },
   primaryBtnDisabled: { opacity: 0.45 },

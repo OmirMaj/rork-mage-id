@@ -262,7 +262,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bubbleRowUser: { justifyContent: 'flex-end' },
   bubbleRowAi: { justifyContent: 'flex-start' },
   bubble: { borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 11, maxWidth: '88%' },
-  bubbleUser: { backgroundColor: t.accent, borderBottomRightRadius: Tokens.radius.xs },
+  bubbleUser: { backgroundColor: t.accentFill, borderBottomRightRadius: Tokens.radius.xs },
   bubbleAi: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderBottomLeftRadius: Tokens.radius.xs },
   bubbleUserText: { color: Colors.textOnAccent, fontSize: Type.subhead.fontSize, lineHeight: 21 },
   bubbleAiText: { color: t.text, fontSize: Type.subhead.fontSize, lineHeight: 21 },

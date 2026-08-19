@@ -1144,7 +1144,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1, alignItems: 'center', gap: 2,
     paddingVertical: 8, paddingHorizontal: 6, borderRadius: Tokens.radius.md,
   },
-  toolBtnActive: { backgroundColor: t.accent },
+  toolBtnActive: { backgroundColor: t.accentFill },
   toolBtnText: { color: t.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: 2 },
   toolBtnTextActive: { color: '#FFFFFF' },
   toolBtnTextDisabled: { color: t.textMuted },
@@ -1162,7 +1162,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   unitLabel: { color: t.textSecondary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentFill, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
   },
   primaryBtnText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 

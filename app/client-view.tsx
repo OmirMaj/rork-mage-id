@@ -1554,11 +1554,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   passcodeDesc: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 18, marginTop: 4 },
   passcodeInput: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: t.line, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: t.text, marginTop: 12, textAlign: 'center', letterSpacing: 2 },
   passcodeErrorText: { fontSize: Type.caption1.fontSize, color: t.danger, marginTop: 4 },
-  passcodeBtn: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  passcodeBtn: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   passcodeBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
 
   header: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 20,
     paddingBottom: 24,
     alignItems: 'flex-start',
@@ -1713,7 +1713,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   msgBubble: {
     maxWidth: '84%', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 8,
   },
-  msgBubbleMine: { backgroundColor: t.accent, borderBottomRightRadius: 4 },
+  msgBubbleMine: { backgroundColor: t.accentFill, borderBottomRightRadius: 4 },
   msgBubbleTheirs: { backgroundColor: Colors.surfaceAlt, borderBottomLeftRadius: 4 },
   msgAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, marginBottom: 2 },
   msgAuthorMine: { color: 'rgba(255,255,255,0.85)' },

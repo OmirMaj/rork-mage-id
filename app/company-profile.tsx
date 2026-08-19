@@ -525,7 +525,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginHorizontal: 16, marginTop: 24,
     paddingVertical: 14,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
   },
   saveButtonText: { color: '#fff', fontSize: Type.callout.fontSize, fontWeight: '700' as const },

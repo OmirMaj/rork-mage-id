@@ -1138,7 +1138,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 0.5, borderColor: t.accent + '55',
     backgroundColor: t.accent + '10',
   },
-  sourcePillActive: { backgroundColor: t.accent, borderColor: t.accent },
+  sourcePillActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   sourcePillLabel: { fontSize: 10, fontWeight: '800' as const, color: t.accent, letterSpacing: 0.2 },
   sourcePillValue: { fontSize: 10, fontWeight: '700' as const, color: t.textSecondary },
   sourcePillLabelActive: { color: t.surface },
@@ -1179,7 +1179,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   commitBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: Tokens.radius.sm, backgroundColor: t.accent,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.accentFill,
   },
   commitBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.surface },
 
@@ -1214,7 +1214,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     backgroundColor: t.surfaceAlt,
   },
-  markupPillActive: { backgroundColor: t.accent },
+  markupPillActive: { backgroundColor: t.accentFill },
   markupPillText: { fontSize: 11, fontWeight: '700' as const, color: t.textSecondary },
   markupPillTextActive: { color: t.surface },
 
@@ -1222,7 +1222,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, marginTop: 8,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     shadowColor: t.accent, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
   },
   saveBtnText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.surface, letterSpacing: 0.2 },
@@ -1231,7 +1231,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 18, paddingVertical: 12, marginTop: 12,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   primaryBtnText: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.surface },
 });

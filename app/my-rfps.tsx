@@ -268,7 +268,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerCta: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   headerCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
@@ -301,7 +301,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent, marginTop: 12,
+    backgroundColor: t.accentFill, marginTop: 12,
   },
   emptyCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
@@ -323,6 +323,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line },
   rfpResponseChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rfpResponseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
-  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accent, minWidth: 18, alignItems: 'center' },
+  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accentFill, minWidth: 18, alignItems: 'center' },
   unreadDotText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
 });

@@ -288,7 +288,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt,
     alignItems: 'center',
   },
-  quickPillActive: { backgroundColor: t.accent },
+  quickPillActive: { backgroundColor: t.accentFill },
   quickPillText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
   quickPillTextActive: { color: t.surface },
   wheels: { flexDirection: 'row', gap: 8, marginVertical: 8 },
@@ -306,7 +306,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   confirmBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.lg,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     shadowColor: t.accent, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
   },
   confirmText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.surface, letterSpacing: 0.2 },

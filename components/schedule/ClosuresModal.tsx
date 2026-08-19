@@ -313,7 +313,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt,
   },
   cellMarked: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.sm,
   },
   cellText: { fontSize: Type.footnote.fontSize, fontWeight: '500', color: t.text },
@@ -359,6 +359,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   btnGhost: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs },
   btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
-  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs, backgroundColor: t.accent },
+  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs, backgroundColor: t.accentFill },
   btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
 });

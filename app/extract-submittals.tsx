@@ -367,7 +367,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   primaryBtn: {
     marginHorizontal: 16, paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },

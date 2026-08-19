@@ -1079,7 +1079,7 @@ const makeModalStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.card, paddingVertical: 14,
     marginTop: 14,
   },
@@ -1104,7 +1104,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full, marginTop: 6 },
   statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent },
+  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accentFill },
   emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   timeline: { gap: 4, marginBottom: 10, paddingHorizontal: 4 },
@@ -1158,6 +1158,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   actionBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: themeColors.line, backgroundColor: themeColors.surface },
   secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line },
   secondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
-  primary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 11, backgroundColor: themeColors.accent, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4 },
+  primary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 11, backgroundColor: themeColors.accentFill, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4 },
   primaryText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF' },
 });

@@ -327,7 +327,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   uploadBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.surface },
 

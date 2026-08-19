@@ -5086,7 +5086,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   revDetailTabActive: { backgroundColor: themeColors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 },
   revDetailTabText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   revDetailTabTextActive: { color: themeColors.text },
-  revRestoreBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent },
+  revRestoreBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accentFill },
   revRestoreBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
 });
 

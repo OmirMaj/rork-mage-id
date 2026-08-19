@@ -610,7 +610,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
@@ -631,7 +631,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   shareBtnFull: {
     flex: 1,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   shareBtnText: {
     fontSize: Type.bodyCompact.fontSize,

@@ -538,7 +538,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   postCta: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   postCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: '#FFF' },
 
@@ -551,7 +551,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   segmentActive: { backgroundColor: t.accent + '12', borderColor: t.accent },
   segmentText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textMuted },
   segmentTextActive: { color: t.accent },
-  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accent, minWidth: 18, alignItems: 'center' },
+  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accentFill, minWidth: 18, alignItems: 'center' },
   unreadDotText: { fontSize: 10, fontWeight: '800' as const, color: '#FFF' },
 
   controls: {
@@ -599,7 +599,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bigCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11,
-    backgroundColor: t.accent, marginTop: 10,
+    backgroundColor: t.accentFill, marginTop: 10,
   },
   bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const },
 
@@ -638,6 +638,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   statusPillText: { fontSize: 9, fontWeight: '800' as const, letterSpacing: 0.6 },
   responseChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   responseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
-  unreadDotSm: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accent, minWidth: 18, alignItems: 'center' },
+  unreadDotSm: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accentFill, minWidth: 18, alignItems: 'center' },
   unreadDotSmText: { fontSize: 10, fontWeight: '800' as const, color: '#FFF' },
 });

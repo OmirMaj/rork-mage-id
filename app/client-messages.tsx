@@ -436,7 +436,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   muted: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: 12 },
   backBtn: {
     marginTop: 18, paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.md,
   },
   backBtnTxt: { color: '#FFFFFF', fontWeight: '600', fontSize: Type.bodyCompact.fontSize },
 
@@ -476,7 +476,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bubble: {
     paddingHorizontal: 13, paddingVertical: 8,
   },
-  bubbleMine: { backgroundColor: t.accent },
+  bubbleMine: { backgroundColor: t.accentFill },
   bubbleTheirs: { backgroundColor: t.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line },
   author: {
     fontSize: 11, fontWeight: '700',

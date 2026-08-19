@@ -356,6 +356,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   footer: { paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10, backgroundColor: t.bg, borderTopWidth: 0.5, borderTopColor: t.line },
   backButton: { flex: 1, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   backButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
-  nextButton: { flex: 2, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextButton: { flex: 2, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: t.accentFill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   nextButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
 });

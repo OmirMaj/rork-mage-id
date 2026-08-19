@@ -352,7 +352,7 @@ function makeStyles(colors: ThemeColors) {
     heardLabel: { ...Type.monoLabel, color: colors.textMuted, marginTop: 1 },
     heardText: { ...Type.footnote, color: colors.textSecondary, flex: 1, fontStyle: 'italic' },
 
-    buildBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, backgroundColor: colors.accent, borderRadius: Tokens.radius.lg, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },
+    buildBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, backgroundColor: colors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },
     buildBtnText: { ...Type.bodyEmphasized, color: Colors.textOnAccent },
 
     actionbar: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.md, borderTopWidth: 1, borderTopColor: colors.line },

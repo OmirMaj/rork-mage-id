@@ -416,7 +416,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line,
     alignItems: 'center',
   },
-  progressBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
+  progressBtnActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   progressBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
 
   numberInput: {
@@ -470,7 +470,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   secondaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   primaryBtn: {
     flex: 1.6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
   },
   primaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 });

@@ -1375,7 +1375,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
   },
-  proposalBtnAccept: { backgroundColor: t.accent },
+  proposalBtnAccept: { backgroundColor: t.accentFill },
   proposalBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
   proposalBtnDecline: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
@@ -1411,7 +1411,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 11, paddingVertical: 6,
     borderRadius: 14,
   },
-  miniBubbleMine: { backgroundColor: t.accent },
+  miniBubbleMine: { backgroundColor: t.accentFill },
   miniBubbleTheirs: { backgroundColor: t.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line },
   miniBubbleText: { fontSize: 13, color: t.text, lineHeight: 17 },
   miniBubbleTextMine: { color: '#FFFFFF' },
@@ -1432,7 +1432,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   inviteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 13,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 13,
   },
   inviteBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
 

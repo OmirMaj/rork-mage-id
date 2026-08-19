@@ -57,7 +57,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginBottom: 24,
   },
   link: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,

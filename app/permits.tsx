@@ -1140,7 +1140,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: t.line,
   },
-  filterChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  filterChipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   filterChipTextActive: { color: '#fff' },
   listSection: { paddingHorizontal: 16 },
@@ -1230,7 +1230,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 12,
     paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.full,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   emptyCtaText: { color: '#fff', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
 
@@ -1295,7 +1295,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   saveBtn: {
     flex: 1,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },

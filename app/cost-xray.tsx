@@ -741,7 +741,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   aiBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 14, marginBottom: 8,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 14, marginBottom: 8,
   },
   aiBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
 
@@ -807,7 +807,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   applySub: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 1 },
   applyBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 13, paddingHorizontal: 18,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 13, paddingHorizontal: 18,
   },
   applyBtnDisabled: { opacity: 0.4 },
   applyBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },

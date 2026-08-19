@@ -233,7 +233,7 @@ const makeStyles = (t: ThemeColors) =>
       marginTop: Tokens.spacing.sm,
       paddingVertical: 12,
       borderRadius: Tokens.radius.md,
-      backgroundColor: t.accent,
+      backgroundColor: t.accentFill,
     },
     copyBtnDone: { backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line },
     copyText: { ...Type.subheadEmphasized, color: Colors.textOnAccent },

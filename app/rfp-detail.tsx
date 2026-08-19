@@ -481,7 +481,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   primaryCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent, marginTop: 10,
+    backgroundColor: t.accentFill, marginTop: 10,
     shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
@@ -533,7 +533,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignSelf: 'flex-end',
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   qaAskBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 

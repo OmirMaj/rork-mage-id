@@ -230,7 +230,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   certShort: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, marginBottom: 2 },
   certFull: { fontSize: Type.footnote.fontSize, color: t.text },
   certSource: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
-  countBadge: { backgroundColor: t.accent, borderRadius: Tokens.radius.md, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  countBadge: { backgroundColor: t.accentFill, borderRadius: Tokens.radius.md, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   countText: { color: '#FFF', fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   noResults: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
   bidRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: t.line },
@@ -238,6 +238,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bidTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text, marginBottom: 2 },
   bidMeta: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   contactActions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md },
+  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.accentFill, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md },
   contactBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
 });

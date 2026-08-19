@@ -248,13 +248,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.surface,
     borderWidth: 1, borderColor: themeColors.line,
   },
-  yearChipActive: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
+  yearChipActive: { backgroundColor: themeColors.accentFill, borderColor: themeColors.accent },
   yearChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, fontVariant: ['tabular-nums'] },
   yearChipTextActive: { color: '#FFFFFF' },
   exportRow: { flexDirection: 'row' as const, gap: 10, marginHorizontal: 20, marginBottom: 16 },
   exportPrimary: {
     flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent,
+    gap: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill,
   },
   exportPrimaryText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
   exportSecondary: {

@@ -515,7 +515,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.xs,
     backgroundColor: t.surfaceAlt,
   },
-  progressChipActive: { backgroundColor: t.accent },
+  progressChipActive: { backgroundColor: t.accentFill },
   progressChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
   progressChipTextActive: { color: '#fff' },
   emptyText: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic' },

@@ -801,7 +801,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   uploadCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent, marginTop: 10,
+    backgroundColor: t.accentFill, marginTop: 10,
     shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
@@ -928,7 +928,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   ctaSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   ctaPrimary: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 13, borderRadius: 11, backgroundColor: t.accent,
+    paddingVertical: 13, borderRadius: 11, backgroundColor: t.accentFill,
   },
   ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 

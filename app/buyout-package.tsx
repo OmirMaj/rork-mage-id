@@ -903,7 +903,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 8 },
   fabSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line },
   fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
-  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line },
@@ -912,6 +912,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   input: { backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, fontSize: Type.subhead.fontSize, color: t.text },
   multilineInput: { minHeight: 70 },
   modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.card },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.card },
   saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 });

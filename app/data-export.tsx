@@ -420,7 +420,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 10, borderRadius: Tokens.radius.sm, gap: 6,
   },
-  segmentBtnActive: { backgroundColor: t.accent },
+  segmentBtnActive: { backgroundColor: t.accentFill },
   segmentTxt: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   segmentTxtActive: { color: '#FFFFFF' },
 
@@ -492,7 +492,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnTxt: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.subhead.fontSize },

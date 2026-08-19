@@ -1091,7 +1091,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   chatTurn: { marginBottom: 14 },
   chatQ: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: Tokens.radius.card, alignSelf: 'flex-end',
     maxWidth: '90%', marginBottom: 4,
@@ -1122,14 +1122,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   applyAllBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   applyAllBtnText: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
   primaryBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderRadius: Tokens.radius.sm, backgroundColor: t.accent,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.accentFill,
   },
   primaryBtnText: { color: '#fff', fontSize: Type.caption1.fontSize, fontWeight: '700' },
   secondaryBtn: {

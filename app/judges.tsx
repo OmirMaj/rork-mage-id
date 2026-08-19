@@ -482,7 +482,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 9, borderRadius: Tokens.radius.full,
     borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
   },
-  modeBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
+  modeBtnActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   modeBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textSecondary },
   modeBtnTextActive: { color: Colors.textOnAccent },
 
@@ -536,7 +536,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   judgeBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     justifyContent: 'center' as const, gap: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.card,
     paddingVertical: 14, marginTop: 20,
   },
   judgeBtnDisabled: { opacity: 0.45 },

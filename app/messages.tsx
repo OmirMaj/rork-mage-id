@@ -218,7 +218,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   kav: { flex: 1 },
   messageList: { padding: 16, paddingBottom: 8 },
   messageBubble: { maxWidth: '80%' as unknown as number, marginBottom: 8, padding: 12, borderRadius: Tokens.radius.panel },
-  myMessage: { alignSelf: 'flex-end' as const, backgroundColor: t.accent, borderBottomRightRadius: 4 },
+  myMessage: { alignSelf: 'flex-end' as const, backgroundColor: t.accentFill, borderBottomRightRadius: 4 },
   theirMessage: { alignSelf: 'flex-start' as const, backgroundColor: t.surface, borderBottomLeftRadius: 4 },
   senderName: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.accent, marginBottom: 2 },
   messageText: { fontSize: Type.subhead.fontSize, color: t.text, lineHeight: 20 },

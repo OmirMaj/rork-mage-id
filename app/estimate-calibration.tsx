@@ -218,7 +218,7 @@ function CategoryCard({
           </View>
         ) : (
           <TouchableOpacity
-            style={[styles.applyBtn, { backgroundColor: t.accent }]}
+            style={[styles.applyBtn, { backgroundColor: t.accentFill }]}
             onPress={onApply}
             activeOpacity={0.85}
             accessibilityRole="button"

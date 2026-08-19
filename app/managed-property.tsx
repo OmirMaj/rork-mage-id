@@ -359,7 +359,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   woHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
-  addWoBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.accent, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md },
+  addWoBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.accentFill, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md },
   addWoBtnText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   emptyWo: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 22, borderWidth: 1, borderColor: t.line, alignItems: 'center', gap: 8 },
@@ -389,7 +389,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   priorityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   priorityChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line, backgroundColor: t.bg },
   priorityChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.textMuted },
-  modalCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 16 },
+  modalCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 16 },
   modalCtaDisabled: { opacity: 0.5 },
   modalCtaText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '800' },
 });

@@ -255,7 +255,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt,
   },
   chipActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
   },
   chipLabel: {
     fontSize: Type.caption1.fontSize,

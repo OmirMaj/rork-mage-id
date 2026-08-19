@@ -480,7 +480,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   confirmBtn: {
     flex: 1,
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
-    paddingVertical: 9, borderRadius: Tokens.radius.md, backgroundColor: t.accent,
+    paddingVertical: 9, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill,
   },
   confirmBtnDisabled: { opacity: 0.45 },
   confirmText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
@@ -492,7 +492,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   bulkBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
-    backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 13,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 13,
   },
   bulkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
   bulkNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center' as const, marginTop: 6 },

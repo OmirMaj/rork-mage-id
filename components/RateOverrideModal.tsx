@@ -505,7 +505,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line, backgroundColor: Colors.card,
     alignItems: 'center',
   },
-  chipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  chipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   chipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   chipTextActive: { color: '#FFF' },
   chipSub: {
@@ -570,7 +570,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   secondaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   primaryBtn: {
     flex: 1.6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
   },
   primaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 });

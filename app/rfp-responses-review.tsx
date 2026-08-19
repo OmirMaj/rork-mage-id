@@ -489,12 +489,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   shortlistBtn: { backgroundColor: Colors.warning + '08', borderColor: Colors.warning + '40' },
   unshortBtn:   { backgroundColor: t.bg, borderColor: t.line },
   declineBtn:   { backgroundColor: t.bg, borderColor: t.danger + '40' },
-  awardBtn:     { backgroundColor: t.accent, borderColor: t.accent, marginLeft: 'auto' },
+  awardBtn:     { backgroundColor: t.accentFill, borderColor: t.accent, marginLeft: 'auto' },
   actionBtnText:{ fontSize: Type.caption1.fontSize, fontWeight: '700' },
 
   undeclineRow: { paddingTop: 6, alignSelf: 'flex-start' },
   undeclineText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' },
 
-  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: t.accent, marginTop: 12 },
+  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill, marginTop: 12 },
   backCtaText: { color: '#FFF', fontWeight: '700' },
 });

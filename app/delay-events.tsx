@@ -1270,7 +1270,7 @@ const makeStyles = (t: ThemeColors) =>
       borderWidth: 1,
       borderColor: t.line,
     },
-    chipActive: { backgroundColor: t.accent, borderColor: t.accent },
+    chipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
     chipText: { ...Type.caption1, color: t.textSecondary },
     chipTextActive: { color: Colors.textOnAccent, fontWeight: '700' },
     primaryBtn: {
@@ -1281,7 +1281,7 @@ const makeStyles = (t: ThemeColors) =>
       marginTop: Tokens.spacing.md,
       paddingVertical: 12,
       borderRadius: Tokens.radius.md,
-      backgroundColor: t.accent,
+      backgroundColor: t.accentFill,
     },
     primaryBtnDisabled: { opacity: 0.5 },
     primaryBtnText: { ...Type.footnoteEmphasized, color: Colors.textOnAccent },

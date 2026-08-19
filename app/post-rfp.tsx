@@ -1277,7 +1277,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     paddingVertical: 14, paddingHorizontal: 22,
     borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     minWidth: 160,
     shadowColor: t.accent, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28, shadowRadius: 14, elevation: 4,

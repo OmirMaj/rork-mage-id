@@ -741,12 +741,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   reviewActions: { flexDirection: 'row', gap: 6, marginTop: 4 },
   discardBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm },
   discardBtnText: { fontSize: Type.caption1.fontSize, color: t.danger, fontWeight: '600' as const },
-  saveOneBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.sm },
+  saveOneBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.sm },
   saveOneBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: '#FFF' },
   savedFlag: { flex: 1, fontSize: Type.caption1.fontSize, color: t.success, fontWeight: '600' as const, textAlign: 'right' },
 
   fab: { position: 'absolute', left: 16, right: 16 },
-  fabPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   fabPrimaryDisabled: { opacity: 0.5 },
   fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 });

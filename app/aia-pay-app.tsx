@@ -995,7 +995,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
   },
   lockedBannerCtaText: {
     fontSize: Type.footnote.fontSize,
@@ -1101,7 +1101,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   generateBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.card,
+    gap: 8, backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
   generateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },

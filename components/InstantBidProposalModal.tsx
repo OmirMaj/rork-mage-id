@@ -363,7 +363,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    paddingVertical: 13, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
+    paddingVertical: 13, borderRadius: Tokens.radius.card, backgroundColor: t.accentFill,
   },
   btnDisabled: { opacity: 0.6 },
   primaryBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF' },
@@ -374,7 +374,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tierTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   tierLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   tierLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
-  tierBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: t.accent },
+  tierBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: t.accentFill },
   tierBadgeText: { fontSize: 8, fontWeight: '800', color: '#FFF', letterSpacing: 0.6 },
   tierTagline: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 15 },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: t.line, alignItems: 'center', justifyContent: 'center' },

@@ -724,7 +724,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   btnGhost: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
   btnGhostText: { color: t.text, fontSize: Type.footnote.fontSize, fontWeight: '700' },
-  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
   btnPrimaryText: { color: '#FFFFFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },

@@ -155,7 +155,7 @@ const makeStyles = (t: ThemeColors) =>
       borderRadius: Tokens.radius.md,
     },
     btnStacked: { flex: 0, width: '100%' },
-    btnPrimary: { backgroundColor: t.accent },
+    btnPrimary: { backgroundColor: t.accentFill },
     btnDanger: { backgroundColor: t.danger },
     btnGhost: { backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line },
     btnText: { ...Type.subheadEmphasized },

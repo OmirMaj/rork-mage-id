@@ -533,7 +533,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     height: 44,
     borderRadius: Tokens.radius.card,
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
