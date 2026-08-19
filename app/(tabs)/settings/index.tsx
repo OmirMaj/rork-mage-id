@@ -319,7 +319,7 @@ export default function SettingsScreen() {
   }, [location, taxRate, contingency, updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, selectedTheme, biometricsEnabled, pdfNaming]);
 
   const handleClearAll = useCallback(() => {
-    showAlert('Clear All Data', 'This permanently deletes every project, estimate, and cached record this app stored on this device — change orders, invoices, daily reports, photos, bids, and the rest. Your appearance/theme setting is kept. This cannot be undone.', [
+    showAlert('Clear All Data', 'This permanently deletes every project, estimate, and cached record this app stored on this device — change orders, invoices, daily reports, photos, bids, and the rest — INCLUDING any changes not yet synced and jobsite photos not yet uploaded, which cannot be recovered. Your appearance/theme setting is kept. This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete Everything', style: 'destructive',
@@ -373,6 +373,15 @@ export default function SettingsScreen() {
           ];
           for (const name of emptyQueryKeys) {
             queryClient.setQueryData([name, userId], []);
+          }
+          // The widened sweep also removed the config keys (mageid_settings,
+          // mageid_user_role, mageid_onboarding_complete). Drop their query
+          // caches too, so a surviving in-memory cache cannot immediately
+          // re-persist its pre-wipe value — the same re-persist race the list
+          // caches above are emptied to avoid. (Account-level settings on the
+          // server are untouched; a device clear is not an account delete.)
+          for (const key of [['settings', userId], ['user_role', userId], ['onboarding', userId]] as const) {
+            queryClient.removeQueries({ queryKey: key });
           }
 
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
