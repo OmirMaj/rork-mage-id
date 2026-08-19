@@ -48,6 +48,22 @@ function money(n: number): string {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * `CostBookEntry.confidence` is a raw union ('low' | 'medium' | 'high'). It was
+ * being dropped straight into the drill-down sheet, so the row read
+ * "Confidence — low" in lowercase next to fully-written copy like
+ * "Measured on 3 closed jobs" and "Sep 2025 – Feb 2026".
+ *
+ * Typed as Record<union, string> DELIBERATELY: a fourth confidence level added
+ * to utils/costDatabase.ts becomes a type error here instead of silently
+ * leaking its raw enum member back onto the sheet.
+ */
+const CONFIDENCE_LABEL: Record<CostBookEntry['confidence'], string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+};
+
 function Fact({ label, value }: { label: string; value: string }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -154,7 +170,7 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
                   <Fact label="Measured on" value={`${model.jobCount} closed job${model.jobCount === 1 ? '' : 's'}`} />
                   {sampleWindow ? <Fact label="Sample window" value={sampleWindow} /> : null}
                   {spread ? <Fact label="Spread across jobs" value={spread} /> : null}
-                  <Fact label="Confidence" value={entry.confidence} />
+                  <Fact label="Confidence" value={CONFIDENCE_LABEL[entry.confidence]} />
                 </View>
                 <Text style={styles.note}>
                   Each new closed job pushes the measured cost further ahead of the rate you
@@ -174,7 +190,7 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
                   <Fact label="Measured on" value={`${model.jobCount} closed job${model.jobCount === 1 ? '' : 's'}`} />
                   {sampleWindow ? <Fact label="Sample window" value={sampleWindow} /> : null}
                   {spread ? <Fact label="Spread across jobs" value={spread} /> : null}
-                  <Fact label="Confidence" value={entry.confidence} />
+                  <Fact label="Confidence" value={CONFIDENCE_LABEL[entry.confidence]} />
                 </View>
               </>
             )}

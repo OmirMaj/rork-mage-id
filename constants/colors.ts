@@ -232,6 +232,7 @@ export type ThemeColors = {
   accentLabel: string;
   success: string;
   successSoft: string;
+  successLabel: string;
   warningSoft: string;
   warningLabel: string;
   dangerSoft: string;
@@ -255,6 +256,10 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accentLabel: '#C44A0F',
     success: '#2E7D44',
     successSoft: 'rgba(46,125,68,0.12)',
+    // Caption-size green text (Custom badge, bulk labels) on successSoft sat at
+    // 4.34:1 with plain `success` — under AA 4.5:1. #256B39 is 5.53:1 on
+    // successSoft-over-white and 6.48:1 on white, still clearly green.
+    successLabel: '#256B39',
     warningSoft: 'rgba(255,149,0,0.12)',
     // Label tokens are applied at caption sizes, so they must clear AA 4.5:1
     // on both the page bg and their soft fill. The old #E65100 sat at ~3.4:1
@@ -282,6 +287,9 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accentLabel: '#FF6A1A',
     success: '#4ED37A',
     successSoft: 'rgba(78,211,122,0.12)',
+    // Dark surfaces need bright ink; #4ED37A is 7.40:1 on dark successSoft, so
+    // successLabel mirrors success here (as dangerLabel mirrors danger in dark).
+    successLabel: '#4ED37A',
     warningSoft: 'rgba(255,149,0,0.16)',
     warningLabel: '#FF9500',
     dangerSoft: 'rgba(255,90,81,0.16)',
