@@ -1001,7 +1001,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.panel,
     backgroundColor: t.accent + '14',
   },
-  modeChipActive: { backgroundColor: t.accent },
+  modeChipActive: { backgroundColor: t.accentFill },
   modeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   body: { flex: 1, padding: 12 },
@@ -1043,7 +1043,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   quickBtnFeatured: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   quickBtnTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },

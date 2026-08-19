@@ -270,7 +270,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   doneBtn: {
     width: '100%', maxWidth: 640, alignSelf: 'center',
-    backgroundColor: t.accent, borderRadius: Tokens.radius.lg,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.lg,
     alignItems: 'center', paddingVertical: 14,
   },
   doneText: { ...Type.subheadEmphasized, color: Colors.textOnAccent },

@@ -166,13 +166,9 @@ console.log('');
 // name, and the ship is green only when the list is empty.
 // ═════════════════════════════════════════════════════════════════════════════
 
-// Directories the brand-orange work must not touch (owned by other tracks).
-const USAGE_EXCLUDE_PREFIXES = [
-  'app/coi-vault',
-  'app/(tabs)/settings/',
-  'app/(tabs)/estimate/',
-  'contexts/',
-];
+// These directories were excluded while parallel tracks owned them; all of
+// those tracks are now merged or discarded, so the guard covers the whole app.
+const USAGE_EXCLUDE_PREFIXES: string[] = [];
 function usageExcluded(rel: string): boolean {
   return USAGE_EXCLUDE_PREFIXES.some((p) => rel === p.replace(/\/$/, '') || rel.startsWith(p));
 }
@@ -283,6 +279,30 @@ function splitEntries(body: string): Record<string, string> {
         else if ('}])'.includes(ch)) depth--;
         else if (ch === ',' && depth === 0) break;
       }
+    }
+  }
+  return entries;
+}
+
+/** Every `name: { … }` object literal in the file, brace/string-aware. Unlike
+ *  findStyleSheets this also covers `makeStyles = (t) => ({ … })` / themed-style
+ *  factories that never call StyleSheet.create (e.g. app/project-detail.tsx),
+ *  which the StyleSheet.create-only scan silently skipped. First occurrence of a
+ *  name wins (the outer style, before any nested shadowOffset/{} it contains). */
+function allObjectEntries(src: string): Record<string, string> {
+  const entries: Record<string, string> = {};
+  const keyRe = /([A-Za-z0-9_$]+)\s*:\s*\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = keyRe.exec(src)) !== null) {
+    const name = m[1];
+    const open = m.index + m[0].length - 1;
+    let depth = 0, instr: string | null = null;
+    for (let j = open; j < src.length; j++) {
+      const ch = src[j];
+      if (instr) { if (ch === '\\') { j++; continue; } if (ch === instr) instr = null; continue; }
+      if (ch === "'" || ch === '"' || ch === '`') instr = ch;
+      else if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) { if (entries[name] === undefined) entries[name] = src.slice(open, j + 1); break; } }
     }
   }
   return entries;
@@ -400,8 +420,7 @@ for (const root of SRC_ROOTS) {
 
     // Collect every style entry across all StyleSheets in the file, plus a
     // name -> hasWhiteColor map for sibling / JSX-styleref resolution.
-    const entries: Record<string, string> = {};
-    for (const [bs, be] of findStyleSheets(src)) Object.assign(entries, splitEntries(src.slice(bs, be)));
+    const entries: Record<string, string> = allObjectEntries(src);
     const styleWhite: Record<string, boolean> = {};
     for (const [nm, obj] of Object.entries(entries)) {
       styleWhite[nm] = colorValuesIn(obj).some(isWhiteText);

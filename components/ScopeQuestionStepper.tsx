@@ -288,7 +288,7 @@ const makeStyles = (themeColors: ThemeColors) =>
       borderColor: themeColors.line,
     },
     chipActive: {
-      backgroundColor: themeColors.accent,
+      backgroundColor: themeColors.accentFill,
       borderColor: themeColors.accent,
     },
     chipText: {

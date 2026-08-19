@@ -1150,7 +1150,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   verifyBtn: {
     paddingHorizontal: 18, paddingVertical: 12,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent + 'CC',
+    // Opaque accentFill (not accent+'CC'): the 80% tint left white text below AA.
+    backgroundColor: t.accentFill,
     alignItems: 'center', justifyContent: 'center',
     minWidth: 80,
   },

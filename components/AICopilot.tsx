@@ -485,7 +485,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.panel,
   },
   userBubble: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderBottomRightRadius: 4,
   },
   aiBubble: {

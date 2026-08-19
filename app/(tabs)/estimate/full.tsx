@@ -3886,7 +3886,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -3929,7 +3929,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -4036,7 +4036,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
   },
   askAIBtnIcon: {
     width: 32,
@@ -4713,7 +4713,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderColor: themeColors.line,
   },
   markupMiniChipActive: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.accentFill,
     borderColor: Colors.accent,
   },
   markupMiniText: {

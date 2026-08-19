@@ -2122,11 +2122,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1.5, borderColor: t.line,
   },
   stepCircleActive: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   stepCircleDone: {
-    backgroundColor: t.accent,
+    backgroundColor: t.accentFill,
     borderColor: t.accent,
   },
   stepCircleText: {

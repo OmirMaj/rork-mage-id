@@ -1015,7 +1015,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   heroSub: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
   progressBadge: {
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: themeColors.accent, borderRadius: 50,
+    backgroundColor: themeColors.accentFill, borderRadius: 50,
     width: 68, height: 68,
   },
   progressBadgeNum: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: '#FFF', lineHeight: 20 },
@@ -1046,7 +1046,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
     backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
-  chipActive: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
+  chipActive: { backgroundColor: themeColors.accentFill, borderColor: themeColors.accent },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: themeColors.text },
   chipTextActive: { color: '#FFF' },
 

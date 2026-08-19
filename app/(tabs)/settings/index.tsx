@@ -1971,7 +1971,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -2259,7 +2259,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     lineHeight: 18,
   },
   saveButton: {
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     marginHorizontal: 16,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
@@ -2360,7 +2360,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.line,
   },
   supplierCatChipActive: {
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
   },
   supplierCatText: {
     fontSize: Type.caption1.fontSize,
@@ -2482,7 +2482,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderColor: themeColors.line,
   },
   supCatChipActive: {
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     borderColor: themeColors.accent,
   },
   supCatText: {
@@ -2501,7 +2501,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.surface,
   },
   supProfileSaveBtn: {
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     alignItems: 'center',
@@ -2648,7 +2648,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.line,
   },
   pdfSepChipActive: {
-    backgroundColor: themeColors.accent,
+    backgroundColor: themeColors.accentFill,
   },
   pdfSepChipText: {
     fontSize: Type.footnote.fontSize,

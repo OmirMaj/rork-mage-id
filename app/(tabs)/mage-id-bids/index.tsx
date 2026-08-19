@@ -581,7 +581,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // inverted to t.text (black-on-cream in light, white-on-ink in dark)
   // — a pre-rebrand legacy that doesn't read as "selected" in either
   // theme.
-  radiusChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  radiusChipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   radiusChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.text },
   radiusChipTextActive: { color: '#FFF' },
 
