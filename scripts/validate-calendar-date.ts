@@ -136,8 +136,9 @@ console.log('\nthe punch-list filter rail is flexible:');
 
 // ── 6. The header eyebrow carries the real brand ─────────────────────────
 // Pre-launch de-brand left 43 eyebrows reading "· MAGE" instead of the
-// product name, "MAGE ID". Prose uses of MAGE (the assistant's name in
-// "Ask MAGE") are deliberately NOT covered here — only the brand line.
+// product name, "MAGE ID". All 43 are now fixed and every one is covered by
+// this guard — no path is excluded. Prose uses of MAGE (the assistant's name
+// in "Ask MAGE") are deliberately NOT covered here — only the brand line.
 
 console.log('\nheader eyebrows say MAGE ID:');
 {
@@ -151,11 +152,11 @@ console.log('\nheader eyebrows say MAGE ID:');
       if (/· MAGE(?=["<])/.test(line)) stale.push(`${rel.slice(ROOT.length + 1)}: ${line.trim()}`);
     }
   }
-  // app/job-costing.tsx and app/prequal-manager.tsx are owned by other agents
-  // this cycle; their two/one occurrences are excluded rather than fixed here.
-  const OWNED_ELSEWHERE = ['app/job-costing.tsx', 'app/prequal-manager.tsx'];
-  const mine = stale.filter(s => !OWNED_ELSEWHERE.some(f => s.startsWith(f)));
-  ok('no header eyebrow still reads "· MAGE"', mine.length === 0, mine.join('\n       '));
+  // Every app/ and components/ eyebrow is now owned here — the guard covers
+  // all of them, including app/job-costing.tsx and app/prequal-manager.tsx,
+  // which earlier shipped with a hardcoded exclusion that let three stale
+  // "· MAGE" eyebrows through while the guard printed "ok".
+  ok('no header eyebrow still reads "· MAGE"', stale.length === 0, stale.join('\n       '));
 }
 
 function listTsx(dir: string): string[] {

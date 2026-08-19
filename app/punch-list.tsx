@@ -1016,16 +1016,22 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // sized from its own content cannot give the space back, and the chips end
   // up clipped under the button.
   //
-  // `flex: 1` fixes it via flexBasis, NOT via shrink: Yoga's processFlexBasis
-  // resolves a positive `flex` with auto basis to points(0) on native, so the
-  // rail starts at zero width and flexGrow: 1 grows it into exactly what is
-  // left after the 36pt button, the 8pt gap and filterBar's 16pt paddingRight.
-  // (resolveFlexShrink only derives shrink from a NEGATIVE flex, so `flex: 1`
-  // leaves flexShrink at 0 — the basis is what does the work here.)
+  // `flex: 1` is the fix on both platforms. On native it works via flexBasis,
+  // NOT shrink: Yoga's processFlexBasis resolves a positive `flex` with auto
+  // basis to points(0), so the rail starts at zero width and flexGrow: 1 grows
+  // it into exactly what is left after the 36pt button, the 8pt gap and
+  // filterBar's 16pt paddingRight. (resolveFlexShrink only derives shrink from
+  // a NEGATIVE flex, so `flex: 1` leaves flexShrink at 0 — the basis does the
+  // work.) On react-native-web the same flexBasis: 0 keeps the ScrollView from
+  // sizing to its intrinsic content width.
   //
-  // minWidth: 0 is inert on native but not decoration: on react-native-web
-  // this becomes a real CSS flex item, where the default `min-width: auto`
-  // floors a flex item at its min-content width and would re-clip the rail.
+  // minWidth: 0 here is redundant, kept only as defensive intent: it does NOT
+  // guard against a `min-width: auto` floor, because react-native-web already
+  // hardcodes `minWidth: 0` on the base style of EVERY View (view$raw in
+  // exports/View/index.js), and a horizontal ScrollView renders its scrollable
+  // element through that View — so `min-width: auto` never applies to begin
+  // with. flex: 1 is the load-bearing declaration; verified in headless tests
+  // only, so the on-device row layout still needs a simulator eye-check.
   filterScroll: { flex: 1, minWidth: 0 },
   filterRow: { paddingHorizontal: 20, gap: 6, marginBottom: 16 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: themeColors.line },

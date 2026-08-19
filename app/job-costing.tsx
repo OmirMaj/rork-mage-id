@@ -144,7 +144,7 @@ function JobCostingInner() {
             without ToolHeader the picker runs under the notch and has no back
             affordance. */}
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="JOB COSTING · MAGE" title="Job Costing" />
+        <ToolHeader eyebrow="JOB COSTING · MAGE ID" title="Job Costing" />
         <ToolProjectPicker
           toolName="Job Costing"
           message="Job costing rolls up commitments, invoices, and change orders for one project at a time."
@@ -179,7 +179,7 @@ function JobCostingInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Job Costing · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add">

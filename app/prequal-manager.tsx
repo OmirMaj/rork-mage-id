@@ -236,7 +236,7 @@ function PrequalManagerInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Prequal + COI · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Prequal + COI · MAGE ID</Text>
           <Text style={styles.headerTitle}>Subcontractor compliance</Text>
         </View>
       </View>

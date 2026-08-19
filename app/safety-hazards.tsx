@@ -23,6 +23,7 @@ import type { Hazard, HazardScale, HazardStatus } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import { computeRiskScore, riskBand, type RiskBand } from '@/utils/safety/risk';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -320,7 +321,7 @@ function SafetyHazardsInner() {
 
               {(item.assignedTo || item.dueDate) ? (
                 <Text style={styles.cardSummary}>
-                  {item.assignedTo ? item.assignedTo : ''}{item.assignedTo && item.dueDate ? ' · ' : ''}{item.dueDate ? `due ${item.dueDate}` : ''}
+                  {item.assignedTo ? item.assignedTo : ''}{item.assignedTo && item.dueDate ? ' · ' : ''}{item.dueDate ? `due ${formatCalendarDay(item.dueDate)}` : ''}
                 </Text>
               ) : null}
             </TouchableOpacity>
