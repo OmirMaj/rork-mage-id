@@ -152,7 +152,8 @@
     "test:construction-calc": "bun run scripts/validate-construction-calc.ts",
     "test:storage-hygiene": "bun run scripts/validate-storage-hygiene.ts",
     "test:job-cost": "bun run scripts/validate-job-cost-variance.ts",
-    "test:contrast": "bun run scripts/validate-contrast.ts"
+    "test:contrast": "bun run scripts/validate-contrast.ts",
+    "test:calendar-date": "bun run scripts/validate-calendar-date.ts"
   },
   "dependencies": {
     "@expo-google-fonts/fraunces": "^0.4.1",

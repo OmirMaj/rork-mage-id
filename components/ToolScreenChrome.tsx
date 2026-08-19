@@ -42,7 +42,7 @@ import type { Project } from '@/types';
 // ─── ToolHeader ───────────────────────────────────────────────────────────────
 
 export function ToolHeader({ eyebrow, title, right }: {
-  /** Small uppercase context line, e.g. "AI PUNCH · MAGE". */
+  /** Small uppercase context line, e.g. "AI PUNCH · MAGE ID". */
   eyebrow: string;
   /** The screen (or selected project) name. */
   title: string;

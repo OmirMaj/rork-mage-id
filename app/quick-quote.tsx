@@ -168,7 +168,7 @@ export default function QuickQuoteScreen() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Quick Quote · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Quick Quote · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Fast bid</Text>
         </View>
         <View style={styles.headerBtn} />

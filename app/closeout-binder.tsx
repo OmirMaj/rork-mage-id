@@ -529,7 +529,7 @@ export default function CloseoutBinderScreen() {
         {/* This screen hides the nav header, so without ToolHeader the picker
             would have no back affordance at all — the exact dead end #3 is
             about. */}
-        <ToolHeader eyebrow="CLOSEOUT · MAGE" title="Closeout Binder" />
+        <ToolHeader eyebrow="CLOSEOUT · MAGE ID" title="Closeout Binder" />
         <ToolProjectPicker
           toolName="the Closeout Binder"
           message="The closeout binder pulls warranties, selections, and as-builts from a single project."

@@ -104,7 +104,7 @@ function SubScorecardInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Sub Scorecard · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Sub Scorecard · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Who earns the next call</Text>
         </View>
         <View style={styles.headerBtn} />

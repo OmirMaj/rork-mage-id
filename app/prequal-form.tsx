@@ -283,7 +283,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       <View style={styles.header}>
         <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>Prequalification · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Prequalification · MAGE ID</Text>
           <Text style={styles.headerTitle}>{subCompanyName}</Text>
         </View>
         {dirty && (

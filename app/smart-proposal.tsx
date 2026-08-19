@@ -214,7 +214,7 @@ function SmartProposalInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Smart Proposal · MAGE</Text>
+          <Text style={styles.headerEyebrow}>Smart Proposal · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Good / better / best'}</Text>
         </View>
         <View style={styles.headerBtn} />

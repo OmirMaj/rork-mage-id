@@ -28,6 +28,7 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
 import { showAlert } from '@/utils/alert';
+import { formatCalendarDay } from '@/utils/calendarDate';
 
 // Top-level row IDs (punch items) become Supabase PKs and MUST be UUIDs —
 // the punch_items.id column rejects anything else with "invalid input syntax
@@ -409,7 +410,16 @@ function PunchListScreenInner() {
         </View>
 
         <View style={styles.filterBar}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {/* styles.filterScroll is load-bearing — see the note on the style
+              itself. Without it this ScrollView sizes to the full intrinsic
+              width of the five status chips and shoves the "More filters"
+              button off the row. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterRow}
+          >
             {(['all', 'open', 'in_progress', 'ready_for_review', 'closed'] as const).map(s => {
               const count = s === 'all' ? items.length : items.filter(i => i.status === s).length;
               const config = s === 'all' ? { label: 'All', color: themeColors.text, bg: themeColors.line } : getStatusConfig(themeColors, s);
@@ -538,7 +548,12 @@ function PunchListScreenInner() {
 
               <View style={styles.punchMeta}>
                 {item.assignedSub ? <Text style={styles.punchMetaText}>Sub: {item.assignedSub}</Text> : null}
-                {item.dueDate ? <Text style={styles.punchMetaText}>Due: {item.dueDate}</Text> : null}
+                {/* dueDate is declared 'YYYY-MM-DD' but Supabase-synced rows
+                    carry a full ISO timestamp — openEditForm already slices
+                    for exactly that reason (:200-203). This printed the raw
+                    field, so one item read "Due: 2026-08-30" locally and
+                    "Due: 2026-08-30T00:00:00.000Z" after a sync. */}
+                {item.dueDate ? <Text style={styles.punchMetaText}>Due: {formatCalendarDay(item.dueDate)}</Text> : null}
                 <Text style={[styles.punchMetaText, { color: pc.color }]}>{pc.label} Priority</Text>
               </View>
 
@@ -994,6 +1009,24 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   progressTrack: { height: 8, backgroundColor: themeColors.line, borderRadius: 4, overflow: 'hidden' as const },
   progressFill: { height: 8, backgroundColor: themeColors.accent, borderRadius: 4 },
   progressSub: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 4 },
+  // The status-chip rail shares filterBar's row with the "More filters"
+  // button. Left alone it takes the whole row: Yoga's DefaultFlexShrink is
+  // 0.0f on native (WebDefaultFlexShrink is 1.0f — this is one of the places
+  // RN deliberately differs from CSS, see yoga/style/Style.h), so a sibling
+  // sized from its own content cannot give the space back, and the chips end
+  // up clipped under the button.
+  //
+  // `flex: 1` fixes it via flexBasis, NOT via shrink: Yoga's processFlexBasis
+  // resolves a positive `flex` with auto basis to points(0) on native, so the
+  // rail starts at zero width and flexGrow: 1 grows it into exactly what is
+  // left after the 36pt button, the 8pt gap and filterBar's 16pt paddingRight.
+  // (resolveFlexShrink only derives shrink from a NEGATIVE flex, so `flex: 1`
+  // leaves flexShrink at 0 — the basis is what does the work here.)
+  //
+  // minWidth: 0 is inert on native but not decoration: on react-native-web
+  // this becomes a real CSS flex item, where the default `min-width: auto`
+  // floors a flex item at its min-content width and would re-clip the rail.
+  filterScroll: { flex: 1, minWidth: 0 },
   filterRow: { paddingHorizontal: 20, gap: 6, marginBottom: 16 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: themeColors.line },
   filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },

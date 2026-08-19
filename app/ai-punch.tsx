@@ -410,7 +410,7 @@ function AiPunchScreenInner() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="AI PUNCH · MAGE" title="AI Punch from Photos" />
+        <ToolHeader eyebrow="AI PUNCH · MAGE ID" title="AI Punch from Photos" />
         <ToolProjectPicker
           toolName="AI Punch"
           message="AI Punch turns walkthrough photos into a punch list — pick photos, AI drafts the items, you review and save them into the project."
@@ -425,7 +425,7 @@ function AiPunchScreenInner() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ToolHeader eyebrow="AI PUNCH · MAGE" title={project.name} />
+        <ToolHeader eyebrow="AI PUNCH · MAGE ID" title={project.name} />
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
