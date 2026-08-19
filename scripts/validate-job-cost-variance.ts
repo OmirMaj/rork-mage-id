@@ -49,6 +49,47 @@ import { dirname, join } from 'node:path';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
+/**
+ * Blank out comments, preserving offsets and line count.
+ *
+ * The alpha-suffix check below scans for `${token}22` shapes, and the code it
+ * guards is now documented with comments that QUOTE those shapes verbatim.
+ * Without this the guard flags its own explanation — which it did, on the first
+ * run. Same helper, same reason, as scripts/validate-contrast.ts.
+ */
+function stripComments(src: string): string {
+  const out = src.split('');
+  let i = 0;
+  type Mode = 'code' | 'line' | 'block' | 'sq' | 'dq' | 'tpl';
+  let mode: Mode = 'code';
+  const blank = (at: number) => { if (out[at] !== '\n') out[at] = ' '; };
+  while (i < src.length) {
+    const two = src.slice(i, i + 2);
+    if (mode === 'code') {
+      if (two === '//') { mode = 'line'; blank(i); blank(i + 1); i += 2; continue; }
+      if (two === '/*') { mode = 'block'; blank(i); blank(i + 1); i += 2; continue; }
+      if (src[i] === "'") mode = 'sq';
+      else if (src[i] === '"') mode = 'dq';
+      else if (src[i] === '`') mode = 'tpl';
+      i++; continue;
+    }
+    if (mode === 'line') {
+      if (src[i] === '\n') { mode = 'code'; i++; continue; }
+      blank(i); i++; continue;
+    }
+    if (mode === 'block') {
+      if (two === '*/') { mode = 'code'; blank(i); blank(i + 1); i += 2; continue; }
+      blank(i); i++; continue;
+    }
+    if (src[i] === '\\') { i += 2; continue; }
+    if ((mode === 'sq' && src[i] === "'") || (mode === 'dq' && src[i] === '"') || (mode === 'tpl' && src[i] === '`')) {
+      mode = 'code';
+    }
+    i++;
+  }
+  return out.join('');
+}
+
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, detail?: string) {
   if (cond) { pass++; console.log('  ✓', name); }
@@ -300,14 +341,59 @@ console.log('\napp/job-costing.tsx wiring (source-level — bun cannot import a 
   // declares its own `success`/`warning`, which are NOT the themed tokens.
   const themeType = colors.slice(colors.indexOf('export type ThemeColors'), colors.indexOf('export const Theme'));
   const themes = colors.slice(colors.indexOf('export const Theme'));
-  for (const token of ['danger', 'dangerSoft', 'dangerLabel', 'success', 'successSoft', 'warningLabel', 'textSecondary', 'surfaceAlt']) {
+  for (const token of ['danger', 'dangerSoft', 'dangerLabel', 'success', 'successSoft', 'warningSoft', 'warningLabel', 'text', 'textSecondary', 'surfaceAlt', 'info']) {
     ok(`ThemeColors declares '${token}'`, new RegExp(`^\\s*${token}:\\s*string;`, 'm').test(themeType));
     ok(`both light and dark define '${token}'`,
       (themes.match(new RegExp(`^\\s*${token}:\\s*['"]`, 'gm')) ?? []).length === 2);
   }
-  ok("the chip tokens are 6-digit hex, so PhaseBar's `${statusColor}22` alpha suffix is valid",
-    (themes.match(/^\s*(danger|dangerLabel|warningLabel|success):\s*'#[0-9A-Fa-f]{6}',/gm) ?? []).length === 8,
-    (themes.match(/^\s*(danger|dangerLabel|warningLabel|success):\s*'[^']*',/gm) ?? []).join(' | '));
+  ok('the status label tokens are 6-digit hex in both themes, so an alpha suffix on one stays valid',
+    (themes.match(/^\s*(danger|dangerLabel|warningLabel|success|info):\s*'#[0-9A-Fa-f]{6}',/gm) ?? []).length === 10,
+    (themes.match(/^\s*(danger|dangerLabel|warningLabel|success|info):\s*'[^']*',/gm) ?? []).join(' | '));
+
+  // ── Alpha suffixes only on 6-digit hex ─────────────────────────────────
+  //
+  // A chip fill written as `${token}22` is a 13%-alpha tint ONLY if `token` is
+  // 6-digit hex. React Native's normalizeColor matches the `rgba(...)` form on
+  // a prefix and silently DISCARDS anything trailing, so
+  //
+  //   normalizeColor('rgba(43,48,56,0.6)22') === normalizeColor('rgba(43,48,56,0.6)')
+  //
+  // and the fill resolves to the label token itself — foreground painted on its
+  // own background, the punch-list/invoice invisible-label class wearing a
+  // suffix as a disguise. That shipped here: StatusChip's 'draft' branch used
+  // `${themeColors.textSecondary}22`, which is rgba in the light theme, and the
+  // 9px uppercase label measured 2.10:1 on its own fill.
+  //
+  // So: enumerate every colour that is NOT 6-digit hex (either theme, plus the
+  // base palette's theme-dependent getters, which are unresolvable here and so
+  // are never safe to suffix), then assert the screen suffixes none of them.
+  const nonHex = new Set<string>();
+  for (const m of colors.matchAll(/^\s*(\w+):\s*'([^']+)',/gm)) {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(m[2])) nonHex.add(m[1]);
+  }
+  for (const m of colors.matchAll(/^\s*get\s+(\w+)\s*\(\)/gm)) nonHex.add(m[1]);
+  ok('constants/colors.ts still declares non-hex colours — otherwise this check is vacuous',
+    nonHex.has('textSecondary') && nonHex.has('line'),
+    `non-hex set: ${[...nonHex].sort().join(', ')}`);
+
+  const code = stripComments(read('app/job-costing.tsx'));
+  const suffixed = [
+    ...code.matchAll(/`\$\{([^}]+)\}[0-9A-Fa-f]{2}`/g),
+    ...code.matchAll(/([A-Za-z_$][\w.$]*)\s*\+\s*'[0-9A-Fa-f]{2}'/g),
+  ].map(m => m[1].trim());
+
+  // A local alias (`${statusColor}22`) hides WHICH token gets the suffix, so it
+  // cannot be checked — and that opacity is precisely how an rgba token got
+  // into the ternary unnoticed. Require a direct token access.
+  const aliased = suffixed.filter(e => !/^(themeColors|t|Colors)\.\w+$/.test(e));
+  ok('every alpha-suffixed colour in app/job-costing.tsx is a direct token access, not a local alias',
+    aliased.length === 0,
+    `${aliased.join(', ')} — name the fill token instead; an alias hides whether it is hex`);
+
+  const suffixedNonHex = suffixed.filter(e => nonHex.has(e.split('.').pop() ?? ''));
+  ok('no alpha suffix is applied to a colour that is rgba/theme-dependent',
+    suffixedNonHex.length === 0,
+    `${suffixedNonHex.join(', ')} — normalizeColor drops the suffix, so the fill becomes the token itself (fg === bg)`);
 }
 
 // ── 6. The prose no longer contradicts the arithmetic ────────────────────

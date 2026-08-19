@@ -482,9 +482,29 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
 
   // 'unbudgeted' is amber, not green: real money landed on a phase the
   // estimate never priced, so there is no budget to be "on track" against.
-  const statusColor = line.status === 'over' ? themeColors.danger
-    : line.status === 'warning' || line.status === 'unbudgeted' ? themeColors.warningLabel
-    : themeColors.success;
+  //
+  // FILL, INK and MARK are three separate tokens on purpose. The pill fill used
+  // to be built as `${statusColor}22` — a hex alpha pair concatenated onto
+  // whichever token the ternary picked. That is only valid when the token is
+  // 6-digit hex: React Native's normalizeColor matches the `rgba(...)` prefix
+  // and silently DISCARDS a trailing suffix, so one rgba token in the ternary
+  // collapses the "13% tint" fill to the label colour itself — a solid slab
+  // with same-coloured type. That is not hypothetical; it is exactly what
+  // shipped in StatusChip below (`${themeColors.textSecondary}22`, 2.10:1 in
+  // the light theme). Naming the *Soft fills removes the trap entirely, and
+  // scripts/validate-job-cost-variance.ts now fails if a suffix reappears on a
+  // token that is rgba in either theme.
+  //
+  // Ink is `dangerLabel`, not `danger`: this is 10px uppercase type and
+  // constants/colors.ts declares the *Label tokens for exactly that size.
+  // On the #FFFFFF card the dangerLabel ink reads 4.77:1 over the dangerSoft
+  // fill, where plain `danger` would be 4.17:1 and miss AA. The 3px projected
+  // marker is not text, so it keeps the saturated `danger` token.
+  const { fill: statusFill, ink: statusInk, mark: statusMark } = line.status === 'over'
+    ? { fill: themeColors.dangerSoft, ink: themeColors.dangerLabel, mark: themeColors.danger }
+    : line.status === 'warning' || line.status === 'unbudgeted'
+      ? { fill: themeColors.warningSoft, ink: themeColors.warningLabel, mark: themeColors.warningLabel }
+      : { fill: themeColors.successSoft, ink: themeColors.success, mark: themeColors.success };
   const statusLabel = line.status === 'over' ? 'Over'
     : line.status === 'warning' ? 'Watch'
     : line.status === 'unbudgeted' ? 'Unbudgeted'
@@ -494,8 +514,8 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
     <TouchableOpacity style={styles.phaseWrap} onPress={onPress}>
       <View style={styles.phaseHeaderRow}>
         <Text style={styles.phaseName} numberOfLines={1}>{line.phase}</Text>
-        <View style={[styles.phasePill, { backgroundColor: `${statusColor}22` }]}>
-          <Text style={[styles.phasePillText, { color: statusColor }]}>{statusLabel}</Text>
+        <View style={[styles.phasePill, { backgroundColor: statusFill }]}>
+          <Text style={[styles.phasePillText, { color: statusInk }]}>{statusLabel}</Text>
         </View>
       </View>
 
@@ -507,14 +527,17 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
         {/* Budget tick line */}
         <View style={[styles.budgetTick, { left: `${budgetPct}%` }]} />
         {/* Projected final marker */}
-        <View style={[styles.projectedTick, { left: `${projectedPct}%`, backgroundColor: statusColor }]} />
+        <View style={[styles.projectedTick, { left: `${projectedPct}%`, backgroundColor: statusMark }]} />
       </View>
 
       <View style={styles.phaseNumbers}>
         <Text style={styles.phaseNumber}>Budget <Text style={styles.phaseNumberBold}>{formatMoney(line.budget)}</Text></Text>
         <Text style={styles.phaseNumber}>Committed <Text style={styles.phaseNumberBold}>{formatMoney(line.committed)}</Text></Text>
         <Text style={styles.phaseNumber}>Actual <Text style={styles.phaseNumberBold}>{formatMoney(line.actual)}</Text></Text>
-        <Text style={styles.phaseNumber}>EAC <Text style={[styles.phaseNumberBold, { color: statusColor }]}>{formatMoney(line.projectedFinal)}</Text></Text>
+        {/* 10.5px numeral on the #FFFFFF card, so the *Label ink rather than
+            the saturated marker token — `danger` is 4.95:1 there, `dangerLabel`
+            5.65:1 (see constants/colors.ts). */}
+        <Text style={styles.phaseNumber}>EAC <Text style={[styles.phaseNumberBold, { color: statusInk }]}>{formatMoney(line.projectedFinal)}</Text></Text>
       </View>
     </TouchableOpacity>
   );
@@ -523,13 +546,30 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
 function StatusChip({ status }: { status: Commitment['status'] }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { color, label } = status === 'active'
-    ? { color: themeColors.success, label: 'Active' }
-    : status === 'draft' ? { color: themeColors.textSecondary, label: 'Draft' }
-    : { color: themeColors.info, label: 'Closed' };
+  // One `color` used to serve as BOTH the label and — via `${color}22` — the
+  // chip fill. For the two hex tokens that works (a 13%-alpha tint behind a
+  // saturated label). For 'draft' it did not: light-theme `textSecondary` is
+  // `rgba(43,48,56,0.6)`, and React Native's normalizeColor parses the rgba()
+  // prefix and throws the trailing `22` away, so
+  //
+  //   normalizeColor('rgba(43,48,56,0.6)22') === normalizeColor('rgba(43,48,56,0.6)')
+  //
+  // — the fill resolved to the label token itself. A 60%-opacity slab with
+  // 60%-opacity type on it: 2.10:1 for 9px uppercase text, the same invisible-
+  // label class as the invoice status badge, hidden behind a suffix that looked
+  // like it was doing something. Fill and label are now named independently:
+  // opaque `surfaceAlt` + `text` for draft (11.59:1 light / 14.46:1 dark).
+  // The 'closed' fill still suffixes, which is safe *because* `info` is
+  // 6-digit hex in both themes — a fact scripts/validate-job-cost-variance.ts
+  // now asserts rather than assumes.
+  const { fill, ink, label } = status === 'active'
+    ? { fill: themeColors.successSoft, ink: themeColors.success, label: 'Active' }
+    : status === 'draft'
+      ? { fill: themeColors.surfaceAlt, ink: themeColors.text, label: 'Draft' }
+      : { fill: `${themeColors.info}22`, ink: themeColors.info, label: 'Closed' };
   return (
-    <View style={[styles.statusChip, { backgroundColor: `${color}22` }]}>
-      <Text style={[styles.statusChipText, { color }]}>{label}</Text>
+    <View style={[styles.statusChip, { backgroundColor: fill }]}>
+      <Text style={[styles.statusChipText, { color: ink }]}>{label}</Text>
     </View>
   );
 }
