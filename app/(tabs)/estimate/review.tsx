@@ -59,6 +59,19 @@ export default function EstimateReviewScreen() {
     setMode(m);
   }, []);
 
+  // CLIENT-VIEW FIREWALL (hero band).
+  // The hero sits ABOVE the ScrollView, outside the `mode === 'contractor'`
+  // branch and outside the `cart.length === 0` branch that carries the toggle —
+  // so it is the one node on this screen that renders in BOTH modes. Its eyebrow
+  // used to inline `{globalMarkup}% MARKUP`, which meant flipping to Client
+  // still published the contractor's markup at the top of the page while every
+  // other surface (totals bar :showTotalsBar, division rate provenance, the
+  // shared-proposal token) was correctly gated. The markup is therefore resolved
+  // HERE, from `mode`, and never inlined into the hero JSX again.
+  const heroEyebrow = mode === 'contractor'
+    ? `ESTIMATE · ${globalMarkup}% MARKUP`
+    : 'ESTIMATE';
+
   // The totals bar is pinned to the bottom, which is exactly where the global
   // Brain FAB rests — the iOS visual audit (2026-08-16, defect #5) caught the
   // FAB drawn straight over GRAND TOTAL and its value. Bottom padding cannot
@@ -184,7 +197,7 @@ export default function EstimateReviewScreen() {
       <Stack.Screen options={{ title: 'Estimate Review' }} />
       <View style={[styles.hero, { paddingTop: insets.top + 18 }]}>
         <BrandBackdrop />
-        <Text style={styles.heroEyebrow}>ESTIMATE · {globalMarkup}% MARKUP</Text>
+        <Text style={styles.heroEyebrow} testID="review-hero-eyebrow">{heroEyebrow}</Text>
         <Text style={styles.heroTitle}>Review</Text>
         <Text style={styles.heroSub}>Your working estimate, at a glance.</Text>
       </View>
@@ -207,6 +220,9 @@ export default function EstimateReviewScreen() {
           <>
             <View style={styles.toggle}>
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Contractor view"
+                aria-selected={mode === 'contractor'}
                 style={[styles.seg, mode === 'contractor' && styles.segOn]}
                 onPress={() => switchMode('contractor')}
                 activeOpacity={0.8}
@@ -215,6 +231,9 @@ export default function EstimateReviewScreen() {
                 <Text style={[styles.segText, mode === 'contractor' && styles.segTextOn]}>Contractor</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Client view"
+                aria-selected={mode === 'client'}
                 style={[styles.seg, mode === 'client' && styles.segOn]}
                 onPress={() => switchMode('client')}
                 activeOpacity={0.8}
@@ -249,6 +268,9 @@ export default function EstimateReviewScreen() {
               <View style={isDesktop ? styles.clientDesktopWrap : undefined}>
                 <EstimateClientView view={clientView} paymentSchedule={defaultPaymentSchedule(clientView.projectTotal)} />
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Share proposal"
+                  accessibilityHint="Copies a client-safe link with no costs or markups"
                   style={styles.shareBtn}
                   onPress={() => { void handleShareProposal(); }}
                   activeOpacity={0.85}
