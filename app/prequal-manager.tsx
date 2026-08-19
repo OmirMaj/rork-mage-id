@@ -60,6 +60,40 @@ const PREQUAL_SIDE_BRANCH_LABEL: Record<string, string> = {
   expired: 'Expired',
 };
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Render a stored packet date for humans. THE ONLY way a date on this screen
+ * may reach a <Text>.
+ *
+ * Packet dates arrive in two shapes and both are load-bearing:
+ *   • date-only `YYYY-MM-DD` — what `computePrequalExpiry` writes (it ends in
+ *     `.toISOString().slice(0, 10)`) and what the sub types into prequal-form.
+ *   • a full ISO timestamp — what ProjectContext reads back out of Supabase's
+ *     `expires_at` timestamptz column.
+ * The sub list interpolated the stored string straight into the row, so a
+ * packet that had round-tripped through the backend rendered
+ * "· Renews 2026-12-14T22:57:36.841Z".
+ *
+ * Date-only strings are parsed as UTC midnight by `new Date`, so formatting
+ * them in any negative-offset zone (i.e. every US jobsite) would print the
+ * PREVIOUS day. Those are pinned to UTC; real timestamps name an instant and
+ * are formatted local. Unparseable input returns null so the caller decides
+ * between hiding the fragment and showing the raw value.
+ */
+function formatPacketDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const dateOnly = DATE_ONLY_RE.test(value);
+  const d = new Date(dateOnly ? `${value}T00:00:00Z` : value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    ...(dateOnly ? { timeZone: 'UTC' } : {}),
+  });
+}
+
 // ─────────────────────────────────────────────────────────────
 // Root
 // ─────────────────────────────────────────────────────────────
@@ -96,7 +130,9 @@ function PrequalManagerInner() {
         ? reviewPrequalPacket(packet)
         : null;
       const bucket = packet?.expiresAt ? renewalBucket(packet.expiresAt) : null;
-      return { sub, packet, review, bucket };
+      // Formatted ONCE here, not in the row body — see formatPacketDate.
+      const renewsOn = formatPacketDate(packet?.expiresAt);
+      return { sub, packet, review, bucket, renewsOn };
     });
     // `getPrequalPacketForSub` is rebuilt in the context whenever packets change,
     // so it carries the packet list's identity — no need to list prequalPackets.
@@ -260,7 +296,7 @@ function PrequalManagerInner() {
           </View>
         ) : (
           <View style={styles.listCard}>
-            {rows.map(({ sub, packet, review, bucket }, idx) => (
+            {rows.map(({ sub, packet, review, bucket, renewsOn }, idx) => (
               <TouchableOpacity
                 key={sub.id}
                 style={[styles.subRow, idx > 0 && styles.subRowBorder]}
@@ -279,7 +315,7 @@ function PrequalManagerInner() {
                   <Text style={styles.subName}>{sub.companyName}</Text>
                   <Text style={styles.subSub} numberOfLines={1}>
                     {sub.trade} · {sub.contactName || 'No contact'}
-                    {packet?.expiresAt ? ` · Renews ${packet.expiresAt}` : ''}
+                    {renewsOn ? ` · Renews ${renewsOn}` : ''}
                   </Text>
                   {review && review.overall !== 'pass' && review.missingFields.length > 0 && (
                     <Text style={styles.subMissing}>Missing: {review.missingFields.slice(0, 2).join(', ')}{review.missingFields.length > 2 ? ` +${review.missingFields.length - 2}` : ''}</Text>
@@ -447,6 +483,17 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
 
   const canCopyLink = !!packet.inviteToken;
 
+  // Every date shown in this modal goes through formatPacketDate — see its
+  // docblock. A bare `new Date(x).toLocaleDateString()` renders the literal
+  // string "Invalid Date" for a corrupt stamp, and prints the previous calendar
+  // day for anything stored date-only.
+  const invitedOn = formatPacketDate(packet.inviteSentAt);
+  const submittedOn = formatPacketDate(packet.submittedAt);
+  // Falls back to the raw string, not '—', when it will not parse: coiExpiry is
+  // free text the sub typed, and this is the panel where a reviewer needs to
+  // SEE that they typed "next March".
+  const coiExpiryDisplay = formatPacketDate(packet.insurance.coiExpiry) ?? packet.insurance.coiExpiry ?? '—';
+
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -555,14 +602,14 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               {/* Packet details */}
               <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Packet details</Text>
               <DetailLine label="Status" value={packet.status} />
-              {packet.inviteSentAt && <DetailLine label="Invited" value={new Date(packet.inviteSentAt).toLocaleDateString()} />}
-              {packet.submittedAt && <DetailLine label="Submitted" value={new Date(packet.submittedAt).toLocaleDateString()} />}
+              {invitedOn && <DetailLine label="Invited" value={invitedOn} />}
+              {submittedOn && <DetailLine label="Submitted" value={submittedOn} />}
               <DetailLine label="CGL per occurrence" value={packet.insurance.cglPerOccurrence ? `$${packet.insurance.cglPerOccurrence.toLocaleString()}` : '—'} />
               <DetailLine label="CGL aggregate" value={packet.insurance.cglAggregate ? `$${packet.insurance.cglAggregate.toLocaleString()}` : '—'} />
               <DetailLine label="Workers Comp" value={packet.insurance.workersCompActive ? `Active · ${packet.insurance.workersCompCarrier ?? '—'}` : 'Not confirmed'} />
               <DetailLine label="CG 20 10" value={packet.insurance.hasCG2010 ? 'Attested' : 'Missing'} />
               <DetailLine label="CG 20 37" value={packet.insurance.hasCG2037 ? 'Attested' : 'Missing'} />
-              <DetailLine label="COI expiry" value={packet.insurance.coiExpiry ?? '—'} />
+              <DetailLine label="COI expiry" value={coiExpiryDisplay} />
               <DetailLine label="W-9" value={packet.w9OnFile ? 'On file' : 'Missing'} />
               <DetailLine label="Licenses" value={`${packet.licenses.length} on file`} />
               <DetailLine label="Years in business" value={String(packet.financials.yearsInBusiness ?? '—')} />
