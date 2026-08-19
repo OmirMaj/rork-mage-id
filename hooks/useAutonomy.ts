@@ -12,8 +12,20 @@
 // G12: mageid_autonomy_gate_state is registered in LOCAL_USER_CACHE_KEYS (F0 AuthContext edit).
 // G13: demotion is LOUD in receipts (didForYou line) but silent in behavior (falls
 //      back to suggest). Promotion also gets a line.
+//
+// SHARED, NOT PER-CONSUMER (2026-08): this used to be a plain hook. Three
+// screens call it — app/notifications-settings.tsx, app/schedule-review.tsx and
+// hooks/useLeakCoDrafts.ts — so every consumer ran the whole load
+// independently: its own profiles select, its own resolved-predictions read,
+// and, worse, its own copy of the transition detector. Two consumers mounted
+// together meant the demotion/promotion receipt was written TWICE and both
+// raced to overwrite mageid_autonomy_gate_state. It is now a context
+// (createContextHook, same shape as every contexts/* provider) mounted once in
+// app/_layout.tsx, so the load and the receipt happen exactly once per session.
+// The hook name and return type are unchanged — consumers did not have to move.
 
 import { useEffect, useCallback, useState, useMemo, useRef } from 'react';
+import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -25,6 +37,7 @@ import {
 } from '@/utils/brain/autonomyGate';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCoreData } from '@/contexts/ProjectContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,8 +79,34 @@ export interface UseAutonomyResult {
   loading: boolean;
 }
 
-export function useAutonomy(): UseAutonomyResult {
+/** Value served when `useAutonomy` is called outside AutonomyProvider. Gates
+ *  closed, prefs empty, setPref a no-op — the same shape the real provider
+ *  reports before its first load resolves, so a mis-mounted consumer degrades
+ *  to "ask first" rather than crashing or silently acting autonomously. */
+const AUTONOMY_FALLBACK: UseAutonomyResult = {
+  paceTradeGates: new Map(),
+  leakGate: { n: 0, billedRate: 0, passed: false },
+  prefs: {},
+  setPref: () => {},
+  loading: false,
+};
+
+export const [AutonomyProvider, useAutonomy] = createContextHook<UseAutonomyResult>(() => {
   const { user } = useAuth();
+  // Re-gate (2026-08 correction): this provider is now mounted unconditionally
+  // in app/_layout.tsx, so gating the load on user?.id alone made it run at app
+  // start for EVERY signed-in user — including brand-new users with zero
+  // projects — firing a profiles select + fetchResolvedPredictions + an
+  // AsyncStorage read/write of the gate state, i.e. 2 net-new requests/session
+  // in a fix whose whole point was REDUCING request count. Pre-provider, the
+  // load only ran when notifications-settings, schedule-review or WeekCloseCard
+  // mounted, and WeekCloseCard renders only behind projects.length > 0. A user
+  // with no projects has no jobs to have graded pace/leak history from, so the
+  // gates are trivially closed anyway — deferring the load until they have at
+  // least one project both restores the old request profile and changes no
+  // observable gate value.
+  const { projects, projectsLoaded } = useCoreData();
+  const hasProjects = projects.length > 0;
 
   const [paceTradeGates, setPaceTradeGates] = useState<Map<string, TradeGateResult>>(new Map());
   const [leakGate, setLeakGate] = useState<LeakGateResult>({ n: 0, billedRate: 0, passed: false });
@@ -78,10 +117,23 @@ export function useAutonomy(): UseAutonomyResult {
   const prevStateRef = useRef<PersistedGateState | null>(null);
 
   // ── Initial load: prefs + resolved predictions ──────────────────────────
+  // Guarded on `user?.id && hasProjects`. A signed-in user with no projects
+  // never triggers the load; the fallback-shaped state (gates closed, prefs {},
+  // loading resolved) is exactly what the three consuming screens degrade to,
+  // and it flips to a real load the moment their first project lands.
 
   useEffect(() => {
     let cancelled = false;
-    if (!user?.id) {
+    // Wait until projects have hydrated before deciding "no projects" — an
+    // unhydrated store reads as length 0 and would suppress the load for a user
+    // who DOES have projects. Once loaded, a genuinely empty portfolio defers.
+    if (!user?.id || !projectsLoaded) {
+      // Only settle `loading` to false once we know there are no projects to
+      // load for; while projects are still hydrating, stay in the loading state.
+      if (projectsLoaded) setLoading(false);
+      return;
+    }
+    if (!hasProjects) {
       setLoading(false);
       return;
     }
@@ -169,7 +221,7 @@ export function useAutonomy(): UseAutonomyResult {
     })();
 
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [user?.id, hasProjects, projectsLoaded]);
 
   // ── setPref: optimistic + durable ────────────────────────────────────────
 
@@ -191,4 +243,4 @@ export function useAutonomy(): UseAutonomyResult {
     () => ({ paceTradeGates, leakGate, prefs, setPref, loading }),
     [paceTradeGates, leakGate, prefs, setPref, loading],
   );
-}
+}, AUTONOMY_FALLBACK);

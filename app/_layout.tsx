@@ -41,6 +41,8 @@ import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
 import * as Sentry from '@sentry/react-native';
 import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink';
+import { pathToDocumentTitle } from '@/utils/routeTitle';
+import { AutonomyProvider } from '@/hooks/useAutonomy';
 import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
 import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
 
@@ -59,133 +61,6 @@ if (__DEV__) {
   LogBox.ignoreAllLogs();
 }
 
-/**
- * Audit-2026-05-21 W1: map pathname → human-readable page title for the
- * browser tab on web. Returns null for routes not in the table (the effect
- * falls back to plain "MAGE ID" — no false labels). Add entries when new
- * top-level routes ship.
- */
-function pathToDocumentTitle(pathname: string): string | null {
-  if (!pathname || pathname === '/') return 'Projects';
-  // Strip query / hash if router ever passes them.
-  const path = pathname.split('?')[0].split('#')[0];
-  // Exact matches first.
-  const exact: Record<string, string> = {
-    '/': 'Projects',
-    '/summary': 'Summary',
-    '/login': 'Sign in',
-    '/signup': 'Create account',
-    '/onboarding': 'Welcome',
-    '/persona-select': 'Welcome',
-    '/onboarding-paywall': 'Subscribe',
-    '/paywall': 'Subscribe',
-    '/reset-password': 'Reset password',
-    '/settings': 'Settings',
-    '/settings/appearance': 'Appearance',
-    '/notifications-inbox': 'Notifications',
-    '/messages': 'Messages',
-    '/report-inbox': 'Report inbox',
-    '/profit-leak-history': 'Profit Leak History',
-    '/activity-feed': 'Activity',
-    '/payments': 'Payments',
-    '/payments-setup': 'Stripe Connect',
-    '/plans': 'Plans',
-    '/reports': 'Reports',
-    '/invoice': 'Invoice',
-    '/aia-pay-app': 'AIA pay application',
-    '/change-order': 'Change order',
-    '/budget-dashboard': 'Budget dashboard',
-    '/cash-flow': 'Cash flow',
-    '/job-costing': 'Job costing',
-    '/living-estimate': 'Living estimate',
-    '/generative-setup': 'Set up project',
-    '/margin-risk': 'Margin risk',
-    '/sub-scorecard': 'Sub scorecard',
-    '/buyout-scope-gap': 'Scope-gap audit',
-    '/estimate-accuracy': 'Estimate accuracy',
-    '/estimate-confidence': 'Estimate confidence',
-    '/estimate-calibration': 'Estimate calibration',
-    '/cost-database': 'Cost database',
-    '/area-takeoff': 'Visual takeoff',
-    '/project-memory': 'Project memory',
-    '/portfolio-margin': 'Margin board',
-    '/margin-alerts': 'Margin alerts',
-    '/contract': 'Contract',
-    '/selections': 'Selections',
-    '/closeout-binder': 'Closeout binder',
-    '/punch-list': 'Punch list',
-    '/punch-walk': 'Punch walk',
-    '/ai-punch': 'AI punch',
-    '/rfi': 'RFI',
-    '/submittal': 'Submittal',
-    '/oac-meeting': 'OAC meeting',
-    '/daily-report': 'Daily report',
-    '/delay-events': 'Delay register',
-    '/time-tracking': 'Time tracking',
-    '/photo-triage': 'Photo triage',
-    '/leads': 'Pipeline',
-    '/contacts': 'Contacts',
-    '/crew': 'Crew',
-    '/buyout': 'Buyout',
-    '/buyout-package': 'Bid package',
-    '/bid-leveling': 'Bid leveling',
-    '/win-optimizer': 'Win optimizer',
-    '/smart-proposal': 'Smart proposal',
-    '/material-receipt': 'Material receipt',
-    '/last-planner': 'Last Planner',
-    '/plan-intelligence': 'Plan intelligence',
-    '/bill-from-estimate': 'Bill from estimate',
-    '/client-messages': 'Client messages',
-    '/client-portal-setup': 'Client portal',
-    '/client-view': 'Client view',
-    '/client-update': 'Client update',
-    '/permits': 'Permits',
-    '/warranties': 'Warranties',
-    '/lien-waivers': 'Lien waivers',
-    '/coi-vault': 'COI vault',
-    '/prequal-manager': 'Prequal manager',
-    '/prequal-form': 'Prequal form',
-    '/claim-crew': 'Claim profile',
-    '/sub-portals': 'Sub portals',
-    '/sub-portal-setup': 'Sub portal',
-    '/public-profile-setup': 'Public profile',
-    '/integrations': 'Integrations',
-    '/handover': 'Handover',
-    '/weekly-snapshot': 'Weekly snapshot',
-    '/schedule-pro': 'Schedule',
-    '/schedule-review': 'Review schedule',
-    '/schedule-wizard': 'Schedule wizard',
-    '/schedule-builder': 'AI Schedule Builder',
-    '/shared-schedule': 'Schedule',
-    '/shared-plan': 'Floor plan',
-    '/estimate-wizard': 'Estimate',
-    '/bid-detail': 'Bid',
-    '/submit-bid-response': 'Submit bid',
-    '/post-bid': 'Post bid',
-    '/post-homeowner-request': 'Post project',
-    '/post-community-bid': 'Post bid',
-  };
-  if (exact[path]) return exact[path];
-  // Tab-grouped routes — strip /(tabs) prefix.
-  if (path.startsWith('/(tabs)')) {
-    return pathToDocumentTitle(path.replace('/(tabs)', '')) ?? null;
-  }
-  // Common nested patterns.
-  if (path.startsWith('/discover/')) {
-    const seg = path.replace('/discover/', '');
-    return seg.charAt(0).toUpperCase() + seg.slice(1);
-  }
-  if (path.startsWith('/materials/')) return 'Materials';
-  if (path.startsWith('/equipment/')) return 'Equipment';
-  if (path.startsWith('/marketplace/')) return 'Marketplace';
-  if (path.startsWith('/mage-id-bids/')) return 'MAGE ID Bids';
-  if (path.startsWith('/construction-ai/')) return 'Construction AI';
-  // Detail routes like /invoice/123 — return the parent label.
-  const top = path.split('/')[1];
-  const topRoute = '/' + top;
-  if (exact[topRoute]) return exact[topRoute];
-  return null;
-}
 
 // ─── Desktop web shell — route denylist ────────────────────────────────────
 // Audit web#31: DesktopSidebar was mounted only inside app/(tabs)/_layout.tsx,
@@ -1527,6 +1402,18 @@ export default Sentry.wrap(function RootLayout() {
                       <CompaniesProvider>
                         <HireProvider>
                           <NotificationProvider>
+                            {/* Autonomy gates: shared, not per-consumer. Three
+                                screens read this; as a plain hook each ran its
+                                own profiles + brain_predictions load AND its
+                                own copy of the demotion/promotion transition
+                                detector, duplicating receipts. Must sit below
+                                AuthProvider (reads useAuth().user) AND below
+                                ProjectProvider — its load is gated on
+                                projects.length > 0 (useCoreData), so a signed-in
+                                user with no projects triggers no request. The
+                                provider is always mounted for context shape; only
+                                the LOAD is deferred. */}
+                            <AutonomyProvider>
                             <SearchProvider>
                               <MagicLinkHandler />
                               <AnalyticsManager />
@@ -1541,6 +1428,7 @@ export default Sentry.wrap(function RootLayout() {
                               <NailItToastHost />
                               <ConfettiHost />
                             </SearchProvider>
+                            </AutonomyProvider>
                           </NotificationProvider>
                         </HireProvider>
                       </CompaniesProvider>
