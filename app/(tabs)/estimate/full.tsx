@@ -26,7 +26,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
-import { useMaterialCart, type MaterialCartItem } from '@/contexts/MaterialCartContext';
+import { useMaterialCart, type MaterialCartItem, type LaborCartItem, type AssemblyCartItem } from '@/contexts/MaterialCartContext';
 import MaterialAIEstimateModal from '@/components/MaterialAIEstimateModal';
 import { generateUUID } from '@/utils/generateId';
 import { findMaterials, type AIMaterialResult } from '@/utils/materialFinder';
@@ -82,19 +82,9 @@ interface CartItem {
   priceSource?: 'live' | 'base';
 }
 
-interface LaborCartItem {
-  labor: LaborRate;
-  hours: number;
-  adjustedRate: number;
-}
-
-interface AssemblyCartItem {
-  assembly: AssemblyItem;
-  quantity: number;
-  materialsCost: number;
-  laborCost: number;
-  totalCost: number;
-}
+// LaborCartItem / AssemblyCartItem now live in MaterialCartContext (imported
+// above) so they persist and review.tsx can read them — see the cart-lift note
+// there. Kept as type-only imports; the shapes are unchanged.
 
 type EstimateTab = 'materials' | 'labor' | 'assemblies' | 'templates';
 
@@ -178,6 +168,10 @@ export default function EstimateScreen() {
     clearCart: ctxClearCart,
     setGlobalMarkup: ctxSetGlobalMarkup,
     replaceCart: ctxReplaceCart,
+    laborCart,
+    setLaborCart,
+    assemblyCart,
+    setAssemblyCart,
   } = useMaterialCart();
 
   const locationMultiplier = useMemo(() => getRegionMultiplier(settings.location), [settings.location]);
@@ -303,8 +297,9 @@ export default function EstimateScreen() {
   );
   const [showPDFPreSend, setShowPDFPreSend] = useState(false);
   const [activeTab, setActiveTab] = useState<EstimateTab>('materials');
-  const [laborCart, setLaborCart] = useState<LaborCartItem[]>([]);
-  const [assemblyCart, setAssemblyCart] = useState<AssemblyCartItem[]>([]);
+  // laborCart / assemblyCart come from MaterialCartContext now (persisted +
+  // readable by review.tsx). setLaborCart / setAssemblyCart keep the same
+  // React setter signature, so every existing call site is unchanged.
   const [laborQuery, _setLaborQuery] = useState('');
   const [laborCategory, setLaborCategory] = useState('all');
   const [assemblyQuery, _setAssemblyQuery] = useState('');
