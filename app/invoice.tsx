@@ -1086,7 +1086,7 @@ function InvoiceInner() {
             </Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             {existingInvoice && statusColor && (
-              <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor.bg, borderColor: statusColor.text + '33' }]}>
                 <Text style={[styles.statusText, { color: statusColor.text }]}>
                   {statusLabel}
                 </Text>
@@ -1867,14 +1867,37 @@ function InvoiceInner() {
   );
 }
 
+// Same fg === bg class fixed in punch-list.tsx `getStatusConfig` — 'sent' and
+// 'overdue' painted the label in the SAME token as the fill, so "Awaiting
+// Payment" measured 1.00:1 (a solid blue blob) and "Overdue" a solid red one.
+//
+// The punch-list fix pairs a SOFT fill with a label/saturated foreground, and
+// that is the pattern here too — with one substrate difference that matters:
+// this badge is a child of `heroCard`, whose background is `themeColors.accent`
+// (#FF6A1A in BOTH themes), not a surface card. Every *Soft token is a
+// translucent rgba, so on orange they composite back toward orange and the
+// "fixed" badge is still unreadable:
+//
+//   dangerLabel on dangerSoft over the hero  →  1.85:1 light / 1.06:1 dark
+//   info        on info+'1F'  over the hero  →  1.73:1 light / 1.20:1 dark
+//
+// That is also why the two cases the audit did NOT flag were broken anyway:
+// 'partially_paid' is accent-on-accentSoft over an accent hero = 1.00:1 exactly,
+// and 'draft' is 2.33:1 once the translucent line/textSecondary are composited.
+//
+// So the fill is `t.surface` — the one OPAQUE token that inverts with the theme
+// (white chip in light, near-black chip in dark) and therefore reads against the
+// fixed orange either way. Foregrounds are the punch-list label tokens, and the
+// border mirrors `ui/Badge.tsx` (`fg + '33'`) so the statuses stay
+// distinguishable. Measured on the hero: 4.85–13.27:1 light, 4.75–16.99:1 dark.
 function getInvoiceStatusColors(t: ThemeColors, status: string): { bg: string; text: string } {
   switch (status) {
-    case 'draft': return { bg: t.line, text: t.textSecondary };
-    case 'sent': return { bg: t.info, text: t.info };
-    case 'partially_paid': return { bg: t.accentSoft, text: t.accent };
-    case 'paid': return { bg: t.successSoft, text: t.success };
-    case 'overdue': return { bg: t.danger, text: t.danger };
-    default: return { bg: t.line, text: t.textSecondary };
+    case 'draft': return { bg: t.surface, text: t.text };
+    case 'sent': return { bg: t.surface, text: t.info };
+    case 'partially_paid': return { bg: t.surface, text: t.accentLabel };
+    case 'paid': return { bg: t.surface, text: t.success };
+    case 'overdue': return { bg: t.surface, text: t.dangerLabel };
+    default: return { bg: t.surface, text: t.text };
   }
 }
 
@@ -1890,7 +1913,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   heroCard: { backgroundColor: themeColors.accent, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
-  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6, borderWidth: 1 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   progressSection: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: themeColors.line },
   progressLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 8 },

@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus,
+  DollarSign, TrendingUp, TrendingDown, Minus, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
   CheckCircle2, Clock, Calculator, Activity, Receipt,
 } from 'lucide-react-native';
@@ -39,8 +39,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import {
-  computeJobCost, formatMoney, formatMoneyFull,
-  type JobCostLine, type JobCostSummary,
+  computeJobCost, formatMoney, formatMoneyFull, describeVariance,
+  type JobCostLine, type JobCostSummary, type VarianceDisplay,
 } from '@/utils/jobCostEngine';
 import type { Commitment, CommitmentType } from '@/types';
 import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
@@ -164,7 +164,10 @@ function JobCostingInner() {
 
   if (!summary) return null;
 
-  const variancePositive = summary.variance >= 0;
+  // Words + colour for the signed variance. Lives in the engine (pure,
+  // testable) rather than inline here — the P0 in the 2026-08-17 web audit
+  // was exactly an inline re-derivation of the sign that got it backwards.
+  const v = describeVariance(summary.variance);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -210,24 +213,24 @@ function JobCostingInner() {
             icon={CheckCircle2}
           />
           <KpiCard
-            label={variancePositive ? 'Under by' : 'Over by'}
-            value={formatMoney(Math.abs(summary.variance))}
+            label={v.label}
+            value={formatMoney(v.amount)}
             subtitle={`Projected ${formatMoney(summary.projectedFinal)}`}
-            accent={variancePositive ? themeColors.success : themeColors.danger}
-            icon={variancePositive ? TrendingDown : TrendingUp}
+            accent={varianceColor(v, themeColors)}
+            icon={TREND_ICON[v.trend]}
+            testID="variance-kpi"
           />
         </View>
 
         {/* Projection banner — the TL;DR */}
-        <View style={[styles.banner, {
-          backgroundColor: variancePositive ? themeColors.successSoft : themeColors.dangerSoft,
-          borderLeftColor: variancePositive ? themeColors.success : themeColors.danger,
-        }]}>
-          <Text style={styles.bannerTitle}>
-            {variancePositive
-              ? `On track to finish ${formatMoney(Math.abs(summary.variance))} under budget`
-              : `Projecting ${formatMoney(Math.abs(summary.variance))} over budget`}
-          </Text>
+        <View
+          testID="variance-banner"
+          style={[styles.banner, {
+            backgroundColor: varianceSoftColor(v, themeColors),
+            borderLeftColor: varianceColor(v, themeColors),
+          }]}
+        >
+          <Text style={styles.bannerTitle}>{v.banner}</Text>
           <Text style={styles.bannerSub}>
             Method: paid + remaining committed + uncommitted budget floor
           </Text>
@@ -295,7 +298,7 @@ function JobCostingInner() {
                   </Text>
                 </View>
                 <Text style={[styles.varianceDelta, {
-                  color: p.variance >= 0 ? themeColors.success : themeColors.danger,
+                  color: varianceColor(describeVariance(p.variance), themeColors),
                 }]}>
                   {formatMoney(p.variance, { sign: true })}
                 </Text>
@@ -433,15 +436,31 @@ function JobCostingInner() {
 
 interface IconLike { size?: number; color?: string }
 
-function KpiCard({ label, value, subtitle, accent, icon: Icon }: {
+/** Theme colour for a variance. `describeVariance` owns the sign; this owns
+ *  only the token lookup, so the two can't drift. */
+function varianceColor(v: VarianceDisplay, t: ThemeColors): string {
+  return v.colorKey === 'danger' ? t.danger : v.colorKey === 'success' ? t.success : t.textSecondary;
+}
+
+/** Soft fill counterpart for banners. */
+function varianceSoftColor(v: VarianceDisplay, t: ThemeColors): string {
+  return v.colorKey === 'danger' ? t.dangerSoft : v.colorKey === 'success' ? t.successSoft : t.surfaceAlt;
+}
+
+const TREND_ICON: Record<VarianceDisplay['trend'], React.ComponentType<IconLike>> = {
+  up: TrendingUp,
+  down: TrendingDown,
+  flat: Minus,
+};
+
+function KpiCard({ label, value, subtitle, accent, icon: Icon, testID }: {
   label: string; value: string; subtitle?: string; accent: string;
-  icon: React.ComponentType<IconLike>;
+  icon: React.ComponentType<IconLike>; testID?: string;
 }) {
-  const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   return (
-    <View style={[styles.kpiCard, isDesktop && styles.kpiCardDesktop, { borderLeftColor: accent }]}>
+    <View testID={testID} style={[styles.kpiCard, isDesktop && styles.kpiCardDesktop, { borderLeftColor: accent }]}>
       <View style={styles.kpiHeader}>
         <Icon size={14} color={accent} />
         <Text style={styles.kpiLabel}>{label}</Text>
@@ -461,8 +480,15 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
   const budgetPct = (line.budget / max) * 100;
   const projectedPct = (line.projectedFinal / max) * 100;
 
-  const statusColor = line.status === 'over' ? themeColors.danger : line.status === 'warning' ? Colors.warning : themeColors.success;
-  const statusLabel = line.status === 'over' ? 'Over' : line.status === 'warning' ? 'Watch' : 'On track';
+  // 'unbudgeted' is amber, not green: real money landed on a phase the
+  // estimate never priced, so there is no budget to be "on track" against.
+  const statusColor = line.status === 'over' ? themeColors.danger
+    : line.status === 'warning' || line.status === 'unbudgeted' ? themeColors.warningLabel
+    : themeColors.success;
+  const statusLabel = line.status === 'over' ? 'Over'
+    : line.status === 'warning' ? 'Watch'
+    : line.status === 'unbudgeted' ? 'Unbudgeted'
+    : 'On track';
 
   return (
     <TouchableOpacity style={styles.phaseWrap} onPress={onPress}>
@@ -694,7 +720,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   if (!line) return null;
-  const variancePositive = line.variance >= 0;
+  const v = describeVariance(line.variance);
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -711,8 +737,8 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <View style={styles.detailDivider} />
             <DetailRow
               label="Variance"
-              value={`${variancePositive ? 'Under' : 'Over'} by ${formatMoney(Math.abs(line.variance))}`}
-              color={variancePositive ? themeColors.success : themeColors.danger}
+              value={`${v.label} ${formatMoney(v.amount)}`}
+              color={varianceColor(v, themeColors)}
               bold
             />
             <View style={styles.detailDivider} />

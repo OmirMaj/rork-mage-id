@@ -3053,7 +3053,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textMuted,
     marginBottom: 8,
   },
-  refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.info },
+  // fg === bg: the "Auto-fetch" weather button was `info` text on an `info`
+  // fill — a solid blue rectangle. Soft fill + saturated label, as elsewhere.
+  refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.info + '1F' },
   refreshBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.info },
   weatherGrid: { gap: 10 },
   weatherItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },

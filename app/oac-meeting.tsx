@@ -66,6 +66,55 @@ const SECTION_LABELS: Record<OACAgendaSection, string> = {
   next_meeting:    'Next Meeting',
 };
 
+// Render order for the agenda. Pulled out of the render so the order is a
+// decision made once, not re-derived from object-key order on every frame.
+const SECTION_ORDER = Object.keys(SECTION_LABELS) as OACAgendaSection[];
+
+// Bucket id for agenda rows whose `section` is none of the ten above.
+// Deliberately NOT an OACAgendaSection — it is a display bucket, not a section
+// anything is allowed to write. (Named ...BUCKET rather than ...KEY on purpose:
+// validate-storage-hygiene.ts reads every `*_KEY` const as an AsyncStorage key
+// and would report this one as an unswept storage key.)
+const OTHER_SECTION_BUCKET = '__other__';
+
+function isKnownSection(section: string): section is OACAgendaSection {
+  return Object.prototype.hasOwnProperty.call(SECTION_LABELS, section);
+}
+
+export interface AgendaBucket {
+  key: string;
+  label: string;
+  items: OACAgendaItem[];
+}
+
+/**
+ * Group agenda items for display so that EVERY item lands in exactly one
+ * bucket.
+ *
+ * The screen used to render `Object.keys(SECTION_LABELS).map(sec => items
+ * .filter(a => a.section === sec))`, which silently DROPS any row whose
+ * `section` is outside the ten known keys — a Supabase-synced row, an older
+ * fixture, an AI-invented section — while the "n of m covered" caption
+ * underneath kept counting the unfiltered `agenda.length`. That mismatch is
+ * what produced the audited "0 of 2 covered" above an empty agenda. Unknown
+ * sections now land in a trailing "Other" bucket, so the list and the counter
+ * cannot disagree.
+ *
+ * Invariant: `sum(bucket.items.length) === items.length`.
+ */
+export function groupAgendaBySection(items: OACAgendaItem[]): AgendaBucket[] {
+  const buckets: AgendaBucket[] = SECTION_ORDER.map(key => ({
+    key,
+    label: SECTION_LABELS[key],
+    items: items.filter(a => a.section === key),
+  }));
+  const orphans = items.filter(a => !isKnownSection(a.section as string));
+  if (orphans.length > 0) {
+    buckets.push({ key: OTHER_SECTION_BUCKET, label: 'Other', items: orphans });
+  }
+  return buckets.filter(b => b.items.length > 0);
+}
+
 // Module-level — hardcoded hex (theme-agnostic).
 const STATUS_COLOR = {
   info: '#9AA3AD',
@@ -390,7 +439,7 @@ function OACMeetingInner() {
         updatedAt: new Date().toISOString(),
       });
       const okCount = log.filter(l => l.ok).length;
-      showAlert('Minutes distributed', `Sent to ${okCount} of ${recipients.length} attendees.`);
+      showAlert('Minutes distributed', `Sent to ${okCount} of ${recipients.length} attendee${recipients.length === 1 ? '' : 's'}.`);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] Distribute failed:', err);
@@ -399,6 +448,19 @@ function OACMeetingInner() {
       setDistributing(false);
     }
   }, [active, project, ctx]);
+
+  // The agenda, bucketed for display. Every item is in exactly one bucket —
+  // see groupAgendaBySection — and the "n of m covered" caption below counts
+  // the buckets rather than `active.agenda`, so the list and the count are the
+  // same data by construction and cannot drift apart again.
+  const agendaBuckets = useMemo(
+    () => groupAgendaBySection(active?.agenda ?? []),
+    [active?.agenda],
+  );
+  const agendaShown = useMemo(
+    () => agendaBuckets.flatMap(b => b.items),
+    [agendaBuckets],
+  );
 
   if (!project) {
     return (
@@ -512,12 +574,11 @@ function OACMeetingInner() {
               </TouchableOpacity>
             </View>
             <Text style={styles.cardHelper}>Tap each item to mark covered. Add a manual note below any item.</Text>
-            {Object.keys(SECTION_LABELS).map(sec => {
-              const sectionItems = active.agenda.filter(a => a.section === sec);
-              if (sectionItems.length === 0) return null;
+            {agendaBuckets.map(bucket => {
+              const sectionItems = bucket.items;
               return (
-                <View key={sec} style={styles.section}>
-                  <Text style={styles.sectionLabel}>{SECTION_LABELS[sec as OACAgendaSection]}</Text>
+                <View key={bucket.key} style={styles.section}>
+                  <Text style={styles.sectionLabel}>{bucket.label}</Text>
                   {sectionItems.map(item => (
                     <View key={item.id} style={styles.agendaItem}>
                       <TouchableOpacity onPress={() => handleToggleCovered(item.id)} style={styles.agendaCheck} hitSlop={6}>
@@ -558,7 +619,7 @@ function OACMeetingInner() {
               );
             })}
             <Text style={styles.coveredSummary}>
-              {active.agenda.filter(a => a.covered).length} of {active.agenda.length} covered
+              {agendaShown.filter(a => a.covered).length} of {agendaShown.length} covered
             </Text>
           </View>
 
@@ -605,7 +666,7 @@ function OACMeetingInner() {
             </TouchableOpacity>
             {active.transcript ? (
               <View style={styles.transcriptCard}>
-                <Text style={styles.transcriptLabel}>Captured ({active.transcript.length} chars)</Text>
+                <Text style={styles.transcriptLabel}>Captured ({active.transcript.length} char{active.transcript.length === 1 ? '' : 's'})</Text>
                 <Text style={styles.transcriptText} numberOfLines={6}>{active.transcript}</Text>
               </View>
             ) : null}
@@ -789,7 +850,7 @@ function OACMeetingInner() {
                     {new Date(m.scheduledAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
                   <Text style={styles.meetingMeta}>
-                    {m.attendees.length} attendees · {m.agenda.filter(a => a.covered).length}/{m.agenda.length} covered · {labelForStatus(m.status)}
+                    {m.attendees.length} attendee{m.attendees.length === 1 ? '' : 's'} · {m.agenda.filter(a => a.covered).length}/{m.agenda.length} covered · {labelForStatus(m.status)}
                   </Text>
                 </View>
                 {m.status === 'distributed'

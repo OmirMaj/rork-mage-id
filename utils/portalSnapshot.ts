@@ -256,7 +256,7 @@ export interface PortalSnapshot {
       committed: number;
       actual: number;
       projectedFinal: number;
-      variance: number;       // negative = over budget
+      variance: number;       // projectedFinal - budget; POSITIVE = over budget
     }[];
     asOf: string;             // ISO timestamp
   };

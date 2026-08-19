@@ -20,6 +20,31 @@ const ORANGE_HOT = '#FF8533';
 const ORANGE     = '#FF6A1A';
 
 /**
+ * Foregrounds that are legible ON the ink field this component paints.
+ *
+ * These are deliberately NOT ThemeColors. The backdrop is the same opaque ink
+ * (#0B0D10 → #14181D) in light AND dark mode, so a hero drawn on it must be
+ * light-on-ink in both — swapping these for `t.text` / `t.textSecondary` puts
+ * near-black type (#2B3038) on the ink field at 1.34:1 in the light theme.
+ *
+ * They live here, next to the field they are contrast-matched against, so the
+ * coupling is explicit: a screen that imports `OnInk` must also render
+ * `<BrandBackdrop />`, and `scripts/validate-contrast.ts` asserts exactly that.
+ * `onboarding.tsx` and `persona-select.tsx` already keep private `cream`/`ink`
+ * constants for the same reason; this is that idea, shared.
+ *
+ * Measured against INK_MID: title 15.56:1, subtitle 10.17:1, eyebrow 7.35:1.
+ */
+export const OnInk = {
+  /** Display/screen title on the ink field. */
+  title: '#F4EFE6',
+  /** Secondary line under the title. */
+  subtitle: '#C9C3B8',
+  /** Uppercase micro-label above the title. */
+  eyebrow: ORANGE_HOT,
+} as const;
+
+/**
  * Three-layer ink+amber backdrop.
  *
  * Layer 1 — base gradient: deep ink at edges, mid-ink in the center.

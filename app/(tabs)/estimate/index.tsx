@@ -8,7 +8,7 @@ import {
   Calculator, Ruler, Grid, Layers, Gauge, TrendingUp, GitCompare, Activity, PieChart, ScanSearch,
   type LucideIcon,
 } from 'lucide-react-native';
-import { BrandBackdrop } from '@/components/BrandBackdrop';
+import { BrandBackdrop, OnInk } from '@/components/BrandBackdrop';
 import { Card } from '@/components/ui/Card';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -102,20 +102,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Type.eyebrow is the house uppercase micro-label (11 / 700 / 1.4 tracking).
   // These were hand-rolled at weight '800', which is off the four-weight
   // ladder in constants/typography.ts ('400' | '500' | '600' | '700').
+  // The three hero foregrounds are `OnInk`, not ThemeColors, because `hero`
+  // renders <BrandBackdrop /> — an OPAQUE ink field (#0B0D10 → #14181D) that
+  // is identical in light and dark mode. See components/BrandBackdrop.tsx.
   heroEyebrow: {
     ...Type.eyebrow,
-    color: '#FF8533',
+    color: OnInk.eyebrow,
     marginBottom: 4,
   },
   // Fraunces display face — matches PageHeader and the wizard hero. Serif is
   // for the SCREEN title only; the cards below are on the sans ladder.
   heroTitle: {
     ...Type.serifTitle,
-    color: '#F4EFE6',
+    color: OnInk.title,
   },
   heroSubtitle: {
     ...Type.subhead,
-    color: '#C9C3B8',
+    color: OnInk.subtitle,
     marginTop: 4,
   },
   scroll: { flex: 1 },
