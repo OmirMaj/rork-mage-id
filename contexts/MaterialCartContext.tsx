@@ -26,15 +26,38 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import type { MaterialItem } from '@/constants/materials';
+import type { LaborRate } from '@/constants/laborRates';
+import type { AssemblyItem } from '@/constants/assemblies';
 
 const CART_KEY = 'mageid_material_cart';
 const MARKUP_KEY = 'mageid_material_cart_markup';
+// Labor and assemblies used to live as local useState inside estimate/full.tsx,
+// so they were DESTROYED on unmount (lost work) and invisible to review.tsx,
+// which read only this material cart and therefore under-reported every grand
+// total by exactly labor + assemblies. Lifting them here (same mageid_ prefix,
+// so the tenant-wipe sweep covers them) fixes both.
+const LABOR_KEY = 'mageid_labor_cart';
+const ASSEMBLY_KEY = 'mageid_assembly_cart';
 
 export interface MaterialCartItem {
   material: MaterialItem;
   quantity: number;
   markup: number; // percent, 0-100
   usesBulk: boolean;
+}
+
+export interface LaborCartItem {
+  labor: LaborRate;
+  hours: number;
+  adjustedRate: number;
+}
+
+export interface AssemblyCartItem {
+  assembly: AssemblyItem;
+  quantity: number;
+  materialsCost: number;
+  laborCost: number;
+  totalCost: number;
 }
 
 interface PersistedShape {
@@ -63,6 +86,8 @@ async function saveLocal(key: string, data: unknown): Promise<void> {
 
 export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
   const [cart, setCart] = useState<MaterialCartItem[]>([]);
+  const [laborCart, setLaborCart] = useState<LaborCartItem[]>([]);
+  const [assemblyCart, setAssemblyCart] = useState<AssemblyCartItem[]>([]);
   const [globalMarkup, setGlobalMarkupState] = useState<number>(DEFAULT_MARKUP);
   // Track when we've hydrated so we don't write the empty initial state back
   // over the persisted cart on first mount.
@@ -71,11 +96,23 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [cartLoaded, markupLoaded] = await Promise.all([
+      const [cartLoaded, markupLoaded, laborLoaded, assemblyLoaded] = await Promise.all([
         loadLocal<MaterialCartItem[]>(CART_KEY, []),
         loadLocal<number>(MARKUP_KEY, DEFAULT_MARKUP),
+        loadLocal<LaborCartItem[]>(LABOR_KEY, []),
+        loadLocal<AssemblyCartItem[]>(ASSEMBLY_KEY, []),
       ]);
       if (cancelled) return;
+      if (Array.isArray(laborLoaded)) {
+        setLaborCart(laborLoaded.filter(i =>
+          i && typeof i === 'object' && i.labor && typeof i.labor === 'object' &&
+          typeof i.hours === 'number' && typeof i.adjustedRate === 'number'));
+      }
+      if (Array.isArray(assemblyLoaded)) {
+        setAssemblyCart(assemblyLoaded.filter(i =>
+          i && typeof i === 'object' && i.assembly && typeof i.assembly === 'object' &&
+          typeof i.totalCost === 'number'));
+      }
       // Defensive: AsyncStorage values can drift between schema versions.
       // Ignore anything that doesn't look like our shape.
       if (Array.isArray(cartLoaded)) {
@@ -109,6 +146,16 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
     if (!hydratedRef.current) return;
     void saveLocal(MARKUP_KEY, globalMarkup);
   }, [globalMarkup]);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    void saveLocal(LABOR_KEY, laborCart);
+  }, [laborCart]);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    void saveLocal(ASSEMBLY_KEY, assemblyCart);
+  }, [assemblyCart]);
 
   const addToCart = useCallback((material: MaterialItem, quantity: number = 1) => {
     setCart(prev => {
@@ -211,6 +258,10 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
 
   return {
     cart,
+    laborCart,
+    setLaborCart,
+    assemblyCart,
+    setAssemblyCart,
     globalMarkup,
     addToCart,
     addManyToCart,

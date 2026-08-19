@@ -45,7 +45,7 @@ export default function EstimateReviewScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { cart, globalMarkup } = useMaterialCart();
+  const { cart, laborCart, assemblyCart, globalMarkup } = useMaterialCart();
   const { settings, projects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
   const laborSamples = useLaborCostSamples();
@@ -87,6 +87,15 @@ export default function EstimateReviewScreen() {
   // Scrolling down slides the FAB away so it stops covering division rows.
   const fabScroll = useBrainFabScroll();
 
+  // Labor and assemblies are direct costs carried at cost (no markup applied to
+  // them), exactly as estimate/full.tsx totals them: grandTotal = materials
+  // (with markup) + labor + assemblies. Before this, review.tsx summed the
+  // material cart alone and under-reported every estimate by labor + assemblies.
+  const laborTotal = useMemo(
+    () => laborCart.reduce((s, i) => s + i.adjustedRate * i.hours, 0), [laborCart]);
+  const assemblyTotal = useMemo(
+    () => assemblyCart.reduce((s, i) => s + i.totalCost, 0), [assemblyCart]);
+
   const { directCost, markups, itemCount } = useMemo(() => {
     const base = cart.reduce((sum, item) => {
       const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
@@ -96,8 +105,12 @@ export default function EstimateReviewScreen() {
       const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
       return sum + p * (1 + item.markup / 100) * item.quantity;
     }, 0);
-    return { directCost: base, markups: withMarkup - base, itemCount: cart.length };
-  }, [cart]);
+    return {
+      directCost: base + laborTotal + assemblyTotal,
+      markups: withMarkup - base,
+      itemCount: cart.length + laborCart.length + assemblyCart.length,
+    };
+  }, [cart, laborCart.length, assemblyCart.length, laborTotal, assemblyTotal]);
 
   // The learned price book — only consulted for the CONTRACTOR view's
   // rate-provenance chips. See the divisions memo below for why it is gated.
@@ -130,14 +143,31 @@ export default function EstimateReviewScreen() {
         : null;
       return { csiDivision: csi, name: item.material.name, qty: item.quantity, unit: item.material.unit, total, rateEntry };
     });
-    return groupByCSIDivision(rows).map(g => ({
+    const materialGroups: DivisionRow[] = groupByCSIDivision(rows).map(g => ({
       key: g.division?.number ?? 'other',
       number: g.division?.number ?? null,
       title: g.division?.title ?? 'Other scope',
       total: g.items.reduce((s, r) => s + r.total, 0),
       items: g.items.map(r => ({ name: r.name, qty: r.qty, unit: r.unit, total: r.total, rateEntry: r.rateEntry })),
     }));
-  }, [cart, costDb, mode]);
+    // Labor and assemblies are their own scope groups so the contractor scope
+    // table sums to the same grand total the header shows (materials + labor +
+    // assemblies), instead of silently omitting them.
+    const extra: DivisionRow[] = [];
+    if (laborCart.length) {
+      extra.push({
+        key: 'labor', number: null, title: 'Labor', total: laborTotal,
+        items: laborCart.map(l => ({ name: l.labor.trade, qty: l.hours, unit: 'hrs', total: l.adjustedRate * l.hours, rateEntry: null })),
+      });
+    }
+    if (assemblyCart.length) {
+      extra.push({
+        key: 'assemblies', number: null, title: 'Assemblies', total: assemblyTotal,
+        items: assemblyCart.map(a => ({ name: a.assembly.name, qty: 1, unit: a.assembly.unit, total: a.totalCost, rateEntry: null })),
+      });
+    }
+    return [...materialGroups, ...extra];
+  }, [cart, costDb, mode, laborCart, assemblyCart, laborTotal, assemblyTotal]);
 
   // Client-safe projection — build a LinkedEstimate from the cart (base line
   // totals + grand total) and run the validated transform. It strips every
@@ -155,13 +185,33 @@ export default function EstimateReviewScreen() {
         lineTotal: base * item.quantity, supplier: item.material.supplier ?? '', csiDivision: csi,
       };
     });
+    // Fold labor and assemblies in the same shape estimate/full.tsx uses when it
+    // links an estimate to a project, so the client view and the estimator agree.
+    // Both carry markup 0 (they are already at cost).
+    for (const l of laborCart) {
+      const lineTotal = l.adjustedRate * l.hours;
+      items.push({
+        materialId: l.labor.id, name: l.labor.trade, category: 'Labor',
+        unit: 'hrs', quantity: l.hours, unitPrice: l.adjustedRate,
+        bulkPrice: l.adjustedRate, markup: 0, usesBulk: false,
+        lineTotal, supplier: l.labor.category, csiDivision: undefined,
+      });
+    }
+    for (const a of assemblyCart) {
+      items.push({
+        materialId: a.assembly.id, name: a.assembly.name, category: 'Assemblies',
+        unit: a.assembly.unit, quantity: 1, unitPrice: a.totalCost,
+        bulkPrice: a.totalCost, markup: 0, usesBulk: false,
+        lineTotal: a.totalCost, supplier: '', csiDivision: undefined,
+      });
+    }
     const baseTotal = items.reduce((s, i) => s + i.lineTotal, 0);
     const grandTotal = directCost + markups;
     const est: LinkedEstimate = {
       id: 'live', items, globalMarkup, baseTotal, markupTotal: grandTotal - baseTotal, grandTotal, createdAt: '',
     };
     return toClientEstimateView(est);
-  }, [cart, globalMarkup, directCost, markups]);
+  }, [cart, laborCart, assemblyCart, globalMarkup, directCost, markups]);
 
   // Build the client-safe proposal link and copy it. The token is built from
   // clientView only, so the shared URL can never carry costs or markups.
