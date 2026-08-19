@@ -133,7 +133,11 @@ console.log('\ncontrast validation:');
 // adjacent `foo`/`fooText` style pairs (check 1b).
 
 const BG_KEYS = ['backgroundColor', 'bg', 'bgColor', 'background', 'fill', 'chipBg', 'pillBg', 'badgeBg'];
-const FG_KEYS = ['color', 'text', 'textColor', 'fg', 'labelColor', 'iconColor', 'chipText'];
+// `ink` is a foreground synonym (label/text colour) — job-costing.tsx's status
+// chips destructure `{ fill, ink, mark }`, so without `ink` here a `{ fill: X,
+// ink: X }` literal (fg === bg, contrast 1.00) sailed past this check. Verified
+// by injecting exactly that and watching this guard still exit 0.
+const FG_KEYS = ['color', 'text', 'textColor', 'fg', 'labelColor', 'iconColor', 'chipText', 'ink'];
 const KEY_RE = new RegExp(`(?:^|[{,\\s])(${[...BG_KEYS, ...FG_KEYS].join('|')})\\s*:\\s*`, 'g');
 
 /** Read a property value from `src` at `start`, stopping at the top-level `,`. */
