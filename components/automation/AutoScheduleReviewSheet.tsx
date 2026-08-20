@@ -76,6 +76,9 @@ const SOURCE_LABEL: Record<LeadTimeSource, string> = {
   default: 'Typical',
   jurisdiction: 'Jurisdiction',
   learned: 'Learned',
+  // An AI-sized guess grounded only in free-text location — NOT a jurisdiction
+  // fact. The chip says so and asks the contractor to confirm it.
+  ai_estimate: 'AI estimate',
 };
 
 const CONFIDENCE_LABEL: Record<LeadTimeConfidence, string> = {
@@ -85,7 +88,10 @@ const CONFIDENCE_LABEL: Record<LeadTimeConfidence, string> = {
 };
 
 /** Provenance chip for a lead time — source + confidence, never a bare number.
- *  This is the "guess carries provenance" discipline made visible. */
+ *  This is the "guess carries provenance" discipline made visible. An
+ *  `ai_estimate` lead is an unverified LLM guess, so it renders with an explicit
+ *  "confirm" tail ("~Nd lead · AI estimate · confirm") instead of a confidence
+ *  phrase — the chip must never let an AI guess read as a jurisdiction fact. */
 function LeadTimeChip({
   line,
   styles,
@@ -94,10 +100,17 @@ function LeadTimeChip({
   styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   const { source, confidence, days } = line.leadTime;
+  const isAiEstimate = source === 'ai_estimate';
+  const text = isAiEstimate
+    ? `~${days}d lead · ${SOURCE_LABEL[source]} · confirm`
+    : `${days}d lead · ${SOURCE_LABEL[source]} · ${CONFIDENCE_LABEL[confidence]}`;
   return (
-    <View style={styles.chip} testID="lead-time-chip">
-      <Text style={styles.chipText}>
-        {`${days}d lead · ${SOURCE_LABEL[source]} · ${CONFIDENCE_LABEL[confidence]}`}
+    <View
+      style={[styles.chip, isAiEstimate && styles.chipEstimate]}
+      testID="lead-time-chip"
+    >
+      <Text style={[styles.chipText, isAiEstimate && styles.chipTextEstimate]}>
+        {text}
       </Text>
     </View>
   );
@@ -364,6 +377,10 @@ const makeStyles = (t: ThemeColors) =>
       paddingVertical: Tokens.spacing.hairline,
     },
     chipText: { ...Type.caption1, color: t.textSecondary },
+    // AI-estimate chip: tinted like the warning/confirm affordances so an
+    // unverified guess reads as "needs your confirmation", never as a fact.
+    chipEstimate: { backgroundColor: t.warningSoft },
+    chipTextEstimate: { color: t.warningLabel },
     unresolvedChip: {
       backgroundColor: t.warningSoft,
       borderRadius: Tokens.radius.xs,

@@ -22,7 +22,13 @@ export type LeadTimeKind =
   | 'rfi_response'
   | 'material_lead';
 
-export type LeadTimeSource = 'default' | 'jurisdiction' | 'learned';
+// 'ai_estimate' is an unverified LLM-sized lead — e.g. a RoadmapInspection's
+// leadTimeDays, which generateRoadmap zod-defaults and grounds only in the
+// free-text project.location. There is NO jurisdiction dataset behind it, so it
+// must NOT masquerade as 'jurisdiction'. It is a guess the contractor confirms;
+// only a value resolved from a REAL jurisdiction dataset (JURISDICTION_OVERRIDES
+// below) may ever carry source: 'jurisdiction'.
+export type LeadTimeSource = 'default' | 'jurisdiction' | 'learned' | 'ai_estimate';
 export type LeadTimeConfidence = 'low' | 'med' | 'high';
 
 export interface LeadTime {

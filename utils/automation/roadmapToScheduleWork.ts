@@ -93,13 +93,21 @@ function toRequest(
 }
 
 /**
- * Resolve the lead time for an inspection WITH provenance.
+ * Resolve the lead time for an inspection WITH honest provenance.
  *
- * An authored `leadTimeDays` on the inspection is the most specific signal we
- * have, so it wins and is reported `source: 'jurisdiction'` (it came grounded
- * in the roadmap's jurisdiction context) — never silently relabeled 'default'.
- * When the inspection carries no positive authored lead, we fall back to the
- * library default for its kind, carrying that provenance through untouched.
+ * An authored `leadTimeDays` on the inspection is the most SPECIFIC signal we
+ * have, so it wins over the library default — but it is NOT a grounded fact.
+ * RoadmapInspection.leadTimeDays is an LLM output from generateRoadmap
+ * (zod-defaulted to 3), grounded only in the free-text project.location; there
+ * is no jurisdiction dataset behind it (JURISDICTION_OVERRIDES ships empty in
+ * v1). Labeling it 'jurisdiction'/'high' would present a guess as truth — the
+ * spec's cardinal violation. So an authored lead surfaces as
+ * `source: 'ai_estimate', confidence: 'low'`: a guess the contractor confirms.
+ *
+ * Only a value resolved from a REAL jurisdiction dataset (getLeadTime's
+ * 'jurisdiction' branch) may carry source: 'jurisdiction'. When the inspection
+ * carries no positive authored lead, we fall back to the library default for
+ * its kind, carrying that provenance through untouched.
  */
 function resolveLead(
   insp: RoadmapInspection,
@@ -107,7 +115,7 @@ function resolveLead(
 ): LeadTime {
   const authored = Math.round(insp.leadTimeDays);
   if (Number.isFinite(authored) && authored > 0) {
-    return { days: authored, source: 'jurisdiction', confidence: 'high' };
+    return { days: authored, source: 'ai_estimate', confidence: 'low' };
   }
   return getLeadTime(inspectionKind(insp), jurisdiction);
 }

@@ -139,6 +139,28 @@ describe('automation review sheet — adapter produces reviewable draft lines', 
     }
   });
 
+  it('surfaces an AI-authored inspection lead as ai_estimate/low — NEVER jurisdiction/high (the honesty blocker)', () => {
+    // Both seeded inspections carry an authored leadTimeDays (8 and 10). Those
+    // are LLM outputs from generateRoadmap, grounded only in free-text location
+    // — there is NO jurisdiction dataset behind them. Stamping them
+    // 'jurisdiction'/'high' would present a guess as truth (the spec's cardinal
+    // violation). They MUST surface as an honest AI estimate the contractor
+    // confirms.
+    const lines = buildLines();
+    for (const line of lines) {
+      const authored = Math.round(line.inspection.leadTimeDays);
+      expect(authored).toBeGreaterThan(0);
+      // The days carry the authored value...
+      expect(line.leadTime.days).toBe(authored);
+      // ...but the PROVENANCE is honest: an unverified AI guess, low confidence.
+      expect(line.leadTime.source).toBe('ai_estimate');
+      expect(line.leadTime.confidence).toBe('low');
+      // And it is EXACTLY NOT the dishonest label the reviewer rejected.
+      expect(line.leadTime.source).not.toBe('jurisdiction');
+      expect(line.leadTime.confidence).not.toBe('high');
+    }
+  });
+
   it('resolves the framing inspection to the framing task and orphans the CO one', () => {
     const lines = buildLines();
     const framing = lines.find((l) => l.inspection.id === 'insp-framing')!;
@@ -205,6 +227,31 @@ describe('automation review sheet — (a) draft tasks render', () => {
     // The unresolved CO inspection is flagged in the row, not silently dropped.
     expect(tree.getByTestId('review-row-unresolved-insp-orphan')).toBeTruthy();
     expect(tree.getByTestId('unresolved-note')).toBeTruthy();
+  });
+
+  it('renders the AI-authored lead chip HONESTLY — "AI estimate · confirm", never "Jurisdiction · high"', () => {
+    const lines = buildLines();
+    const tree = render(
+      <AutoScheduleReviewSheet
+        lines={lines}
+        zoning={{ district: 'R-5', status: 'confirmed' }}
+        onConfirm={jest.fn()}
+        onCancel={jest.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const chips = tree.getAllByTestId('lead-time-chip');
+    expect(chips).toHaveLength(lines.length);
+    for (const chip of chips) {
+      const text = chip.props.children?.props?.children ?? '';
+      // Honest AI-estimate chip copy: names it a guess and asks for confirmation.
+      expect(text).toContain('AI estimate');
+      expect(text).toContain('confirm');
+      // Must NEVER dress an AI guess up as a grounded jurisdiction fact.
+      expect(text).not.toContain('Jurisdiction');
+      expect(text).not.toContain('high confidence');
+    }
   });
 });
 
