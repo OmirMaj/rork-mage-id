@@ -52,7 +52,7 @@ import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanRev
 import { showAlert } from '@/utils/alert';
 import AskConstructionMode from '@/components/construction/AskConstructionMode';
 import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleReviewSheet';
-import { roadmapToScheduleWork, mergeReviewLines, ROADMAP_FEATURE, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
+import { roadmapToScheduleWork, mergeReviewLines, hasRoadmapScheduleTasks, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { resolveZoning, confirmZoning, isZoningConfirmed } from '@/utils/automation/jurisdiction';
 
@@ -358,10 +358,9 @@ function ConstructionAIScreenInner() {
       })()
     : undefined;
   // ALREADY-SCHEDULED detection: a task already carries this feature's ref, so
-  // the surface flips to "view in Schedule" instead of re-committing.
-  const alreadyScheduled = !!roadmapProject?.schedule?.tasks?.some(
-    (t) => t.sourceEventRef?.feature === ROADMAP_FEATURE,
-  );
+  // the surface flips to "view in Schedule" instead of re-committing. Uses the
+  // shared predicate the smoke test also imports, so the two can't drift.
+  const alreadyScheduled = hasRoadmapScheduleTasks(roadmapProject?.schedule);
 
   // What the project is missing for a richer roadmap — surfaced when results
   // come back empty (or proactively before generating) so the GC knows what to add.

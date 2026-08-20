@@ -25,20 +25,16 @@
 import {
   roadmapToScheduleWork,
   mergeReviewLines,
+  hasRoadmapScheduleTasks,
   ROADMAP_FEATURE,
   type ReviewLine,
 } from '@/utils/automation/roadmapToScheduleWork';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import type { ProjectSchedule, RoadmapInspection, ScheduleTask } from '@/types';
 
-// ── The exact predicate the screen uses (construction-ai/index.tsx) ──────────
-// Extracted here so the test tracks the real expression. If the screen's
-// predicate drifts, these assertions must be updated in lockstep.
-function alreadyScheduled(schedule: ProjectSchedule | undefined): boolean {
-  return !!schedule?.tasks?.some(
-    (t) => t.sourceEventRef?.feature === ROADMAP_FEATURE,
-  );
-}
+// The SAME predicate the screen uses (construction-ai/index.tsx imports this
+// too) — not a re-implementation, so a break in the real expression fails here.
+const alreadyScheduled = hasRoadmapScheduleTasks;
 
 // ── The exact commit builder handleConfirmInspections runs ───────────────────
 function commit(schedule: ProjectSchedule, lines: ReviewLine[]): ProjectSchedule {

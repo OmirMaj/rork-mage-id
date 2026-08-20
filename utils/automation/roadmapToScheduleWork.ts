@@ -39,6 +39,19 @@ import {
 export const ROADMAP_FEATURE = 'permitRoadmap';
 
 /**
+ * Does this schedule already hold tasks this adapter committed? The single
+ * source of truth for the "already scheduled" button state — the screen and its
+ * smoke test both import THIS, so the predicate can never drift between them.
+ */
+export function hasRoadmapScheduleTasks(
+  schedule: ProjectSchedule | undefined | null,
+): boolean {
+  return !!schedule?.tasks?.some(
+    (t) => t.sourceEventRef?.feature === ROADMAP_FEATURE,
+  );
+}
+
+/**
  * One reviewable line in the sheet — the draft tasks the factory produced for a
  * single roadmap inspection, plus everything the UI needs to render honestly:
  *   inspection  — the source record (title/description drive the row copy).
