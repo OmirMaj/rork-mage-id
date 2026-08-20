@@ -31,7 +31,7 @@ import {
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
-  Clock, Scale, MessageCircleQuestion,
+  Clock, Scale, MessageCircleQuestion, CalendarClock, Check,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -51,6 +51,10 @@ import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/util
 import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
 import { showAlert } from '@/utils/alert';
 import AskConstructionMode from '@/components/construction/AskConstructionMode';
+import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleReviewSheet';
+import { roadmapToScheduleWork, mergeReviewLines, ROADMAP_FEATURE, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
+import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
+import { resolveZoning, confirmZoning, isZoningConfirmed } from '@/utils/automation/jurisdiction';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -295,6 +299,7 @@ function ConstructionAIScreenInner() {
   // ── Roadmap state ────────────────────────────────────────────────────
   const {
     projects,
+    updateProject,
     getPermitRoadmapForProject,
     savePermitRoadmap,
     updatePermitRoadmap,
@@ -325,6 +330,39 @@ function ConstructionAIScreenInner() {
   const flags = roadmap ? roadmapFlags(roadmap, roadmapTasks, roadmapStartDate) : [];
   const scopeStale = roadmap && roadmapProject ? roadmap.scopeHash !== scopeHashOf(roadmapProject) : false;
 
+  // ── Auto-schedule (inspections → schedule) surface ──────────────────
+  // The review sheet is the ONLY commit path; nothing here mutates the
+  // schedule. Draft lines are pure (roadmapToScheduleWork), gated on the
+  // schedule actually existing.
+  const [showInspectionSheet, setShowInspectionSheet] = useState(false);
+  const reviewLines = useMemo(
+    () =>
+      !roadmapProject?.schedule
+        ? []
+        : roadmapToScheduleWork(
+            roadmap?.inspections ?? [],
+            roadmapProject.schedule,
+            roadmapProject.location || undefined,
+          ),
+    [roadmapProject, roadmap],
+  );
+  const zoningProp = roadmapProject
+    ? (() => {
+        const rz = resolveZoning(roadmapProject);
+        return {
+          district: rz.district ?? undefined,
+          status: isZoningConfirmed(roadmapProject)
+            ? ('confirmed' as const)
+            : ('guess' as const),
+        };
+      })()
+    : undefined;
+  // ALREADY-SCHEDULED detection: a task already carries this feature's ref, so
+  // the surface flips to "view in Schedule" instead of re-committing.
+  const alreadyScheduled = !!roadmapProject?.schedule?.tasks?.some(
+    (t) => t.sourceEventRef?.feature === ROADMAP_FEATURE,
+  );
+
   // What the project is missing for a richer roadmap — surfaced when results
   // come back empty (or proactively before generating) so the GC knows what to add.
   const roadmapMissing = useMemo(() => {
@@ -342,6 +380,38 @@ function ConstructionAIScreenInner() {
     return m;
   }, [roadmapProject]);
   const roadmapEmpty = !!roadmap && roadmap.permits.length === 0 && roadmap.inspections.length === 0;
+
+  // Confirm the (guessed) zoning district — the ONLY path that unblocks the
+  // review sheet's confirm gate. Guards an empty district: confirmZoning throws
+  // on empty, so we never call it without one.
+  const handleConfirmZoning = useCallback(() => {
+    if (!roadmapProject) return;
+    const district = resolveZoning(roadmapProject).district ?? roadmapProject.location;
+    if (!district?.trim()) return;
+    updateProject(roadmapProject.id, {
+      structuredAddress: confirmZoning(roadmapProject, district),
+    });
+  }, [roadmapProject, updateProject]);
+
+  // Commit the reviewed draft inspections into the schedule. Runs ONLY on an
+  // explicit contractor confirm from the sheet. Merges the draft/patched tasks
+  // (idempotent by id) and rebuilds the schedule through the real engine so CPM
+  // re-runs — we invent no placement here.
+  const handleConfirmInspections = useCallback((lines: ReviewLine[]) => {
+    if (!roadmapProject?.schedule) return;
+    const merged = mergeReviewLines(lines, roadmapProject.schedule.tasks ?? []);
+    const rebuilt = buildScheduleFromTasks(
+      roadmapProject.schedule.name ?? 'Schedule',
+      roadmapProject.id,
+      merged,
+      roadmapProject.schedule.baseline ?? null,
+    );
+    updateProject(roadmapProject.id, {
+      schedule: { ...roadmapProject.schedule, ...rebuilt },
+    });
+    setShowInspectionSheet(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [roadmapProject, updateProject]);
 
   // ── Plan Review state ────────────────────────────────────────────────
   const [planProjectId, setPlanProjectId] = useState<string | null>(projects[0]?.id ?? null);
@@ -812,6 +882,7 @@ Be specific to the cited location if possible. If the location is not in the US,
           </ScrollView>
         ) : mode === 'roadmap' ? (
           /* ── Project Roadmap mode ── */
+          <>
           <ScrollView
             {...fabScroll}
             contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
@@ -954,6 +1025,43 @@ Be specific to the cited location if possible. If the location is not in the US,
 
                     {/* Inspections section */}
                     <Text style={styles.roadmapSectionTitle}>Inspections</Text>
+
+                    {/* Auto-schedule affordance — hidden unless there is a real
+                        schedule to add to AND at least one inspection. Once
+                        committed it flips to a deep-link into the Schedule. */}
+                    {roadmapProject?.schedule?.tasks && roadmap.inspections.length > 0 ? (
+                      alreadyScheduled ? (
+                        <TouchableOpacity
+                          style={styles.inspectionScheduledCta}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/(tabs)/schedule',
+                              params: { projectId: roadmapProject.id, focus: String(Date.now()) },
+                            } as any)
+                          }
+                          activeOpacity={0.85}
+                          testID="inspection-view-schedule"
+                          accessibilityRole="button"
+                          accessibilityLabel="Scheduled — view in Schedule"
+                        >
+                          <Check size={16} color={styles.inspectionScheduledText.color} strokeWidth={2} />
+                          <Text style={styles.inspectionScheduledText}>Scheduled · View in Schedule</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.inspectionGenerateCta}
+                          onPress={() => setShowInspectionSheet(true)}
+                          activeOpacity={0.85}
+                          testID="inspection-generate-schedule"
+                          accessibilityRole="button"
+                          accessibilityLabel="Generate inspection schedule"
+                        >
+                          <CalendarClock size={16} color={Colors.primary} strokeWidth={1.75} />
+                          <Text style={styles.inspectionGenerateText}>Generate inspection schedule</Text>
+                        </TouchableOpacity>
+                      )
+                    ) : null}
+
                     {roadmap.inspections.length === 0 ? (
                       <Text style={styles.roadmapEmptyNote}>No inspections inferred — add a schedule, then Regenerate.</Text>
                     ) : roadmap.inspections.map((insp) => {
@@ -984,6 +1092,25 @@ Be specific to the cited location if possible. If the location is not in the US,
               </>
             ) : null}
           </ScrollView>
+
+          {/* Review sheet — the ONLY commit path for auto-scheduling
+              inspections. pageSheet on iOS, matching project-detail. */}
+          <Modal
+            visible={showInspectionSheet}
+            animationType="slide"
+            presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+            transparent={Platform.OS !== 'ios'}
+            onRequestClose={() => setShowInspectionSheet(false)}
+          >
+            <AutoScheduleReviewSheet
+              lines={reviewLines}
+              zoning={zoningProp}
+              onConfirm={handleConfirmInspections}
+              onCancel={() => setShowInspectionSheet(false)}
+              onConfirmZoning={handleConfirmZoning}
+            />
+          </Modal>
+          </>
         ) : mode === 'plan' ? (
           /* ── Plan Review mode ── */
           <ScrollView
@@ -1980,6 +2107,42 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textMuted,
     fontStyle: 'italic' as const,
     marginBottom: 8,
+  },
+  inspectionGenerateCta: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    backgroundColor: themeColors.accentSoft,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  inspectionGenerateText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  inspectionScheduledCta: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    backgroundColor: themeColors.successSoft,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: themeColors.success,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  inspectionScheduledText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.successLabel,
   },
   missingCard: {
     backgroundColor: themeColors.surface,
