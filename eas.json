@@ -25,6 +25,7 @@
       "env": {
         "EXPO_NO_CAPABILITY_SYNC": "1",
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pDxXdBBycnzMaWAnsljVhdOdOjz",
         "EXPO_PUBLIC_REVENUECAT_WEB_API_KEY": "rcb_sb_nJlnyGGBFrMoHlMzqnfhKHSFe",
