@@ -497,9 +497,9 @@ export default function QuickFieldUpdate() {
           testID="qfu-send-btn"
         >
           {parsing ? (
-            <ActivityIndicator size="small" color={'#FFFFFF'} />
+            <ActivityIndicator size="small" color={themeColors.textMuted} />
           ) : (
-            <Send size={14} color={'#FFFFFF'} strokeWidth={2.5} />
+            <Send size={14} color={text.trim() ? '#FFFFFF' : themeColors.textMuted} strokeWidth={2.5} />
           )}
         </TouchableOpacity>
       </View>

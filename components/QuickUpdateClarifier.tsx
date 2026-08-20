@@ -346,7 +346,7 @@ export default function QuickUpdateClarifier({
             activeOpacity={0.85}
             testID="clarifier-apply"
           >
-            <Text style={styles.applyBtnLabel}>Apply update</Text>
+            <Text style={[styles.applyBtnLabel, !canSubmit && { color: themeColors.textMuted }]}>Apply update</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
