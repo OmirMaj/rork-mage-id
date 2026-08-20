@@ -224,7 +224,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
           {mode === 'rfp-post' && RFP_PAID_POST_ENABLED && (
             <View style={styles.perPostCard}>
               <View style={styles.perPostHead}>
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.textMuted + '22' }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.neutralSoft }]}>
                   <FileText size={18} color={themeColors.text} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>

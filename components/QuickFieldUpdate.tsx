@@ -685,7 +685,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: {
-    backgroundColor: t.textMuted + '60',
+    backgroundColor: t.neutralSoft,
   },
   suggestRow: {
     gap: 6,

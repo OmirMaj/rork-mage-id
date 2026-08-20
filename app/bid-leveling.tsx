@@ -375,7 +375,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bidExcludes: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
   bidTerms: { fontSize: Type.caption2.fontSize, color: t.textMuted },
 
-  needsAnswerRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 5, backgroundColor: t.textMuted + '14', borderRadius: Tokens.radius.xs, paddingHorizontal: 8, paddingVertical: 5 },
+  needsAnswerRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 5, backgroundColor: t.neutralSoft, borderRadius: Tokens.radius.xs, paddingHorizontal: 8, paddingVertical: 5 },
   needsAnswerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
 
   scorecardLink: { alignItems: 'flex-end' as const, paddingTop: 2 },

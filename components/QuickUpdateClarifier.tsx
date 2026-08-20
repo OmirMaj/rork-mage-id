@@ -574,7 +574,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   applyBtnDisabled: {
-    backgroundColor: t.textMuted + '60',
+    backgroundColor: t.neutralSoft,
   },
   applyBtnLabel: {
     fontSize: Type.subhead.fontSize,
