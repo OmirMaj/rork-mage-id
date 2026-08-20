@@ -29,6 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   AppSettings,
   ClientPortalSettings,
+  Commitment,
   DailyFieldReport,
   LinkedEstimate,
   Permit,
@@ -38,6 +39,8 @@ import type {
   RFI,
 } from '@/types';
 import type { SeededRate } from '@/utils/costSeedCore';
+import type { MaterialCartItem } from '@/contexts/MaterialCartContext';
+import { BASE_MATERIALS } from '@/constants/materials';
 
 // ---------------------------------------------------------------------------
 // Identity
@@ -474,6 +477,101 @@ const portalMessages: PortalMessage[] = [
   },
 ];
 
+/**
+ * The working material cart — the scratch estimate the contractor is building in
+ * the Estimator tab, persisted under `mageid_material_cart`.
+ *
+ * Spec (render-coverage): the populated fixture never seeded this key, so
+ * review.tsx's `useMaterialCart()` hydrated an EMPTY cart on every mount. With
+ * an empty cart review.tsx renders only its "No line items yet" branch — the
+ * Contractor/Client toggle and the entire client-mode subtree (the surface the
+ * client-view firewall protects) never render, so 0 tests ever exercised them.
+ * Seeding a couple of real MaterialCartItem rows is what makes that subtree
+ * mount at all.
+ *
+ * Real BASE_MATERIALS entries rather than invented shapes — same honesty rule
+ * as the rest of this file: a cart that references a material that doesn't exist
+ * would manufacture a finding, not catch one. `markup` is per-line so the
+ * contractor view has a non-zero markup to (correctly) show and the client view
+ * has a non-zero markup to (correctly) hide.
+ */
+function materialById(id: string) {
+  const m = BASE_MATERIALS.find(x => x.id === id);
+  if (!m) throw new Error(`fixture material cart references missing material '${id}'`);
+  return m;
+}
+
+const materialCart: MaterialCartItem[] = [
+  // 1/2" Copper Pipe Type L — plumbing, retail (below bulkMinQty of 25).
+  { material: materialById('p1'), quantity: 12, markup: 18, usesBulk: false },
+  // 14/2 NM-B Wire — electrical, bulk (>= bulkMinQty of 10).
+  { material: materialById('e1'), quantity: 14, markup: 22, usesBulk: true },
+];
+
+/**
+ * Signed commitments against the project — subcontracts + a PO — persisted under
+ * `mageid_commitments`.
+ *
+ * Spec (render-coverage): world.ts had no `mageid_commitments` key, so
+ * ProjectContext hydrated an empty commitments array. job-costing.tsx early-
+ * returns the ToolProjectPicker until a project resolves, and its phase/status
+ * chips (PhaseBar / StatusChip) only render once there is a project with cost
+ * data — so those chips mounted in 0 tests. These rows give the seeded project
+ * real committed cost, which is what drives the by-phase bars and the per-row
+ * status chips to render.
+ *
+ * `status` deliberately spans two of the three CommitmentStatus values ('active'
+ * and 'draft') so both StatusChip branches render; 'draft' is also the exact
+ * chip whose fill/label contrast the leak fixes repaired.
+ */
+const commitments: Commitment[] = [
+  {
+    id: 'commit-1',
+    projectId: PROJECT_ID,
+    number: 'SC-01',
+    type: 'subcontract',
+    vendorName: 'Northline Electric',
+    description: 'Electrical rough + trim, panel upgrade',
+    amount: 22_600,
+    changeAmount: 0,
+    signedDate: dayOnly(-52),
+    phase: 'Electrical',
+    status: 'active',
+    createdAt: day(-52),
+    updatedAt: day(-52),
+  },
+  {
+    id: 'commit-2',
+    projectId: PROJECT_ID,
+    number: 'SC-02',
+    type: 'subcontract',
+    vendorName: 'Alder Mechanical',
+    description: 'Plumbing rough + trim',
+    amount: 18_400,
+    changeAmount: 1_200,
+    signedDate: dayOnly(-50),
+    phase: 'Plumbing',
+    status: 'active',
+    createdAt: day(-50),
+    updatedAt: day(-20),
+  },
+  {
+    id: 'commit-3',
+    projectId: PROJECT_ID,
+    number: 'PO-14',
+    type: 'purchase_order',
+    vendorName: 'Cascade Cabinet Co.',
+    description: 'Semi-custom cabinetry deposit',
+    amount: 19_900,
+    changeAmount: 0,
+    signedDate: dayOnly(-40),
+    phase: 'Cabinetry',
+    status: 'draft',
+    createdAt: day(-40),
+    updatedAt: day(-40),
+  },
+];
+
 const settings: AppSettings = {
   location: 'Portland, OR',
   units: 'imperial',
@@ -513,6 +611,12 @@ const WORLD: Record<string, unknown> = {
   mageid_daily_reports: dailyReports,
   mageid_cost_seeds: costSeeds,
   mageid_portal_messages: portalMessages,
+  // The scratch estimate cart — makes review.tsx's Contractor/Client toggle and
+  // client-mode subtree render (they are dead behind an empty cart).
+  mageid_material_cart: materialCart,
+  // Signed commitments — makes job-costing resolve a project with real cost data
+  // so PhaseBar / StatusChip mount.
+  mageid_commitments: commitments,
 };
 
 /** Write the seeded world into AsyncStorage. Call before mounting. */
@@ -543,6 +647,8 @@ export const world = {
   dailyReports,
   costSeeds,
   portalMessages,
+  materialCart,
+  commitments,
   settings,
   portalId: PORTAL_ID,
   portalToken: PORTAL_TOKEN,
