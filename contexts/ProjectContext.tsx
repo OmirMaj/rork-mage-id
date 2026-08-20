@@ -431,6 +431,23 @@ type CrossDomainValue = {
   importData: (payload: { projects?: Project[]; contacts?: Contact[]; subcontractors?: Subcontractor[] }) => { projects: number; contacts: number; subcontractors: number };
 };
 
+// Deleted-project signal — a deliberately tiny, low-churn observable that a
+// provider-sibling below ProjectProvider (SafetyContext) subscribes to so it
+// can prune its own project-scoped collections when a project is deleted. Kept
+// OUT of CoreDataContext on purpose: this value changes only on an actual
+// delete, so putting it here means the (many) useProjects() consumers do not
+// re-render for it, and the coupling is a single named seam rather than a field
+// buried in the big core bucket.
+type ProjectDeletionValue = {
+  /** The id of the most-recently-deleted project, or null before any delete. */
+  deletedProjectId: string | null;
+  /** Monotonic counter — bumped once per delete so repeats of the same id are
+   *  still observed as distinct events. 0 means "no delete has happened". */
+  tick: number;
+};
+
+const ProjectDeletionContext = createContext<ProjectDeletionValue | null>(null);
+
 const CoreDataContext = createContext<CoreDataValue | null>(null);
 const FinancialsDataContext = createContext<FinancialsDataValue | null>(null);
 const FieldDataContext = createContext<FieldDataValue | null>(null);
@@ -451,6 +468,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // found" — getProject(id) returns null in BOTH cases, so a cold deep-link
   // would otherwise flash a false "Project not found" for a frame.
   const [projectsLoaded, setProjectsLoaded] = useState<boolean>(false);
+  // Explicit deleted-project signal (see ProjectDeletionContext below). Set ONLY
+  // by deleteProject, which knows the exact id being removed — so downstream
+  // provider-siblings (SafetyContext) prune a KNOWN projectId rather than
+  // inferring one from an array diff. `tick` is a monotonic counter so a
+  // re-delete of the same id (or two deletes in a row) is still observed as a
+  // distinct event; it starts at 0, so a fresh mount / initial hydrate carries
+  // NO delete to act on. A logout / tenant-switch never calls deleteProject, so
+  // this signal is never emitted on a full-clear — the catastrophic
+  // false-prune-all path simply cannot originate here.
+  const [projectDeletion, setProjectDeletion] = useState<{ deletedProjectId: string | null; tick: number }>({ deletedProjectId: null, tick: 0 });
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [userRole, setUserRoleState] = useState<UserRole | null>(null);
@@ -4646,6 +4673,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
     // 3) Server: parent delete (children fall to FK cascade — see note above).
     if (toDelete) syncProjectToSupabase(toDelete, 'delete');
+
+    // 4) Surface the EXACT deleted id to provider-siblings that own their own
+    //    project-scoped collections and cannot see this cascade (SafetyContext).
+    //    Bump the tick so consumers observe every delete distinctly, even a
+    //    repeat of the same id. Emitted unconditionally on a real delete call —
+    //    but a full-clear (logout) never reaches here, so it never signals a
+    //    mass wipe.
+    setProjectDeletion(prev => ({ deletedProjectId: id, tick: prev.tick + 1 }));
   }, [
     projects, saveProjectsMutation, syncProjectToSupabase,
     changeOrders, saveChangeOrdersMutation,
@@ -4810,6 +4845,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   return (
     <StableActionsContext.Provider value={stableActions}>
+      <ProjectDeletionContext.Provider value={projectDeletion}>
       <CrossDomainContext.Provider value={crossDomain}>
         <CoreDataContext.Provider value={coreData}>
           <FinancialsDataContext.Provider value={financialsData}>
@@ -4823,6 +4859,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           </FinancialsDataContext.Provider>
         </CoreDataContext.Provider>
       </CrossDomainContext.Provider>
+      </ProjectDeletionContext.Provider>
     </StableActionsContext.Provider>
   );
 }
@@ -4848,6 +4885,12 @@ export function useProjects() {
     ...useCtx(CrossDomainContext, 'CrossDomainContext'),
   };
 }
+
+/** The deleted-project signal for provider-siblings that own their own
+ *  project-scoped collections (SafetyContext). Subscribing here — rather than to
+ *  useProjects() — means the subscriber only re-renders when a project is
+ *  actually deleted, not on every unrelated CoreData change. */
+export const useProjectDeletion = () => useCtx(ProjectDeletionContext, 'ProjectDeletionContext');
 
 export const useCoreData = () => useCtx(CoreDataContext, 'CoreDataContext');
 export const useFinancialsData = () => useCtx(FinancialsDataContext, 'FinancialsDataContext');

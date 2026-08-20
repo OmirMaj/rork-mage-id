@@ -12,9 +12,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProjectDeletion } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { certStatus } from '@/utils/safety/certStatus';
+import { pruneCollection } from '@/utils/safety/pruneDeletedProject';
 import type {
   JobHazardAnalysis,
   ToolboxTalk,
@@ -243,6 +245,11 @@ async function hydrateCollection<T extends { id: string }>(
 
 export const [SafetyProvider, useSafety] = createContextHook(() => {
   const { user } = useAuth();
+  // Explicit deleted-project signal from ProjectProvider (this provider sits
+  // BELOW it, per app/_layout.tsx). deleteProject surfaces the EXACT id it
+  // removed; we prune that KNOWN projectId from our own project-scoped
+  // collections, which nothing else touches. See the prune effect below.
+  const { deletedProjectId, tick: deletionTick } = useProjectDeletion();
   const userId = user?.id ?? null;
   const canSync = !!userId && isSupabaseConfigured;
   // Author stamp for new records — the signed-in user's name (or email).
@@ -301,6 +308,74 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     })();
     return () => { cancelled = true; };
   }, [userId, canSync, keys]);
+
+  // ── Cascade prune on project delete ──────────────────────────────────────
+  // ProjectContext.deleteProject cascades ITS collections and the server
+  // FK-cascades the DB, but it cannot see OUR project-scoped collections
+  // (jhas / toolboxTalks / incidents / hazards / inspections). Without this they
+  // linger as local transient orphans until the next rehydrate. React to the
+  // explicit deleted-id signal and prune that exact projectId.
+  //
+  // GUARDS (a wrong prune deletes the WRONG project's safety data):
+  //  • LOAD-RACE GATE — `deletionTick === 0` means "no delete has happened"
+  //    (the counter only advances inside deleteProject). Initial mount and the
+  //    empty→full hydrate both carry tick 0, so they prune NOTHING. We also
+  //    require hydratedRef.current so we never prune before our own collections
+  //    have loaded (pruning an empty, not-yet-hydrated list would drop the
+  //    subsequent hydrate's real rows on the floor if it raced).
+  //  • FALSE-PRUNE-ALL GUARD — this path is driven by an EXPLICIT single id, so
+  //    it can only ever remove ONE project's records. A logout / tenant-switch
+  //    / reload never calls deleteProject, so no signal is emitted and tick
+  //    never advances; the full-clear is owned by wipeLocalUserCache + the
+  //    userId-keyed rehydrate effect above. There is no code path here that
+  //    iterates "all projects" and deletes each — structurally impossible to
+  //    mass-wipe from this signal.
+  //  • IDEMPOTENT — pruneCollection returns the same array reference when
+  //    nothing matched, so setState gets the identical value and bails; and the
+  //    handled-tick ref makes re-running the effect for the same delete a no-op.
+  const lastHandledDeletionTick = useRef(0);
+  useEffect(() => {
+    // LOAD-RACE GATE: never prune before a real delete (tick>0) AND before our
+    // own collections have hydrated at least once.
+    if (deletionTick === 0 || !hydratedRef.current) return;
+    if (deletionTick === lastHandledDeletionTick.current) return;
+    lastHandledDeletionTick.current = deletionTick;
+    if (!deletedProjectId) return;
+
+    // Prune the KNOWN id from every project-scoped collection. pruneCollection
+    // is same-reference on no-op, so unaffected collections don't re-render and
+    // we only persist the ones that actually shrank.
+    setJhas(prev => {
+      const next = pruneCollection(prev, deletedProjectId);
+      if (next !== prev) void saveLocal(keys.jhas, next);
+      return next;
+    });
+    setToolboxTalks(prev => {
+      const next = pruneCollection(prev, deletedProjectId);
+      if (next !== prev) void saveLocal(keys.toolbox, next);
+      return next;
+    });
+    setIncidents(prev => {
+      const next = pruneCollection(prev, deletedProjectId);
+      if (next !== prev) void saveLocal(keys.incidents, next);
+      return next;
+    });
+    setHazards(prev => {
+      const next = pruneCollection(prev, deletedProjectId);
+      if (next !== prev) void saveLocal(keys.hazards, next);
+      return next;
+    });
+    // Inspections are project-scoped too (they carry projectId) and would orphan
+    // identically; certifications/templates are company-scoped (no projectId)
+    // and are correctly left untouched by pruneCollection.
+    setInspections(prev => {
+      const next = pruneCollection(prev, deletedProjectId);
+      if (next !== prev) void saveLocal(keys.inspections, next);
+      return next;
+    });
+    // No server write: ProjectContext already issued the parent delete and the
+    // DB FK-cascades our rows. This is a LOCAL reconciliation only.
+  }, [deletionTick, deletedProjectId, keys]);
 
   // ── JHAs ─────────────────────────────────────────────────────────────
   const addJha = useCallback((input: JobHazardAnalysis) => {
