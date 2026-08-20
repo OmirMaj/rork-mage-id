@@ -64,3 +64,8 @@ sentry-wizard-installation-error-*.log
 # with the real source tree and needlessly embed the public anon key.
 # Kept on disk but out of version control.
 export_sections/
+
+# App Store Connect API key (never commit)
+credentials.json
+*.p8
+credentials/
