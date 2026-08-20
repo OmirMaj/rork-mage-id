@@ -518,5 +518,45 @@ ok(
   bareHexHeroes.map((h) => h + '  — use OnInk.title / OnInk.subtitle').join('\n        '),
 );
 
+// ── Check 3: no rgba FOREGROUND token is alpha-suffixed as a FILL ───────────
+//
+// `textSecondary` and `textMuted` are rgba() strings in at least one theme
+// (light: rgba(43,48,56,0.6)/0.4; dark textMuted: rgba(154,163,173,0.6)).
+// Alpha-suffixing them the way a 6-digit hex token is suffixed —
+// `t.textMuted + '14'` or `${t.textSecondary}22` — is a silent bug: RN's
+// normalizeColor keeps the rgba() prefix and DROPS the trailing hex, so the
+// intended ~8% tint renders as the FULL ~40-60% opacity token — an opaque grey
+// slab, and where same-token text sits on it, invisible. Five sites shipped
+// this; all now use the real rgba token `neutralSoft` directly. This check
+// pins that: it fails if either rgba foreground token is alpha-suffixed
+// anywhere in app/ or components/.
+//
+// PRECISE by construction: only textSecondary and textMuted are rgba foreground
+// tokens. Every other suffixable token (accent, danger, success, info, …) is a
+// 6-digit hex where `+ 'NN'` is the legitimate way to add alpha, so this must
+// NOT be broadened to all tokens. Verified zero false positives app-wide (the
+// only other textual hit is a comment in job-costing.tsx, blanked by
+// stripComments before matching).
+const RGBA_FG_SUFFIX = [
+  // t.textSecondary + '22'  /  themeColors.textMuted +'14'
+  /\b(?:textSecondary|textMuted)\s*\+\s*['"][0-9A-Fa-f]{2}['"]/,
+  // `${...textSecondary}22`  /  `${theme.textMuted}60`
+  /\$\{[^}]*\b(?:textSecondary|textMuted)\b[^}]*\}[0-9A-Fa-f]{2}/,
+];
+const suffixHits: string[] = [];
+for (const file of collectFiles(['app', 'components'])) {
+  const src = stripComments(readFileSync(file, 'utf8'));
+  src.split('\n').forEach((line, i) => {
+    if (RGBA_FG_SUFFIX.some((re) => re.test(line))) {
+      suffixHits.push(`${relative(ROOT, file)}:${i + 1}  ${line.trim().slice(0, 90)}`);
+    }
+  });
+}
+ok(
+  'no rgba foreground token (textSecondary/textMuted) is alpha-suffixed as a fill (use neutralSoft)',
+  suffixHits.length === 0,
+  suffixHits.join('\n        '),
+);
+
 console.log('');
 process.exit(failures === 0 ? 0 : 1);

@@ -233,6 +233,7 @@ export type ThemeColors = {
   text: string;
   textSecondary: string;
   textMuted: string;
+  neutralSoft: string;
   line: string;
   accent: string;
   accentHot: string;
@@ -258,6 +259,15 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     text: '#2B3038',
     textSecondary: 'rgba(43,48,56,0.6)',
     textMuted: 'rgba(43,48,56,0.4)',
+    // A genuinely faint NEUTRAL fill — rgba of the ink (#2B3038 = 43,48,56) at
+    // 6% alpha, a barely-there tint used DIRECTLY (no `+ 'NN'` suffix, so RN
+    // renders it correctly). This replaces the broken `t.textMuted + '14'`
+    // pattern, where RN's normalizeColor keeps the rgba() prefix and DROPS the
+    // suffix, rendering the ~40% textMuted token as a heavy opaque grey slab.
+    // At 6% over surface #FFFFFF it composites to ~rgb(242,243,243), leaving
+    // textSecondary text on it at 3.67:1 — indistinguishable from the 3.82:1 it
+    // reads on bare surface (the fill is nearly transparent).
+    neutralSoft: 'rgba(43,48,56,0.06)',
     line: 'rgba(43,48,56,0.12)',
     accent: '#FF6A1A',
     accentHot: '#FF8533',
@@ -304,6 +314,12 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     text: '#F4EFE6',
     textSecondary: '#9AA3AD',
     textMuted: 'rgba(154,163,173,0.6)',
+    // Dark-theme twin of neutralSoft — rgba of the dark ink (#9AA3AD =
+    // 154,163,173, the textSecondary hue) at 8% alpha. Used DIRECTLY (no
+    // suffix). At 8% over surface #14181D it composites to ~rgb(31,35,41),
+    // leaving textSecondary text on it at 6.18:1 vs 6.97:1 on bare surface — a
+    // barely-there tint, never the opaque slab the dropped-suffix bug produced.
+    neutralSoft: 'rgba(154,163,173,0.08)',
     line: 'rgba(255,255,255,0.06)',
     accent: '#FF6A1A',
     accentHot: '#FF8533',

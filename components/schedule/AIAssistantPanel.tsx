@@ -1198,7 +1198,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Tokens.radius.md,
-    backgroundColor: t.textSecondary + '22',
+    backgroundColor: t.neutralSoft,
   },
   cachedPillText: {
     fontSize: 9,
