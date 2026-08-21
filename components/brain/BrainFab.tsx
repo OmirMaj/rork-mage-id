@@ -9,12 +9,19 @@
 //
 // Geometry mirrors the old AICopilot FAB (56pt circle, bottom-right, lifted
 // above the tab bar) so it lands where users already reach for it.
+//
+// Look & motion: a warm two-tone gradient (accentHot → accent) under a soft
+// ambient glow, with a slow "breathing" pulse so it reads as a live assistant
+// rather than a flat button, and a snappy spring on press that matches the
+// app's Button physics. All on the native driver (transform/opacity), no new
+// dependency — expo-linear-gradient is already used elsewhere.
 
-import React, { useCallback, useEffect, useRef } from 'react';
-import { TouchableOpacity, StyleSheet, Platform, Animated, Easing } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Pressable, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSearch } from '@/contexts/SearchContext';
 import { Tokens } from '@/constants/designTokens';
@@ -29,6 +36,8 @@ const HIDDEN_ROOTS: ReadonlySet<string> = new Set([
   'prequal-form', 'claim-crew',
   'login', 'signup', 'reset-password', 'onboarding', 'persona-select', 'onboarding-paywall',
 ]);
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function BrainFab() {
   const insets = useSafeAreaInsets();
@@ -45,7 +54,13 @@ export function BrainFab() {
   const routeKey = segments.join('/');
   useEffect(() => { resetBrainFabScroll(); }, [routeKey]);
 
+  // hide/show (opacity + slide + shrink), breathing (idle pulse), press (spring).
   const anim = useRef(new Animated.Value(1)).current;
+  const breathe = useRef(new Animated.Value(1)).current;
+  const press = useRef(new Animated.Value(1)).current;
+  // The button scales by breathe × press together; the wrapper owns hide/show.
+  const pulseScale = useMemo(() => Animated.multiply(breathe, press), [breathe, press]);
+
   useEffect(() => {
     Animated.timing(anim, {
       toValue: hidden ? 0 : 1,
@@ -55,6 +70,25 @@ export function BrainFab() {
     }).start();
   }, [hidden, anim]);
 
+  // Slow, subtle breath (≈3.4s round trip, 6% swing) — enough to feel alive,
+  // gentle enough to ignore. Runs on the native driver so it never janks.
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathe, { toValue: 1.06, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [breathe]);
+
+  const onPressIn = useCallback(() => {
+    Animated.spring(press, { toValue: 0.9, friction: 5, tension: 300, useNativeDriver: true }).start();
+  }, [press]);
+  const onPressOut = useCallback(() => {
+    Animated.spring(press, { toValue: 1, friction: 5, tension: 300, useNativeDriver: true }).start();
+  }, [press]);
   const handlePress = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     openSearch();
@@ -83,34 +117,40 @@ export function BrainFab() {
         },
       ]}
     >
-      <TouchableOpacity
+      <AnimatedPressable
         onPress={handlePress}
-        activeOpacity={0.85}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
         accessibilityRole="button"
         accessibilityLabel="Open MAGE Brain"
         testID="brain-fab"
-        style={[styles.fab, { backgroundColor: colors.accent }]}
+        style={[styles.fab, { transform: [{ scale: pulseScale }] }]}
       >
+        <LinearGradient
+          colors={[colors.accentHot, colors.accent]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
         <MageAIMark size={26} color="#FFFFFF" accentColor="#FFFFFF" />
-      </TouchableOpacity>
+      </AnimatedPressable>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Positioning + shadow + the hide/lift animation live on the wrapper; the
-  // circle itself stays a plain TouchableOpacity so the press behaviour is
-  // unchanged from before the scroll-away work.
+  // Positioning + the softened ambient glow + hide/lift live on the wrapper.
+  // The button (gradient circle) breathes and springs inside it.
   fabWrap: {
     position: 'absolute',
     right: 20,
     width: 56,
     height: 56,
     borderRadius: Tokens.radius.full,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    elevation: 10,
     zIndex: 40,
   },
   fab: {
@@ -119,5 +159,6 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
 });
