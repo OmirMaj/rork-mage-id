@@ -29,6 +29,10 @@ for (const kind of LEAD_TIME_KINDS) {
   ok(`${kind}: carries a source`, SOURCES.includes(lt.source), `got ${lt.source}`);
   ok(`${kind}: carries a confidence`, CONFIDENCES.includes(lt.confidence), `got ${lt.confidence}`);
   ok(`${kind}: unqualified lookup is a default`, lt.source === 'default', `got ${lt.source}`);
+  // HONESTY: a national default is an ungrounded guess, so its confidence must
+  // be 'low'. Only a real jurisdiction override or a learned value earns more.
+  // A 'med'/'high' on a default presents a guess as truth — fail the build.
+  ok(`${kind}: default-source confidence is 'low' (not a grounded 'med'/'high')`, lt.confidence === 'low', `got ${lt.confidence}`);
 }
 
 // ── spec-seeded magnitudes are in the right ballpark ──

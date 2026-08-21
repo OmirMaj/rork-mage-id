@@ -48,13 +48,19 @@ export interface LeadTime {
  * time can never collapse to a same-day / negative anchor downstream.
  */
 const DEFAULTS: Record<LeadTimeKind, { days: number; confidence: LeadTimeConfidence }> = {
-  dob_inspection: { days: 8, confidence: 'med' },
-  permit_review: { days: 30, confidence: 'med' },
-  submittal_review: { days: 14, confidence: 'high' },
-  rfi_response: { days: 7, confidence: 'high' },
-  // Materials vary enormously (stock lumber same-week vs custom millwork
-  // months). A conservative 2-week placeholder that callers should override
-  // with a real quote — hence low confidence.
+  // HONESTY RULE (pinned by the validator): a seeded NATIONAL default is a
+  // reasonable-guess placeholder, not a grounded value — none are backed by a
+  // jurisdiction dataset or the prediction ledger (both empty in v1). So every
+  // default is 'low' confidence: useful to book against, but the contractor
+  // should confirm it. Confidence rises above 'low' ONLY when a real
+  // jurisdiction override (source 'jurisdiction') or a learned value (source
+  // 'learned') backs it — never for a national default. Permit review alone
+  // spans 2 weeks to 6 months by city; 'med'/'high' here would present a guess
+  // as truth. Numbers are typical industry book-aheads; confidence is honest.
+  dob_inspection: { days: 8, confidence: 'low' },
+  permit_review: { days: 30, confidence: 'low' },
+  submittal_review: { days: 14, confidence: 'low' },
+  rfi_response: { days: 7, confidence: 'low' },
   material_lead: { days: 14, confidence: 'low' },
 };
 
