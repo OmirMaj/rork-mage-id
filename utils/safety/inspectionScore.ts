@@ -9,7 +9,7 @@
 //  - hazardFromFailedItem: build a Wave-A Hazard draft from a failed item; the
 //    "log as hazard" affordance hands this to SafetyContext.addHazard.
 
-import type { InspectionItem, Hazard } from '@/types';
+import type { InspectionItem, Hazard, RoadmapInspection } from '@/types';
 
 export interface InspectionScore {
   pass: number;
@@ -73,5 +73,52 @@ export function hazardFromFailedItem(
     createdAt: now,
     updatedAt: now,
     createdBy: inspection.createdBy,
+  };
+}
+
+/**
+ * Build a Hazard DRAFT from a FAILED DOB/AHJ roadmap inspection (Wave-A
+ * automation, inspection-RESULT vertical). Mirrors hazardFromFailedItem, but the
+ * source is a `RoadmapInspection` (a jurisdiction inspection the contractor just
+ * marked FAILED), not an internal SafetyInspection checklist line.
+ *
+ * A failed DOB/AHJ inspection is a KNOWN deficiency the AHJ flagged — not a
+ * speculative risk — so severity/likelihood default to the mid 3×3 (riskScore 9,
+ * mirroring hazardFromFailedItem) for the contractor to adjust before saving.
+ * The whole hazard is a DRAFT: it does NOT commit until the contractor confirms
+ * in the review surface, which is what hands it to SafetyContext.addHazard.
+ *
+ * `sourceInspectionId` carries the inspection id so re-marking the SAME
+ * inspection FAILED dedups (the caller / SafetyContext keys off it) — a
+ * re-inspection never spawns a second hazard for the same failed inspection.
+ * There is no `sourceItemId`: a roadmap inspection has no per-line checklist,
+ * so the whole inspection is the source (sourceItemId stays undefined).
+ *
+ * PURE: `now` (ISO timestamp) and `id` are injected by the caller so this stays
+ * deterministic and testable — no Date.now(), no random, no I/O.
+ */
+export function hazardFromFailedInspection(
+  inspection: RoadmapInspection,
+  projectId: string,
+  createdBy: string,
+  now: string,
+  id: string,
+): Hazard {
+  return {
+    id,
+    projectId,
+    description: `Failed inspection: ${inspection.title}`,
+    location: '',
+    severity: 3,
+    likelihood: 3,
+    riskScore: 9,
+    correctiveAction: inspection.description || undefined,
+    status: 'open',
+    // Dedupe handle: the inspection id. Re-marking the same inspection FAILED
+    // must not create a second hazard — the caller dedups on this field.
+    sourceInspectionId: inspection.id,
+    createdAt: now,
+    updatedAt: now,
+    createdBy,
   };
 }

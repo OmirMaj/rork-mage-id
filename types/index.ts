@@ -4083,7 +4083,7 @@ export interface RoadmapInspection {
   gatesTaskHint: string;
   gatesTaskId?: string;
   leadTimeDays: number;
-  status: 'pending' | 'scheduled' | 'passed';
+  status: 'pending' | 'scheduled' | 'passed' | 'failed';
 }
 export interface PermitRoadmap {
   id: string;
