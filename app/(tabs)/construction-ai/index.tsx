@@ -31,7 +31,7 @@ import {
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
-  Clock, Scale, MessageCircleQuestion, CalendarClock, Check,
+  Clock, Scale, MessageCircleQuestion, CalendarClock, Check, XCircle,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -55,6 +55,10 @@ import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleRev
 import { roadmapToScheduleWork, mergeReviewLines, hasRoadmapScheduleTasks, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { resolveZoning, confirmZoning, isZoningConfirmed } from '@/utils/automation/jurisdiction';
+import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/utils/automation/inspectionResultToScheduleWork';
+import { InspectionResultReviewSheet } from '@/components/automation/InspectionResultReviewSheet';
+import { useSafety } from '@/contexts/SafetyContext';
+import { generateUUID } from '@/utils/generateId';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -309,6 +313,7 @@ function ConstructionAIScreenInner() {
     savePlanReview,
     updatePlanReview,
   } = useProjects();
+  const { addHazard, hazards } = useSafety();
 
   // When the user picks a code-check project, auto-fill location if blank.
   const codeCheckProject = codeCheckProjectId ? projects.find((p) => p.id === codeCheckProjectId) ?? null : null;
@@ -411,6 +416,84 @@ function ConstructionAIScreenInner() {
     setShowInspectionSheet(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [roadmapProject, updateProject]);
+
+  // ── Inspection-RESULT surface (pass/FAIL → draft consequences) ──────────
+  // Marking a scheduled inspection PASSED or FAILED never silently mutates. We
+  // build the DRAFT consequences via the pure adapter and present a confirm
+  // surface (mirroring the auto-schedule review sheet + the CO→reflow preview
+  // gate). NOTHING commits to the schedule / safety until the contractor
+  // confirms. `pendingResult` holds the drafted work + which inspection it is.
+  const [pendingResult, setPendingResult] = useState<{
+    inspection: RoadmapInspection;
+    result: 'passed' | 'failed';
+    work: InspectionResultWork;
+  } | null>(null);
+
+  // TRIGGER — the contractor marks a scheduled inspection PASSED or FAILED. We
+  // build the draft consequences against the CURRENT committed schedule and open
+  // the confirm surface. Pure derivation only; no mutation here.
+  const handleMarkInspectionResult = useCallback(
+    (inspection: RoadmapInspection, result: 'passed' | 'failed') => {
+      if (!roadmapProject?.schedule) return;
+      const work = inspectionResultToScheduleWork(
+        inspection,
+        roadmapProject.schedule,
+        result,
+        {
+          projectId: roadmapProject.id,
+          createdBy: user?.id ?? 'unknown',
+          now: new Date().toISOString(),
+          hazardId: generateUUID(),
+          jurisdiction: roadmapProject.location || undefined,
+        },
+      );
+      setPendingResult({ inspection, result, work });
+    },
+    [roadmapProject, user],
+  );
+
+  // COMMIT — runs ONLY on an explicit confirm from the result sheet. Commits all
+  // consequences atomically: the reflowed/merged schedule tasks (when the
+  // adapter produced any), the inspection status, and — on FAIL — the drafted
+  // hazard. Idempotent by construction (adapter dedups on sourceEventRef /
+  // sourceInspectionId), so a re-confirm never duplicates.
+  const handleConfirmInspectionResult = useCallback(() => {
+    if (!pendingResult || !roadmapProject?.schedule || !roadmap) return;
+    const { inspection, result, work } = pendingResult;
+
+    // 1) Schedule — only when the adapter produced a task set (PASS-with-no-
+    //    successors returns none). Rebuild through the real engine so CPM re-runs.
+    if (work.tasks) {
+      const rebuilt = buildScheduleFromTasks(
+        roadmapProject.schedule.name ?? 'Schedule',
+        roadmapProject.id,
+        work.tasks,
+        roadmapProject.schedule.baseline ?? null,
+      );
+      updateProject(roadmapProject.id, {
+        schedule: { ...roadmapProject.schedule, ...rebuilt },
+      });
+    }
+
+    // 2) Inspection status — the source record now reflects the result.
+    updatePermitRoadmap(roadmap.id, {
+      inspections: roadmap.inspections.map((x) =>
+        x.id === inspection.id ? { ...x, status: result } : x,
+      ),
+    });
+
+    // 3) FAIL → commit the hazard. Dedupe on sourceInspectionId so a re-fail of
+    //    the same inspection does not spawn a second live hazard.
+    if (result === 'failed' && work.hazardDraft) {
+      const already = hazards.some(
+        (h) => h.sourceInspectionId === work.hazardDraft!.sourceInspectionId,
+      );
+      if (!already) addHazard(work.hazardDraft);
+    }
+
+    setPendingResult(null);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [pendingResult, roadmapProject, roadmap, updateProject, updatePermitRoadmap, addHazard, hazards]);
 
   // ── Plan Review state ────────────────────────────────────────────────
   const [planProjectId, setPlanProjectId] = useState<string | null>(projects[0]?.id ?? null);
@@ -1075,14 +1158,19 @@ Be specific to the cited location if possible. If the location is not in the US,
                           inspection={insp}
                           gatingLabel={gatingLabel}
                           bookBy={bookBy}
+                          canRecordResult={!!roadmapProject?.schedule}
                           onCycleStatus={() => {
-                            const next: RoadmapInspection['status'][] = ['pending', 'scheduled', 'passed'];
-                            const idx = next.indexOf(insp.status);
-                            const nextStatus = next[(idx + 1) % next.length];
+                            // Cycle only the pre-result states (pending ↔ scheduled).
+                            // Recording a PASS/FAIL result goes through the confirm
+                            // surface, never this silent toggle.
+                            const nextStatus: RoadmapInspection['status'] =
+                              insp.status === 'scheduled' ? 'pending' : 'scheduled';
                             updatePermitRoadmap(roadmap.id, {
                               inspections: roadmap.inspections.map((x) => x.id === insp.id ? { ...x, status: nextStatus } : x),
                             });
                           }}
+                          onMarkPassed={() => handleMarkInspectionResult(insp, 'passed')}
+                          onMarkFailed={() => handleMarkInspectionResult(insp, 'failed')}
                         />
                       );
                     })}
@@ -1108,6 +1196,27 @@ Be specific to the cited location if possible. If the location is not in the US,
               onCancel={() => setShowInspectionSheet(false)}
               onConfirmZoning={handleConfirmZoning}
             />
+          </Modal>
+
+          {/* Inspection-RESULT confirm surface — the ONLY commit path for a
+              pass release / fail re-inspection + hazard. Nothing mutates until
+              the contractor confirms here. */}
+          <Modal
+            visible={!!pendingResult}
+            animationType="slide"
+            presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+            transparent={Platform.OS !== 'ios'}
+            onRequestClose={() => setPendingResult(null)}
+          >
+            {pendingResult ? (
+              <InspectionResultReviewSheet
+                inspection={pendingResult.inspection}
+                result={pendingResult.result}
+                work={pendingResult.work}
+                onConfirm={handleConfirmInspectionResult}
+                onCancel={() => setPendingResult(null)}
+              />
+            ) : null}
           </Modal>
           </>
         ) : mode === 'plan' ? (
@@ -1346,23 +1455,35 @@ const INSP_STATUS_COLORS: Record<RoadmapInspection['status'], string> = {
   pending: '#8E8E93',
   scheduled: '#FF9500',
   passed: '#34C759',
+  failed: '#FF3B30',
 };
 
 function RoadmapInspectionRow({
   inspection,
   gatingLabel,
   bookBy,
+  canRecordResult,
   onCycleStatus,
+  onMarkPassed,
+  onMarkFailed,
 }: {
   inspection: RoadmapInspection;
   gatingLabel: string;
   bookBy: Date | null;
+  canRecordResult: boolean;
   onCycleStatus: () => void;
+  onMarkPassed: () => void;
+  onMarkFailed: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const bookByStr = bookBy
     ? bookBy.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : '—';
+  // Pass/FAIL result buttons appear once the inspection is scheduled (there is a
+  // committed schedule task to release / keep blocked). Marking a result opens
+  // the confirm surface — it never silently mutates. A terminal result (passed /
+  // failed) still allows re-recording (idempotent by construction).
+  const showResultActions = canRecordResult && inspection.status !== 'pending';
   return (
     <View style={styles.roadmapRow}>
       <View style={styles.roadmapRowHeader}>
@@ -1386,6 +1507,32 @@ function RoadmapInspectionRow({
       </View>
       {inspection.description ? (
         <Text style={styles.roadmapRowDesc} numberOfLines={2}>{inspection.description}</Text>
+      ) : null}
+      {showResultActions ? (
+        <View style={styles.inspResultActions}>
+          <TouchableOpacity
+            onPress={onMarkPassed}
+            activeOpacity={0.85}
+            style={styles.inspPassBtn}
+            testID={`insp-mark-passed-${inspection.id}`}
+            accessibilityRole="button"
+            accessibilityLabel="Mark inspection passed"
+          >
+            <Check size={14} color={INSP_STATUS_COLORS.passed} strokeWidth={2} />
+            <Text style={[styles.inspResultBtnText, { color: INSP_STATUS_COLORS.passed }]}>Passed</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onMarkFailed}
+            activeOpacity={0.85}
+            style={styles.inspFailBtn}
+            testID={`insp-mark-failed-${inspection.id}`}
+            accessibilityRole="button"
+            accessibilityLabel="Mark inspection failed"
+          >
+            <XCircle size={14} color={INSP_STATUS_COLORS.failed} strokeWidth={2} />
+            <Text style={[styles.inspResultBtnText, { color: INSP_STATUS_COLORS.failed }]}>Failed</Text>
+          </TouchableOpacity>
+        </View>
       ) : null}
     </View>
   );
@@ -2208,6 +2355,37 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
     textTransform: 'capitalize' as const,
+  },
+  inspResultActions: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginTop: 10,
+  },
+  inspPassBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: INSP_STATUS_COLORS.passed + '55',
+    backgroundColor: INSP_STATUS_COLORS.passed + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  inspFailBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: INSP_STATUS_COLORS.failed + '55',
+    backgroundColor: INSP_STATUS_COLORS.failed + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  inspResultBtnText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
   },
   addToPermitsBtn: {
     flexDirection: 'row' as const,
