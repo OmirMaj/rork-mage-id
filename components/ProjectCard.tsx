@@ -165,7 +165,7 @@ function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardPr
             </View>
             <View style={styles.titleBlock}>
               <EyebrowLabel tone="amber">Project</EyebrowLabel>
-              <Text style={[Type.serifHeadline, { color: colors.text, marginTop: 2 }]} numberOfLines={1}>
+              <Text style={[Type.serifHeadline, { color: colors.text, marginTop: 2 }]} numberOfLines={2}>
                 {project.name}
               </Text>
               {displayText(project.location) ? (

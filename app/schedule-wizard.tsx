@@ -687,6 +687,11 @@ export default function ScheduleWizardScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="none"
+          // Keyboard was covering the task inputs with no way to scroll to them:
+          // auto-inset the scroll content by the keyboard height so the focused
+          // TextInput scrolls above the keyboard (iOS). Android's default
+          // adjustResize already shrinks the view.
+          automaticallyAdjustKeyboardInsets={true}
           // A row being dragged owns the vertical gesture. Leaving the
           // ScrollView live means the list scrolls under the finger and the
           // drop lands nowhere near where it was aimed.
