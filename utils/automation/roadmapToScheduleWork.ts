@@ -92,16 +92,19 @@ function inspectionKind(insp: RoadmapInspection): LeadTimeKind {
  */
 function toRequest(
   insp: RoadmapInspection,
-  leadTimeDays: number,
+  lead: LeadTime,
 ): ScheduleWorkRequest {
   return {
     kind: inspectionKind(insp),
     gatingTaskId: insp.gatesTaskId,
     gatingTaskHint: insp.gatesTaskHint,
-    leadTimeDays,
+    leadTimeDays: lead.days,
     whoActs: 'gc',
     sourceEventRef: { feature: ROADMAP_FEATURE, id: insp.id },
     title: insp.title,
+    // §7.2: pass the lead's provenance so the factory stamps it on the persisted
+    // task — the honesty survives past commit.
+    leadProvenance: { source: lead.source, confidence: lead.confidence },
   };
 }
 
@@ -153,7 +156,7 @@ export function roadmapToScheduleWork(
   const lines: ReviewLine[] = [];
   for (const insp of inspections) {
     const leadTime = resolveLead(insp, jurisdiction);
-    const req = toRequest(insp, leadTime.days);
+    const req = toRequest(insp, leadTime);
     const result = eventToScheduleWork(req, schedule);
 
     // The draft inspection is the task carrying THIS inspection's

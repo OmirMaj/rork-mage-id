@@ -198,17 +198,19 @@ function releaseOnPass(
  */
 function toReinspectRequest(
   inspection: RoadmapInspection,
-  leadTimeDays: number,
+  lead: LeadTime,
   gatingTaskId: string | undefined,
 ): ScheduleWorkRequest {
   return {
     kind: 'dob_inspection',
     gatingTaskId: gatingTaskId ?? inspection.gatesTaskId,
     gatingTaskHint: inspection.gatesTaskHint,
-    leadTimeDays,
+    leadTimeDays: lead.days,
     whoActs: 'gc',
     sourceEventRef: { feature: ROADMAP_FEATURE, id: reinspectRefId(inspection.id) },
     title: `Re-inspection: ${inspection.title}`,
+    // §7.2: the re-inspection's lead provenance survives onto the committed task.
+    leadProvenance: { source: lead.source, confidence: lead.confidence },
   };
 }
 
@@ -235,7 +237,7 @@ function consequencesOnFail(
   // Honest lead-time provenance for the re-inspection (library default unless a
   // grounded jurisdiction override exists). NEVER jurisdiction/high by fiat.
   const reinspectionLead = getLeadTime('dob_inspection', opts.jurisdiction);
-  const req = toReinspectRequest(inspection, reinspectionLead.days, primaryGatingId);
+  const req = toReinspectRequest(inspection, reinspectionLead, primaryGatingId);
   // Idempotent: if a re-inspection for this inspection is already in the
   // schedule (same sourceEventRef), the factory returns it rather than adding a
   // duplicate.

@@ -554,6 +554,18 @@ export interface ScheduleTask {
    * sourceEventRef.
    */
   sourceEventRef?: { feature: string; id: string };
+  /**
+   * Provenance of the lead time that positioned an auto-generated task, carried
+   * PAST the commit boundary (§7.2). Without this, a committed auto-task's lag
+   * is an anonymous number and a later viewer can't tell a grounded value from
+   * an ai_estimate/low guess — "provenance laundering." Stamped by the factory
+   * from the resolving lead. Union mirrors leadTimeLibrary's LeadTimeSource /
+   * LeadTimeConfidence.
+   */
+  leadProvenance?: {
+    source: 'default' | 'jurisdiction' | 'learned' | 'ai_estimate';
+    confidence: 'low' | 'med' | 'high';
+  };
   isWeatherSensitive?: boolean;
   baselineStartDay?: number;
   baselineEndDay?: number;
