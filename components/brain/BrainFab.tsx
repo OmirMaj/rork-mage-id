@@ -75,8 +75,8 @@ export function BrainFab() {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(breathe, { toValue: 1.06, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1.09, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -127,9 +127,12 @@ export function BrainFab() {
         style={[styles.fab, { transform: [{ scale: pulseScale }] }]}
       >
         <LinearGradient
-          colors={[colors.accentHot, colors.accent]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          // Bright warm orange (top-left) → deep burnt orange (bottom-right): a
+          // real, visible gradient with depth, not a near-flat one, so the mark
+          // reads as premium rather than a plain disc.
+          colors={[colors.accentHot, colors.accentFill]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
         <MageAIMark size={26} color="#FFFFFF" accentColor="#FFFFFF" />
@@ -147,10 +150,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: Tokens.radius.full,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 18,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 9 },
+    shadowOpacity: 0.55,
+    shadowRadius: 22,
+    elevation: 12,
     zIndex: 40,
   },
   fab: {
