@@ -60,18 +60,30 @@ export default function MarginAlertManager() {
         const notifiable = selectNotifiable(alerts);
         const fresh = notifiable.filter(a => !notified.includes(a.id));
 
+        // Tapping a margin alert opens MAGE already answering "why is this
+        // slipping and what do I do?" (kind: 'ask_seed'), instead of dumping the
+        // GC on a raw risk table — the answer cites the margin block, which
+        // drills to /margin-risk anyway. The seed names the project so Ask
+        // scopes to it.
+        const askData = (a: (typeof fresh)[number]): Record<string, unknown> => ({
+          kind: 'ask_seed',
+          screen: 'margin',
+          seed: `Why is ${names[a.projectId ?? ''] ?? 'this job'}'s margin slipping, and what should I do about it?`,
+          ...(a.projectId ? { projectId: a.projectId } : {}),
+        });
+
         if (fresh.length === 1) {
           const a = fresh[0];
-          await sendLocalNotification(a.title, a.detail, { kind: 'margin_alert', projectId: a.projectId });
+          await sendLocalNotification(a.title, a.detail, askData(a));
         } else if (fresh.length > 1 && fresh.length <= 3) {
           for (const a of fresh) {
-            await sendLocalNotification(a.title, a.detail, { kind: 'margin_alert', projectId: a.projectId });
+            await sendLocalNotification(a.title, a.detail, askData(a));
           }
         } else if (fresh.length > 3) {
           await sendLocalNotification(
             `${fresh.length} jobs need margin attention`,
-            'Margin risk stepped up on several active jobs. Open Margin Alerts to triage.',
-            { kind: 'margin_alert' },
+            'Margin risk stepped up on several active jobs — ask MAGE what to do first.',
+            { kind: 'ask_seed', screen: 'margin', seed: 'Which jobs are losing margin right now, and what should I do about it?' },
           );
         }
 
