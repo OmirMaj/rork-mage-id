@@ -2,10 +2,10 @@
 //
 // The single global entry to the MAGE ID Brain. One floating action button,
 // mounted once in app/_layout.tsx, present on every screen. Tapping it opens
-// the search-first command surface (SearchContext.openSearch → UniversalSearch),
-// which is being grown into the unified Brain surface (search + ask + voice +
-// "what needs you now"). This FAB replaces the scattered AI doors — the two
-// home cards, the HomeFabStack, and the per-screen AICopilot FABs.
+// the conversational ask screen (app/ask.tsx) — the front door to the Brain.
+// Search still exists but is reached from a search icon inside that screen.
+// This FAB replaces the scattered AI doors — the two home cards, the
+// HomeFabStack, and the per-screen AICopilot FABs.
 //
 // Geometry mirrors the old AICopilot FAB (56pt circle, bottom-right, lifted
 // above the tab bar) so it lands where users already reach for it.
@@ -19,21 +19,21 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSegments } from 'expo-router';
+import { useSegments, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSearch } from '@/contexts/SearchContext';
 import { Tokens } from '@/constants/designTokens';
 import { MageAIMark } from '@/components/icons';
 import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain/brainFabState';
 
 // Routes where the Brain must NOT appear: tokenized public viewers handed to
-// clients/subs (they have no account and must see only what's shared), and the
-// pre-auth / onboarding flow.
+// clients/subs (they have no account and must see only what's shared), the
+// pre-auth / onboarding flow, and the ask screen itself (the FAB opens it, so
+// it must not float on top of its own destination).
 const HIDDEN_ROOTS: ReadonlySet<string> = new Set([
   'shared-estimate', 'shared-photos', 'shared-schedule', 'shared-plan', 'client-view',
-  'prequal-form', 'claim-crew',
+  'prequal-form', 'claim-crew', 'ask',
   'login', 'signup', 'reset-password', 'onboarding', 'persona-select', 'onboarding-paywall',
 ]);
 
@@ -42,7 +42,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function BrainFab() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { openSearch } = useSearch();
+  const router = useRouter();
   const segments = useSegments();
 
   // Scroll-away + per-screen suppression / lift. See brainFabState for why the
@@ -91,8 +91,10 @@ export function BrainFab() {
   }, [press]);
   const handlePress = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    openSearch();
-  }, [openSearch]);
+    // Open the ask screen directly — the conversational surface is the front
+    // door to the Brain now. Search moved to a search icon inside that screen.
+    router.push('/ask');
+  }, [router]);
 
   // Hide on public/tokenized viewers and the pre-auth flow.
   if (HIDDEN_ROOTS.has((segments[0] as string) ?? '')) return null;

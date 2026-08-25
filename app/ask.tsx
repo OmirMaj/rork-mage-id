@@ -14,16 +14,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Platform, KeyboardAvoidingView,
+  ActivityIndicator, Platform, KeyboardAvoidingView, Animated, Easing,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, ChevronRight, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ChevronRight, ArrowUp, AlertTriangle, Search, X, Clock, DollarSign, CalendarClock } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSearch } from '@/contexts/SearchContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -45,18 +47,39 @@ interface Turn {
   citations?: OneMindCitation[];
 }
 
-// Engine-aware prompts the old business-snapshot agent couldn't answer.
-const ONE_MIND_SUGGESTIONS: string[] = [
-  'Which job is bleeding margin right now?',
-  'Can I afford to take on another job next month?',
-];
+// Icons paired to the four empty-state starters (positional — index-matched to
+// the first four ASK_MAGE_SUGGESTIONS below). Display only; ask() takes the raw
+// prompt string, so the shared list stays the single source of truth.
+const STARTER_ICONS = [Clock, DollarSign, AlertTriangle, CalendarClock] as const;
 
 export default function AskMageScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { openSearch } = useSearch();
   const { seed } = useLocalSearchParams<{ seed?: string }>();
+
+  // Gentle breathing on the empty-state mark — the same "alive assistant"
+  // language as the Brain FAB. Native driver, subtle.
+  const breathe = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(breathe, { toValue: 1.05, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [breathe]);
+
+  // Search is a pageSheet modal and so is this screen. Dismiss ask first, then
+  // present search — the same close-then-open timing the Brain FAB used for its
+  // voice/help sheets, so search animates in cleanly instead of stacking.
+  const openSearchFromAsk = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.back();
+    setTimeout(() => openSearch(), 350);
+  }, [router, openSearch]);
 
   const {
     projects, invoices, leads, changeOrders, rfis,
@@ -168,23 +191,33 @@ export default function AskMageScreen() {
   }, [router]);
 
   const empty = turns.length === 0;
-  const suggestions = useMemo(() => [...ASK_MAGE_SUGGESTIONS, ...ONE_MIND_SUGGESTIONS], []);
+  // Four calm starters, each with a glanceable icon. Sliced from the shared
+  // ASK_MAGE_SUGGESTIONS so the list stays the source of truth.
+  const starters = useMemo(
+    () => ASK_MAGE_SUGGESTIONS.slice(0, 4).map((q, i) => ({ q, Icon: STARTER_ICONS[i] })),
+    [],
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Header */}
+      {/* Header — brand left, search + close right */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <View style={styles.headerIcon}><MageAIMark size={16} color={themeColors.accent} accentColor={themeColors.accent} /></View>
-          <View>
-            <Text style={styles.headerTitle}>Ask MAGE</Text>
-            <Text style={styles.headerSub}>One answer from everything you’ve logged</Text>
+        <View style={styles.brand}>
+          <View style={styles.brandMark}>
+            <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+            <MageAIMark size={15} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
           </View>
+          <Text style={styles.brandName}>MAGE</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.iconBtn} onPress={openSearchFromAsk} hitSlop={6} accessibilityLabel="Search" testID="ask-search">
+            <Search size={18} color={themeColors.textMuted} strokeWidth={2} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} hitSlop={6} accessibilityLabel="Close" testID="ask-close">
+            <X size={18} color={themeColors.textMuted} strokeWidth={2.2} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -202,23 +235,27 @@ export default function AskMageScreen() {
         >
           {empty ? (
             <View style={styles.emptyWrap}>
-              <View style={styles.emptyIcon}><MageAIMark size={28} color={themeColors.accent} accentColor={themeColors.accent} /></View>
-              <Text style={styles.emptyTitle}>Ask me anything about your business</Text>
+              <Animated.View style={[styles.halo, { transform: [{ scale: breathe }] }]}>
+                <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+                <MageAIMark size={28} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
+              </Animated.View>
+              <Text style={styles.emptyTitle}>What can I help with?</Text>
               <Text style={styles.emptyBody}>
-                I fuse your records with the margin, risk, schedule, pace, cash and
-                portfolio engines — and cite where each answer came from so you can
-                tap straight into the screen behind it.
+                Ask about your money, schedules, leads — anything across your jobs.
+                Every answer cites where it came from.
               </Text>
               <View style={styles.suggestions}>
-                {suggestions.map(s => (
+                {starters.map(({ q, Icon }) => (
                   <TouchableOpacity
-                    key={s}
+                    key={q}
                     style={styles.suggestion}
-                    onPress={() => ask(s)}
+                    onPress={() => ask(q)}
                     activeOpacity={0.85}
-                    testID={`ask-suggestion`}
+                    testID="ask-suggestion"
                   >
-                    <Text style={styles.suggestionText}>{s}</Text>
+                    <Icon size={17} color={themeColors.accent} strokeWidth={2} />
+                    <Text style={styles.suggestionText}>{q}</Text>
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -272,7 +309,7 @@ export default function AskMageScreen() {
             style={styles.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder="Ask about money, schedule, leads…"
+            placeholder="Ask anything…"
             placeholderTextColor={themeColors.textMuted}
             multiline
             onSubmitEditing={() => ask(draft)}
@@ -286,7 +323,8 @@ export default function AskMageScreen() {
             accessibilityLabel="Send"
             testID="ask-send"
           >
-            {busy ? <ActivityIndicator size="small" color="#FFF" /> : <ArrowUp size={18} color="#FFF" strokeWidth={2.6} />}
+            <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+            {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <ArrowUp size={18} color={Colors.textOnAccent} strokeWidth={2.6} />}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -297,31 +335,39 @@ export default function AskMageScreen() {
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  headerTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerIcon: {
-    width: 30, height: 30, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent + '14', alignItems: 'center', justifyContent: 'center',
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brandMark: {
+    width: 28, height: 28, borderRadius: Tokens.radius.md, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
   },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '800', color: t.text },
-  headerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
+  brandName: { fontSize: Type.headline.fontSize, fontWeight: '800', color: t.text, letterSpacing: 0.3 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconBtn: {
+    width: 34, height: 34, borderRadius: Tokens.radius.md,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
 
-  emptyWrap: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 8 },
-  emptyIcon: {
-    width: 56, height: 56, borderRadius: Tokens.radius.lg,
-    backgroundColor: t.accent + '14', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  emptyWrap: { alignItems: 'flex-start', paddingTop: 28, paddingHorizontal: 8 },
+  halo: {
+    width: 58, height: 58, borderRadius: Tokens.radius.lg, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 16, elevation: 8,
   },
-  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, textAlign: 'center', letterSpacing: -0.3 },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 8, maxWidth: 340 },
-  suggestions: { gap: 8, marginTop: 22, alignSelf: 'stretch' },
+  emptyTitle: { ...Type.serifTitle, color: t.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19, marginTop: 8, maxWidth: 320 },
+  suggestions: { gap: 9, marginTop: 22, alignSelf: 'stretch' },
   suggestion: {
-    backgroundColor: t.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 13,
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 14,
     borderWidth: 1, borderColor: t.line,
   },
-  suggestionText: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
+  suggestionText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
 
   bubbleRow: { flexDirection: 'row', marginBottom: 12, maxWidth: '100%' },
   bubbleRowUser: { justifyContent: 'flex-end' },
@@ -358,8 +404,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   send: {
-    width: 44, height: 44, borderRadius: Tokens.radius.full,
-    backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: Tokens.radius.full, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6,
   },
   sendDim: { opacity: 0.45 },
 });
