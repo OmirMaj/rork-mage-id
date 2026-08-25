@@ -42,6 +42,8 @@ import {
 import type { AccuracyReport } from '@/utils/brain/accuracyReport';
 import type { CashFlowSummary } from '@/utils/cashFlowEngine';
 import type { CostSample } from '@/utils/costDatabase';
+import type { Constraint } from '@/utils/lastPlanner';
+import { buildReadinessBlock } from './buildReadinessBlock';
 import type { OneMindScope } from './resolveScope';
 
 // ─── The common currency ─────────────────────────────────────────────────────
@@ -84,6 +86,9 @@ export interface OneMindBundle {
   /** Judges-assembly parity; reserved for cost-book fact blocks (v1.1). */
   receipts?: MaterialReceipt[];
   laborSamples?: CostSample[];
+  /** Per-project Last Planner constraints, for the readiness lookahead block.
+   *  Local-only (mageid_last_planner); absent when the caller doesn't supply it. */
+  constraints?: Record<string, Constraint[]>;
 }
 
 // ─── Small formatters (module-local, mirror portfolio/factLines style) ──────
@@ -498,6 +503,9 @@ export async function assembleFactBlocks(
       })),
       // SCHEDULE
       () => buildScheduleBlock(project, now),
+      // READY — Last Planner readiness lookahead (open constraints vs the next
+      // 3 weeks of scheduled work). Empty/absent constraints skip gracefully.
+      () => buildReadinessBlock(project, bundle.constraints?.[project.id] ?? [], now),
       // WATCH — this project's attention items only.
       () => buildBrainWatchBlock(collectAttentionItems(bundle, project.id, now)),
       // PACE — the whole portfolio's pace book, read for this project's trades.

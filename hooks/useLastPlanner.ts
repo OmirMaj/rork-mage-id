@@ -54,6 +54,21 @@ function bucket(store: Store, projectId: string): ProjectBucket {
   return store[projectId] ?? { constraints: [], commitments: [], dispatches: [] };
 }
 
+/**
+ * Every project's constraints, read straight from the store — for callers (One
+ * Mind's readiness lookahead) that need the whole constraint book at once
+ * without mounting the per-project hook. Local-only, so it reflects constraints
+ * logged on this device. Never throws.
+ */
+export async function loadAllConstraints(): Promise<Record<string, Constraint[]>> {
+  const store = await load();
+  const out: Record<string, Constraint[]> = {};
+  for (const [projectId, b] of Object.entries(store)) {
+    if (b?.constraints?.length) out[projectId] = b.constraints;
+  }
+  return out;
+}
+
 export function useLastPlanner(projectId: string | null | undefined) {
   const queryClient = useQueryClient();
 

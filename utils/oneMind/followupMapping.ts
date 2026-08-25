@@ -20,6 +20,10 @@ export const FOLLOWUP_BY_REF: Record<string, string[]> = {
     "What's causing the delay?",
     'Am I ready for next week?',
   ],
+  READY: [
+    'Which constraints should I clear first?',
+    "What's blocking next week?",
+  ],
   PACE: [
     'Will this job finish on time?',
     'Which task is falling behind pace?',

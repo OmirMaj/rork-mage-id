@@ -22,10 +22,11 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, ArrowUp, AlertTriangle, Search, X, Clock, DollarSign, CalendarClock,
-  Mic, Gauge, Users, Wallet, TrendingUp, Sparkles, type LucideIcon,
+  Mic, Gauge, Users, Wallet, TrendingUp, Sparkles, Mail, type LucideIcon,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
+import RFITriageModal from '@/components/RFITriageModal';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -44,6 +45,8 @@ import { resolveStarters, ONBOARDING_STARTERS, type Starter, type StarterIcon } 
 import { followupsForRefs } from '@/utils/oneMind/followupMapping';
 import { DEMO_ANSWERS } from '@/utils/oneMind/demoColdStart';
 import { loadAskThreads, saveAskThread, type AskThread } from '@/utils/askHistory';
+import { loadAllConstraints } from '@/hooks/useLastPlanner';
+import type { Constraint } from '@/utils/lastPlanner';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -100,6 +103,7 @@ export default function AskMageScreen() {
   const { bidResponses } = useBidResponsesPortfolio();
   const { receipts } = useMaterialReceipts();
   const laborSamples = useLaborCostSamples();
+  const [allConstraints, setAllConstraints] = useState<Record<string, Constraint[]>>({});
 
   const bundle = useMemo<OneMindBundle>(() => {
     // Local calendar day, not toISOString() (UTC flips the date for evening
@@ -112,16 +116,19 @@ export default function AskMageScreen() {
       bidResponses,
       receipts,
       laborSamples,
+      constraints: allConstraints,
     };
   }, [
     projects, commitments, changeOrders, invoices, rfis, leads, dailyReports,
     permits, submittals, punchItems, safety, bidResponses, receipts, laborSamples,
+    allConstraints,
   ]);
 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [rfiOpen, setRfiOpen] = useState(false);
   const [recentThreads, setRecentThreads] = useState<AskThread[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   // Stable id for THIS conversation, so history save upserts one thread/session.
@@ -191,6 +198,10 @@ export default function AskMageScreen() {
 
   // Load saved threads for the Recent strip on mount.
   useEffect(() => { void loadAskThreads().then(setRecentThreads); }, []);
+
+  // Load Last Planner constraints (all projects) so project-scoped answers can
+  // include the readiness lookahead. Local-only; absent -> readiness just skips.
+  useEffect(() => { void loadAllConstraints().then(setAllConstraints); }, []);
 
   // Persist a completed Q&A thread (upsert by session id) so it can be recalled
   // for free from the Recent strip. Only save once an assistant turn has landed.
@@ -300,6 +311,18 @@ export default function AskMageScreen() {
                   );
                 })}
               </View>
+              {!cold && projects.length > 0 && (
+                <TouchableOpacity
+                  style={styles.toolRow}
+                  onPress={() => setRfiOpen(true)}
+                  activeOpacity={0.85}
+                  testID="ask-rfi-triage"
+                >
+                  <Mail size={16} color={themeColors.accent} strokeWidth={2} />
+                  <Text style={styles.toolText}>Turn an email into an RFI</Text>
+                  <ChevronRight size={15} color={themeColors.textMuted} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
               {recentThreads.length > 0 && (
                 <View style={styles.recentWrap}>
                   <Text style={styles.recentLabel}>RECENT</Text>
@@ -425,6 +448,8 @@ export default function AskMageScreen() {
         contextLine="Speak your question — I'll answer from your jobs."
         suggestions={starters.map(s => s.q)}
       />
+
+      <RFITriageModal visible={rfiOpen} onClose={() => setRfiOpen(false)} />
     </View>
   );
 }
@@ -465,6 +490,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line,
   },
   suggestionText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
+  // Secondary "tool" affordance under the starters — reads as an action, not a
+  // suggestion (dashed border, muted).
+  toolRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, alignSelf: 'stretch',
+    borderWidth: 1, borderColor: t.line, borderStyle: 'dashed', borderRadius: Tokens.radius.lg,
+    paddingHorizontal: 14, paddingVertical: 13,
+  },
+  toolText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.textSecondary },
 
   bubbleRow: { flexDirection: 'row', marginBottom: 12, maxWidth: '100%' },
   bubbleRowUser: { justifyContent: 'flex-end' },
