@@ -79,7 +79,7 @@ interface ClientPaywallProps {
 // native, Payment Link on web) whose *server-confirmed* completion is
 // what grants the post credit (see handlePayPerPost placeholder), NOT a
 // client-side recordRfpPostCredit() call. Until then this MUST stay false.
-const RFP_PAID_POST_ENABLED = true;
+const RFP_PAID_POST_ENABLED = false;
 
 const PRO_BENEFITS = [
   'Unlimited project posts',

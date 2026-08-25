@@ -467,9 +467,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   itemRight: { alignItems: 'flex-end', gap: 2, minWidth: 80 },
   retailPrice: { fontSize: Type.caption1.fontSize, color: t.textMuted, textDecorationLine: 'line-through' as const },
   bulkRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  bulkPrice: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.success, letterSpacing: -0.3 },
+  // successLabel (the deeper, WCAG-AA variant) so the catalog deal price is
+  // legible — money is load-bearing. Matches estimate/full.tsx's bulkPrice.
+  bulkPrice: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.successLabel, letterSpacing: -0.3 },
   saveBadge: { backgroundColor: t.success + '18', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: t.success },
+  saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: t.successLabel },
   bulkMinLabel: { fontSize: 10, color: t.textMuted },
   itemActions: {
     flexDirection: 'row',
