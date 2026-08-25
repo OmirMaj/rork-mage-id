@@ -93,8 +93,11 @@ export function BrainFab() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Open the ask screen directly — the conversational surface is the front
     // door to the Brain now. Search moved to a search icon inside that screen.
-    router.push('/ask');
-  }, [router]);
+    // Pass the innermost route name so Ask can offer screen-aware starters.
+    const cleaned = segments.map(s => s.replace(/[()]/g, '')).filter(Boolean);
+    const screen = cleaned[cleaned.length - 1];
+    router.push(screen ? { pathname: '/ask', params: { screen } } : '/ask');
+  }, [router, segments]);
 
   // Hide on public/tokenized viewers and the pre-auth flow.
   if (HIDDEN_ROOTS.has((segments[0] as string) ?? '')) return null;

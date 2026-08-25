@@ -14,14 +14,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Platform, KeyboardAvoidingView, Animated, Easing,
+  ActivityIndicator, Platform, KeyboardAvoidingView, Animated, Easing, Keyboard,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRight, ArrowUp, AlertTriangle, Search, X, Clock, DollarSign, CalendarClock } from 'lucide-react-native';
+import {
+  ChevronRight, ArrowUp, AlertTriangle, Search, X, Clock, DollarSign, CalendarClock,
+  Mic, Gauge, Users, Wallet, TrendingUp, Sparkles, type LucideIcon,
+} from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -34,9 +38,12 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { localDateISO } from '@/utils/brief/composeBrief';
-import { ASK_MAGE_SUGGESTIONS } from '@/utils/mageAgent';
 import { askOneMind, type OneMindCitation } from '@/utils/oneMind/answer';
-import type { OneMindBundle } from '@/utils/oneMind/factBlocks';
+import { type OneMindBundle, isColdStart } from '@/utils/oneMind/factBlocks';
+import { resolveStarters, ONBOARDING_STARTERS, type Starter, type StarterIcon } from '@/utils/resolveStarters';
+import { followupsForRefs } from '@/utils/oneMind/followupMapping';
+import { DEMO_ANSWERS } from '@/utils/oneMind/demoColdStart';
+import { loadAskThreads, saveAskThread, type AskThread } from '@/utils/askHistory';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -47,10 +54,12 @@ interface Turn {
   citations?: OneMindCitation[];
 }
 
-// Icons paired to the four empty-state starters (positional — index-matched to
-// the first four ASK_MAGE_SUGGESTIONS below). Display only; ask() takes the raw
-// prompt string, so the shared list stays the single source of truth.
-const STARTER_ICONS = [Clock, DollarSign, AlertTriangle, CalendarClock] as const;
+// Starter icon KEY -> Lucide component. Keys come from utils/resolveStarters so
+// that pure data module carries no component dependency.
+const STARTER_ICON: Record<StarterIcon, LucideIcon> = {
+  clock: Clock, dollar: DollarSign, alert: AlertTriangle, calendar: CalendarClock,
+  gauge: Gauge, users: Users, wallet: Wallet, trending: TrendingUp, sparkle: Sparkles,
+};
 
 export default function AskMageScreen() {
   const { colors: themeColors } = useTheme();
@@ -58,7 +67,7 @@ export default function AskMageScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { openSearch } = useSearch();
-  const { seed } = useLocalSearchParams<{ seed?: string }>();
+  const { seed, screen } = useLocalSearchParams<{ seed?: string; screen?: string }>();
 
   // Gentle breathing on the empty-state mark — the same "alive assistant"
   // language as the Brain FAB. Native driver, subtle.
@@ -112,7 +121,11 @@ export default function AskMageScreen() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [recentThreads, setRecentThreads] = useState<AskThread[]>([]);
   const scrollRef = useRef<ScrollView>(null);
+  // Stable id for THIS conversation, so history save upserts one thread/session.
+  const sessionId = useRef(String(Date.now())).current;
 
   // Prior turns for multi-turn continuity, without re-creating `ask` per turn.
   const turnsRef = useRef<Turn[]>([]);
@@ -122,6 +135,18 @@ export default function AskMageScreen() {
     const q = question.trim();
     if (!q || busy) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // Cold-start onboarding: answer the canned demo prompts instantly and
+    // entirely client-side — no model call, no metering, no network.
+    const demo = isColdStart(bundle) ? DEMO_ANSWERS[q] : undefined;
+    if (demo) {
+      setDraft('');
+      setTurns(prev => [
+        ...prev,
+        { role: 'user', text: q },
+        { role: 'assistant', text: demo.answer, citations: demo.citations },
+      ]);
+      return;
+    }
     const prior = turnsRef.current.map(t => ({ role: t.role, text: t.text }));
     setDraft('');
     setTurns(prev => [...prev, { role: 'user', text: q }]);
@@ -162,7 +187,19 @@ export default function AskMageScreen() {
       setBusy(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
-  }, [busy, bundle, tier]);
+  }, [busy, bundle, tier, router]);
+
+  // Load saved threads for the Recent strip on mount.
+  useEffect(() => { void loadAskThreads().then(setRecentThreads); }, []);
+
+  // Persist a completed Q&A thread (upsert by session id) so it can be recalled
+  // for free from the Recent strip. Only save once an assistant turn has landed.
+  useEffect(() => {
+    const last = turns[turns.length - 1];
+    if (last && last.role === 'assistant') {
+      void saveAskThread(sessionId, turns, Date.now()).then(setRecentThreads);
+    }
+  }, [turns, sessionId]);
 
   // Copilot-hub handoff: arrive with ?seed=<question> and auto-ask it once —
   // but only after the project data has hydrated. Firing against a
@@ -191,11 +228,12 @@ export default function AskMageScreen() {
   }, [router]);
 
   const empty = turns.length === 0;
-  // Four calm starters, each with a glanceable icon. Sliced from the shared
-  // ASK_MAGE_SUGGESTIONS so the list stays the source of truth.
-  const starters = useMemo(
-    () => ASK_MAGE_SUGGESTIONS.slice(0, 4).map((q, i) => ({ q, Icon: STARTER_ICONS[i] })),
-    [],
+  const cold = isColdStart(bundle);
+  // Starters adapt to context: onboarding demos when there's no data yet,
+  // otherwise the set tuned to the screen the user opened Ask from.
+  const starters = useMemo<Starter[]>(
+    () => (cold ? ONBOARDING_STARTERS : resolveStarters(screen)),
+    [cold, screen],
   );
 
   return (
@@ -245,20 +283,45 @@ export default function AskMageScreen() {
                 Every answer cites where it came from.
               </Text>
               <View style={styles.suggestions}>
-                {starters.map(({ q, Icon }) => (
-                  <TouchableOpacity
-                    key={q}
-                    style={styles.suggestion}
-                    onPress={() => ask(q)}
-                    activeOpacity={0.85}
-                    testID="ask-suggestion"
-                  >
-                    <Icon size={17} color={themeColors.accent} strokeWidth={2} />
-                    <Text style={styles.suggestionText}>{q}</Text>
-                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
-                  </TouchableOpacity>
-                ))}
+                {starters.map(({ q, icon }) => {
+                  const Icon = STARTER_ICON[icon];
+                  return (
+                    <TouchableOpacity
+                      key={q}
+                      style={styles.suggestion}
+                      onPress={() => ask(q)}
+                      activeOpacity={0.85}
+                      testID="ask-suggestion"
+                    >
+                      <Icon size={17} color={themeColors.accent} strokeWidth={2} />
+                      <Text style={styles.suggestionText}>{q}</Text>
+                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
+              {recentThreads.length > 0 && (
+                <View style={styles.recentWrap}>
+                  <Text style={styles.recentLabel}>RECENT</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
+                    {recentThreads.map(thread => {
+                      const firstQ = thread.turns.find(x => x.role === 'user')?.text ?? 'Conversation';
+                      return (
+                        <TouchableOpacity
+                          key={thread.id}
+                          style={styles.recentCard}
+                          onPress={() => setTurns(thread.turns as Turn[])}
+                          activeOpacity={0.85}
+                          testID="ask-recent"
+                        >
+                          <Clock size={13} color={themeColors.textMuted} strokeWidth={2} />
+                          <Text style={styles.recentText} numberOfLines={2}>{firstQ}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
             </View>
           ) : (
             turns.map((t, i) => (
@@ -290,6 +353,23 @@ export default function AskMageScreen() {
                     ))}
                   </View>
                 )}
+                {t.role === 'assistant' && i === turns.length - 1 && !busy &&
+                  followupsForRefs((t.citations ?? []).map(c => c.ref)).length > 0 && (
+                  <View style={styles.followupRow}>
+                    {followupsForRefs((t.citations ?? []).map(c => c.ref)).map(f => (
+                      <TouchableOpacity
+                        key={f}
+                        style={styles.followupChip}
+                        onPress={() => ask(f)}
+                        activeOpacity={0.85}
+                        testID="ask-followup"
+                      >
+                        <Text style={styles.followupText}>{f}</Text>
+                        <ChevronRight size={13} color={themeColors.textSecondary} strokeWidth={2} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             ))
           )}
@@ -305,6 +385,14 @@ export default function AskMageScreen() {
 
         {/* Input bar */}
         <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <TouchableOpacity
+            style={styles.micBtn}
+            onPress={() => { Keyboard.dismiss(); setVoiceOpen(true); }}
+            accessibilityLabel="Ask by voice"
+            testID="ask-mic"
+          >
+            <Mic size={20} color={themeColors.textMuted} strokeWidth={2} />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             value={draft}
@@ -328,6 +416,15 @@ export default function AskMageScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <VoiceCaptureModal
+        visible={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onTranscriptReady={(t) => { setVoiceOpen(false); void ask(t); }}
+        title="Ask by voice"
+        contextLine="Speak your question — I'll answer from your jobs."
+        suggestions={starters.map(s => s.q)}
+      />
     </View>
   );
 }
@@ -409,4 +506,29 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     shadowColor: t.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6,
   },
   sendDim: { opacity: 0.45 },
+  micBtn: {
+    width: 44, height: 44, borderRadius: Tokens.radius.full,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // Recent-threads strip in the empty state — recall a past answer for free.
+  recentWrap: { marginTop: 22, alignSelf: 'stretch' },
+  recentLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, letterSpacing: 1, marginBottom: 10 },
+  recentRow: { gap: 9, paddingRight: 8 },
+  recentCard: {
+    width: 152, flexDirection: 'row', alignItems: 'flex-start', gap: 7,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.lg, paddingHorizontal: 12, paddingVertical: 11,
+  },
+  recentText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
+
+  // Follow-up chips under the latest answer — surface-colored to stay distinct
+  // from the accent-tinted citation chips.
+  followupRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: -2, marginBottom: 14 },
+  followupChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.full, paddingHorizontal: 11, paddingVertical: 7,
+  },
+  followupText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
 });
