@@ -514,10 +514,13 @@ export async function assembleFactBlocks(
       () => buildRfiBlock(project.id, projectRfis),
       // RFI DEADLINES — forward-looking slip risk from needed-by dates.
       () => buildRfiTriggerBlock(project, projectRfis, now),
-      // MEMORY — records × retrieval fusion (impure module, lazy). topK 8 (was
-      // 5) pulls more of the project's own RFI/CO/report rationale into context.
+      // MEMORY — semantic (pgvector) retrieval when the project's records are
+      // embedded, else the TF-IDF keyword path. retrieveRelevantSemantic races a
+      // short timeout and falls back cleanly, so it can only enrich the memory
+      // facts (pulling the actual RFI/CO/report rationale) or leave them
+      // unchanged — never worsen or stall the answer.
       async () => {
-        const { extractMemoryDocs, retrieveRelevant } = await import('@/utils/projectMemory');
+        const { extractMemoryDocs, retrieveRelevantSemantic } = await import('@/utils/projectMemory');
         const docs = extractMemoryDocs({
           rfis: projectRfis,
           dailyReports: bundle.dailyReports.filter(d => d.projectId === project.id),
@@ -525,7 +528,7 @@ export async function assembleFactBlocks(
           submittals: bundle.submittals.filter(s => s.projectId === project.id),
           punchItems: bundle.punchItems.filter(p => p.projectId === project.id),
         });
-        const top = retrieveRelevant(question, docs, 8);
+        const top = await retrieveRelevantSemantic(project.id, question, docs, 8);
         return buildMemoryBlock(project.id, top);
       },
       // RECORDS — project-filtered business context: the answers-can-never-

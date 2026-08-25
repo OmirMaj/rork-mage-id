@@ -301,3 +301,48 @@ export async function answerFromMemorySemantic(
   // Not deployed / no match / AI hiccup → v1 keyword path.
   return answerFromMemory(q, docs, opts);
 }
+
+/**
+ * Semantic (pgvector) retrieval that returns DOCS — the retrieval primitive for
+ * callers like One Mind that fuse memory facts with OTHER engines (unlike
+ * answerFromMemorySemantic, which composes a standalone answer). Races the
+ * edge-function search against a short timeout and falls back to TF-IDF
+ * retrieveRelevant on ANY failure — no session, tier rejection, empty result,
+ * error, or timeout — so it can only enrich the memory block or leave it
+ * unchanged, never make it worse or slow it unbounded. `docs` is the corpus for
+ * the fallback and for resolving each match's original date/source.
+ */
+export async function retrieveRelevantSemantic(
+  projectId: string,
+  query: string,
+  docs: MemoryDoc[],
+  topK = 8,
+  timeoutMs = 2000,
+): Promise<MemoryDoc[]> {
+  const q = query.trim();
+  const fallback = () => retrieveRelevant(q, docs, topK);
+  if (!projectId || docs.length === 0) return fallback();
+  try {
+    const res = (await Promise.race([
+      authedPost(MEMORY_SEARCH_URL, { projectId, query: q, matchCount: topK }),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), timeoutMs)),
+    ])) as { success?: boolean; matches?: MemoryMatch[] } | null;
+    const matches = res && res.success && Array.isArray(res.matches) ? res.matches : null;
+    if (matches && matches.length > 0) {
+      const byId = new Map(docs.map(d => [d.id, d]));
+      return matches.map(m => {
+        const orig = byId.get(m.doc_id);
+        return {
+          id: m.doc_id,
+          source: orig?.source ?? (m.source as MemorySource),
+          ref: m.ref,
+          date: orig?.date ?? '',
+          text: m.content,
+        } as MemoryDoc;
+      });
+    }
+  } catch {
+    // fall through to the keyword path
+  }
+  return fallback();
+}
