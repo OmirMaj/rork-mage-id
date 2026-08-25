@@ -9,6 +9,7 @@ import {
   CheckCircle, DollarSign, Shield, ChevronDown, ChevronUp,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { nailIt } from '@/components/animations/NailItToast';
 import { BrainCard } from '@/components/brain/BrainCard';
 import { Colors } from '@/constants/colors';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
@@ -183,6 +184,7 @@ export default React.memo(function AIQuickEstimate({
       setStep('result');
       void recordAIUsage('smart', 'quickEstimate');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      nailIt('Estimate ready');
       console.log('[AI Quick Estimate] Success:', data.materials.length, 'materials');
     } catch (err) {
       // Surface the real error message so users + console can see WHY it

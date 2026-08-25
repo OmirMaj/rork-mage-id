@@ -19,6 +19,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { parseRFIFromTranscript } from '@/utils/voiceFormParsers';
+import { nailIt } from '@/components/animations/NailItToast';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -92,7 +93,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
       attachments: [],
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('RFI created', `RFI #${rfi.number} added to the project.`);
+    nailIt(`RFI #${rfi.number} filed`);
     close();
   };
 
