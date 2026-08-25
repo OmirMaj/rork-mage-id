@@ -2,11 +2,11 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager, Switch,
-  ActivityIndicator,
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+import CraneLoader from '@/components/CraneLoader';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -1391,10 +1391,10 @@ export default function ProjectDetailScreen() {
     // frame before the store loaded — and again briefly right after a delete.
     if (!projectsLoaded || deletingRef.current) {
       return (
-        <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]}>
+        <>
           <Stack.Screen options={{ title: 'Loading…' }} />
-          <ActivityIndicator size="large" color={themeColors.accent} />
-        </View>
+          <CraneLoader label="Loading projects" />
+        </>
       );
     }
     return (

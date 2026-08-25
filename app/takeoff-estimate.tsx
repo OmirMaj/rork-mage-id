@@ -37,6 +37,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import CraneLoader from '@/components/CraneLoader';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Save, Plus, Trash2, AlertTriangle,
@@ -588,13 +589,10 @@ function TakeoffEstimateInner() {
 
   if (loadingTakeoff) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={themeColors.accent} />
-          <Text style={styles.statusText}>Loading takeoff…</Text>
-        </View>
-      </View>
+        <CraneLoader label="Loading takeoff" />
+      </>
     );
   }
 

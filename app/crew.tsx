@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, ActivityIndicator, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+import { CraneSvg } from '@/components/CraneLoader';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -682,7 +683,7 @@ function CrewScreenInner() {
               {/* Stage: scanning */}
               {scanStage === 'scanning' ? (
                 <View style={styles.scanningBox}>
-                  <ActivityIndicator size="large" color={themeColors.accent} />
+                  <CraneSvg size={180} />
                   <Text style={styles.scanningText}>Reading the ID…</Text>
                 </View>
               ) : null}

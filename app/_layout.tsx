@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import BrandSplash from "@/components/BrandSplash";
-import MageBootScreen from "@/components/MageBootScreen";
+import CraneLoader from "@/components/CraneLoader";
 import DesktopSidebar from "@/components/DesktopSidebar";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -517,7 +517,7 @@ function RootLayoutNav() {
     authLoading || projectLoading || hasSeenOnboarding === null;
 
   if (bootstrapping) {
-    return <MageBootScreen />;
+    return <CraneLoader label="MAGE ID" />;
   }
 
   return (
