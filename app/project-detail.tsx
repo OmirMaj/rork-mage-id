@@ -7,6 +7,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import CraneLoader from '@/components/CraneLoader';
+import ProjectHero from '@/components/ProjectHero';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -1548,6 +1549,11 @@ export default function ProjectDetailScreen() {
           )}
         </View>
         </BlueprintReveal>
+
+        {/* Financial pulse — projected margin as the hero number, a margin-risk
+            spirit level, and the numbers that move the finish. Renders nothing
+            until the project has a margin basis (a budget). */}
+        <ProjectHero project={project} />
 
         {/* NextStepHero — scoped to this project. Tells the user the
             single most-important action for this project alone: add

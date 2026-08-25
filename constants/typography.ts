@@ -82,6 +82,9 @@ export const Type = {
   // ─── Serif (Fraunces) — display use only. Using 700 weight for strong
   //     contrast in both light and dark themes (500 felt too thin against
   //     ink in dark mode). 500 is also loaded if needed for soft headings.
+  // Hero figure — one big number as the subject of a screen (project margin,
+  // cash runway). Display only; never for running text.
+  serifHero:       { fontFamily: 'Fraunces_700Bold', fontSize: 64, lineHeight: 62, letterSpacing: -1.6 } as TextStyle,
   serifLargeTitle: { fontFamily: 'Fraunces_700Bold', fontSize: 36, lineHeight: 40, letterSpacing: -0.9 } as TextStyle,
   serifTitle:      { fontFamily: 'Fraunces_700Bold', fontSize: 28, lineHeight: 32, letterSpacing: -0.56 } as TextStyle,
   serifHeadline:   { fontFamily: 'Fraunces_700Bold', fontSize: 22, lineHeight: 26, letterSpacing: -0.22 } as TextStyle,
