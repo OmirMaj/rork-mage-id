@@ -18,6 +18,8 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+import CraneLoader from '@/components/CraneLoader';
+import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
@@ -75,7 +77,6 @@ export default function ExtractSubmittalsScreen() {
 
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [pickedFileName, setPickedFileName] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<AiSubmittalsResult | null>(null);
   const [items, setItems] = useState<PickItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -100,7 +101,6 @@ export default function ExtractSubmittalsScreen() {
       });
       if (picked.canceled || !picked.assets?.[0]) return;
       const asset = picked.assets[0];
-      setPickedFileName(asset.name);
       setStep('uploading');
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -207,6 +207,21 @@ export default function ExtractSubmittalsScreen() {
     );
   }
 
+  // Full-screen crane + rotating facts during the 60-90s render/AI read (was a
+  // tiny centered spinner on an otherwise empty screen).
+  if (step === 'uploading' || step === 'analyzing') {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="SPEC BOOK · MAGE ID" title={project.name} />
+        <CraneLoader
+          label={step === 'uploading' ? 'Rendering pages' : 'Reading the spec book'}
+          facts={CONSTRUCTION_FACTS}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -247,19 +262,6 @@ export default function ExtractSubmittalsScreen() {
           </>
         )}
 
-        {(step === 'uploading' || step === 'analyzing') && (
-          <View style={styles.busyWrap}>
-            <ActivityIndicator size="large" color={"#FF6A1A"} />
-            <Text style={styles.busyText}>
-              {step === 'uploading' ? 'Rendering pages…' : 'AI reading the spec book…'}
-            </Text>
-            <Text style={styles.busySub}>
-              {step === 'analyzing'
-                ? 'Pulling out submittal requirements page by page. Usually 60-90 seconds.'
-                : pickedFileName ?? 'Processing the PDF.'}
-            </Text>
-          </View>
-        )}
 
         {step === 'review' && aiResult && (
           <>

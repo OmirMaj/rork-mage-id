@@ -11,11 +11,13 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+import CraneLoader from '@/components/CraneLoader';
+import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
@@ -161,6 +163,18 @@ export default function CompareDrawingsScreen() {
     );
   }
 
+  // Full-screen crane + rotating facts during the 30-60s AI compare (was a tiny
+  // centered spinner on an otherwise empty screen).
+  if (step === 'analyzing') {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
+        <CraneLoader label="Comparing sheets" facts={CONSTRUCTION_FACTS} />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -242,17 +256,6 @@ export default function CompareDrawingsScreen() {
               </View>
             )}
           </>
-        )}
-
-        {/* ── Step 3: analyzing ──────────────────────────────────── */}
-        {step === 'analyzing' && (
-          <View style={styles.busyWrap}>
-            <ActivityIndicator size="large" color={themeColors.accent} />
-            <Text style={styles.busyText}>AI comparing the two sheets…</Text>
-            <Text style={styles.busySub}>
-              Looking for added scope, removed scope, dimension changes, and revised notes. Usually 30-60 seconds.
-            </Text>
-          </View>
         )}
 
         {/* ── Step 4: review the diff ────────────────────────────── */}

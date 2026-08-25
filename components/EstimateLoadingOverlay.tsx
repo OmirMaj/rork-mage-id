@@ -13,8 +13,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, Animated, Easing, Platform, TouchableOpacity,
 } from 'react-native';
-import MageBuildScene from '@/components/MageBuildScene';
+import { CraneSvg } from '@/components/CraneLoader';
 import ThinkingStates from '@/components/ThinkingStates';
+import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -37,31 +38,11 @@ interface Props {
   thinkingSteps?: string[];
 }
 
-const FUN_FACTS: string[] = [
-  "The Empire State Building was completed in just 410 days — under budget by $5M (1931).",
-  "Hoover Dam used enough concrete to build a 16-foot-wide highway from San Francisco to New York.",
-  "The Burj Khalifa's foundation took 22 hours of continuous concrete pouring — 12,500 cubic meters.",
-  "The Pyramids of Giza are still the most precisely-aligned major structures ever built. Margin of error: 0.05°.",
-  "Modern skyscrapers sway up to 3 feet in high wind — by design.",
-  "A 2x4 isn't actually 2 by 4 inches. It's 1.5 by 3.5. Lumber is sized green; it shrinks as it dries.",
-  "Concrete keeps gaining strength for 100+ years after it's poured. The Pantheon's dome is still curing.",
-  "The Golden Gate Bridge requires roughly 25 painters working full-time, year-round, just on touch-ups.",
-  "A typical 2,500 sq ft home contains over 16,000 nails.",
-  "Drywall was invented in 1916 and called \"Sackett Board.\" It was a hard sell — plaster was tradition.",
-  "The Channel Tunnel digging machines were buried in concrete after the dig — they couldn't reverse out.",
-  "Most residential framing crews can frame an entire house in 1-2 weeks. Foundation took longer.",
-  "Standard ceiling heights crept up from 8' (1950s) to 9' (today). Trim profiles got taller too.",
-  "The world's tallest crane is on top of the Burj Khalifa — it'll be the last thing taken down.",
-  "Concrete's CO2 footprint is 8% of global emissions. Cement-free \"green\" concretes are catching up.",
-  "Diamond blade saws cut through 6\" of cured concrete at about 1 inch per minute.",
-  "OSHA Safety Harness saves an estimated 1,200 construction lives per year in the US alone.",
-  "The Notre Dame fire in 2019 used 460 tons of restored medieval oak for the spire — same species, same angles.",
-  "A typical residential project spends 30-40% of its budget on labor, 50-60% on materials, 5-10% on overhead.",
-  "Drywall screws are slightly different from wood screws — coarser thread, sharper tip. Mixing them shows.",
-];
+// Shared, accuracy-checked set (utils/constructionFacts.ts) — estimating math,
+// materials, jobsite, safety, code, money, and a little history.
+const FUN_FACTS: readonly string[] = CONSTRUCTION_FACTS;
 
 export default function EstimateLoadingOverlay({ visible, title, subtitle, thinkingSteps, onCancel }: Props) {
-  const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [factIdx, setFactIdx] = useState(0);
   const dot1 = useRef(new Animated.Value(0)).current;
@@ -110,7 +91,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.scene}>
-            <MageBuildScene size={300} color={themeColors.text} accentColor={themeColors.accent} />
+            <CraneSvg size={288} />
           </View>
 
           <Text style={styles.title}>{title ?? 'Generating estimate…'}</Text>
