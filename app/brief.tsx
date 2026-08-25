@@ -101,6 +101,17 @@ function BriefInner() {
     }
   };
 
+  // Interrogate a brief line: open Ask already seeded with the row's fact, so a
+  // tap goes straight into "what's going on and what do I do about it" rather
+  // than a raw screen. Works on every row, drill-in or not.
+  const askAbout = (item: BriefItem) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push({
+      pathname: '/ask',
+      params: { seed: `About "${item.text}" — what's going on and what should I do?`, screen: 'brief' },
+    });
+  };
+
   const renderRows = (items: BriefItem[], showDot: boolean) => (
     <View style={styles.rows}>
       {items.map(item => (
@@ -118,6 +129,16 @@ function BriefInner() {
           )}
           <Text style={styles.rowText}>{item.text}</Text>
           {item.route && <ChevronRight size={14} color={t.textMuted} strokeWidth={2} />}
+          <TouchableOpacity
+            onPress={() => askAbout(item)}
+            hitSlop={10}
+            style={styles.askBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`Ask MAGE about ${item.text}`}
+            testID="brief-ask"
+          >
+            <MageAIMark size={16} color={t.accent} accentColor={t.accent} />
+          </TouchableOpacity>
         </TouchableOpacity>
       ))}
     </View>
@@ -254,6 +275,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   severityDot: { width: 6, height: 6, borderRadius: Tokens.radius.full, flexShrink: 0 },
   rowText: { ...Type.footnote, color: t.textSecondary, flex: 1 },
+  askBtn: {
+    width: 30, height: 30, borderRadius: Tokens.radius.md, flexShrink: 0,
+    backgroundColor: t.accent + '14', alignItems: 'center', justifyContent: 'center',
+  },
 
   emptyCard: {
     flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,

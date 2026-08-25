@@ -28,6 +28,10 @@ export const FOLLOWUP_BY_REF: Record<string, string[]> = {
     'Which RFIs are overdue?',
     "What's the fastest one to close?",
   ],
+  RFI_TRIGGER: [
+    'Which task does this hold up?',
+    'What can I do to unblock it?',
+  ],
   MEMORY: [
     'What changed since last week?',
     'Why did we make that call?',

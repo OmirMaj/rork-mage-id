@@ -274,6 +274,50 @@ export function buildRfiBlock(projectId: string, projectRfis: RFI[]): FactBlock 
   };
 }
 
+// ─── RFI DEADLINES (forward-looking slip risk) ───────────────────────────────
+// buildRfiBlock is backward-looking (overdue, round-trip latency). This one is
+// forward-looking: open RFIs whose needed-by date is near or past, and — when an
+// RFI is linked to a schedule task — the slip that task (and its dependents) take
+// if the answer doesn't land in time. Preview only; the commit path reuses the
+// AutoScheduleReviewSheet confirm gate (not wired here). Additive + pure.
+export function buildRfiTriggerBlock(project: Project, projectRfis: RFI[], now: Date = new Date()): FactBlock | null {
+  const tasks = project.schedule?.tasks ?? [];
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const atRisk = projectRfis
+    .filter(r => r.status === 'open' && !!r.dateRequired)
+    .map(r => {
+      const due = new Date(`${r.dateRequired}T00:00:00`);
+      const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+      const linkedTitle = r.linkedTaskId ? tasks.find(t => t.id === r.linkedTaskId)?.title : undefined;
+      return { r, days, linkedTitle };
+    })
+    .filter(x => Number.isFinite(x.days) && x.days <= 7) // due within a week or already past
+    .sort((a, b) => a.days - b.days)
+    .slice(0, 3);
+
+  if (atRisk.length === 0) return null;
+
+  const facts = atRisk.map(({ r, days, linkedTitle }) => {
+    const who = r.ballInCourt ? ` (ball in ${r.ballInCourt}'s court)` : '';
+    const when = days < 0
+      ? `was due ${Math.abs(days)}d ago and is still open`
+      : days === 0 ? 'is due today' : `is due in ${days}d`;
+    const gate = linkedTitle
+      ? (days < 0
+          ? ` It gates "${linkedTitle}" — that task and its dependents can't finish until it's answered.`
+          : ` If it slips, "${linkedTitle}" slips with it.`)
+      : '';
+    return `RFI #${r.number} "${r.subject}" ${when}${who}.${gate}`;
+  });
+
+  return {
+    domain: 'RFI DEADLINES',
+    ref: 'RFI_TRIGGER',
+    facts,
+    drillIn: { pathname: '/rfi', params: { projectId: project.id } },
+  };
+}
+
 // ─── MEMORY (retrieveRelevant over extractMemoryDocs) ────────────────────────
 
 export interface MemoryFactDoc {
@@ -460,7 +504,10 @@ export async function assembleFactBlocks(
       () => buildPaceBlock(project, buildPaceBook(bundle.projects)),
       // RFI
       () => buildRfiBlock(project.id, projectRfis),
-      // MEMORY — records × retrieval fusion (impure module, lazy).
+      // RFI DEADLINES — forward-looking slip risk from needed-by dates.
+      () => buildRfiTriggerBlock(project, projectRfis, now),
+      // MEMORY — records × retrieval fusion (impure module, lazy). topK 8 (was
+      // 5) pulls more of the project's own RFI/CO/report rationale into context.
       async () => {
         const { extractMemoryDocs, retrieveRelevant } = await import('@/utils/projectMemory');
         const docs = extractMemoryDocs({
@@ -470,7 +517,7 @@ export async function assembleFactBlocks(
           submittals: bundle.submittals.filter(s => s.projectId === project.id),
           punchItems: bundle.punchItems.filter(p => p.projectId === project.id),
         });
-        const top = retrieveRelevant(question, docs, 5);
+        const top = retrieveRelevant(question, docs, 8);
         return buildMemoryBlock(project.id, top);
       },
       // RECORDS — project-filtered business context: the answers-can-never-

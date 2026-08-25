@@ -96,6 +96,18 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         router.push('/week-close');
         return;
       }
+      if (kind === 'ask_seed') {
+        // A margin/brief push can open MAGE already answering the question the
+        // alert raised, instead of dropping the user on a raw table. The backend
+        // payload (seed/screen) is additive — until it ships, a bare ask_seed
+        // simply opens Ask, and older pushes fall through unchanged.
+        const seed = data?.seed as string | undefined;
+        const screen = data?.screen as string | undefined;
+        router.push(seed
+          ? { pathname: '/ask', params: { seed, ...(screen ? { screen } : {}) } }
+          : '/ask');
+        return;
+      }
 
       if (conversationId) {
         router.push(`/messages?id=${conversationId}`);
