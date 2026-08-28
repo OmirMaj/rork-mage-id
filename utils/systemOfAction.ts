@@ -194,7 +194,7 @@ export function buildChaseList(opts: {
 
   // ── Trades that went quiet ────────────────────────────────────────────────
   // A sub who worked for days and then vanished is the definition of something
-  // you are waiting on, and nothing else in the app notices. All the honesty
+  // you are waiting on, and nothing else in the app catches it. All the honesty
   // rules live in utils/crewPresence — in particular, absence is counted in
   // REPORTED days, so a GC who stops filing daily reports never gets accused of
   // being ghosted by every sub at once.
