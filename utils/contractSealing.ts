@@ -5,6 +5,7 @@
 // the same fields for the caller to merge into local state.
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
+import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProjectContract, Project, CompanyBranding } from '@/types';
@@ -113,6 +114,25 @@ export async function downloadSealedContractPdf(input: {
   if (error || !data?.signedUrl) {
     throw new Error(`Failed to create a download link: ${error?.message ?? 'unknown error'}`);
   }
+  // WEB FIRST, and not as a fallback. expo-sharing's isAvailableAsync on web is
+  // just !!navigator.share — false on desktop Chrome (macOS/Linux) and all
+  // desktop Firefox — so the block below was skipped, the function resolved
+  // normally, and the caller's catch never ran. Tapping "download signed
+  // contract" did nothing at all, with a perfectly good signed URL sitting
+  // right here and being discarded.
+  //
+  // Safari fails differently and worse: the createSignedUrl round-trip above
+  // consumes the transient user activation, so navigator.share rejects with
+  // NotAllowedError even though it exists. Opening the URL avoids both.
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') {
+      // External Supabase storage URL, handle discarded — noopener is correct
+      // here (unlike the about:blank print paths, which it silently breaks).
+      window.open(data.signedUrl, '_blank', 'noopener');
+    }
+    return;
+  }
+
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(data.signedUrl, {
       mimeType: 'application/pdf',

@@ -26,6 +26,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { copyToClipboard } from '@/utils/clipboard';
 
 const KIND_ICON: Record<ChaseKind, typeof FileQuestion> = {
   rfi: FileQuestion,
@@ -84,11 +85,43 @@ export default function WaitingOnScreen() {
 
   const sendNudge = async (item: ChaseItem) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Sending the follow-up is the ONLY action on this screen — the entire
+    // point of the System of Action — and on web it used to throw instantly.
+    // react-native-web's Share rejects outright when navigator.share is absent,
+    // which is desktop Firefox and Chromium on Linux, and the old copy told the
+    // user to "copy it from the item" when the nudge renders numberOfLines={3}
+    // and cannot be selected. Clipboard is the honest fallback: same outcome,
+    // one paste away. (app/sub-portal-setup.tsx solved this same problem once
+    // already, with a send modal.)
+    const canWebShare = Platform.OS !== 'web'
+      || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+
+    if (!canWebShare) {
+      const ok = await copyToClipboard(item.nudge);
+      if (ok) setSent((prev) => new Set(prev).add(item.id));
+      showAlert(
+        ok ? 'Follow-up copied' : 'Could not copy',
+        ok ? 'Paste it into your email or text to send it.'
+           : 'Select the follow-up text and copy it manually.',
+      );
+      return;
+    }
+
     try {
       await Share.share({ message: item.nudge });
       setSent((prev) => new Set(prev).add(item.id));
-    } catch {
-      showAlert('Could not open share', 'Copy the follow-up from the item instead.');
+    } catch (e) {
+      // A user dismissing the native/Web Share sheet rejects with AbortError.
+      // That is a cancel, not a failure — reporting it as one taught people the
+      // button was broken.
+      if (e instanceof Error && e.name === 'AbortError') return;
+      const ok = await copyToClipboard(item.nudge);
+      showAlert(
+        ok ? 'Follow-up copied instead' : 'Could not open share',
+        ok ? 'Sharing was unavailable, so the follow-up is on your clipboard.'
+           : 'Copy the follow-up from the item instead.',
+      );
     }
   };
 

@@ -140,7 +140,7 @@ export default function BuildingAccessScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <Header onBack={() => router.back()} title="Building access" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
@@ -161,7 +161,7 @@ export default function BuildingAccessScreen() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <Header
         onBack={() => router.back()}

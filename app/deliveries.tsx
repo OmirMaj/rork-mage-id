@@ -116,7 +116,7 @@ export default function DeliveriesScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <Header onBack={() => router.back()} title="Deliveries" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
@@ -137,7 +137,7 @@ export default function DeliveriesScreen() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <Header
         onBack={() => router.back()}

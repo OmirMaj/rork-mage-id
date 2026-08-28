@@ -76,7 +76,7 @@ function ScorecardInner() {
   const patterns = card.trades.filter(x => x.isPattern);
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>

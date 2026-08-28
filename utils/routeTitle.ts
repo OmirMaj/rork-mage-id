@@ -40,6 +40,32 @@ export function pathToDocumentTitle(pathname: string): string | null {
   // Exact matches first.
   const exact: Record<string, string> = {
     '/': 'Projects',
+    // Titles below mirror components/DesktopSidebar.tsx NAV_ITEMS labels
+    // VERBATIM. Deliberately no invented copy: the sidebar label is a naming
+    // decision the founder already made, so reusing it keeps the browser tab,
+    // the sidebar and the search result saying the same word for the same
+    // screen. Routes with no sidebar label are left out rather than guessed —
+    // validate-route-titles still lists them as "needs a copy decision".
+    '/ask': 'Ask MAGE',
+    '/auto-bids': 'Pre-priced Bids',
+    '/building-access': 'Building Access',
+    '/business': 'Your Business',
+    '/copilot-hub': 'MAGE Copilot',
+    '/cost-seed': 'Seed Your Rates',
+    '/cost-xray': 'Cost X-Ray',
+    '/deliveries': 'Deliveries',
+    '/estimate-scorecard': 'Estimate Scorecard',
+    '/field-ticket': 'T&M Tickets',
+    '/home-passport': 'Home Passport',
+    '/judges': 'Bid Advisor',
+    '/my-rfps': 'My Projects',
+    '/post-rfp': 'Post a Project',
+    '/safety': 'Safety',
+    '/scan': 'Scan Anything',
+    '/track-record': 'Track Record',
+    '/waiting-on': 'Waiting on Others',
+    '/widget-setup': 'Website Widget',
+    '/wip-report': 'WIP Report',
     '/summary': 'Summary',
     '/shared-plan': 'Floor plan',
     '/login': 'Sign in',

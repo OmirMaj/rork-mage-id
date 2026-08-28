@@ -45,7 +45,16 @@ export async function getCachedResult<T>(key: string, maxAgeMs: number): Promise
     const stored = await AsyncStorage.getItem(AI_CACHE_PREFIX + key);
     if (!stored) return null;
     const { data, timestamp } = JSON.parse(stored);
-    if (Date.now() - timestamp > maxAgeMs) return null;
+    if (Date.now() - timestamp > maxAgeMs) {
+      // EVICT, don't just miss. On web AsyncStorage IS window.localStorage,
+      // shared per-origin with Supabase's own sb-<ref>-auth-token (lib/supabase.ts
+      // passes AsyncStorage as its storage). Returning null without removing left
+      // every expired mageid_ai_cache_* blob in place forever; if the origin ever
+      // hit its quota, setItem would start throwing for EVERY writer on it —
+      // including auth-js's token refresh. utils/mageAI.ts already evicts here.
+      await AsyncStorage.removeItem(AI_CACHE_PREFIX + key);
+      return null;
+    }
     return data as T;
   } catch { return null; }
 }
