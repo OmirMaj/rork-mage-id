@@ -19,6 +19,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { computeSubScorecards, type SubGrade, type SubScorecard } from '@/utils/subScorecard';
+import { computeSupplierScorecards } from '@/utils/supplierScorecard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -65,15 +66,27 @@ function SubScorecardInner() {
   // punchItems + projects feed the D7 factors: punch rework (items bounced
   // at review, attributed via assignedSubId) and schedule reliability
   // (as-built vs planned days on tasks assigned to the sub).
-  const { subcontractors, commitments, changeOrders, punchItems, projects, rfis } = useProjects();
+  const { subcontractors, commitments, changeOrders, punchItems, projects, rfis, deliveries } = useProjects();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // "Who is good" covers both who you hire and who you buy from. Suppliers get
+  // the same visual language rather than a separate screen, because the GC is
+  // asking one question in one moment: who earns the next order.
+  const [mode, setMode] = useState<'subs' | 'suppliers'>('subs');
 
   const result = useMemo(
     () => computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects, rfis }),
     [subcontractors, commitments, changeOrders, punchItems, projects, rfis],
   );
 
-  if (subcontractors.length === 0) {
+  // Derived entirely from deliveries already captured — no new input asked of
+  // the user, and it backfills across every job on file. Receipts (damage) are
+  // not loaded here yet, so that factor reports as not-applicable rather than
+  // pretending every uninspected load arrived clean.
+  const suppliers = useMemo(() => computeSupplierScorecards({ deliveries }), [deliveries]);
+
+  // Only bail when there is nothing to show in EITHER mode — a GC with
+  // deliveries but no subs still has suppliers worth grading.
+  if (subcontractors.length === 0 && suppliers.length === 0) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
         <Stack.Screen options={{ title: 'Sub Scorecard' }} />
@@ -104,13 +117,121 @@ function SubScorecardInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Sub Scorecard · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Who earns the next call</Text>
+          <Text style={styles.headerEyebrow}>Scorecard · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {mode === 'subs' ? 'Who earns the next call' : 'Who hits their dates'}
+          </Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+        <View style={styles.segment}>
+          {(['subs', 'suppliers'] as const).map(m => (
+            <TouchableOpacity
+              key={m}
+              onPress={() => { setMode(m); setExpandedId(null); }}
+              style={[styles.segBtn, mode === m && styles.segBtnOn]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: mode === m }}
+              testID={`scorecard-mode-${m}`}
+            >
+              <Text style={[styles.segText, mode === m && styles.segTextOn]}>
+                {m === 'subs' ? 'Subs' : 'Suppliers'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {mode === 'suppliers' ? (
+          <>
+            <Text style={styles.lede}>
+              {suppliers.length === 0
+                ? 'No deliveries recorded yet. Schedule what you are expecting and mark it received — reliability builds itself from that, with nothing extra to fill in.'
+                : `${suppliers.length} supplier${suppliers.length === 1 ? '' : 's'} ranked from promised dates versus what actually landed. A supplier stays ungraded until there is enough history to defend the number.`}
+            </Text>
+            {suppliers.map(card => {
+              // score === null means "never measured", NOT zero. A 0 would render
+              // as an F and accuse a supplier the app has simply never watched.
+              const gc = card.grade ? colorForGrade(card.grade as SubGrade, t) : t.textMuted;
+              const expanded = expandedId === card.supplierKey;
+              return (
+                <TouchableOpacity
+                  key={card.supplierKey}
+                  style={[styles.card, expanded && { borderColor: gc }]}
+                  onPress={() => setExpandedId(expanded ? null : card.supplierKey)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${card.supplier}, ${card.grade ? `grade ${card.grade}, score ${card.score}` : 'not enough history to grade'}`}
+                >
+                  <View style={styles.cardTop}>
+                    <View style={[styles.gradeChip, { backgroundColor: gc + '22' }]}>
+                      <Text style={[styles.gradeChipText, { color: gc }]}>{card.grade ?? '–'}</Text>
+                    </View>
+                    <View style={styles.cardTitleWrap}>
+                      <Text style={styles.cardName} numberOfLines={1}>{card.supplier}</Text>
+                      <View style={styles.cardMetaRow}>
+                        <Text style={styles.cardTrade}>
+                          {card.settledCount} delivered{card.lateCount > 0 ? ` · ${card.lateCount} late` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.scoreWrap}>
+                      {card.score === null
+                        ? <Text style={styles.scoreOutOf}>Not{'\n'}measured</Text>
+                        : (<>
+                            <Text style={[styles.scoreText, { color: gc }]}>{card.score}</Text>
+                            <Text style={styles.scoreOutOf}>/ 100</Text>
+                          </>)}
+                    </View>
+                    {expanded
+                      ? <ChevronUp size={16} color={t.textMuted} strokeWidth={1.75} />
+                      : <ChevronDown size={16} color={t.textMuted} strokeWidth={1.75} />}
+                  </View>
+
+                  <Text style={styles.topDriver} numberOfLines={expanded ? undefined : 2}>{card.topDriver}</Text>
+
+                  {expanded && (
+                    <View style={styles.breakdown}>
+                      {card.factors.map(f => {
+                        const fc = !f.applicable ? t.textMuted : f.score < 0.4 ? t.danger : f.score < 0.75 ? t.accentHot : t.success;
+                        return (
+                          <View key={f.key} style={styles.factorRow}>
+                            <View style={styles.factorTop}>
+                              <Text style={styles.factorLabel}>{f.label}</Text>
+                              <Text style={[styles.factorScore, { color: fc }]}>
+                                {f.applicable ? Math.round(f.score * 100) : '—'}
+                              </Text>
+                            </View>
+                            <View style={styles.miniTrack}>
+                              <View style={[styles.miniFill, { width: `${f.applicable ? Math.round(f.score * 100) : 0}%` as any, backgroundColor: fc }]} />
+                            </View>
+                            <Text style={styles.factorDetail}>{f.detail}</Text>
+                          </View>
+                        );
+                      })}
+                      <View style={styles.statsRow}>
+                        <Text style={styles.statText}>
+                          {card.deliveryCount} scheduled
+                          {card.avgSlipDays !== null ? ` · avg ${card.avgSlipDays}d late when late` : ''}
+                          {card.receiptCount > 0 ? ` · ${card.receiptCount} inspected` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+            <Text style={styles.note}>
+              Reliability is built from deliveries you already track: the date you were
+              promised versus the date it landed, and whether the supplier ever confirmed
+              before shipping. Early loads do not cancel late ones — a slip already cost a
+              crew a day an early delivery does not give back. A supplier stays ungraded
+              until there is enough history to defend the number, and an uninspected load
+              is never counted as damage-free.
+            </Text>
+          </>
+        ) : (<>
         <Text style={styles.lede}>
           {graded > 0
             ? `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} ranked from your signed commitments and compliance records. ${graded} ha${graded === 1 ? 's' : 've'} job history behind the grade.`
@@ -197,6 +318,7 @@ function SubScorecardInner() {
           they never fake a neutral score. History depth moves confidence, not the
           grade — a new sub with clean paper isn&apos;t punished, just unproven.
         </Text>
+        </>)}
       </ScrollView>
     </View>
   );
@@ -213,6 +335,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
   headerTitle: { ...Type.serifHeadline, color: t.text },
+
+  // Segmented Subs | Suppliers control. Uses the same accent/line tokens as the
+  // horizon chips on /deliveries so the two read as one system.
+  segment: {
+    flexDirection: 'row' as const, gap: 8, marginBottom: 14,
+  },
+  segBtn: {
+    flex: 1, paddingVertical: 9, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line, alignItems: 'center' as const,
+  },
+  segBtnOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  segText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
+  segTextOn: { color: t.accentLabel },
 
   lede: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19, marginBottom: 14 },
 
