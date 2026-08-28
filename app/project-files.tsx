@@ -74,7 +74,7 @@ export default function ProjectFilesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Files</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Files</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -98,7 +98,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
     backgroundColor: t.surfaceAlt,
   },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.3 },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   center: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 32, gap: 8 },
   notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 8 },
   notFoundBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20 },

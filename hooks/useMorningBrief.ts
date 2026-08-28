@@ -40,7 +40,8 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
 } {
   const enabled = opts.enabled !== false;
   const {
-    projects, invoices, changeOrders, punchItems, permits, dailyReports,
+    projects, invoices, changeOrders, punchItems, permits, dailyReports, deliveries,
+    buildingAccessRules, accessReservations,
   } = useProjects();
   const safety = useSafety();
 
@@ -116,14 +117,16 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
     // brief's own local-day discipline (composeBrief.localDateISO).
     const todayISO = localDateISO(new Date());
     return composeBrief({
-      projects, invoices, changeOrders, punchItems, permits, dailyReports,
+      projects, invoices, changeOrders, punchItems, permits, dailyReports, deliveries,
+      buildingAccessRules, accessReservations,
       expiringCertifications: safety.expiringCertifications(todayISO) as Parameters<typeof composeBrief>[0]['expiringCertifications'],
       openLeakFlags: asyncInputs.openLeakFlags,
       cashSummary: asyncInputs.cashSummary,
       didForYouEntries: asyncInputs.didForYouEntries,
       accuracyReport: asyncInputs.accuracyReport,
     });
-  }, [projects, invoices, changeOrders, punchItems, permits, dailyReports, safety, asyncInputs]);
+  }, [projects, invoices, changeOrders, punchItems, permits, dailyReports, deliveries,
+      buildingAccessRules, accessReservations, safety, asyncInputs]);
 
   return { brief, loading, refresh };
 }

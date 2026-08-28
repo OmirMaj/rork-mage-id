@@ -16,7 +16,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
-import { useTierAccess } from '@/hooks/useTierAccess';
+// Project-scoped gate: an invited collaborator may do the work they were
+// invited to do, even though their own tier is free. See
+// utils/collaboratorAccess.
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -62,7 +65,10 @@ function getPriorityConfig(t: ThemeColors, p: PunchItemPriority): { label: strin
 
 export default function PunchListScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project from params here (not just in Inner) so the gate can
+  // ask 'were they invited to THIS project?' before paywalling.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
   const { colors: themeColors } = useTheme();
   if (!canAccess('punch_list_closeout')) {
     return (
@@ -174,6 +180,26 @@ function PunchListScreenInner() {
   const [filterPriority, setFilterPriority] = useState<PunchItemPriority | 'all'>('all');
   const [filterLocation, setFilterLocation] = useState<string>(''); // free-text contains
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+
+  // The saved item's own photo, opened full-screen from its row thumbnail.
+  // Until now a punch photo was write-only: captured, uploaded, and never
+  // rendered again once the item existed. `photoUri` is already the
+  // best-URL-right-now (ProjectContext signs a bucket path on load and prefers
+  // this device's local original), so it renders directly.
+  const [viewerItem, setViewerItem] = useState<PunchItem | null>(null);
+  // Hoisted so the <Image> onError closure keeps the narrowed string — TS
+  // drops property narrowing inside callbacks, and a `!` here would be a lie
+  // waiting to become a crash.
+  const viewerPhotoUri = viewerItem?.photoUri;
+  // A signed URL expires, and legacy rows can still hold another device's
+  // `file://`. Either way <Image> resolves to nothing and leaves an empty
+  // frame that reads as "the photo is gone" — showing no thumbnail is the
+  // honest result. Keyed by URI, not item id, so a re-signed URL or a
+  // replaced photo gets a fresh attempt instead of staying blank all session.
+  const [failedPhotoUris, setFailedPhotoUris] = useState<Record<string, true>>({});
+  const markPhotoFailed = useCallback((uri: string) => {
+    setFailedPhotoUris(prev => (prev[uri] ? prev : { ...prev, [uri]: true }));
+  }, []);
 
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
@@ -492,6 +518,26 @@ function PunchListScreenInner() {
             <View key={item.id} style={styles.punchCard}>
               <View style={styles.punchCardTop}>
                 <View style={[styles.priorityDot, { backgroundColor: pc.color }]} />
+                {/* The deficiency's evidence. A local `file://` still sitting
+                    in the upload queue is rendered too — it is valid on this
+                    device, and waiting for the round-trip would blank the
+                    thumbnail on exactly the walk that just shot it. */}
+                {item.photoUri && !failedPhotoUris[item.photoUri] ? (
+                  <TouchableOpacity
+                    onPress={() => setViewerItem(item)}
+                    activeOpacity={0.8}
+                    accessibilityRole="imagebutton"
+                    accessibilityLabel={`Photo for ${item.description}`}
+                    accessibilityHint="Opens the photo full screen"
+                    testID={`punch-photo-${item.id}`}
+                  >
+                    <Image
+                      source={{ uri: item.photoUri }}
+                      style={styles.punchThumb}
+                      onError={() => item.photoUri && markPhotoFailed(item.photoUri)}
+                    />
+                  </TouchableOpacity>
+                ) : null}
                 <View style={{ flex: 1 }}>
                   {/* Tapping the item's own text opens it for editing. This is
                       the affordance the row was missing — without it nothing
@@ -850,6 +896,40 @@ function PunchListScreenInner() {
         </View>
       </Modal>
 
+      {/* Full-screen punch photo. A 44pt thumbnail is not enough to judge a
+          deficiency by — the sub arguing "that's not my scope" needs the whole
+          frame. Caption carries description + location so the photo stays
+          attached to what it is evidence of. */}
+      <Modal visible={viewerItem !== null} transparent animationType="fade" onRequestClose={() => setViewerItem(null)}>
+        <View style={styles.viewerBackdrop}>
+          <View style={[styles.viewerHeader, { paddingTop: insets.top + 12 }]}>
+            <TouchableOpacity
+              onPress={() => setViewerItem(null)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Close photo"
+              testID="punch-photo-close"
+            >
+              <X size={22} color="#fff" strokeWidth={1.75} />
+            </TouchableOpacity>
+            <Text style={styles.viewerCaption} numberOfLines={2}>
+              {[viewerItem?.description, viewerItem?.location].filter(Boolean).join('  ·  ')}
+            </Text>
+          </View>
+          {viewerPhotoUri ? (
+            <Image
+              source={{ uri: viewerPhotoUri }}
+              style={styles.viewerImage}
+              resizeMode="contain"
+              // A URL that only fails at full size (expired between the
+              // thumbnail load and the tap) closes rather than holding the
+              // user on a black rectangle; the row drops its thumbnail too.
+              onError={() => { markPhotoFailed(viewerPhotoUri); setViewerItem(null); }}
+            />
+          ) : null}
+        </View>
+      </Modal>
+
       {/* Trade-template picker. Modal-style overlay listing each
           template grouped by trade. Tapping a template applies it
           immediately — the GC then edits / removes from the punch
@@ -1107,6 +1187,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   punchCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   punchCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  // surfaceAlt backs the frame so a slow-loading remote photo shows a neutral
+  // tile rather than punching a hole in the card.
+  punchThumb: { width: 44, height: 44, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt },
   punchDesc: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text, lineHeight: 21 },
   punchLocation: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 2 },
   onPlanChip: {
@@ -1169,6 +1252,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
   saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
+  // Near-opaque, not the 0.45 sheet scrim — a photo judged against a
+  // half-lit punch list behind it is a photo judged wrong.
+  viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)" },
+  viewerHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 16, paddingBottom: 12 },
+  viewerCaption: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: '#fff' },
+  viewerImage: { flex: 1, width: '100%' },
   rejectOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'center', padding: 20 },
   rejectCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   rejectTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.danger },

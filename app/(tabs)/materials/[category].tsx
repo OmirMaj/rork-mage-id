@@ -259,7 +259,7 @@ export default function CategoryDetailScreen() {
           <CategoryIcon size={22} color={meta.color} strokeWidth={2} />
         </View>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{meta.label}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{meta.label}</Text>
           <Text style={styles.headerCount}>{filteredMaterials.length} of {allMaterials.length} items</Text>
         </View>
       </View>
@@ -405,7 +405,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerEmojiText: { fontSize: Type.title3.fontSize },
   headerInfo: { flex: 1 },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   headerCount: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 1 },
   searchWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: t.surface },
   searchBar: {

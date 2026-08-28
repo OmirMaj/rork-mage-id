@@ -162,13 +162,22 @@ function CostDatabaseInner() {
                 {(db.tradesSeededOnly ?? 0) > 0 ? ` · ${db.tradesSeededOnly} you set` : ''}
               </Text>
             </View>
-            <View style={styles.kpiCard}>
+            {/* Tappable: the KPI states the problem, /estimate-scorecard says
+                which trades cause it and what it costs in dollars. */}
+            <TouchableOpacity
+              style={styles.kpiCard}
+              onPress={() => router.push('/estimate-scorecard')}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Open estimate scorecard"
+              testID="cost-db-accuracy-kpi"
+            >
               <Text style={styles.kpiLabel}>Bid accuracy</Text>
               <Text style={[styles.kpiValue, { color: db.overallBidAccuracy !== null && db.overallBidAccuracy < 0.85 ? t.accentHot : t.text }]}>
                 {db.overallBidAccuracy !== null ? `${Math.round(db.overallBidAccuracy * 100)}%` : '—'}
               </Text>
-              <Text style={styles.kpiSub}>est. vs actual, weighted</Text>
-            </View>
+              <Text style={[styles.kpiSub, { color: t.accent }]}>see what it costs you</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Brain accuracy section — Business+ gated */}
@@ -229,6 +238,9 @@ function CostDatabaseInner() {
                         ? null
                         : <Text style={{ color: cc }}> · {e.confidence}</Text>}
                       {e.provenance === 'mixed' ? ' · started from your set rate' : ''}
+                      {e.excludedSampleCount && e.excludedSampleCount > 0
+                        ? ` · ${e.excludedSampleCount} one-off set aside`
+                        : ''}
                     </Text>
                     {e.provenance === 'seeded' ? (
                       <View style={styles.seedBadge}>
@@ -275,14 +287,23 @@ function CostDatabaseInner() {
                     {e.samples.map((s, i) => (
                       <View key={`${s.projectId}-${i}`} style={styles.sampleRow}>
                         <Text style={styles.sampleName} numberOfLines={1}>{s.projectName}</Text>
-                        <Text style={styles.sampleRate}>
+                        <Text style={[styles.sampleRate, s.excludedFromRate ? styles.sampleRateExcluded : null]}>
                           {formatRate(s.actualUnit)}
                           <Text style={styles.sampleBasis}>
-                            {' '}{s.basis === 'actual' ? 'actual' : s.basis === 'seeded' ? 'you set this' : 'signed'}
+                            {s.excludedFromRate
+                              ? ' one-off · not in rate'
+                              : ` ${s.basis === 'actual' ? 'actual' : s.basis === 'seeded' ? 'you set this' : 'signed'}`}
                           </Text>
                         </Text>
                       </View>
                     ))}
+                    {e.excludedSampleCount && e.excludedSampleCount > 0 ? (
+                      <Text style={styles.excludedNote}>
+                        A job that came in far off your usual is kept here for the record but left
+                        out of the learned rate, so one bad week (weather, a change order, a typo)
+                        can&rsquo;t skew your next bid.
+                      </Text>
+                    ) : null}
                   </View>
                 )}
               </View>
@@ -313,7 +334,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   publicIndexCard: {
     backgroundColor: t.surface,
@@ -377,7 +398,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sampleRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, gap: 8 },
   sampleName: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary },
   sampleRate: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
+  sampleRateExcluded: { color: t.textMuted, textDecorationLine: 'line-through' as const },
   sampleBasis: { fontSize: Type.caption2.fontSize, fontWeight: '400' as const, color: t.textMuted },
+  excludedNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 6, fontStyle: 'italic' as const },
 
   note: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 8 },
 

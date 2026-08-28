@@ -42,7 +42,6 @@ import { Tokens } from '@/constants/designTokens';
 import type { WizardAnswers } from '@/utils/scopeQuestions';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
-import { generateUUID } from '@/utils/generateId';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -144,21 +143,32 @@ function JudgesInner() {
         scopeSummary: drafted.summary,
       });
       setResult(res);
-      // G4: fire-and-forget capture — describe mode (no project join; ungradeable v1)
-      try {
-        recordPrediction(
-          'judges_verdict',
-          generateUUID(),
-          {
-            mode: 'describe' as const,
-            verdict: res.verdict.verdict,
-            // PAYLOAD CONTRACT: percent (×100) — gradeJudges divides by 100.
-            targetMarginPct: res.verdict.targetMargin * 100,
-            flagCount: res.verdict.disclaimers.length,
-            estimateTotal: res.verdict.recommendedMid,
-          },
-        );
-      } catch { /* G4 */ }
+      // DESCRIBE MODE IS DELIBERATELY *NOT* RECORDED TO THE PREDICTION LEDGER.
+      //
+      // It used to be, and it silently starved the whole brain. The chain:
+      //   • the row was written with subject_id = generateUUID() and no
+      //     projectId, so gradeJudges bails twice over (gradePredictions.ts:417
+      //     on mode !== 'pick', :420 on the missing projectId) — permanently
+      //     unresolvable, as three separate comments in this repo already said;
+      //   • every subject_id being unique means dedupeBySubject
+      //     (predictionLedgerCore.ts:31, keyed `kind::subject_id`) can never
+      //     collapse them;
+      //   • fetchOpenPredictions takes the OLDEST 200 open rows
+      //     (predictionLedger.ts:133-134 — ascending, limit 200).
+      // So after ~200 describe runs the grading sweep fetched 200 ungradeable
+      // rows every time and NO gradeable prediction entered grading again. The
+      // pace book and the leak gate stop learning, the accuracy surfaces keep
+      // reporting on a frozen resolved set, and nothing anywhere errors.
+      //
+      // A prediction is a claim that can be SCORED. An unscoreable one is
+      // telemetry, and telemetry does not belong in the ledger. Nothing read
+      // these rows anyway — accuracyReport.ts:177 and trackRecord.ts:180 both
+      // filter `outcome != null`, so unresolved describe rows were invisible.
+      //
+      // To make describe mode gradeable in v2 it needs BOTH: a real projectId
+      // in the payload (so gradeJudges can join to an outcome) and a stable
+      // subject_id (so repeat runs collapse instead of accumulating). Until it
+      // has both, recording it is strictly harmful.
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong — please try again.');
@@ -249,7 +259,7 @@ function JudgesInner() {
           </TouchableOpacity>
           <View style={styles.headerText}>
             <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
-            <Text style={styles.headerTitle}>Verdict</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Verdict</Text>
           </View>
           <TouchableOpacity onPress={handleReset} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Judge another">
             <Scale size={18} color={t.textSecondary} strokeWidth={1.75} />
@@ -279,7 +289,7 @@ function JudgesInner() {
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
-          <Text style={styles.headerTitle}>Should I bid this?</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Should I bid this?</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -469,7 +479,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   modeRow: {
     flexDirection: 'row' as const, gap: 8,

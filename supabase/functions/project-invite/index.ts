@@ -34,7 +34,11 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const ROLES = new Set(["owner", "editor", "viewer"]);
+// 'field' = operational access (schedule, daily reports, photos, RFIs, punch,
+// time) with financials blinded. Must stay in sync with the role CHECK on
+// project_collaborators (20260826130000_field_role.sql) — a role accepted here
+// but rejected by the constraint fails the insert with an opaque 502.
+const ROLES = new Set(["owner", "editor", "viewer", "field"]);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -89,6 +93,94 @@ function newToken(): string {
   return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
 }
 
+// ── seat limits (mirror of utils/seatModel — keep in sync) ───────────────────
+// Admin seats included per tier before overage billing. 'field' is unlimited
+// and free: crew produce the labour/daily-report data the cost book learns
+// from, so charging per field seat would tax the moat itself.
+const INCLUDED_ADMIN_SEATS: Record<string, number> = {
+  free: 0, pro: 2, business: 5, enterprise: 15,
+};
+const BILLABLE_ROLES = new Set(["editor", "viewer"]);
+const isBillableRole = (role: string) => BILLABLE_ROLES.has(role);
+
+/** The caller's current tier, read from `subscriptions` (same source as
+ *  _shared/auth.ts). Unknown/absent ⇒ free. */
+async function callerTier(userId: string): Promise<string> {
+  const r = await rest(
+    `subscriptions?user_id=eq.${encodeURIComponent(userId)}&select=tier,end_date&order=updated_at.desc&limit=1`,
+  );
+  if (!r.ok) return "free";
+  const rows = (await r.json()) as { tier?: string; end_date?: string | null }[];
+  const row = rows[0];
+  if (!row?.tier) return "free";
+  if (row.end_date && new Date(row.end_date).getTime() < Date.now()) return "free";
+  return ["pro", "business", "enterprise"].includes(row.tier) ? row.tier : "free";
+}
+
+/**
+ * Would adding `email` as an admin collaborator exceed the caller's allowance?
+ *
+ * Seats are per ACCOUNT and de-duplicated by email, so someone already holding
+ * a seat on another project is free to add here. Pending invites occupy a seat
+ * (otherwise the limit is gamed by never accepting); revoked rows do not.
+ *
+ * NOTE: this counts collaborators on projects the CALLER owns. It uses the
+ * service key, so RLS is not doing the scoping — the project_id filter is.
+ */
+async function seatCheck(
+  ownerId: string, email: string,
+): Promise<{ allowed: boolean; reason: string; used: number; included: number }> {
+  const tier = await callerTier(ownerId);
+  const included = INCLUDED_ADMIN_SEATS[tier] ?? 0;
+
+  if (included === 0) {
+    return {
+      allowed: false,
+      reason: "Inviting teammates needs a Pro plan or higher. Field access is free — invite them as Field instead.",
+      used: 0,
+      included: 0,
+    };
+  }
+
+  // Projects this account owns.
+  const pr = await rest(`projects?user_id=eq.${encodeURIComponent(ownerId)}&select=id`);
+  if (!pr.ok) return { allowed: true, reason: "", used: 0, included }; // fail OPEN: never block on a lookup blip
+  const ids = ((await pr.json()) as { id: string }[]).map(p => p.id);
+  if (ids.length === 0) return { allowed: true, reason: "", used: 0, included };
+
+  const inList = ids.map(encodeURIComponent).join(",");
+  const cr = await rest(
+    `project_collaborators?project_id=in.(${inList})&select=invited_email,role,status`,
+  );
+  if (!cr.ok) return { allowed: true, reason: "", used: 0, included };
+  const rows = (await cr.json()) as { invited_email: string; role: string; status: string }[];
+
+  const admins = new Set<string>();
+  for (const row of rows) {
+    if (row.status === "revoked" || row.role === "owner") continue;
+    if (!isBillableRole(row.role)) continue;
+    const e = (row.invited_email || "").trim().toLowerCase();
+    if (e) admins.add(e);
+  }
+
+  const target = email.trim().toLowerCase();
+  // Already holds a seat → re-invite / role change costs nothing extra.
+  if (admins.has(target)) return { allowed: true, reason: "", used: admins.size, included };
+
+  // Over the allowance. We do NOT auto-charge — the account has no per-seat
+  // entitlement yet, so the honest answer is to ask them to upgrade rather than
+  // silently create a seat we cannot bill for.
+  if (admins.size >= included) {
+    return {
+      allowed: false,
+      reason: `Your plan includes ${included} team seat${included === 1 ? "" : "s"} and ${admins.size} are in use. Upgrade for more, or invite them as Field — field access is always free.`,
+      used: admins.size,
+      included,
+    };
+  }
+  return { allowed: true, reason: "", used: admins.size, included };
+}
+
 async function sendInviteEmail(to: string, link: string, projectName: string): Promise<void> {
   if (!RESEND_API_KEY) return; // email is best-effort; the link is returned regardless
   try {
@@ -125,10 +217,26 @@ serve(async (req) => {
     const email = String(body.email || "").trim().toLowerCase();
     const role = String(body.role || "");
     if (!projectId || !email || !ROLES.has(role) || role === "owner") {
-      return json({ error: "projectId, a valid email, and role (editor|viewer) are required" }, 400);
+      return json({ error: "projectId, a valid email, and role (editor|viewer|field) are required" }, 400);
     }
     if (!(await callerOwnsProject(projectId, caller.sub))) {
       return json({ error: "Only the project owner can invite collaborators" }, 403);
+    }
+    // SEAT LIMIT — server-side. The client previews the cost and confirms, but
+    // that check runs on the caller's device and is trivially bypassed by
+    // calling this function directly. Billing has to be enforced where the row
+    // is written. 'field' skips this entirely: crew seats are free and
+    // unlimited by design (see utils/seatModel).
+    if (isBillableRole(role)) {
+      const seat = await seatCheck(caller.sub, email);
+      if (!seat.allowed) {
+        return json({
+          error: seat.reason,
+          code: "seat_limit",
+          used: seat.used,
+          included: seat.included,
+        }, 402);
+      }
     }
     const token = newToken();
     // Upsert on (project_id, invited_email): re-inviting refreshes the token/role.
@@ -193,10 +301,33 @@ serve(async (req) => {
     const collaboratorId = String(body.collaboratorId || "");
     const role = String(body.role || "");
     if (!collaboratorId || !ROLES.has(role) || role === "owner") {
-      return json({ error: "collaboratorId and role (editor|viewer) are required" }, 400);
+      return json({ error: "collaboratorId and role (editor|viewer|field) are required" }, 400);
     }
     const own = await ownsCollaboratorsProject(collaboratorId, caller.sub);
     if (!own.ok) return json({ error: "Only the project owner can change roles" }, 403);
+    // PROMOTION IS AN INVITE. Without this, the seat limit is bypassed by
+    // inviting everyone as free 'field' and then promoting them to editor.
+    // seatCheck de-dupes by email, so a promotion for someone who already
+    // holds an admin seat elsewhere correctly costs nothing.
+    if (isBillableRole(role)) {
+      const cur = await rest(
+        `project_collaborators?id=eq.${encodeURIComponent(collaboratorId)}&select=invited_email,role&limit=1`,
+      );
+      const curRows = cur.ok ? (await cur.json()) as { invited_email: string; role: string }[] : [];
+      const target = curRows[0];
+      // Only charge-check when this is actually an UPGRADE into a billable role.
+      if (target && !isBillableRole(target.role)) {
+        const seat = await seatCheck(caller.sub, target.invited_email ?? "");
+        if (!seat.allowed) {
+          return json({
+            error: seat.reason,
+            code: "seat_limit",
+            used: seat.used,
+            included: seat.included,
+          }, 402);
+        }
+      }
+    }
     const upd = await rest(`project_collaborators?id=eq.${encodeURIComponent(collaboratorId)}`, {
       method: "PATCH", headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ role }),

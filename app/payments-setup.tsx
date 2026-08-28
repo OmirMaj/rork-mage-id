@@ -211,7 +211,7 @@ export default function PaymentsSetupScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} testID="payments-setup-back" accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payments</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Payments</Text>
         <TouchableOpacity onPress={() => refresh()} style={styles.headerBtn} disabled={refreshing} testID="payments-setup-refresh">
           {refreshing ? (
             <ActivityIndicator size="small" color={themeColors.accent} />
@@ -440,7 +440,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderBottomColor: t.line,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   loadingWrap: { paddingTop: 80, alignItems: 'center' as const },
   card: {
     margin: 16,

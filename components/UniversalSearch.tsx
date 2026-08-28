@@ -32,7 +32,7 @@ import {
   Upload, ListChecks, Stamp, Presentation, Package, PieChart, TrendingUp,
   Coins, LineChart, Wallet, CalendarClock, Banknote, Droplets,
   SlidersHorizontal, Plug, KeyRound, Inbox, Download, Settings, CreditCard,
-  BadgeCheck, AlertTriangle, Brain,
+  BadgeCheck, AlertTriangle, Brain, Truck,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -154,7 +154,7 @@ const FEATURE_ICON: Record<FeatureIcon, FeatureIconCmp> = {
   Presentation, Package, PieChart, TrendingUp, Coins, LineChart, Wallet,
   CalendarClock, Banknote, Receipt, Droplets, SlidersHorizontal, Plug,
   KeyRound, Shield, Bell, Inbox, Download, Settings, CreditCard, BadgeCheck,
-  AlertTriangle, Brain,
+  AlertTriangle, Brain, Truck,
 };
 
 // ---------------------------------------------------------------------------

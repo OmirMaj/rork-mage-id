@@ -604,7 +604,7 @@ function TakeoffEstimateInner() {
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Priced Estimate</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Priced Estimate</Text>
           <View style={{ width: 28 }} />
         </View>
         <View style={styles.center}>
@@ -635,7 +635,7 @@ function TakeoffEstimateInner() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>FROM TAKEOFF</Text>
-          <Text style={styles.headerTitle}>{project?.name ?? 'Standalone Estimate'}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Standalone Estimate'}</Text>
         </View>
         {!pricing && lines.length > 0 ? (
           <TouchableOpacity onPress={handleRegenerate} style={styles.headerBack}>
@@ -1083,7 +1083,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: 10, fontWeight: '700' as const, color: t.accent,
     letterSpacing: 0.5, textTransform: 'uppercase' as const,
   },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.3 },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

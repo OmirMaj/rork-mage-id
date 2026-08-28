@@ -113,7 +113,7 @@ export default function HomePassportScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <House size={15} color={t.accent} strokeWidth={2} />
-          <Text style={styles.headerTitle}>Home Passport</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Home Passport</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -186,7 +186,7 @@ const makeStyles = (t: ThemeColors) =>
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-    headerTitle: { ...Type.headline, color: t.text },
+    headerTitle: { ...Type.serifHeadline, color: t.text },
     scroll: { paddingVertical: Tokens.spacing.md, paddingBottom: 40 },
     scrollDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center', paddingHorizontal: 24 },
     homeRow: { gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm },

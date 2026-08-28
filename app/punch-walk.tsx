@@ -38,7 +38,10 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import { useTierAccess } from '@/hooks/useTierAccess';
+// Project-scoped gate: an invited collaborator may do the work they were
+// invited to do, even though their own tier is free. See
+// utils/collaboratorAccess.
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -77,7 +80,10 @@ const TRADE_ORDER: SubTrade[] = SUB_TRADES;
 
 export default function PunchWalkScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project from params here (not just in Inner) so the gate can
+  // ask 'were they invited to THIS project?' before paywalling.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
   // Walk Mode builds the same punch list the Punch List screen gates behind
   // Business — gate the capture surface too, or a free/Pro user could dictate
   // and save a full list here and only hit the paywall on the read/manage view.
@@ -583,7 +589,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
-          <Text style={styles.headerTitle}>Pick a project</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pick a project</Text>
         </View>
       </View>
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
@@ -644,7 +650,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt,
   },
   headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   sessionChip: {
     minWidth: 28, height: 28, borderRadius: Tokens.radius.lg, paddingHorizontal: 8,
     backgroundColor: t.accentFill, alignItems: 'center', justifyContent: 'center',

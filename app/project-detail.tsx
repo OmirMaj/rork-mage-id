@@ -422,6 +422,17 @@ export default function ProjectDetailScreen() {
           console.warn('[portal-snapshot] merge read failed, writing lite:', mergeErr);
         }
 
+        // DO NOT add expires_at / link_duration_days to this payload.
+        //
+        // This is a background LITE sync that fires on project open. The link's
+        // lifetime is owned solely by app/client-portal-setup.tsx, where the GC
+        // actually chooses it. PostgREST writes only the columns present in the
+        // payload, so omitting them leaves the chosen expiry untouched on
+        // conflict — including `expires_at IS NULL`, which means "never
+        // expires" and must not be re-derived from a default here.
+        //
+        // Adding them "for completeness" would silently reset every portal's
+        // expiry every time someone opened the project screen.
         const { error } = await supabase
           .from('portal_snapshots')
           .upsert({

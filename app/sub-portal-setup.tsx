@@ -20,6 +20,8 @@ import { generateUUID } from '@/utils/generateId';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { copyToClipboard } from '@/utils/clipboard';
 import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
+import RecordPaymentModal, { type PaymentDetail } from '@/components/RecordPaymentModal';
+import { reconciliationState, reconciliationLabel, paymentSummary } from '@/utils/apReconciliation';
 import {
   buildSubPortalSnapshot, buildSubPortalUrl,
 } from '@/utils/subPortalSnapshot';
@@ -106,6 +108,8 @@ function SubPortalSetupScreenInner() {
   });
 
   const submitted = useSubSubmittedInvoices({ subPortalId: link.id });
+  /** Invoice id whose payment sheet is open (mark-paid or detail correction). */
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const snapshot = useMemo(() => {
     if (!project || !sub) return null;
@@ -350,23 +354,36 @@ function SubPortalSetupScreenInner() {
 
   const handleMarkPaid = useCallback((id: string) => {
     const guard = checkOverpayment(id);
-    const doPay = () => {
-      submitted.markPaid(id);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    };
+    // Opens the reconciliation sheet rather than flipping status blind — MAGE
+    // never moves the money, so the check/ACH detail is what makes paid-vs-owed
+    // reconcile against a bank statement. The sheet is skippable.
+    const openSheet = () => setPayingId(id);
     if (guard) {
       showAlert(
         'Overpayment risk',
         `Paying this invoice would push ${guard.subName} ${formatMoney(guard.overage)} over their commitment of ${formatMoney(guard.commitmentTotal)}. Update the commitment with a change order first, or pay anyway.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Pay anyway', style: 'destructive', onPress: doPay },
+          { text: 'Pay anyway', style: 'destructive', onPress: openSheet },
         ],
       );
       return;
     }
-    doPay();
-  }, [submitted, checkOverpayment]);
+    openSheet();
+  }, [checkOverpayment]);
+
+  /** Commit the payment (with or without detail) and close the sheet. */
+  const commitPayment = useCallback((detail?: PaymentDetail) => {
+    const id = payingId;
+    if (!id) return;
+    const target = submitted.invoices.find(i => i.id === id);
+    // Already paid → this is a detail correction, which must NOT re-stamp
+    // paid_at (that would overwrite when the payment was actually recorded).
+    if (target?.status === 'paid' && detail) submitted.reconcile(id, detail);
+    else submitted.markPaid(id, detail);
+    setPayingId(null);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [payingId, submitted]);
 
   if (!project || !sub) {
     return (
@@ -628,6 +645,37 @@ function SubPortalSetupScreenInner() {
                         </TouchableOpacity>
                       </View>
                     )}
+                    {/* Reconciliation — MAGE never moved this money, so show
+                        whether the GC recorded HOW it was paid. An unreconciled
+                        payment closes the balance in-app but ties to nothing on
+                        a bank statement. */}
+                    {inv.status === 'paid' && (() => {
+                      const state = reconciliationState(inv);
+                      const summary = paymentSummary(inv);
+                      const done = state === 'reconciled';
+                      return (
+                        <View style={styles.reconRow}>
+                          <Text
+                            style={[styles.reconLabel, { color: done ? themeColors.successLabel : Colors.warning }]}
+                            numberOfLines={1}
+                          >
+                            {summary ?? reconciliationLabel(inv)}
+                          </Text>
+                          {!done && (
+                            <TouchableOpacity
+                              onPress={() => setPayingId(inv.id)}
+                              style={styles.reconBtn}
+                              disabled={submitted.isResponding}
+                              accessibilityRole="button"
+                              accessibilityLabel="Add payment detail"
+                              testID={`recon-add-${inv.id}`}
+                            >
+                              <Text style={styles.reconBtnText}>Add detail</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      );
+                    })()}
                     {inv.notesFromGc && (
                       <Text style={styles.invoiceNotes}>Note: {inv.notesFromGc}</Text>
                     )}
@@ -645,6 +693,27 @@ function SubPortalSetupScreenInner() {
         message={shareMessage}
         link={portalUrl}
       />
+      {(() => {
+        const target = payingId ? submitted.invoices.find(i => i.id === payingId) : null;
+        if (!target) return null;
+        const isCorrection = target.status === 'paid';
+        return (
+          <RecordPaymentModal
+            visible
+            mode={isCorrection ? 'reconcile' : 'pay'}
+            title={`Invoice #${target.invoiceNumber}`}
+            amountLabel={formatMoney(target.amount)}
+            initial={{
+              method: target.paymentMethod,
+              reference: target.paymentReference,
+              paidOn: target.paidOn,
+            }}
+            onCancel={() => setPayingId(null)}
+            onSubmit={(detail) => commitPayment(detail)}
+            onSkip={isCorrection ? undefined : () => commitPayment(undefined)}
+          />
+        );
+      })()}
     </>
   );
 }
@@ -776,4 +845,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   invCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   invoiceNotes: { marginTop: 10, fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic', lineHeight: 17 },
+  // Payment reconciliation strip on a paid invoice.
+  reconRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
+  reconLabel: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+  reconBtn: {
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
+  },
+  reconBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.textSecondary },
 });

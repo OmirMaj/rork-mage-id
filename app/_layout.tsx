@@ -62,6 +62,29 @@ if (__DEV__) {
 }
 
 
+/**
+ * Title style for the NATIVE stack header, shared by every route that uses one.
+ *
+ * 40 routes previously repeated `{ fontWeight: '700', color: Colors.text }`
+ * inline, so the ~40 screens that rely on the native header stayed in system
+ * sans while the hand-rolled headers moved to Fraunces — the same "165
+ * separately-built screens" inconsistency the type pass exists to remove.
+ *
+ * Written out longhand rather than spreading Type.serifHeadline because
+ * @react-navigation/native-stack only honours fontFamily / fontSize /
+ * fontWeight / color here; lineHeight and letterSpacing are silently dropped,
+ * so spreading the token would imply precision the platform ignores.
+ *
+ * 17pt is the native header size — serifHeadline's 22 is for in-page headers
+ * that own the whole row. No fontWeight: Fraunces_700Bold already carries it,
+ * and doubling up makes the platform synthesise a fake bold over a real one.
+ */
+const NATIVE_HEADER_TITLE = {
+  fontFamily: 'Fraunces_700Bold',
+  fontSize: 17,
+  color: Colors.text,
+} as const;
+
 // ─── Desktop web shell — route denylist ────────────────────────────────────
 // Audit web#31: DesktopSidebar was mounted only inside app/(tabs)/_layout.tsx,
 // so navigating to ANY root-stack route on desktop web (invoice, change-order,
@@ -364,10 +387,17 @@ function RootLayoutNav() {
     // NO MAGE account — the token in the URL is the credential. Auth-walling
     // them bounced every external share link to /login (dead on arrival),
     // breaking the entire "Share with client" feature.
+    // `client-view` belongs to the same family and was missing from it — the
+    // rest of this file already classifies it as an "external / tokenized
+    // viewer" (DESKTOP_SHELL_EXEMPT), but the auth gate still bounced every
+    // homeowner to /login. It resolves its portal from the `?t=` access key via
+    // the token-gated portal_get_snapshot RPC, so a session was never the
+    // credential here; nothing renders without a valid key.
     const inSharedView = (segments[0] as string) === 'shared-schedule'
       || (segments[0] as string) === 'shared-photos'
       || (segments[0] as string) === 'shared-estimate'
-      || (segments[0] as string) === 'shared-plan';
+      || (segments[0] as string) === 'shared-plan'
+      || (segments[0] as string) === 'client-view';
 
     // Public magic-link destinations: never redirect away from these, even
     // when the user is unauthenticated. The prequal-form route is opened by
@@ -611,7 +641,7 @@ function RootLayoutNav() {
           title: "Project Details",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -630,7 +660,7 @@ function RootLayoutNav() {
           title: "Invoice",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -639,7 +669,7 @@ function RootLayoutNav() {
           title: "Bill from Estimate",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -652,7 +682,7 @@ function RootLayoutNav() {
           title: "Daily Report",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -661,7 +691,7 @@ function RootLayoutNav() {
           title: "Punch List",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen name="safety" options={{ title: 'Safety' }} />
@@ -683,7 +713,7 @@ function RootLayoutNav() {
           title: "Warranties",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -692,7 +722,7 @@ function RootLayoutNav() {
           title: "Retention",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -701,7 +731,7 @@ function RootLayoutNav() {
           title: "Payment Forecast",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -710,7 +740,7 @@ function RootLayoutNav() {
           title: "Contacts",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -719,7 +749,7 @@ function RootLayoutNav() {
           title: "Crew",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -744,7 +774,7 @@ function RootLayoutNav() {
           title: "RFI",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -753,7 +783,7 @@ function RootLayoutNav() {
           title: "Submittal",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -762,7 +792,7 @@ function RootLayoutNav() {
           title: "OAC Meetings",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -771,7 +801,7 @@ function RootLayoutNav() {
           title: "COI Vault",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -780,7 +810,7 @@ function RootLayoutNav() {
           title: "Budget Dashboard",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen name="wip-report" options={{ title: 'WIP Report' }} />
@@ -815,6 +845,18 @@ function RootLayoutNav() {
       <Stack.Screen
         name="estimate-accuracy"
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="estimate-scorecard"
+        options={{ headerShown: false, title: 'Estimate Scorecard' }}
+      />
+      <Stack.Screen
+        name="deliveries"
+        options={{ headerShown: false, title: 'Deliveries' }}
+      />
+      <Stack.Screen
+        name="building-access"
+        options={{ headerShown: false, title: 'Building Access' }}
       />
       <Stack.Screen
         name="estimate-confidence"
@@ -992,7 +1034,7 @@ function RootLayoutNav() {
           title: "Equipment",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1001,7 +1043,7 @@ function RootLayoutNav() {
           title: "Bid Details",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1010,7 +1052,7 @@ function RootLayoutNav() {
           title: "Post a Bid",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1019,7 +1061,7 @@ function RootLayoutNav() {
           title: "Company",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1028,7 +1070,7 @@ function RootLayoutNav() {
           title: "Company Profile",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1037,7 +1079,7 @@ function RootLayoutNav() {
           title: "Job Details",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1046,7 +1088,7 @@ function RootLayoutNav() {
           title: "Worker Profile",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1055,7 +1097,7 @@ function RootLayoutNav() {
           title: "Post a Job",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1064,7 +1106,7 @@ function RootLayoutNav() {
           title: "Messages",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1073,7 +1115,7 @@ function RootLayoutNav() {
           title: "Cash Flow",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1082,7 +1124,7 @@ function RootLayoutNav() {
           title: "Integrations",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1091,7 +1133,7 @@ function RootLayoutNav() {
           title: "Time Tracking",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1100,7 +1142,7 @@ function RootLayoutNav() {
           title: "Documents",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1109,7 +1151,7 @@ function RootLayoutNav() {
           title: "Permits",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1118,7 +1160,7 @@ function RootLayoutNav() {
           title: "This Week",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1169,7 +1211,7 @@ function RootLayoutNav() {
           title: "Report Inbox",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1185,7 +1227,7 @@ function RootLayoutNav() {
           title: "Payments",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1194,7 +1236,7 @@ function RootLayoutNav() {
           title: "AIA Pay Application",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1203,7 +1245,7 @@ function RootLayoutNav() {
           title: "Export My Data",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1212,7 +1254,7 @@ function RootLayoutNav() {
           title: "Scope Sheet",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1221,7 +1263,7 @@ function RootLayoutNav() {
           title: "Connect Claude",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1230,7 +1272,7 @@ function RootLayoutNav() {
           title: "Import Data",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1239,7 +1281,7 @@ function RootLayoutNav() {
           title: "Weekly Client Update",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1248,7 +1290,7 @@ function RootLayoutNav() {
           title: "Messages",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       <Stack.Screen
@@ -1258,7 +1300,7 @@ function RootLayoutNav() {
           presentation: "modal",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
       {/* judges renders its own in-content header (eyebrow + "Should I bid

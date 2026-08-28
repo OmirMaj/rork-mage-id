@@ -23,7 +23,7 @@
 
 import { computeSubScorecards, gradeForScore } from '../utils/subScorecard';
 import type { ScorecardFactor, SubScorecard } from '../utils/subScorecard';
-import type { Subcontractor, Commitment, PunchItem, Project, ScheduleTask } from '../types';
+import type { Subcontractor, Commitment, PunchItem, Project, ScheduleTask, RFI } from '../types';
 
 let pass = 0, fail = 0;
 function canon(x: unknown): unknown {
@@ -69,6 +69,26 @@ function task(over: Partial<ScheduleTask>): ScheduleTask {
     assignedSubId: 's1', ...over,
   } as ScheduleTask;
 }
+// RFI fixture. handoffs drive utils/rfiHoldTime: an RFI with no chain is
+// `measurable:false` and must score nobody — 0 days there means UNKNOWN,
+// not fast.
+function rfi(over: Partial<RFI>): RFI {
+  return {
+    id: 'r1', projectId: 'p1', number: 1, subject: 'Conduit routing',
+    question: 'Which wall?', submittedBy: 'GC', assignedTo: 'Acme Electric',
+    assignedSubId: 's1', ballInCourt: 'closed', status: 'closed',
+    priority: 'medium', attachments: [],
+    dateSubmitted: '2026-07-01T00:00:00.000Z',
+    dateRequired: '2026-07-10T00:00:00.000Z',
+    createdAt: '2026-07-01T00:00:00.000Z', updatedAt: '2026-07-05T00:00:00.000Z',
+    handoffs: [
+      { at: '2026-07-01T00:00:00.000Z', fromParty: 'gc', toParty: 'sub' },
+      { at: '2026-07-03T00:00:00.000Z', fromParty: 'sub', toParty: 'gc' },
+    ],
+    ...over,
+  } as RFI;
+}
+
 // startDate 2026-07-06 is a Monday; day 1 = Jul 6. With a 5-day week,
 // days 6-7 (Sat/Sun Jul 11-12) are non-working.
 function project(tasks: ScheduleTask[], over?: Partial<Project>): Project {
@@ -251,6 +271,77 @@ console.log('\nlegacy factors unchanged:');
   expect('≥20% CO growth zeroes CO impact',
     factor(card, 'co_impact').score, 0);
 }
+
+console.log('\nRFI responsiveness (sub attribution):');
+{
+  // Two answered RFIs, 2 days of sub-side hold each → mean 2d.
+  const res = computeSubScorecards({
+    subcontractors: [sub({}), sub({ id: 's2', companyName: 'Bravo Plumbing' })],
+    commitments: [],
+    rfis: [rfi({ id: 'a' }), rfi({ id: 'b' })],
+  });
+  const f = factor(cardFor(res, 's1'), 'rfi_responsiveness');
+  expect('two measurable RFIs make it applicable', f.applicable, true);
+  expect('2d mean hold scores 0.8 (zero-at 10d)', Math.round(f.score * 100) / 100, 0.8);
+  expect('detail names the average', f.detail.includes('2.0d'), true);
+  // Attribution: an RFI assigned to s1 must not score s2.
+  expect('unassigned sub is not scored',
+    factor(cardFor(res, 's2'), 'rfi_responsiveness').applicable, false);
+}
+{
+  // ONE RFI is an anecdote, not a pattern.
+  const res = computeSubScorecards({
+    subcontractors: [sub({})], commitments: [], rfis: [rfi({})],
+  });
+  const f = factor(cardFor(res, 's1'), 'rfi_responsiveness');
+  expect('one RFI is not enough', f.applicable, false);
+  expect('…and carries no weight', f.weight, 0);
+  expect('…with an honest reason', f.detail.includes('Not enough linked data'), true);
+}
+{
+  // An RFI with no handoff chain is NOT measurable — 0 days means unknown.
+  const res = computeSubScorecards({
+    subcontractors: [sub({})], commitments: [],
+    rfis: [rfi({ id: 'a', handoffs: [] }), rfi({ id: 'b', handoffs: [] })],
+  });
+  expect('unmeasurable RFIs never score a sub as instant',
+    factor(cardFor(res, 's1'), 'rfi_responsiveness').applicable, false);
+}
+{
+  // Legacy rows with no assignedSubId attribute to nobody.
+  const res = computeSubScorecards({
+    subcontractors: [sub({})], commitments: [],
+    rfis: [rfi({ id: 'a', assignedSubId: undefined }), rfi({ id: 'b', assignedSubId: undefined })],
+  });
+  expect('RFIs without assignedSubId score nobody',
+    factor(cardFor(res, 's1'), 'rfi_responsiveness').applicable, false);
+}
+{
+  // Slow: 12 days of sub-side hold → past the 10d floor → 0.
+  const slow = rfi({
+    handoffs: [
+      { at: '2026-07-01T00:00:00.000Z', fromParty: 'gc', toParty: 'sub' },
+      { at: '2026-07-13T00:00:00.000Z', fromParty: 'sub', toParty: 'gc' },
+    ],
+  });
+  const res = computeSubScorecards({
+    subcontractors: [sub({})], commitments: [],
+    rfis: [{ ...slow, id: 'a' }, { ...slow, id: 'b' }],
+  });
+  expect('12d mean hold floors the score at 0',
+    factor(cardFor(res, 's1'), 'rfi_responsiveness').score, 0);
+}
+{
+  // RFI data alone is a performance factor — the sub must NOT be graded as
+  // paperwork-only just because they have no commitments.
+  const res = computeSubScorecards({
+    subcontractors: [sub({})], commitments: [], rfis: [rfi({ id: 'a' }), rfi({ id: 'b' })],
+  });
+  const card = cardFor(res, 's1');
+  expect('RFI data alone lifts the sub out of paperwork-only',
+    factor(card, 'compliance').weight < 1, true);
+}
+
 expect('grade bands hold', [gradeForScore(95), gradeForScore(85), gradeForScore(75), gradeForScore(65), gradeForScore(50)], ['A', 'B', 'C', 'D', 'F']);
 
 console.log(`\n${pass} passed, ${fail} failed`);

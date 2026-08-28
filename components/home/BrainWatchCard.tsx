@@ -27,6 +27,8 @@ import {
   CheckCircle2,
   PartyPopper,
   ChevronRight,
+  Truck,
+  Building2,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -64,6 +66,8 @@ const KIND_ICONS: Record<AttnKind, typeof CalendarDays> = {
   closeout: PartyPopper,
   punch: ListChecks,
   changeOrder: FileSignature,
+  delivery: Truck,
+  buildingAccess: Building2,
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────

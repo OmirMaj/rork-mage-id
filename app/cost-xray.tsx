@@ -18,7 +18,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+// expo-file-system/legacy, NOT the root entry. In SDK 54 the root's
+// readAsStringAsync is a deprecation stub — src/index.ts re-exports
+// ./legacyWarnings, where it is `throw errorOnLegacyMethodUse(...)`, and its own
+// doc comment says "This method will throw in runtime". It throws on EVERY
+// platform, iOS included, so this was not a web issue. 14 other files in this
+// repo were already migrated; these five were missed.
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import {
   ScanSearch, ChevronLeft, Camera, ImagePlus, Check, X, Pencil,
@@ -697,7 +703,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   pickerWrap: { marginBottom: 14 },
   pickerLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const, marginBottom: 6 },

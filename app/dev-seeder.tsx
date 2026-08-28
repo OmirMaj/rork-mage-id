@@ -1112,7 +1112,7 @@ export default function DevSeederScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dev — Demo Seeder</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Dev — Demo Seeder</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -1198,7 +1198,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderBottomColor: t.line,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   warningCard: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,

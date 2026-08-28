@@ -237,7 +237,7 @@ export default function CachedHireScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
               <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Direct Hire</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Direct Hire</Text>
           </View>
         </View>
         <View style={styles.emptyContainer}>
@@ -258,7 +258,7 @@ export default function CachedHireScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Direct Hire</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Direct Hire</Text>
           <View style={styles.countPill}>
             <Text style={styles.countPillText}>{filteredJobs.length}</Text>
           </View>
@@ -332,7 +332,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   header: { backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.line, paddingHorizontal: 16, paddingBottom: 12 },
   headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 24, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
+  headerTitle: { ...Type.serifHeadline, flex: 1, color: t.text },
   countPill: { backgroundColor: t.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card },
   countPillText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accent },
   filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },

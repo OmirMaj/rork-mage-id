@@ -153,7 +153,7 @@ export default function ManagedPropertyScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={8}><ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
-          <Text style={styles.headerTitle}>Property</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Property</Text>
         </View>
         <View style={styles.missingWrap}>
           <AlertTriangle size={28} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -343,7 +343,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  headerTitle: { flex: 1, fontSize: Type.headline.fontSize, fontWeight: '800', color: t.text },
+  headerTitle: { flex: 1, ...Type.serifHeadline, color: t.text },
 
   missingWrap: { alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 80 },
   missingText: { fontSize: Type.footnote.fontSize, color: t.textMuted },

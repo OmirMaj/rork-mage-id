@@ -21,7 +21,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Animated, Easing,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Animated, Easing, ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,6 +46,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
+import CodeCheckLoader from '@/components/CodeCheckLoader';
+import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, scopeSummary } from '@/utils/permitRoadmap';
 import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
 import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
@@ -144,6 +146,31 @@ const codeCheckSchema = z.object({
 });
 
 type CodeCheckResult = z.infer<typeof codeCheckSchema>;
+
+// Per-code drill-in. The summary check returns one plain-English line per code
+// — enough to know it applies, not enough to act on it. Tapping a code fetches
+// THIS: what it actually requires, why it caught this specific job, and what
+// the inspector will physically look at. Fetched on demand (not up-front) so
+// the main check stays fast and we only spend a call on the code the GC cares
+// about.
+const codeDetailSchema = z.object({
+  plainEnglish: z.string().catch('').default(''),
+  appliesBecause: z.string().catch('').default(''),
+  inspectorChecks: z.array(z.string()).default([]),
+  commonFailures: z.array(z.string()).default([]),
+  ruleOfThumb: z.string().catch('').default(''),
+});
+
+type CodeDetail = z.infer<typeof codeDetailSchema>;
+
+/** Per-code fetch state, keyed by `${code}::${section}`. */
+type CodeDetailState = {
+  loading: boolean;
+  data: CodeDetail | null;
+  error: string | null;
+};
+
+const codeDetailKey = (c: { code: string; section: string }) => `${c.code}::${c.section}`;
 
 // Server-side daily counter. Replaces an earlier AsyncStorage-based
 // implementation that audit found was trivially bypassed: reinstall,
@@ -1369,12 +1396,14 @@ Be specific to the cited location if possible. If the location is not in the US,
         ) : null}
       </KeyboardAvoidingView>
 
-      <LoadingModal visible={loading} />
-      <RoadmapLoadingModal visible={roadmapLoading} />
+      <LoadingModal visible={loading} subject={location.trim() || undefined} />
+      <RoadmapLoadingModal visible={roadmapLoading} subject={location.trim() || undefined} />
       <ResultModal
         visible={resultOpen && !!result}
         result={result}
         onClose={() => setResultOpen(false)}
+        location={location}
+        scenario={scenario}
       />
     </View>
   );
@@ -1547,52 +1576,30 @@ const ROADMAP_LOADING_STEPS = [
   'Finalizing roadmap…',
 ];
 
-function RoadmapLoadingModal({ visible }: { visible: boolean }) {
-  const styles = useThemedStyles(makeStyles);
-  const spin = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
+function RoadmapLoadingModal({ visible, subject }: { visible: boolean; subject?: string }) {
   const [stepIdx, setStepIdx] = useState(0);
 
   useEffect(() => {
     if (!visible) { setStepIdx(0); return; }
-    const spinLoop = Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 1600, easing: Easing.linear, useNativeDriver: true }),
+    // Advance and hold on the last step — see LoadingModal below for why a
+    // looping checklist reads as stuck.
+    const interval = setInterval(
+      () => setStepIdx(i => Math.min(i + 1, ROADMAP_LOADING_STEPS.length - 1)),
+      1700,
     );
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    spinLoop.start();
-    pulseLoop.start();
-    const interval = setInterval(() => setStepIdx((i) => (i + 1) % ROADMAP_LOADING_STEPS.length), 1500);
-    return () => { spinLoop.stop(); pulseLoop.stop(); clearInterval(interval); spin.setValue(0); pulse.setValue(0); };
-  }, [visible, spin, pulse]);
-
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
+    return () => clearInterval(interval);
+  }, [visible]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.loadingBackdrop}>
-        <View style={styles.loadingCard}>
-          <View style={styles.loadingIconStack}>
-            <Animated.View style={[styles.loadingPulse, { transform: [{ scale }], opacity }]} />
-            <Animated.View style={{ transform: [{ rotate }] }}>
-              <FileText size={44} color={Colors.primary} strokeWidth={1.75} />
-            </Animated.View>
-          </View>
-          <Text style={styles.loadingTitle}>Generating Roadmap</Text>
-          <Text style={styles.loadingStep}>{ROADMAP_LOADING_STEPS[stepIdx]}</Text>
-          <View style={styles.loadingDots}>
-            {ROADMAP_LOADING_STEPS.map((_, i) => (
-              <View key={i} style={[styles.loadingDot, i <= stepIdx && styles.loadingDotActive]} />
-            ))}
-          </View>
-        </View>
-      </View>
+    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
+      <CodeCheckLoader
+        eyebrow="PROJECT ROADMAP"
+        headline="Sequencing permits, inspections and lead times"
+        steps={ROADMAP_LOADING_STEPS}
+        activeStep={stepIdx}
+        subject={subject}
+        facts={CONSTRUCTION_FACTS}
+      />
     </Modal>
   );
 }
@@ -1609,10 +1616,7 @@ const LOADING_STEPS = [
   'Drafting inspection checklist…',
 ];
 
-function LoadingModal({ visible }: { visible: boolean }) {
-  const styles = useThemedStyles(makeStyles);
-  const spin = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
+function LoadingModal({ visible, subject }: { visible: boolean; subject?: string }) {
   const [stepIdx, setStepIdx] = useState(0);
 
   useEffect(() => {
@@ -1620,68 +1624,27 @@ function LoadingModal({ visible }: { visible: boolean }) {
       setStepIdx(0);
       return;
     }
-    const spinLoop = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: 1600,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    spinLoop.start();
-    pulseLoop.start();
+    // Walk the checklist forward and HOLD on the last step rather than looping
+    // back to the top. A pass that restarts at "Scanning applicable codes…"
+    // after reaching the end reads as stuck; holding reads as "finishing up".
     const interval = setInterval(() => {
-      setStepIdx((i) => (i + 1) % LOADING_STEPS.length);
-    }, 1500);
+      setStepIdx(i => Math.min(i + 1, LOADING_STEPS.length - 1));
+    }, 1700);
     return () => {
-      spinLoop.stop();
-      pulseLoop.stop();
       clearInterval(interval);
-      spin.setValue(0);
-      pulse.setValue(0);
     };
-  }, [visible, spin, pulse]);
+  }, [visible]);
 
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
-
+  // Full-screen, not a card on a dimmed form: the wait IS the screen while the
+  // pass runs. presentationStyle fullScreen so there is no sheet chrome.
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.loadingBackdrop}>
-        <View style={styles.loadingCard}>
-          <View style={styles.loadingIconStack}>
-            <Animated.View
-              style={[
-                styles.loadingPulse,
-                { transform: [{ scale }], opacity },
-              ]}
-            />
-            <Animated.View style={{ transform: [{ rotate }] }}>
-              <Gavel size={44} color={Colors.primary} strokeWidth={1.75} />
-            </Animated.View>
-          </View>
-          <Text style={styles.loadingTitle}>Running Code Check</Text>
-          <Text style={styles.loadingStep}>{LOADING_STEPS[stepIdx]}</Text>
-          <View style={styles.loadingDots}>
-            {LOADING_STEPS.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.loadingDot,
-                  i <= stepIdx && styles.loadingDotActive,
-                ]}
-              />
-            ))}
-          </View>
-        </View>
-      </View>
+    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
+      <CodeCheckLoader
+        steps={LOADING_STEPS}
+        activeStep={stepIdx}
+        subject={subject}
+        facts={CONSTRUCTION_FACTS}
+      />
     </Modal>
   );
 }
@@ -1693,11 +1656,67 @@ function LoadingModal({ visible }: { visible: boolean }) {
 type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 
 function ResultModal({
-  visible, result, onClose,
-}: { visible: boolean; result: CodeCheckResult | null; onClose: () => void }) {
+  visible, result, onClose, location, scenario,
+}: {
+  visible: boolean;
+  result: CodeCheckResult | null;
+  onClose: () => void;
+  /** Context carried in so a per-code drill-in is grounded in the same job the
+   *  summary was run against, not asked in a vacuum. */
+  location: string;
+  scenario: string;
+}) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<SectionKey | null>('codes');
+  /** Which code row is open, plus its lazily-fetched detail. Rendered INLINE:
+   *  iOS refuses to present a second Modal over this one (see the openDelay
+   *  workaround in runCodeCheck), so a detail sheet would silently never
+   *  appear. */
+  const [openCode, setOpenCode] = useState<string | null>(null);
+  const [details, setDetails] = useState<Record<string, CodeDetailState>>({});
+
+  const loadDetail = useCallback(async (c: { code: string; section: string; requirement: string }) => {
+    const key = codeDetailKey(c);
+    // Already loaded or in flight — just toggle.
+    if (details[key]?.data || details[key]?.loading) return;
+    setDetails(prev => ({ ...prev, [key]: { loading: true, data: null, error: null } }));
+
+    const label = [c.code, c.section].filter(Boolean).join(' ');
+    const prompt = `You are a licensed code-compliance advisor for US construction. A contractor ran a code check and wants to understand ONE specific code citation in depth.
+
+Location: ${location.trim()}
+Work being done: ${scenario.trim()}
+Code cited: ${label}
+Summary requirement given: ${c.requirement}
+
+Return a JSON object with:
+- plainEnglish: what this code section actually requires, in plain contractor English (2-4 sentences). Include the specific numbers/dimensions/ratings it specifies when you are confident of them.
+- appliesBecause: one or two sentences on why THIS code was triggered by THIS specific scope of work.
+- inspectorChecks: array of 2-5 concrete things an inspector will physically look at or measure on site for this code.
+- commonFailures: array of 2-4 specific ways contractors fail this particular code.
+- ruleOfThumb: one short field-usable rule of thumb for staying compliant, or '' if none applies.
+
+Be concrete and specific to the cited jurisdiction. Never invent a section number you are unsure of — describe the requirement instead.`;
+
+    const cacheKey = `code_detail::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;
+    try {
+      const res = await mageAISmart(prompt, codeDetailSchema, cacheKey);
+      if (!res.success || !res.data) {
+        setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: res.error ?? 'Could not load detail.' } }));
+        return;
+      }
+      setDetails(prev => ({ ...prev, [key]: { loading: false, data: res.data as CodeDetail, error: null } }));
+    } catch {
+      setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: 'Could not load detail.' } }));
+    }
+  }, [details, location, scenario]);
+
+  const toggleCode = useCallback((c: { code: string; section: string; requirement: string }) => {
+    const key = codeDetailKey(c);
+    setOpenCode(cur => (cur === key ? null : key));
+    if (openCode !== key) void loadDetail(c);
+  }, [openCode, loadDetail]);
 
   if (!result) return null;
 
@@ -1742,12 +1761,79 @@ function ResultModal({
               expanded={expanded === 'codes'}
               onToggle={toggle}
             >
-              {result.applicableCodes.map((c, i) => (
-                <View key={i} style={styles.codeRow}>
-                  <Text style={styles.codeLabel}>{[c.code, c.section].filter(Boolean).join(' · ')}</Text>
-                  <Text style={styles.codeReq}>{c.requirement}</Text>
-                </View>
-              ))}
+              <Text style={styles.codeTapHint}>Tap a code for what it requires and what the inspector checks.</Text>
+              {result.applicableCodes.map((c, i) => {
+                const key = codeDetailKey(c);
+                const isOpen = openCode === key;
+                const st = details[key];
+                return (
+                  <View key={i} style={styles.codeRow}>
+                    <TouchableOpacity
+                      onPress={() => toggleCode(c)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${[c.code, c.section].filter(Boolean).join(' ')} — ${isOpen ? 'hide' : 'show'} detail`}
+                      testID={`code-detail-toggle-${i}`}
+                    >
+                      <View style={styles.codeLabelRow}>
+                        <Text style={styles.codeLabel}>{[c.code, c.section].filter(Boolean).join(' · ')}</Text>
+                        {isOpen
+                          ? <ChevronUp size={14} color={Colors.textMuted} strokeWidth={1.75} />
+                          : <ChevronDown size={14} color={Colors.textMuted} strokeWidth={1.75} />}
+                      </View>
+                      <Text style={styles.codeReq}>{c.requirement}</Text>
+                    </TouchableOpacity>
+
+                    {isOpen && (
+                      <View style={styles.codeDetail}>
+                        {st?.loading && (
+                          <View style={styles.codeDetailLoading}>
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                            <Text style={styles.codeDetailLoadingText}>Looking up {[c.code, c.section].filter(Boolean).join(' ')}…</Text>
+                          </View>
+                        )}
+                        {st?.error && (
+                          <Text style={styles.codeDetailError}>{st.error}</Text>
+                        )}
+                        {st?.data && (
+                          <>
+                            {!!st.data.plainEnglish && (
+                              <Text style={styles.codeDetailBody}>{st.data.plainEnglish}</Text>
+                            )}
+                            {!!st.data.appliesBecause && (
+                              <>
+                                <Text style={styles.codeDetailHeading}>Why it applies here</Text>
+                                <Text style={styles.codeDetailBody}>{st.data.appliesBecause}</Text>
+                              </>
+                            )}
+                            {st.data.inspectorChecks.length > 0 && (
+                              <>
+                                <Text style={styles.codeDetailHeading}>What the inspector checks</Text>
+                                {st.data.inspectorChecks.map((x, k) => (
+                                  <Text key={k} style={styles.codeDetailBullet}>• {x}</Text>
+                                ))}
+                              </>
+                            )}
+                            {st.data.commonFailures.length > 0 && (
+                              <>
+                                <Text style={styles.codeDetailHeading}>How jobs fail it</Text>
+                                {st.data.commonFailures.map((x, k) => (
+                                  <Text key={k} style={styles.codeDetailBullet}>• {x}</Text>
+                                ))}
+                              </>
+                            )}
+                            {!!st.data.ruleOfThumb && (
+                              <View style={styles.codeRuleCard}>
+                                <Text style={styles.codeRuleText}>{st.data.ruleOfThumb}</Text>
+                              </View>
+                            )}
+                          </>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </AccordionSection>
           )}
 
@@ -1989,60 +2075,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
 
   // Loading modal
-  loadingBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    padding: 24,
-  },
-  loadingCard: {
-    backgroundColor: themeColors.surface,
-    borderRadius: 20,
-    padding: 28,
-    alignItems: 'center' as const,
-    minWidth: 260,
-    gap: 12,
-  },
-  loadingIconStack: {
-    width: 96,
-    height: 96,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  loadingPulse: {
-    position: 'absolute' as const,
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.primary + '22',
-  },
-  loadingTitle: {
-    fontSize: Type.subheadline.fontSize,
-    fontWeight: '700' as const,
-    color: themeColors.text,
-    marginTop: 8,
-  },
-  loadingStep: {
-    fontSize: Type.bodyCompact.fontSize,
-    color: themeColors.textSecondary,
-    textAlign: 'center' as const,
-    minHeight: 20,
-  },
-  loadingDots: {
-    flexDirection: 'row' as const,
-    gap: 6,
-    marginTop: 4,
-  },
-  loadingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: themeColors.line,
-  },
-  loadingDotActive: {
-    backgroundColor: Colors.primary,
-  },
 
   // Result modal
   resultContainer: {
@@ -2095,9 +2127,43 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
+  codeTapHint: {
+    fontSize: Type.caption2.fontSize, color: themeColors.textMuted,
+    fontStyle: 'italic' as const, marginBottom: 10, lineHeight: 15,
+  },
   codeRow: { marginBottom: 10 },
-  codeLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary, marginBottom: 2 },
+  codeLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 2 },
+  codeLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
   codeReq: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+
+  // Per-code drill-in, expanded inline under the tapped row.
+  codeDetail: {
+    marginTop: 10,
+    paddingTop: 10,
+    paddingLeft: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.primary + '40',
+    gap: 2,
+  },
+  codeDetailLoading: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 4 },
+  codeDetailLoadingText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  codeDetailError: { fontSize: Type.caption1.fontSize, color: themeColors.danger, lineHeight: 17 },
+  codeDetailHeading: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const,
+    color: themeColors.textMuted, textTransform: 'uppercase' as const,
+    letterSpacing: 0.5, marginTop: 10, marginBottom: 4,
+  },
+  codeDetailBody: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  codeDetailBullet: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19, marginBottom: 2 },
+  codeRuleCard: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary + '10',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+  },
+  codeRuleText: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18, fontWeight: '600' as const },
   bulletRow: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 20, marginBottom: 4 },
   disclaimer: {
     fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const,

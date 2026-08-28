@@ -14,7 +14,7 @@ type Row = {
   project_id: string;
   invited_email: string;
   user_id: string | null;
-  role: 'owner' | 'editor' | 'viewer';
+  role: 'owner' | 'editor' | 'viewer' | 'field';
   status: 'pending' | 'accepted' | 'revoked';
   invited_at: string;
   accepted_at: string | null;
@@ -64,7 +64,7 @@ export function useProjectCollaborators(projectId: string | undefined) {
   const invalidate = () => { void qc.invalidateQueries({ queryKey }); };
 
   const invite = useMutation({
-    mutationFn: async (vars: { email: string; role: 'editor' | 'viewer' }) =>
+    mutationFn: async (vars: { email: string; role: 'editor' | 'viewer' | 'field' }) =>
       unwrap<{ link: string; collaborator: Row | null }>(
         await supabase.functions.invoke('project-invite', {
           body: { action: 'invite', projectId, email: vars.email, role: vars.role },
@@ -84,7 +84,7 @@ export function useProjectCollaborators(projectId: string | undefined) {
   });
 
   const changeRole = useMutation({
-    mutationFn: async (vars: { collaboratorId: string; role: 'editor' | 'viewer' }) =>
+    mutationFn: async (vars: { collaboratorId: string; role: 'editor' | 'viewer' | 'field' }) =>
       unwrap<{ success: true }>(
         await supabase.functions.invoke('project-invite', {
           body: { action: 'changeRole', collaboratorId: vars.collaboratorId, role: vars.role },

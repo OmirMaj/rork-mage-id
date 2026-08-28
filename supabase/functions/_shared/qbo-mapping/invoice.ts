@@ -1,4 +1,6 @@
 import { qboFetch, qboHash, svc, type QboConnectionRow } from "../qbo.ts";
+// linked_estimate moved to project_financials — see financials.ts.
+import { readLinkedEstimateItems } from "./financials.ts";
 
 interface MageInvoiceRow {
   id: string; user_id: string; project_id: string;
@@ -28,8 +30,8 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
   }
 
   // Read linked_estimate once before the loop. Re-read inside the loop only after a lazy upsertItem.
-  const { data: pjBaseRow } = await s.from('projects').select('linked_estimate').eq('id', inv.project_id).eq('user_id', userId).maybeSingle();
-  let linkedItems = ((pjBaseRow as { linked_estimate?: { items?: { materialId: string; qboItemId?: string }[] } } | null)?.linked_estimate?.items) ?? [];
+  // Sourced from project_financials (legacy column as fallback) — see financials.ts.
+  let linkedItems = await readLinkedEstimateItems(s, inv.project_id, userId);
   const { upsertItem } = await import("./item.ts");
   const lines: Array<Record<string, unknown>> = [];
   for (const li of inv.line_items) {
@@ -38,8 +40,7 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
       if (!qboItemId) {
         await upsertItem(conn, `${inv.project_id}::${li.sourceEstimateItemId}`, userId);
         // Re-read ONLY when we just pushed a new item.
-        const { data: pjRow2 } = await s.from('projects').select('linked_estimate').eq('id', inv.project_id).eq('user_id', userId).maybeSingle();
-        linkedItems = ((pjRow2 as { linked_estimate?: { items?: { materialId: string; qboItemId?: string }[] } } | null)?.linked_estimate?.items) ?? [];
+        linkedItems = await readLinkedEstimateItems(s, inv.project_id, userId);
         qboItemId = linkedItems.find(i => i.materialId === li.sourceEstimateItemId)?.qboItemId;
       }
       if (!qboItemId) throw new Error(`Could not establish QBO Item for line ${li.sourceEstimateItemId} on invoice ${invoiceId}`);

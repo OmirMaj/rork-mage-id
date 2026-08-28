@@ -88,5 +88,51 @@ const sum = chaseSummary(all);
 expect('summary total + byKind', [sum.total, sum.byKind.rfi, sum.byKind.submittal, sum.byKind.co_approval], [3, 1, 1, 1]);
 ok('summary counts criticals', sum.critical >= 1, `critical=${sum.critical}`);
 
+// ── quiet trades ──
+// A sub who worked for days and then vanished is the purest "waiting on" item
+// there is, and nothing else in the app notices. The rules that keep it honest
+// live in utils/crewPresence (pinned by test:crew-presence); what matters HERE
+// is that the wire is live and that a reporting gap can never manufacture one.
+{
+  const dfr = (date: string, crews: { trade: string; company: string; headcount: number; hoursWorked: number }[]) =>
+    ({ id: `d-${date}`, projectId: 'p1', date, manpower: crews } as never);
+  const acme = { trade: 'Drywall', company: 'Acme Drywall', headcount: 4, hoursWorked: 8 };
+  const volt = { trade: 'Electrical', company: 'Volt Electric', headcount: 2, hoursWorked: 8 };
+
+  const quiet = buildChaseList({
+    rfis: [], submittals: [], changeOrders: [], projects, nowMs: NOW,
+    dailyReportsByProject: {
+      p1: [
+        dfr('2026-02-02', [acme]), dfr('2026-02-03', [acme]),
+        dfr('2026-02-04', [volt]), dfr('2026-02-05', [volt]), dfr('2026-02-06', [volt]),
+      ],
+    },
+  });
+  expect('a trade that went quiet reaches the chase list', quiet.length, 1);
+  expect('…as kind quiet_trade', quiet[0].kind, 'quiet_trade');
+  ok('…waiting on the company by name', quiet[0].waitingOn === 'Acme Drywall', quiet[0].waitingOn);
+  ok('…with a nudge that cites the daily reports', /daily reports/.test(quiet[0].nudge));
+  ok('…routing somewhere real', quiet[0].route.pathname === '/daily-report');
+  // daysOverdue MUST be reported days. Feeding calendar days here would make
+  // severity climb on the strength of the GC's own paperwork gap.
+  expect('daysOverdue is REPORTED days, not calendar days', quiet[0].daysOverdue, 3);
+
+  ok('the still-present trade is not chased',
+    !quiet.some(i => i.waitingOn === 'Volt Electric'));
+
+  // The failure this exists to prevent: reports simply stop.
+  expect('a reporting gap produces NO accusation',
+    buildChaseList({
+      rfis: [], submittals: [], changeOrders: [], projects, nowMs: NOW,
+      dailyReportsByProject: { p1: [dfr('2026-02-02', [acme]), dfr('2026-02-03', [acme])] },
+    }).length, 0);
+
+  expect('omitting the input behaves exactly as before',
+    buildChaseList({ rfis: [], submittals: [], changeOrders: [], projects, nowMs: NOW }).length, 0);
+
+  const qs = chaseSummary(quiet);
+  expect('summary counts the new kind', qs.byKind.quiet_trade, 1);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

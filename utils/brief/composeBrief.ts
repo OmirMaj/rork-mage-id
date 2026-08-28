@@ -31,8 +31,11 @@ import type {
 } from '@/types';
 import {
   scheduleAttention, invoiceAttention, permitAttention, certAttention,
+  deliveryAttention, buildingAccessAttention,
   closeoutAttention, rankAttention, type AttentionItem, type AttnSeverity,
 } from '@/utils/brainWatch';
+import type { Delivery } from '@/utils/deliverySchedule';
+import type { BuildingAccessRules, AccessReservation } from '@/utils/buildingAccess';
 import { aggregateAttention, computeWeekLoad } from '@/utils/summaryBriefing';
 import type { CashFlowSummary } from '@/utils/cashFlowEngine';
 import type { DidForYouEntry } from '@/utils/brain/didForYou';
@@ -86,6 +89,14 @@ export interface ComposeBriefInput {
   changeOrders: ChangeOrder[];
   punchItems: PunchItem[];
   permits: Permit[];
+  /** Scheduled/expected loads. Late or unconfirmed ones become brief items —
+   *  material that does not land shows up as idle LABOUR, not as a late PO. */
+  deliveries: Delivery[];
+  /** What the building requires (one row per project) and the slots booked
+   *  from it. A load with a confirmed date and no freight elevator booked is
+   *  not a delivery problem — the truck is simply turned away. */
+  buildingAccessRules: BuildingAccessRules[];
+  accessReservations: AccessReservation[];
   expiringCertifications: (Certification & { status: 'expiring' | 'expired' })[];
   dailyReports: DailyFieldReport[];
   /** From fetchOpenPredictionsDeduped(['leak_flag']). Pass null/undefined when
@@ -157,6 +168,14 @@ function collectBrainWatch(input: ComposeBriefInput, now: Date): AttentionItem[]
     all.push(...scheduleAttention(project));
     all.push(...invoiceAttention(project, input.invoices, nowMs));
     all.push(...permitAttention(project, input.permits.filter(p => p.projectId === project.id), nowMs));
+    all.push(...deliveryAttention(project, input.deliveries.filter(d => d.projectId === project.id), nowMs));
+    all.push(...buildingAccessAttention(
+      project,
+      input.buildingAccessRules.find(r => r.projectId === project.id) ?? null,
+      input.accessReservations,
+      input.deliveries,
+      nowMs,
+    ));
     all.push(...closeoutAttention(project));
   }
   all.push(...certAttention(input.expiringCertifications, nowMs));

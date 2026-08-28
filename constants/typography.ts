@@ -87,6 +87,21 @@ export const Type = {
   serifHero:       { fontFamily: 'Fraunces_700Bold', fontSize: 64, lineHeight: 62, letterSpacing: -1.6 } as TextStyle,
   serifLargeTitle: { fontFamily: 'Fraunces_700Bold', fontSize: 36, lineHeight: 40, letterSpacing: -0.9 } as TextStyle,
   serifTitle:      { fontFamily: 'Fraunces_700Bold', fontSize: 28, lineHeight: 32, letterSpacing: -0.56 } as TextStyle,
+  // SCREEN TITLES USE THIS. The rule, so the app reads as one product rather
+  // than 165 separately-built screens:
+  //
+  //   • Fraunces for screen titles and for NUMBERS THAT MATTER (margin %,
+  //     money totals, counts you want someone to feel).
+  //   • System sans for everything else — labels, body, controls, data rows.
+  //
+  // 22/26 is sized for an in-app header row that also carries a back button and
+  // an action, so it holds one line everywhere title2-at-800 already did.
+  //
+  // Do NOT pair it with fontWeight: Fraunces_700Bold already carries its weight,
+  // and an override makes the platform synthesise a fake bold on top of a real
+  // one (muddy on iOS, ignored on some Android builds).
+  //
+  // Pinned by test:type-identity.
   serifHeadline:   { fontFamily: 'Fraunces_700Bold', fontSize: 22, lineHeight: 26, letterSpacing: -0.22 } as TextStyle,
 
   // ─── Mono (JetBrains Mono) — micro labels, eyebrows, status.

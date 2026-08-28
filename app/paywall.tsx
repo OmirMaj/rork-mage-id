@@ -280,7 +280,7 @@ export default function PaywallScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close" accessibilityRole="button" accessibilityLabel="Close">
           <X size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Choose Your Plan</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Choose Your Plan</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -609,7 +609,7 @@ function WebPaywallView({
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-close-web" accessibilityRole="button" accessibilityLabel="Close">
           <X size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Plans</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Plans</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -811,8 +811,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center' as const,
   },
   headerTitle: {
-    fontSize: Type.subheadline.fontSize,
-    fontWeight: '700' as const,
+    ...Type.serifHeadline,
     color: t.text,
   },
   scrollContent: {

@@ -13,7 +13,18 @@ export async function exportOsha300Pdf(incidents: SafetyIncident[], est: OshaEst
   const html = buildOsha300Html(rows, est);
   if (Platform.OS === 'web') {
     if (typeof window === 'undefined') return;
-    const w = window.open('', '_blank', 'noopener,noreferrer');
+// NO 'noopener' in the feature string. Per the HTML spec, window.open()
+    // returns NULL whenever noopener is present — in every browser — so `w` was
+    // always null, the write-and-print path below was unreachable dead code, and
+    // 100% of users silently took the branch commented "popup blocked": a tab
+    // opens with the right content but the print dialog never appears, and
+    // because it is a blob: URL the tab title is a UUID so "Save as PDF"
+    // defaults to a garbage filename.
+    //
+    // Dropping noopener is safe here specifically: we open about:blank and write
+    // our own HTML into it. It is same-origin by definition and there is no
+    // third-party page to tabnab us.
+    const w = window.open('', '_blank');
     if (!w) { const blob = new Blob([html], { type: 'text/html' }); window.open(URL.createObjectURL(blob), '_blank'); return; }
     w.document.open(); w.document.write(html); w.document.close();
     setTimeout(() => { try { w.focus(); w.print(); } catch { /* user can Cmd-P */ } }, 350);

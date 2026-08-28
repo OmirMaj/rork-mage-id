@@ -15,7 +15,14 @@
 // what's necessary and keeping count moderate.
 
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
-import * as FileSystem from 'expo-file-system';
+// expo-file-system/legacy, NOT the root entry. In SDK 54 the root's
+// readAsStringAsync is a deprecation stub — src/index.ts re-exports
+// ./legacyWarnings, where it is `throw errorOnLegacyMethodUse(...)`, and its own
+// doc comment says "This method will throw in runtime". It throws on EVERY
+// platform, iOS included, so this was not a web issue. 14 other files in this
+// repo were already migrated; these five were missed.
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { RawReceiptExtraction } from '@/utils/materialReceipt';
 
 export interface AiPunchItem {
@@ -51,7 +58,45 @@ interface BaseOpts {
 
 interface InlinePhoto { base64: string; mimeType?: string }
 
-const isLocal = (u: string) => u.startsWith('file:') || u.startsWith('/');
+// blob: and data: are what expo-image-picker hands back ON WEB. Without them
+// isLocal returned false, so a browser-local blob handle was classified as a
+// REMOTE url and shipped verbatim to the edge function, which rejected it with
+// 400 "One or more photo URLs are not allowed". That failed 100% of the time,
+// after the user had already picked photos and waited — across AI Punch, Photo
+// Triage, receipt scan and plan intelligence.
+const isLocal = (u: string) =>
+  u.startsWith('file:') || u.startsWith('/') ||
+  u.startsWith('blob:') || u.startsWith('data:');
+
+/**
+ * Read a local photo to base64, whichever platform produced the URI.
+ *
+ * expo-file-system cannot read blob:/data: URLs, so web needs fetch +
+ * FileReader. The mime type comes from the Blob itself there rather than from a
+ * file extension, because a blob: URL has no extension to parse.
+ */
+async function readLocalPhoto(uri: string): Promise<InlinePhoto> {
+  if (uri.startsWith('blob:') || uri.startsWith('data:') || Platform.OS === 'web') {
+    const blob = await (await fetch(uri)).blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error('Could not read the selected photo.'));
+      fr.onload = () => resolve(String(fr.result));
+      fr.readAsDataURL(blob);
+    });
+    // readAsDataURL yields "data:<mime>;base64,<payload>" — keep only the payload.
+    return {
+      base64: dataUrl.slice(dataUrl.indexOf(',') + 1),
+      mimeType: blob.type || 'image/jpeg',
+    };
+  }
+  // Pass string-literal 'base64' rather than the enum — expo-file-system moved
+  // EncodingType into a legacy namespace and the string form stays accepted.
+  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+  const ext = uri.split('.').pop()?.toLowerCase() ?? '';
+  const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
+  return { base64, mimeType };
+}
 
 /**
  * Encode a list of file:// URIs to inline base64 — IN PARALLEL
@@ -73,15 +118,7 @@ async function encodeLocalPhotos(uris: string[]): Promise<{
   originalIndexes: number[];
   failedIndexes: number[];
 }> {
-  const settled = await Promise.allSettled(uris.map(async (u) => {
-    // Pass string-literal 'base64' rather than the enum — expo-file-system
-    // moved EncodingType into a legacy namespace in newer SDKs and the
-    // string form is accepted by the typed signature regardless.
-    const base64 = await FileSystem.readAsStringAsync(u, { encoding: 'base64' });
-    const ext = u.split('.').pop()?.toLowerCase() ?? '';
-    const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
-    return { base64, mimeType };
-  }));
+  const settled = await Promise.allSettled(uris.map((u) => readLocalPhoto(u)));
   const encoded: InlinePhoto[] = [];
   const originalIndexes: number[] = [];
   const failedIndexes: number[] = [];

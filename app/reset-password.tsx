@@ -32,6 +32,23 @@ export default function ResetPasswordScreen() {
     const accessToken = params.access_token as string | undefined;
     const refreshToken = params.refresh_token as string | undefined;
 
+    // WEB: Supabase delivers recovery tokens in the URL *fragment*
+    // (#access_token=…), never the query string — so useLocalSearchParams is
+    // always empty here and the branch below could never run on web.
+    // supabase-js has already consumed the fragment itself (lib/supabase.ts:40
+    // sets detectSessionInUrl: Platform.OS === 'web'), so the session exists.
+    // What was missing is onNewSessionEstablished(), which runs the
+    // shared-device local-cache wipe: skipping it on a public or shared
+    // computer leaves the previous user's cached project data in localStorage
+    // under the new session — the exact cross-tenant leak that sweep exists to
+    // prevent, and localStorage is per-ORIGIN so it genuinely persists.
+    if (Platform.OS === 'web' && !accessToken) {
+      void supabase.auth.getSession().then(async ({ data }) => {
+        if (data.session) await onNewSessionEstablished();
+      });
+      return;
+    }
+
     if (accessToken) {
       console.log('[ResetPassword] Setting session from deep link');
       void supabase.auth.setSession({

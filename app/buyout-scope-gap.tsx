@@ -289,7 +289,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   hero: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.panel,
@@ -297,7 +297,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   heroLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   heroRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
-  heroValue: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, letterSpacing: -1, lineHeight: Type.largeTitle.fontSize },
+  // The screen's ONE hero figure — buyout coverage. Serif per the type rule
+  // (numbers that matter); the rows beneath stay sans so this keeps its
+  // contrast. tabular-nums keeps the digits from jittering.
+  heroValue: { ...Type.serifLargeTitle, letterSpacing: -1, fontVariant: ['tabular-nums'] as const },
   gapPill: { backgroundColor: t.danger + '1A', paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full },
   gapPillText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.danger },
   gaugeTrack: { height: 8, borderRadius: Tokens.radius.full, backgroundColor: t.line, overflow: 'hidden' as const },

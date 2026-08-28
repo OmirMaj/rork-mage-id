@@ -482,7 +482,7 @@ export default function CachedBidsScreen() {
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Public Bids</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Public Bids</Text>
             <Text style={styles.headerSubtitle}>
               {filteredCount === totalCount
                 ? `${totalCount.toLocaleString()} active`
@@ -764,7 +764,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   header: { backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.line, paddingHorizontal: 16, paddingBottom: 12 },
   headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   headerSubtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1, fontWeight: '500' as const },
   sortBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

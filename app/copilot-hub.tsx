@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   X, ClipboardList, CalendarDays, Receipt, Repeat, MessageSquare,
   FileText, CheckSquare, Wallet, ShieldAlert, ShieldCheck, HardHat, FolderPlus,
-  ClipboardCheck, UserPlus, Stamp, AlertTriangle, ChevronRight,
+  ClipboardCheck, UserPlus, Stamp, AlertTriangle, ChevronRight, ClipboardPaste,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -25,6 +25,8 @@ import { INTENTS } from '@/utils/copilot/intentTable';
 import { splitIntents, type SplitAction } from '@/utils/copilot/splitIntents';
 import { isQuestionShaped } from '@/utils/oneMind/resolveScope';
 import { MageAIMark } from '@/components/icons';
+import * as Clipboard from 'expo-clipboard';
+import { showAlert } from '@/utils/alert';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
 
 // Partial: only the create-capabilities the hub grid surfaces need an icon;
@@ -56,6 +58,7 @@ export default function CopilotHubScreen() {
   const insets = useSafeAreaInsets();
 
   const [text, setText] = useState('');
+  const [pasting, setPasting] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [noMatch, setNoMatch] = useState(false);
   const [queue, setQueue] = useState<SplitAction[]>([]);
@@ -66,6 +69,37 @@ export default function CopilotHubScreen() {
       params: { capabilityId, projectId: projectId ?? '', ...(seed ? { seed } : {}) },
     } as never);
   }, [router, projectId]);
+
+  /**
+   * Pull an email (or any prose) straight off the clipboard into the router.
+   *
+   * splitIntents already fans ONE input out into several typed actions — the
+   * hard part. It has only ever been fed by voice or typing, so an inbound
+   * email had to be retyped. An email is just prose: paste it and the same
+   * engine files the RFI, the change order and the delivery note it implies.
+   *
+   * This is the manual half of "read my email and create the work". The
+   * automatic half needs a mailbox integration; this needs nothing, works
+   * today, and is the same two taps a PM already does to forward a mail.
+   */
+  const pasteFromClipboard = useCallback(async () => {
+    if (pasting || thinking) return;
+    setPasting(true);
+    try {
+      const clip = (await Clipboard.getStringAsync())?.trim() ?? '';
+      if (!clip) {
+        showAlert('Nothing copied', 'Copy an email (or any note) first, then tap Paste an email.');
+        return;
+      }
+      setText(clip);
+      setNoMatch(false);
+      setQueue([]);
+    } catch {
+      showAlert('Could not read the clipboard', 'Paste the text into the box instead.');
+    } finally {
+      setPasting(false);
+    }
+  }, [pasting, thinking]);
 
   const route = useCallback(async () => {
     const utterance = text.trim();
@@ -94,6 +128,23 @@ export default function CopilotHubScreen() {
         <Text style={styles.eyebrow}>JUST TELL ME WHAT YOU NEED</Text>
         <Text style={styles.question}>What are we doing?</Text>
         <Text style={styles.hint}>“LOG TODAY’S REPORT”  ·  “OWNER WANTS A HEAT PUMP”  ·  “RFI ON THE BEAM SIZE”</Text>
+
+        {/* An inbound email is the single biggest source of unlogged work for a
+            PM. splitIntents already turns one input into several filed
+            artifacts; this just stops the email having to be retyped. */}
+        <TouchableOpacity
+          style={styles.pasteBtn}
+          onPress={pasteFromClipboard}
+          disabled={pasting || thinking}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          testID="copilot-hub-paste"
+        >
+          <ClipboardPaste size={16} color={colors.accent} strokeWidth={1.75} />
+          <Text style={styles.pasteBtnText}>
+            {pasting ? 'Reading clipboard…' : 'Paste an email'}
+          </Text>
+        </TouchableOpacity>
 
         <TextInput
           style={styles.input}
@@ -200,7 +251,25 @@ function makeStyles(colors: ThemeColors) {
       borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg,
       padding: Tokens.spacing.md, minHeight: 88, textAlignVertical: 'top',
     },
-    goBtn: {
+    // "Paste an email" — the manual half of email-to-work.
+  pasteBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    marginBottom: 10,
+    paddingVertical: 12,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: colors.accent + '40',
+    backgroundColor: colors.accentSoft,
+  },
+  pasteBtnText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: colors.accentLabel,
+  },
+  goBtn: {
       backgroundColor: colors.accentFill, borderRadius: Tokens.radius.full,
       paddingVertical: Tokens.spacing.md, alignItems: 'center', justifyContent: 'center',
       marginTop: Tokens.spacing.xs,

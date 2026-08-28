@@ -39,6 +39,16 @@ export interface WinOptimizerResult {
   cost: number;
   /** The markup/price that maximizes expected profit. */
   recommended: BidPoint;
+  /** Honest band around the recommendation: the span of markups whose expected
+   *  profit is within a whisker of the max. The win curve is calibrated on
+   *  CENSORED data (you only see outcomes at the prices you actually bid, never
+   *  the counterfactual), so the optimum is a region, not a razor's edge. */
+  recommendedRange: { lowMarkup: number; highMarkup: number; lowPrice: number; highPrice: number };
+  /** The lowest markup the recommendation is allowed to reach. Because the data
+   *  is censored, "bid cheaper" is the model's built-in bias, not a finding — so
+   *  the recommendation is floored at the GC's typical markup and only relaxes
+   *  below it with real, ample price-loss evidence. Surfaced for transparency. */
+  censoringFloorMarkup: number;
   /** Price-to-win: a lower price with materially higher odds. */
   aggressive: BidPoint;
   /** Hold-margin: a higher price, accepting lower odds. */
@@ -150,28 +160,68 @@ export function computeWinOptimizer(input: WinOptimizerInput): WinOptimizerResul
     };
   };
 
-  // ── Sweep the curve and pick the max-EV point ───────────────────────
+  const confidence: WinOptimizerResult['confidence'] =
+    sampleSize >= 15 ? 'high' : sampleSize >= 5 ? 'medium' : 'low';
+
+  // ── Censoring floor ─────────────────────────────────────────────────
+  // The curve is calibrated on CENSORED outcomes: we only ever observe wins and
+  // losses at the prices the GC actually bid, never the counterfactual "would I
+  // have won this same job at a higher markup?". That asymmetry makes plain
+  // EV-maximization lean cheaper than it should — it happily donates margin
+  // chasing win-probability it can't actually verify. So the DEFAULT
+  // recommendation is not allowed to dip below the GC's own typical markup
+  // unless there's real, ample evidence that price is what loses them jobs:
+  // low confidence → floor at typical; higher confidence relaxes the floor
+  // toward minMarkup in proportion to the share of losses that were about price.
+  const relax = confidence === 'low' ? 0 : priceLossShare;
+  const censoringFloorMarkup = clampMarkup(
+    typicalMarkup - (typicalMarkup - minMarkup) * relax,
+    minMarkup,
+    maxMarkup,
+  );
+
+  // ── Sweep the curve and pick the max-EV point (≥ the censoring floor) ─
   const STEP = 0.005;
   const curve: BidPoint[] = [];
-  let recommended = pointAt(minMarkup);
+  let recommended: BidPoint | null = null;
   for (let m = minMarkup; m <= maxMarkup + 1e-9; m += STEP) {
     const pt = pointAt(m);
     curve.push(pt);
-    if (pt.expectedProfit > recommended.expectedProfit) recommended = pt;
+    if (pt.markup + 1e-9 < censoringFloorMarkup) continue; // floored: not a default rec
+    if (!recommended || pt.expectedProfit > recommended.expectedProfit) recommended = pt;
   }
+  // Fallback (floor collapsed the eligible range): use the floor point itself.
+  if (!recommended) recommended = pointAt(censoringFloorMarkup);
+
+  // Honest band: every eligible point whose EV is within a whisker (3%) of the
+  // max, reported as a markup/price span so the GC sees a region, not a false
+  // razor's edge. Small samples deserve a wider band — loosen the whisker as
+  // confidence drops.
+  const evTol = confidence === 'high' ? 0.03 : confidence === 'medium' ? 0.06 : 0.1;
+  const evFloor = recommended.expectedProfit * (1 - evTol);
+  const band = curve.filter(p => p.markup + 1e-9 >= censoringFloorMarkup && p.expectedProfit >= evFloor);
+  const bandMarkups = band.length ? band.map(p => p.markup) : [recommended.markup];
+  const lowMarkup = Math.min(...bandMarkups);
+  const highMarkup = Math.max(...bandMarkups);
+  const recommendedRange = {
+    lowMarkup,
+    highMarkup,
+    lowPrice: round2(cost * (1 + lowMarkup)),
+    highPrice: round2(cost * (1 + highMarkup)),
+  };
 
   // Aggressive (price-to-win) and premium (hold-margin) anchored off the
-  // recommended point's odds, then snapped to the curve.
+  // recommended point's odds, then snapped to the curve. Aggressive is the
+  // explicit "how low to win" ask, so it MAY go below the censoring floor.
   const aggressive = nearestByWin(curve, Math.min(0.9, recommended.winProbability + 0.15), 'below', recommended.markup);
   const premium = nearestByWin(curve, Math.max(0.25, recommended.winProbability - 0.15), 'above', recommended.markup);
   const atTypical = pointAt(typicalMarkup);
 
-  const confidence: WinOptimizerResult['confidence'] =
-    sampleSize >= 15 ? 'high' : sampleSize >= 5 ? 'medium' : 'low';
-
   return {
     cost: round2(cost),
     recommended,
+    recommendedRange,
+    censoringFloorMarkup,
     aggressive,
     premium,
     atTypical,
@@ -183,6 +233,7 @@ export function computeWinOptimizer(input: WinOptimizerInput): WinOptimizerResul
     drivers: buildDrivers({
       wins, losses, winRate, priceLossShare, sampleSize, confidence,
       recommended, atTypical, typicalMarkup, competitorCount,
+      censoringFloorMarkup, recommendedRange,
     }),
   };
 }
@@ -224,6 +275,8 @@ function buildDrivers(a: {
   wins: number; losses: number; winRate: number; priceLossShare: number;
   sampleSize: number; confidence: WinOptimizerResult['confidence'];
   recommended: BidPoint; atTypical: BidPoint; typicalMarkup: number; competitorCount: number;
+  censoringFloorMarkup: number;
+  recommendedRange: { lowMarkup: number; highMarkup: number };
 }): string[] {
   const pct = (n: number) => `${Math.round(n * 100)}%`;
   const drivers: string[] = [];
@@ -258,6 +311,19 @@ function buildDrivers(a: {
     );
   } else {
     drivers.push(`Your usual ${Math.round(a.typicalMarkup * 100)}% markup is already near the expected-value optimum — nice instincts.`);
+  }
+
+  // Honest band — the optimum is a region, not a single number.
+  const bandLo = Math.round(a.recommendedRange.lowMarkup * 100);
+  const bandHi = Math.round(a.recommendedRange.highMarkup * 100);
+  if (bandHi > bandLo) {
+    drivers.push(`Any markup from ${bandLo}% to ${bandHi}% is within a whisker of the best expected profit — treat the recommendation as a range, not a single number.`);
+  }
+
+  // Censoring caveat — the model was held at the GC's own typical markup rather
+  // than chasing a cheaper "win-more" number it can't actually verify.
+  if (a.recommended.markup <= a.typicalMarkup + 1e-6 && a.censoringFloorMarkup >= a.typicalMarkup - 1e-6) {
+    drivers.push('Held at your usual markup on purpose: this learns only from prices you actually bid, so it can\'t tell whether you\'d have won those same jobs at a higher price. It won\'t recommend going cheaper without hard evidence that price is what loses you work.');
   }
 
   if (a.confidence === 'low') {

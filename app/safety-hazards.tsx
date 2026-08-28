@@ -7,7 +7,13 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+// expo-file-system/legacy, NOT the root entry. In SDK 54 the root's
+// readAsStringAsync is a deprecation stub — src/index.ts re-exports
+// ./legacyWarnings, where it is `throw errorOnLegacyMethodUse(...)`, and its own
+// doc comment says "This method will throw in runtime". It throws on EVERY
+// platform, iOS included, so this was not a web issue. 14 other files in this
+// repo were already migrated; these five were missed.
+import * as FileSystem from 'expo-file-system/legacy';
 import { TriangleAlert, Plus, X, Trash2, ChevronLeft, Camera, ImagePlus, AlertCircle, Mic } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';

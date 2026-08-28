@@ -83,7 +83,7 @@ function ClaimedWorkerSelfView({ members }: { members: CrewMember[] }) {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'My Profile' }} />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Profile</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>My Profile</Text>
       </View>
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {members.map(m => (
@@ -364,7 +364,7 @@ function CrewScreenInner() {
       <Stack.Screen options={{ title: 'Crew' }} />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Crew</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Crew</Text>
         <TouchableOpacity
           style={styles.fab}
           onPress={() => setAddOpen(true)}
@@ -805,7 +805,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const,
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12,
   },
-  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -0.4 },
+  headerTitle: { ...Type.serifHeadline, color: themeColors.text },
   fab: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: themeColors.accent,

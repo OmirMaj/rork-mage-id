@@ -5,7 +5,7 @@
 
 import type { ProjectCollaborator } from '@/types';
 
-export type ProjectRole = 'owner' | 'editor' | 'viewer' | null;
+export type ProjectRole = 'owner' | 'editor' | 'viewer' | 'field' | null;
 
 /**
  * The current user's role on a project, given the collaborator rows visible to

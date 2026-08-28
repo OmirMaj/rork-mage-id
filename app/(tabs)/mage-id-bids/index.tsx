@@ -266,7 +266,7 @@ export default function MageIdBidsTabScreen() {
           <View style={styles.brandIcon}><Hammer size={18} color={Colors.primary} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>MAGE ID Bids</Text>
-            <Text style={styles.title}>
+            <Text style={styles.title} numberOfLines={1}>
               {mode === 'browse' ? 'Projects near you' : 'Your posted projects'}
             </Text>
           </View>
@@ -530,11 +530,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   eyebrow: { fontSize: 10, fontWeight: '800' as const, color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' as const },
-  // Page title now matches the other tabs (largeTitle, weight 700). Pre-fix
-  // this was Type.subheadline.fontSize (18px, 800) — literally half the
-  // size of every other tab header. The standardized recipe lives in the
-  // audit doc.
-  title: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.5, marginTop: 2 },
+  // Screen title — Fraunces serif per the type rule in constants/typography.ts
+  // (serif for screen titles + numbers that matter, system sans for everything
+  // else). No fontWeight override: Fraunces_700Bold already carries its weight.
+  // Pre-fix this was Type.subheadline.fontSize (18px, 800) — literally half the
+  // size of every other tab header — then largeTitle/700 sans.
+  title: { ...Type.serifHeadline, color: t.text, marginTop: 2 },
   postCta: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9,

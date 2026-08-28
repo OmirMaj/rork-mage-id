@@ -22,6 +22,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
 import { computeMarginRisk, riskBandLabel } from '@/utils/marginRiskScore';
 import { getOutstandingBalance } from '@/utils/projectFinancials';
+import { useProjectRole } from '@/hooks/useProjectRole';
+import { canViewFinancials } from '@/utils/roleBlinding';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -39,6 +41,7 @@ export default function ProjectHero({ project }: { project: Project }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { getInvoicesForProject, getChangeOrdersForProject, getCommitmentsForProject, getRFIsForProject, getPunchItemsForProject } = useProjects();
+  const role = useProjectRole(project.id);
 
   const invoices = getInvoicesForProject(project.id);
   const changeOrders = getChangeOrdersForProject(project.id);
@@ -81,6 +84,10 @@ export default function ProjectHero({ project }: { project: Project }) {
     Animated.spring(bubble, { toValue: Math.max(0, Math.min(1, risk.score / 100)), friction: 5, tension: 40, delay: 350, useNativeDriver: true }).start();
   }, [bracket, bubble, risk.score]);
 
+  // Field-role collaborators never see the money hero. canViewFinancials fails
+  // CLOSED (null role while loading → hidden) so a margin never flashes before
+  // the role resolves. The owner viewing their own project resolves to 'owner'.
+  if (!canViewFinancials(role)) return null;
   if (!risk.hasBasis) return null;
 
   const healthColor = health === 'healthy' ? t.success : health === 'watch' ? t.accent : t.danger;
@@ -101,12 +108,16 @@ export default function ProjectHero({ project }: { project: Project }) {
         <Text style={styles.pct}>%</Text>
       </View>
 
-      {/* drafting dimension bracket → health */}
+      {/* drafting dimension bracket → health. The bar lives inside a flex:1
+          line so it can grow to full width WITHOUT pushing the label off the
+          right edge (that overflow truncated "HEALTHY" → "HEAL"). */}
       <View style={styles.bracket}>
-        <View style={[styles.tick, { backgroundColor: healthColor }]} />
-        <Animated.View style={[styles.bracketBar, { width: bracketW, backgroundColor: healthColor }]} />
-        <View style={[styles.tick, { backgroundColor: healthColor }]} />
-        <Text style={[styles.bracketLabel, { color: healthColor }]}>{HEALTH_LABEL[health]}</Text>
+        <View style={styles.bracketLine}>
+          <View style={[styles.tick, { backgroundColor: healthColor }]} />
+          <Animated.View style={[styles.bracketBar, { width: bracketW, backgroundColor: healthColor }]} />
+          <View style={[styles.tick, { backgroundColor: healthColor }]} />
+        </View>
+        <Text style={[styles.bracketLabel, { color: healthColor }]} numberOfLines={1}>{HEALTH_LABEL[health]}</Text>
       </View>
 
       <Text style={[styles.erosion, { color: erosionColor }]}>{erosionLabel}</Text>
@@ -140,8 +151,8 @@ function Stat({ label, value, tone, styles }: { label: string; value: string; to
   const color = tone === 'down' ? t.danger : tone === 'muted' ? t.textMuted : t.text;
   return (
     <View style={styles.stat}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+      <Text style={[styles.statValue, { color }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -158,9 +169,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   pct: { ...Type.serifLargeTitle, color: t.textMuted, marginTop: 6, marginLeft: 2 },
 
   bracket: { flexDirection: 'row', alignItems: 'center', height: 14, marginTop: 4 },
+  bracketLine: { flex: 1, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
   tick: { width: 1.5, height: 12, borderRadius: 1 },
   bracketBar: { height: 1.5, marginHorizontal: 0 },
-  bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8 },
+  bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8, flexShrink: 0 },
 
   erosion: { fontSize: Type.footnote.fontSize, fontWeight: '600', marginTop: 12 },
 
@@ -182,6 +194,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line,
     borderRadius: Tokens.radius.md, paddingVertical: 11, paddingHorizontal: 10,
   },
-  statLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 0.4, marginBottom: 5 },
+  statLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 0.2, marginBottom: 5 },
   statValue: { fontSize: Type.subhead.fontSize, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });

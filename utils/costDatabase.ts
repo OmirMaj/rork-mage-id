@@ -21,6 +21,7 @@ import type { Project, Commitment, MaterialReceipt } from '@/types';
 import { computeEstimateActuals } from '@/utils/estimateActuals';
 import { receiptToCostSamples } from '@/utils/materialReceipt';
 import { seedsToCostSamples, isSeedSample, type SeededRate } from '@/utils/costSeedCore';
+import { flagOutliers } from '@/utils/varianceDecomposition';
 
 /** Blend constant: at n samples, personal weight = n/(n+K). K=3 ⇒ 50/50 at n=3. */
 const BLEND_K = 3;
@@ -43,6 +44,13 @@ export interface CostSample {
    *  contractor typed/imported before they had history here. Absent on
    *  closed-job / labor samples. Additive — F5. */
   source?: 'receipt' | 'qbo' | 'seed';
+  /** Set by buildCostDatabase when this sample's unit cost is a gross outlier
+   *  versus the trade's other jobs (utils/varianceDecomposition) — a one-off
+   *  blowout (weather, scope change, data error) that would poison the learned
+   *  rate. Excluded from the rate/variability/bias math but kept in `samples`
+   *  so the GC still sees the job. Absent = a clean sample that informs the
+   *  rate. Additive. */
+  excludedFromRate?: boolean;
 }
 
 export interface CostBookEntry {
@@ -57,6 +65,11 @@ export interface CostBookEntry {
    *  existing CostBookEntry literals keep compiling; buildCostDatabase always
    *  sets it. */
   seededSampleCount?: number;
+  /** How many samples were rejected from the learned rate as gross outliers
+   *  (utils/varianceDecomposition) — one-off blowouts kept visible but not
+   *  averaged into personalRate/bias. 0 for a clean entry. Optional for
+   *  back-compat; buildCostDatabase always sets it. */
+  excludedSampleCount?: number;
   /** 'earned' = closed jobs / receipts / clocked labor only. 'seeded' = the
    *  contractor's stated rate only, nothing measured yet. 'mixed' = both.
    *  Surface this anywhere the rate is shown — the product's credibility rests
@@ -202,36 +215,58 @@ export function buildCostDatabase(
 
   const entries: CostBookEntry[] = [];
   for (const [key, ss] of groups) {
-    const qtyTotal = ss.reduce((a, s) => a + s.quantity, 0);
+    // OUTLIER REJECTION. A trade's learned rate must not be poisoned by a
+    // one-off blowout (weather week, scope piled on by a change order, a
+    // fat-fingered actual). We flag gross outliers among the REAL (non-seed)
+    // samples and drop them from every learning statistic below — but keep
+    // them in `samples` so the GC still sees the job. Seeds are priors, never
+    // outlier-tested. flagOutliers is a no-op below ROBUST_MIN_SAMPLES and
+    // never rejects more than a minority, so cold-start entries are untouched.
+    const realSamples = ss.filter(s => !isSeedSample(s));
+    const outlierFlags = flagOutliers(realSamples.map(s => s.actualUnit));
+    const excluded = new Set<CostSample>();
+    realSamples.forEach((s, i) => { if (outlierFlags[i]) excluded.add(s); });
+    // The learning set: everything except the rejected outliers (seeds stay).
+    const learn = ss.filter(s => !excluded.has(s));
+
+    const qtyTotal = learn.reduce((a, s) => a + s.quantity, 0);
     const personalRate =
       qtyTotal > 0
-        ? ss.reduce((a, s) => a + s.actualUnit * s.quantity, 0) / qtyTotal
-        : mean(ss.map(s => s.actualUnit));
+        ? learn.reduce((a, s) => a + s.actualUnit * s.quantity, 0) / qtyTotal
+        : mean(learn.map(s => s.actualUnit));
 
     const variance =
       qtyTotal > 0
-        ? ss.reduce((a, s) => a + s.quantity * (s.actualUnit - personalRate) ** 2, 0) / qtyTotal
+        ? learn.reduce((a, s) => a + s.quantity * (s.actualUnit - personalRate) ** 2, 0) / qtyTotal
         : 0;
     const variability = personalRate > 0 ? Math.sqrt(variance) / personalRate : 0;
 
-    const biasSamples = ss.filter(s => s.bidUnit > 0);
+    const biasSamples = learn.filter(s => s.bidUnit > 0);
     const biasQty = biasSamples.reduce((a, s) => a + s.quantity, 0);
     const bidBias =
       biasQty > 0
         ? biasSamples.reduce((a, s) => a + s.quantity * (s.actualUnit / s.bidUnit - 1), 0) / biasQty
         : 0;
 
-    const sorted = [...ss].sort((a, b) => (a.closedAt < b.closedAt ? 1 : -1));
-    const baseline = sorted.find(s => s.bidUnit > 0)?.bidUnit || personalRate;
+    // Sort ALL samples for display; mark the rejected ones. Spread only the
+    // excluded ones into fresh objects so the shared input arrays (receipt/
+    // labor/seed samples pushed by reference) are never mutated.
+    const sorted = [...ss]
+      .sort((a, b) => (a.closedAt < b.closedAt ? 1 : -1))
+      .map(s => (excluded.has(s) ? { ...s, excludedFromRate: true } : s));
+    const baseline = learn.find(s => s.bidUnit > 0)?.bidUnit
+      || sorted.find(s => s.bidUnit > 0)?.bidUnit
+      || personalRate;
     const lastSeen = sorted[0]?.closedAt || '';
 
-    // EVIDENCE COUNT IS EARNED-ONLY. Seed samples are excluded from jobIds,
-    // so a seeded-only entry has n=0 → w=0 → suggestedRate = the stated rate
-    // (baseline falls back to personalRate when no bid exists), and confidence
-    // stays 'low'. As real jobs land, n rises and the measured rate takes over.
+    // EVIDENCE COUNT IS EARNED-ONLY AND CLEAN-ONLY. Seed samples are excluded
+    // from jobIds, so a seeded-only entry has n=0 → w=0 → suggestedRate = the
+    // stated rate (baseline falls back to personalRate when no bid exists), and
+    // confidence stays 'low'. Outlier jobs are excluded too — a blowout job
+    // shouldn't buy confidence in a rate it wasn't allowed to set.
     const seededSamples = ss.filter(isSeedSample);
     const seededSampleCount = seededSamples.length;
-    const jobIds = new Set(ss.filter(s => !isSeedSample(s)).map(s => s.projectId));
+    const jobIds = new Set(learn.filter(s => !isSeedSample(s)).map(s => s.projectId));
     const n = jobIds.size;
     const w = n / (n + BLEND_K);
     const suggestedRate = baseline > 0 ? baseline * (1 - w) + personalRate * w : personalRate;
@@ -242,6 +277,8 @@ export function buildCostDatabase(
     const provenance: NonNullable<CostBookEntry['provenance']> =
       seededSampleCount === 0 ? 'earned' : n === 0 ? 'seeded' : 'mixed';
 
+    // Exposure weight stays over ALL samples (an outlier job still represents
+    // real dollars you spent — it just doesn't get to move the rate).
     const totalActual = ss.reduce((a, s) => a + s.actualUnit * s.quantity, 0);
 
     entries.push({
@@ -251,6 +288,7 @@ export function buildCostDatabase(
       sampleCount: ss.length,
       jobCount: n,
       seededSampleCount,
+      excludedSampleCount: excluded.size,
       provenance,
       personalRate,
       variability,

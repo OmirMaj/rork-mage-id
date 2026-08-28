@@ -59,6 +59,7 @@ function invoice(over: Record<string, unknown> & { id: string; projectId: string
 function baseInput(over: Partial<ComposeBriefInput> = {}): ComposeBriefInput {
   return {
     projects: [], invoices: [], changeOrders: [], punchItems: [], permits: [],
+    deliveries: [], buildingAccessRules: [], accessReservations: [],
     expiringCertifications: [], dailyReports: [], didForYouEntries: [],
     openLeakFlags: { count: 0, estTotal: 0 },
     now: NOW,
@@ -366,6 +367,144 @@ console.log('\nnudgeTime — nextMorningFireDate:');
   const clamped = nextMorningFireDate(25, 90, new Date(2026, 6, 25, 12, 0));
   ok('clamps hour/minute into range', clamped.getHours() === 23 && clamped.getMinutes() === 59);
   ok('clamped time still ahead → fires today', clamped.getDate() === 25);
+}
+
+// ─── Deliveries in the brief ─────────────────────────────────────────────────
+// A load that does not land is a crew standing around, and the cost lands as
+// LABOUR rather than as a late PO — so it has to reach the morning brief, not
+// just the /deliveries screen. These pin that the wiring is live: a regression
+// here means the section silently empties and nobody notices, which is exactly
+// how the feature was invisible before it was threaded through.
+{
+  const ymd = (offset: number) => {
+    const d = new Date(2026, 6, 25 + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const delivery = (over: Record<string, unknown> & { id: string; projectId: string }) => ({
+    description: '14 windows', supplier: 'Acme Glass',
+    expectedDate: ymd(3), status: 'scheduled',
+    createdAt: daysAgoISO(10), updatedAt: daysAgoISO(10),
+    ...over,
+  }) as unknown as ComposeBriefInput['deliveries'][number];
+
+  const p = project({ id: 'p1', name: 'Harper' });
+
+  const late = composeBrief(baseInput({
+    projects: [p],
+    deliveries: [delivery({ id: 'd1', projectId: 'p1', expectedDate: ymd(-3) })],
+  }));
+  const lateHit = late.needsYou.find(i => i.id.startsWith('delivery-'));
+  ok('a late delivery reaches the brief', !!lateHit);
+  ok('…as critical (the crew may be waiting right now)', lateHit?.severity === 'critical');
+  ok('…naming the material', !!lateHit?.text.includes('14 windows'));
+  ok('…routing to /deliveries', lateHit?.route?.pathname === '/deliveries');
+
+  const unconfirmed = composeBrief(baseInput({
+    projects: [p],
+    deliveries: [delivery({ id: 'd2', projectId: 'p1', expectedDate: ymd(2), status: 'scheduled' })],
+  }));
+  ok('an unconfirmed delivery inside the window is surfaced',
+    unconfirmed.needsYou.some(i => i.id.startsWith('delivery-') && i.severity === 'high'));
+
+  // A confirmed load arriving Friday is the system working, not a problem.
+  const confirmed = composeBrief(baseInput({
+    projects: [p],
+    deliveries: [delivery({ id: 'd3', projectId: 'p1', expectedDate: ymd(2), status: 'confirmed' })],
+  }));
+  ok('a CONFIRMED upcoming delivery is NOT brief noise',
+    !confirmed.needsYou.some(i => i.id.startsWith('delivery-')));
+
+  const delivered = composeBrief(baseInput({
+    projects: [p],
+    deliveries: [delivery({ id: 'd4', projectId: 'p1', expectedDate: ymd(-9), status: 'delivered' })],
+  }));
+  ok('a delivered load is never flagged, even long past its date',
+    !delivered.needsYou.some(i => i.id.startsWith('delivery-')));
+
+  // Scoping: another project's late load must not appear under this project.
+  const scoped = composeBrief(baseInput({
+    projects: [p],
+    deliveries: [delivery({ id: 'd5', projectId: 'OTHER', expectedDate: ymd(-4) })],
+  }));
+  ok('another project\'s delivery does not leak into this one',
+    !scoped.needsYou.some(i => i.id.startsWith('delivery-')));
+
+  ok('no deliveries → no delivery attention',
+    !composeBrief(baseInput({ projects: [p] })).needsYou.some(i => i.id.startsWith('delivery-')));
+
+  // ─── Building access in the brief ──────────────────────────────────────────
+  // The failure these catch: a load arrives ON TIME, on its confirmed date, and
+  // the freight elevator was never booked — so the truck goes home full and
+  // deliveryAttention never saw a thing, because the delivery was fine.
+  const rules = (over: Record<string, unknown> = {}) => ({
+    projectId: 'p1',
+    requiresFreightElevator: false, requiresDockReservation: false,
+    requiresCoiOnFile: false, requiresBadging: false,
+    afterHoursRequiresApproval: false, updatedAt: daysAgoISO(30),
+    ...over,
+  }) as unknown as ComposeBriefInput['buildingAccessRules'][number];
+
+  const accessOf = (b: MorningBrief) => b.needsYou.filter(i => i.id.startsWith('access-'));
+
+  // An on-time, CONFIRMED load with no elevator booked in a building that
+  // requires one. deliveryAttention is silent; this must not be.
+  const noSlot = composeBrief(baseInput({
+    projects: [p],
+    buildingAccessRules: [rules({ requiresFreightElevator: true })],
+    deliveries: [delivery({ id: 'd6', projectId: 'p1', expectedDate: ymd(6), status: 'confirmed' })],
+  }));
+  ok('an on-time load with no elevator booked reaches the brief', accessOf(noSlot).length === 1);
+  ok('…as critical (the truck gets turned away)', accessOf(noSlot)[0]?.severity === 'critical');
+  ok('…routing to /building-access', accessOf(noSlot)[0]?.route?.pathname === '/building-access');
+  ok('…and the delivery itself is NOT also flagged (no double-report)',
+    !noSlot.needsYou.some(i => i.id.startsWith('delivery-')));
+
+  // A building that requires nothing must produce nothing. Most jobs are not
+  // in occupied towers; inventing constraints teaches people to ignore real ones.
+  ok('a building requiring nothing produces no access lines',
+    accessOf(composeBrief(baseInput({
+      projects: [p],
+      buildingAccessRules: [rules()],
+      deliveries: [delivery({ id: 'd7', projectId: 'p1', expectedDate: ymd(6), status: 'confirmed' })],
+    }))).length === 0);
+
+  ok('no rules recorded at all → no access lines',
+    accessOf(composeBrief(baseInput({
+      projects: [p],
+      deliveries: [delivery({ id: 'd8', projectId: 'p1', expectedDate: ymd(6), status: 'confirmed' })],
+    }))).length === 0);
+
+  // A missing building COI stops every load, so it is reported once for the
+  // project rather than repeated against each delivery.
+  const noCoi = composeBrief(baseInput({
+    projects: [p],
+    buildingAccessRules: [rules({ requiresCoiOnFile: true })],
+    deliveries: [
+      delivery({ id: 'd9', projectId: 'p1', expectedDate: ymd(4), status: 'confirmed' }),
+      delivery({ id: 'd10', projectId: 'p1', expectedDate: ymd(5), status: 'confirmed' }),
+    ],
+  }));
+  ok('a missing building COI is reported ONCE, not per delivery', accessOf(noCoi).length === 1);
+
+  // The brief horizon is deliberately tighter than the screen's 28 days — a
+  // slot unbooked three weeks out would nag for fifteen mornings.
+  ok('a conflict beyond the brief horizon is left to the screen',
+    accessOf(composeBrief(baseInput({
+      projects: [p],
+      buildingAccessRules: [rules({ requiresFreightElevator: true })],
+      deliveries: [delivery({ id: 'd11', projectId: 'p1', expectedDate: ymd(25), status: 'confirmed' })],
+    }))).length === 0);
+
+  // Two requirements on one load must not collide on a single id — React keys
+  // and dedupe both depend on uniqueness.
+  const both = composeBrief(baseInput({
+    projects: [p],
+    buildingAccessRules: [rules({ requiresFreightElevator: true, requiresDockReservation: true })],
+    deliveries: [delivery({ id: 'd12', projectId: 'p1', expectedDate: ymd(6), status: 'confirmed' })],
+  }));
+  const bothIds = accessOf(both).map(i => i.id);
+  ok('elevator + dock on one load produce two lines', bothIds.length === 2);
+  ok('…with distinct ids', new Set(bothIds).size === 2);
 }
 
 // ─── Result ──────────────────────────────────────────────────────────────────

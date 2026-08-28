@@ -229,7 +229,7 @@ export default function PlansScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>{project.name}</Text>
-          <Text style={styles.headerTitle}>Plans</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Plans</Text>
         </View>
         <TouchableOpacity onPress={handleImportPdf} style={styles.ghostBtn} disabled={pdfImporting || importing}>
           {pdfImporting ? <ActivityIndicator size="small" color={themeColors.text} /> : <FileText size={15} color={themeColors.text} strokeWidth={1.75} />}
@@ -447,7 +447,7 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
-          <Text style={styles.headerTitle}>Pick a project</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pick a project</Text>
         </View>
       </View>
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
@@ -487,7 +487,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
-          <Text style={styles.headerTitle}>Pro feature</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pro feature</Text>
         </View>
       </View>
       <View style={{ padding: 24 }}>
@@ -515,7 +515,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerBtn: { padding: 6, borderRadius: Tokens.radius.sm },
   headerEyebrow: { color: t.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  headerTitle: { color: t.text, fontSize: Type.subheadline.fontSize, fontWeight: '700' },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

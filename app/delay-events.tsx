@@ -359,7 +359,7 @@ export default function DelayEventsScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <CalendarClock size={15} color={t.accent} strokeWidth={2} />
-          <Text style={styles.headerTitle}>Delay register</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Delay register</Text>
         </View>
         <TouchableOpacity
           style={styles.backBtn}
@@ -531,7 +531,7 @@ export default function DelayEventsScreen() {
             <TouchableOpacity style={styles.backBtn} onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
               <ChevronLeft size={22} color={t.text} strokeWidth={2} />
             </TouchableOpacity>
-            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle}>Log a delay</Text></View>
+            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Log a delay</Text></View>
             <View style={styles.backBtn} />
           </View>
           <ScrollView contentContainerStyle={styles.scroll}>
@@ -635,7 +635,7 @@ export default function DelayEventsScreen() {
                 <ChevronLeft size={22} color={t.text} strokeWidth={2} />
               </TouchableOpacity>
               <View style={styles.headerTitleWrap}>
-                <Text style={styles.headerTitle}>{formatDelayEventNumber(openEvent.number)}</Text>
+                <Text style={styles.headerTitle} numberOfLines={1}>{formatDelayEventNumber(openEvent.number)}</Text>
               </View>
               <View style={styles.backBtn} />
             </View>
@@ -761,7 +761,7 @@ export default function DelayEventsScreen() {
             <TouchableOpacity style={styles.backBtn} onPress={() => setShowEvidencePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
               <ChevronLeft size={22} color={t.text} strokeWidth={2} />
             </TouchableOpacity>
-            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle}>Attach evidence</Text></View>
+            <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Attach evidence</Text></View>
             <View style={styles.backBtn} />
           </View>
           <ScrollView contentContainerStyle={styles.scroll}>
@@ -829,7 +829,7 @@ function NoticePeriodModal({
       <View style={styles.sheetBackdrop}>
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
-            <Text style={styles.headerTitle}>Written-notice period</Text>
+            <Text style={styles.sheetTitle} numberOfLines={1}>Written-notice period</Text>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}>
               <XIcon size={18} color={t.textSecondary} strokeWidth={2} />
             </TouchableOpacity>
@@ -987,7 +987,7 @@ function NoticeFormModal({
           <TouchableOpacity style={styles.backBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
             <ChevronLeft size={22} color={t.text} strokeWidth={2} />
           </TouchableOpacity>
-          <View style={styles.headerTitleWrap}><Text style={styles.headerTitle}>Record a notice</Text></View>
+          <View style={styles.headerTitleWrap}><Text style={styles.headerTitle} numberOfLines={1}>Record a notice</Text></View>
           <View style={styles.backBtn} />
         </View>
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -1182,8 +1182,13 @@ const makeStyles = (t: ThemeColors) =>
       borderBottomColor: t.line,
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-    headerTitle: { ...Type.headline, color: t.text },
+    headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, flexShrink: 1 },
+    headerTitle: { ...Type.serifHeadline, color: t.text },
+    // A compact bottom sheet is NOT a screen, so it keeps the sans title —
+    // serif at 22px overpowers a sheet header. headerTitle is shared by the
+    // screen header and five FULL-SCREEN modals (which do act as screens);
+    // only the sheet opts out.
+    sheetTitle: { ...Type.headline, color: t.text },
     scroll: { paddingBottom: 48 },
     content: {
       width: '100%',

@@ -507,7 +507,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: 10, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
   },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 2, letterSpacing: -0.4 },
+  title: { ...Type.serifHeadline, color: t.text, marginTop: 2 },
   subtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   subRow: {

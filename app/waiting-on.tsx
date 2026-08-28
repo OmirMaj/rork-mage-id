@@ -15,12 +15,12 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, ChevronRight, Send, CheckCircle2, FileQuestion, FileCheck, FileSignature } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Send, CheckCircle2, FileQuestion, FileCheck, FileSignature, Truck, HardHat } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useCoreData, useDocsData, useFinancialsData } from '@/contexts/ProjectContext';
+import { useCoreData, useDocsData, useFinancialsData, useFieldData } from '@/contexts/ProjectContext';
 import { buildChaseList, chaseSummary, type ChaseItem, type ChaseKind } from '@/utils/systemOfAction';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
@@ -31,6 +31,10 @@ const KIND_ICON: Record<ChaseKind, typeof FileQuestion> = {
   rfi: FileQuestion,
   submittal: FileCheck,
   co_approval: FileSignature,
+  // A late load stalls a crew, not a decision — it belongs in the same list.
+  delivery: Truck,
+  // A sub who worked for days then vanished is the purest "waiting on" there is.
+  quiet_trade: HardHat,
 };
 
 export default function WaitingOnScreen() {
@@ -43,9 +47,21 @@ export default function WaitingOnScreen() {
   const router = useRouter();
   const { projects } = useCoreData();
   const { rfis, submittals } = useDocsData();
-  const { changeOrders } = useFinancialsData();
+  const { dailyReports } = useFieldData();
+  const { changeOrders, deliveries } = useFinancialsData();
   const { isDesktop } = useResponsiveLayout();
   const [sent, setSent] = useState<Set<string>>(new Set());
+
+  // crewPresence works per project — absence is only meaningful against THAT
+  // job's reporting cadence, so a portfolio-wide fold would let a busy site's
+  // daily reports mask a quiet one's silence.
+  const dailyReportsByProject = useMemo(() => {
+    const byProject: Record<string, typeof dailyReports> = {};
+    for (const r of dailyReports ?? []) {
+      (byProject[r.projectId] ??= []).push(r);
+    }
+    return byProject;
+  }, [dailyReports]);
 
   const items = useMemo(
     () =>
@@ -54,9 +70,15 @@ export default function WaitingOnScreen() {
         submittals: submittals ?? [],
         changeOrders: changeOrders ?? [],
         projects: projects ?? [],
+        // Without this the late-delivery branch in buildChaseList
+        // (systemOfAction.ts) iterates `opts.deliveries ?? []` and is
+        // permanently empty — a whole chase kind built and never fed. It is
+        // also what gives /deliveries its first reachable route from here.
+        deliveries: deliveries ?? [],
+        dailyReportsByProject,
         nowMs: Date.now(),
       }),
-    [rfis, submittals, changeOrders, projects],
+    [rfis, submittals, changeOrders, projects, deliveries, dailyReportsByProject],
   );
   const summary = useMemo(() => chaseSummary(items), [items]);
 
@@ -88,7 +110,7 @@ export default function WaitingOnScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <MageAIMark size={15} color={t.accent} />
-          <Text style={styles.headerTitle}>Waiting on others</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Waiting on others</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -201,7 +223,7 @@ const makeStyles = (t: ThemeColors) =>
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-    headerTitle: { ...Type.headline, color: t.text },
+    headerTitle: { ...Type.serifHeadline, color: t.text },
     scroll: { paddingBottom: 40 },
     content: {
       width: '100%',

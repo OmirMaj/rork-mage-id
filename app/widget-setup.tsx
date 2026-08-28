@@ -78,7 +78,7 @@ export default function WidgetSetupScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Code size={15} color={t.accent} strokeWidth={2} />
-          <Text style={styles.headerTitle}>Estimate widget</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Estimate widget</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -191,7 +191,7 @@ const makeStyles = (t: ThemeColors) =>
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-    headerTitle: { ...Type.headline, color: t.text },
+    headerTitle: { ...Type.serifHeadline, color: t.text },
     scroll: { padding: Tokens.spacing.md, paddingBottom: 40 },
     scrollDesktop: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: 24 },
     hero: { marginBottom: Tokens.spacing.lg },

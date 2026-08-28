@@ -18,6 +18,10 @@ import { useSafety } from '@/contexts/SafetyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useTierAccess } from '@/hooks/useTierAccess';
+// Project-scoped gate: an invited collaborator may do the work they were
+// invited to do, even though their own tier is free. See
+// utils/collaboratorAccess.
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import type {
@@ -86,7 +90,10 @@ function nextStatus(s: SafetyIncidentStatus): SafetyIncidentStatus {
 
 export default function SafetyIncidentsScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project from params here (not just in Inner) so the gate can
+  // ask 'were they invited to THIS project?' before paywalling.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
   if (!canAccess('safety_management')) {
     return (
       <Paywall

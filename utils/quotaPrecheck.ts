@@ -12,9 +12,14 @@
 //   true  — user confirmed (or quota is fine), proceed with upload
 //   false — user cancelled or chose to upgrade (don't proceed)
 
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import type { Router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+// showAlert, never Alert.alert: react-native-web's Alert is a no-op stub, and
+// these two dialogs' button callbacks are the ONLY resolvers of the Promise
+// this function returns. On web the raw Alert meant the awaited Promise never
+// settled — the upload simply hung with no dialog and no error.
+import { showAlert } from '@/utils/alert';
 
 interface UsageResponse {
   tier: string;
@@ -63,7 +68,7 @@ export async function confirmQuotaFits(pageCount: number, fileName: string, rout
   }
   if (quota.cap === 0) {
     return new Promise<boolean>((resolve) => {
-      Alert.alert(
+      showAlert(
         'Takeoffs are a Pro feature',
         `AI Takeoff isn't included on your current plan. Upgrade to Pro to start uploading plan PDFs.`,
         [
@@ -82,7 +87,7 @@ export async function confirmQuotaFits(pageCount: number, fileName: string, rout
   }
   if (pageCount > quota.remaining) {
     return new Promise<boolean>((resolve) => {
-      Alert.alert(
+      showAlert(
         `${fileName} won't fit this month`,
         `That PDF is ${pageCount} pages but you have ${quota.remaining} of ${quota.cap} takeoff pages remaining this month.\n\nTrim the PDF to ${quota.remaining} pages or fewer, or upgrade your plan for more headroom.`,
         [

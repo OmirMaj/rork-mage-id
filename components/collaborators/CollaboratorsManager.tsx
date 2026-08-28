@@ -15,6 +15,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { useProjectRole } from '@/hooks/useProjectRole';
+import { ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/utils/roleBlinding';
+import { useAccountSeats } from '@/hooks/useAccountSeats';
+import { showAlert } from '@/utils/alert';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -25,25 +28,65 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
   const role = useProjectRole(projectId);
   const isOwner = role === 'owner';
   const { collaborators, isLoading, invite, revoke, changeRole } = useProjectCollaborators(projectId);
+  // Account-wide, not per-project: one person on six jobs is one seat.
+  const seats = useAccountSeats();
 
   const [email, setEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
+  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer' | 'field'>('editor');
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
 
+  // What this specific invite costs, computed before it is sent so a charge is
+  // never a surprise. Field invites always return bills:false — crew are free.
+  const seatPreview = seats.preview(inviteRole, email);
+
   const onInvite = useCallback(() => {
     if (!validEmail) return;
     if (!canAccess('schedule_collaboration')) { router.push('/paywall'); return; }
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    invite.mutate(
-      { email: email.trim().toLowerCase(), role: inviteRole },
-      {
-        onSuccess: (data) => { setLastLink((data as { link?: string })?.link ?? null); setEmail(''); },
-      },
-    );
-  }, [validEmail, canAccess, router, invite, email, inviteRole]);
+    // Out of seats (or free tier). The edge function enforces the same limit
+    // and would return 402, so route to the upgrade instead of firing a
+    // request we know will fail.
+    if (!seatPreview.allowed) {
+      showAlert(
+        'Out of team seats',
+        `${seatPreview.message}\n\nField collaborators don't use a seat — if they only need the schedule, daily reports, photos and RFIs, invite them as Field.`,
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'See plans', onPress: () => router.push('/paywall') },
+        ],
+      );
+      return;
+    }
+    const send = () => {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      invite.mutate(
+        { email: email.trim().toLowerCase(), role: inviteRole },
+        {
+          onSuccess: (data) => {
+            setLastLink((data as { link?: string })?.link ?? null);
+            setEmail('');
+            void seats.refetch();
+          },
+        },
+      );
+    };
+    // Confirm before adding a billable seat. Silently charging for an invite is
+    // exactly the surprise that makes people distrust per-seat pricing.
+    if (seatPreview.bills) {
+      showAlert(
+        'This adds a paid seat',
+        `${seatPreview.message}\n\nField access stays free — if they only need the schedule, daily reports and photos, invite them as Field instead.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: `Add seat · $${seatPreview.addedMonthlyUsd}/mo`, onPress: send },
+        ],
+      );
+      return;
+    }
+    send();
+  }, [validEmail, canAccess, router, invite, email, inviteRole, seatPreview, seats]);
 
   const copyLink = useCallback(async () => {
     if (!lastLink) return;
@@ -58,6 +101,33 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
       {isOwner ? (
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.line }]}>
           <Text style={[styles.cardTitle, { color: t.text }]}>Invite a collaborator</Text>
+
+          {/* Account-wide seat state. Field seats are shown alongside so the
+              free-forever crew allowance is visible, not buried in pricing. */}
+          {seats.status.included > 0 ? (
+            <View
+              style={[
+                styles.seatBar,
+                {
+                  borderColor: seats.status.overage > 0 ? t.accent + '40' : t.line,
+                  backgroundColor: seats.status.overage > 0 ? t.accentSoft : t.bg,
+                },
+              ]}
+            >
+              <Text style={[styles.seatBarText, { color: t.textSecondary }]}>
+                <Text style={{ color: t.text, fontWeight: '700' }}>
+                  {seats.status.used}/{seats.status.included}
+                </Text>
+                {' '}team seats used
+                {seats.status.overage > 0
+                  ? ` · ${seats.status.overage} extra · $${seats.status.overageMonthlyUsd}/mo`
+                  : ''}
+                {seats.counts.field > 0
+                  ? ` · ${seats.counts.field} field seat${seats.counts.field === 1 ? '' : 's'} (free)`
+                  : ''}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.inputRow}>
             <Mail size={16} color={t.textMuted} strokeWidth={1.75} />
             <TextInput
@@ -73,7 +143,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
             />
           </View>
           <View style={styles.roleRow}>
-            {(['editor', 'viewer'] as const).map((r) => (
+            {(['editor', 'viewer', 'field'] as const).map((r) => (
               <TouchableOpacity
                 key={r}
                 onPress={() => setInviteRole(r)}
@@ -81,11 +151,19 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
                 accessibilityRole="button"
               >
                 <Text style={[styles.roleChipText, { color: inviteRole === r ? t.accent : t.textSecondary }]}>
-                  {r === 'editor' ? 'Editor · can edit' : 'Viewer · read-only'}
+                  {ROLE_LABELS[r]}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={[styles.roleHint, { color: t.textMuted }]}>{ROLE_DESCRIPTIONS[inviteRole]}</Text>
+          {/* Seat cost, stated before the invite is sent. */}
+          <Text
+            style={[styles.seatHint, { color: seatPreview.bills ? t.accentLabel : t.textMuted }]}
+            testID="seat-preview"
+          >
+            {seatPreview.message}
+          </Text>
           <TouchableOpacity
             onPress={onInvite}
             disabled={!validEmail || invite.isPending}
@@ -119,7 +197,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowEmail, { color: t.text }]} numberOfLines={1}>{c.email}</Text>
               <Text style={[styles.rowMeta, { color: t.textSecondary }]}>
-                {c.role === 'editor' ? 'Editor' : c.role === 'viewer' ? 'Viewer' : 'Owner'} · {c.status === 'accepted' ? 'Active' : 'Invited'}
+                {ROLE_LABELS[c.role] ?? 'Owner'} · {c.status === 'accepted' ? 'Active' : 'Invited'}
               </Text>
             </View>
             {isOwner ? (
@@ -152,6 +230,14 @@ const styles = StyleSheet.create({
   roleRow: { flexDirection: 'row', gap: 8 },
   roleChip: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center' },
   roleChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' },
+  roleHint: { fontSize: Type.caption2.fontSize, lineHeight: 15 },
+  seatHint: { fontSize: Type.caption2.fontSize, lineHeight: 15, marginTop: 4, fontWeight: '600' },
+  seatBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: Tokens.radius.md, borderWidth: 1,
+  },
+  seatBarText: { flex: 1, fontSize: Type.caption1.fontSize, lineHeight: 16 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Tokens.radius.lg, paddingVertical: 13 },
   inviteBtnText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: '#FFF' },
   errText: { fontSize: Type.caption1.fontSize },

@@ -60,7 +60,12 @@ export function showAlert(
   title: string,
   message?: string,
   buttons?: AlertButton[],
-  options?: { cancelable?: boolean },
+  // onDismiss is forwarded to the native Alert (Android back-button / outside
+  // tap fire it and NO button onPress). Callers that resolve a Promise from
+  // button callbacks depend on it, or the Promise never settles. On web
+  // AlertHost routes a backdrop tap through the CANCEL button's onPress, so the
+  // same callers are covered there without needing this.
+  options?: { cancelable?: boolean; onDismiss?: () => void },
 ): void {
   if (Platform.OS !== 'web') {
     Alert.alert(title, message, buttons as Parameters<typeof Alert.alert>[2], options);

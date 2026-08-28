@@ -12,7 +12,7 @@ import {
   Presentation,
   PieChart, LineChart, Coins, BellRing,
   Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap, Upload,
-  CalendarClock,
+  CalendarClock, Truck,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -65,6 +65,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'portfolio_margin' },
   { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
+  // job_costing, matching the real gate in app/estimate-scorecard.tsx — NOT
+  // brain_accuracy like Track Record two rows up.
+  { key: 'estimate-scorecard', label: 'Estimate Scorecard', icon: BarChart3,    route: '/estimate-scorecard',               section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-seed',         label: 'Seed Your Rates',  icon: Upload,          route: '/cost-seed',                        section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-xray',         label: 'Cost X-Ray',       icon: ScanEye,         route: '/cost-xray',                        section: 'WORKSPACE', requires: 'cost_xray' },
@@ -119,6 +122,10 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'rfi',               label: 'RFIs',             icon: MageRFI,    route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
   { key: 'submittal',         label: 'Submittals',       icon: MageSubmittal,       route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
   { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS' },
+  // No `requires`: neither screen calls useTierAccess, so a gate badge here
+  // would be a promise the code does not keep.
+  { key: 'deliveries',        label: 'Deliveries',       icon: Truck,           route: '/deliveries',                       section: 'FIELD OPS' },
+  { key: 'building-access',   label: 'Building Access',  icon: Building2,       route: '/building-access',                  section: 'FIELD OPS' },
   { key: 'equipment',         label: 'Equipment',        icon: MageEquipment,           route: '/(tabs)/equipment',                section: 'FIELD OPS', requires: 'equipment_rental' },
 
   // ── PROJECT · FINANCIALS

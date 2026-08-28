@@ -6764,22 +6764,84 @@
     } catch (e) { return null; }
   }
 
-  // Reads the snapshot through the token-gated portal_get_snapshot RPC.
-  // portal_snapshots is no longer anon-readable (cross-tenant leak fix); the RPC
-  // validates the ?t= accessToken against the project before returning the blob.
+  // Reads the snapshot through the token-gated RPC. portal_snapshots is no
+  // longer anon-readable (cross-tenant leak fix); the RPC validates the ?t=
+  // accessToken against the project before returning the blob.
+  //
+  // v2 vs v1 — WHY BOTH. v1 returns the payload regardless of expires_at, so a
+  // GC's "7-day link" served content forever HERE while the app and the expiry
+  // cron both told them it had lapsed. v2 checks the deadline and returns an
+  // envelope { status: 'ok' | 'expired' | 'not_published', snapshot }.
+  //
+  // This page is static and cannot deploy in lockstep with the database, so it
+  // tries v2 and falls back to v1 on 404 (function not yet created). Before the
+  // migration it behaves exactly as today; after it, expiry is finally enforced
+  // on the surface homeowners actually use.
+  // Full paths spelled out as literals on purpose: scripts/validate-portal-
+  // security.ts proves this page only ever reaches the portal through these
+  // token-gated RPCs (never a direct /rest/v1/portal_snapshots read) by
+  // string-matching them. Building the path from a variable would pass the
+  // browser and silently blind the guard.
+  var RPC_SNAPSHOT_V2 = '/rest/v1/rpc/portal_get_snapshot_v2';
+  var RPC_SNAPSHOT_V1 = '/rest/v1/rpc/portal_get_snapshot';
+
+  function callSnapshotRpc(rpcPath, portalId, token) {
+    return fetch(SUPABASE_URL_PUBLIC + rpcPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+      body: JSON.stringify({ p_portal_id: portalId, p_access_token: token }),
+    });
+  }
+
   function fetchSnapshotFromServer(portalId) {
     if (!portalId) return Promise.resolve(null);
     var token = getPortalToken();
     if (!token) return Promise.resolve(null);
-    var url = SUPABASE_URL_PUBLIC + '/rest/v1/rpc/portal_get_snapshot';
-    return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
-      body: JSON.stringify({ p_portal_id: portalId, p_access_token: token }),
-    })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (snapshot) { return snapshot || null; })
+
+    return callSnapshotRpc(RPC_SNAPSHOT_V2, portalId, token)
+      .then(function (r) {
+        if (r.status === 404) {
+          // v2 migration not applied to this database yet.
+          return callSnapshotRpc(RPC_SNAPSHOT_V1, portalId, token)
+            .then(function (r1) { return r1.ok ? r1.json() : null; })
+            .then(function (snap) { return snap ? { status: 'ok', snapshot: snap } : null; });
+        }
+        return r.ok ? r.json() : null;
+      })
+      .then(function (env) {
+        if (!env) return null;
+        if (!env.status) return env; // bare v1 snapshot
+        if (env.status === 'expired') { showLinkExpired(env); return null; }
+        if (env.status !== 'ok') return null;
+        return env.snapshot || null;
+      })
       .catch(function () { return null; });
+  }
+
+  // Distinct from showFallback(): this link WAS valid and has lapsed, so the
+  // homeowner needs a new one — not to think the page is broken. The old copy
+  // blamed "expired or invalid" for every failure, which sent people chasing
+  // their contractor over links that were merely unpublished.
+  function showLinkExpired(env) {
+    try {
+      // v2 returns camelCase `expiresAt`; accept snake_case too so a future
+      // shape change degrades to "no date" rather than a silent blank.
+      var raw = env && (env.expiresAt || env.expires_at);
+      var when = raw ? new Date(raw) : null;
+      var whenText = when && !isNaN(when.getTime())
+        ? ' It expired on ' + when.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) + '.'
+        : '';
+      var el = document.getElementById('fallback') || document.body;
+      el.innerHTML =
+        '<div style="max-width:520px;margin:15vh auto;padding:0 24px;text-align:center;'
+        + 'font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif">'
+        + '<h1 style="font-size:22px;margin:0 0 12px">This link has expired</h1>'
+        + '<p style="font-size:15px;line-height:1.55;color:#5b6067;margin:0">'
+        + 'Your contractor set this project link to expire.' + whenText
+        + ' Ask them to send a new one — everything is still there.'
+        + '</p></div>';
+      if (el.style) el.style.display = 'block';
+    } catch (e) { showFallback(); }
   }
 
   function boot(data) {

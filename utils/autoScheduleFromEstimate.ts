@@ -132,7 +132,26 @@ Output JSON only. No prose.`;
       durationDays: Math.max(t.isMilestone ? 0 : 1, t.duration),
       startDay: 1,
       progress: 0,
-      crew: `Crew ${idx + 1}`,
+      // EMPTY, not `Crew ${idx+1}`. The old value invented a DISTINCT resource
+      // per task, which quietly broke three things at once:
+      //
+      //  1. Resource levelling. cpm.ts resourceKey() falls back to the crew
+      //     string, and levelResources() skips any group of fewer than two. A
+      //     unique crew per task means every group has size one — so "Fix
+      //     overloads", a shipped feature with a preview modal and undo, was a
+      //     guaranteed no-op on every generated schedule.
+      //  2. Quick field update. QuickFieldUpdate scores a crew-name match +3,
+      //     so a super saying "mark drywall done" was matching against "Crew 7".
+      //  3. Display. QuickUpdateClarifier renders `phase · crew · progress`,
+      //     putting a meaningless "Crew 7" in front of the user.
+      //
+      // Empty is the honest value: the generator does not know who is doing this
+      // work. The UI already renders '' as "Unassigned", resourceKey returns
+      // null so the task is correctly EXCLUDED from levelling instead of faking
+      // a resource, and once a real sub is assigned the primary `assignedSubId`
+      // key groups it properly. `crew` is a free-text lane for a human (see the
+      // note on ScheduleTask.resources) — not a slot for a generated placeholder.
+      crew: '',
       crewSize: t.crewSize,
       dependencies: [],
       dependencyLinks: [],

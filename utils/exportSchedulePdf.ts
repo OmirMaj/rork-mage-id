@@ -358,7 +358,18 @@ export async function exportSchedulePdf(opts: ExportOpts): Promise<void> {
     // instead of the rendered schedule HTML. Open the HTML in a new tab
     // and trigger print there — the new tab can also be saved as PDF.
     if (typeof window === 'undefined') return;
-    const w = window.open('', '_blank', 'noopener,noreferrer');
+// NO 'noopener' in the feature string. Per the HTML spec, window.open()
+    // returns NULL whenever noopener is present — in every browser — so `w` was
+    // always null, the write-and-print path below was unreachable dead code, and
+    // 100% of users silently took the branch commented "popup blocked": a tab
+    // opens with the right content but the print dialog never appears, and
+    // because it is a blob: URL the tab title is a UUID so "Save as PDF"
+    // defaults to a garbage filename.
+    //
+    // Dropping noopener is safe here specifically: we open about:blank and write
+    // our own HTML into it. It is same-origin by definition and there is no
+    // third-party page to tabnab us.
+    const w = window.open('', '_blank');
     if (!w) {
       // Popup blocked. Fall back: navigate via a Blob URL so at least the
       // user can save the page.

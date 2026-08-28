@@ -26,6 +26,12 @@ interface Row {
   created_at: string;
   reviewed_at: string | null;
   paid_at: string | null;
+  // Payment reconciliation (20260826120000_ap_payment_reconciliation.sql).
+  // Optional on the row type: a client running ahead of the migration just
+  // reads them as undefined rather than throwing.
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  paid_on?: string | null;
 }
 
 function rowToInvoice(r: Row): SubSubmittedInvoice {
@@ -52,6 +58,9 @@ function rowToInvoice(r: Row): SubSubmittedInvoice {
     createdAt: r.created_at,
     reviewedAt: r.reviewed_at ?? undefined,
     paidAt: r.paid_at ?? undefined,
+    paymentMethod: r.payment_method ?? undefined,
+    paymentReference: r.payment_reference ?? undefined,
+    paidOn: r.paid_on ?? undefined,
   };
 }
 
@@ -87,14 +96,37 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
       id: string;
       status: 'approved' | 'rejected' | 'paid';
       notesFromGc?: string;
+      /** Reconciliation detail — the payment the GC made ELSEWHERE (MAGE never
+       *  moves money). Only sent when provided, so approve/reject are
+       *  byte-identical to before. */
+      payment?: { method?: string; reference?: string; paidOn?: string };
+      /** Adding detail to an already-paid invoice. Suppresses the paid_at
+       *  stamp — re-stamping it would overwrite when the payment was
+       *  originally recorded with "whenever the GC got around to typing the
+       *  check number", corrupting the audit trail. */
+      reconcileOnly?: boolean;
     }) => {
       const patch: Record<string, unknown> = {
         id: args.id,
         status: args.status,
       };
       if (args.notesFromGc != null) patch.notes_from_gc = args.notesFromGc;
-      if (args.status === 'paid') patch.paid_at = new Date().toISOString();
-      else patch.reviewed_at = new Date().toISOString();
+      if (args.status === 'paid') {
+        if (!args.reconcileOnly) patch.paid_at = new Date().toISOString();
+      } else {
+        patch.reviewed_at = new Date().toISOString();
+      }
+      if (args.payment) {
+        // Empty strings would satisfy the NOT NULL-less column but read as
+        // "recorded" — normalize blanks to null so they stay honestly missing.
+        const norm = (v?: string) => {
+          const s = v?.trim();
+          return s ? s : null;
+        };
+        patch.payment_method = norm(args.payment.method);
+        patch.payment_reference = norm(args.payment.reference);
+        patch.paid_on = norm(args.payment.paidOn);
+      }
       await supabaseWrite('sub_submitted_invoices', 'update', patch);
       return args;
     },
@@ -117,8 +149,20 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
     (id: string, notes?: string) => reviewMutation.mutate({ id, status: 'rejected', notesFromGc: notes }),
     [reviewMutation],
   );
+  /** Record a payment made outside MAGE. `payment` carries the check/ACH detail
+   *  that lets this reconcile against a bank statement; omitting it still works
+   *  (the invoice reads as 'unreconciled' until detail is added). */
   const markPaid = useCallback(
-    (id: string) => reviewMutation.mutate({ id, status: 'paid' }),
+    (id: string, payment?: { method?: string; reference?: string; paidOn?: string }) =>
+      reviewMutation.mutate({ id, status: 'paid', payment }),
+    [reviewMutation],
+  );
+
+  /** Add or correct payment detail on an ALREADY-paid invoice — the path for
+   *  the legacy rows that were marked paid before reconciliation existed. */
+  const reconcile = useCallback(
+    (id: string, payment: { method?: string; reference?: string; paidOn?: string }) =>
+      reviewMutation.mutate({ id, status: 'paid', payment, reconcileOnly: true }),
     [reviewMutation],
   );
 
@@ -161,6 +205,7 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
     approve,
     reject,
     markPaid,
+    reconcile,
     isResponding: reviewMutation.isPending,
   };
 }

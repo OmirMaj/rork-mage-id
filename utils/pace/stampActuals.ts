@@ -32,12 +32,36 @@
 // Pure — no storage, no Date.now() (callers pass todayDayNumber + nowISO).
 import type { ScheduleTask, TaskStatus } from '@/types';
 
+export interface StampOptions {
+  /**
+   * Whether a task finishing with NO captured start may back-fill its start
+   * from the PLANNED startDay. Default true, which preserves the Gantt
+   * buttons' behaviour exactly.
+   *
+   * The DFR path passes FALSE, and the reason is the pace book. Daily reports
+   * are filed daily, so a task jumping 0 → 100 in one report almost always
+   * means it started and finished inside that reporting day — not that it ran
+   * from its planned start. Back-filling the plan there would hand the pace
+   * book a span it invented, and utils/pace/paceBook measures duration as the
+   * inclusive span between the two stamps. The book would then learn its own
+   * plan back and report low variability for it, which is worse than learning
+   * nothing: a confident wrong number outranks an honest gap.
+   *
+   * With this false, an unobserved start is simply never stamped, the task is
+   * skipped by the pace book (it requires BOTH day numbers), and the schedule
+   * keeps only what the field actually evidenced.
+   */
+  retroStartFromPlanned?: boolean;
+}
+
 export function stampActuals(
   task: Pick<ScheduleTask, 'status' | 'startDay' | 'actualStartDay' | 'actualEndDay' | 'actualStartDate' | 'actualEndDate'>,
   newStatus: TaskStatus,
   todayDayNumber: number | null,
   nowISO: string,
+  opts: StampOptions = {},
 ): Partial<ScheduleTask> {
+  const retroStart = opts.retroStartFromPlanned !== false;
   if (newStatus === task.status) return {};
   const leavingDone = task.status === 'done';
   // "Captured" = either representation exists. A date-only capture (from a
@@ -67,7 +91,7 @@ export function stampActuals(
     const patch: Partial<ScheduleTask> = {};
     if (todayDayNumber != null) patch.actualEndDay = todayDayNumber;
     patch.actualEndDate = nowISO;
-    if (!startCaptured) {
+    if (!startCaptured && retroStart) {
       // Mirror the Gantt's logFinishToday: back-fill the start from the PLAN,
       // not from today — finishing day is rarely the starting day. Capped at
       // today so a task finished AHEAD of its planned start can never stamp

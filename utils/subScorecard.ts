@@ -17,13 +17,17 @@
 // Factors without enough linked data render applicable:false ("Not enough
 // linked data yet") instead of a fake neutral score.
 
-import type { Subcontractor, Commitment, ChangeOrder, PunchItem, Project } from '@/types';
+import type { Subcontractor, Commitment, ChangeOrder, PunchItem, Project, RFI } from '@/types';
 import { actualWorkingDays } from '@/utils/pace/paceBook';
+import { computeRfiHoldTime } from '@/utils/rfiHoldTime';
 
 export type SubGrade = 'A' | 'B' | 'C' | 'D' | 'F';
 export type ScoreConfidence = 'low' | 'medium' | 'high';
 
-export type ScorecardFactorKey = 'cost_discipline' | 'co_impact' | 'compliance' | 'rework_rate' | 'schedule_reliability';
+export type ScorecardFactorKey =
+  | 'cost_discipline' | 'co_impact' | 'compliance'
+  | 'rework_rate' | 'schedule_reliability'
+  | 'rfi_responsiveness';
 
 export interface ScorecardFactor {
   key: ScorecardFactorKey;
@@ -89,6 +93,14 @@ export interface SubScorecardInput {
    * omitted ⇒ the factor reports applicable:false.
    */
   projects?: Project[];
+  /**
+   * RFIs for the rfi_responsiveness factor. Attribution: rfi.assignedSubId
+   * (added 2026-08-26 — RFIHandoff records only ROLES, so before it you could
+   * see that a sub sat on an RFI for nine days but not which sub). Only RFIs
+   * carrying that id score anyone. Optional — omitted ⇒ the factor reports
+   * applicable:false.
+   */
+  rfis?: RFI[];
 }
 
 export interface SubScorecardResult {
@@ -113,17 +125,28 @@ const W_CO = 0.3;
 const W_COMPLIANCE = 0.3;
 const W_REWORK = 0.2;
 const W_SCHED = 0.2;
+// RFI turnaround is a real coordination signal but a narrow one — a sub can be
+// slow on paperwork and excellent on site — so it carries less weight than the
+// factors measured on the work itself.
+const W_RFI = 0.15;
 
 // Minimum linked data before a D7 factor scores — below these it stays
 // applicable:false so one bounced punch item can't tank an unproven sub.
 const MIN_REVIEWED_PUNCH = 3;
 const MIN_MEASURED_TASKS = 2;
+// Two answered RFIs before responsiveness scores. One slow reply is an anecdote.
+const MIN_MEASURED_RFIS = 2;
 
 // A 40% bounce rate zeroes rework quality; a 50% schedule overrun zeroes
 // reliability. Finishing early earns full marks, no extra credit (mirrors
 // cost_discipline's treatment of underruns).
 const REWORK_ZERO_AT = 0.4;
 const SLIP_ZERO_AT = 0.5;
+
+// Mean sub-side hold at which RFI responsiveness scores zero. Ten calendar days
+// sitting on an RFI is a schedule problem in anyone's book; same-day earns full
+// marks, and there is no extra credit for being faster than that.
+const RFI_HOLD_ZERO_AT_DAYS = 10;
 
 function money(n: number): string {
   const abs = Math.abs(n);
@@ -236,6 +259,9 @@ function buildCard(
   subPunch: PunchItem[],
   subTasks: SubTaskRecord,
   now: Date,
+  /** RFIs already narrowed to this sub via rfi.assignedSubId — same
+   *  pre-filtered shape as subPunch/subTasks. */
+  subRfis: RFI[] = [],
 ): SubScorecard {
   // Draft commitments are unsigned intent — they say nothing about how the
   // sub actually performs, so they don't count as history.
@@ -384,6 +410,50 @@ function buildCard(
     });
   }
 
+  // ── RFI responsiveness — how long this sub sits on questions.
+  //
+  // utils/rfiHoldTime already splits custody per side and reports subDays; the
+  // missing half was WHICH sub, now carried by rfi.assignedSubId. Only RFIs
+  // stamped with this sub's id and with a measurable handoff chain count —
+  // holdTime.measurable is false when an RFI has no chain, and there 0 days
+  // means UNKNOWN, not fast.
+  //
+  // Scored on the MEAN sub-side hold rather than the total, so a sub who
+  // handles many RFIs isn't punished for volume.
+  const rfiHolds = subRfis
+    .map((r: RFI) => computeRfiHoldTime(r, { nowMs: now.getTime() }))
+    .filter(h => h.measurable);
+  const rfiApplicable = rfiHolds.length >= MIN_MEASURED_RFIS;
+  if (rfiApplicable) {
+    const meanHold = rfiHolds.reduce((a, h) => a + h.subDays, 0) / rfiHolds.length;
+    const stillHolding = subRfis.filter(
+      (r, i) => rfiHolds[i] && r.ballInCourt === 'sub' && r.status === 'open',
+    ).length;
+    factors.push({
+      key: 'rfi_responsiveness',
+      label: 'RFI turnaround',
+      score: clamp01(1 - meanHold / RFI_HOLD_ZERO_AT_DAYS),
+      weight: W_RFI,
+      applicable: true,
+      detail:
+        stillHolding > 0
+          ? `Averages ${meanHold.toFixed(1)}d to answer an RFI · ${stillHolding} still waiting on them`
+          : `Averages ${meanHold.toFixed(1)}d to answer an RFI across ${rfiHolds.length} question${rfiHolds.length === 1 ? '' : 's'}`,
+    });
+  } else {
+    factors.push({
+      key: 'rfi_responsiveness',
+      label: 'RFI turnaround',
+      score: 0,
+      weight: 0,
+      applicable: false,
+      detail:
+        subRfis.length === 0
+          ? 'Not enough linked data yet — no RFIs assigned to this sub'
+          : `Not enough linked data yet — ${rfiHolds.length} of ${MIN_MEASURED_RFIS} measurable RFIs needed`,
+    });
+  }
+
   // ── Compliance — paperwork standing today. Always applicable.
   const coi = docStatus('COI', sub.coiExpiry, now);
   const license = docStatus('License', sub.licenseExpiry, now);
@@ -398,7 +468,7 @@ function buildCard(
   // Paperwork is the WHOLE grade only when no performance factor applies at
   // all — a sub with zero commitments can still be graded on punch rework
   // or schedule reliability when that linked data exists.
-  const paperworkOnly = !costApplicable && !coApplicable && !reworkApplicable && !schedApplicable;
+  const paperworkOnly = !costApplicable && !coApplicable && !reworkApplicable && !schedApplicable && !rfiApplicable;
   factors.push({
     key: 'compliance',
     label: 'Compliance',
@@ -451,8 +521,19 @@ const CONFIDENCE_RANK: Record<ScoreConfidence, number> = { low: 0, medium: 1, hi
 const EMPTY_TASK_RECORD: SubTaskRecord = { linked: 0, measured: [] };
 
 export function computeSubScorecards(input: SubScorecardInput): SubScorecardResult {
-  const { subcontractors, commitments, punchItems, projects } = input;
+  const { subcontractors, commitments, punchItems, projects, rfis } = input;
   const now = new Date();
+
+  // Index RFIs by the sub they were assigned to. Only rows carrying
+  // assignedSubId are attributable — an RFI to an architect, or a legacy row
+  // from before the field existed, scores nobody.
+  const rfisBySub = new Map<string, RFI[]>();
+  for (const r of rfis ?? []) {
+    if (!r.assignedSubId) continue;
+    const list = rfisBySub.get(r.assignedSubId);
+    if (list) list.push(r);
+    else rfisBySub.set(r.assignedSubId, [r]);
+  }
 
   const bySub = new Map<string, Commitment[]>();
   for (const c of commitments ?? []) {
@@ -472,6 +553,7 @@ export function computeSubScorecards(input: SubScorecardInput): SubScorecardResu
       allPunch.filter(p => punchBelongsToSub(p, sub)),
       tasksBySub.get(sub.id) ?? EMPTY_TASK_RECORD,
       now,
+      rfisBySub.get(sub.id) ?? [],
     ))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;

@@ -682,11 +682,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Sending password reset email');
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.toLowerCase().trim(),
-      // Deep-link back into the app's reset-password screen via the app's
-      // mageid:// scheme (app.json `scheme`). Must match a scheme the native
-      // binary registers, or the reset link opens nothing — that's why the
-      // scheme string is centralized in utils/deepLinkScheme.
-      { redirectTo: `${PRIMARY_SCHEME}reset-password` }
+      // Platform-aware, exactly like signup()'s emailRedirectTo above. This was
+      // unconditionally `mageid://reset-password`, which a desktop browser
+      // cannot open — so a web-only user who forgot their password got a dead
+      // link while the UI cheerfully told them to check their email. It was the
+      // only outbound auth link in this file that was not platform-aware.
+      //   - web    → https://app.mageid.app/reset-password
+      //   - native → mageid://reset-password (the scheme the binary registers,
+      //              centralized in utils/deepLinkScheme)
+      {
+        redirectTo: Platform.OS === 'web'
+          ? 'https://app.mageid.app/reset-password'
+          : `${PRIMARY_SCHEME}reset-password`,
+      }
     );
 
     if (error) {

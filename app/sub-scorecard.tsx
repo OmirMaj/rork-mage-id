@@ -65,12 +65,12 @@ function SubScorecardInner() {
   // punchItems + projects feed the D7 factors: punch rework (items bounced
   // at review, attributed via assignedSubId) and schedule reliability
   // (as-built vs planned days on tasks assigned to the sub).
-  const { subcontractors, commitments, changeOrders, punchItems, projects } = useProjects();
+  const { subcontractors, commitments, changeOrders, punchItems, projects, rfis } = useProjects();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const result = useMemo(
-    () => computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects }),
-    [subcontractors, commitments, changeOrders, punchItems, projects],
+    () => computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects, rfis }),
+    [subcontractors, commitments, changeOrders, punchItems, projects, rfis],
   );
 
   if (subcontractors.length === 0) {
@@ -212,7 +212,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   lede: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19, marginBottom: 14 },
 

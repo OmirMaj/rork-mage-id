@@ -199,6 +199,12 @@ function WinOptimizerInner() {
                 </View>
               </View>
               <Text style={styles.heroPrice}>{formatMoney(result.recommended.price)}</Text>
+              {result.recommendedRange.highMarkup > result.recommendedRange.lowMarkup ? (
+                <Text style={styles.heroRange}>
+                  Sweet spot {formatMoney(result.recommendedRange.lowPrice)}–{formatMoney(result.recommendedRange.highPrice)}
+                  {'  ·  '}{Math.round(result.recommendedRange.lowMarkup * 100)}–{Math.round(result.recommendedRange.highMarkup * 100)}% markup
+                </Text>
+              ) : null}
               <View style={styles.heroStatsRow}>
                 <HeroStat label="Markup" value={`${Math.round(result.recommended.markup * 100)}%`} t={t} styles={styles} />
                 <HeroStat label="Win odds" value={`${Math.round(result.recommended.winProbability * 100)}%`} t={t} styles={styles} />
@@ -306,7 +312,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   inputCard: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.panel,
@@ -334,6 +340,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   confChip: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: Tokens.radius.full },
   confChipText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, textTransform: 'capitalize' as const },
   heroPrice: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -1, lineHeight: Type.largeTitle.fontSize },
+  heroRange: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const, marginTop: 4, marginBottom: 2 },
   heroStatsRow: { flexDirection: 'row' as const, gap: 8 },
   heroStat: { flex: 1 },
   heroStatLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, marginBottom: 2 },

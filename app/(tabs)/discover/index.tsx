@@ -462,11 +462,11 @@ export default function DiscoverScreen() {
             evidence for the partner pitches (Wisetack, altLINE,
             Coterie, Track1099, etc.). See docs/audits/2026-05-14-
             billion-dollar-strategy.md for the full thesis. */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-          <View style={[styles.sectionAccent, { backgroundColor: Colors.success }]} />
-          <View>
+        <View style={[styles.sectionHeaderRow, { marginTop: 24, alignItems: 'flex-start' }]}>
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.success, marginTop: 2 }]} />
+          <View style={{ flex: 1 }}>
             <Text style={styles.sectionLabel}>EARN MORE WITH MAGE</Text>
-            <Text style={styles.sectionHint}>Embedded fintech & network products — coming soon, on the waitlist now</Text>
+            <Text style={styles.sectionHint}>Embedded fintech &amp; network products — coming soon, on the waitlist now</Text>
           </View>
         </View>
 

@@ -409,7 +409,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: t.line,
   },
-  rowUnread: { borderColor: t.accent + '40', backgroundColor: '#FFF7EE' },
+  // Unread highlight must be theme-aware: the hardcoded cream '#FFF7EE' left
+  // light dark-theme text on a light card — unreadable. accentSoft is a soft
+  // accent wash tuned for contrast in both themes.
+  rowUnread: { borderColor: t.accent + '40', backgroundColor: t.accentSoft },
   iconWrap: {
     width: 38, height: 38, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center', position: 'relative',

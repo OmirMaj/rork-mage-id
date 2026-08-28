@@ -39,6 +39,12 @@ import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { LANGUAGES } from '@/utils/portalLanguages';
+import {
+  linkState, expiresAtFromDuration, durationLabel,
+  PORTAL_LINK_DURATION_OPTIONS, DEFAULT_PORTAL_LINK_DURATION_DAYS,
+} from '@/utils/portalLinkExpiry';
+import type { PortalLinkStateKind } from '@/utils/portalLinkExpiry';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -48,6 +54,13 @@ import { showAlert } from '@/utils/alert';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
+// The GC's last link-duration pick, remembered across PROJECTS. A GC who
+// always gives clients 90 days should not re-pick it on every new job, and the
+// per-project value alone can't carry that. Device-scoped preference, so it is
+// correct for the tenant sweep to wipe it on sign-out (next tenant gets 30).
+const LINK_DURATION_PREF_KEY = 'mageid_portal_link_duration_days';
+/** Sentinel for "No expiry" — AsyncStorage only stores strings. */
+const NO_EXPIRY_PREF = 'none';
 // Supabase URL + anon key are public — fine to bake into the static portal
 // page so it can POST a budget proposal back to the GC. RLS gates access.
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
@@ -247,6 +260,50 @@ function ClientPortalSetupScreenInner() {
   const [inviteName, setInviteName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // How long the NEXT generated link stays open. Distinct from
+  // portal.linkExpiresAt, which describes the link that already exists — the
+  // GC can be looking at a never-expiring link while the picker sits on 30.
+  // `null` is a real choice ("No expiry"), so `??` (not `||`) preserves it.
+  const [durationChoice, setDurationChoice] = useState<number | null>(
+    portal.linkDurationDays ?? DEFAULT_PORTAL_LINK_DURATION_DAYS,
+  );
+  // A tap must outrank the async preference load, which can land after the
+  // GC has already picked something.
+  const durationTouchedRef = useRef(false);
+  useEffect(() => {
+    if (durationTouchedRef.current) return;
+    // This project's own choice is the more specific answer, and it can land
+    // after mount (the `portal` state above is lazy-initialised once, so a
+    // project that hydrates late would otherwise be stuck on the 30 default).
+    const persisted = project?.clientPortal?.linkDurationDays;
+    if (persisted !== undefined) { setDurationChoice(persisted); return; }
+    let cancelled = false;
+    void AsyncStorage.getItem(LINK_DURATION_PREF_KEY)
+      .then(raw => {
+        if (cancelled || raw === null || durationTouchedRef.current) return;
+        if (raw === NO_EXPIRY_PREF) { setDurationChoice(null); return; }
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed) && parsed > 0) setDurationChoice(parsed);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [project?.clientPortal?.linkDurationDays]);
+
+  // Deliberately NOT memoized on a captured `now`: a memo would freeze the
+  // clock for as long as the screen stays mounted, so a link that lapses while
+  // the GC has the app open would keep reading "expires in 1 day". Recomputing
+  // per render is a handful of arithmetic ops.
+  const linkExpiry = linkState(portal.linkExpiresAt);
+  // Badge + status colours per state. The pill here used to read "Active" in
+  // green unconditionally, which is exactly the lie this track exists to fix.
+  const linkTone: Record<PortalLinkStateKind, { badge: string; ink: string; short: string }> = {
+    never:         { badge: themeColors.neutralSoft, ink: themeColors.textSecondary, short: 'Always on' },
+    active:        { badge: themeColors.successSoft, ink: themeColors.successLabel,  short: 'Active' },
+    expiring_soon: { badge: themeColors.warningSoft, ink: themeColors.warningLabel,  short: 'Expiring' },
+    expired:       { badge: themeColors.dangerSoft,  ink: themeColors.dangerLabel,   short: 'Expired' },
+  };
+  const tone = linkTone[linkExpiry.kind];
+
   const deepLink = `${DEEP_LINK_SCHEME}?portalId=${portal.portalId}`;
 
   // Baked Home Passport (FAQ + counts) — generated from the closeout-binder
@@ -375,6 +432,13 @@ function ClientPortalSetupScreenInner() {
           project_id: project.id,
           snapshot: snapshot as unknown as Record<string, unknown>,
           updated_at: new Date().toISOString(),
+          // Local state is the source of truth for link lifetime (the GC sets
+          // it here), so it rides along with every snapshot push rather than
+          // needing its own write. `undefined` -> null is correct: null is the
+          // column's "never expires" value, which is exactly what a portal
+          // that predates the expiry migration should keep.
+          expires_at: portal.linkExpiresAt ?? null,
+          link_duration_days: portal.linkDurationDays ?? null,
         }, { onConflict: 'portal_id' })
         .then(({ error }) => {
           if (error) console.warn('[portal-snapshot] persist failed:', error.message);
@@ -382,7 +446,7 @@ function ClientPortalSetupScreenInner() {
         });
     }, initialDelay);
     return () => clearTimeout(t);
-  }, [snapshot, project?.id, portal.portalId]);
+  }, [snapshot, project?.id, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
 
   const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
     if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
@@ -509,6 +573,65 @@ function ClientPortalSetupScreenInner() {
     });
   }, [project?.name, settings, portal, portalLink]);
 
+  const handlePickDuration = useCallback((days: number | null) => {
+    durationTouchedRef.current = true;
+    setDurationChoice(days);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+  }, []);
+
+  // Mint a fresh expiry from the chosen duration.
+  //
+  // The portalId is deliberately UNCHANGED. The founder asked for a new
+  // expiry, not a new URL, and rotating the id would dead-end the link the
+  // homeowner already has in their texts — turning "your link expired" into
+  // "every link you were ever sent is now wrong". Revocation is a separate
+  // decision and already has a button (Disable Client Portal).
+  //
+  // Persists immediately rather than waiting for Save: the GC's next move is
+  // to re-send the link, and a lifetime that only exists in local state until
+  // some later tap is a link that lapses again for no reason.
+  const handleGenerateLink = useCallback(() => {
+    const nextExpiry = expiresAtFromDuration(durationChoice);
+    const next: ClientPortalSettings = {
+      ...portal,
+      linkDurationDays: durationChoice,
+      linkExpiresAt: nextExpiry ?? undefined,
+      linkGeneratedAt: new Date().toISOString(),
+    };
+    setPortal(next);
+    if (id) updateProject(id, { clientPortal: next });
+    void AsyncStorage.setItem(
+      LINK_DURATION_PREF_KEY,
+      durationChoice === null ? NO_EXPIRY_PREF : String(durationChoice),
+    ).catch(() => {});
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showAlert(
+      'Link refreshed',
+      nextExpiry
+        ? `Same URL, new clock — it stays open for ${durationLabel(durationChoice)}. Send it again if your client lost the old message.`
+        : 'Same URL — this link now stays open with no expiry date.',
+    );
+  }, [durationChoice, portal, id, updateProject]);
+
+  // Stop an expired link from being handed out silently. This is the in-app
+  // half of "the contractor should be notified" — the background notification
+  // is Track 3; this is the part that catches them at the moment it matters,
+  // with their thumb already on Copy.
+  //
+  // Returns true when it took over, so callers bail.
+  const warnIfExpired = useCallback((): boolean => {
+    if (linkExpiry.kind !== 'expired') return false;
+    showAlert(
+      'This link has expired',
+      `${linkExpiry.label}. Anyone opening it sees a dead page — generate a new one before you send it.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Generate new link', onPress: handleGenerateLink },
+      ],
+    );
+    return true;
+  }, [linkExpiry, handleGenerateLink]);
+
   const handleCopyLink = useCallback(async () => {
     // Use the shared clipboard util — previously this called
     // navigator.clipboard?.writeText without awaiting the Promise, so on
@@ -519,6 +642,7 @@ function ClientPortalSetupScreenInner() {
       showAlert('Finalizing secure link', 'Your portal’s secure link is still syncing — try again in a moment.');
       return;
     }
+    if (warnIfExpired()) return;
     const ok = await copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showAlert(
@@ -527,7 +651,7 @@ function ClientPortalSetupScreenInner() {
         ? 'Portal link copied to clipboard.'
         : 'Could not copy the link. Long-press to select the URL above and copy manually.',
     );
-  }, [portalLink, linkPending]);
+  }, [portalLink, linkPending, warnIfExpired]);
 
   const handleShare = useCallback(() => {
     // Open the Send-by-Email/Text modal on every platform. We no longer
@@ -535,9 +659,10 @@ function ClientPortalSetupScreenInner() {
     // asked for a modal where they can add recipients directly. The share
     // body no longer carries the passcode (out-of-band delivery), so remind
     // the GC to send the code separately after the link goes out.
+    if (warnIfExpired()) return;
     setShowSendModal(true);
     if (portal.requirePasscode && portal.passcode) promptPasscodeSeparately();
-  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately]);
+  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired]);
 
   // Auto-send a branded portal invite email through Resend (via the
   // send-email edge function). The homeowner gets a polished email with
@@ -545,6 +670,10 @@ function ClientPortalSetupScreenInner() {
   // no manual MailComposer step from the GC. Falls back to the native
   // mail composer only if Resend is unavailable.
   const handleEmailInvite = useCallback(async (invite: ClientPortalInvite) => {
+    // Same expiry guard as Copy/Share — this is the third door the link goes
+    // out of, and an expired invite email is the worst of the three because
+    // the client finds out, not the GC.
+    if (warnIfExpired()) return;
     // Use the SHORT URL (no #d= hash) so SMS / email forwarding never
     // truncates it. The static portal HTML fetches the snapshot from
     // portal_snapshots when no hash is present.
@@ -624,7 +753,7 @@ function ClientPortalSetupScreenInner() {
     if (!fallback.success && fallback.error && fallback.error !== 'cancelled') {
       showAlert('Email Not Sent', fallback.error);
     }
-  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately]);
+  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired]);
 
   const handleResetPasscode = useCallback(() => {
     const generate = () => {
@@ -744,8 +873,8 @@ function ClientPortalSetupScreenInner() {
           <View style={styles.linkCardHeader}>
             <Globe size={20} color={Colors.purple} strokeWidth={1.75} />
             <Text style={styles.linkCardTitle}>Portal Link</Text>
-            <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>Active</Text>
+            <View style={[styles.activeBadge, { backgroundColor: tone.badge }]}>
+              <Text style={[styles.activeBadgeText, { color: tone.ink }]}>{tone.short}</Text>
             </View>
           </View>
           <View style={styles.linkRow}>
@@ -783,6 +912,60 @@ function ClientPortalSetupScreenInner() {
               <Eye size={15} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.linkActionText}>Preview</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Link lifetime. Lives inside the link card on purpose — "how long
+              does this stay open" is a property of the URL above it, not a
+              separate setting the GC has to go hunting for. */}
+          <View style={styles.expiryBlock} testID="portal-link-expiry">
+            <View style={styles.expiryStatusRow}>
+              <Clock size={13} color={tone.ink} strokeWidth={1.75} />
+              <Text style={[styles.expiryStatusText, { color: tone.ink }]} testID="portal-link-expiry-label">
+                {linkExpiry.label}
+              </Text>
+            </View>
+            {linkExpiry.kind === 'expired' && (
+              <Text style={styles.expiryHint}>
+                Your client sees a dead page until you generate a new one. The URL doesn&apos;t change, so the link they already have starts working again.
+              </Text>
+            )}
+
+            <Text style={styles.expiryHeading}>How long a new link stays open</Text>
+            <View style={styles.durationRow}>
+              {PORTAL_LINK_DURATION_OPTIONS.map(opt => {
+                const active = durationChoice === opt;
+                return (
+                  <TouchableOpacity
+                    key={String(opt)}
+                    style={[styles.durationChip, active && styles.durationChipActive]}
+                    onPress={() => handlePickDuration(opt)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={durationLabel(opt)}
+                    testID={`portal-link-duration-${opt ?? 'none'}`}
+                  >
+                    <Text style={[styles.durationChipText, active && styles.durationChipTextActive]}>
+                      {durationLabel(opt)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={styles.generateLinkBtn}
+              onPress={handleGenerateLink}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Generate new link"
+              testID="portal-generate-link-btn"
+            >
+              <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.generateLinkBtnText}>Generate new link</Text>
+            </TouchableOpacity>
+            <Text style={styles.expiryHint}>
+              Same URL either way — generating only resets the clock, so nobody you&apos;ve already sent it to loses access.
+            </Text>
           </View>
         </View>
 
@@ -1294,13 +1477,41 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   linkCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   linkCardTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, flex: 1 },
-  activeBadge: { backgroundColor: '#34C75920', borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
-  activeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.success },
+  // Base only — background + ink are always overridden inline by the link
+  // state tone, so these are the neutral fallback rather than a green that
+  // would be wrong for three of the four states.
+  activeBadge: { backgroundColor: t.neutralSoft, borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
+  activeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.bg, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 12 },
   linkText: { fontSize: Type.caption1.fontSize, color: t.info, flex: 1 },
   linkActions: { flexDirection: 'row', gap: 10 },
   linkActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: t.accent + '15', borderRadius: Tokens.radius.md, paddingVertical: 10 },
   linkActionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.accent },
+
+  // Link lifetime — status line, duration chips, regenerate.
+  expiryBlock: { marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line },
+  expiryStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // Colour is applied inline from the state tone — the row is the one place
+  // that has to change hue with the data.
+  expiryStatusText: { fontSize: Type.footnote.fontSize, fontWeight: '600', flex: 1 },
+  expiryHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, marginTop: 6 },
+  expiryHeading: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textSecondary, marginTop: 14, marginBottom: 8 },
+  durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  durationChip: {
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: Tokens.radius.sm,
+    borderWidth: 1, borderColor: t.line,
+    backgroundColor: t.surface,
+  },
+  durationChipActive: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  durationChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textSecondary },
+  durationChipTextActive: { color: t.accentLabel },
+  generateLinkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 10, paddingVertical: 10, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accentSoft, borderWidth: 1, borderColor: t.accent + '30',
+  },
+  generateLinkBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
 
   section: { paddingHorizontal: 16, marginBottom: 24 },
   sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text, marginBottom: 4 },
@@ -1364,7 +1575,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   proposalRow: {
     paddingHorizontal: 14, paddingVertical: 14,
     flexDirection: 'row', gap: 12, alignItems: 'flex-start',
-    backgroundColor: '#FFF7EE',
+    // Theme-aware: the hardcoded cream '#FFF7EE' put dark-theme light text
+    // (proposalAmount/proposalNote use t.text) on a light card — unreadable.
+    backgroundColor: t.accentSoft,
   },
   proposalAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text },
   proposalMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
@@ -1385,7 +1598,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   coApprovalRow: {
     flexDirection: 'row', gap: 12, alignItems: 'flex-start',
     paddingHorizontal: 14, paddingVertical: 12,
-    backgroundColor: '#F4FAF6',
+    // Theme-aware: same class of bug as proposalRow — the pale green '#F4FAF6'
+    // stranded dark-theme light text (coApprovalLabel/Note use t.text).
+    backgroundColor: t.successSoft,
   },
   coApprovalLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   coApprovalMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },

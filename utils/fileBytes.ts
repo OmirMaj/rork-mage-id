@@ -15,7 +15,13 @@
 // there because the URI is a blob:/data: URL the browser owns.
 
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+// expo-file-system/legacy, NOT the root entry. In SDK 54 the root's
+// readAsStringAsync is a deprecation stub — src/index.ts re-exports
+// ./legacyWarnings, where it is `throw errorOnLegacyMethodUse(...)`, and its own
+// doc comment says "This method will throw in runtime". It throws on EVERY
+// platform, iOS included, so this was not a web issue. 14 other files in this
+// repo were already migrated; these five were missed.
+import * as FileSystem from 'expo-file-system/legacy';
 import { base64ToBytes } from '@/utils/base64Bytes';
 
 /**

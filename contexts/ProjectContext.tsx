@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus } from '@/types';
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -10,10 +10,14 @@ import { generateUUID } from '@/utils/generateId';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
+import type { Delivery } from '@/utils/deliverySchedule';
+import type { BuildingAccessRules, AccessReservation } from '@/utils/buildingAccess';
 import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
 import { fireGradingEvent } from '@/utils/brain/gradingBus';
+// As-built capture on the DFR path — the pace book's intake valve.
+import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import {
   applyCoScheduleReflow,
   buildUnanchoredCoAuditEntry,
@@ -129,6 +133,9 @@ const INVOICES_KEY = 'mageid_invoices';
 const DAILY_REPORTS_KEY = 'mageid_daily_reports';
 const FIELD_TICKETS_KEY = 'mageid_field_tickets';
 const DELAY_EVENTS_KEY = 'mageid_delay_events';
+const DELIVERIES_KEY = 'mageid_deliveries';
+const BUILDING_ACCESS_KEY = 'mageid_building_access';
+const ACCESS_RESERVATIONS_KEY = 'mageid_access_reservations';
 const SUBS_KEY = 'mageid_subcontractors';
 const PUNCH_ITEMS_KEY = 'mageid_punch_items';
 const PHOTOS_KEY = 'mageid_photos';
@@ -261,6 +268,18 @@ type FinancialsDataValue = {
   delayEvents: DelayEvent[];
   addDelayEvent: (event: DelayEvent) => DelayEvent;
   updateDelayEvent: (id: string, updates: Partial<DelayEvent>) => void;
+  deliveries: Delivery[];
+  addDelivery: (d: Delivery) => Delivery;
+  updateDelivery: (id: string, updates: Partial<Delivery>) => void;
+  deleteDelivery: (id: string) => void;
+  // Building access — what the building requires and the slots booked from it.
+  buildingAccessRules: BuildingAccessRules[];
+  getBuildingAccess: (projectId: string) => BuildingAccessRules | null;
+  setBuildingAccess: (rules: BuildingAccessRules) => void;
+  accessReservations: AccessReservation[];
+  addReservation: (r: AccessReservation) => AccessReservation;
+  updateReservation: (id: string, updates: Partial<AccessReservation>) => void;
+  deleteReservation: (id: string) => void;
   deleteDelayEvent: (id: string) => void;
   getDelayEventsForProject: (projectId: string) => DelayEvent[];
 };
@@ -491,6 +510,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [dailyReports, setDailyReports] = useState<DailyFieldReport[]>([]);
   const [fieldTickets, setFieldTickets] = useState<FieldTicket[]>([]);
   const [delayEvents, setDelayEvents] = useState<DelayEvent[]>([]);
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [buildingAccessRules, setBuildingAccessRules] = useState<BuildingAccessRules[]>([]);
+  const [accessReservations, setAccessReservations] = useState<AccessReservation[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [punchItems, setPunchItems] = useState<PunchItem[]>([]);
   // Mirror of `punchItems` (see submittalsRef note below) so batch adds looped
@@ -538,8 +560,30 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             .from('projects')
             .select('*')
             .order('updated_at', { ascending: false });
+          // Money lives in project_financials, off the projects row, so a
+          // 'field' collaborator can read the schedule without reading the
+          // margin (RLS is row-level and can't blind columns —
+          // 20260826140000_project_financials_split.sql). RLS returns ZERO rows
+          // here for a field user, which is the point: their projects simply
+          // arrive with no estimate. Failure is non-fatal — we fall back to the
+          // legacy columns, which still exist until the phase-2 drop.
+          const finById = new Map<string, Record<string, unknown>>();
+          try {
+            const { data: fin } = await supabase.from('project_financials').select('*');
+            for (const f of (fin ?? []) as Record<string, unknown>[]) {
+              finById.set(f.project_id as string, f);
+            }
+          } catch {
+            // table not created yet (pre-migration) — legacy columns cover us
+          }
           if (!error && data && data.length > 0) {
-            const mapped = data.map((r: Record<string, unknown>) => ({
+            const mapped = data.map((r: Record<string, unknown>) => {
+              const f = finById.get(r.id as string);
+              // Prefer the new table; fall back to the legacy column so this
+              // build is correct both before and after the phase-2 drop.
+              const pick = (key: string, legacy: unknown) =>
+                f && f[key] != null ? f[key] : legacy;
+              return ({
               id: r.id as string, name: r.name as string, type: r.type as string,
               location: (r.location as string) ?? '', squareFootage: Number(r.square_footage) || 0,
               quality: (r.quality as string) ?? 'standard', description: (r.description as string) ?? '',
@@ -547,14 +591,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               locationLongitude: r.location_longitude != null ? Number(r.location_longitude) : undefined,
               locationGeocodedAt: (r.location_geocoded_at as string | null) ?? undefined,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
-              estimate: r.estimate as Project['estimate'], schedule: r.schedule as Project['schedule'],
-              linkedEstimate: r.linked_estimate as Project['linkedEstimate'],
-              estimateVersions: r.estimate_versions as Project['estimateVersions'],
+              estimate: pick('estimate', r.estimate) as Project['estimate'],
+              schedule: r.schedule as Project['schedule'],
+              linkedEstimate: pick('linked_estimate', r.linked_estimate) as Project['linkedEstimate'],
+              estimateVersions: pick('estimate_versions', r.estimate_versions) as Project['estimateVersions'],
               status: (r.status as Project['status']) ?? 'draft',
               collaborators: r.collaborators as ProjectCollaborator[] ?? [],
               scope: (r.scope ?? undefined) as Project['scope'],
               clientPortal: r.client_portal as Project['clientPortal'],
-              targetBudget: r.target_budget as Project['targetBudget'],
+              targetBudget: pick('target_budget', r.target_budget) as Project['targetBudget'],
               primaryContact: (r.primary_contact as Project['primaryContact']) ?? undefined,
               leadSource: (r.lead_source as string | null) ?? undefined,
               targetTimelineNotes: (r.target_timeline_notes as string | null) ?? undefined,
@@ -563,7 +608,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               substantialCompletionDate: r.substantial_completion_date as string | undefined,
               warrantyWalkCompletedAt: r.warranty_walk_completed_at as string | undefined,
               photoCount: Number(r.photo_count) || 0,
-            })) as Project[];
+            });
+            }) as Project[];
             // Merge in any local-only projects the server doesn't have yet — a
             // just-created project whose async Supabase upsert hasn't committed,
             // or an offline-created one. A server-first load must NEVER silently
@@ -948,6 +994,110 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     },
   });
 
+  // Deliveries hydrate the same way. Without this query the collection is
+  // write-only — saved to AsyncStorage on every add and never read back, so
+  // every scheduled delivery vanishes on app restart.
+  const deliveriesQuery = useQuery({
+    queryKey: ['deliveries', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('deliveries').select('*').order('expected_date', { ascending: true });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              projectId: r.project_id as string,
+              description: (r.description as string) ?? '',
+              supplier: (r.supplier as string) ?? '',
+              commitmentId: (r.commitment_id as string | null) ?? undefined,
+              poNumber: (r.po_number as string | null) ?? undefined,
+              expectedDate: r.expected_date as string,
+              // Column is delivery_window — `window` is reserved in Postgres.
+              window: (r.delivery_window as string | null) ?? undefined,
+              status: (r.status as Delivery['status']) ?? 'scheduled',
+              confirmedAt: (r.confirmed_at as string | null) ?? undefined,
+              deliveredAt: (r.delivered_at as string | null) ?? undefined,
+              location: (r.location as string | null) ?? undefined,
+              receivedBy: (r.received_by as string | null) ?? undefined,
+              notes: (r.notes as string | null) ?? undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as Delivery[];
+            await saveLocal(DELIVERIES_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback — table may not exist yet */ }
+      }
+      return loadLocal<Delivery[]>(DELIVERIES_KEY, []);
+    },
+  });
+
+  // Building access: what the building requires (one row per project) and the
+  // slots requested from it. Local-first like the rest; the conflict engine in
+  // utils/buildingAccess joins these against deliveries.
+  const buildingAccessQuery = useQuery({
+    queryKey: ['buildingAccess', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('building_access_rules').select('*');
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              projectId: r.project_id as string,
+              buildingContact: (r.building_contact as string | null) ?? undefined,
+              buildingPhone: (r.building_phone as string | null) ?? undefined,
+              requiresFreightElevator: Boolean(r.requires_freight_elevator),
+              requiresDockReservation: Boolean(r.requires_dock_reservation),
+              requiresCoiOnFile: Boolean(r.requires_coi_on_file),
+              coiOnFileAt: (r.coi_on_file_at as string | null) ?? undefined,
+              requiresBadging: Boolean(r.requires_badging),
+              badgeLeadTimeDays: r.badge_lead_time_days == null ? undefined : Number(r.badge_lead_time_days),
+              workHours: (r.work_hours as string | null) ?? undefined,
+              afterHoursRequiresApproval: Boolean(r.after_hours_requires_approval),
+              notes: (r.notes as string | null) ?? undefined,
+              updatedAt: r.updated_at as string,
+            })) as BuildingAccessRules[];
+            await saveLocal(BUILDING_ACCESS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback — table may not exist yet */ }
+      }
+      return loadLocal<BuildingAccessRules[]>(BUILDING_ACCESS_KEY, []);
+    },
+  });
+
+  const accessReservationsQuery = useQuery({
+    queryKey: ['accessReservations', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('access_reservations').select('*').order('date', { ascending: true });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              projectId: r.project_id as string,
+              kind: (r.kind as AccessReservation['kind']) ?? 'freight_elevator',
+              date: r.date as string,
+              // Column is reservation_window — `window` is reserved in Postgres.
+              window: (r.reservation_window as string | null) ?? undefined,
+              status: (r.status as AccessReservation['status']) ?? 'requested',
+              confirmationRef: (r.confirmation_ref as string | null) ?? undefined,
+              deliveryId: (r.delivery_id as string | null) ?? undefined,
+              requestedAt: (r.requested_at as string | null) ?? undefined,
+              confirmedAt: (r.confirmed_at as string | null) ?? undefined,
+              notes: (r.notes as string | null) ?? undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as AccessReservation[];
+            await saveLocal(ACCESS_RESERVATIONS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback — table may not exist yet */ }
+      }
+      return loadLocal<AccessReservation[]>(ACCESS_RESERVATIONS_KEY, []);
+    },
+  });
+
   const leadsQuery = useQuery({
     queryKey: ['leads', userId],
     queryFn: async () => {
@@ -1113,6 +1263,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               assignedSubId: r.assigned_sub_id as string | undefined, dueDate: r.due_date as string,
               priority: (r.priority as PunchItem['priority']) ?? 'medium', status: (r.status as PunchItem['status']) ?? 'open',
               photoUri: photo.uri || undefined, photoStoragePath: photo.storagePath, photoLocalUri,
+              // The GPS stamp MUST be read back. punchItemRow writes all four
+              // columns; omitting them here made the round trip destructive —
+              // a refetch set them to undefined locally, and the next local
+              // save wrote that undefined back over a good server row. Same
+              // failure shape as the RFI custody chain: written, never read,
+              // silently erased. A punch photo's location is evidence.
+              photoLatitude: r.photo_latitude == null ? undefined : Number(r.photo_latitude),
+              photoLongitude: r.photo_longitude == null ? undefined : Number(r.photo_longitude),
+              photoLocationAccuracyMeters: r.photo_accuracy_meters == null ? undefined : Number(r.photo_accuracy_meters),
+              photoLocationLabel: (r.photo_location_label as string | null) ?? undefined,
               rejectionNote: r.rejection_note as string | undefined,
               closedAt: r.closed_at as string | undefined, createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               };
@@ -1246,6 +1406,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               id: r.id as string, projectId: r.project_id as string, number: Number(r.number),
               subject: r.subject as string, question: (r.question as string) ?? '',
               submittedBy: (r.submitted_by as string) ?? '', assignedTo: (r.assigned_to as string) ?? '',
+              assignedSubId: (r.assigned_sub_id as string | null) ?? undefined,
+              // The custody chain. Without these two the hold-time engine reports
+              // every RFI as unmeasurable, and saveLocal() below would overwrite
+              // the local copy with the stripped version — erasing the evidence.
+              ballInCourt: (r.ball_in_court as RFI['ballInCourt'] | null) ?? undefined,
+              handoffs: (r.handoffs as RFI['handoffs'] | null) ?? undefined,
               dateSubmitted: r.date_submitted as string, dateRequired: r.date_required as string,
               dateResponded: r.date_responded as string | undefined, response: r.response as string | undefined,
               status: (r.status as RFI['status']) ?? 'open', priority: (r.priority as RFI['priority']) ?? 'normal',
@@ -1461,6 +1627,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (dailyReportsQuery.data) setDailyReports(dailyReportsQuery.data); }, [dailyReportsQuery.data]);
   useEffect(() => { if (fieldTicketsQuery.data) setFieldTickets(fieldTicketsQuery.data); }, [fieldTicketsQuery.data]);
   useEffect(() => { if (delayEventsQuery.data) setDelayEvents(delayEventsQuery.data); }, [delayEventsQuery.data]);
+  useEffect(() => { if (deliveriesQuery.data) setDeliveries(deliveriesQuery.data); }, [deliveriesQuery.data]);
+  useEffect(() => { if (buildingAccessQuery.data) setBuildingAccessRules(buildingAccessQuery.data); }, [buildingAccessQuery.data]);
+  useEffect(() => { if (accessReservationsQuery.data) setAccessReservations(accessReservationsQuery.data); }, [accessReservationsQuery.data]);
   useEffect(() => { if (subsQuery.data) setSubcontractors(subsQuery.data); }, [subsQuery.data]);
   useEffect(() => { if (leadsQuery.data) setLeads(leadsQuery.data); }, [leadsQuery.data]);
   useEffect(() => { if (bidPackagesQuery.data) setBidPackages(bidPackagesQuery.data); }, [bidPackagesQuery.data]);
@@ -1643,6 +1812,20 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           substantial_completion_date: project.substantialCompletionDate,
           warranty_walk_completed_at: project.warrantyWalkCompletedAt,
           photo_count: project.photoCount,
+          created_at: project.createdAt, updated_at: project.updatedAt,
+        });
+        // Money also goes to project_financials, which field collaborators
+        // cannot read. DUAL-WRITE on purpose: the legacy columns above stay
+        // until the phase-2 drop migration, so an older build still loads.
+        // Queued like everything else, so a device that gets this OTA before
+        // the migration lands parks the write (PGRST205 is classified
+        // transient) and it self-heals.
+        await supabaseWrite('project_financials', 'upsert', {
+          project_id: project.id, user_id: userId,
+          estimate: project.estimate as unknown,
+          linked_estimate: project.linkedEstimate as unknown,
+          estimate_versions: project.estimateVersions as unknown,
+          target_budget: project.targetBudget as unknown,
           created_at: project.createdAt, updated_at: project.updatedAt,
         });
       }
@@ -2346,6 +2529,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const proj = projects.find(p => p.id === report.projectId);
     if (!proj?.schedule?.tasks) return;
     let touched = false;
+
+    // AS-BUILT CAPTURE. Before this, progress moved but no actuals were ever
+    // stamped here — and utils/pace/paceBook only eats tasks with status
+    // 'done' AND both actualStartDay and actualEndDay. Those were set only by
+    // the Gantt's manual buttons (~5% coverage per stampActuals' own header),
+    // so the pace book — half the moat — starved while a superintendent filed
+    // the exact evidence it needed every single day.
+    //
+    // The basis is the REPORT's date, not today's. A DFR filed Monday for
+    // Friday's work must stamp Friday, or every back-filled report would
+    // silently shift the as-built record forward and the learned durations
+    // with it.
+    const reportDay = todayScheduleDay(proj.schedule.startDate, new Date(report.date));
+    const reportISO = new Date(report.date).toISOString();
+
     const nextTasks = proj.schedule.tasks.map(t => {
       const chip = report.workProgress!.find(p => p.taskId === t.id);
       if (!chip) return t;
@@ -2353,7 +2551,18 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       const current = t.progress ?? 0;
       if (incoming <= current) return t;
       touched = true;
-      return { ...t, progress: incoming };
+
+      // Progress implies status: anything above 0 is under way, 100 is done.
+      const nextStatus: TaskStatus = incoming >= 100 ? 'done' : 'in_progress';
+      // retroStartFromPlanned:false — see StampOptions. A 0→100 jump in one
+      // daily report means the work happened inside that day, not that it ran
+      // from its planned start; inventing that span would teach the pace book
+      // the plan it already had.
+      const stamp = t.status === nextStatus
+        ? {}
+        : stampActuals(t, nextStatus, reportDay, reportISO, { retroStartFromPlanned: false });
+
+      return { ...t, ...stamp, progress: incoming, status: nextStatus };
     });
     if (!touched) return;
     updateProject(proj.id, {
@@ -2534,6 +2743,153 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
    * reschedule) can route straight to it without racing on closure refresh —
    * same pattern as addRFI / addLead.
    */
+  // ── Deliveries ────────────────────────────────────────────────────────────
+  // What is DUE on site. delivery_receipts records what arrived; this records
+  // what was promised, which is the half that lets the app chase a late load
+  // before the crew is standing around.
+  const deliveryRow = useCallback((d: Delivery) => ({
+    id: d.id,
+    user_id: userId,
+    project_id: d.projectId,
+    description: d.description,
+    supplier: d.supplier,
+    commitment_id: d.commitmentId ?? null,
+    po_number: d.poNumber ?? null,
+    expected_date: d.expectedDate,
+    // Column is delivery_window, NOT window: `window` is a reserved Postgres
+    // keyword, so the table could not have been created with it. The TS field
+    // keeps the short name — this mapper is the only place they differ.
+    delivery_window: d.window ?? null,
+    status: d.status,
+    confirmed_at: d.confirmedAt ?? null,
+    delivered_at: d.deliveredAt ?? null,
+    location: d.location ?? null,
+    received_by: d.receivedBy ?? null,
+    notes: d.notes ?? null,
+    created_at: d.createdAt,
+    updated_at: d.updatedAt,
+  }), [userId]);
+
+  const saveDeliveriesMutation = useMutation({
+    mutationFn: async (updated: Delivery[]) => { await saveLocal(DELIVERIES_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['deliveries', userId], data); },
+  });
+
+  const addDelivery = useCallback((d: Delivery): Delivery => {
+    const updated = [d, ...deliveries];
+    setDeliveries(updated);
+    saveDeliveriesMutation.mutate(updated);
+    if (canSync) void supabaseWrite('deliveries', 'insert', deliveryRow(d));
+    return d;
+  }, [deliveries, saveDeliveriesMutation, canSync, deliveryRow]);
+
+  const updateDelivery = useCallback((id: string, updates: Partial<Delivery>) => {
+    const now = new Date().toISOString();
+    const updated = deliveries.map(d => d.id === id ? { ...d, ...updates, updatedAt: now } : d);
+    setDeliveries(updated);
+    saveDeliveriesMutation.mutate(updated);
+    const next = updated.find(d => d.id === id);
+    if (canSync && next) void supabaseWrite('deliveries', 'update', deliveryRow(next));
+  }, [deliveries, saveDeliveriesMutation, canSync, deliveryRow]);
+
+  const deleteDelivery = useCallback((id: string) => {
+    const updated = deliveries.filter(d => d.id !== id);
+    setDeliveries(updated);
+    saveDeliveriesMutation.mutate(updated);
+    if (canSync) void supabaseWrite('deliveries', 'delete', { id });
+  }, [deliveries, saveDeliveriesMutation, canSync]);
+
+  // ── Building access ───────────────────────────────────────────────────────
+  // What the building requires, and the slots booked against it. Joined against
+  // deliveries by utils/buildingAccess to surface loads with nowhere to land.
+  const saveBuildingAccessMutation = useMutation({
+    mutationFn: async (updated: BuildingAccessRules[]) => { await saveLocal(BUILDING_ACCESS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['buildingAccess', userId], data); },
+  });
+
+  /** Upsert by projectId — a project has exactly one set of building rules, so
+   *  there is no add/update split to get wrong. */
+  const setBuildingAccess = useCallback((rules: BuildingAccessRules) => {
+    const now = new Date().toISOString();
+    const next = { ...rules, updatedAt: now };
+    const exists = buildingAccessRules.some(r => r.projectId === rules.projectId);
+    const updated = exists
+      ? buildingAccessRules.map(r => r.projectId === rules.projectId ? next : r)
+      : [next, ...buildingAccessRules];
+    setBuildingAccessRules(updated);
+    saveBuildingAccessMutation.mutate(updated);
+    if (canSync) {
+      void supabaseWrite('building_access_rules', 'upsert', {
+        project_id: next.projectId,
+        user_id: userId,
+        building_contact: next.buildingContact ?? null,
+        building_phone: next.buildingPhone ?? null,
+        requires_freight_elevator: next.requiresFreightElevator,
+        requires_dock_reservation: next.requiresDockReservation,
+        requires_coi_on_file: next.requiresCoiOnFile,
+        coi_on_file_at: next.coiOnFileAt ?? null,
+        requires_badging: next.requiresBadging,
+        badge_lead_time_days: next.badgeLeadTimeDays ?? null,
+        work_hours: next.workHours ?? null,
+        after_hours_requires_approval: next.afterHoursRequiresApproval,
+        notes: next.notes ?? null,
+        updated_at: now,
+      });
+    }
+  }, [buildingAccessRules, saveBuildingAccessMutation, canSync, userId]);
+
+  const getBuildingAccess = useCallback(
+    (projectId: string) => buildingAccessRules.find(r => r.projectId === projectId) ?? null,
+    [buildingAccessRules],
+  );
+
+  const saveReservationsMutation = useMutation({
+    mutationFn: async (updated: AccessReservation[]) => { await saveLocal(ACCESS_RESERVATIONS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['accessReservations', userId], data); },
+  });
+
+  const reservationRow = useCallback((r: AccessReservation) => ({
+    id: r.id,
+    user_id: userId,
+    project_id: r.projectId,
+    kind: r.kind,
+    date: r.date,
+    // Column is reservation_window — `window` is reserved in Postgres.
+    reservation_window: r.window ?? null,
+    status: r.status,
+    confirmation_ref: r.confirmationRef ?? null,
+    delivery_id: r.deliveryId ?? null,
+    requested_at: r.requestedAt ?? null,
+    confirmed_at: r.confirmedAt ?? null,
+    notes: r.notes ?? null,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+  }), [userId]);
+
+  const addReservation = useCallback((r: AccessReservation): AccessReservation => {
+    const updated = [r, ...accessReservations];
+    setAccessReservations(updated);
+    saveReservationsMutation.mutate(updated);
+    if (canSync) void supabaseWrite('access_reservations', 'insert', reservationRow(r));
+    return r;
+  }, [accessReservations, saveReservationsMutation, canSync, reservationRow]);
+
+  const updateReservation = useCallback((id: string, updates: Partial<AccessReservation>) => {
+    const now = new Date().toISOString();
+    const updated = accessReservations.map(r => r.id === id ? { ...r, ...updates, updatedAt: now } : r);
+    setAccessReservations(updated);
+    saveReservationsMutation.mutate(updated);
+    const next = updated.find(r => r.id === id);
+    if (canSync && next) void supabaseWrite('access_reservations', 'update', reservationRow(next));
+  }, [accessReservations, saveReservationsMutation, canSync, reservationRow]);
+
+  const deleteReservation = useCallback((id: string) => {
+    const updated = accessReservations.filter(r => r.id !== id);
+    setAccessReservations(updated);
+    saveReservationsMutation.mutate(updated);
+    if (canSync) void supabaseWrite('access_reservations', 'delete', { id });
+  }, [accessReservations, saveReservationsMutation, canSync]);
+
   const addDelayEvent = useCallback((event: DelayEvent): DelayEvent => {
     const updated = [event, ...delayEvents];
     setDelayEvents(updated);
@@ -2703,6 +3059,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         target_timeline_notes: newProject.targetTimelineNotes ?? null,
         created_at: now, updated_at: now,
       });
+      // Dual-write the budget to project_financials — see the sync path above.
+      if (newProject.targetBudget) {
+        void supabaseWrite('project_financials', 'upsert', {
+          project_id: projectId, user_id: userId,
+          target_budget: newProject.targetBudget,
+          created_at: now, updated_at: now,
+        });
+      }
     }
     updateLead(leadId, { stage: 'won', convertedProjectId: projectId });
     return projectId;
@@ -3546,7 +3910,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const rfiToRow = useCallback((newRfi: RFI) => ({
     id: newRfi.id, user_id: userId, project_id: newRfi.projectId, number: newRfi.number,
     subject: newRfi.subject, question: newRfi.question, submitted_by: newRfi.submittedBy,
-    assigned_to: newRfi.assignedTo, date_submitted: newRfi.dateSubmitted, date_required: newRfi.dateRequired,
+    assigned_to: newRfi.assignedTo, assigned_sub_id: newRfi.assignedSubId ?? null,
+    ball_in_court: newRfi.ballInCourt ?? null, handoffs: newRfi.handoffs ?? null,
+    date_submitted: newRfi.dateSubmitted, date_required: newRfi.dateRequired,
     status: newRfi.status, priority: newRfi.priority, linked_drawing: newRfi.linkedDrawing,
     linked_task_id: newRfi.linkedTaskId, attachments: newRfi.attachments,
     created_at: newRfi.createdAt, updated_at: newRfi.updatedAt, portal_state: newRfi.portalState,
@@ -3620,6 +3986,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (r) {
         void supabaseWrite('rfis', 'update', {
           id, subject: r.subject, question: r.question, assigned_to: r.assignedTo,
+          assigned_sub_id: r.assignedSubId ?? null,
+          ball_in_court: r.ballInCourt ?? null, handoffs: r.handoffs ?? null,
           date_responded: r.dateResponded, response: r.response, status: r.status,
           priority: r.priority, attachments: r.attachments, updated_at: now,
         });
@@ -4617,6 +4985,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     cascadeMutation(dailyReports, setDailyReports, saveDailyReportsMutation);
     cascadeMutation(fieldTickets, setFieldTickets, saveFieldTicketsMutation);
     cascadeMutation(delayEvents, setDelayEvents, saveDelayEventsMutation);
+    cascadeMutation(deliveries, setDeliveries, saveDeliveriesMutation);
+    // Building access: the rules row is keyed by projectId, the reservations
+    // carry one. Both are as project-scoped as it gets — a building's elevator
+    // rules mean nothing once the job is gone.
+    cascadeMutation(buildingAccessRules, setBuildingAccessRules, saveBuildingAccessMutation);
+    cascadeMutation(accessReservations, setAccessReservations, saveReservationsMutation);
     cascadeMutation(punchItems, setPunchItems, savePunchItemsMutation);
     cascadeMutation(projectPhotos, setProjectPhotos, savePhotosMutation);
     cascadeMutation(rfis, setRfis, saveRfisMutation);
@@ -4689,6 +5063,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     dailyReports, saveDailyReportsMutation,
     fieldTickets, saveFieldTicketsMutation,
     delayEvents, saveDelayEventsMutation,
+    deliveries, saveDeliveriesMutation,
+    buildingAccessRules, saveBuildingAccessMutation,
+    accessReservations, saveReservationsMutation,
     punchItems, savePunchItemsMutation,
     projectPhotos, savePhotosMutation,
     rfis, saveRfisMutation,
@@ -4733,7 +5110,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
     delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject,
-  }), [changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject]);
+    deliveries, addDelivery, updateDelivery, deleteDelivery,
+    buildingAccessRules, getBuildingAccess, setBuildingAccess,
+    accessReservations, addReservation, updateReservation, deleteReservation,
+  }), [changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject, deliveries, addDelivery, updateDelivery, deleteDelivery, buildingAccessRules, getBuildingAccess, setBuildingAccess, accessReservations, addReservation, updateReservation, deleteReservation]);
 
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, getDailyReportsForProject,

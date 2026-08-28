@@ -22,6 +22,7 @@ import type { TimeEntry } from '@/types';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
 import { useLaborRates } from '@/hooks/useLaborRates';
 import { computeLaborStats, normalizeTradeKey } from '@/utils/laborSamples';
+import { looksLikeBareWage, burdenPercentLabel } from '@/utils/laborBurdenModel';
 import { parseLenientNumber } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCrew } from '@/contexts/CrewContext';
@@ -770,24 +771,35 @@ function TimeTrackingScreenInner() {
               from your real numbers. Leave blank to keep a trade out.
             </Text>
             <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
-              {rateTrades.map(t => (
-                <View key={t.key} style={styles.rateRow}>
-                  <Text style={styles.rateTradeLabel} numberOfLines={1}>{t.label}</Text>
-                  <View style={styles.rateInputWrap}>
-                    <Text style={styles.rateInputPrefix}>$</Text>
-                    <TextInput
-                      style={styles.rateInput}
-                      value={rateDrafts[t.key] ?? ''}
-                      onChangeText={(v) => setRateDrafts(prev => ({ ...prev, [t.key]: v }))}
-                      keyboardType="decimal-pad"
-                      placeholder="—"
-                      placeholderTextColor={themeColors.textMuted}
-                      testID={`labor-rate-input-${t.key}`}
-                    />
-                    <Text style={styles.rateInputSuffix}>/hr</Text>
+              {rateTrades.map(t => {
+                const draftNum = parseLenientNumber(rateDrafts[t.key] ?? '');
+                const bareWarn = looksLikeBareWage(t.key, draftNum ?? 0);
+                return (
+                  <View key={t.key}>
+                    <View style={styles.rateRow}>
+                      <Text style={styles.rateTradeLabel} numberOfLines={1}>{t.label}</Text>
+                      <View style={styles.rateInputWrap}>
+                        <Text style={styles.rateInputPrefix}>$</Text>
+                        <TextInput
+                          style={styles.rateInput}
+                          value={rateDrafts[t.key] ?? ''}
+                          onChangeText={(v) => setRateDrafts(prev => ({ ...prev, [t.key]: v }))}
+                          keyboardType="decimal-pad"
+                          placeholder="—"
+                          placeholderTextColor={themeColors.textMuted}
+                          testID={`labor-rate-input-${t.key}`}
+                        />
+                        <Text style={styles.rateInputSuffix}>/hr</Text>
+                      </View>
+                    </View>
+                    {bareWarn ? (
+                      <Text style={styles.rateBurdenNudge} testID={`labor-rate-burden-nudge-${t.key}`}>
+                        Looks like a bare wage. Loaded rates run ~{burdenPercentLabel(t.key)}% higher — add comp, taxes, OT, and small tools so your cost book prices labor from your real number.
+                      </Text>
+                    ) : null}
                   </View>
-                </View>
-              ))}
+                );
+              })}
               {rateTrades.length === 0 ? (
                 <Text style={styles.allClockedIn}>Clock in crew (or add trades to your roster) and their trades appear here.</Text>
               ) : null}
@@ -936,6 +948,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: t.line,
     gap: 12,
+  },
+  // Guardrail nudge when an entered rate looks like a bare (unloaded) wage —
+  // the cost book prices labor from these numbers, so under-loaded rates
+  // quietly teach it to bid low. Nudge only; never blocks the entry.
+  rateBurdenNudge: {
+    fontSize: Type.caption1.fontSize,
+    lineHeight: 16,
+    color: t.warningLabel,
+    paddingTop: 6,
+    paddingBottom: 2,
+    paddingRight: 8,
   },
   rateTradeLabel: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
   rateInputWrap: {

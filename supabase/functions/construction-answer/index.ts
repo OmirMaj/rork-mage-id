@@ -304,18 +304,61 @@ const CUSTOM_TOOLS = [
   },
 ];
 
+/**
+ * A project's financial blob, from project_financials with a legacy fallback.
+ *
+ * Money was split off the projects row so field collaborators can read a
+ * project's schedule without reading its margin (RLS is row-level and cannot
+ * blind columns). Reads on the CALLER's JWT, so RLS decides: a field user gets
+ * {} and every caller downstream degrades to "no estimate".
+ *
+ * Correct in all four transition states — table present or not, legacy columns
+ * present or not — because callerRest returns [] on any error.
+ */
+async function getProjectMoney(
+  userId: string,
+  projectId: string,
+  jwt: string,
+  apikey: string,
+): Promise<Record<string, unknown>> {
+  const pid = encodeURIComponent(projectId);
+  const fin = await callerRest<Record<string, unknown>>(
+    `project_financials?project_id=eq.${pid}&select=estimate,linked_estimate&limit=1`,
+    jwt,
+    apikey,
+  );
+  if (fin.length) return fin[0];
+  const legacy = await callerRest<Record<string, unknown>>(
+    `projects?id=eq.${pid}&user_id=eq.${encodeURIComponent(userId)}&select=estimate,linked_estimate&limit=1`,
+    jwt,
+    apikey,
+  );
+  return legacy.length ? legacy[0] : {};
+}
+
 // ── custom tool handlers (all scoped to the caller) ────────────────────────────
 async function getProjectContext(userId: string, projectId: string | null, jwt: string, apikey: string): Promise<unknown> {
   if (!projectId) return { none: true, note: "No project selected — answer generally." };
   const rows = await callerRest<Record<string, unknown>>(
-    `projects?id=eq.${encodeURIComponent(projectId)}&user_id=eq.${encodeURIComponent(userId)}&select=name,type,status,location,square_footage,description,estimate,linked_estimate&limit=1`,
+    `projects?id=eq.${encodeURIComponent(projectId)}&user_id=eq.${encodeURIComponent(userId)}&select=name,type,status,location,square_footage,description&limit=1`,
     jwt,
     apikey,
   );
   if (!rows.length) return { none: true };
   const p = rows[0];
+  // Money now lives in project_financials, off the projects row, so a 'field'
+  // collaborator can read a project without reading its margin (RLS is
+  // row-level and cannot blind columns — 20260826140000_project_financials_
+  // split.sql). This runs on the CALLER's JWT, so RLS applies here too: a field
+  // user gets zero rows and the answer degrades to "no estimate", which is
+  // exactly right rather than a leak.
+  //
+  // Falls back to the legacy projects columns, which still exist until the
+  // phase-2 drop. callerRest returns [] on any error, so a missing table
+  // (pre-migration) or a dropped column (post-phase-2) is non-fatal either way.
+  const money = await getProjectMoney(userId, projectId, jwt, apikey);
   // Pull a few estimate line items (the estimate blob shape varies; be defensive).
-  const est = (p.linked_estimate as Record<string, unknown>) || (p.estimate as Record<string, unknown>) || {};
+  const est = (money.linked_estimate as Record<string, unknown>) || (money.estimate as Record<string, unknown>) || {};
   const rawLines = Array.isArray(est.lineItems)
     ? est.lineItems
     : Array.isArray(est.items)

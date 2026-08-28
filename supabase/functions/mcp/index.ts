@@ -141,6 +141,38 @@ function projectValue(p: Record<string, unknown>): number {
   const e = (p.estimate as Record<string, unknown>) || {};
   return num(le.grandTotal) || num(e.grandTotal) || num(e.totalCost) || 0;
 }
+
+/**
+ * Money for all of a user's projects, keyed by project_id.
+ *
+ * Financial jsonb moved off the projects row into project_financials so field
+ * collaborators can read a project without reading its margin (RLS is
+ * row-level and cannot blind columns — 20260826140000_project_financials_
+ * split.sql). Batched, not per-project, so list_projects stays one extra query
+ * rather than N.
+ *
+ * Falls back to the legacy projects columns, which exist until the phase-2
+ * drop. rest() returns [] on any error, so a missing table (pre-migration) and
+ * a dropped column (post-phase-2) are both non-fatal.
+ *
+ * NOTE: rest() is SERVICE-role and bypasses RLS — this path is the GC's own MCP
+ * token, scoped manually by user_id, never a collaborator's session.
+ */
+async function moneyByProject(userId: string): Promise<Map<string, Record<string, unknown>>> {
+  const out = new Map<string, Record<string, unknown>>();
+  const fin = await rest<Record<string, unknown>>(
+    `project_financials?user_id=eq.${userId}&select=project_id,estimate,linked_estimate`,
+  );
+  if (fin.length) {
+    for (const f of fin) out.set(String(f.project_id), f);
+    return out;
+  }
+  const legacy = await rest<Record<string, unknown>>(
+    `projects?user_id=eq.${userId}&select=id,estimate,linked_estimate`,
+  );
+  for (const l of legacy) out.set(String(l.id), l);
+  return out;
+}
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -238,12 +270,14 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
 
     case "list_projects": {
       const limit = Math.min(200, Math.max(1, num(args.limit) || 50));
-      let q = `projects?user_id=eq.${userId}&select=id,name,type,status,location,square_footage,estimate,linked_estimate&order=created_at.desc&limit=${limit}`;
+      let q = `projects?user_id=eq.${userId}&select=id,name,type,status,location,square_footage&order=created_at.desc&limit=${limit}`;
       if (args.status) q += `&status=eq.${encodeURIComponent(String(args.status))}`;
       const rows = await rest<Record<string, unknown>>(q);
       if (!rows.length) return text("No projects found.");
+      // One batched lookup for the whole page, not one per project.
+      const moneyMap = await moneyByProject(userId);
       const lines = rows.map((p) => {
-        const val = projectValue(p);
+        const val = projectValue(moneyMap.get(String(p.id)) ?? {});
         const loc = p.location ? ` — ${p.location}` : "";
         const valStr = val > 0 ? ` (${money(val)})` : "";
         return `• ${p.name} [${p.status}] ${p.type}${loc}${valStr}`;

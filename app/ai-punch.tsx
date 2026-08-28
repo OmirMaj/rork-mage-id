@@ -38,7 +38,10 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { useTierAccess } from '@/hooks/useTierAccess';
+// Project-scoped gate: an invited collaborator may do the work they were
+// invited to do, even though their own tier is free. See
+// utils/collaboratorAccess.
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -112,7 +115,10 @@ export default function AiPunchScreen() {
   // punch-walk (the primary entry) is already gated, but this screen is routable
   // directly, so gate it here too. Mirrors app/punch-list.tsx.
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project from params here (not just in Inner) so the gate can
+  // ask 'were they invited to THIS project?' before paywalling.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
   if (!canAccess('punch_list_closeout')) {
     return (
       <Paywall
@@ -437,8 +443,10 @@ function AiPunchScreenInner() {
             </View>
             <Text style={styles.heroTitle}>AI Punch from Photos</Text>
             <Text style={styles.heroSub}>
-              {reviewMode
+              {reviewItems.length > 0
                 ? `Review what AI found. Edit, save, or discard each item.`
+                : error
+                ? `That didn't work — those photos couldn't be read. Pick a different set and try again.`
                 : `Pick up to 12 photos from this project. AI will turn them into a punch list — review, edit, save.`}
             </Text>
           </View>
@@ -527,6 +535,20 @@ function AiPunchScreenInner() {
                 <AlertCircle size={14} color={"#C84038"} strokeWidth={1.75} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
+              {/* Error-only state was a dead-end (banner + empty void). Offer a
+                  way straight back to the picker instead of a blank screen. */}
+              {reviewItems.length === 0 && (
+                <TouchableOpacity
+                  style={styles.retryBtn}
+                  onPress={() => { setError(null); setReviewItems([]); }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick photos again"
+                >
+                  <ImagePlus size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                  <Text style={styles.retryBtnText}>Pick photos again</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -719,6 +741,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   errorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: t.danger + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.danger + '40' },
   errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 14, backgroundColor: t.accent + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.accent + '30' },
+  retryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.accent },
   // Round-4 #3: notice (warning) is amber rather than red so a
   // partial-success doesn't read as a failure.
   noticeBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: Colors.warning + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.warning + '40' },

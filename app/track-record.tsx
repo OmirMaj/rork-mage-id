@@ -122,7 +122,7 @@ function TrackRecordInner() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <MageAIMark size={15} color={t.accent} />
-          <Text style={styles.headerTitle}>Track record</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Track record</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -296,7 +296,7 @@ const makeStyles = (t: ThemeColors) =>
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-    headerTitle: { ...Type.headline, color: t.text },
+    headerTitle: { ...Type.serifHeadline, color: t.text },
 
     scrollContent: { paddingBottom: 40 },
     content: {

@@ -13,7 +13,13 @@
 // COI vault screen. The structure remains useful regardless.
 
 import { supabase } from '@/lib/supabase';
-import * as FileSystem from 'expo-file-system';
+// expo-file-system/legacy, NOT the root entry. In SDK 54 the root's
+// readAsStringAsync is a deprecation stub — src/index.ts re-exports
+// ./legacyWarnings, where it is `throw errorOnLegacyMethodUse(...)`, and its own
+// doc comment says "This method will throw in runtime". It throws on EVERY
+// platform, iOS included, so this was not a web issue. 14 other files in this
+// repo were already migrated; these five were missed.
+import * as FileSystem from 'expo-file-system/legacy';
 import type { COICoverageType, COICoverage, COIValidationResult } from '@/types';
 
 interface RawAIExtraction {

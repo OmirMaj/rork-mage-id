@@ -2328,7 +2328,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.title}>Schedule</Text>
+              <Text style={styles.title} numberOfLines={1}>Schedule</Text>
               <Text style={styles.subtitle}>Plan, track, and manage your project timeline</Text>
             </View>
             {hasScheduleData && renderHealthBadge()}
@@ -3308,7 +3308,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   header: { paddingHorizontal: 20, paddingBottom: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title: { fontSize: 32, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -0.8 },
+  // Screen title — Fraunces serif per the type rule in constants/typography.ts
+  // (serif for screen titles + numbers that matter, system sans for everything
+  // else). No fontWeight override: Fraunces_700Bold already carries its weight.
+  title: { ...Type.serifHeadline, color: themeColors.text },
   subtitle: { marginTop: 4, fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
 
   healthBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },

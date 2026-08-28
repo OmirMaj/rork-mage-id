@@ -7,10 +7,17 @@
 import type { Route } from 'expo-router';
 import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '@/types';
 import { computeProjectProgress } from './projectProgress';
+// Reused, not re-derived: classifyDelivery is the single source of truth for
+// late / unconfirmed, pinned by test:delivery-schedule.
+import { classifyDelivery, type Delivery } from './deliverySchedule';
+import {
+  findAccessConflicts,
+  type BuildingAccessRules, type AccessReservation,
+} from './buildingAccess';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
-export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout' | 'punch' | 'changeOrder';
+export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout' | 'punch' | 'changeOrder' | 'delivery' | 'buildingAccess';
 export type AttnSeverity = 'critical' | 'high' | 'medium';
 
 export interface AttentionItem {
@@ -167,6 +174,114 @@ export function permitAttention(
   }
 
   return items;
+}
+
+// ─── deliveryAttention ────────────────────────────────────────────────────────
+//
+// A load that does not land is a crew standing around, and that cost surfaces as
+// LABOUR rather than as a late PO — which is exactly why it goes unnoticed until
+// payroll. The brief is the right place for it: it is a this-morning problem.
+//
+// All the classification lives in utils/deliverySchedule (pure, pinned by
+// test:delivery-schedule). This function only decides severity and phrasing —
+// re-deriving "is it late" here would give the brief and the /deliveries screen
+// two chances to disagree with each other.
+
+export function deliveryAttention(
+  project: Project,
+  deliveries: Delivery[],
+  nowMs: number,
+): AttentionItem[] {
+  const items: AttentionItem[] = [];
+
+  for (const delivery of deliveries) {
+    if (delivery.projectId !== project.id) continue;
+
+    const view = classifyDelivery(delivery, nowMs);
+
+    // 'due_soon' and 'ok' are not attention — a confirmed load arriving Friday
+    // is the system working. Only chase what needs a human today.
+    if (view.flag !== 'late' && view.flag !== 'unconfirmed') continue;
+
+    // Late outranks unconfirmed for the same reason it does on the screen: the
+    // date has already been missed, so the crew may be waiting right now.
+    const severity: AttnSeverity = view.flag === 'late' ? 'critical' : 'high';
+
+    items.push({
+      id: `delivery-${delivery.id}`,
+      projectId: project.id,
+      projectName: project.name,
+      kind: 'delivery',
+      severity,
+      message: `${project.name}: ${delivery.description} — ${view.label.toLowerCase()}`,
+      route: {
+        pathname: '/deliveries',
+        params: { projectId: project.id },
+      },
+    });
+  }
+
+  return items;
+}
+
+// ─── buildingAccessAttention ──────────────────────────────────────────────────
+//
+// What the BUILDING will stop, as opposed to what the supplier will. On an
+// occupied-building fit-out these are the failures nothing else catches: a load
+// arrives on its confirmed date, the freight elevator was never booked, and the
+// truck goes home full. deliveryAttention cannot see that — the delivery is
+// perfectly on schedule.
+//
+// The two do not double up. findAccessConflicts deliberately skips past-due
+// deliveries ("the delivery chase's problem, not access planning's"), so a late
+// load produces exactly one brief line, from deliveryAttention.
+
+/** How far ahead the BRIEF looks for access conflicts.
+ *
+ *  Deliberately tighter than the 28-day default the /building-access screen
+ *  uses. The brief answers "what needs me this week"; a slot unbooked three
+ *  weeks out is real but would sit here nagging for fifteen mornings, and a
+ *  line you scroll past every day stops being a line you read. Two weeks is
+ *  still ample lead time to book an elevator or send a COI. */
+export const BRIEF_ACCESS_HORIZON_DAYS = 14;
+
+export function buildingAccessAttention(
+  project: Project,
+  rules: BuildingAccessRules | null | undefined,
+  reservations: AccessReservation[],
+  deliveries: Delivery[],
+  nowMs: number,
+): AttentionItem[] {
+  // No rules recorded means no constraints — most jobs are not in occupied
+  // towers, and inventing a constraint teaches people to ignore the real ones.
+  if (!rules) return [];
+
+  const conflicts = findAccessConflicts({
+    rules,
+    deliveries: deliveries.filter(d => d.projectId === project.id),
+    reservations: reservations.filter(r => r.projectId === project.id),
+    horizonDays: BRIEF_ACCESS_HORIZON_DAYS,
+    nowMs,
+  });
+
+  return conflicts.map((c, i) => ({
+    // kind + deliveryId is not unique on its own: a building requiring BOTH an
+    // elevator and a dock emits two 'no_reservation' conflicts for the same
+    // load. The index disambiguates, and conflict order is deterministic.
+    id: `access-${project.id}-${c.kind}-${c.deliveryId ?? 'all'}-${i}`,
+    projectId: project.id,
+    projectName: project.name,
+    kind: 'buildingAccess' as const,
+    // 'blocking' means the truck is turned away or the crew is refused entry —
+    // the day does not happen. 'warning' means it still might, but someone has
+    // to move. Collapsing the two would make the list untriageable.
+    severity: (c.severity === 'blocking' ? 'critical' : 'high') as AttnSeverity,
+    message: `${project.name}: ${c.message}`,
+    route: {
+      pathname: '/building-access' as Route,
+      params: { projectId: project.id },
+    },
+  }));
 }
 
 // ─── certAttention ────────────────────────────────────────────────────────────
@@ -443,6 +558,8 @@ export function summarize(items: AttentionItem[]): {
     closeout: 0,
     punch: 0,
     changeOrder: 0,
+    delivery: 0,
+    buildingAccess: 0,
   };
   for (const item of items) {
     byKind[item.kind]++;

@@ -8,13 +8,19 @@
 //      a reset countdown ("Resets at midnight" or "Resets {Month} 1").
 //   3. Adding a new tier or changing prices is a one-file change.
 //
-// Pre-fix every component called `Alert.alert('AI Limit Reached', ...)`
+// Pre-fix every component called `showAlert('AI Limit Reached', ...)`
 // inline with custom titles, sometimes routing to `/paywall`, sometimes
 // not. Drift was real — the limit message in AISubEvaluator was different
 // from the one in AIQuickEstimate even though the underlying state was
 // identical.
 
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+// showAlert, never Alert.alert. react-native-web's Alert is literally an empty
+// stub, and this function is the single AI-cap handler behind ~18 call sites —
+// so on web a user who hit their limit tapped Generate and got NOTHING: no
+// dialog, no error, no spinner. The router.push('/paywall') upsell lives only
+// inside these buttons, which made the paywall unreachable from the web app.
+import { showAlert } from '@/utils/alert';
 import type { Router } from 'expo-router';
 import type { LimitCheck } from '@/utils/aiRateLimiter';
 
@@ -80,7 +86,7 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
 
   // Free-tier-only paths — no countdown, just a paywall nudge.
   if (reason === 'pro_only') {
-    Alert.alert(
+    showAlert(
       'Pro feature',
       message ?? 'This AI feature is part of Pro. Upgrade to unlock.',
       [
@@ -91,7 +97,7 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
     return;
   }
   if (reason === 'lifetime_cap') {
-    Alert.alert(
+    showAlert(
       'Free trials used',
       message ?? "You've used your free AI trials. Upgrade to Pro for unlimited use.",
       [
@@ -109,7 +115,7 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
 
   // Enterprise users have no upgrade — just the countdown.
   if (!upgradeTo || upgradeTo === undefined) {
-    Alert.alert(
+    showAlert(
       "You've hit today's AI limit",
       `${message ?? "Daily limit reached."}\n\n${resetText}`,
       [{ text: 'OK', style: 'default' }],
@@ -125,7 +131,7 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
   const title = "You've hit today's AI limit";
   const body = `${message ?? `You've used today's allowance.`}\n\n${resetText}`;
 
-  Alert.alert(title, body, [
+  showAlert(title, body, [
     { text: 'Wait until tomorrow', style: 'cancel' },
     { text: buttonLabel, onPress: () => router.push('/paywall' as never) },
   ]);

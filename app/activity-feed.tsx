@@ -205,7 +205,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   headerSubtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   listContent: { paddingVertical: 4 },

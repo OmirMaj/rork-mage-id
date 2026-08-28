@@ -237,7 +237,7 @@ function PrequalManagerInner() {
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Prequal + COI · MAGE ID</Text>
-          <Text style={styles.headerTitle}>Subcontractor compliance</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Subcontractor compliance</Text>
         </View>
       </View>
 
@@ -678,7 +678,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   statCard: {

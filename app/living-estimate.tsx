@@ -301,7 +301,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   hero: {
     backgroundColor: t.surface,
@@ -315,7 +315,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   healthChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   healthChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  heroValue: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, letterSpacing: -1, marginTop: 2 },
+  // The screen's ONE hero figure — projected margin. Serif per the type rule
+  // (numbers that matter); the stat rows below stay sans so this keeps its
+  // contrast. tabular-nums so the digits don't jitter as the margin updates.
+  heroValue: { ...Type.serifLargeTitle, letterSpacing: -1, marginTop: 2, fontVariant: ['tabular-nums'] as const },
   heroSub: { fontSize: Type.subhead.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   heroDelta: {
     flexDirection: 'row' as const,

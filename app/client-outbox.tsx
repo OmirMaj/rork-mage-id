@@ -13,6 +13,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
+import { Type } from '@/constants/typography';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PortalState, SendableItemKind } from '@/types';
 import { showAlert } from '@/utils/alert';
@@ -216,7 +217,7 @@ export default function ClientOutboxScreen() {
           <ChevronLeft size={22} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.title}>Client Outbox</Text>
+          <Text style={styles.title} numberOfLines={1}>Client Outbox</Text>
           {projectName ? <Text style={styles.projectName} numberOfLines={1}>{projectName}</Text> : null}
         </View>
         <View style={{ width: 34 }} />
@@ -331,8 +332,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 8,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '800' as const,
+    ...Type.serifHeadline,
     color: t.text,
   },
   projectName: {

@@ -70,7 +70,7 @@ export default function DiscoverToolsScreen() {
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerTitleStack}>
-            <Text style={styles.headerTitle}>Tools</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Tools</Text>
             <Text style={styles.headerSubtitle}>Every cross-project workflow</Text>
           </View>
         </View>
@@ -606,10 +606,8 @@ function makeStyles(c: ThemeColors) {
       gap: 2,
     },
     headerTitle: {
-      fontSize: Type.title2.fontSize,
-      fontWeight: '700' as const,
+      ...Type.serifHeadline,
       color: c.text,
-      letterSpacing: -0.3,
     },
     headerSubtitle: {
       fontSize: Type.caption1.fontSize,

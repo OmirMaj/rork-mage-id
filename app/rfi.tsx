@@ -16,7 +16,10 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
-import { useTierAccess } from '@/hooks/useTierAccess';
+// Project-scoped gate: an invited collaborator may do the work they were
+// invited to do, even though their own tier is free. See
+// utils/collaboratorAccess.
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
@@ -73,7 +76,10 @@ const RFI_PIPELINE_STAGES: PipelineStage<RFIStatus>[] = [
 
 export default function RFIScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project from params here (not just in Inner) so the gate can
+  // ask 'were they invited to THIS project?' before paywalling.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
   const { colors: themeColors } = useTheme();
   if (!canAccess('rfis_submittals')) {
     return (
@@ -103,7 +109,7 @@ function RFIScreenInner() {
   }>();
   const ctx = useProjects();
   const {
-    projects, getProject, getRFIsForProject, addRFI, updateRFI, settings,
+    projects, getProject, getRFIsForProject, addRFI, updateRFI, settings, subcontractors,
     getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject,
   } = ctx;
   const { tier } = useSubscription();
@@ -133,6 +139,9 @@ function RFIScreenInner() {
   const [subject, setSubject] = useState(existingRFI?.subject ?? '');
   const [question, setQuestion] = useState(existingRFI?.question ?? '');
   const [assignedTo, setAssignedTo] = useState(existingRFI?.assignedTo ?? '');
+  // WHICH sub, when this RFI goes to one. Free-text assignedTo can't be
+  // attributed, so without this the sub scorecard can't score turnaround.
+  const [assignedSubId, setAssignedSubId] = useState<string | undefined>(existingRFI?.assignedSubId);
   const [submittedBy, setSubmittedBy] = useState(existingRFI?.submittedBy ?? '');
   const [dateRequired, setDateRequired] = useState(existingRFI?.dateRequired ?? '');
   const [priority, setPriority] = useState<RFIPriority>(existingRFI?.priority ?? 'normal');
@@ -254,6 +263,7 @@ function RFIScreenInner() {
         subject: subject.trim(),
         question: question.trim(),
         assignedTo: assignedTo.trim(),
+        assignedSubId,
         submittedBy: submittedBy.trim(),
         dateRequired,
         priority,
@@ -272,6 +282,7 @@ function RFIScreenInner() {
         question: question.trim(),
         submittedBy: submittedBy.trim(),
         assignedTo: assignedTo.trim(),
+        assignedSubId,
         dateSubmitted: now,
         dateRequired: dateRequired || new Date(Date.now() + 14 * 86400000).toISOString(),
         status: 'open',
@@ -294,7 +305,7 @@ function RFIScreenInner() {
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
-  }, [subject, question, assignedTo, submittedBy, dateRequired, priority, status, linkedDrawing, response, linkedTaskId, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
+  }, [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, response, linkedTaskId, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
 
   const priorityColor = priority === 'urgent' ? themeColors.danger : priority === 'normal' ? themeColors.accent : themeColors.textSecondary;
 
@@ -692,12 +703,65 @@ function RFIScreenInner() {
             <TextInput
               style={styles.input}
               value={assignedTo}
-              onChangeText={setAssignedTo}
+              onChangeText={(v) => {
+                setAssignedTo(v);
+                // Typing over a picked sub breaks the link, so drop the id
+                // rather than leave it pointing at a different company.
+                if (assignedSubId) setAssignedSubId(undefined);
+              }}
               placeholder="Architect, engineer..."
               placeholderTextColor={themeColors.textMuted}
             />
           </View>
         </View>
+
+        {/* Sub attribution. `assignedTo` is free text and the handoff log
+            records only ROLES ('sub'), so without an actual sub id the app can
+            measure that the sub side held this RFI but not WHO — and the sub
+            scorecard cannot score their turnaround. Optional: plenty of RFIs
+            go to an architect and never touch a sub. */}
+        {subcontractors.length > 0 && (
+          <>
+            <Text style={styles.fieldLabel}>
+              Which sub?{'  '}
+              <Text style={styles.subChipHint}>optional — scores their RFI turnaround</Text>
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.subChipRow}
+              keyboardShouldPersistTaps="handled"
+            >
+              {subcontractors.map(sc => {
+                const on = assignedSubId === sc.id;
+                return (
+                  <TouchableOpacity
+                    key={sc.id}
+                    onPress={() => {
+                      if (on) { setAssignedSubId(undefined); return; }
+                      setAssignedSubId(sc.id);
+                      // Fill the visible name for convenience, but never
+                      // clobber one the GC already typed.
+                      if (!assignedTo.trim()) setAssignedTo(sc.companyName);
+                    }}
+                    style={[styles.subChip, on && styles.subChipOn]}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Assign RFI to ${sc.companyName}`}
+                    testID={`rfi-sub-${sc.id}`}
+                  >
+                    <Text
+                      style={[styles.subChipText, on && styles.subChipTextOn]}
+                      numberOfLines={1}
+                    >
+                      {sc.companyName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
 
         <Text style={styles.fieldLabel}>Response Required By</Text>
         <TouchableOpacity
@@ -1011,6 +1075,29 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     marginBottom: 6,
     marginTop: 12,
   },
+  // Sub attribution chips — see the "Which sub?" block.
+  subChipHint: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '400' as const,
+    color: themeColors.textMuted,
+  },
+  subChipRow: { gap: 8, paddingRight: 16, paddingBottom: 2 },
+  subChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: Tokens.radius.full,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    backgroundColor: themeColors.bg,
+    maxWidth: 180,
+  },
+  subChipOn: { borderColor: themeColors.accent, backgroundColor: themeColors.accentSoft },
+  subChipText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
+    color: themeColors.textSecondary,
+  },
+  subChipTextOn: { color: themeColors.accentLabel },
   input: {
     backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,

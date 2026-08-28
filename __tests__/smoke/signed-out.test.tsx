@@ -32,6 +32,11 @@ const PUBLIC_ROUTES = [
   '/shared-schedule',
   '/shared-photos',
   '/shared-estimate',
+  '/shared-plan',
+  // The homeowner client portal. It was auth-walled until the portal_snapshots
+  // fallback landed, which made every share link a bounce to /login — the exact
+  // dead-link failure this list exists to catch.
+  '/client-view',
 ];
 
 describe('signed-out entry points', () => {

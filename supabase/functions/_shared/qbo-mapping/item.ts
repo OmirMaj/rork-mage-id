@@ -1,7 +1,7 @@
 import { qboFetch, svc, type QboConnectionRow } from "../qbo.ts";
-
-interface LinkedEstimateItem { materialId: string; name: string; qboItemId?: string }
-interface MageProjectRow { id: string; linked_estimate: { items?: LinkedEstimateItem[] } | null }
+// Money lives in project_financials now, not on the projects row — see
+// financials.ts. Reads fall back to the legacy column, writes hit both.
+import { readLinkedEstimate, writeLinkedEstimate } from "./financials.ts";
 
 /** Object IDs for items are encoded as "<projectId>::<materialId>" since items
  *  don't live in their own table — they're embedded in projects.linked_estimate.items[]
@@ -11,12 +11,9 @@ export async function upsertItem(conn: QboConnectionRow, encodedId: string, user
   if (!projectId || !materialId) throw new Error(`bad item id ${encodedId}`);
 
   const s = svc();
-  const { data: row, error } = await s
-    .from('projects').select('id,linked_estimate').eq('id', projectId).eq('user_id', userId).maybeSingle();
-  if (error) throw new Error(`project read: ${error.message}`);
-  if (!row) throw new Error('project not found');
-  const project = row as MageProjectRow;
-  const items = project.linked_estimate?.items ?? [];
+  const linkedEstimate = await readLinkedEstimate(s, projectId, userId);
+  if (!linkedEstimate) throw new Error('project not found');
+  const items = linkedEstimate.items ?? [];
   const item  = items.find(i => i.materialId === materialId);
   if (!item) throw new Error(`item ${materialId} not found`);
   if (item.qboItemId) return; // already linked
@@ -31,10 +28,9 @@ export async function upsertItem(conn: QboConnectionRow, encodedId: string, user
   if (!qboItemId) throw new Error('QBO did not return an Item.Id');
 
   const nextItems = items.map(i => i.materialId === materialId ? { ...i, qboItemId } : i);
-  const nextEstimate = { ...(project.linked_estimate ?? {}), items: nextItems };
-  const { error: updateErr } = await s.from('projects')
-    .update({ linked_estimate: nextEstimate })
-    .eq('id', projectId)
-    .eq('user_id', userId);
-  if (updateErr) throw new Error(`project update: ${updateErr.message}`);
+  const nextEstimate = { ...linkedEstimate, items: nextItems };
+  // Dual-write: project_financials is authoritative, the legacy column stays in
+  // step until the phase-2 drop. Writing only the legacy one would let these
+  // qboItemIds be discarded when that migration runs.
+  await writeLinkedEstimate(s, projectId, userId, nextEstimate);
 }

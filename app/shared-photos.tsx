@@ -243,7 +243,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     justifyContent: 'center' as const,
   },
   headerTitle: {
-    ...Type.title2,
+    ...Type.serifHeadline,
     color: c.text,
   },
   headerSub: {

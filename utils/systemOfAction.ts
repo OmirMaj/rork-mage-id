@@ -12,9 +12,16 @@
 //
 // Pure: no React/network/clock (caller passes nowMs).
 
-import type { RFI, Submittal, ChangeOrder, Project } from '@/types';
+import type { RFI, Submittal, ChangeOrder, Project, DailyFieldReport } from '@/types';
+import { classifyDelivery, type Delivery } from '@/utils/deliverySchedule';
+import { buildCrewPresence, findQuietTrades } from '@/utils/crewPresence';
 
-export type ChaseKind = 'rfi' | 'submittal' | 'co_approval';
+// 'delivery' joins the paperwork kinds because a late load is the same shape
+// of problem: someone else is holding something you need, and every day it
+// slips costs you. It differs in who pays — a late RFI stalls a decision, a
+// late delivery stalls a CREW, and that shows up as labour rather than as a
+// late PO. It belongs where the PM already looks.
+export type ChaseKind = 'rfi' | 'submittal' | 'co_approval' | 'delivery' | 'quiet_trade';
 export type ChaseSeverity = 'critical' | 'high' | 'normal';
 
 export interface ChaseItem {
@@ -60,6 +67,12 @@ export function buildChaseList(opts: {
   submittals: Submittal[];
   changeOrders: ChangeOrder[];
   projects: Project[];
+  /** Scheduled deliveries. Optional — omitted means the caller has none loaded
+   *  and the list behaves exactly as it did before deliveries existed. */
+  deliveries?: Delivery[];
+  /** Daily field reports, per project, for crew-presence. Optional for the
+   *  same reason as deliveries. */
+  dailyReportsByProject?: Record<string, DailyFieldReport[]>;
   nowMs: number;
   /** Include items not yet overdue (default false — overdue only). */
   includeUpcoming?: boolean;
@@ -153,6 +166,63 @@ export function buildChaseList(opts: {
     });
   }
 
+  // ── Late deliveries ───────────────────────────────────────────────────────
+  // Only genuinely LATE loads chase. An unconfirmed-but-not-yet-due delivery is
+  // surfaced by the look-ahead (utils/deliverySchedule); putting it here too
+  // would flood the chase list with things nobody is late on yet, and a chase
+  // list you scroll past is a chase list that stops working.
+  for (const d of opts.deliveries ?? []) {
+    const view = classifyDelivery(d, nowMs);
+    if (view.flag !== 'late') continue;
+    const late = Math.abs(view.daysOut ?? 0);
+    items.push({
+      id: `delivery:${d.id}`,
+      kind: 'delivery',
+      projectId: d.projectId,
+      projectName: nameById.get(d.projectId) ?? 'Project',
+      title: `${d.description.slice(0, 60)} — ${d.supplier}`,
+      waitingOn: d.supplier,
+      daysOverdue: late,
+      severity: severityFor(late),
+      nudge:
+        `Following up on ${d.description} for ${nameById.get(d.projectId) ?? 'our project'}, ` +
+        `due ${d.expectedDate} and now ${late} day${late === 1 ? '' : 's'} out. ` +
+        `We have crew scheduled against it — can you confirm a delivery date today?`,
+      route: { pathname: '/deliveries', params: { projectId: d.projectId } },
+    });
+  }
+
+  // ── Trades that went quiet ────────────────────────────────────────────────
+  // A sub who worked for days and then vanished is the definition of something
+  // you are waiting on, and nothing else in the app notices. All the honesty
+  // rules live in utils/crewPresence — in particular, absence is counted in
+  // REPORTED days, so a GC who stops filing daily reports never gets accused of
+  // being ghosted by every sub at once.
+  for (const [projectId, reports] of Object.entries(opts.dailyReportsByProject ?? {})) {
+    const presence = buildCrewPresence(reports);
+    for (const q of findQuietTrades(presence)) {
+      const who = q.companies.length === 1 ? q.companies[0] : q.tradeKey;
+      items.push({
+        id: `quiet:${projectId}:${q.tradeKey}`,
+        kind: 'quiet_trade',
+        projectId,
+        projectName: nameById.get(projectId) ?? 'Project',
+        title: `${who} off site since ${q.lastSeen}`,
+        waitingOn: who,
+        // Reported days, NOT calendar days — see crewPresence's header. Feeding
+        // a calendar number here would make severity climb on the strength of
+        // the GC's own paperwork gap.
+        daysOverdue: q.reportedDaysSince,
+        severity: severityFor(q.reportedDaysSince),
+        nudge:
+          `Checking in on ${q.tradeKey} at ${nameById.get(projectId) ?? 'our project'} — ` +
+          `our daily reports show your crew last on site ${q.lastSeen}. ` +
+          `Can you confirm when they're back so we can sequence the follow-on trades?`,
+        route: { pathname: '/daily-report', params: { projectId } },
+      });
+    }
+  }
+
   return items.sort((a, b) => b.daysOverdue - a.daysOverdue);
 }
 
@@ -162,7 +232,7 @@ export function chaseSummary(items: ChaseItem[]): {
   critical: number;
   byKind: Record<ChaseKind, number>;
 } {
-  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0 };
+  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0, delivery: 0, quiet_trade: 0 };
   let critical = 0;
   for (const i of items) {
     byKind[i.kind] += 1;

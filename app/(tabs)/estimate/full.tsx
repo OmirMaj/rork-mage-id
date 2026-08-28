@@ -419,6 +419,52 @@ export default function EstimateScreen() {
     ]).start();
   }, [cartAnim, ctxAddToCart]);
 
+  /**
+   * Productivity Calculator → estimate.
+   *
+   * ProductivityCalculator has had a complete onAddToEstimate handler and a
+   * button gated on it since it was written; neither render site passed the
+   * prop, so 24 curated crew-day rates (constants/productivityRates.ts) sat
+   * trapped in a read-only lookup modal.
+   *
+   * It lands in the ASSEMBLY cart, not the materials cart. A productivity line
+   * IS an assembly — a bundle of material + labour for a unit of work — and
+   * AssemblyCartItem is the only cart shape that carries materialsCost and
+   * laborCost separately. Dropping it into the materials cart would file the
+   * labour half as material, and utils/costDatabase learns rates PER CATEGORY,
+   * so that miscategorisation would quietly poison the cost book — the one
+   * asset in this app that cannot be rebuilt.
+   *
+   * Equipment folds into materialsCost so the two halves still sum to
+   * totalCost (which is what assemblyTotal sums). Equipment is a non-labour
+   * direct cost, so that is the correct side of the line for it.
+   */
+  const handleAddProductivityLine = useCallback((item: {
+    name: string; materialCost: number; laborCost: number; equipmentCost: number; totalCost: number;
+  }) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const assembly: AssemblyItem = {
+      id: `productivity-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: item.name,
+      category: 'Productivity',
+      description: 'Added from the productivity calculator',
+      unit: 'ea',
+      // Empty per-unit arrays: the costs are already computed for the quantity
+      // the user entered, and AssemblyCartItem carries them directly.
+      // utils/assemblyRows normalizes empty arrays, so nothing downstream breaks.
+      materialsPerUnit: [],
+      laborPerUnit: [],
+      notes: '',
+    };
+    setAssemblyCart(prev => [...prev, {
+      assembly,
+      quantity: 1,
+      materialsCost: item.materialCost + item.equipmentCost,
+      laborCost: item.laborCost,
+      totalCost: item.totalCost,
+    }]);
+  }, [setAssemblyCart]);
+
   const handleAddCustomMaterial = useCallback(() => {
     const price = parseLenientNumber(customPrice);
     if (!customName.trim() || price === null || price <= 0) {
@@ -2819,7 +2865,7 @@ export default function EstimateScreen() {
           </Pressable>
         </Modal>
         <SquareFootEstimator visible={showSqftEstimator} onClose={() => setShowSqftEstimator(false)} locationFactor={locationMultiplier} />
-        <ProductivityCalculator visible={showProductivityCalc} onClose={() => setShowProductivityCalc(false)} />
+        <ProductivityCalculator visible={showProductivityCalc} onClose={() => setShowProductivityCalc(false)} onAddToEstimate={handleAddProductivityLine} />
         <EstimateComparison visible={showComparison} onClose={() => setShowComparison(false)} currentCart={cart} currentLaborCart={laborCart} currentAssemblyCart={assemblyCart} currentMaterialsTotal={cartTotal} currentLaborTotal={laborTotal} currentAssemblyTotal={assemblyTotal} currentGrandTotal={grandTotal} />
         <PDFPreSendSheet visible={showPDFPreSend} onClose={() => setShowPDFPreSend(false)} onSend={handlePDFSend} documentType="estimate" projectName={pendingLinkProject?.name ?? 'Estimate'} contacts={contacts} pdfNaming={settings.pdfNaming} onPdfNumberUsed={() => { if (settings.pdfNaming?.enabled) { updateSettings({ pdfNaming: { ...settings.pdfNaming, nextNumber: settings.pdfNaming.nextNumber + 1 } }); } }} hasBulkSavings={showBulkSavings} />
         <AssemblyEditorModal
@@ -3731,6 +3777,7 @@ export default function EstimateScreen() {
       <ProductivityCalculator
         visible={showProductivityCalc}
         onClose={() => setShowProductivityCalc(false)}
+        onAddToEstimate={handleAddProductivityLine}
       />
 
       <EstimateComparison

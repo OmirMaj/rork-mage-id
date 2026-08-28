@@ -32,6 +32,9 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useProjectRole } from '@/hooks/useProjectRole';
+import { isFinancialsBlinded } from '@/utils/roleBlinding';
+import LockedAccessCard from '@/components/LockedAccessCard';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborRates, useLaborCostSamples, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -107,6 +110,8 @@ function JobCostingInner() {
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
+  // Field-role collaborators get the operational project, never its money.
+  const role = useProjectRole(projectId);
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
@@ -158,6 +163,28 @@ function JobCostingInner() {
             'Tap Job Costing in the project tile grid to see budget vs. actual.',
           ]}
         />
+      </View>
+    );
+  }
+
+  // Role still resolving → render nothing rather than flash the numbers.
+  if (role === null) return null;
+  // Field access: the whole screen is money, so blind the whole screen.
+  if (isFinancialsBlinded(role)) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+            <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
+          </TouchableOpacity>
+          <View style={styles.headerText}>
+            <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
+          </View>
+          <View style={styles.headerBtn} />
+        </View>
+        <LockedAccessCard what="Job costing" style={{ margin: 16 }} />
       </View>
     );
   }
@@ -845,7 +872,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerCta: { backgroundColor: t.accent },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   // KPI grid
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },

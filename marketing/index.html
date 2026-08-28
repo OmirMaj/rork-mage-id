@@ -435,6 +435,88 @@
     .pass-anim li:nth-child(4){transform:translate(16px,10px)}
     .pass-anim li.pin-in{opacity:1;transform:none;transition:opacity .45s ease,transform .5s cubic-bezier(.2,.75,.25,1)}
   }
+
+  /* ============================================================
+     THE WATCH — what's about to stop the job.
+
+     MOTION NOTE. There is exactly one beat here that carries meaning:
+     the CASCADE. A delivery slips, and a second problem unfolds from
+     underneath it — the elevator slot booked for the old date is now
+     worthless. That is how a real job fails: one thing moves and drags
+     another with it. Everything else on this board is a plain staggered
+     reveal.
+
+     A board that reshuffled itself decoratively would be prettier and
+     would be lying about what the product does. The connector line
+     drawing downward IS the dependency; it is not garnish.
+
+     Driven entirely by the existing `.rv -> .in` observer. No new JS,
+     no library, no scroll-scrubbing.
+     ============================================================ */
+  .watch .board{margin-top:clamp(26px,4vw,40px);background:var(--panel);border:1px solid var(--line-d);border-radius:14px;overflow:hidden}
+  .wl-top{display:flex;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line-d);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--faint);text-transform:uppercase}
+  .wl-top b{color:var(--muted);font-weight:500}
+  .wl-list{padding:6px 0}
+
+  .wl-row{display:flex;align-items:flex-start;gap:13px;padding:13px 16px;position:relative}
+  /* Severity in FORM, not colour alone — the bar height differs per level,
+     so the board still reads on a black-and-white print or to a colourblind
+     super holding a phone in the sun. */
+  .wl-bar{flex:none;width:3px;border-radius:2px;background:var(--dim);margin-top:2px;align-self:stretch}
+  .wl-row[data-sev="stop"] .wl-bar{background:var(--no)}
+  .wl-row[data-sev="soon"] .wl-bar{background:var(--amber)}
+  /* Column flex, not two inline spans: .wl-what / .wl-who are <span>s, which
+     would otherwise run together on one line and silently drop their
+     margin-top (vertical margins do nothing on inline boxes). */
+  .wl-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .wl-what{font-size:15px;color:var(--bone);font-weight:600;letter-spacing:-.01em}
+  .wl-who{font-size:13px;color:var(--faint)}
+  .wl-state{flex:none;font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--dim);padding-top:2px;text-align:right}
+  .wl-row[data-sev="stop"] .wl-state{color:var(--no)}
+  .wl-row[data-sev="soon"] .wl-state{color:var(--amber-lift)}
+
+  /* the cascade child — the second problem, pulled out by the first */
+  .wl-cascade{display:flex;align-items:flex-start;gap:13px;padding:0 16px 0 32px;max-height:0;opacity:0;overflow:hidden;position:relative}
+  .wl-cascade .wl-bar{background:var(--no)}
+  .wl-link{position:absolute;left:22px;top:-6px;width:1px;height:26px;background:var(--no);opacity:.5;transform:scaleY(0);transform-origin:top}
+  .wl-note{font-family:var(--mono);font-size:11.5px;color:var(--faint);padding:2px 16px 14px 32px;max-height:0;opacity:0;overflow:hidden}
+
+  /* arrival: staggered, keyed off the section reveal */
+  .watch .board .wl-row{opacity:0;transform:translateY(9px)}
+  .watch .board.in .wl-row{animation:wlIn .55s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--i,0) * .09s)}
+  @keyframes wlIn{to{opacity:1;transform:none}}
+
+  /* the beat: at 1.5s the delivery goes late and drags the elevator with it */
+  .watch .board.in .wl-row[data-sev="stop"] .wl-bar{animation:wlEsc .5s ease 1.5s both}
+  @keyframes wlEsc{from{background:var(--amber)}to{background:var(--no)}}
+  .watch .board.in .wl-link{animation:wlDraw .34s ease 1.62s forwards}
+  @keyframes wlDraw{to{transform:scaleY(1)}}
+  /* Two tuned targets rather than one shared keyframe: max-height must CLEAR
+     the content or it clips, but overshooting by too much means the element
+     stops growing early and the easing reads as stalled. The cascade row gets
+     headroom for .wl-who wrapping to two lines on a narrow phone; the one-line
+     note does not need it. */
+  .watch .board.in .wl-cascade{animation:wlOpenRow .46s cubic-bezier(.2,.7,.2,1) 1.72s forwards}
+  @keyframes wlOpenRow{to{max-height:120px;opacity:1}}
+  .watch .board.in .wl-note{animation:wlOpenNote .4s ease 2.05s forwards}
+  @keyframes wlOpenNote{to{max-height:44px;opacity:1}}
+
+  .watch-kick{margin-top:18px;font-size:13.5px;color:var(--faint);max-width:62ch}
+  @media(min-width:760px){
+    .wl-row{padding:14px 20px}
+    .wl-cascade{padding-left:40px}
+    .wl-link{left:30px}
+    .wl-note{padding-left:40px}
+  }
+  /* Reduced motion: show the FINISHED board — late row, drawn link, cascade
+     open. The information is the point; the motion was only ever the delivery
+     mechanism, so removing it must not remove the meaning. */
+  @media (prefers-reduced-motion:reduce){
+    .watch .board .wl-row{opacity:1;transform:none;animation:none}
+    .watch .board .wl-cascade,.watch .board .wl-note{max-height:74px;opacity:1;animation:none}
+    .watch .board .wl-link{transform:scaleY(1);animation:none}
+    .watch .board.in .wl-row[data-sev="stop"] .wl-bar{animation:none}
+  }
   </style>
 </head>
 <body>
@@ -599,6 +681,69 @@
       </div>
       <div class="cmp-panel" id="cmpPanel"></div>
     </div>
+  </div></section>
+
+  <!-- THE WATCH -->
+  <section class="dark sec watch" id="watch"><div class="wrap">
+    <div class="rv"><p class="kick">The watch</p>
+    <h2 class="h">It knows what&rsquo;s about to stop the job.</h2>
+    <p class="seclede">A load that won&rsquo;t land. A freight elevator nobody booked. An architect sitting on an RFI for nine days. A client link that quietly died. None of these are on a schedule, and every one of them stops work &mdash; so MAGE watches them and keeps a single list, worst first, while there&rsquo;s still time to move.</p></div>
+
+    <div class="board rv" aria-hidden="true">
+      <div class="wl-top"><span>Chase list &middot; example board</span><b>Worst first</b></div>
+      <div class="wl-list">
+
+        <div class="wl-row" data-sev="stop" style="--i:0">
+          <span class="wl-bar"></span>
+          <span class="wl-body">
+            <span class="wl-what">14 windows &mdash; Acme Glass</span>
+            <span class="wl-who">Promised Tuesday &middot; nobody confirmed it</span>
+          </span>
+          <span class="wl-state">3 days late</span>
+        </div>
+        <!-- the cascade: the slip drags the building with it -->
+        <div class="wl-cascade">
+          <span class="wl-link"></span>
+          <span class="wl-bar"></span>
+          <span class="wl-body">
+            <span class="wl-what">No freight elevator booked for the new date</span>
+            <span class="wl-who">Tuesday&rsquo;s slot is worthless now &middot; rebook with the property manager</span>
+          </span>
+          <span class="wl-state">blocks it</span>
+        </div>
+        <p class="wl-note">&mdash; the truck will be turned away</p>
+
+        <div class="wl-row" data-sev="soon" style="--i:1">
+          <span class="wl-bar"></span>
+          <span class="wl-body">
+            <span class="wl-what">RFI 08 &mdash; ceiling height at grid C</span>
+            <span class="wl-who">With the architect since the 12th</span>
+          </span>
+          <span class="wl-state">9 days</span>
+        </div>
+
+        <div class="wl-row" data-sev="soon" style="--i:2">
+          <span class="wl-bar"></span>
+          <span class="wl-body">
+            <span class="wl-what">Client portal link expired</span>
+            <span class="wl-who">Harper Residence &middot; they can&rsquo;t open it</span>
+          </span>
+          <span class="wl-state">send a new one</span>
+        </div>
+
+        <div class="wl-row" data-sev="ok" style="--i:3">
+          <span class="wl-bar"></span>
+          <span class="wl-body">
+            <span class="wl-what">Millwork submittal</span>
+            <span class="wl-who">Waiting on your review</span>
+          </span>
+          <span class="wl-state">due in 2d</span>
+        </div>
+
+      </div>
+    </div>
+
+    <p class="watch-kick rv">Example board. Yours is built only from your own jobs &mdash; and it stays empty when there&rsquo;s genuinely nothing to chase. A list that always has something on it is just noise you&rsquo;d learn to scroll past.</p>
   </div></section>
 
   <!-- WHO -->

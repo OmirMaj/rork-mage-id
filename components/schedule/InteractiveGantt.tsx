@@ -2622,13 +2622,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   gutterRowHover: {
     backgroundColor: t.accent + '0A',
   },
-  // Task 5: selected row tint — #eff6ff background, blue-950 name + bold.
-  // Only applied in desktop (full-gutter) mode; compact and phone skip it.
+  // Task 5: selected row tint. Only applied in desktop (full-gutter) mode;
+  // compact and phone skip it.
+  //
+  // Was a hardcoded #eff6ff fill with a #1e40af name. That stranded the row's
+  // OTHER text — gutterIndex and gutterSubtitle both use t.textMuted, which
+  // goes near-white in dark mode and vanished on the light blue. A translucent
+  // accent tint layers over whatever surface is underneath, so it reads in both
+  // themes, and it matches gutterRowHover directly above (same idea, stronger).
   gutterRowFocused: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: t.accent + '1A',
   },
   gutterNameFocused: {
-    color: '#1e40af',
+    color: t.accentLabel,
     fontWeight: '600' as const,
   },
   gutterIndex: {

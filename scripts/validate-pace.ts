@@ -76,6 +76,26 @@ expect('→done never overwrites an existing end',
 expect('→done treats a date-only end capture as captured (no re-stamp)',
   stampActuals(t({ status: 'in_progress', actualStartDate: NOW, actualEndDate: '2026-07-20T08:00:00.000Z' }), 'done', 12, NOW),
   {});
+
+// ── retroStartFromPlanned:false — the DFR path ──────────────────────────────
+// Daily reports are filed daily, so a task jumping 0→100 in ONE report means
+// the work happened inside that reporting day, not that it ran from its planned
+// start. Back-filling the plan there would hand paceBook a span the app
+// invented, and paceBook measures duration as the inclusive span between the
+// two stamps — so the book would learn its own plan back and report low
+// variability for it. A confident wrong number is worse than an honest gap.
+expect('DFR: →done does NOT invent a start from the plan',
+  stampActuals(t({}), 'done', 12, NOW, { retroStartFromPlanned: false }),
+  { actualEndDay: 12, actualEndDate: NOW });
+expect('DFR: →done with a REAL observed start still stamps the end',
+  stampActuals(t({ status: 'in_progress', actualStartDay: 6 }), 'done', 12, NOW, { retroStartFromPlanned: false }),
+  { actualEndDay: 12, actualEndDate: NOW });
+expect('DFR: →in_progress is unaffected (that start is observed, not invented)',
+  stampActuals(t({}), 'in_progress', 12, NOW, { retroStartFromPlanned: false }),
+  { actualStartDay: 12, actualStartDate: NOW });
+expect('the option DEFAULTS to the Gantt rule, so existing callers are untouched',
+  stampActuals(t({}), 'done', 12, NOW, {}),
+  { actualEndDay: 12, actualEndDate: NOW, actualStartDay: 4, actualStartDate: NOW });
 expect('→on_hold never stamps',
   stampActuals(t({ status: 'in_progress', actualStartDay: 6 }), 'on_hold', 12, NOW),
   {});

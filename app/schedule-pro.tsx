@@ -2276,7 +2276,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerBackText: { color: t.accent, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
   headerTitleWrap: { flex: 1, marginHorizontal: 12 },
-  headerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   headerSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: 8 },
   headerBtn: {

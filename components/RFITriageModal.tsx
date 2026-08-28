@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, Platform, Alert,
+  ActivityIndicator, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -20,6 +20,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { parseRFIFromTranscript } from '@/utils/voiceFormParsers';
 import { nailIt } from '@/components/animations/NailItToast';
+import { showAlert } from '@/utils/alert';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -76,7 +77,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
 
   const create = () => {
     if (!projectId || !subject.trim() || !question.trim()) {
-      Alert.alert('Missing details', 'Pick a project and fill in the subject and question.');
+      showAlert('Missing details', 'Pick a project and fill in the subject and question.');
       return;
     }
     const rfi = addRFI({

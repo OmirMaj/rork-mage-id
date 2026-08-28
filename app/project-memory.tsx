@@ -241,7 +241,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 30, height: 30, borderRadius: Tokens.radius.md,
     backgroundColor: t.accent + '14', alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '800', color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   headerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
 
   emptyWrap: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 8 },

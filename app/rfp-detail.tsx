@@ -450,7 +450,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: t.line,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { ...Type.serifHeadline, color: t.text, marginTop: 4 },
 
   gallery: { marginBottom: 14, marginHorizontal: -2 },
   galleryImage: { width: 220, height: 160, borderRadius: Tokens.radius.card, marginRight: 8, backgroundColor: t.bg },

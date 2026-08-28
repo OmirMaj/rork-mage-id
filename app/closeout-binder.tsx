@@ -573,7 +573,7 @@ export default function CloseoutBinderScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>The handover packet</Text>
+          <Text style={styles.title} numberOfLines={1}>The handover packet</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: statusPill.bg }]}>
           <Text style={[styles.statusPillText, { color: statusPill.color }]}>{statusPill.label}</Text>
@@ -1100,7 +1100,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { ...Type.serifHeadline, color: themeColors.text, marginTop: 4 },
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full, marginTop: 6 },
   statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text },

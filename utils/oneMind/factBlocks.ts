@@ -193,6 +193,14 @@ export function buildScheduleBlock(project: Project, now: Date = new Date()): Fa
   const facts: string[] = [];
   if (!schedule || schedule.tasks.length === 0) {
     facts.push(`No schedule built for ${project.name} yet.`);
+    // Distinct ref so the follow-up chips offer "build a schedule" next-steps
+    // instead of delay questions that assume a schedule already exists.
+    return {
+      domain: 'SCHEDULE',
+      ref: 'SCHEDULE_EMPTY',
+      facts,
+      drillIn: { pathname: '/schedule-pro', params: { projectId: project.id } },
+    };
   } else {
     const tasks = schedule.tasks;
     const done = tasks.filter(t => t.status === 'done').length;

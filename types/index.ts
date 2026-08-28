@@ -87,7 +87,12 @@ export interface ProjectCollaborator {
   id: string;
   email: string;
   name: string;
-  role: 'owner' | 'editor' | 'viewer';
+  /** 'field' = crew/sub with operational access (schedule, tasks, daily
+   *  reports, photos, RFIs, punch) but NO financial visibility — costs,
+   *  margins, markups, budgets and the cost book are blinded (utils/
+   *  roleBlinding). Client-side blinding is defense-in-depth; the row-level
+   *  server enforcement rides the field-role RLS migration. */
+  role: 'owner' | 'editor' | 'viewer' | 'field';
   status: 'pending' | 'accepted' | 'revoked';
   invitedAt: string;
   // DB-backed multi-user access (Live Schedule Collaboration Phase 1). Optional
@@ -3034,6 +3039,26 @@ export interface ClientPortalSettings {
     selections?: boolean;
     warranties?: boolean;
   };
+  /**
+   * When the current share link stops working. Mirrors
+   * portal_snapshots.expires_at so the setup screen can render link state
+   * without a round trip — the app is local-first and the GC needs to know
+   * whether their link is alive while standing in a basement with no signal.
+   *
+   * Undefined = never expires. Every portal created before
+   * 20260826170000_portal_link_expiry.sql is in that state and stays there
+   * until the GC deliberately regenerates with a duration.
+   */
+  linkExpiresAt?: string;
+  /**
+   * Days the GC chose the last time they generated this project's link,
+   * reused as the picker default. `null` = they explicitly chose "No expiry";
+   * `undefined` = never asked. Both mean no deadline, but only `undefined`
+   * falls back to the remembered / 30-day default.
+   */
+  linkDurationDays?: number | null;
+  /** When the current link was last minted. Gives "expires in 12 days" a start date. */
+  linkGeneratedAt?: string;
 }
 
 /** Supported languages for the homeowner portal. ISO 639-1. */
@@ -3133,7 +3158,20 @@ export interface SubSubmittedInvoice {
   notesFromGc?: string;
   createdAt: string;
   reviewedAt?: string;
+  /** When the GC RECORDED the payment in MAGE. */
   paidAt?: string;
+  // ── Payment reconciliation (utils/apReconciliation) ──────────────────────
+  // MAGE never moves money; these record the payment the GC made elsewhere so
+  // paid-vs-owed reconciles against a bank statement. Optional — a legacy paid
+  // row simply reads as "unreconciled" until filled in.
+  /** 'check' | 'ach' | 'card' | 'cash' | 'other'. */
+  paymentMethod?: string;
+  /** Check number, ACH trace, confirmation code. */
+  paymentReference?: string;
+  /** The DATE money actually left the account (YYYY-MM-DD) — distinct from
+   *  paidAt, so a check written Friday reconciles to Friday's statement even
+   *  if it was logged Monday. */
+  paidOn?: string;
 }
 
 export interface PortalMessage {
@@ -3223,6 +3261,17 @@ export interface RFI {
   question: string;
   submittedBy: string;
   assignedTo: string;
+  /** WHICH subcontractor this RFI sits with, when ballInCourt is 'sub'.
+   *
+   *  utils/rfiHoldTime already computes `subDays` per RFI — how long the sub
+   *  side held it — but `assignedTo` is free text and RFIHandoff records only
+   *  ROLES (gc/architect/sub), so until now you could see that a sub sat on an
+   *  RFI for nine days and not which sub. That made the signal unusable for
+   *  the sub scorecard and weak in a delay claim.
+   *
+   *  Optional: an RFI to an architect or owner has none, and legacy rows
+   *  predate it. Absent ⇒ that RFI simply doesn't score any sub. */
+  assignedSubId?: string;
   /** Current ball-in-court. Defaults to 'gc' on creation; flips to
    *  'architect' (or whoever was assigned) when the RFI is sent, back
    *  to 'gc' when a response lands, 'closed' when the GC marks it

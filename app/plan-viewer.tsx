@@ -419,7 +419,7 @@ function PlanViewerScreenInner() {
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Sheet not found</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Sheet not found</Text>
         </View>
       </View>
     );
@@ -1093,7 +1093,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerBtn: { padding: 6, borderRadius: Tokens.radius.sm },
   headerEyebrow: { color: t.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  headerTitle: { color: t.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
   modePill: { backgroundColor: t.surfaceAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.md },
   modePillText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 

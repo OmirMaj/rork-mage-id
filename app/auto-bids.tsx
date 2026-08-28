@@ -107,7 +107,7 @@ function AutoBidsInner() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <MageAIMark size={15} color={t.accent} />
-          <Text style={styles.headerTitle}>Pre-priced bids</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pre-priced bids</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -240,7 +240,7 @@ const makeStyles = (t: ThemeColors) =>
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-    headerTitle: { ...Type.headline, color: t.text },
+    headerTitle: { ...Type.serifHeadline, color: t.text },
     scroll: { paddingBottom: 40 },
     content: {
       width: '100%',

@@ -85,7 +85,7 @@ export default function SubProfileScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <HardHat size={15} color={t.accent} strokeWidth={2} />
-          <Text style={styles.headerTitle}>Your work profile</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Your work profile</Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -118,8 +118,8 @@ const makeStyles = (t: ThemeColors) =>
       borderBottomColor: t.line,
     },
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-    headerTitle: { ...Type.headline, color: t.text },
+    headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, flexShrink: 1 },
+    headerTitle: { ...Type.serifHeadline, color: t.text, flexShrink: 1 },
     scroll: { paddingVertical: Tokens.spacing.md, paddingBottom: 40 },
     scrollDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center', paddingHorizontal: 24 },
   });

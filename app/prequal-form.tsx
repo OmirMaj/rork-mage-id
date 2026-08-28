@@ -284,7 +284,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
         <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Prequalification · MAGE ID</Text>
-          <Text style={styles.headerTitle}>{subCompanyName}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{subCompanyName}</Text>
         </View>
         {dirty && (
           <View style={styles.savingChip}>
@@ -650,7 +650,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt,
   },
   headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   savingChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
   savingChipText: { fontSize: 10, color: t.textSecondary, fontWeight: '600' },

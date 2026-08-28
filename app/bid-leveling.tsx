@@ -323,7 +323,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   recoCard: { backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, padding: 16, marginBottom: 12, gap: 3 },
   recoHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },

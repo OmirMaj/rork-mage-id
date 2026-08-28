@@ -13,7 +13,9 @@
 // Reuses the existing `icsGenerator.ts` infrastructure — no duplicate ICS
 // builder logic.
 
-import { Alert } from 'react-native';
+// showAlert, never Alert.alert — the raw one no-ops on web, so an empty
+// schedule or a failed export produced complete silence.
+import { showAlert } from '@/utils/alert';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import type { Project } from '@/types';
 
@@ -37,9 +39,9 @@ async function handleOneShot(project: Project): Promise<void> {
       warranties: [],
     });
     if (result.eventCount === 0) {
-      Alert.alert('Nothing to export', 'This schedule has no tasks yet.');
+      showAlert('Nothing to export', 'This schedule has no tasks yet.');
     }
   } catch (e) {
-    Alert.alert('Export failed', String(e));
+    showAlert('Export failed', String(e));
   }
 }

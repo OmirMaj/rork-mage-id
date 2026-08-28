@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, TextInput, Platform, Modal, FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -21,6 +22,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { usePortalThread } from '@/hooks/usePortalThread';
+import { usePortalSnapshot, type PortalSnapshotStatus } from '@/hooks/usePortalSnapshot';
+import { hydratePortalSnapshot } from '@/utils/portalSnapshotHydrate';
 import { formatMoney } from '@/utils/formatters';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
@@ -34,6 +37,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
+import { linkState } from '@/utils/portalLinkExpiry';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import {
@@ -48,6 +52,81 @@ import { showAlert } from '@/utils/alert';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type SectionKey = 'messages' | 'schedule' | 'budget' | 'invoices' | 'changeOrders' | 'photos' | 'dailyReports' | 'punchList' | 'rfis' | 'documents';
+
+type PortalFailureKind = PortalSnapshotStatus | 'revoked';
+
+/**
+ * Formats a date, or returns null when there isn't a usable one.
+ *
+ * Snapshot-sourced records legitimately arrive without dates — the client-safe
+ * projection drops an RFI's response deadline, a punch item's due date, and so
+ * on. `new Date('')` renders the literal string "Invalid Date", which reads to
+ * a homeowner as a broken app rather than as absent data.
+ */
+function formatDate(iso: string | undefined, opts: Intl.DateTimeFormatOptions): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', opts);
+}
+
+/**
+ * Copy for every way opening a portal can fail.
+ *
+ * The old screen had ONE message for all of them, and it named expiry as the
+ * likely cause. That was wrong in the common case. A portal link only expires
+ * if the GC gave it a deadline (`expires_at`, nullable, and NULL on every link
+ * predating 20260826170000), so the overwhelming majority of the time nothing
+ * had lapsed at all: the screen simply had no local project to render from.
+ * Blaming a deadline sends the homeowner to ask for a new link when the link
+ * was fine, and sends the GC hunting a lifetime setting they never touched.
+ *
+ * `expired` below is reserved for a deadline the server (or the GC's own local
+ * portal settings) confirms has actually passed. Everything else names what
+ * really happened. All of them end at the same next step — go back to your
+ * contractor — but only after telling the truth about why.
+ */
+function portalFailureCopy(
+  kind: PortalFailureKind,
+  expiresAt?: string | null,
+): { title: string; body: string } {
+  switch (kind) {
+    case 'expired': {
+      // "expired 3 days ago" beats a bare "expired" — it tells the homeowner
+      // whether they are chasing a link that died this morning or last quarter.
+      const state = linkState(expiresAt);
+      const when = state.kind === 'expired' ? `${state.label}. ` : '';
+      return {
+        title: 'This link has expired',
+        body: `${when}Your contractor set this link to stop working after a set time. Ask them to send you a new one — your project is still there.`,
+      };
+    }
+    case 'revoked':
+      return {
+        title: 'This portal is turned off',
+        body: 'Your contractor switched this portal off. Ask them to turn it back on and send you a fresh link.',
+      };
+    case 'missing_key':
+      return {
+        title: 'This link is incomplete',
+        body: 'Part of the link is missing. Email and text apps often cut long links in half — try opening it from the original message, or ask your contractor for a new one.',
+      };
+    case 'not_published':
+      return {
+        title: 'Nothing here yet',
+        body: 'This portal is real, but your contractor has not published anything to it yet. It will fill in as soon as they do.',
+      };
+    case 'unreachable':
+      return {
+        title: 'Could not load your portal',
+        body: 'We could not reach the server. Check your connection and try again.',
+      };
+    default:
+      return {
+        title: 'We could not find this portal',
+        body: 'This link does not match a portal we know about. Ask your contractor to send you a new link.',
+      };
+  }
+}
 
 function SectionHeader({ title, icon, count, expanded, onToggle, infoTerm }: {
   title: string; icon: React.ReactNode; count?: number; expanded: boolean; onToggle: () => void; infoTerm?: string;
@@ -101,38 +180,114 @@ export default function ClientViewScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
-  const { portalId, inviteId, clientName: clientNameParam } = useLocalSearchParams<{ portalId: string; inviteId?: string; clientName?: string }>();
+  const { portalId, inviteId, clientName: clientNameParam, t: accessTokenParam } =
+    useLocalSearchParams<{ portalId: string; inviteId?: string; clientName?: string; t?: string }>();
   const {
-    projects, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject,
+    projects, projectsLoaded, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject,
     getPunchItemsForProject, getPhotosForProject, getRFIsForProject, getWarrantiesForProject,
     updateProject, updateChangeOrder,
     settings,
   } = useProjects();
 
-  // Find project by portalId
-  const project = useMemo(() =>
-    projects.find(p => p.clientPortal?.portalId === portalId && p.clientPortal?.enabled),
-    [projects, portalId]
+  // ── Resolution order, and why it is this order ───────────────────────────
+  //  1. LOCAL project (ProjectContext) — the GC previewing their own portal.
+  //     It is live state rather than a published copy, so it is always the
+  //     freshest, and it is the only source that can write back (approve a CO,
+  //     post a reply). It wins whenever it exists.
+  //  2. `#d=` URL fragment — the whole snapshot inlined in the long link. No
+  //     network round-trip, so it renders in a basement with no signal, and the
+  //     fragment never reaches a server. Beats the server copy for that reason.
+  //  3. `portal_snapshots` via the token-gated RPC — the copy the GC's app
+  //     publishes on every save. This is what makes the SHORT link work, and
+  //     short links are the ones that survive SMS and email intact.
+  //
+  // Only (1) existed before. An anonymous homeowner has an empty ProjectContext,
+  // so every share link landed on the "not found" branch.
+  const localPortalProject = useMemo(
+    () => projects.find(p => p.clientPortal?.portalId === portalId),
+    [projects, portalId],
+  );
+  const localPortalSettings = localPortalProject?.clientPortal;
+  /** The portal exists on this device but the GC has switched it off. */
+  const localRevoked = !!localPortalProject && !localPortalSettings?.enabled;
+  /** Enabled, but the lifetime the GC chose has run out. Checked here as well
+   *  as server-side so "Preview as your client" shows the GC the same wall
+   *  their homeowner is hitting rather than quietly ignoring the deadline. */
+  const localExpired = !localRevoked
+    && !!localPortalProject
+    && linkState(localPortalSettings?.linkExpiresAt).kind === 'expired';
+  const localProject = localPortalSettings?.enabled && !localExpired ? localPortalProject : undefined;
+
+  // Wait for the local store to settle before reaching off-device. On a cold
+  // start `projects` is [] for a beat; firing the fetch then would race the
+  // GC's own hydration and could render a stale published copy over live state.
+  // No portalId at all means there is nothing to wait FOR — that has to resolve
+  // straight to a failure rather than spin.
+  const hasPortalId = typeof portalId === 'string' && portalId.length > 0;
+  const needsSnapshot = hasPortalId && projectsLoaded && !localProject && !localRevoked && !localExpired;
+  const remote = usePortalSnapshot(hasPortalId ? portalId : undefined, {
+    enabled: needsSnapshot,
+    accessToken: typeof accessTokenParam === 'string' ? accessTokenParam : undefined,
+  });
+
+  const hydrated = useMemo(
+    () => (remote.snapshot && typeof portalId === 'string'
+      ? hydratePortalSnapshot(remote.snapshot, portalId)
+      : null),
+    [remote.snapshot, portalId],
   );
 
-  const portal = project?.clientPortal;
+  // Snapshot mode is READ-ONLY. The anon write policies on
+  // change_order_approvals / portal_messages were dropped in
+  // 20260713150001_portal_lock_direct_access.sql, so the direct inserts below
+  // would fail for a visitor with no session. The browser portal
+  // (marketing/portal/index.html) already handles those decisions through the
+  // token-gated RPCs; this screen shows the data and points there rather than
+  // pretending a write landed.
+  const isSnapshotMode = !localProject && !!hydrated;
+
+  const project = localProject ?? hydrated?.project;
+  const portal = localProject?.clientPortal ?? hydrated?.portal;
 
   // GC↔client thread lives in Supabase (portal_messages, keyed by
   // portal_id). Pre-fix this screen wrote/read a LOCAL store while the
   // GC's client-messages screen read Supabase — client replies were
   // silently lost. Same hook + table as the GC side now.
-  const thread = usePortalThread({ projectId: project?.id, portalId: portal?.portalId });
+  // Scoped to the LOCAL project: portal_messages is owner-scoped under RLS, so
+  // an anon visitor reads the thread out of the snapshot instead.
+  const thread = usePortalThread({
+    projectId: localProject?.id,
+    portalId: localProject?.clientPortal?.portalId,
+  });
 
-  const changeOrders = useMemo(() => project ? getChangeOrdersForProject(project.id) : [], [project, getChangeOrdersForProject]);
-  const invoices = useMemo(() => project ? getInvoicesForProject(project.id) : [], [project, getInvoicesForProject]);
+  const changeOrders = useMemo(
+    () => (localProject ? getChangeOrdersForProject(localProject.id) : hydrated?.changeOrders ?? []),
+    [localProject, getChangeOrdersForProject, hydrated],
+  );
+  const invoices = useMemo(
+    () => (localProject ? getInvoicesForProject(localProject.id) : hydrated?.invoices ?? []),
+    [localProject, getInvoicesForProject, hydrated],
+  );
   const ownerConfidence = useMemo(
     () => (project ? buildOwnerConfidence({ project, changeOrders, invoices, nowMs: Date.now() }) : null),
     [project, changeOrders, invoices],
   );
-  const dailyReports = useMemo(() => project ? getDailyReportsForProject(project.id) : [], [project, getDailyReportsForProject]);
-  const punchItems = useMemo(() => project ? getPunchItemsForProject(project.id) : [], [project, getPunchItemsForProject]);
-  const photos = useMemo(() => project ? getPhotosForProject(project.id) : [], [project, getPhotosForProject]);
-  const rfis = useMemo(() => project ? getRFIsForProject(project.id) : [], [project, getRFIsForProject]);
+  const dailyReports = useMemo(
+    () => (localProject ? getDailyReportsForProject(localProject.id) : hydrated?.dailyReports ?? []),
+    [localProject, getDailyReportsForProject, hydrated],
+  );
+  const punchItems = useMemo(
+    () => (localProject ? getPunchItemsForProject(localProject.id) : hydrated?.punchItems ?? []),
+    [localProject, getPunchItemsForProject, hydrated],
+  );
+  const photos = useMemo(
+    () => (localProject ? getPhotosForProject(localProject.id) : hydrated?.photos ?? []),
+    [localProject, getPhotosForProject, hydrated],
+  );
+  const rfis = useMemo(
+    () => (localProject ? getRFIsForProject(localProject.id) : hydrated?.rfis ?? []),
+    [localProject, getRFIsForProject, hydrated],
+  );
 
   // Real documents shared with the homeowner. Sourced from the SAME places
   // the setup screen builds the portal snapshot from — the signed contract,
@@ -145,19 +300,22 @@ export default function ClientViewScreen() {
   // "Waiting on you" card below needs to know whether a sent contract is
   // still unsigned — that's the single biggest thing an owner holds up.
   // The documents list still gates its own row on showDocuments.
+  // Both queries hit owner-scoped tables, so they are keyed to the LOCAL
+  // project only — an anon visitor would just collect 401s. Their document set
+  // comes pre-flattened in the snapshot instead.
   const contractQ = useQuery({
-    queryKey: ['portal-contract', project?.id],
-    queryFn: () => project ? fetchActiveContract(project.id) : Promise.resolve(null),
-    enabled: !!project?.id,
+    queryKey: ['portal-contract', localProject?.id],
+    queryFn: () => localProject ? fetchActiveContract(localProject.id) : Promise.resolve(null),
+    enabled: !!localProject?.id,
   });
   const closeoutQ = useQuery({
-    queryKey: ['portal-closeout', project?.id],
-    queryFn: () => project ? fetchCloseoutBinder(project.id) : Promise.resolve(null),
-    enabled: !!project?.id && portal?.showDocuments === true,
+    queryKey: ['portal-closeout', localProject?.id],
+    queryFn: () => localProject ? fetchCloseoutBinder(localProject.id) : Promise.resolve(null),
+    enabled: !!localProject?.id && portal?.showDocuments === true,
   });
   const warranties = useMemo(
-    () => project ? getWarrantiesForProject(project.id) : [],
-    [project, getWarrantiesForProject],
+    () => localProject ? getWarrantiesForProject(localProject.id) : [],
+    [localProject, getWarrantiesForProject],
   );
 
   // What's waiting on the OWNER — same pure builder the static portal uses,
@@ -166,6 +324,10 @@ export default function ClientViewScreen() {
   // surface in the browser portal today.
   const ownerDecisions = useMemo(() => {
     if (!project) return [];
+    // A snapshot already carries the ranked list, built by the same pure
+    // builder at publish time. Re-deriving it here would silently drop the
+    // contract and selection rows (neither is fetchable without a session).
+    if (isSnapshotMode) return remote.snapshot?.ownerDecisions ?? [];
     const contract = contractQ.data;
     return buildOwnerDecisions({
       today: new Date().toISOString().slice(0, 10),
@@ -188,10 +350,11 @@ export default function ClientViewScreen() {
         dueDate: i.dueDate,
       })),
     });
-  }, [project, contractQ.data, changeOrders, invoices, portal?.coApprovalEnabled]);
+  }, [project, isSnapshotMode, remote.snapshot, contractQ.data, changeOrders, invoices, portal?.coApprovalEnabled]);
 
   const documents = useMemo<ProjectDocument[]>(() => {
     if (!project) return [];
+    if (isSnapshotMode) return hydrated?.documents ?? [];
     const out: ProjectDocument[] = [];
 
     const contract = contractQ.data;
@@ -249,7 +412,7 @@ export default function ClientViewScreen() {
     }
 
     return out;
-  }, [project, contractQ.data, closeoutQ.data, warranties]);
+  }, [project, isSnapshotMode, hydrated, contractQ.data, closeoutQ.data, warranties]);
 
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     messages: true, schedule: true, budget: true, invoices: true, changeOrders: false,
@@ -267,6 +430,13 @@ export default function ClientViewScreen() {
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
     try {
+      // Snapshot mode has no local caches to invalidate — pull-to-refresh has
+      // to re-fetch the published copy instead, and must NOT stamp "last
+      // updated now" (the timestamp belongs to the GC's publish, not our poll).
+      if (isSnapshotMode) {
+        remote.reload();
+        return;
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['projects'] }),
         queryClient.invalidateQueries({ queryKey: ['changeOrders'] }),
@@ -280,11 +450,23 @@ export default function ClientViewScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [queryClient]);
+  }, [queryClient, isSnapshotMode, remote]);
+
+  // "Last updated" must report when the DATA was produced, not when this screen
+  // mounted. For a snapshot that is the GC's publish time.
+  useEffect(() => {
+    const publishedAt = remote.snapshot?.snapshotAt;
+    if (!publishedAt) return;
+    const d = new Date(publishedAt);
+    if (!Number.isNaN(d.getTime())) setLastUpdatedAt(d);
+  }, [remote.snapshot?.snapshotAt]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !project?.id) return;
-    const projectId = project.id;
+    // Realtime on `projects` / `change_orders` / … is owner-scoped; an anon
+    // visitor gets no rows and the channel just idles. Only subscribe when we
+    // are actually rendering live local state.
+    if (!isSupabaseConfigured || !localProject?.id) return;
+    const projectId = localProject.id;
     const channel = supabase
       .channel(`client-portal-${projectId}`)
       .on(
@@ -331,7 +513,7 @@ export default function ClientViewScreen() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [project?.id, queryClient]);
+  }, [localProject?.id, queryClient]);
 
   const [passcodeEntry, setPasscodeEntry] = useState('');
   const [passcodeUnlocked, setPasscodeUnlocked] = useState(false);
@@ -357,9 +539,12 @@ export default function ClientViewScreen() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const screenW = Dimensions.get('window').width;
 
-  // Mark invite viewed when client opens portal (after passcode if required)
-  const canRecordAccess = !!project && !!portal && (!portal.requirePasscode || passcodeUnlocked);
+  // Mark invite viewed when client opens portal (after passcode if required).
+  // Local-only: the write goes through updateProject, which an anon visitor has
+  // no permission for. Snapshot visits are recorded by the browser portal.
+  const canRecordAccess = !!localProject && !!portal && (!portal.requirePasscode || passcodeUnlocked);
   useEffect(() => {
+    const project = localProject;
     if (!canRecordAccess || !project || !portal) return;
     const invites = portal.invites ?? [];
     if (invites.length === 0) return;
@@ -388,7 +573,7 @@ export default function ClientViewScreen() {
     }
     // Only run when unlock state or portalId changes — not on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRecordAccess, project?.id, inviteId]);
+  }, [canRecordAccess, localProject?.id, inviteId]);
 
   const toggleSection = (key: SectionKey) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
@@ -396,11 +581,14 @@ export default function ClientViewScreen() {
   // client-messages screen reads. usePortalThread polls + realtime-subs
   // on portal_id, so the client sees GC replies and their own sent
   // message after it round-trips.
-  const messages = thread.messages;
+  // In snapshot mode the thread comes baked into the payload — portal_messages
+  // is owner-scoped, so there is nothing for an anon reader to query.
+  const messages = isSnapshotMode ? (hydrated?.messages ?? []) : thread.messages;
   const [composeBody, setComposeBody] = useState('');
   const sendingMsg = thread.isSendingClient;
 
   const handleSendMessage = useCallback(() => {
+    const project = localProject;
     if (!project || !portal?.portalId) return;
     const body = composeBody.trim();
     if (!body) return;
@@ -417,7 +605,7 @@ export default function ClientViewScreen() {
     });
     setComposeBody('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, portal, composeBody, inviteId, clientNameParam, thread]);
+  }, [localProject, portal, composeBody, inviteId, clientNameParam, thread]);
 
   const openApprovalFlow = useCallback((co: ChangeOrder, mode: 'approve' | 'reject') => {
     setApprovalCO(co);
@@ -438,6 +626,9 @@ export default function ClientViewScreen() {
   }, []);
 
   const submitApproval = useCallback(async () => {
+    // Local-only by construction: the approve/reject buttons are not rendered
+    // in snapshot mode, and the insert below needs an owner-scoped session.
+    const project = localProject;
     if (!approvalCO || !project) return;
     if (!approverName.trim()) {
       showAlert('Name Required', 'Please enter your name as it appears on the contract.');
@@ -597,7 +788,7 @@ export default function ClientViewScreen() {
       `Change Order #${approvalCO.number} has been ${verb}. ${tail}`,
       [{ text: 'OK', onPress: closeApprovalFlow }]
     );
-  }, [approvalCO, project, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, esignConsent, updateChangeOrder, closeApprovalFlow]);
+  }, [approvalCO, localProject, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, esignConsent, updateChangeOrder, closeApprovalFlow]);
 
   const financingEnabledForPortal = isFinancingAvailable(settings);
 
@@ -620,20 +811,62 @@ export default function ClientViewScreen() {
   const tasks = project?.schedule?.tasks ?? [];
   const doneTasks = tasks.filter(t => t.status === 'done').length;
   const scheduleProgress = tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0;
-  const healthScore = project?.schedule?.healthScore ?? 0;
+  // null, not 0 — an unknown health score is not a zero health score. The
+  // snapshot never carried this field, so defaulting to 0 painted a red
+  // "0% Schedule Health" bar on a perfectly healthy job.
+  const healthScore = project?.schedule?.healthScore ?? null;
 
   if (!project || !portal) {
+    // Resolution in flight. NEVER render a failure here: a "not found" that
+    // flashes for the half-second before data lands is indistinguishable from
+    // a real one, and it is the thing that turns into a support ticket.
+    const resolving = hasPortalId
+      && (!projectsLoaded || (needsSnapshot && (remote.status === 'idle' || remote.status === 'loading')));
+    if (resolving) {
+      return (
+        <View style={styles.notFoundContainer} testID="client-view-loading">
+          <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
+          <ActivityIndicator color={themeColors.accent} />
+          <Text style={styles.notFoundSubtitle}>Opening your portal…</Text>
+        </View>
+      );
+    }
+
+    const failure: PortalFailureKind = localRevoked ? 'revoked'
+      : localExpired ? 'expired'
+      : remote.status;
+    const copy = portalFailureCopy(
+      failure,
+      localExpired ? localPortalSettings?.linkExpiresAt : remote.expiresAt,
+    );
     return (
-      <View style={styles.notFoundContainer}>
+      <View style={styles.notFoundContainer} testID={`client-view-${failure}`}>
         <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
         <Globe size={48} color={themeColors.textMuted} strokeWidth={1.75} />
-        <Text style={styles.notFoundTitle}>Portal Not Found</Text>
-        <Text style={styles.notFoundSubtitle}>This portal link may be expired or invalid.</Text>
+        <Text style={styles.notFoundTitle}>{copy.title}</Text>
+        <Text style={styles.notFoundSubtitle}>{copy.body}</Text>
+        {failure === 'unreachable' && (
+          <TouchableOpacity
+            style={styles.notFoundRetry}
+            onPress={remote.reload}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Try again"
+          >
+            <Text style={styles.notFoundRetryText}>Try again</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
 
-  const passcodeRequired = !!portal.requirePasscode && !!portal.passcode;
+  // A snapshot deliberately omits the passcode (base64 in a URL fragment is
+  // trivially decodable, which defeated the gate). So gate on the flag alone
+  // when the portal came from a snapshot — the actual check is server-side in
+  // the validate-portal-passcode function either way. Without this clause a
+  // passcode-protected portal would open unlocked for exactly the audience the
+  // passcode exists to stop.
+  const passcodeRequired = !!portal.requirePasscode && (!!portal.passcode || isSnapshotMode);
 
   if (passcodeRequired && !passcodeUnlocked) {
     const verify = async () => {
@@ -842,9 +1075,13 @@ export default function ClientViewScreen() {
               {messages.length === 0 ? (
                 <View style={styles.msgEmpty}>
                   <MessageSquare size={20} color={themeColors.textMuted} strokeWidth={1.75} />
-                  <Text style={styles.msgEmptyTitle}>Ask us anything.</Text>
+                  <Text style={styles.msgEmptyTitle}>
+                    {isSnapshotMode ? 'No messages yet.' : 'Ask us anything.'}
+                  </Text>
                   <Text style={styles.msgEmptyHint}>
-                    Questions about the schedule, finishes, or anything on-site — this goes straight to your GC.
+                    {isSnapshotMode
+                      ? 'Anything your contractor sends you will show up here.'
+                      : 'Questions about the schedule, finishes, or anything on-site — this goes straight to your GC.'}
                   </Text>
                 </View>
               ) : (
@@ -874,23 +1111,33 @@ export default function ClientViewScreen() {
                 </View>
               )}
 
-              <View style={styles.msgCompose}>
-                <TextInput
-                  style={styles.msgInput}
-                  value={composeBody}
-                  onChangeText={setComposeBody}
-                  placeholder="Write a message…"
-                  placeholderTextColor={themeColors.textMuted}
-                  multiline
-                  textAlignVertical="top"
-                  editable={!sendingMsg}
-                />
-                <TouchableOpacity
-                  style={[styles.msgSendBtn, (!composeBody.trim() || sendingMsg) && styles.msgSendBtnDisabled]}
-                  onPress={handleSendMessage}
-                  disabled={!composeBody.trim() || sendingMsg}
-                  activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send"><Send size={16} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
-              </View>
+              {/* Replies need a session: the anon INSERT policy on
+                  portal_messages was dropped in the 2026-07-13 lock-down, and
+                  the token-gated write path lives in the browser portal. Say so
+                  rather than offer a box that silently swallows the message. */}
+              {isSnapshotMode ? (
+                <Text style={styles.readOnlyNote}>
+                  This is a read-only view. To reply, open the portal link your contractor sent you in a web browser.
+                </Text>
+              ) : (
+                <View style={styles.msgCompose}>
+                  <TextInput
+                    style={styles.msgInput}
+                    value={composeBody}
+                    onChangeText={setComposeBody}
+                    placeholder="Write a message…"
+                    placeholderTextColor={themeColors.textMuted}
+                    multiline
+                    textAlignVertical="top"
+                    editable={!sendingMsg}
+                  />
+                  <TouchableOpacity
+                    style={[styles.msgSendBtn, (!composeBody.trim() || sendingMsg) && styles.msgSendBtnDisabled]}
+                    onPress={handleSendMessage}
+                    disabled={!composeBody.trim() || sendingMsg}
+                    activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send"><Send size={16} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -907,19 +1154,22 @@ export default function ClientViewScreen() {
             />
             {expanded.schedule && (
               <View style={styles.sectionBody}>
-                {/* Health bar */}
-                <View style={styles.healthRow}>
-                  <Text style={styles.healthLabel}>Schedule Health</Text>
-                  <View style={styles.healthBar}>
-                    <View style={[styles.healthFill, {
-                      width: `${healthScore}%` as any,
-                      backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : themeColors.danger,
-                    }]} />
+                {/* Health bar — omitted entirely when the score is unknown
+                    rather than shown as a red 0%. */}
+                {healthScore !== null && (
+                  <View style={styles.healthRow}>
+                    <Text style={styles.healthLabel}>Schedule Health</Text>
+                    <View style={styles.healthBar}>
+                      <View style={[styles.healthFill, {
+                        width: `${healthScore}%` as any,
+                        backgroundColor: healthScore >= 80 ? themeColors.success : healthScore >= 60 ? Colors.warning : themeColors.danger,
+                      }]} />
+                    </View>
+                    <Text style={[styles.healthPct, {
+                      color: healthScore >= 80 ? themeColors.success : healthScore >= 60 ? Colors.warning : themeColors.danger,
+                    }]}>{healthScore}%</Text>
                   </View>
-                  <Text style={[styles.healthPct, {
-                    color: healthScore >= 80 ? themeColors.success : healthScore >= 60 ? Colors.warning : themeColors.danger,
-                  }]}>{healthScore}%</Text>
-                </View>
+                )}
                 {/* Tasks by phase */}
                 {tasks.map(task => <TaskRow key={task.id} task={task} />)}
               </View>
@@ -1064,7 +1314,10 @@ export default function ClientViewScreen() {
                     <View key={inv.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
                         <Text style={styles.listRowTitle}>Invoice #{inv.number}</Text>
-                        <Text style={styles.listRowMeta}>Due {new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                        {(() => {
+                          const due = formatDate(inv.dueDate, { month: 'short', day: 'numeric', year: 'numeric' });
+                          return due ? <Text style={styles.listRowMeta}>Due {due}</Text> : null;
+                        })()}
                       </View>
                       <View style={styles.listRowRight}>
                         <Text style={styles.listRowAmount}>{formatMoney(inv.totalDue)}</Text>
@@ -1097,13 +1350,20 @@ export default function ClientViewScreen() {
               <View style={styles.sectionBody}>
                 {changeOrders.map(co => {
                   const statusColor = co.status === 'approved' ? '#34C759' : co.status === 'rejected' ? themeColors.danger : '#FF9500';
-                  const awaitingClient = co.status === 'submitted' || co.status === 'under_review' || co.status === 'revised';
+                  // Signing needs a session (see submitApproval). Offering a
+                  // "Sign & Approve" button that can't persist an e-signature
+                  // would be worse than not offering it at all.
+                  const awaitingClient = !isSnapshotMode
+                    && (co.status === 'submitted' || co.status === 'under_review' || co.status === 'revised');
                   return (
                     <View key={co.id} style={styles.coCard}>
                       <View style={styles.listRow}>
                         <View style={styles.listRowLeft}>
                           <Text style={styles.listRowTitle}>CO #{co.number} — {co.description}</Text>
-                          <Text style={styles.listRowMeta}>{new Date(co.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                          {(() => {
+                            const submitted = formatDate(co.date, { month: 'short', day: 'numeric', year: 'numeric' });
+                            return submitted ? <Text style={styles.listRowMeta}>{submitted}</Text> : null;
+                          })()}
                         </View>
                         <View style={styles.listRowRight}>
                           <Text style={[styles.listRowAmount, { color: co.changeAmount > 0 ? themeColors.danger : themeColors.success }]}>
@@ -1193,7 +1453,9 @@ export default function ClientViewScreen() {
                 {dailyReports.slice(0, 5).map(report => (
                   <View key={report.id} style={styles.listRow}>
                     <View style={styles.listRowLeft}>
-                      <Text style={styles.listRowTitle}>{new Date(report.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                      <Text style={styles.listRowTitle}>
+                        {formatDate(report.date, { weekday: 'short', month: 'short', day: 'numeric' }) ?? 'Daily report'}
+                      </Text>
                       <Text style={styles.listRowMeta} numberOfLines={2}>{report.workPerformed || 'No summary provided'}</Text>
                     </View>
                     <View style={styles.listRowRight}>
@@ -1226,7 +1488,12 @@ export default function ClientViewScreen() {
                     <View key={item.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
                         <Text style={styles.listRowTitle} numberOfLines={1}>{item.description}</Text>
-                        <Text style={styles.listRowMeta}>{item.location} · {item.assignedSub}</Text>
+                        {/* The snapshot never carries assignedSub — who is on
+                            the hook internally isn't the homeowner's business —
+                            so join only the parts we actually have. */}
+                        <Text style={styles.listRowMeta}>
+                          {[item.location, item.assignedSub].filter(Boolean).join(' · ')}
+                        </Text>
                       </View>
                       <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
                         <Text style={[styles.listStatusText, { color: statusColor }]}>
@@ -1260,7 +1527,10 @@ export default function ClientViewScreen() {
                     <View key={rfi.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
                         <Text style={styles.listRowTitle} numberOfLines={1}>RFI #{rfi.number} — {rfi.subject}</Text>
-                        <Text style={styles.listRowMeta}>Due {new Date(rfi.dateRequired).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                        {(() => {
+                          const due = formatDate(rfi.dateRequired, { month: 'short', day: 'numeric' });
+                          return due ? <Text style={styles.listRowMeta}>Due {due}</Text> : null;
+                        })()}
                       </View>
                       <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
                         <Text style={[styles.listStatusText, { color: statusColor }]}>
@@ -1542,9 +1812,19 @@ const PHOTO_SIZE = (SCREEN_WIDTH - 32 - 8) / 3;
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
 
-  notFoundContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
+  notFoundContainer: { flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
   notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: t.text },
-  notFoundSubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' },
+  notFoundSubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 21, maxWidth: 380 },
+  notFoundRetry: {
+    marginTop: 8, minHeight: 44, paddingHorizontal: 24, justifyContent: 'center',
+    borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+  },
+  notFoundRetryText: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.accent },
+
+  readOnlyNote: {
+    fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center',
+    lineHeight: 17, marginTop: 12, paddingHorizontal: 8,
+  },
 
   passcodeContainer: { flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
   passcodeCard: { backgroundColor: t.surface, borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, alignItems: 'center', borderWidth: 1, borderColor: t.line, gap: 10 },

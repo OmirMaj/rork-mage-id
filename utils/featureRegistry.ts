@@ -61,7 +61,7 @@ export type FeatureIcon =
   | 'TrendingUp' | 'Coins' | 'LineChart' | 'Wallet' | 'CalendarClock'
   | 'Banknote' | 'Receipt' | 'Droplets' | 'SlidersHorizontal' | 'Plug'
   | 'KeyRound' | 'Shield' | 'Bell' | 'Inbox' | 'Download' | 'Settings'
-  | 'CreditCard' | 'BadgeCheck' | 'AlertTriangle' | 'Brain';
+  | 'CreditCard' | 'BadgeCheck' | 'AlertTriangle' | 'Brain' | 'Truck';
 
 /** Display group — mirrors the sidebar's information architecture. */
 export type FeatureGroup =
@@ -130,6 +130,10 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'waiting-on', title: 'Waiting on Others', synonyms: ['chase', 'follow up', 'overdue rfis', 'nudge', 'who owes me'], route: '/waiting-on', icon: 'Inbox', group: 'workspace' },
   { id: 'delay-events', title: 'Delay Register', synonyms: ['delay', 'delay log', 'notice', 'notice deadline', 'claim', 'time extension', 'delay claim', 'schedule impact log'], route: '/delay-events', icon: 'CalendarClock', group: 'project' },
   { id: 'track-record', title: 'Track Record', synonyms: ['brain accuracy', 'scoreboard', 'receipts', 'hit rate', 'how accurate', 'predicted vs actual'], route: '/track-record', requires: 'brain_accuracy', icon: 'Target', group: 'workspace' },
+  // Portfolio-wide: no useLocalSearchParams, no projectId — stands alone.
+  // `requires` mirrors the real gate at app/estimate-scorecard.tsx:51
+  // (canAccess('job_costing')), NOT brain_accuracy like its neighbour.
+  { id: 'estimate-scorecard', title: 'Estimate Scorecard', synonyms: ['bid accuracy', 'where i lose money', 'underbid', 'overbid', 'estimate misses', 'what did i get wrong', 'accuracy by trade'], route: '/estimate-scorecard', requires: 'job_costing', icon: 'BarChart3', group: 'workspace' },
   { id: 'margin-board', title: 'Margin Board', synonyms: ['margins', 'portfolio', 'profit board'], route: '/portfolio-margin', requires: 'job_costing', icon: 'MageMargin', group: 'workspace' },
   { id: 'margin-alerts', title: 'Margin Alerts', synonyms: ['leak', 'profit alerts', 'slipping'], route: '/margin-alerts', requires: 'job_costing', icon: 'BellRing', group: 'workspace' },
   { id: 'cost-database', title: 'Cost Database', synonyms: ['unit costs', 'price book', 'learned costs', 'rates'], route: '/cost-database', requires: 'job_costing', icon: 'MageCostDb', group: 'workspace' },
@@ -200,6 +204,12 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'materials', title: 'Materials', synonyms: ['material prices', 'lumber', 'supplies'], route: '/(tabs)/materials', icon: 'Package', group: 'field' },
   { id: 'selections', title: 'Selections', synonyms: ['finishes', 'fixtures', 'allowances', 'picks'], route: '/selections', icon: 'PenTool', group: 'field' },
   { id: 'permits', title: 'Permits', synonyms: ['permit tracker', 'inspections', 'filings'], route: '/permits', icon: 'Stamp', group: 'field' },
+  // Both render <ToolProjectPicker> with no projectId, so they satisfy the
+  // stand-alone rule in this file's header. Neither is tier-gated in code
+  // (no useTierAccess in either screen), so neither carries `requires` — a
+  // badge here that the screen does not enforce is the drift this registry exists to stop.
+  { id: 'deliveries', title: 'Deliveries', synonyms: ['delivery', 'material delivery', 'late delivery', 'what is arriving', 'lead time', 'supplier', 'truck', 'expected on site'], route: '/deliveries', icon: 'Truck', group: 'field' },
+  { id: 'building-access', title: 'Building Access', synonyms: ['freight elevator', 'loading dock', 'badging', 'badges', 'after hours', 'property manager', 'building coi', 'dock reservation', 'elevator booking'], route: '/building-access', icon: 'Building2', group: 'field' },
 
   // ── Money ─────────────────────────────────────────────────────────────
   { id: 'invoice', title: 'Invoices', synonyms: ['billing', 'bill', 'money', 'get paid'], route: '/invoice', icon: 'MageInvoice', group: 'money' },

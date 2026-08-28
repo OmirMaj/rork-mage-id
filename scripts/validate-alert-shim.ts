@@ -39,7 +39,18 @@ expect('no cancel button → -1 (backdrop does nothing, like native)',
   cancelButtonIndex(normalizeButtons([{ text: 'OK' }])), -1);
 
 // ── migration guard: no raw Alert.alert / Alert.prompt left in app code ──
-const ROOTS = ['app', 'components', 'hooks', 'contexts'];
+// `utils` and `lib` were MISSING from this list until 2026-08-27, and utils/ is
+// exactly where every surviving raw Alert.alert lived — including
+// utils/aiLimitAlert.ts (the centralized AI-cap handler sitting behind 18 call
+// sites, so the paywall upsell was unreachable on web) and utils/quotaPrecheck.ts,
+// whose Alert callbacks are the ONLY resolvers of an awaited Promise — on web
+// that Promise never settles and the caller hangs forever.
+//
+// Meanwhile this guard printed "✓ no raw Alert.alert in app code" and ship-check
+// certified it green. A guard with a scope hole is worse than no guard: it does
+// not merely miss things, it actively vouches for them. Any new source root in
+// this repo must be added here too.
+const ROOTS = ['app', 'components', 'hooks', 'contexts', 'utils', 'lib'];
 const ALLOW = new Set(['utils/alert.ts', 'components/AlertHost.tsx']);
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

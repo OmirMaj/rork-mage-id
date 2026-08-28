@@ -20,6 +20,12 @@ export const FOLLOWUP_BY_REF: Record<string, string[]> = {
     "What's causing the delay?",
     'Am I ready for next week?',
   ],
+  // No schedule exists yet — offer to build one, not chase a delay that can't
+  // exist. Keyed off the SCHEDULE_EMPTY citation buildScheduleBlock emits.
+  SCHEDULE_EMPTY: [
+    'How do I build a schedule?',
+    'What should my first tasks be?',
+  ],
   READY: [
     'Which constraints should I clear first?',
     "What's blocking next week?",
