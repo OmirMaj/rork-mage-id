@@ -10,7 +10,7 @@ import { generateUUID } from '@/utils/generateId';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
-import type { Delivery } from '@/utils/deliverySchedule';
+import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
 import type { BuildingAccessRules, AccessReservation } from '@/utils/buildingAccess';
 import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
@@ -136,6 +136,7 @@ const DELAY_EVENTS_KEY = 'mageid_delay_events';
 const DELIVERIES_KEY = 'mageid_deliveries';
 const BUILDING_ACCESS_KEY = 'mageid_building_access';
 const ACCESS_RESERVATIONS_KEY = 'mageid_access_reservations';
+const DELIVERY_RECEIPTS_KEY = 'mageid_delivery_receipts';
 const SUBS_KEY = 'mageid_subcontractors';
 const PUNCH_ITEMS_KEY = 'mageid_punch_items';
 const PHOTOS_KEY = 'mageid_photos';
@@ -276,6 +277,10 @@ type FinancialsDataValue = {
   buildingAccessRules: BuildingAccessRules[];
   getBuildingAccess: (projectId: string) => BuildingAccessRules | null;
   setBuildingAccess: (rules: BuildingAccessRules) => void;
+  /** What actually arrived. Pairs with `deliveries` (what was promised). */
+  deliveryReceipts: DeliveryReceipt[];
+  addDeliveryReceipt: (r: DeliveryReceipt) => DeliveryReceipt;
+  getReceiptsForProject: (projectId: string) => DeliveryReceipt[];
   accessReservations: AccessReservation[];
   addReservation: (r: AccessReservation) => AccessReservation;
   updateReservation: (id: string, updates: Partial<AccessReservation>) => void;
@@ -513,6 +518,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [buildingAccessRules, setBuildingAccessRules] = useState<BuildingAccessRules[]>([]);
   const [accessReservations, setAccessReservations] = useState<AccessReservation[]>([]);
+  const [deliveryReceipts, setDeliveryReceipts] = useState<DeliveryReceipt[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [punchItems, setPunchItems] = useState<PunchItem[]>([]);
   // Mirror of `punchItems` (see submittalsRef note below) so batch adds looped
@@ -1017,6 +1023,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               status: (r.status as Delivery['status']) ?? 'scheduled',
               confirmedAt: (r.confirmed_at as string | null) ?? undefined,
               deliveredAt: (r.delivered_at as string | null) ?? undefined,
+              receiptId: (r.receipt_id as string | null) ?? undefined,
               location: (r.location as string | null) ?? undefined,
               receivedBy: (r.received_by as string | null) ?? undefined,
               notes: (r.notes as string | null) ?? undefined,
@@ -1029,6 +1036,44 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         } catch { /* fallback — table may not exist yet */ }
       }
       return loadLocal<Delivery[]>(DELIVERIES_KEY, []);
+    },
+  });
+
+  // Delivery receipts — what ACTUALLY arrived. public.delivery_receipts has been
+  // live in prod with RLS since the rls_baseline migration and no code has ever
+  // touched it; every reference in this repo was a comment. This is the read.
+  const deliveryReceiptsQuery = useQuery({
+    queryKey: ['deliveryReceipts', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('delivery_receipts').select('*').order('received_at', { ascending: false });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              projectId: r.project_id as string,
+              deliveryId: (r.delivery_id as string | null) ?? undefined,
+              date: r.date as string,
+              supplier: (r.supplier as string) ?? '',
+              poNumber: (r.po_number as string | null) ?? undefined,
+              commitmentId: (r.commitment_id as string | null) ?? undefined,
+              items: (r.items as DeliveryReceipt['items'] | null) ?? [],
+              bolPhotoUri: (r.bol_photo_uri as string | null) ?? undefined,
+              signaturePhotoUri: (r.signature_photo_uri as string | null) ?? undefined,
+              hasDamage: Boolean(r.has_damage),
+              damageNotes: (r.damage_notes as string | null) ?? undefined,
+              receivedAt: r.received_at as string,
+              receivedBy: (r.received_by as string) ?? '',
+              notes: (r.notes as string | null) ?? undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as DeliveryReceipt[];
+            await saveLocal(DELIVERY_RECEIPTS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback — table may be unreachable */ }
+      }
+      return loadLocal<DeliveryReceipt[]>(DELIVERY_RECEIPTS_KEY, []);
     },
   });
 
@@ -1630,6 +1675,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (deliveriesQuery.data) setDeliveries(deliveriesQuery.data); }, [deliveriesQuery.data]);
   useEffect(() => { if (buildingAccessQuery.data) setBuildingAccessRules(buildingAccessQuery.data); }, [buildingAccessQuery.data]);
   useEffect(() => { if (accessReservationsQuery.data) setAccessReservations(accessReservationsQuery.data); }, [accessReservationsQuery.data]);
+  useEffect(() => { if (deliveryReceiptsQuery.data) setDeliveryReceipts(deliveryReceiptsQuery.data); }, [deliveryReceiptsQuery.data]);
   useEffect(() => { if (subsQuery.data) setSubcontractors(subsQuery.data); }, [subsQuery.data]);
   useEffect(() => { if (leadsQuery.data) setLeads(leadsQuery.data); }, [leadsQuery.data]);
   useEffect(() => { if (bidPackagesQuery.data) setBidPackages(bidPackagesQuery.data); }, [bidPackagesQuery.data]);
@@ -2763,6 +2809,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     status: d.status,
     confirmed_at: d.confirmedAt ?? null,
     delivered_at: d.deliveredAt ?? null,
+    receipt_id: d.receiptId ?? null,
     location: d.location ?? null,
     received_by: d.receivedBy ?? null,
     notes: d.notes ?? null,
@@ -2882,6 +2929,47 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const next = updated.find(r => r.id === id);
     if (canSync && next) void supabaseWrite('access_reservations', 'update', reservationRow(next));
   }, [accessReservations, saveReservationsMutation, canSync, reservationRow]);
+
+  const saveDeliveryReceiptsMutation = useMutation({
+    mutationFn: async (updated: DeliveryReceipt[]) => { await saveLocal(DELIVERY_RECEIPTS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['deliveryReceipts', userId], data); },
+  });
+
+  /** Record what actually arrived, and link it to the promise it closes out.
+   *  Sets deliveries.receipt_id — the column added with the deliveries table and
+   *  never populated until now — so the schedule and the receiving log are one
+   *  story rather than two. */
+  const addDeliveryReceipt = useCallback((r: DeliveryReceipt): DeliveryReceipt => {
+    const updated = [r, ...deliveryReceipts];
+    setDeliveryReceipts(updated);
+    saveDeliveryReceiptsMutation.mutate(updated);
+    if (canSync) {
+      void supabaseWrite('delivery_receipts', 'insert', {
+        id: r.id, user_id: userId, project_id: r.projectId,
+        delivery_id: r.deliveryId ?? null,
+        date: r.date, supplier: r.supplier,
+        po_number: r.poNumber ?? null,
+        commitment_id: r.commitmentId ?? null,
+        // NOT NULL jsonb — an empty array is a valid receipt (the load landed;
+        // nobody itemized it), but null would be rejected outright.
+        items: r.items ?? [],
+        bol_photo_uri: r.bolPhotoUri ?? null,
+        signature_photo_uri: r.signaturePhotoUri ?? null,
+        has_damage: r.hasDamage,
+        damage_notes: r.damageNotes ?? null,
+        received_at: r.receivedAt,
+        received_by: r.receivedBy,
+        notes: r.notes ?? null,
+        created_at: r.createdAt, updated_at: r.updatedAt,
+      });
+    }
+    return r;
+  }, [deliveryReceipts, saveDeliveryReceiptsMutation, canSync, userId]);
+
+  const getReceiptsForProject = useCallback(
+    (projectId: string) => deliveryReceipts.filter(r => r.projectId === projectId),
+    [deliveryReceipts],
+  );
 
   const deleteReservation = useCallback((id: string) => {
     const updated = accessReservations.filter(r => r.id !== id);
@@ -4991,6 +5079,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // rules mean nothing once the job is gone.
     cascadeMutation(buildingAccessRules, setBuildingAccessRules, saveBuildingAccessMutation);
     cascadeMutation(accessReservations, setAccessReservations, saveReservationsMutation);
+    cascadeMutation(deliveryReceipts, setDeliveryReceipts, saveDeliveryReceiptsMutation);
     cascadeMutation(punchItems, setPunchItems, savePunchItemsMutation);
     cascadeMutation(projectPhotos, setProjectPhotos, savePhotosMutation);
     cascadeMutation(rfis, setRfis, saveRfisMutation);
@@ -5066,6 +5155,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     deliveries, saveDeliveriesMutation,
     buildingAccessRules, saveBuildingAccessMutation,
     accessReservations, saveReservationsMutation,
+    deliveryReceipts, saveDeliveryReceiptsMutation,
     punchItems, savePunchItemsMutation,
     projectPhotos, savePhotosMutation,
     rfis, saveRfisMutation,
@@ -5113,7 +5203,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     deliveries, addDelivery, updateDelivery, deleteDelivery,
     buildingAccessRules, getBuildingAccess, setBuildingAccess,
     accessReservations, addReservation, updateReservation, deleteReservation,
-  }), [changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject, deliveries, addDelivery, updateDelivery, deleteDelivery, buildingAccessRules, getBuildingAccess, setBuildingAccess, accessReservations, addReservation, updateReservation, deleteReservation]);
+    deliveryReceipts, addDeliveryReceipt, getReceiptsForProject,
+  }), [changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject, deliveries, addDelivery, updateDelivery, deleteDelivery, buildingAccessRules, getBuildingAccess, setBuildingAccess, accessReservations, addReservation, updateReservation, deleteReservation, deliveryReceipts, addDeliveryReceipt, getReceiptsForProject]);
 
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, getDailyReportsForProject,

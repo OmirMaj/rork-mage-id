@@ -66,7 +66,7 @@ function SubScorecardInner() {
   // punchItems + projects feed the D7 factors: punch rework (items bounced
   // at review, attributed via assignedSubId) and schedule reliability
   // (as-built vs planned days on tasks assigned to the sub).
-  const { subcontractors, commitments, changeOrders, punchItems, projects, rfis, deliveries } = useProjects();
+  const { subcontractors, commitments, changeOrders, punchItems, projects, rfis, deliveries, deliveryReceipts } = useProjects();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // "Who is good" covers both who you hire and who you buy from. Suppliers get
   // the same visual language rather than a separate screen, because the GC is

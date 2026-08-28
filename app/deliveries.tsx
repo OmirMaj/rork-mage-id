@@ -35,6 +35,7 @@ import {
 import {
   findAccessConflicts, conflictsForDelivery, type AccessConflict,
 } from '@/utils/buildingAccess';
+import type { DeliveryReceipt } from '@/utils/deliverySchedule';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -55,7 +56,7 @@ export default function DeliveriesScreen() {
 
   const {
     projects, deliveries, addDelivery, updateDelivery,
-    getBuildingAccess, accessReservations,
+    getBuildingAccess, accessReservations, addDeliveryReceipt,
   } = useProjects();
 
   // Reached from the chase list, search or the sidebar with no project — same
@@ -66,6 +67,7 @@ export default function DeliveriesScreen() {
 
   const [horizon, setHorizon] = useState<LookaheadDays>(7);
   const [showAdd, setShowAdd] = useState(false);
+  const [receiving, setReceiving] = useState<Delivery | null>(null);
 
   const scoped = useMemo(
     () => deliveries.filter(d => d.projectId === projectId),
@@ -93,26 +95,47 @@ export default function DeliveriesScreen() {
     updateDelivery(d.id, { status: 'confirmed', confirmedAt: new Date().toISOString() });
   }, [updateDelivery]);
 
-  const receive = useCallback((d: Delivery) => {
+  // Receiving opens a sheet rather than a yes/no dialog. It is the one moment
+  // the load is physically in front of someone, and it is the ONLY moment
+  // damage can be recorded honestly — a week later it is your word against the
+  // supplier's. The sheet doubles as the mis-tap guard the old dialog provided.
+  const receive = useCallback((d: Delivery) => setReceiving(d), []);
+
+  const commitReceipt = useCallback((d: Delivery, form: {
+    receivedBy: string; hasDamage: boolean; damageNotes: string; notes: string;
+  }) => {
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const now = new Date();
-    const exec = () => {
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      updateDelivery(d.id, {
-        status: 'delivered',
-        deliveredAt: now.toISOString(),
-      });
+    const receipt: DeliveryReceipt = {
+      id: generateUUID(),
+      projectId: d.projectId,
+      deliveryId: d.id,
+      date: todayLocal(),
+      supplier: d.supplier,
+      poNumber: d.poNumber,
+      commitmentId: d.commitmentId,
+      // Empty is honest: the load landed and nobody itemized it. The receipt
+      // still witnesses arrival, damage and who signed.
+      items: [],
+      hasDamage: form.hasDamage,
+      damageNotes: form.hasDamage ? (form.damageNotes.trim() || undefined) : undefined,
+      receivedAt: now.toISOString(),
+      receivedBy: form.receivedBy.trim() || 'Site',
+      notes: form.notes.trim() || undefined,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
     };
-    // Receiving is the one action that ends the chase, so confirm it rather
-    // than let a mis-tap silently mark a load arrived that never did.
-    showAlert(
-      'Mark received?',
-      `${d.description} from ${d.supplier}. This stops it being chased.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Received', onPress: exec },
-      ],
-    );
-  }, [updateDelivery]);
+    addDeliveryReceipt(receipt);
+    updateDelivery(d.id, {
+      status: 'delivered',
+      deliveredAt: now.toISOString(),
+      receivedBy: receipt.receivedBy,
+      // Links the promise to the witness statement — populates deliveries
+      // .receipt_id, which existed unused until receiving was built.
+      receiptId: receipt.id,
+    });
+    setReceiving(null);
+  }, [addDeliveryReceipt, updateDelivery]);
 
   if (!project) {
     return (
@@ -238,6 +261,14 @@ export default function DeliveriesScreen() {
         </TouchableOpacity>
       </ScrollView>
 
+      <ReceiveSheet
+        delivery={receiving}
+        onClose={() => setReceiving(null)}
+        onSave={(form) => { if (receiving) commitReceipt(receiving, form); }}
+        styles={styles}
+        t={t}
+      />
+
       <AddDeliverySheet
         visible={showAdd}
         onClose={() => setShowAdd(false)}
@@ -335,6 +366,112 @@ function Row({
         </TouchableOpacity>
       </View>
     </View>
+  );
+}
+
+interface ReceiveForm { receivedBy: string; hasDamage: boolean; damageNotes: string; notes: string }
+
+/**
+ * The receiving sheet — the one moment the load is physically in front of
+ * someone. Damage recorded here is evidence; damage remembered next week is an
+ * argument. Nothing is required except the tap, so a busy super is never blocked
+ * from closing out a delivery, but the damage question is asked EVERY time
+ * rather than hidden behind an optional field nobody opens.
+ */
+function ReceiveSheet({
+  delivery, onClose, onSave, styles, t,
+}: {
+  delivery: Delivery | null; onClose: () => void; onSave: (f: ReceiveForm) => void;
+  styles: ReturnType<typeof makeStyles>; t: ThemeColors;
+}) {
+  const [form, setForm] = useState<ReceiveForm>({ receivedBy: '', hasDamage: false, damageNotes: '', notes: '' });
+
+  // Reset per delivery so last load's damage note never rides along to the next.
+  React.useEffect(() => {
+    if (delivery) setForm({ receivedBy: '', hasDamage: false, damageNotes: '', notes: '' });
+  }, [delivery?.id]);
+
+  if (!delivery) return null;
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          <View style={styles.sheetHead}>
+            <Text style={styles.sheetTitle}>Receive delivery</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <X size={20} color={t.textSecondary} strokeWidth={1.9} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.receiveWhat} numberOfLines={2}>
+            {delivery.description} — {delivery.supplier}
+          </Text>
+
+          <Text style={styles.fieldLabel}>Received by</Text>
+          <TextInput
+            style={styles.input}
+            value={form.receivedBy}
+            onChangeText={(x) => setForm(p => ({ ...p, receivedBy: x }))}
+            placeholder="Who signed for it"
+            placeholderTextColor={t.textMuted}
+            testID="receive-by"
+          />
+
+          <TouchableOpacity
+            style={[styles.damageToggle, form.hasDamage && styles.damageToggleOn]}
+            onPress={() => setForm(p => ({ ...p, hasDamage: !p.hasDamage }))}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: form.hasDamage }}
+            testID="receive-damage"
+          >
+            <View style={[styles.damageBox, form.hasDamage && { backgroundColor: t.danger, borderColor: t.danger }]}>
+              {form.hasDamage ? <Check size={13} color="#FFFFFF" strokeWidth={2.5} /> : null}
+            </View>
+            <Text style={[styles.damageLabel, form.hasDamage && { color: t.danger }]}>
+              Something arrived damaged or short
+            </Text>
+          </TouchableOpacity>
+
+          {form.hasDamage ? (
+            <>
+              <Text style={styles.fieldLabel}>What was wrong</Text>
+              <TextInput
+                style={[styles.input, styles.inputMulti]}
+                value={form.damageNotes}
+                onChangeText={(x) => setForm(p => ({ ...p, damageNotes: x }))}
+                placeholder="Two lites cracked, one unit short"
+                placeholderTextColor={t.textMuted}
+                multiline
+                testID="receive-damage-notes"
+              />
+              <Text style={styles.damageHint}>
+                Photograph it at the tailgate. This note is what a claim rests on.
+              </Text>
+            </>
+          ) : null}
+
+          <Text style={styles.fieldLabel}>Notes (optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={form.notes}
+            onChangeText={(x) => setForm(p => ({ ...p, notes: x }))}
+            placeholder="Left in the north bay"
+            placeholderTextColor={t.textMuted}
+            testID="receive-notes"
+          />
+
+          <TouchableOpacity
+            style={styles.saveBtn}
+            onPress={() => onSave(form)}
+            accessibilityRole="button"
+            testID="receive-save"
+          >
+            <Text style={styles.saveBtnText}>Mark received</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -506,5 +643,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: 20, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: t.accentFill,
   },
   saveBtnOff: { opacity: 0.45 },
+  receiveWhat: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, marginBottom: 4 },
+  inputMulti: { minHeight: 72, textAlignVertical: 'top' as const },
+
+  // Damage is a checkbox, not a buried field. It is asked on EVERY receive,
+  // because the only honest moment to record it is with the load in front of
+  // you — and it is the single field a claim later rests on.
+  damageToggle: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+    marginTop: 14, padding: 12,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
+  },
+  damageToggleOn: { borderColor: t.danger + '55', backgroundColor: t.danger + '10' },
+  damageBox: {
+    width: 20, height: 20, borderRadius: 5,
+    borderWidth: 1.5, borderColor: t.line,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  damageLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  damageHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 6, lineHeight: 15 },
+
   saveBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
 });

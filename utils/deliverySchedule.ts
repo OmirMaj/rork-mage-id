@@ -52,9 +52,49 @@ export interface Delivery {
   confirmedAt?: string;
   /** Set when it lands; pairs with a delivery_receipt. */
   deliveredAt?: string;
+  /** The DeliveryReceipt that closed this out. Populated at receiving, so the
+   *  schedule and the receiving log are one story rather than two. */
+  receiptId?: string;
   /** Where it goes / who receives it. */
   location?: string;
   receivedBy?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * What actually arrived — one row of public.delivery_receipts.
+ *
+ * Deliberately separate from Delivery. A Delivery is a PROMISE (a date someone
+ * gave you); a receipt is a WITNESS STATEMENT (what showed up, who signed for
+ * it, whether it was broken). Collapsing them would lose the gap between the
+ * two, and that gap is the entire supplier-reliability signal.
+ *
+ * `hasDamage` is the field that earns its keep: a damaged load photographed at
+ * the tailgate is leverage in a claim, and a week later it is your word against
+ * theirs.
+ */
+export interface DeliveryReceipt {
+  id: string;
+  projectId: string;
+  /** The delivery this receipt closes out. Optional: material turns up that
+   *  nobody scheduled, and refusing to record it would be worse. */
+  deliveryId?: string;
+  /** Calendar day received (YYYY-MM-DD), local. */
+  date: string;
+  supplier: string;
+  poNumber?: string;
+  commitmentId?: string;
+  /** Free-form line items as received. Empty is valid — the receipt still
+   *  witnesses that the load landed. */
+  items: { description: string; quantity?: number; unit?: string }[];
+  bolPhotoUri?: string;
+  signaturePhotoUri?: string;
+  hasDamage: boolean;
+  damageNotes?: string;
+  receivedAt: string;
+  receivedBy: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
