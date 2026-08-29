@@ -26,6 +26,7 @@
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { nextMorningFireDate } from './nudgeTime';
 
 export const BRIEF_NUDGE_IDENTIFIER = 'mageid-morning-brief-nudge';
@@ -82,7 +83,18 @@ export async function armDailyBriefNudge(opts: {
         data: { kind: 'morning_brief' },
         sound: 'default',
       },
-      trigger: { seconds, channelId: Platform.OS === 'android' ? 'default' : undefined } as never,
+      // `type` is REQUIRED. expo-notifications SDK 54 parses triggers as a tagged
+      // union: parseTimeIntervalTrigger() tests `'type' in trigger`, and with no
+      // type every parser returns undefined and parseTrigger falls through to
+      // `Platform.select({ default: null, android: {type:'channel'} })`.
+      // A null trigger means FIRE IMMEDIATELY (the SDK's own TypeError says so),
+      // so this was not "scheduled late" — it never scheduled at all and
+      // delivered on the spot, every time.
+      trigger: {
+        type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds,
+        channelId: Platform.OS === 'android' ? 'default' : undefined,
+      },
     });
     return true;
   } catch (err) {

@@ -11,7 +11,16 @@ export type { ProjectRole } from '@/utils/projectRole';
 
 export function useProjectRole(projectId: string | undefined): ProjectRole {
   const { user } = useAuth();
-  const { collaborators, isLoading } = useProjectCollaborators(projectId);
-  if (!projectId || isLoading) return null;
+  const { collaborators, isLoading, isError } = useProjectCollaborators(projectId);
+  // NULL on error, never 'owner'. roleForUser falls back to 'owner' when the
+  // caller is absent from the collaborator list, which is right when the list
+  // actually loaded — and a privilege escalation when the query merely failed
+  // and handed back an empty array.
+  //
+  // Null is safe here, not a lockout: canViewFinancials(null) is false (blinds
+  // margin, the conservative outcome) while resolveProjectAccess still falls
+  // through to the user's OWN tier, so an owner keeps everything they pay for
+  // and simply cannot see financials until the role resolves.
+  if (!projectId || isLoading || isError) return null;
   return roleForUser(collaborators, user?.id);
 }

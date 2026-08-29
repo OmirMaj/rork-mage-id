@@ -96,6 +96,14 @@ export function useProjectCollaborators(projectId: string | undefined) {
   return {
     collaborators: query.data ?? [],
     isLoading: query.isLoading,
+    /**
+     * MUST be surfaced. `collaborators` collapses a FAILED query and a genuinely
+     * empty list into the same `[]`, and utils/projectRole.roleForUser treats
+     * "not in the list" as OWNER — correct for a real owner, catastrophic for a
+     * network blip. Without this flag every field/viewer gate silently unlocked,
+     * including the financial blinding, on any transient error.
+     */
+    isError: query.isError,
     invite,
     revoke,
     changeRole,
