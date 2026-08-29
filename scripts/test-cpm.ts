@@ -215,6 +215,46 @@ if (baselineFinish !== 9) { console.error(`  FAIL slip: baselineFinish got ${bas
 if (slip !== 0) { console.error(`  FAIL slip: got ${slip}, want 0 (unchanged schedule must show zero slip)`); failed++; }
 else console.log('  OK: unchanged schedule reports zero slip right after baseline capture');
 
+// ── v2.2d: FS across a weekend must not invent float ────────────────────────
+// A pure chain with no parallel path is critical by definition — every task,
+// on every calendar. Before this fix `FS` used raw `dep.ef + lag + 1`, so a
+// predecessor finishing on a Friday put its successor's ES on SATURDAY while
+// the EF walk correctly skipped to Monday. The backward pass then derived LS
+// from a working-day LF, and the difference showed up as phantom float exactly
+// the width of the weekend: the task reported float=2 and fell off the critical
+// path. On a real 5-day schedule most FS links cross a weekend somewhere, so
+// the critical path fragmented into disconnected pieces.
+{
+  const chain: ScheduleTask[] = [
+    stub({ id: 'A', durationDays: 3 }),
+    stub({ id: 'B', durationDays: 2, dependencies: ['A'] }),
+    stub({ id: 'C', durationDays: 2, dependencies: ['B'] }),
+  ];
+  for (const wd of [7, 5]) {
+    const r = runCpm(chain, { scheduleStartDate: '2026-03-02', workingDaysPerWeek: wd });
+    for (const id of ['A', 'B', 'C']) {
+      const c = r.perTask.get(id)!;
+      if (c.totalFloat !== 0) {
+        console.error(`  FAIL ${wd}-day week: ${id} on a pure chain has float ${c.totalFloat}, want 0`);
+        failed++;
+      }
+      if (!c.isCritical) {
+        console.error(`  FAIL ${wd}-day week: ${id} on a pure chain is not critical`);
+        failed++;
+      }
+    }
+  }
+  // And the successor must actually START on a working day, not a Saturday.
+  const five = runCpm(chain, { scheduleStartDate: '2026-03-02', workingDaysPerWeek: 5 });
+  const cEs = five.perTask.get('C')!.es;
+  if (cEs !== 8) {
+    console.error(`  FAIL: C must start Monday (day 8), not Saturday (day 6) — got ${cEs}`);
+    failed++;
+  } else {
+    console.log('  OK: FS across a weekend lands on the next WORKING day, no phantom float');
+  }
+}
+
 console.log('\n============================================');
 console.log(failed === 0 ? 'ALL PASS ✓' : `${failed} failure(s) ✗`);
 process.exit(failed === 0 ? 0 : 1);

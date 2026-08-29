@@ -609,7 +609,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Logging out');
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.log('[Auth] Logout error:', error.message);
+      // A FAILED signOut LEAVES THE SESSION ON THE DEVICE. The default scope is
+      // 'global', which needs the network; when that call fails the token is
+      // still sitting in storage — and on web that storage is
+      // window.localStorage, shared per ORIGIN. The UI would show a logged-out
+      // app while supabase-js silently restored the previous user's session on
+      // the next launch. On a shared office machine that is the wrong person's
+      // jobs, costs and client data.
+      //
+      // scope:'local' does no network round-trip, so it cannot fail the same
+      // way. Whatever happened upstream, the local session dies here.
+      console.log('[Auth] Logout error, forcing local sign-out:', error.message);
+      const { error: localErr } = await supabase.auth.signOut({ scope: 'local' });
+      if (localErr) console.warn('[Auth] Local sign-out ALSO failed:', localErr.message);
     }
 
     if (clearCredentials) {

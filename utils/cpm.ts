@@ -531,8 +531,44 @@ function forwardPass(
 
       let required = es;
       switch (type) {
-        case 'FS': required = depCpm.ef + lag + 1; break;
-        case 'SS': required = depCpm.es + lag; break;
+        // v2.2d — FS/SS were the last RAW-day arithmetic in this loop. FF/SF
+        // were made calendar-aware earlier (see the note below); FS was not,
+        // and FS is the overwhelmingly common link type.
+        //
+        // `depCpm.ef + lag + 1` lands the successor on the CALENDAR next day.
+        // When a predecessor finishes on a Friday that is Saturday, so ES sits
+        // on a non-working day while the EF walk correctly skips to Monday —
+        // and the backward pass then computes LS from a working-day LF. The
+        // difference is phantom float exactly the width of the weekend, so a
+        // task on a pure chain with no parallel path reports float=2 and drops
+        // off the critical path. Verified: A(3d)->B(2d)->C(2d) from Mon
+        // 2026-03-02 gives C float=0 on a 7-day week and float=2 on a 5-day one.
+        // On a real 5-day schedule most FS links cross a weekend somewhere, so
+        // the critical path fragments into pieces.
+        case 'FS': {
+          // steps may be NEGATIVE: a LEAD (negative lag) pulls the successor
+          // earlier, e.g. lag -2 means "start 2 days before the predecessor
+          // finishes" => steps -1. walkWorkingDays refuses counts <= 0 and
+          // returns its start index, so a lead must walk BACKWARD explicitly or
+          // it is silently dropped — caught by validate-schedule-wizard-ux's
+          // "a 2-day lead previews exactly 2 days shorter" assertions.
+          const steps = lag + 1;
+          required = !scheduleStart ? depCpm.ef + steps
+            : steps >= 0
+              ? walkWorkingDays(depCpm.ef, steps, 1, taskWd, scheduleStart, taskClosures)
+              : walkWorkingDays(depCpm.ef, -steps, -1, taskWd, scheduleStart, taskClosures);
+          break;
+        }
+        // SS with lag 0 inherits the predecessor's ES, which is already a valid
+        // working day. Only a positive lag can walk off the calendar.
+        case 'SS':
+          // Same lead handling. lag 0 inherits the predecessor's ES, which is
+          // already a valid working day, so no walk is needed.
+          required = !scheduleStart || lag === 0 ? depCpm.es + lag
+            : lag > 0
+              ? walkWorkingDays(depCpm.es, lag, 1, taskWd, scheduleStart, taskClosures)
+              : walkWorkingDays(depCpm.es, -lag, -1, taskWd, scheduleStart, taskClosures);
+          break;
         // FF/SF constrain this task's EF (to dep.EF+lag / dep.ES+lag). Walk
         // the *working-day* duration back to the matching ES. The old
         // `... - task.durationDays + 1` used RAW days, so any FF/SF link on a
