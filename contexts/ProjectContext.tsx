@@ -694,6 +694,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               approvalDeadlineDays: r.approval_deadline_days as number | undefined,
               auditTrail: r.audit_trail as ChangeOrder['auditTrail'], revision: Number(r.revision) || 1,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // portal_state MUST be read back. It is written on insert and on every
+              // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
+              // stripped it here, saveLocal destroyed the local copy, and
+              // portalSnapshot.isShared() treats undefined as SENT (grandfathering
+              // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
+              // items became client-visible on the next project open.
+              portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as ChangeOrder[];
             await saveLocal(CHANGE_ORDERS_KEY, mapped);
             return mapped;
@@ -876,6 +883,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               homeownerSummaryGeneratedAt: (r.homeowner_summary_generated_at as string | null) ?? undefined,
               homeownerSummaryPublished: !!r.homeowner_summary_published,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // See the change_orders mapper: portal_state must be read back or a
+              // refetch turns an unshared record into a shared one.
+              portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as DailyFieldReport[];
             // leakScan is a local-only field (no supabase column). Merge it
             // forward from AsyncStorage so rehydration never wipes a scan the
@@ -1361,6 +1371,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               tag: r.tag as string | undefined, linkedTaskId: r.linked_task_id as string | undefined,
               linkedTaskName: r.linked_task_name as string | undefined,
               markup: (r.markup as ProjectPhoto['markup']) ?? [], createdAt: r.created_at as string,
+              // See the change_orders mapper: portal_state must be read back or a
+              // refetch turns an unshared record into a shared one.
+              portalState: (r.portal_state as PortalState | null) ?? undefined,
               };
             }) as ProjectPhoto[];
             await saveLocal(PHOTOS_KEY, mapped);
@@ -1463,6 +1476,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               linkedDrawing: r.linked_drawing as string | undefined, linkedTaskId: r.linked_task_id as string | undefined,
               attachments: (r.attachments as string[]) ?? [], shareToken: r.share_token as string | undefined,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // portal_state MUST be read back. It is written on insert and on every
+              // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
+              // stripped it here, saveLocal destroyed the local copy, and
+              // portalSnapshot.isShared() treats undefined as SENT (grandfathering
+              // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
+              // items became client-visible on the next project open.
+              portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as RFI[];
             await saveLocal(RFIS_KEY, mapped);
             return mapped;
@@ -1488,6 +1508,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               currentStatus: (r.current_status as Submittal['currentStatus']) ?? 'pending',
               attachments: (r.attachments as string[]) ?? [], shareToken: r.share_token as string | undefined,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // portal_state MUST be read back. It is written on insert and on every
+              // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
+              // stripped it here, saveLocal destroyed the local copy, and
+              // portalSnapshot.isShared() treats undefined as SENT (grandfathering
+              // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
+              // items became client-visible on the next project open.
+              portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as Submittal[];
             await saveLocal(SUBMITTALS_KEY, mapped);
             return mapped;
@@ -1770,6 +1797,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               notes: (r.notes as string | null) ?? undefined,
               ...(r.snapshot_totals ? { snapshotTotals: r.snapshot_totals } : {}),
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // portal_state MUST be read back. It is written on insert and on every
+              // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
+              // stripped it here, saveLocal destroyed the local copy, and
+              // portalSnapshot.isShared() treats undefined as SENT (grandfathering
+              // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
+              // items became client-visible on the next project open.
+              portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as unknown as SavedAIAPayApp[];
             await saveLocal(AIA_PAY_APPS_KEY, mapped);
             return mapped;
@@ -4536,6 +4570,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               claims: (r.claims as Warranty['claims']) ?? [],
               reminderDays: r.reminder_days == null ? undefined : Number(r.reminder_days),
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // portal_state MUST be read back. It is written on insert and on every
+              // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
+              // stripped it here, saveLocal destroyed the local copy, and
+              // portalSnapshot.isShared() treats undefined as SENT (grandfathering
+              // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
+              // items became client-visible on the next project open.
+              portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as Warranty[];
             if (!cancelled) {
               setWarranties(mapped);
