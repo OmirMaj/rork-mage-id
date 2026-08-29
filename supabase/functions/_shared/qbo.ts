@@ -50,7 +50,21 @@ export async function saveTokens(userId: string, patch: {
   realm_id?: string; environment?: 'sandbox' | 'production';
   company_name?: string | null; status?: QboConnectionRow['status']; last_error?: string | null;
 }): Promise<void> {
-  const { error } = await svc().from('qbo_connections').upsert({ user_id: userId, ...patch }, { onConflict: 'user_id' });
+  // UPSERT ONLY WHEN WE KNOW THE REALM. qbo_connections.realm_id is NOT NULL,
+  // and an upsert builds a full proposed row before conflict resolution — so a
+  // partial patch that omits realm_id violates the constraint even when the row
+  // already exists. Both refresh paths (invalid_grant re-store and the normal
+  // rotation below) call this WITHOUT a realm_id, so every token refresh failed:
+  // saveTokens threw, the refresh aborted, and once the ~1h access token expired
+  // the QuickBooks connection was permanently dead with no user-visible cause.
+  //
+  // Refreshing implies the connection already exists, so an UPDATE is not just
+  // safe there — it is the honest verb. Creating a connection genuinely requires
+  // a realm, which the initial exchange always has.
+  const table = svc().from('qbo_connections');
+  const { error } = patch.realm_id
+    ? await table.upsert({ user_id: userId, ...patch }, { onConflict: 'user_id' })
+    : await table.update(patch).eq('user_id', userId);
   if (error) throw new Error(`qbo_connections write failed: ${error.message}`);
 }
 

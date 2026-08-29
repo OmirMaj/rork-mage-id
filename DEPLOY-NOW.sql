@@ -1,17 +1,13 @@
 -- ============================================================
--- MAGE ID — paste-ready deploy, regenerated 2026-08-28
--- 11 migrations, in order. All idempotent.
---   1. AP payment reconciliation
---   2. field role (unblocks the Field invite)
---   3. project_financials split (phase 1)
---   4. history reconciliation   <- cost_seeds.deleted_at LIVE BUG
---   5. RFI sub attribution + custody chain  <- LIVE DATA LOSS
---   6. portal link expiry columns
---   7. portal expiry cron
---   8. portal_get_snapshot_v2 (expiry-aware)
---   9. deliveries (scheduled/expected loads)
---  10. building access rules + reservations
---  11. delivery_receipts.delivery_id  <- receiving now writes this table
+-- MAGE ID — paste-ready deploy, regenerated 2026-08-29
+-- 12 migrations, in order. All idempotent.
+--   1-8   AP recon, field role, financials split, history recon,
+--         RFI custody, portal expiry (+cron, +v2 snapshot)
+--   9.    deliveries
+--  10.    building access
+--  11.    delivery_receipts.delivery_id (receiving writes this table)
+--  12.    subscriptions.tier allows 'enterprise'  <- PAYING CUSTOMERS
+--         WERE SILENTLY DOWNGRADED TO FREE
 -- EXCLUDED: ..._drop_legacy.sql (phase 2 — after the OTA)
 -- ============================================================
 
@@ -1044,4 +1040,42 @@ create index if not exists delivery_receipts_delivery_idx
 
 comment on column public.delivery_receipts.delivery_id is
   'The public.deliveries row this receipt closes out. NULL for material that arrived unscheduled. No FK on purpose — deleting a delivery must not destroy the record that something was received, or the damage evidence attached to it.';
+
+-- ─── 20260829120000_subscriptions_enterprise_tier ───
+-- ============================================================================
+-- subscriptions.tier — allow 'enterprise'.
+--
+-- WHY. The CHECK constraint was written as
+--     CHECK (tier = ANY (ARRAY['free','pro','business']))
+-- while the app has shipped a FOURTH tier the whole time:
+--   • contexts/SubscriptionContext.tsx:120 resolves the 'enterprise' entitlement
+--   • utils/featureTiers.ts:109 types requiredTier as
+--     'free' | 'pro' | 'business' | 'enterprise'
+--   • CLAUDE.md prices it at $150/mo
+--
+-- So the RevenueCat webhook, on an Enterprise purchase, wrote tier='enterprise'
+-- and Postgres rejected it with 23514. The webhook's failure is not surfaced to
+-- the buyer, so the outcome was: a customer pays $150/month, their subscription
+-- row never records the tier, and every server-side requireTier() check treats
+-- them as FREE. They are charged and get nothing, and nothing in the product
+-- says why.
+--
+-- This is the same shape as notification_outbox.recipient_kind (a value the app
+-- writes that the schema forbids, with the rejection swallowed) — the third
+-- instance found in this codebase. scripts/validate-outbox-contract.ts guards
+-- that one; the general lesson is that a CHECK constraint is a contract the
+-- client half must be held to.
+--
+-- Idempotent: drops the old constraint by name and recreates it widened.
+-- ============================================================================
+
+alter table public.subscriptions
+  drop constraint if exists subscriptions_tier_check;
+
+alter table public.subscriptions
+  add constraint subscriptions_tier_check
+  check (tier = any (array['free'::text, 'pro'::text, 'business'::text, 'enterprise'::text]));
+
+comment on constraint subscriptions_tier_check on public.subscriptions is
+  'Must stay in sync with the SubscriptionTier union in types/ and the entitlement names RevenueCat grants. A tier the app can produce but this constraint forbids means a paying customer is silently downgraded to free.';
 
