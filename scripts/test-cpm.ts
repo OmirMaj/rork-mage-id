@@ -255,6 +255,28 @@ else console.log('  OK: unchanged schedule reports zero slip right after baselin
   }
 }
 
+// ── A 6-day week is Mon–SAT, not a second 5-day week ────────────────────────
+// isWorkingDay collapsed every `workingDaysPerWeek < 7` to "skip Saturday AND
+// Sunday", so a GC who configured Saturday work got 5-day dates anyway and every
+// finish was pushed out by the Saturdays the engine refused to use.
+// 12 working days from Mon 2026-03-02: 7-day => day 12, 6-day => day 13 (one
+// Sunday), 5-day => day 16 (two weekends).
+{
+  const twelve = [stub({ id: 'W', durationDays: 12 })];
+  const finish = (wd: number) =>
+    runCpm(twelve, { scheduleStartDate: '2026-03-02', workingDaysPerWeek: wd }).projectFinish;
+  const [f7, f6, f5] = [finish(7), finish(6), finish(5)];
+  if (f7 !== 12 || f6 !== 13 || f5 !== 16) {
+    console.error(`  FAIL working-week finishes: 7d=${f7} (want 12), 6d=${f6} (want 13), 5d=${f5} (want 16)`);
+    failed++;
+  } else if (f6 === f5) {
+    console.error('  FAIL: a 6-day week computed identically to a 5-day week');
+    failed++;
+  } else {
+    console.log('  OK: 6-day week works Saturdays; 5-day does not');
+  }
+}
+
 console.log('\n============================================');
 console.log(failed === 0 ? 'ALL PASS ✓' : `${failed} failure(s) ✗`);
 process.exit(failed === 0 ? 0 : 1);

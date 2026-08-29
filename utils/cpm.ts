@@ -194,7 +194,14 @@ export function isWorkingDay(
   const dayMs = startMs + (dayIndex - 1) * 86400000;
   const d = new Date(dayMs);
   const dow = d.getUTCDay();
-  const weekendSkip = workingDaysPerWeek < 7 && (dow === 0 || dow === 6);
+  // A 6-day week is Mon–SAT: only Sunday is off. Collapsing every `< 7` value
+  // to "skip Saturday and Sunday" computed a 6-day schedule as a 5-day one, so
+  // a GC who configured Saturday work still had every finish date pushed out by
+  // the Saturdays the engine refused to use.
+  const weekendSkip =
+    workingDaysPerWeek >= 7 ? false
+      : workingDaysPerWeek === 6 ? dow === 0
+        : (dow === 0 || dow === 6);
   if (weekendSkip) return false;
   const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
   return !closures.has(iso);

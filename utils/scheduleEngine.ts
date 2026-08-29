@@ -341,14 +341,24 @@ export function buildScheduleFromTasks(
   const updatedAt = new Date().toISOString();
   const healthScore = calculateHealthScore(sortedTasks, updatedAt);
 
-  const overdueTasks = sortedTasks.filter(t => {
-    if (t.status === 'done') return false;
-    const end = t.startDay + t.durationDays;
-    const now = new Date();
-    const projectStart = new Date();
-    const endDate = addWorkingDays(projectStart, end, 5);
-    return endDate < now && t.progress < 100;
-  });
+  // OVERDUE DETECTION COULD NEVER FIRE. `projectStart` was `new Date()` — the
+  // same instant as `now` — so endDate = now + N working days, always in the
+  // future, and `endDate < now` was false for every task. The risk item existed
+  // and was unreachable.
+  //
+  // The real anchor is opts.startDate. When the caller has no start date the
+  // engine must NOT invent one (see the note on that option): without an anchor
+  // "overdue" is unknowable, and guessing produces either silent silence or a
+  // wave of false alarms on a schedule that has not started.
+  const overdueAnchor = opts?.startDate ? new Date(`${opts.startDate}T00:00:00`) : null;
+  const overdueTasks = (overdueAnchor && Number.isFinite(overdueAnchor.getTime()))
+    ? sortedTasks.filter(t => {
+        if (t.status === 'done') return false;
+        if (t.progress >= 100) return false;
+        const endDate = addWorkingDays(overdueAnchor, t.startDay + t.durationDays, 5);
+        return endDate < new Date();
+      })
+    : [];
 
   const riskItems: ScheduleRiskItem[] = [];
 
