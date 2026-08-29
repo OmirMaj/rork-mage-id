@@ -25,6 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 // platform, iOS included, so this was not a web issue. 14 other files in this
 // repo were already migrated; these five were missed.
 import * as FileSystem from 'expo-file-system/legacy';
+import { readAsBase64 } from '@/utils/platformFile';
 import * as Haptics from 'expo-haptics';
 import {
   ScanSearch, ChevronLeft, Camera, ImagePlus, Check, X, Pencil,
@@ -224,7 +225,10 @@ export default function CostXrayScreen() {
       // so one unreadable URI doesn't sink the batch; originalIndex remaps the
       // model's photoIndex back to the local photos array.
       const settled = await Promise.allSettled(photos.map(async (p) => {
-        const base64 = await FileSystem.readAsStringAsync(p.uri, { encoding: 'base64' });
+        // readAsBase64, not FileSystem: on web the picker hands back a blob:
+        // URL that expo-file-system cannot read, so this threw for every photo
+        // and the catch below blamed the user ("they may have been moved").
+        const base64 = await readAsBase64(p.uri);
         const ext = p.uri.split('.').pop()?.toLowerCase() ?? '';
         const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
         return { base64, mimeType };

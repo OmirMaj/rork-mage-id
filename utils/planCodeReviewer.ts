@@ -2,6 +2,8 @@
 // cacheDirectory/downloadAsync/readAsStringAsync into the /legacy entry
 // (matches utils/icsGenerator.ts, utils/dataExport.ts, utils/accountingExport.ts).
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
+import { readAsBase64 } from '@/utils/platformFile';
 import { supabase } from '@/lib/supabase';
 
 export interface PlanCodeFindingRaw {
@@ -40,11 +42,17 @@ export async function imageUriToBase64(uri: string): Promise<{ base64: string; m
     const mimeType = meta.split(';')[0] || 'image/png';
     return { base64: uri.slice(comma + 1), mimeType };
   }
-  if (uri.startsWith('file:') || uri.startsWith('/')) {
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-    return { base64, mimeType: mimeFromExt(uri) };
+  // blob: is what the web picker produces; readAsBase64 handles all three.
+  if (uri.startsWith('file:') || uri.startsWith('/') || uri.startsWith('blob:')) {
+    return { base64: await readAsBase64(uri), mimeType: mimeFromExt(uri) };
   }
-  // remote http(s): download to cache, read, clean up
+  // remote http(s). On web there is no cache directory to download INTO, but
+  // fetch can read the URL directly — so skip the download-then-read dance
+  // entirely. Previously `${undefined}plan-review-...` produced a garbage path
+  // and every plan sheet threw, killing AI code review and plan indexing.
+  if (Platform.OS === 'web') {
+    return { base64: await readAsBase64(uri), mimeType: mimeFromExt(uri) };
+  }
   const target = `${FileSystem.cacheDirectory}plan-review-${Date.now()}`;
   const dl = await FileSystem.downloadAsync(uri, target);
   try {

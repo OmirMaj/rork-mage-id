@@ -5,6 +5,7 @@
 // project-detail calls the wrapper exactly like it calls exportProjectIcs.
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { deliverTextFile } from '@/utils/platformFile';
 import type { Project, Invoice, InvoiceStatus } from '@/types';
 
 export type AccountingFormat = 'quickbooks' | 'xero';
@@ -128,9 +129,13 @@ export async function exportProjectAccountingCsv(input: {
   );
   if (rowCount === 0) return { rowCount: 0, fileUri: '' };
 
-  const dir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? '';
-  const fileUri = `${dir}${filename}`;
-  await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: 'utf8' });
+  // deliverTextFile downloads the CSV in the browser and returns null; on
+  // native it writes to cache and returns the URI to share. Previously
+  // cacheDirectory was undefined on web, so this wrote to the literal path
+  // "invoices.csv", threw, and the QuickBooks/Xero export was dead — while its
+  // three sibling exporters (which use the Blob-anchor pattern) worked fine.
+  const fileUri = await deliverTextFile(filename, csv, 'text/csv;charset=utf-8');
+  if (!fileUri) return { rowCount, fileUri: '' };
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(fileUri, {
       mimeType: 'text/csv',

@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { deliverTextFile } from '@/utils/platformFile';
 import * as Sharing from 'expo-sharing';
 import type {
   Project, Invoice, ChangeOrder, DailyFieldReport, PunchItem, ProjectPhoto,
@@ -209,11 +210,14 @@ export async function exportUserData(
   const fileUris: string[] = [];
   let totalBytes = 0;
 
-  const dir = FileSystem.cacheDirectory;
-  if (!dir) throw new Error('No cache directory available on this platform.');
+  // NO THROW ON WEB. cacheDirectory is undefined in a browser, so this bailed
+  // before any of the `Platform.OS !== 'web'` guards below could run — meaning
+  // the GDPR/CCPA "Export my data" button was dead on web, which is the one
+  // platform where a regulator-facing export is most likely to be exercised.
+  // deliverTextFile downloads in the browser and writes to cache on native.
+  const dir = FileSystem.cacheDirectory ?? '';
 
   if (opts.format === 'json' || opts.format === 'both') {
-    const jsonUri = `${dir}${baseName}.json`;
     const jsonBody = JSON.stringify({
       exportedAt: new Date().toISOString(),
       exportedBy: 'MAGE ID',
@@ -221,22 +225,19 @@ export async function exportUserData(
       options: opts,
       ...payload,
     }, null, 2);
-    if (Platform.OS !== 'web') {
-      await FileSystem.writeAsStringAsync(jsonUri, jsonBody, { encoding: 'utf8' });
-    }
+    const written = await deliverTextFile(`${baseName}.json`, jsonBody, 'application/json');
     totalBytes += jsonBody.length;
-    fileUris.push(jsonUri);
+    // Web returns null — the file already reached the user via download, and
+    // there is no URI to hand to Sharing afterwards.
+    if (written) fileUris.push(written);
   }
 
   if (opts.format === 'csv' || opts.format === 'both') {
     const csvs = payloadToCsvs(payload);
     for (const [entity, body] of Object.entries(csvs)) {
-      const csvUri = `${dir}${baseName}-${entity}.csv`;
-      if (Platform.OS !== 'web') {
-        await FileSystem.writeAsStringAsync(csvUri, body, { encoding: 'utf8' });
-      }
+      const written = await deliverTextFile(`${baseName}-${entity}.csv`, body, 'text/csv;charset=utf-8');
       totalBytes += body.length;
-      fileUris.push(csvUri);
+      if (written) fileUris.push(written);
     }
   }
 
@@ -280,12 +281,9 @@ export async function exportUserData(
   // ── README — orientation file for the recipient ──────────────────
   if (opts.includeReadme) {
     const readme = buildReadmeText(payload, opts);
-    const readmeUri = `${dir}${baseName}-README.txt`;
-    if (Platform.OS !== 'web') {
-      await FileSystem.writeAsStringAsync(readmeUri, readme, { encoding: 'utf8' });
-    }
+    const written = await deliverTextFile(`${baseName}-README.txt`, readme, 'text/plain;charset=utf-8');
     totalBytes += readme.length;
-    fileUris.push(readmeUri);
+    if (written) fileUris.push(written);
   }
 
   return {
