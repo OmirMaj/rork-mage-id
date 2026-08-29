@@ -82,8 +82,12 @@ export async function askBidQuestion(bidId: string, question: string, askerName?
   // Resolve the RFP poster + title so the notify edge function can
   // route the email to the right person. We read minimum metadata —
   // the function looks up profile contact info itself.
+  // 'bids' DOES NOT EXIST — verified against production. The RFP posting lives
+  // in public_bids (id, user_id, title), which is also what bid_questions.bid_id
+  // references. Every question asked failed to resolve a poster, so the notify
+  // payload went out with a null recipient and the RFP owner was never told.
   const { data: bidRow } = await supabase
-    .from('bids')
+    .from('public_bids')
     .select('user_id, title')
     .eq('id', bidId)
     .maybeSingle();
@@ -123,15 +127,19 @@ export async function answerBidQuestion(id: string, answer: string): Promise<boo
   if (qRow?.bid_id) {
     try {
       const { data: bidRow } = await supabase
-        .from('bids')
+        .from('public_bids')
         .select('id, title, user_id')
         .eq('id', qRow.bid_id)
         .maybeSingle();
+      // bid_responses has user_id, NOT contractor_user_id — verified against
+      // production. PostgREST 400s on an unknown column, so `responses` was
+      // always null and `ids` always empty: answering a question notified none
+      // of the contractors who had bid.
       const { data: responses } = await supabase
         .from('bid_responses')
-        .select('contractor_user_id')
+        .select('user_id')
         .eq('bid_id', qRow.bid_id);
-      const ids = Array.from(new Set((responses ?? []).map((r: any) => r.contractor_user_id).filter(Boolean)));
+      const ids = Array.from(new Set((responses ?? []).map((r: any) => r.user_id).filter(Boolean)));
       let recipients: { user_id: string; email: string | null; push_token: string | null }[] = [];
       if (ids.length > 0) {
         const { data: profiles } = await supabase

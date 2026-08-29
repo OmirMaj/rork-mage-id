@@ -13,7 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 // doc comment says "This method will throw in runtime". It throws on EVERY
 // platform, iOS included, so this was not a web issue. 14 other files in this
 // repo were already migrated; these five were missed.
-import * as FileSystem from 'expo-file-system/legacy';
+import { readAsBase64 } from '@/utils/platformFile';
 import { TriangleAlert, Plus, X, Trash2, ChevronLeft, Camera, ImagePlus, AlertCircle, Mic } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -206,7 +206,7 @@ function SafetyHazardsInner() {
       if (localUri) {
         // Inline base64 — same encoding path as photoAnalyzer. The server
         // accepts photos[] { base64, mimeType }.
-        const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+        const base64 = await readAsBase64(localUri);
         const ext = localUri.split('.').pop()?.toLowerCase() ?? '';
         const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
         body = JSON.stringify({ photos: [{ base64, mimeType }] });

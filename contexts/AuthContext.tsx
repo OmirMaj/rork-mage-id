@@ -673,11 +673,22 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       throw new Error(data?.error ?? 'Account deletion failed.');
     }
     console.log('[Auth] deleteAccount: server-side delete complete', data);
-    // Treat the rest as logout-and-wipe-local — same code path as
-    // logout(true) so the device ends up clean. We don't call signOut
-    // again because the auth.users row is already gone; getSession()
-    // will 401 from this point on.
+    // Treat the rest as logout-and-wipe-local — same code path as logout(true)
+    // so the device ends up clean.
+    //
+    // A LOCAL signOut IS still required, despite the auth.users row being gone.
+    // wipeLocalUserCache sweeps the mageid_*/mage_* prefixes and deliberately
+    // does NOT touch Supabase's own sb-<ref>-auth-token (clearing that broadly
+    // would take out unrelated origin state). So without this the deleted
+    // account's JWT stayed in storage — window.localStorage on web, shared per
+    // origin — and a page reload rehydrated a zombie session that 401s on every
+    // request. The user sees a broken app rather than a clean signed-out one.
+    //
+    // scope:'local' does no network round-trip, which matters here precisely
+    // because there is no longer a server-side user to sign out.
     try {
+      const { error: soErr } = await supabase.auth.signOut({ scope: 'local' });
+      if (soErr) console.log('[Auth] deleteAccount: local sign-out failed:', soErr.message);
       await clearStoredCredentials();
       setHasStoredCredentials(false);
       await wipeLocalUserCache();

@@ -19,7 +19,7 @@ import { supabase } from '@/lib/supabase';
 // doc comment says "This method will throw in runtime". It throws on EVERY
 // platform, iOS included, so this was not a web issue. 14 other files in this
 // repo were already migrated; these five were missed.
-import * as FileSystem from 'expo-file-system/legacy';
+import { readAsBase64 } from '@/utils/platformFile';
 import type { COICoverageType, COICoverage, COIValidationResult } from '@/types';
 
 interface RawAIExtraction {
@@ -79,7 +79,7 @@ export async function validateCOIImage(localFileUri: string): Promise<{
 }> {
   // Encode the image to base64 for the edge function. Match the
   // pattern used by photoAnalyzer.encodeLocalPhotos().
-  const base64 = await FileSystem.readAsStringAsync(localFileUri, { encoding: 'base64' });
+  const base64 = await readAsBase64(localFileUri);
   const ext = (localFileUri.split('.').pop() ?? '').toLowerCase();
   const mimeType = ext === 'png' ? 'image/png' : ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
 

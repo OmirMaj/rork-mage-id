@@ -701,6 +701,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
               // items became client-visible on the next project open.
               portalState: (r.portal_state as PortalState | null) ?? undefined,
+              // Written on update, never read. The days a CO adds to the schedule
+              // is the contractual time-extension claim; losing it on refetch
+              // means the reflow silently re-applies or the entitlement is gone.
+              scheduleImpactDays: r.schedule_impact_days == null ? undefined : Number(r.schedule_impact_days),
+              scheduleImpactApplied: r.schedule_impact_applied == null ? undefined : Boolean(r.schedule_impact_applied),
             })) as ChangeOrder[];
             await saveLocal(CHANGE_ORDERS_KEY, mapped);
             return mapped;
@@ -1324,6 +1329,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // save wrote that undefined back over a good server row. Same
               // failure shape as the RFI custody chain: written, never read,
               // silently erased. A punch photo's location is evidence.
+              // The plan-sheet pin. Written on BOTH insert and update but never
+              // read back, so a refetch dropped it and the next local save wrote
+              // the loss through — a punch item silently detached from its spot
+              // on the drawing, which is the whole point of pinning it.
+              planSheetId: (r.plan_sheet_id as string | null) ?? undefined,
+              pinX: r.pin_x == null ? undefined : Number(r.pin_x),
+              pinY: r.pin_y == null ? undefined : Number(r.pin_y),
               photoLatitude: r.photo_latitude == null ? undefined : Number(r.photo_latitude),
               photoLongitude: r.photo_longitude == null ? undefined : Number(r.photo_longitude),
               photoLocationAccuracyMeters: r.photo_accuracy_meters == null ? undefined : Number(r.photo_accuracy_meters),
@@ -4211,7 +4223,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     snapshot_totals: (a as unknown as { snapshotTotals?: unknown }).snapshotTotals ?? null,
     created_at: (a as unknown as { createdAt?: string }).createdAt ?? new Date().toISOString(),
     updated_at: (a as unknown as { updatedAt?: string }).updatedAt ?? new Date().toISOString(),
-    portal_state: a.portalState ?? null,
+    // Spread, not `?? null`. PostgREST writes only the keys present in the
+    // payload, so omitting an undefined portalState PRESERVES the server value.
+    // Writing null actively destroyed it: before the read mappers were fixed, a
+    // refetch blanked portalState in memory and the very next edit persisted
+    // that blank — turning a display bug into permanent data loss.
+    ...(a.portalState !== undefined ? { portal_state: a.portalState } : {}),
   }), [userId]);
 
   const addAIAPayApp = useCallback((app: SavedAIAPayApp) => {
@@ -4625,7 +4642,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     reminder_days: w.reminderDays ?? null,
     created_at: w.createdAt,
     updated_at: w.updatedAt,
-    portal_state: w.portalState ?? null,
+    // Spread, not `?? null`. PostgREST writes only the keys present in the
+    // payload, so omitting an undefined portalState PRESERVES the server value.
+    // Writing null actively destroyed it: before the read mappers were fixed, a
+    // refetch blanked portalState in memory and the very next edit persisted
+    // that blank — turning a display bug into permanent data loss.
+    ...(w.portalState !== undefined ? { portal_state: w.portalState } : {}),
   }), [userId]);
 
   const addWarranty = useCallback((w: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'claims'> & { id?: string; status?: Warranty['status']; claims?: WarrantyClaim[] }) => {
