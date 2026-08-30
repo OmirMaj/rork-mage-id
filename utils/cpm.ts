@@ -163,8 +163,22 @@ export interface RunCpmOptions {
 
 function isoToDay(iso: string | undefined, scheduleStart: string | undefined): number | null {
   if (!iso || !scheduleStart) return null;
-  const a = Date.parse(iso + 'T00:00:00Z');
-  const b = Date.parse(scheduleStart + 'T00:00:00Z');
+  // Take the calendar-day PREFIX rather than concatenating onto the raw value.
+  //
+  // MS Project writes <ConstraintDate> as a full datetime (2026-08-31T08:00:00).
+  // The old `iso + 'T00:00:00Z'` turned that into
+  //     '2026-08-31T08:00:00T00:00:00Z'
+  // which Date.parse answers NaN, so this returned null, computeAnchor returned
+  // null, and the constraint was SILENTLY DROPPED. Every Must-Start-On /
+  // Finish-No-Later-Than imported from MSPDI was parsed, mapped onto the task,
+  // persisted — and then ignored by the engine. The anchor was visible in the
+  // data and absent from the schedule, which is the worst way to be wrong.
+  //
+  // scheduleStart gets the same treatment: several fields declared 'YYYY-MM-DD'
+  // come back from Supabase as full timestamps (see utils/calendarDate.ts), so
+  // the same concatenation could NaN the baseline and drop every anchor at once.
+  const a = Date.parse(iso.slice(0, 10) + 'T00:00:00Z');
+  const b = Date.parse(scheduleStart.slice(0, 10) + 'T00:00:00Z');
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
   // +1 so scheduleStart itself is day 1 (matching the 1-indexed convention).
   return Math.round((a - b) / 86400000) + 1;

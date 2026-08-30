@@ -280,6 +280,55 @@ else console.log('  OK: unchanged schedule reports zero slip right after baselin
   }
 }
 
+// --- MSPDI date constraints must actually bind (anchorDate timestamp) ---
+// utils/cpm.isoToDay used to build its parse input by CONCATENATION:
+//     Date.parse(iso + 'T00:00:00Z')
+// MS Project writes <ConstraintDate> as a full datetime, so that produced
+// '2026-08-31T08:00:00T00:00:00Z' -> NaN -> null -> computeAnchor returned null
+// and the constraint was SILENTLY DROPPED. Every Must-Start-On / Finish-No-
+// Later-Than imported from MSPDI was parsed, mapped onto the task, persisted,
+// and then ignored by the engine — visible in the data, absent from the plan.
+console.log('\n--- MSPDI anchorDate (full timestamp) still binds ---');
+{
+  const START = '2026-08-31'; // Monday
+  // start-no-earlier on 2026-09-07 = day 8. Task has no predecessors, so
+  // without the anchor it would start on day 1.
+  const bare = runCpm(
+    [stub({ id: 'P', durationDays: 3, anchorType: 'start-no-earlier', anchorDate: '2026-09-07' })],
+    { scheduleStartDate: START, workingDaysPerWeek: 7 },
+  );
+  const stamped = runCpm(
+    [stub({ id: 'P', durationDays: 3, anchorType: 'start-no-earlier', anchorDate: '2026-09-07T08:00:00' })],
+    { scheduleStartDate: START, workingDaysPerWeek: 7 },
+  );
+  const esBare = bare.perTask.get('P')!.es;
+  const esStamped = stamped.perTask.get('P')!.es;
+
+  if (esBare !== 8) {
+    console.error(`  FAIL bare anchorDate should pin ES to day 8, got ${esBare}`);
+    failed++;
+  } else if (esStamped !== 8) {
+    console.error(`  FAIL MSPDI timestamp anchorDate DROPPED: ES=${esStamped}, want 8 (the pre-fix bug)`);
+    failed++;
+  } else {
+    console.log('  OK: a full-timestamp ConstraintDate binds identically to a bare date');
+  }
+
+  // A timestamped scheduleStartDate must not NaN the baseline either — several
+  // fields declared YYYY-MM-DD come back from Supabase as full timestamps.
+  const stampedStart = runCpm(
+    [stub({ id: 'P', durationDays: 3, anchorType: 'start-no-earlier', anchorDate: '2026-09-07' })],
+    { scheduleStartDate: '2026-08-31T00:00:00.000Z', workingDaysPerWeek: 7 },
+  );
+  const esStampedStart = stampedStart.perTask.get('P')!.es;
+  if (esStampedStart !== 8) {
+    console.error(`  FAIL timestamped scheduleStartDate dropped the anchor: ES=${esStampedStart}, want 8`);
+    failed++;
+  } else {
+    console.log('  OK: a timestamped scheduleStartDate still resolves anchors');
+  }
+}
+
 console.log('\n============================================');
 console.log(failed === 0 ? 'ALL PASS ✓' : `${failed} failure(s) ✗`);
 process.exit(failed === 0 ? 0 : 1);

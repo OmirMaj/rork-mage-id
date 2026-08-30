@@ -95,8 +95,16 @@ export function mapRowsToScheduleTasks(
       isMilestone: durationDays === 0 || !!r.milestone,
       wbsCode: r.wbs,
       outlineLevel: r.outlineLevel,
+      // anchorDate is declared 'YYYY-MM-DD' (types/index.ts). MSPDI's
+      // <ConstraintDate> is a full datetime, so normalise at the boundary and
+      // store the canonical shape rather than whatever the file happened to
+      // carry. utils/cpm.isoToDay also tolerates a timestamp now, but data that
+      // matches its own type is worth more than a parser that forgives it.
       ...(r.constraintType != null && MSPDI_CONSTRAINT_TYPE[r.constraintType]
-        ? { anchorType: MSPDI_CONSTRAINT_TYPE[r.constraintType] as ScheduleTask['anchorType'], anchorDate: r.constraintDate }
+        ? {
+            anchorType: MSPDI_CONSTRAINT_TYPE[r.constraintType] as ScheduleTask['anchorType'],
+            anchorDate: r.constraintDate ? r.constraintDate.slice(0, 10) : undefined,
+          }
         : {}),
       ...(r.resource ? { resourceIds: [] } : {}),
     } as ScheduleTask;

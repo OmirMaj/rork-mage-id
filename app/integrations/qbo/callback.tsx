@@ -26,7 +26,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { PRIMARY_SCHEME } from "@/utils/deepLinkScheme";
 import { AlertTriangle, ExternalLink } from "lucide-react-native";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -44,6 +44,7 @@ export default function QboCallbackScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ code?: string; realmId?: string; state?: string }>();
+  const router = useRouter();
   const [status, setStatus] = useState<Status>("pending");
   const [error, setError] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
@@ -74,33 +75,54 @@ export default function QboCallbackScreen() {
     return () => { cancelled = true; };
   }, [params.code, params.realmId, params.state]);
 
-  // 2) On success, auto-deep-link back to the native MAGE app. This both
-  // closes the in-app browser session (iOS intercepts custom-scheme
-  // navigations) AND brings the user back to the qbo-setup screen, where
-  // the polling loop will detect the freshly-saved connection.
+  // 2) On success, get the user back to qbo-setup, where the polling loop
+  // detects the freshly-saved connection.
+  //
+  // THIS PAGE SERVES TWO AUDIENCES, BOTH Platform.OS === 'web':
+  //   (a) iOS's ASWebAuthenticationSession rendering the web build. Here the
+  //       mageid:// custom scheme is exactly right — iOS intercepts it, closes
+  //       the browser session, and hands off to the native app.
+  //   (b) An actual browser (someone using the web app on a desktop). A
+  //       custom-scheme navigation there does nothing, or pops a "Safari can't
+  //       open the page" dialog.
+  //
+  // The old code only did (a), and the manual button did the same thing — so a
+  // web user finished the OAuth successfully and was then STRANDED on this
+  // page with no route back into the app. The connection was saved and they
+  // could not see it.
+  //
+  // Try the deep link first (cheap, and correct for (a)); if we are still
+  // visible shortly after, nothing took the handoff, so continue INSIDE the web
+  // app. document.visibilityState is the signal — iOS backgrounds this page
+  // when it switches to the native app.
   useEffect(() => {
     if (status !== "success") return;
-    const t = setTimeout(() => {
-      const deepLink = `${PRIMARY_SCHEME}qbo-setup`;
-      if (Platform.OS === "web") {
-        // From the in-app browser, this navigates to the custom scheme,
-        // which iOS hands off to the host app. On desktop browsers without
-        // the app installed, it silently no-ops — user uses the button below.
-        try { window.location.href = deepLink; } catch { /* manual button is the fallback */ }
-      } else {
-        void Linking.openURL(deepLink).catch(() => { /* manual button is the fallback */ });
-      }
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [status]);
-
-  const openMage = () => {
     const deepLink = `${PRIMARY_SCHEME}qbo-setup`;
+    let fallback: ReturnType<typeof setTimeout> | undefined;
+    const t = setTimeout(() => {
+      if (Platform.OS !== "web") {
+        void Linking.openURL(deepLink).catch(() => { /* manual button is the fallback */ });
+        return;
+      }
+      try { window.location.href = deepLink; } catch { /* fall through to the in-app route */ }
+      fallback = setTimeout(() => {
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+        router.replace("/qbo-setup");
+      }, 1500);
+    }, 1200);
+    return () => { clearTimeout(t); if (fallback) clearTimeout(fallback); };
+  }, [status, router]);
+
+  // The manual affordance must be the RELIABLE one, not a second copy of the
+  // thing that may already have failed. On web that means an in-app route,
+  // which always works; the deep-link attempt above already covered the
+  // in-app-browser case.
+  const openMage = () => {
     if (Platform.OS === "web") {
-      try { window.location.href = deepLink; } catch { /* no-op */ }
-    } else {
-      void Linking.openURL(deepLink);
+      router.replace("/qbo-setup");
+      return;
     }
+    void Linking.openURL(`${PRIMARY_SCHEME}qbo-setup`);
   };
 
   return (
@@ -121,10 +143,10 @@ export default function QboCallbackScreen() {
             <Text style={styles.subtitle}>
               {companyName ? `MAGE is now linked to ${companyName}.` : "MAGE is now linked to your QuickBooks Online account."}
             </Text>
-            <Text style={styles.hint}>Returning you to the MAGE app…</Text>
+            <Text style={styles.hint}>{Platform.OS === "web" ? "Taking you back…" : "Returning you to the MAGE app…"}</Text>
             <TouchableOpacity style={styles.primary} onPress={openMage} testID="qbo-callback-return">
               <ExternalLink size={16} color="#FFFFFF" strokeWidth={1.75} />
-              <Text style={styles.primaryText}>Open MAGE app</Text>
+              <Text style={styles.primaryText}>{Platform.OS === "web" ? "Continue to QuickBooks setup" : "Open MAGE app"}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -133,9 +155,9 @@ export default function QboCallbackScreen() {
             <AlertTriangle size={64} color={colors.danger} strokeWidth={1.75} />
             <Text style={styles.title}>Connection failed</Text>
             <Text style={styles.subtitle}>{error ?? "Unknown error."}</Text>
-            <Text style={styles.hint}>Return to the MAGE app and try connecting again.</Text>
+            <Text style={styles.hint}>{Platform.OS === "web" ? "Go back and try connecting again." : "Return to the MAGE app and try connecting again."}</Text>
             <TouchableOpacity style={styles.primary} onPress={openMage} testID="qbo-callback-return-err">
-              <Text style={styles.primaryText}>Return to MAGE</Text>
+              <Text style={styles.primaryText}>{Platform.OS === "web" ? "Back to QuickBooks setup" : "Return to MAGE"}</Text>
             </TouchableOpacity>
           </>
         )}
