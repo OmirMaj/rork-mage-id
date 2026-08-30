@@ -13,9 +13,7 @@
 // lead, or standalone. Pro-gated like the rest of the cost-intelligence suite.
 
 import React, { useMemo, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -34,6 +32,7 @@ import {
   type ProposalTier, type ProposalTierKey, type SmartProposal,
 } from '@/utils/proposalBuilder';
 import { useSmartProposals } from '@/hooks/useSmartProposals';
+import { shareText } from '@/utils/shareText';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -165,8 +164,13 @@ function SmartProposalInner() {
     const record = persistProposal(status);
     if (!record) return;
     try {
-      const result = await Share.share({ message: proposalToShareText(record) });
-      if (result.action === Share.sharedAction && status === 'draft') {
+      // 'shared' OR 'copied' both mean the proposal left the app — on a desktop
+      // browser with no Web Share, copying to the clipboard IS the send. The old
+      // check was `result.action === Share.sharedAction`, and on web
+      // Share.share REJECTED before ever returning a result, so the proposal was
+      // never marked sent and the catch logged it as a failure.
+      const outcome = await shareText({ message: proposalToShareText(record) });
+      if ((outcome === 'shared' || outcome === 'copied') && status === 'draft') {
         persistProposal('sent');
       }
     } catch (err) {

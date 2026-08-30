@@ -10,10 +10,7 @@
 // relationship (the anti-leakage moat).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Share,
-  ActivityIndicator, Platform, TextInput,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator, Platform, TextInput} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -23,6 +20,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
+import { shareText } from '@/utils/shareText';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -171,7 +169,7 @@ export default function InstantBidProposalModal({
       tier.financingLine ? `\n${tier.financingLine}` : '',
     ].filter(Boolean);
     try {
-      await Share.share({ message: lines.join('\n') });
+      await shareText({ message: lines.join('\n') });
     } catch {
       /* cancelled */
     }

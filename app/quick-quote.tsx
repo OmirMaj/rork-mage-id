@@ -13,9 +13,7 @@
 // a full project. Those belong to later increments.
 
 import React, { useMemo, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -27,6 +25,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { useSmartProposals } from '@/hooks/useSmartProposals';
+import { shareText } from '@/utils/shareText';
 import { buildQuickQuote, proposalToShareText, type SmartProposal } from '@/utils/proposalBuilder';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
@@ -131,8 +130,13 @@ export default function QuickQuoteScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
-      const result = await Share.share({ message: proposalToShareText(quote) });
-      if (result.action === Share.sharedAction) {
+      // 'shared' OR 'copied' both mean the proposal left the app — on a desktop
+      // browser with no Web Share, copying to the clipboard IS the send. The old
+      // check was `result.action === Share.sharedAction`, and on web
+      // Share.share REJECTED before ever returning a result, so the proposal was
+      // never marked sent and the catch logged it as a failure.
+      const outcome = await shareText({ message: proposalToShareText(quote) });
+      if (outcome === 'shared' || outcome === 'copied') {
         updateProposal(quote.id, { status: 'sent' });
       }
     } catch (err) {
@@ -150,8 +154,10 @@ export default function QuickQuoteScreen() {
 
   const reshare = async (record: SmartProposal) => {
     try {
-      const result = await Share.share({ message: proposalToShareText(record) });
-      if (result.action === Share.sharedAction && record.status === 'draft') {
+      // 'copied' counts as sent for the same reason as the first-send path: on
+      // a browser without Web Share, the clipboard IS how it leaves the app.
+      const outcome = await shareText({ message: proposalToShareText(record) });
+      if ((outcome === 'shared' || outcome === 'copied') && record.status === 'draft') {
         updateProposal(record.id, { status: 'sent' });
       }
     } catch (err) {

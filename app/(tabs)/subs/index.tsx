@@ -1,7 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
@@ -22,6 +20,7 @@ import type { Subcontractor, SubTrade, ComplianceStatus } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { shareText } from '@/utils/shareText';
 import { generateUUID } from '@/utils/generateId';
 import { getLicenseLookupTarget } from '@/utils/licenseBoardLookup';
 import { track, AnalyticsEvents } from '@/utils/analytics';
@@ -226,7 +225,7 @@ export default function SubsScreen() {
       'can post daily updates from the field, and keep your license & COI on file. ' +
       'Download: https://mageid.app';
     try {
-      await Share.share({ message, url: 'https://mageid.app' });
+      await shareText({ message, url: 'https://mageid.app' });
       track(AnalyticsEvents.CONTRACTOR_INVITE_SHARED, { source: 'subs' });
     } catch {
       /* user cancelled — no-op */

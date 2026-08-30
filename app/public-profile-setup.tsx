@@ -1,7 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TextInput, Switch, TouchableOpacity, Platform, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TextInput, Switch, TouchableOpacity, Platform} from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -19,6 +17,7 @@ import type { PublicProfileSettings } from '@/types';
 import {
   buildPublicProfileSnapshot, buildPublicProfileUrl, slugify,
 } from '@/utils/publicProfileSnapshot';
+import { shareText } from '@/utils/shareText';
 import { formatMoney } from '@/utils/formatters';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
@@ -86,7 +85,7 @@ export default function PublicProfileSetupScreen() {
   const handleShare = useCallback(async () => {
     if (!publicUrl) return;
     try {
-      await Share.share({
+      await shareText({
         message: `Check out our recent project: ${project?.name}\n\n${publicUrl}`,
         url: publicUrl,
       });

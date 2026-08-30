@@ -10,6 +10,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import type { Project, ScheduleTask, ScheduleBaseline } from '@/types';
+import { shareText } from '@/utils/shareText';
 import type { CpmResult } from '@/utils/cpm';
 import {
   assembleScheduleReport, pickPaperSize,
@@ -73,7 +74,7 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
   const runShare = async () => {
     const url = buildScheduleShareUrl(project.name, new Date(startDateIso), tasks);
     if (!url) { showAlert('Schedule too large', 'This schedule is too large for a quick link — export a PDF instead.'); return; }
-    try { const { Share } = await import('react-native'); await Share.share({ message: `${project.name} schedule: ${url}`, url }); onClose(); } catch { /* cancelled */ }
+    try { const { Share } = await import('react-native'); await shareText({ message: `${project.name} schedule: ${url}`, url }); onClose(); } catch { /* cancelled */ }
   };
 
   const toggleSection = (k: ReportSectionKey) => setSections((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]);

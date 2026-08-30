@@ -1,7 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Share, TextInput,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, TextInput} from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -21,6 +19,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { TimeEntry } from '@/types';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
 import { useLaborRates } from '@/hooks/useLaborRates';
+import { shareText } from '@/utils/shareText';
 import { computeLaborStats, normalizeTradeKey } from '@/utils/laborSamples';
 import { looksLikeBareWage, burdenPercentLabel } from '@/utils/laborBurdenModel';
 import { parseLenientNumber } from '@/utils/formatters';
@@ -408,7 +407,7 @@ function TimeTrackingScreenInner() {
       return;
     }
     try {
-      await Share.share({
+      await shareText({
         title: `Time entries — ${new Date().toLocaleDateString()}`,
         message: csv,
       });

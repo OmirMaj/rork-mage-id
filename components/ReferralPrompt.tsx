@@ -10,7 +10,8 @@
 // referrals table (future) — this is the honest, shippable v1.
 
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Share, Platform } from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, Modal, Platform} from 'react-native';
+import { shareText } from '@/utils/shareText';
 import * as Haptics from 'expo-haptics';
 import { PartyPopper, Share2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -44,7 +45,7 @@ export default function ReferralPrompt({
       `it drafts professional bids in seconds and keeps every project organized. ` +
       `Worth a look if you run a construction business: ${APP_LINK}`;
     try {
-      await Share.share({ message, url: APP_LINK });
+      await shareText({ message, url: APP_LINK });
     } catch {
       /* user cancelled — no-op */
     } finally {

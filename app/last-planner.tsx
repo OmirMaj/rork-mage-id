@@ -14,9 +14,7 @@
 // constraints + commitments persist via hooks/useLastPlanner.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -32,6 +30,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { shareText } from '@/utils/shareText';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -346,7 +345,7 @@ function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, comm
           showAlert('Could not email', res.error || 'Try again, or share instead.');
         }
       } else {
-        await Share.share({ message: buildCrewMessage(g, ctx) });
+        await shareText({ message: buildCrewMessage(g, ctx) });
         onDispatched(g.key, weekStart, 'share');
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }

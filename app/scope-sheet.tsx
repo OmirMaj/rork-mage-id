@@ -9,9 +9,7 @@
 // contract, buyout, and change-order time.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform} from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -29,6 +27,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import UpgradeSheet from '@/components/UpgradeSheet';
+import { shareText } from '@/utils/shareText';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -160,7 +159,7 @@ export default function ScopeSheetScreen() {
 
   const shareAll = useCallback(async () => {
     if (!sheet) return;
-    try { await Share.share({ message: scopeSheetToText(sheet, project?.name) }); } catch { /* user cancelled */ }
+    try { await shareText({ message: scopeSheetToText(sheet, project?.name) }); } catch { /* user cancelled */ }
   }, [sheet, project?.name]);
 
   // ── render ───────────────────────────────────────────────────────────────

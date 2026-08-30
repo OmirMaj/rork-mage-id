@@ -12,7 +12,7 @@
 // markup or margin — enforced by its own tests.
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Platform } from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -21,6 +21,7 @@ import { ChevronLeft, House } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { shareText } from '@/utils/shareText';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useCoreData, useFinancialsData, useDocsData } from '@/contexts/ProjectContext';
 import { HomePassportCard } from '@/components/passport/HomePassportCard';
@@ -92,7 +93,7 @@ export default function HomePassportScreen() {
     if (!passport) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     try {
-      await Share.share({ message: buildPassportHandoff(passport) });
+      await shareText({ message: buildPassportHandoff(passport) });
     } catch {
       showAlert('Could not share', 'Please try again.');
     }

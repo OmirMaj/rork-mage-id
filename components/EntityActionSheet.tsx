@@ -15,9 +15,7 @@
 // ============================================================================
 
 import React, { useMemo } from 'react';
-import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, ActionSheetIOS, Platform, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, ActionSheetIOS, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -31,6 +29,7 @@ import {
   getEntityActions, getEntityDeepLink, getEntityShareBody,
   type EntityAction, type EntityActionId,
 } from '@/utils/entityActions';
+import { shareText } from '@/utils/shareText';
 import { formatEntityLabel } from '@/utils/entityResolver';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { EntityRef } from '@/types';
@@ -124,7 +123,7 @@ export default function EntityActionSheet({
               );
             }
           } else {
-            await Share.share({ message: body, title });
+            await shareText({ message: body, title });
           }
         } catch (err) {
           console.log('[EntityActionSheet] share failed:', err);

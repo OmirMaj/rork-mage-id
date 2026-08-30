@@ -1,8 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Share, ActivityIndicator,
-  type LayoutChangeEvent,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, ActivityIndicator, type LayoutChangeEvent} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -17,6 +14,7 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { shareText } from '@/utils/shareText';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -903,7 +901,7 @@ function InvoiceInner() {
       `Amount due: ${formatCurrency(balanceDue)}\n\n` +
       `Pay securely here:\n${existingInvoice.payLinkUrl}`;
     try {
-      await Share.share({
+      await shareText({
         message,
         title: `Invoice #${existingInvoice.number}`,
         url: existingInvoice.payLinkUrl,

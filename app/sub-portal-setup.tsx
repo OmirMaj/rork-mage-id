@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Platform, Share,
-} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Platform} from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -16,6 +14,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { SubPortalLink } from '@/types';
+import { shareText } from '@/utils/shareText';
 import { generateUUID } from '@/utils/generateId';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -185,7 +184,7 @@ function SubPortalSetupScreenInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [link, upsertSubPortalLink]);
 
-  // Send modal state — replaces the native-only Share.share() path so
+  // Send modal state — replaces the native-only shareText() path so
   // web users can actually dispatch the link instead of seeing nothing.
   const [showSendModal, setShowSendModal] = useState(false);
 
