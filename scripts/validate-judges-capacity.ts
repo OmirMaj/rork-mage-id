@@ -11,10 +11,18 @@ function expect<T>(name: string, got: T, want: T) {
 }
 
 // Build a minimal active project whose schedule occupies days in January 2026.
-function proj(id: string, status: Project['status'], startDate: string, tasks: { startDay: number; durationDays: number }[]): Project {
+function proj(
+  id: string, status: Project['status'], startDate: string,
+  tasks: { startDay: number; durationDays: number }[],
+  calendar?: { workingDaysPerWeek?: number; nonWorkingDates?: string[] },
+): Project {
   return {
     id, name: id, status,
-    schedule: { id: `${id}-s`, projectId: id, startDate, tasks: tasks.map((t, i) => ({ id: `${id}-t${i}`, title: 't', phase: 'p', durationDays: t.durationDays, startDay: t.startDay, status: 'not_started' })) },
+    schedule: {
+      id: `${id}-s`, projectId: id, startDate,
+      ...calendar,
+      tasks: tasks.map((t, i) => ({ id: `${id}-t${i}`, title: 't', phase: 'p', durationDays: t.durationDays, startDay: t.startDay, status: 'not_started' })),
+    },
   } as unknown as Project;
 }
 
@@ -70,6 +78,56 @@ const tight = proj('G', 'in_progress', '2026-01-01', [{ startDay: 1, durationDay
 const t85 = computeCapacityLoad([tight], '2026-01-01', '2026-01-21');
 expect('loadPct pinned at 0.85', Math.round(t85.loadPct * 1000), 850);
 expect('bookedSolid at exactly 0.85', t85.bookedSolid, true);
+
+// ── durations are WORKING days, so the crew's calendar occupancy is longer ──
+// This file used to claim mapping working-day durations onto calendar days
+// "overstates density slightly". It understated it, and not slightly.
+//
+// 2026-08-31 is a Monday. One 20-working-day task on a Mon-Fri calendar runs
+// Aug 31 → Fri Sep 25, i.e. 26 of the window's 28 days = 92.9%. Spanning it as
+// 20 calendar days gives 20/28 = 71.4% — below the 0.85 bookedSolid threshold,
+// so a GC who is booked solid was told they had room.
+{
+  const wd5 = proj('W', 'in_progress', '2026-08-31',
+    [{ startDay: 1, durationDays: 20 }], { workingDaysPerWeek: 5 });
+  const load = computeCapacityLoad([wd5], '2026-08-31', '2026-09-28');
+  expect('Mon-Fri: 20 working days covers 26 of 28 window days',
+    Math.round(load.loadPct * 1000), 929);
+  expect('...and that IS booked solid (the old math said false)',
+    load.bookedSolid, true);
+}
+
+// A project that declares NO calendar keeps the previous arithmetic exactly —
+// taskWindow defaults to 7-day weeks, matching utils/cpm's own `?? 7`.
+{
+  const noCal = proj('N', 'in_progress', '2026-08-31', [{ startDay: 1, durationDays: 20 }]);
+  const load = computeCapacityLoad([noCal], '2026-08-31', '2026-09-28');
+  expect('no declared calendar → unchanged 20/28', Math.round(load.loadPct * 1000), 714);
+  expect('...and still not booked solid', load.bookedSolid, false);
+}
+
+// Holidays extend occupancy too — a shutdown day pushes the finish out.
+{
+  const withHoliday = proj('H', 'in_progress', '2026-08-31',
+    [{ startDay: 1, durationDays: 5 }],
+    { workingDaysPerWeek: 5, nonWorkingDates: ['2026-09-02'] });
+  const load = computeCapacityLoad([withHoliday], '2026-08-31', '2026-09-28');
+  // Mon Aug31 → Mon Sep 7 inclusive = 8 days of 28.
+  expect('a mid-week holiday extends the span to 8 days',
+    Math.round(load.loadPct * 28 * 1000) / 1000, 8);
+}
+
+// Each project brings its OWN calendar — a 6-day sub and a Mon-Fri GC do not
+// occupy the same span for the same duration.
+{
+  const six = proj('S6', 'in_progress', '2026-08-31',
+    [{ startDay: 1, durationDays: 12 }], { workingDaysPerWeek: 6 });
+  const five = proj('S5', 'in_progress', '2026-08-31',
+    [{ startDay: 1, durationDays: 12 }], { workingDaysPerWeek: 5 });
+  const l6 = computeCapacityLoad([six], '2026-08-31', '2026-09-28');
+  const l5 = computeCapacityLoad([five], '2026-08-31', '2026-09-28');
+  expect('a 6-day week finishes sooner than a 5-day week', l6.loadPct < l5.loadPct, true);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
