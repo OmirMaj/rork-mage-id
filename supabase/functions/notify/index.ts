@@ -112,7 +112,7 @@ async function sbGet(path: string): Promise<unknown> {
   return r.json();
 }
 
-async function sbInsert(table: string, body: unknown): Promise<unknown> {
+async function sbInsert(table: string, body: unknown): Promise<void> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: "POST",
     headers: {

@@ -40,7 +40,7 @@ function isHex64(v: unknown): v is string {
   return typeof v === 'string' && /^[0-9a-f]{64}$/i.test(v);
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
+async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const arr = Array.from(new Uint8Array(digest));
   return arr.map((b) => b.toString(16).padStart(2, '0')).join('');

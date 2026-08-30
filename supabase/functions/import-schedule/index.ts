@@ -319,7 +319,9 @@ function parseMsproject(text: string): ScheduleImportResult {
   const warnings: ScheduleImportWarning[] = [];
   const taskBlocks = text.match(/<Task>[\s\S]*?<\/Task>/g) ?? [];
 
-  let blocks = taskBlocks;
+  // Annotated: `match() ?? []` infers `RegExpMatchArray | []`, which .slice()
+  // (returning string[]) cannot be assigned back into.
+  let blocks: string[] = taskBlocks;
   let truncated = false;
   if (blocks.length > MAX_ROWS) {
     truncated = true;

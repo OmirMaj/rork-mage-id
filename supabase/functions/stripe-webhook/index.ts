@@ -378,7 +378,7 @@ interface ReceiptOpts {
 }
 
 async function sendReceiptEmail(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof createClient<any, "public", any>>,
   opts: ReceiptOpts,
 ): Promise<void> {
   if (!RESEND_API_KEY) return;
