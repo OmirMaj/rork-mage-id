@@ -4768,13 +4768,116 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [planCalibrations, setPlanCalibrations] = useState<PlanCalibration[]>([]);
   const [permitRoadmaps, setPermitRoadmaps] = useState<PermitRoadmap[]>([]);
 
+  // PLAN DATA WAS WRITE-ONLY TO THE SERVER. plan_sheets, drawing_pins,
+  // plan_markups and plan_calibrations had ELEVEN supabaseWrite calls between
+  // them and ZERO selects — everything synced up and nothing ever came back
+  // down. Hydration was loadLocal only, so a second device (or any device after
+  // a cache wipe or a fresh install) showed no sheets, no pins, no markups and
+  // no scale calibration, while all of it sat intact in Supabase. For a GC who
+  // marked up drawings on an iPad and opened the web app, the plans were simply
+  // gone.
+  //
+  // Same shape as every other read/write asymmetry found this week, just at the
+  // table level rather than the column level: local-first is only "first" if a
+  // server read follows it.
+  const hydratePlansFromServer = useCallback(async () => {
+    // Local first, IN THIS FLOW. Keeping the local load in a separate effect
+    // raced the server fetch: both are async, so a slow AsyncStorage read could
+    // resolve last and overwrite fresh server rows with a stale cache. Doing it
+    // sequentially means the screen paints instantly from disk and the server
+    // copy wins whenever it arrives.
+    const [lSheets, lPins, lMarkups, lCals] = await Promise.all([
+      loadLocal<PlanSheet[]>(PLAN_SHEETS_KEY, []),
+      loadLocal<DrawingPin[]>(DRAWING_PINS_KEY, []),
+      loadLocal<PlanMarkup[]>(PLAN_MARKUPS_KEY, []),
+      loadLocal<PlanCalibration[]>(PLAN_CALIBRATIONS_KEY, []),
+    ]);
+    setPlanSheets(lSheets);
+    setDrawingPins(lPins);
+    setPlanMarkups(lMarkups);
+    setPlanCalibrations(lCals);
+
+    if (!canSync) return;
+    try {
+      const [sheets, pins, markups, cals] = await Promise.all([
+        supabase.from('plan_sheets').select('*').order('created_at', { ascending: false }),
+        supabase.from('drawing_pins').select('*'),
+        supabase.from('plan_markups').select('*'),
+        supabase.from('plan_calibrations').select('*'),
+      ]);
+
+      if (!sheets.error && sheets.data?.length) {
+        const mapped = sheets.data.map((r: Record<string, unknown>) => ({
+          id: r.id as string, projectId: r.project_id as string,
+          name: (r.name as string) ?? '',
+          sheetNumber: (r.sheet_number as string | null) ?? undefined,
+          imageUri: (r.image_uri as string) ?? '',
+          pageNumber: r.page_number == null ? undefined : Number(r.page_number),
+          width: r.width == null ? undefined : Number(r.width),
+          height: r.height == null ? undefined : Number(r.height),
+          revision: (r.revision as string | null) ?? undefined,
+          previousSheetId: (r.previous_sheet_id as string | null) ?? undefined,
+          superseded: r.superseded == null ? undefined : Boolean(r.superseded),
+          createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+        })) as PlanSheet[];
+        setPlanSheets(mapped);
+        await saveLocal(PLAN_SHEETS_KEY, mapped);
+      }
+
+      if (!pins.error && pins.data?.length) {
+        const mapped = pins.data.map((r: Record<string, unknown>) => ({
+          id: r.id as string, projectId: r.project_id as string,
+          planSheetId: r.plan_sheet_id as string,
+          x: Number(r.x), y: Number(r.y),
+          kind: r.kind as DrawingPin['kind'],
+          label: (r.label as string | null) ?? undefined,
+          color: (r.color as string | null) ?? undefined,
+          linkedPhotoId: (r.linked_photo_id as string | null) ?? undefined,
+          linkedPunchItemId: (r.linked_punch_item_id as string | null) ?? undefined,
+          linkedRfiId: (r.linked_rfi_id as string | null) ?? undefined,
+          createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+        })) as DrawingPin[];
+        setDrawingPins(mapped);
+        await saveLocal(DRAWING_PINS_KEY, mapped);
+      }
+
+      if (!markups.error && markups.data?.length) {
+        const mapped = markups.data.map((r: Record<string, unknown>) => ({
+          id: r.id as string, projectId: r.project_id as string,
+          planSheetId: r.plan_sheet_id as string,
+          type: r.type as PlanMarkup['type'],
+          color: (r.color as string) ?? '',
+          strokeWidth: r.stroke_width == null ? undefined : Number(r.stroke_width),
+          points: (r.points as PlanMarkup['points']) ?? [],
+          text: (r.text as string | null) ?? undefined,
+          createdAt: r.created_at as string,
+        })) as PlanMarkup[];
+        setPlanMarkups(mapped);
+        await saveLocal(PLAN_MARKUPS_KEY, mapped);
+      }
+
+      if (!cals.error && cals.data?.length) {
+        const mapped = cals.data.map((r: Record<string, unknown>) => ({
+          id: r.id as string, projectId: r.project_id as string,
+          planSheetId: r.plan_sheet_id as string,
+          p1: r.p1 as PlanCalibration['p1'], p2: r.p2 as PlanCalibration['p2'],
+          realDistanceFt: Number(r.real_distance_ft),
+          createdAt: r.created_at as string,
+        })) as PlanCalibration[];
+        setPlanCalibrations(mapped);
+        await saveLocal(PLAN_CALIBRATIONS_KEY, mapped);
+      }
+    } catch {
+      // Offline or the tables are unreachable — the local copy loaded below
+      // still stands, which is the whole point of local-first.
+    }
+  }, [canSync]);
+
+  useEffect(() => { void hydratePlansFromServer(); }, [hydratePlansFromServer]);
+
   useEffect(() => {
-    void loadLocal<PlanSheet[]>(PLAN_SHEETS_KEY, []).then(setPlanSheets);
-    void loadLocal<DrawingPin[]>(DRAWING_PINS_KEY, []).then(setDrawingPins);
     void loadLocal<PlanZone[]>(PLAN_ZONES_KEY, []).then(setPlanZones);
     void loadLocal<PlanReview[]>(PLAN_REVIEWS_KEY, []).then(setPlanReviews);
-    void loadLocal<PlanMarkup[]>(PLAN_MARKUPS_KEY, []).then(setPlanMarkups);
-    void loadLocal<PlanCalibration[]>(PLAN_CALIBRATIONS_KEY, []).then(setPlanCalibrations);
     void loadLocal<PermitRoadmap[]>(PLAN_ROADMAPS_KEY, []).then(setPermitRoadmaps);
   }, []);
 
