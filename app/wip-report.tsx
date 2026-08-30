@@ -148,7 +148,13 @@ function WipReportScreenInner() {
       // targetBudget: contract from AIA/CO/targetBudget, cost from the estimate.
       originalContract: deriveOriginalContract(project, cos, payApps),
       approvedChangeOrders: sumApprovedChangeOrders(cos),
-      totalEstimatedCost: deriveEstimatedCost(project, commitments),
+      // Pass the CO figures so the COST budget grows with them too. Without
+      // this the revenue side gains the change order and the cost side does
+      // not, which reports every CO at 100% margin.
+      totalEstimatedCost: deriveEstimatedCost(project, commitments, {
+        approvedChangeOrders: sumApprovedChangeOrders(cos),
+        originalContract: deriveOriginalContract(project, cos, payApps),
+      }),
       costToDate: costOverrides[project.id] ?? suggestedCost,
       billedToDate: suggestBilledToDate(invoices, payApps),
     };

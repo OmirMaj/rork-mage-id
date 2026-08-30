@@ -151,15 +151,64 @@ export function suggestCostToDate(
 export function deriveEstimatedCost(
   project: Pick<Project, 'linkedEstimate' | 'estimate'> | null | undefined,
   commitments: Commitment[],
+  /**
+   * Approved change orders, so their COST can be added to the cost budget the
+   * same way their REVENUE is added to revisedContract. Omit only when you
+   * genuinely want the original-scope cost (e.g. a baseline comparison).
+   */
+  opts?: { approvedChangeOrders?: number; originalContract?: number },
 ): number {
-  const base = project?.linkedEstimate?.baseTotal;
-  if (typeof base === 'number' && base > 0) return base;
-  const legacy = project?.estimate?.grandTotal;
-  if (typeof legacy === 'number' && legacy > 0) return legacy;
-  const committed = commitments.reduce(
-    (sum, c) => sum + (c.amount ?? 0) + (c.changeAmount ?? 0), 0);
-  if (committed > 0) return committed;
-  return 0;
+  // Which branch supplied the base matters: the commitments branch already
+  // contains CO cost (c.changeAmount is the sub-side CO revision), so adding a
+  // derived CO cost on top of it would DOUBLE COUNT. The estimate branches are
+  // frozen at original scope and are the ones that need topping up.
+  let base = 0;
+  let baseIsOriginalScope = false;
+
+  const fromEstimate = project?.linkedEstimate?.baseTotal;
+  const fromLegacy = project?.estimate?.grandTotal;
+  if (typeof fromEstimate === 'number' && fromEstimate > 0) {
+    base = fromEstimate; baseIsOriginalScope = true;
+  } else if (typeof fromLegacy === 'number' && fromLegacy > 0) {
+    base = fromLegacy; baseIsOriginalScope = true;
+  } else {
+    const committed = commitments.reduce(
+      (sum, c) => sum + (c.amount ?? 0) + (c.changeAmount ?? 0), 0);
+    if (committed > 0) base = committed; // already CO-inclusive
+  }
+
+  if (base === 0) return 0;
+  if (!baseIsOriginalScope) return base;
+
+  const coRevenue = opts?.approvedChangeOrders ?? 0;
+  if (coRevenue === 0) return base;
+
+  // THE BUG THIS CLOSES. computeWipRow does
+  //     revisedContract = originalContract + approvedChangeOrders
+  //     estGrossProfit  = revisedContract - totalEstimatedCost
+  // so a change order that adds revenue while the cost budget stays frozen at
+  // the original estimate books at ONE HUNDRED PERCENT MARGIN. A $500k job
+  // carrying $100k of approved COs reported ~$100k of profit that does not
+  // exist. percentComplete (costToDate / totalEstimatedCost) inflated too,
+  // because costToDate DOES pick up CO-driven actuals through commitments and
+  // material receipts — so earned revenue and underbilling inflated with it.
+  //
+  // A WIP schedule is the document a surety and a bank underwrite against.
+  // Overstating profit on one is not a display bug.
+  //
+  // ChangeOrder carries no cost field — lineItems hold unitPrice/total, which
+  // are PRICED figures — so CO cost cannot be read, only estimated. We apply
+  // the job's own cost ratio, i.e. assume a CO carries the same margin as the
+  // base contract. That is the standard WIP convention and it is far closer to
+  // truth than assuming the CO is free to deliver.
+  //
+  // When there is no contract basis to derive a ratio from, fall back to a
+  // 1.0 ratio — cost equals revenue, zero margin on the CO. That UNDERstates
+  // profit, which is the correct direction to be wrong on a document a surety
+  // reads. Never fall back to 0.
+  const originalContract = opts?.originalContract ?? 0;
+  const costRatio = originalContract > 0 ? base / originalContract : 1;
+  return base + coRevenue * costRatio;
 }
 
 /**

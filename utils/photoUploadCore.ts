@@ -252,6 +252,9 @@ function isTerminal(msg: string): boolean {
     m.includes('payload too large') ||
     m.includes('enoent') ||
     m.includes('no such file') ||
+    // Revoked blob:/data: URL — see utils/fileBytes.readFileBytes. The
+    // browser released the image on page reload; no retry can undo that.
+    m.includes('photo source expired') ||
     m.includes('file does not exist') ||
     m.includes("could not be read") ||
     m.includes('is not readable') ||

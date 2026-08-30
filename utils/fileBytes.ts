@@ -31,8 +31,37 @@ import { base64ToBytes } from '@/utils/base64Bytes';
  */
 export async function readFileBytes(fileUri: string): Promise<Uint8Array> {
   if (Platform.OS === 'web') {
-    const r = await fetch(fileUri);
-    return new Uint8Array(await r.arrayBuffer());
+    // A blob:/data: URI is read out of BROWSER MEMORY — the request never
+    // touches the network. But a failed fetch of one still throws
+    // `TypeError: Failed to fetch`, which is indistinguishable from an offline
+    // device unless we say so here.
+    //
+    // That mattered: utils/photoUploadCore.classifyPhotoUploadError treats
+    // TypeError as 'transient', and the transient branch deliberately re-queues
+    // WITHOUT bumping retryCount (the offline-first guarantee — a phone in a
+    // basement for a week must keep its photos). A blob: URL is revoked the
+    // moment the page reloads, so the task became IMMORTAL: retried on every
+    // flush forever, never dropped, never surfaced to the user, and holding one
+    // of the capped FIFO slots that real photos then get evicted from.
+    //
+    // A revoked object URL cannot be resurrected by any number of retries, so
+    // it is thrown as a distinct terminal error. Only the READ is wrapped —
+    // the Supabase upload that follows in utils/storage.uploadProjectPhoto is
+    // outside this try, so a genuine network failure there still classifies as
+    // transient and keeps its retry budget.
+    const isObjectUrl = /^(blob:|data:)/i.test(fileUri.trim());
+    try {
+      const r = await fetch(fileUri);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return new Uint8Array(await r.arrayBuffer());
+    } catch (e) {
+      if (isObjectUrl) {
+        throw new Error(
+          'photo source expired — the browser released this image when the page reloaded. Re-add the photo.',
+        );
+      }
+      throw e;
+    }
   }
   // String-literal 'base64' rather than the enum — expo-file-system moved
   // EncodingType into a legacy namespace; the string form is accepted by the

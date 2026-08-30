@@ -163,7 +163,13 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
           const out = computeWipRow({
             originalContract: deriveOriginalContract(p, projectCOs, projectPayApps),
             approvedChangeOrders: sumApprovedChangeOrders(projectCOs),
-            totalEstimatedCost: deriveEstimatedCost(p, projectCommitments),
+            // CO cost must track CO revenue — see deriveEstimatedCost. This
+            // path runs unattended in the week-close, with no human to notice
+            // an inflated margin.
+            totalEstimatedCost: deriveEstimatedCost(p, projectCommitments, {
+              approvedChangeOrders: sumApprovedChangeOrders(projectCOs),
+              originalContract: deriveOriginalContract(p, projectCOs, projectPayApps),
+            }),
             costToDate: suggestCostToDate(
               projectCommitments,
               receipts.filter(r => r.projectId === p.id),

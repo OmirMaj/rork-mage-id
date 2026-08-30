@@ -37,6 +37,7 @@ import EmptyState from '@/components/EmptyState';
 import { useLastPlanner } from '@/hooks/useLastPlanner';
 import {
   buildLookahead, buildWeeklyWorkPlan, computePpc, ppcBand, ppcHistory, ppcTrend,
+  type TaskWindowCalendar,
   varianceBreakdown, currentWeekStart, addWeeks, formatWeekRange, taskWindow,
   CONSTRAINT_LABELS, VARIANCE_LABELS,
   type Readiness, type ConstraintCategory, type VarianceReason,
@@ -83,6 +84,13 @@ function LastPlannerInner() {
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
   const tasks: ScheduleTask[] = project?.schedule?.tasks ?? [];
   const startDate = project?.schedule?.startDate ?? null;
+  // The lookahead's task windows must use the SAME working calendar as the
+  // CPM engine, or a task's finish here disagrees with the Gantt's. Durations
+  // are working-day counts; without this they were spanned as calendar days.
+  const calendar = useMemo(() => ({
+    workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+    nonWorkingDates: project?.schedule?.nonWorkingDates,
+  }), [project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates]);
 
   const lp = useLastPlanner(projectId);
   const [tab, setTab] = useState<Tab>('lookahead');
@@ -177,14 +185,14 @@ function LastPlannerInner() {
         <View style={{ width: '100%', maxWidth: contentWidth }}>
           {tab === 'lookahead' && (
             <LookaheadView
-              tasks={tasks} startDate={startDate} constraints={lp.constraints}
+              tasks={tasks} startDate={startDate} constraints={lp.constraints} calendar={calendar}
               onAddConstraint={setConstraintFor} onClearConstraint={lp.toggleConstraint}
               t={t} styles={styles}
             />
           )}
           {tab === 'week' && (
             <WeekView
-              tasks={tasks} startDate={startDate} weekStart={weekStart}
+              tasks={tasks} startDate={startDate} weekStart={weekStart} calendar={calendar}
               setWeekStart={setWeekStart} constraints={lp.constraints} commitments={lp.commitments}
               onToggleCommit={(taskId, committed) => lp.setCommit(taskId, weekStart, committed)}
               onReview={setReviewFor}
@@ -238,11 +246,12 @@ function taskSub(task: ScheduleTask): string {
 }
 
 // ── Lookahead ──
-function LookaheadView({ tasks, startDate, constraints, onAddConstraint, onClearConstraint, t, styles }: {
+function LookaheadView({ tasks, startDate, constraints, calendar, onAddConstraint, onClearConstraint, t, styles }: {
   tasks: ScheduleTask[]; startDate: string; constraints: ReturnType<typeof useLastPlanner>['constraints'];
+  calendar: TaskWindowCalendar;
   onAddConstraint: (task: ScheduleTask) => void; onClearConstraint: (id: string) => void; t: ThemeColors; styles: S;
 }) {
-  const la = useMemo(() => buildLookahead(tasks, startDate, constraints, { weeks: 3 }), [tasks, startDate, constraints]);
+  const la = useMemo(() => buildLookahead(tasks, startDate, constraints, { weeks: 3, calendar }), [tasks, startDate, constraints, calendar]);
 
   if (la.weeks.length === 0) {
     return <View style={styles.infoCard}><Clock size={24} color={t.accent} strokeWidth={1.75} /><Text style={styles.infoTitle}>Nothing in the next 3 weeks</Text><Text style={styles.infoBody}>No scheduled tasks fall inside the lookahead window. Check the project schedule.</Text></View>;
@@ -295,14 +304,15 @@ function LookaheadView({ tasks, startDate, constraints, onAddConstraint, onClear
 }
 
 // ── This Week (weekly work plan) ──
-function startLabelFor(task: ScheduleTask, startDate: string): string | undefined {
-  const win = taskWindow(task, startDate);
+function startLabelFor(task: ScheduleTask, startDate: string, calendar?: TaskWindowCalendar): string | undefined {
+  const win = taskWindow(task, startDate, calendar);
   if (!win) return undefined;
   return new Date(win.startMs).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
-function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, commitments, onToggleCommit, onReview, projectName, gcName, getSub, dispatches, onDispatched, t, styles }: {
-  tasks: ScheduleTask[]; startDate: string; weekStart: string; setWeekStart: (w: string) => void;
+function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constraints, commitments, onToggleCommit, onReview, projectName, gcName, getSub, dispatches, onDispatched, t, styles }: {
+  tasks: ScheduleTask[]; startDate: string; weekStart: string; calendar: TaskWindowCalendar;
+  setWeekStart: (w: string) => void;
   constraints: ReturnType<typeof useLastPlanner>['constraints']; commitments: ReturnType<typeof useLastPlanner>['commitments'];
   onToggleCommit: (taskId: string, committed: boolean) => void; onReview: (task: ScheduleTask) => void;
   projectName: string; gcName?: string;
@@ -311,7 +321,7 @@ function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, comm
   onDispatched: (crewKey: string, weekStart: string, channel: 'email' | 'share') => void;
   t: ThemeColors; styles: S;
 }) {
-  const wwp = useMemo(() => buildWeeklyWorkPlan(tasks, startDate, weekStart, constraints, commitments), [tasks, startDate, weekStart, constraints, commitments]);
+  const wwp = useMemo(() => buildWeeklyWorkPlan(tasks, startDate, weekStart, constraints, commitments, calendar), [tasks, startDate, weekStart, constraints, commitments, calendar]);
   const ppc = useMemo(() => computePpc(commitments, weekStart), [commitments, weekStart]);
   const committedCount = wwp.filter(e => e.committed).length;
   const [sending, setSending] = useState<string | null>(null);
@@ -323,10 +333,10 @@ function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, comm
       .map(e => ({
         taskId: e.task.id, title: e.task.title,
         assignedSubId: e.task.assignedSubId, assignedSubName: e.task.assignedSubName,
-        crew: e.task.crew, startLabel: startLabelFor(e.task, startDate),
+        crew: e.task.crew, startLabel: startLabelFor(e.task, startDate, calendar),
       }));
     return groupCommitmentsByCrew(committed, getSub);
-  }, [wwp, startDate, getSub]);
+  }, [wwp, startDate, calendar, getSub]);
 
   const sentAtFor = useCallback((crewKey: string) =>
     dispatches.find(d => d.crewKey === crewKey && d.weekStart === weekStart)?.sentAt,

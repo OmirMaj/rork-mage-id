@@ -217,6 +217,70 @@ expect('billed: invoices when no pay-apps',
   suggestBilledToDate(invoices, []), 10000);
 expect('billed: both empty → 0', suggestBilledToDate([], []), 0);
 
+// ── change-order COST tracks change-order REVENUE ───────────────────────────
+// computeWipRow adds approved COs to revisedContract (revenue). If the cost
+// budget stays frozen at the original estimate, every CO books at 100% margin.
+// A WIP schedule is what a surety and a bank underwrite against, so an
+// overstated profit here is not cosmetic.
+//
+// ChangeOrder has no cost field (lineItems carry PRICED unitPrice/total), so
+// CO cost is estimated at the job's own cost ratio — the standard convention.
+{
+  // $1,000,000 contract, $800,000 cost budget → 20% margin, ratio 0.8.
+  const proj = { linkedEstimate: { baseTotal: 800_000 } } as unknown as Project;
+
+  expect('no COs → cost budget unchanged',
+    deriveEstimatedCost(proj, [], { approvedChangeOrders: 0, originalContract: 1_000_000 }),
+    800_000);
+
+  // $100k of approved COs at the same 0.8 cost ratio → +$80k cost.
+  expect('CO cost is added at the job cost ratio',
+    deriveEstimatedCost(proj, [], { approvedChangeOrders: 100_000, originalContract: 1_000_000 }),
+    880_000);
+
+  // The whole point: margin must stay ~20%, not jump because COs were free.
+  const row = computeWipRow({
+    originalContract: 1_000_000,
+    approvedChangeOrders: 100_000,
+    totalEstimatedCost: deriveEstimatedCost(proj, [], {
+      approvedChangeOrders: 100_000, originalContract: 1_000_000,
+    }),
+    costToDate: 0, billedToDate: 0,
+  });
+  expect('revised contract still includes CO revenue', row.revisedContract, 1_100_000);
+  expect('est gross profit is the REAL margin on the whole job',
+    row.estGrossProfit, 220_000);
+  expect('margin holds at 20% rather than inflating',
+    Math.round(row.estGrossMarginPct * 10_000) / 10_000, 0.2);
+
+  // For reference, the OLD behaviour left the cost budget at 800k and reported
+  // $300k profit / 27.3% margin on this exact job. The two assertions above
+  // fail if that returns.
+
+  // Loss jobs: ratio > 1 means the CO correctly deepens the loss.
+  const lossProj = { linkedEstimate: { baseTotal: 1_200_000 } } as unknown as Project;
+  expect('a loss job carries its loss ratio onto the CO',
+    deriveEstimatedCost(lossProj, [], { approvedChangeOrders: 100_000, originalContract: 1_000_000 }),
+    1_320_000);
+
+  // No contract basis → 1.0 ratio (zero margin on the CO). Understating profit
+  // is the safe direction on a surety document; 0 cost would be the unsafe one.
+  expect('no contract basis falls back to zero-margin, never zero-cost',
+    deriveEstimatedCost(proj, [], { approvedChangeOrders: 100_000, originalContract: 0 }),
+    900_000);
+
+  // The commitments branch ALREADY includes CO cost via c.changeAmount, so it
+  // must not be topped up again.
+  expect('commitments branch is not double counted',
+    deriveEstimatedCost({} as unknown as Project,
+      [{ amount: 500_000, changeAmount: 50_000 } as unknown as Commitment],
+      { approvedChangeOrders: 50_000, originalContract: 1_000_000 }),
+    550_000);
+
+  // Omitting opts keeps the original-scope cost — used for baseline compares.
+  expect('omitting opts returns original-scope cost', deriveEstimatedCost(proj, []), 800_000);
+}
+
 // ── sumApprovedChangeOrders: only approved status counts ────────────────────
 const cos = [
   { status: 'approved', changeAmount: 5000 },

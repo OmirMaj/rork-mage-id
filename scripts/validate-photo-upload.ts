@@ -114,6 +114,43 @@ expect('a timeout is transient', classifyPhotoUploadError(new Error('Request tim
 expect('RLS denial is terminal',
   classifyPhotoUploadError(new Error('new row violates row-level security policy')), 'terminal');
 expect('expired JWT is terminal', classifyPhotoUploadError(new Error('JWT expired')), 'terminal');
+
+// ── a revoked blob: URL is terminal, not transient ──────────────────────────
+// THE IMMORTAL-TASK BUG. A blob:/data: URI is read from browser memory, but a
+// failed read still throws `TypeError: Failed to fetch` — which classifies as
+// transient, and the transient branch re-queues WITHOUT bumping retryCount.
+// Since a blob: URL is revoked on page reload, the task could never succeed and
+// could never be dropped: retried on every flush forever, invisible to the
+// user, holding a capped FIFO slot that real photos get evicted from.
+//
+// utils/fileBytes.readFileBytes now converts a failed OBJECT-URL read into this
+// distinct message so it can be told apart from a genuinely offline device.
+expect('a revoked blob: URL is terminal',
+  classifyPhotoUploadError(new Error(
+    'photo source expired — the browser released this image when the page reloaded. Re-add the photo.')),
+  'terminal');
+
+// It must actually leave the queue, and be reported as dropped so the user is
+// told rather than silently losing the photo.
+{
+  const revoked = task({ localUri: 'blob:http://localhost/9f2c-dead' });
+  const decision = applyPhotoUploadOutcome(revoked, 'terminal', PHOTO_MAX_RETRIES);
+  expect('a revoked blob leaves the queue', decision.keep, false);
+  expect('...and is reported as dropped, not silently settled', decision.dropped, true);
+}
+
+// The guarantee this must NOT break: a genuinely offline device keeps its
+// photos and never spends retry budget. The Supabase upload happens AFTER the
+// read in utils/storage.uploadProjectPhoto, so a network failure there is still
+// a plain TypeError and still transient.
+{
+  const live = task({ localUri: 'blob:http://localhost/9f2c-live' });
+  const outcome = classifyPhotoUploadError(new TypeError('Failed to fetch'));
+  expect('a network failure uploading a VALID blob is still transient', outcome, 'transient');
+  const decision = applyPhotoUploadOutcome(live, outcome, PHOTO_MAX_RETRIES);
+  expect('...so the photo stays queued', decision.keep, true);
+  expect('...and burns no retry budget', decision.task.retryCount, 0);
+}
 expect('unauthorized is terminal', classifyPhotoUploadError(new Error('Unauthorized')), 'terminal');
 expect('missing local file is terminal (bytes are gone; retrying can never help)',
   classifyPhotoUploadError(new Error('ENOENT: no such file or directory')), 'terminal');
@@ -251,8 +288,19 @@ const fileBytesSrc = readFileSync('utils/fileBytes.ts', 'utf8');
 // Strip comments — fileBytes.ts documents the old broken line verbatim, and
 // prose describing a bug must not read as the bug.
 const fileBytesCode = fileBytesSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+// Window widened 200 → 500: the web branch now wraps the read in a try/catch so
+// a revoked blob:/data: URL throws a distinct TERMINAL error instead of a
+// TypeError that classifies as transient and is then retried forever. The
+// assertion's intent is unchanged — web must still read via fetch → arrayBuffer
+// — only the distance between the two grew.
 ok('readFileBytes still handles web (fetch → arrayBuffer)',
-  /Platform\.OS === 'web'[\s\S]{0,200}?arrayBuffer\(\)/.test(fileBytesCode));
+  /Platform\.OS === 'web'[\s\S]{0,500}?arrayBuffer\(\)/.test(fileBytesCode));
+// ...and that terminal conversion must stay wired, or the immortal-task bug
+// comes back silently. Both strings live in CODE, so they survive the
+// comment-strip above.
+ok('readFileBytes converts a failed object-URL read into a terminal error',
+  /blob:\|data:/.test(fileBytesCode) && /photo source expired/.test(fileBytesCode),
+  'without this a revoked blob: URL reads as transient and is retried forever');
 ok('readFileBytes never uses fetch().blob() (an RN Blob uploads as ZERO bytes)',
   !/\.blob\(\)/.test(fileBytesCode),
   'reintroducing fetch().blob() on native silently writes empty objects — 537d74d');

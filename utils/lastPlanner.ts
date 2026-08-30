@@ -26,6 +26,9 @@
 // Constraints live in their own store and never touch the CPM engine.
 
 import type { ScheduleTask } from '@/types';
+// The same working-day predicate the CPM engine uses, so the lookahead and the
+// Gantt cannot disagree about which days count.
+import { isWorkingDay } from '@/utils/cpm';
 
 // ── Constraint log (the "make ready" list) ──────────────────────────────────
 export type ConstraintCategory =
@@ -116,14 +119,82 @@ export function formatWeekRange(weekStartIso: string): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-/** Calendar window of a task. Null when the project has no schedule start date. */
-export function taskWindow(task: ScheduleTask, projectStartDate?: string | null): { startMs: number; endMs: number } | null {
+/**
+ * Working calendar for window math. Mirrors the CPM engine's defaults so the
+ * lookahead cannot disagree with the Gantt about when a task finishes.
+ */
+export interface TaskWindowCalendar {
+  /** Defaults to 7 — same as utils/cpm, i.e. every day works (identity). */
+  workingDaysPerWeek?: number;
+  /** Holidays / shutdown days, ISO yyyy-mm-dd. */
+  nonWorkingDates?: string[];
+}
+
+/**
+ * Calendar window of a task. Null when the project has no schedule start date.
+ *
+ * THE TWO FIELDS HAVE DIFFERENT UNITS, which is what made this wrong:
+ *   • `startDay`     is a CALENDAR day index once a start date exists
+ *                    (utils/scheduleRebase converts working-day ordinals to
+ *                    calendar indices at the moment one is assigned).
+ *   • `durationDays` is a WORKING-day COUNT and stays one — scheduleRebase
+ *                    passes durations through untouched.
+ *
+ * So `startMs` was always right and `endMs` was always wrong: it added
+ * (dur - 1) CALENDAR days. utils/cpm computes the same finish with
+ *     walkWorkingDays(es, dur - 1, 1, ...)
+ * — a WORKING-day walk — so a 10-day task finished 2 days early here, a 20-day
+ * task 4 days early, and the error compounded with duration.
+ *
+ * That matters most where this is used: the Last Planner lookahead is the
+ * screen a superintendent commits next week's crews from. Tasks ended early,
+ * and tasks whose real window reached into the horizon were filtered out of it
+ * entirely by the `win.endMs < thisMondayMs` overlap test.
+ *
+ * Default workingDaysPerWeek is 7 (every day works), matching cpm's own
+ * `?? 7`, so omitting the calendar reproduces the previous arithmetic exactly
+ * rather than silently shifting a caller that has no calendar to give.
+ */
+export function taskWindow(
+  task: ScheduleTask,
+  projectStartDate?: string | null,
+  calendar?: TaskWindowCalendar,
+): { startMs: number; endMs: number } | null {
   if (!projectStartDate) return null;
   const base = new Date(projectStartDate);
   if (isNaN(base.getTime())) return null;
-  const startMs = atUtcMidnight(base) + (Math.max(1, task.startDay || 1) - 1) * DAY_MS;
+
+  const baseMs = atUtcMidnight(base);
+  const startDayIndex = Math.max(1, task.startDay || 1);
+  const startMs = baseMs + (startDayIndex - 1) * DAY_MS;
   const dur = Math.max(1, task.durationDays || 1);
-  return { startMs, endMs: startMs + (dur - 1) * DAY_MS };
+
+  const wd = calendar?.workingDaysPerWeek ?? 7;
+  const closures = calendar?.nonWorkingDates;
+  // 7-day weeks with no closures → working days ARE calendar days; skip the walk.
+  if (wd >= 7 && (!closures || closures.length === 0)) {
+    return { startMs, endMs: startMs + (dur - 1) * DAY_MS };
+  }
+
+  const closureSet = new Set(closures ?? []);
+  const isoStart = projectStartDate.slice(0, 10);
+  // Walk dur-1 working days forward, exactly as cpm's EF does.
+  // Hard stop: a task cannot span more than 7x its duration in calendar days
+  // plus a year of closures. Hitting it means the calendar is degenerate (e.g.
+  // every day closed) — fall back to the calendar-day span rather than spin.
+  const HARD_STOP = dur * 7 + 366;
+  let dayIndex = startDayIndex;
+  let counted = 0;
+  let steps = 0;
+  while (counted < dur - 1 && steps < HARD_STOP) {
+    dayIndex += 1;
+    steps += 1;
+    if (isWorkingDay(dayIndex, wd, isoStart, closureSet)) counted += 1;
+  }
+  if (counted < dur - 1) {
+    return { startMs, endMs: startMs + (dur - 1) * DAY_MS };
+  }
+  return { startMs, endMs: baseMs + (dayIndex - 1) * DAY_MS };
 }
 
 // ── Readiness ────────────────────────────────────────────────────────────────
@@ -169,7 +240,7 @@ export function buildLookahead(
   tasks: ScheduleTask[],
   projectStartDate: string | null | undefined,
   constraints: Constraint[],
-  opts?: { weeks?: number; asOf?: Date },
+  opts?: { weeks?: number; asOf?: Date; calendar?: TaskWindowCalendar },
 ): LookaheadResult {
   const weeks = Math.max(1, opts?.weeks ?? 3);
   const asOf = opts?.asOf ?? new Date();
@@ -186,7 +257,7 @@ export function buildLookahead(
   for (const task of tasks) {
     if (!isWorkTask(task)) continue;
     if (task.status === 'done' || (task.progress ?? 0) >= 100) continue;
-    const win = taskWindow(task, projectStartDate);
+    const win = taskWindow(task, projectStartDate, opts?.calendar);
     if (!win) continue;
     // Include if the task's window overlaps [thisMonday, horizonEnd].
     if (win.endMs < thisMondayMs || win.startMs > horizonEndMs) continue;
@@ -239,6 +310,7 @@ export function buildWeeklyWorkPlan(
   weekStart: string,
   constraints: Constraint[],
   commitments: WeeklyCommitment[],
+  calendar?: TaskWindowCalendar,
 ): WwpEntry[] {
   const weekStartMs = atUtcMidnight(new Date(weekStart));
   const weekEndMs = weekStartMs + 6 * DAY_MS;
@@ -248,7 +320,7 @@ export function buildWeeklyWorkPlan(
   const out: WwpEntry[] = [];
   for (const task of tasks) {
     if (!isWorkTask(task)) continue;
-    const win = taskWindow(task, projectStartDate);
+    const win = taskWindow(task, projectStartDate, calendar);
     // Active this week = window overlaps the week. If no schedule dates, include
     // anything explicitly committed to this week so the feature still works.
     const active = win ? (win.startMs <= weekEndMs && win.endMs >= weekStartMs) : false;
