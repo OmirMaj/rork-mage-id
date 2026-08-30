@@ -180,7 +180,18 @@ export function generateForecast(
       const expectedDate = new Date(issueDate);
       expectedDate.setDate(expectedDate.getDate() + termsDays);
       const remaining = inv.totalDue - inv.amountPaid;
-      if (remaining > 0 && isDateInWeek(expectedDate.toISOString(), weekStart, weekEnd)) {
+      // AN OVERDUE INVOICE'S EXPECTED DATE IS IN THE PAST, and every forecast
+      // week runs from today forward — so it matched no week and contributed
+      // ZERO. The 'hopeful' confidence branch below, written specifically for
+      // effStatus === 'overdue', was unreachable, and the money most at risk was
+      // the money the forecast could not see. (The comment above claims overdue
+      // invoices "still forecast at their original expected date"; that date is
+      // outside the window, so the code could never do what it said.)
+      //
+      // Clamping to today puts them in week 0 — you are chasing that cash now —
+      // while keeping the lower 'hopeful' confidence they already carry.
+      const forecastDate = expectedDate < today ? today : expectedDate;
+      if (remaining > 0 && isDateInWeek(forecastDate.toISOString(), weekStart, weekEnd)) {
         const confidence =
           effStatus === 'overdue' ? 'hopeful' :
           effStatus === 'partially_paid' ? 'expected' :

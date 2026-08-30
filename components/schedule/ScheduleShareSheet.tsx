@@ -5,6 +5,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { printHtmlDocument } from '@/utils/platformFile';
 import {
   Share2,
   X,
@@ -136,7 +137,13 @@ function ScheduleShareSheet({
         : tasks;
 
       const html = generatePdfHtml(filteredTasks);
-      const { uri } = await Print.printToFileAsync({ html });
+      // printHtmlDocument, not Print.printToFileAsync. expo-print's web module
+      // ignores `html`, prints the app UI, and returns undefined — so the
+      // destructure threw AFTER showing the user a print dialog of the wrong
+      // document. On web this opens the real schedule in a tab and prints
+      // there (null return = nothing to share); on native it is unchanged.
+      const uri = await printHtmlDocument(html);
+      if (!uri) return;
 
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {

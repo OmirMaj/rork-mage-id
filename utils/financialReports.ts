@@ -68,9 +68,20 @@ export function computeWIPReport(
     const revisedContract = contractValue + approvedChangeOrders;
 
     const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
-    const billedToDate = projectInvoices.reduce((s, inv) => s + (inv.totalDue || 0), 0);
-    const paidToDate = projectInvoices.reduce((s, inv) => s + (inv.amountPaid || 0), 0);
-    const retainageHeld = projectInvoices.reduce(
+    // DRAFTS ARE NOT BILLINGS. This summed every invoice regardless of status,
+    // so an unsent draft counted as billed — on a report that goes to a BANK or
+    // a SURETY. Overstating billings understates underbilling (or invents
+    // overbilling), which is precisely the number a lender reads to judge
+    // whether a job is being financed by its own client.
+    //
+    // A draft is a document the client has never seen. Everything else — sent,
+    // partially_paid, paid, overdue — has genuinely been billed.
+    const billedInvoices = projectInvoices.filter(inv => inv.status !== 'draft');
+    const billedToDate = billedInvoices.reduce((s, inv) => s + (inv.totalDue || 0), 0);
+    const paidToDate = billedInvoices.reduce((s, inv) => s + (inv.amountPaid || 0), 0);
+    // Retention is only withheld from money actually billed, so it follows the
+    // same population — a draft withholds nothing.
+    const retainageHeld = billedInvoices.reduce(
       (s, inv) => s + Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0)),
       0,
     );

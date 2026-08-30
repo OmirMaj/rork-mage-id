@@ -36,6 +36,7 @@ import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Undo2, Redo2, Download, Mic } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
+import { printHtmlDocument } from '@/utils/platformFile';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -1501,7 +1502,10 @@ function ScheduleProScreenInner() {
         todayDayNumber,
         totalDays: cpm.projectFinish,
       });
-      await Print.printAsync({ html });
+      // Print.printAsync has the same web shim as printToFileAsync — it calls
+      // window.print() and ignores `html`, so on web this printed the scheduler
+      // SCREEN instead of the fit-to-page Gantt one-pager just built above.
+      await printHtmlDocument(html);
     } catch (e) {
       console.error('AirPrint failed', e);
     }

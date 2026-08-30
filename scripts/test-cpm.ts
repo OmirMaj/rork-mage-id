@@ -265,12 +265,15 @@ else console.log('  OK: unchanged schedule reports zero slip right after baselin
   const twelve = [stub({ id: 'W', durationDays: 12 })];
   const finish = (wd: number) =>
     runCpm(twelve, { scheduleStartDate: '2026-03-02', workingDaysPerWeek: wd }).projectFinish;
-  const [f7, f6, f5] = [finish(7), finish(6), finish(5)];
-  if (f7 !== 12 || f6 !== 13 || f5 !== 16) {
-    console.error(`  FAIL working-week finishes: 7d=${f7} (want 12), 6d=${f6} (want 13), 5d=${f5} (want 16)`);
+  const f7: number = finish(7), f6: number = finish(6), f5: number = finish(5);
+  // The regression IS the equality: a 6-day week previously computed exactly
+  // like a 5-day one. Assert that first, before the exact values narrow the
+  // literal types and make this comparison provably unreachable to tsc.
+  if (f6 === f5) {
+    console.error(`  FAIL: a 6-day week computed identically to a 5-day week (both ${f6})`);
     failed++;
-  } else if (f6 === f5) {
-    console.error('  FAIL: a 6-day week computed identically to a 5-day week');
+  } else if (f7 !== 12 || f6 !== 13 || f5 !== 16) {
+    console.error(`  FAIL working-week finishes: 7d=${f7} (want 12), 6d=${f6} (want 13), 5d=${f5} (want 16)`);
     failed++;
   } else {
     console.log('  OK: 6-day week works Saturdays; 5-day does not');

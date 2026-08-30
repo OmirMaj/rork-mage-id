@@ -88,3 +88,48 @@ export async function deliverTextFile(
   await FileSystem.writeAsStringAsync(uri, contents, { encoding: 'utf8' });
   return uri;
 }
+
+
+/**
+ * Render HTML as a printable document the user can save as PDF.
+ *
+ * expo-print's ENTIRE web module is:
+ *     async printToFileAsync() { window.print(); }
+ * — it ignores the `html` prop, prints whatever is currently on screen, and
+ * returns UNDEFINED. So `const { uri } = await Print.printToFileAsync({html})`
+ * on web shows the user a print dialog of the app UI and then throws on the
+ * destructure. utils/exportSchedulePdf.ts already worked around this correctly;
+ * three other call sites did not.
+ *
+ * Web: opens a tab, writes the real HTML into it, and triggers print there — so
+ * the user prints the DOCUMENT, and can Save as PDF. Returns null (there is no
+ * file URI to hand to Sharing).
+ * Native: returns the generated PDF's URI, exactly as before.
+ *
+ * Note the missing 'noopener': window.open() returns null whenever noopener is
+ * in the feature string, which would make `w` null and the write unreachable.
+ * Safe here because we open about:blank and write our own markup — same-origin
+ * by definition, with no third-party page to tabnab us.
+ */
+export async function printHtmlDocument(html: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    if (typeof window === 'undefined') return null;
+    const w = window.open('', '_blank');
+    if (!w) {
+      // Popup blocked — fall back to a Blob URL so the content is at least
+      // reachable, even though the print dialog cannot be triggered for them.
+      const blob = new Blob([html], { type: 'text/html' });
+      window.open(URL.createObjectURL(blob), '_blank');
+      return null;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    // The browser needs a tick to lay out, or Chrome prints a blank page.
+    setTimeout(() => { try { w.focus(); w.print(); } catch { /* user can Cmd-P */ } }, 350);
+    return null;
+  }
+  const Print = await import('expo-print');
+  const { uri } = await Print.printToFileAsync({ html });
+  return uri;
+}

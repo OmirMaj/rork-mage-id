@@ -21,6 +21,7 @@
 // authenticated session — RLS in `add_project_documents_bucket.sql`.
 
 import * as Print from 'expo-print';
+import { printHtmlDocument } from '@/utils/platformFile';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { readFileBytes } from '@/utils/fileBytes';
@@ -63,9 +64,25 @@ export async function saveDailyReportToProjectFiles({
     throw new Error('Sign in to save reports to project files.');
   }
 
-  // 1. Render HTML → PDF. expo-print uses the platform's print engine
-  //    (UIKit on iOS, Print Service on Android, browser on web), so
-  //    fonts/styling render natively.
+  // 1. Render HTML → PDF.
+  //
+  // The comment here used to claim expo-print uses "the browser on web". It does
+  // not: its entire web module is `async printToFileAsync() { window.print(); }`
+  // — it ignores the html, prints whatever is on screen, and returns UNDEFINED.
+  // So this destructure threw, AFTER showing the user a print dialog of the app
+  // UI. Saving a daily report to project files was impossible on web and looked
+  // like a crash.
+  //
+  // This path genuinely needs PDF BYTES to upload, and the browser cannot give
+  // us any from expo-print. Rather than fail opaquely, hand the user the printed
+  // document (which they can Save as PDF) and say plainly that the upload is
+  // mobile-only. An honest limitation beats a stack trace.
+  if (Platform.OS === 'web') {
+    await printHtmlDocument(html);
+    throw new Error(
+      'Saving to Project Files needs the mobile app. Your report opened in a new tab — use your browser\'s "Save as PDF" to keep a copy.',
+    );
+  }
   const { uri } = await Print.printToFileAsync({ html, base64: false });
 
   // 2. Read the file as a blob via fetch — same pattern as the PDF
