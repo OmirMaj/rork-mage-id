@@ -26,6 +26,7 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import ConcretePour from '@/components/animations/ConcretePour';
 import {
   generateForecast, calculateSummary, formatCurrency, formatCurrencyShort,
+  pendingRetention,
   getEffectiveStartingBalance,
 } from '@/utils/cashFlowEngine';
 import type { CashFlowExpense, ExpectedPayment, CashFlowWeek, CashFlowSummary, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
@@ -246,6 +247,14 @@ function CashFlowScreenInner() {
   }, [cashFlowData, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
 
   const summary = useMemo<CashFlowSummary>(() => calculateSummary(forecast), [forecast]);
+
+  // Retention is billed but contractually held to closeout, so generateForecast
+  // deliberately leaves it out of the weekly runway (it is not on the payment-
+  // terms clock and nothing here knows the release date). Show the figure
+  // anyway — otherwise the money simply goes missing from a screen the GC is
+  // reconciling against their own invoices, and a number that quietly does not
+  // add up reads as a bug in the app rather than a fact about the contract.
+  const retentionHeld = useMemo(() => pendingRetention(relevantInvoices), [relevantInvoices]);
 
   // Derive a one-glance health status from the forecast. Used by the hero
   // pill so a contractor can see "Healthy / Watch / Danger" without having
@@ -725,6 +734,11 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               </View>
               <Text style={styles.summaryItemLabel}>Total Income</Text>
               <Text style={[styles.summaryItemValue, { color: themeColors.success }]}>{formatCurrencyShort(summary.totalIncome)}</Text>
+              {retentionHeld > 0 && (
+                <Text style={styles.summaryItemSub}>
+                  + {formatCurrencyShort(retentionHeld)} retention held to closeout
+                </Text>
+              )}
             </View>
             <View style={[styles.summaryItem, { borderLeftColor: themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>

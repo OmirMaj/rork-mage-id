@@ -3563,23 +3563,52 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     [changeOrders, invoices, aiaPayApps, rfis, submittals, dailyReports, projectPhotos, warranties],
   );
 
+  // Hoisted from the warranty section below — see the note at its original site.
+  // Stable (empty deps): setWarranties is a useState setter, WARRANTIES_KEY and
+  // saveLocal are module scope.
+  const persistWarranties = useCallback((list: Warranty[]) => {
+    setWarranties(list);
+    void saveLocal(WARRANTIES_KEY, list);
+  }, []);
+
   const updateItemPortalState = useCallback(
     (kind: SendableItemKind, itemId: string, next: PortalState) => {
       const setNext = <T extends { id: string; portalState?: PortalState }>(list: T[]): T[] =>
         list.map(i => i.id === itemId ? { ...i, portalState: next } : i);
+      // PERSIST, don't just setState. These setters were React-state-only, so a
+      // send or a recall lived in memory and nowhere else: restart the app
+      // before a server refetch landed and the local cache still said 'draft'
+      // for something already sent (or 'sent' for something recalled). The
+      // queued server write was fine — the LOCAL copy was the stale one, which
+      // is the copy an offline device renders from.
       switch (kind) {
-        case 'change_order': setChangeOrders(setNext); break;
-        case 'invoice':      setInvoices(setNext); break;
-        case 'aia_pay_app':  setAiaPayApps(setNext); break;
-        case 'rfi':          setRfis(setNext); break;
-        case 'submittal':    setSubmittals(setNext); break;
-        case 'daily_report': setDailyReports(setNext); break;
-        case 'photo':        setProjectPhotos(setNext); break;
+        case 'change_order': { const n = setNext(changeOrders); setChangeOrders(n); saveChangeOrdersMutation.mutate(n); break; }
+        case 'invoice':      { const n = setNext(invoices);     setInvoices(n);     saveInvoicesMutation.mutate(n); break; }
+        case 'aia_pay_app':  { const n = setNext(aiaPayApps);   setAiaPayApps(n);   saveAiaPayAppsMutation.mutate(n); break; }
+        case 'rfi':          { const n = setNext(rfis);         setRfis(n);         saveRfisMutation.mutate(n); break; }
+        case 'submittal':    { const n = setNext(submittals);   setSubmittals(n);   saveSubmittalsMutation.mutate(n); break; }
+        case 'daily_report': { const n = setNext(dailyReports); setDailyReports(n); saveDailyReportsMutation.mutate(n); break; }
+        case 'photo':        { const n = setNext(projectPhotos); setProjectPhotos(n); savePhotosMutation.mutate(n); break; }
         case 'selection':    break; // no-op — managed outside ProjectContext
-        case 'warranty':     setWarranties(setNext); break;
+        // Unlike the branches above, persistWarranties sets the state itself —
+        // so there is no separate setWarranties call here.
+        case 'warranty':     { persistWarranties(setNext(warranties)); break; }
       }
     },
-    [setChangeOrders, setInvoices, setAiaPayApps, setRfis, setSubmittals, setDailyReports, setProjectPhotos, setWarranties],
+    // The arrays are READ here now (setNext is applied to them directly rather
+    // than passed as a functional update), so they must be dependencies — a
+    // stale closure would apply the portal-state change to an old list and drop
+    // whatever else changed in between. eslint-exhaustive-deps caught this.
+    [
+      changeOrders, setChangeOrders, saveChangeOrdersMutation,
+      invoices, setInvoices, saveInvoicesMutation,
+      aiaPayApps, setAiaPayApps, saveAiaPayAppsMutation,
+      rfis, setRfis, saveRfisMutation,
+      submittals, setSubmittals, saveSubmittalsMutation,
+      dailyReports, setDailyReports, saveDailyReportsMutation,
+      projectPhotos, setProjectPhotos, savePhotosMutation,
+      warranties, persistWarranties, // persistWarranties owns setWarranties
+    ],
   );
 
   const sendToClientPortal = useCallback(async ({ kind, itemId, projectId }: { kind: SendableItemKind; itemId: string; projectId: string }): Promise<void> => {
@@ -4609,10 +4638,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [canSync]);
 
-  const persistWarranties = useCallback((list: Warranty[]) => {
-    setWarranties(list);
-    void saveLocal(WARRANTIES_KEY, list);
-  }, []);
+  // persistWarranties is declared ABOVE (just before updateItemPortalState)
+  // rather than here with the rest of the warranty helpers: updateItemPortalState
+  // has to persist a warranty send/recall, and a forward reference from its
+  // dependency array would hit the temporal dead zone. It only needs
+  // setWarranties + saveLocal, both available from the top of the component, so
+  // hoisting the helper is cheaper than relocating the two portal callbacks.
 
   const computeWarrantyStatus = useCallback((w: Warranty): Warranty['status'] => {
     // Delegate to the single shared implementation in utils/workflowPipelines.

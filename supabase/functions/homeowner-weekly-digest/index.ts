@@ -114,15 +114,15 @@ interface PhotoRow {
   id: string;
   project_id: string;
   uri?: string;
-  storage_url?: string;
   created_at?: string;
 }
 
 interface ChangeOrderRow {
+  /** The DB column is change_amount; `amount` never existed. */
+  change_amount?: number;
   id: string;
   project_id: string;
   description?: string;
-  amount?: number;
   status?: string;
   created_at?: string;
 }
@@ -161,7 +161,7 @@ function buildTemplateSummary(
     bullets.push(`${photos.length} photo${photos.length === 1 ? '' : 's'} added — see them in your portal.`);
   }
   if (cos.length > 0) {
-    const total = cos.reduce((s, c) => s + (c.amount ?? 0), 0);
+    const total = cos.reduce((s, c) => s + (c.change_amount ?? 0), 0);
     const sign = total >= 0 ? '+' : '−';
     bullets.push(`${cos.length} change order${cos.length === 1 ? '' : 's'} this week (net ${sign}$${Math.abs(total).toLocaleString()}). Check the portal for details.`);
   }
@@ -191,7 +191,7 @@ async function buildAISummary(
     .map(t => `- ${t.title}${t.phase ? ` (${t.phase})` : ''}`)
     .join('\n');
   const cosLine = cos.length > 0
-    ? `${cos.length} change orders this week, net total $${cos.reduce((s, c) => s + (c.amount ?? 0), 0).toLocaleString()}`
+    ? `${cos.length} change orders this week, net total $${cos.reduce((s, c) => s + (c.change_amount ?? 0), 0).toLocaleString()}`
     : 'no change orders';
 
   const prompt = `You are a residential general contractor writing a Friday afternoon update to a homeowner about their project. The homeowner is NOT a contractor — write in plain everyday English. No CSI section numbers, no trade jargon, no abbreviations.
@@ -342,17 +342,25 @@ async function fetchWeekDataForProject(client: SupabaseClient, projectId: string
     .order('date', { ascending: false });
   const dfrs = (dfrsRes.data ?? []) as DfrRow[];
 
+  // 'project_photos' DOES NOT EXIST — the table is 'photos', and it has no
+  // storage_url column either (verified against production). PostgREST 404s the
+  // table and 400s the column, so photosRes.data was always null and the
+  // `?? []` below turned that into "no photos this week" — every single week.
+  // The homeowner's weekly digest reported an empty site for a job that was
+  // being photographed daily.
   const photosRes = await client
-    .from('project_photos')
-    .select('id,project_id,uri,storage_url,created_at')
+    .from('photos')
+    .select('id,project_id,uri,created_at')
     .eq('project_id', projectId)
     .gte('created_at', sevenDaysAgo)
     .order('created_at', { ascending: false });
   const photos = (photosRes.data ?? []) as PhotoRow[];
 
+  // change_orders has change_amount, NOT amount (verified against production).
+  // Same silent shape: a 400 on the unknown column became "no change orders".
   const cosRes = await client
     .from('change_orders')
-    .select('id,project_id,description,amount,status,created_at')
+    .select('id,project_id,description,change_amount,status,created_at')
     .eq('project_id', projectId)
     .gte('created_at', sevenDaysAgo);
   const cos = (cosRes.data ?? []) as ChangeOrderRow[];

@@ -1,5 +1,6 @@
 import type { Invoice, ChangeOrder } from '@/types';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+import { netBalanceDue } from '@/utils/invoiceBilling';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
 export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
@@ -179,7 +180,25 @@ export function generateForecast(
       const issueDate = new Date(inv.issueDate);
       const expectedDate = new Date(issueDate);
       expectedDate.setDate(expectedDate.getDate() + termsDays);
-      const remaining = inv.totalDue - inv.amountPaid;
+      // RETENTION IS NOT COLLECTIBLE ON TERMS. `totalDue` is the GROSS figure —
+      // it includes the retention the contract holds back until closeout — so
+      // `totalDue - amountPaid` forecast that held-back money as cash arriving
+      // on net-30. On a $500k job at 10% retention that is $50k of money the
+      // client is contractually NOT going to send, landing in the forecast
+      // weeks or months before it exists.
+      //
+      // This screen's whole job is the danger-week / can-I-make-payroll call,
+      // and it feeds the morning brief and the AI fact blocks as well, so the
+      // overstatement propagated into "you're fine this week" advice.
+      //
+      // netBalanceDue() is the SAME function the Stripe pay link and the
+      // in-app "Generate Payment Link" button use, so the forecast now projects
+      // exactly what the client is actually being asked to pay. Pending
+      // retention is reported separately via pendingRetention() — omitted from
+      // the weekly runway rather than guessed at, because nothing here knows
+      // the closeout date, and a forecast that names a date it cannot know is
+      // worse than one that admits the money is not scheduled yet.
+      const remaining = netBalanceDue(inv);
       // AN OVERDUE INVOICE'S EXPECTED DATE IS IN THE PAST, and every forecast
       // week runs from today forward — so it matched no week and contributed
       // ZERO. The 'hopeful' confidence branch below, written specifically for
@@ -270,6 +289,26 @@ export function generateForecast(
 
   console.log('[CashFlowEngine] Forecast generated:', weeks.length, 'weeks');
   return weeks;
+}
+
+/**
+ * Retention dollars billed but contractually held back, across open invoices.
+ *
+ * This money is real and the GC will eventually get it — it is simply not on
+ * the payment-terms clock, so it is deliberately absent from generateForecast's
+ * weekly runway. Surface it next to the forecast ("plus $X retention held to
+ * closeout") so the omission reads as a fact about the contract rather than as
+ * money the app lost track of.
+ *
+ * Excludes draft invoices (nothing is owed yet) and already-released retention.
+ */
+export function pendingRetention(invoices: Invoice[]): number {
+  let total = 0;
+  for (const inv of invoices) {
+    if (getEffectiveInvoiceStatus(inv) === 'draft') continue;
+    total += Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+  }
+  return total;
 }
 
 export function calculateSummary(weeks: CashFlowWeek[]): CashFlowSummary {

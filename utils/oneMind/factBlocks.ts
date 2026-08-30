@@ -355,6 +355,13 @@ export function buildCashBlock(
   summary: CashFlowSummary | null,
   setupComplete: boolean,
   weeks: number,
+  /**
+   * Retention billed but held to closeout. The forecast deliberately excludes
+   * it (it is not on the payment-terms clock), so without stating it here the
+   * AI would read the smaller income figure as everything the GC is owed and
+   * could advise chasing money that is not actually late.
+   */
+  retentionHeld = 0,
 ): FactBlock {
   const facts: string[] = [];
   if (!setupComplete || !summary) {
@@ -362,6 +369,12 @@ export function buildCashBlock(
   } else {
     facts.push(`${weeks}-week forecast: ${fmtMoney(summary.totalIncome)} in, ${fmtMoney(summary.totalExpenses)} out, net ${fmtMoney(summary.netProfit)}.`);
     facts.push(`Lowest projected balance ${fmtMoney(summary.lowestBalance)} in week ${summary.lowestBalanceWeek}.`);
+    if (retentionHeld > 0) {
+      facts.push(
+        `${fmtMoney(retentionHeld)} of retention is billed but held to closeout — it is NOT in the forecast above ` +
+        `and is not overdue; it is released at closeout, not on payment terms.`,
+      );
+    }
     if (summary.dangerWeeks.length > 0) {
       facts.push(
         `${summary.dangerWeeks.length} danger week(s) with negative balance: ` +
@@ -598,7 +611,7 @@ export async function assembleFactBlocks(
         balance, data.expenses, bundle.invoices, data.expectedPayments,
         12, data.defaultPaymentTerms, bundle.changeOrders,
       );
-      return buildCashBlock(engine.calculateSummary(forecast), true, 12);
+      return buildCashBlock(engine.calculateSummary(forecast), true, 12, engine.pendingRetention(bundle.invoices));
     },
     // RECORDS — buildBusinessContext wrapped whole (the regression floor).
     async () => {

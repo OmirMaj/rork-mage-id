@@ -95,6 +95,8 @@ interface InvoiceRow {
   due_date: string;
   total_due: number | string;
   amount_paid: number | string | null;
+  retention_amount: number | string | null;
+  retention_released: number | string | null;
   status: string;
   user_id: string;
   dunning_stage: number | null;
@@ -291,7 +293,27 @@ async function processInvoice(
   const skip = (reason: SkipReason): ProcessResult => ({ outcome: 'skipped', reason, stage: stageNow });
 
   // ── Eligibility check (in JS — do not trust status alone) ──
-  const outstanding = Number(invoice.total_due) - Number(invoice.amount_paid ?? 0);
+  // NET OF RETENTION. `total_due` is the GROSS billed figure and includes the
+  // retention the contract lets the client hold until closeout. Subtracting only
+  // amount_paid meant a client who had paid every dollar they were ASKED for
+  // still showed a balance equal to the retention — and this function then
+  // emailed them about it, escalating to "FINAL NOTICE ... to avoid further
+  // action" for money the contract says they keep.
+  //
+  // `outstanding` is also the figure printed in the email body (see the
+  // buildEmail call below), so the same subtraction fixes both the decision to
+  // send and the amount demanded.
+  //
+  // This mirrors utils/invoiceBilling.netBalanceDue on the client, which the
+  // Stripe pay link and the cash-flow forecast already use. The pay link was
+  // charging net while dunning chased gross — the two disagreed about the same
+  // invoice, and only the client saw both.
+  const retentionPending = Math.max(
+    0,
+    Number(invoice.retention_amount ?? 0) - Number(invoice.retention_released ?? 0),
+  );
+  const netPayable = Math.max(0, Number(invoice.total_due) - retentionPending);
+  const outstanding = netPayable - Number(invoice.amount_paid ?? 0);
   const dueMs = new Date(invoice.due_date).getTime();
   const nowMs = Date.now();
 
@@ -474,7 +496,7 @@ Deno.serve(async (req: Request) => {
   if (body.invoiceId) {
     const invRes = await client
       .from('invoices')
-      .select('id,number,project_id,due_date,total_due,amount_paid,status,user_id,dunning_stage,dunning_last_sent_at')
+      .select('id,number,project_id,due_date,total_due,amount_paid,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
       .eq('id', body.invoiceId)
       .maybeSingle();
 
@@ -527,7 +549,7 @@ Deno.serve(async (req: Request) => {
   // logic filter.
   const invRes = await client
     .from('invoices')
-    .select('id,number,project_id,due_date,total_due,amount_paid,status,user_id,dunning_stage,dunning_last_sent_at')
+    .select('id,number,project_id,due_date,total_due,amount_paid,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
     .not('status', 'in', '("paid","draft")')
     .not('due_date', 'is', null);
 
