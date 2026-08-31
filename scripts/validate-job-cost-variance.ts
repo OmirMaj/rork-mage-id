@@ -421,5 +421,48 @@ console.log('\ndocumentation matches the formula:');
     /scheduleEarnedValue/.test(engine) && /OPPOSITE/.test(engine));
 }
 
+// ── the budget is COST, never the marked-up sell price ──────────────────────
+// EVERY fixture above builds its estimate with markup: 0 and
+// grandTotal === baseTotal, so cost and sell are the same number and this
+// guard was structurally incapable of seeing the difference. It passed all
+// 88 assertions while computeJobCost seeded the budget from `lineTotal` — the
+// MARKED-UP figure (app/(tabs)/estimate/full.tsx:933) — which made
+// budget === revenue and reported $0 projected profit on every job.
+//
+// A fixture that cannot distinguish cost from price cannot guard the one
+// invariant that matters here. This one carries real markup.
+{
+  // $100,000 of cost at 15% markup = $115,000 contract. Nothing spent yet.
+  const marked = {
+    id: 'est-markup',
+    items: [{
+      materialId: 'm0', name: 'Framing package', category: 'Framing', unit: 'ls',
+      quantity: 4, unitPrice: 25_000, bulkPrice: 25_000, markup: 15,
+      usesBulk: false, lineTotal: 25_000 * 1.15 * 4, supplier: 'Acme',
+    }],
+    globalMarkup: 15,
+    baseTotal: 100_000,
+    markupTotal: 15_000,
+    grandTotal: 115_000,
+    createdAt: '2026-01-02T00:00:00.000Z',
+  } as unknown as LinkedEstimate;
+  const proj = { id: 'p-markup', name: 'Markup Job', linkedEstimate: marked } as unknown as Project;
+
+  const summary = computeJobCost({ project: proj, commitments: [], invoices: [], changeOrders: [] });
+  const budget = summary.budget;
+
+  expect('budget is the COST basis, not the marked-up sell price', budget, 100_000);
+  // Per-phase must agree with the total — the sum is what the Living Estimate
+  // and the WIP row read.
+  expect('per-phase budgets sum to the same cost basis',
+    summary.byPhase.reduce((t, l) => t + l.budget, 0), 100_000);
+  // The pre-fix value. Named explicitly so a regression is unmistakable.
+  ok('budget is NOT grandTotal (the $115,000 pre-fix value)', budget !== 115_000,
+    'seeding budget from lineTotal makes budget === revenue and profit === 0');
+  // And it must reconcile with the estimate's own declared cost total, which is
+  // the same basis utils/wip.deriveEstimatedCost uses.
+  expect('budget reconciles with the estimate baseTotal', budget, marked.baseTotal);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

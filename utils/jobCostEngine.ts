@@ -198,11 +198,33 @@ export function computeJobCost({ project, commitments, invoices, changeOrders, r
     for (const item of estimate.items) {
       const phase = item.category?.trim() || PHASE_UNCATEGORIZED;
       const existing = phases.get(phase) ?? emptyLine(phase);
-      existing.budget += item.lineTotal;
+      // COST, not sell. `lineTotal` is the MARKED-UP figure —
+      // app/(tabs)/estimate/full.tsx:933 computes it as
+      //     base * (1 + markup / 100) * quantity
+      // and grandTotal is the sum of those. Seeding a job-COST budget with it
+      // made budget === revenue, so projectedFinal === projectedRevenue and
+      // every job reported $0 projected profit before any work happened. Real
+      // cost erosion then looked identical to that baseline noise, and the
+      // same inflated EAC flowed into the profit report and the bank-facing
+      // WIP row.
+      //
+      // `unitPrice` is the cost basis and is already bulk-aware (full.tsx:932
+      // assigns `usesBulk ? baseBulkPrice : baseRetailPrice`). Labor and
+      // assemblies carry markup: 0 with unitPrice × quantity equal to their
+      // all-in cost, so this sum reproduces the estimate's own baseTotal
+      // exactly — which is the same cost basis utils/wip.deriveEstimatedCost
+      // uses. One definition of cost across the app.
+      existing.budget += (item.unitPrice ?? 0) * (item.quantity ?? 0);
       phases.set(phase, existing);
     }
   } else if (project.estimate) {
     // Legacy estimate — one catch-all bucket.
+    //
+    // grandTotal stays here deliberately. EstimateBreakdown (types/index.ts:66)
+    // has no markup or profit line at all — materials, labor, permits,
+    // overhead, contingency, tax — so its grandTotal is cost + tax, not
+    // cost + margin. There is no markup to strip, and it is the same call
+    // utils/wip.deriveEstimatedCost makes for the legacy shape.
     phases.set('Budget', {
       ...emptyLine('Budget'),
       budget: project.estimate.grandTotal,

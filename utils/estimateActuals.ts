@@ -36,7 +36,17 @@ export interface EstimateLineActual {
   csiDivision?: string;
   unit: string;
   quantity: number;
-  /** Estimate line COST (lineTotal, pre-markup) — the bid for this scope. */
+  /**
+   * Estimate line COST for this scope — unitPrice x quantity.
+   *
+   * This comment used to say "lineTotal, pre-markup". lineTotal is NOT
+   * pre-markup: app/(tabs)/estimate/full.tsx:933 computes it as
+   *     base * (1 + markup / 100) * quantity
+   * and the code below dutifully used it, comparing a MARKED-UP bid against
+   * `committed`/`actual`, which are true cost dollars from commitments and
+   * paidToDate. Every buyout therefore read more favourable than reality by
+   * exactly the markup percentage.
+   */
   bid: number;
   /** Signed subs/POs attributed to this line. */
   committed: number;
@@ -134,7 +144,14 @@ export function computeEstimateActuals(
     const committedAmt = (c.amount || 0) + (c.changeAmount || 0);
     const actualAmt = Math.max(0, c.paidToDate || 0);
     const links = (c.linkedEstimateItems || []).filter(id => itemById.has(id));
-    const weightTotal = links.reduce((s, id) => s + (itemById.get(id)!.lineTotal || 0), 0);
+    // Allocate on COST, not sell. Markup is per-item, so weighting by
+    // lineTotal hands a disproportionate share of a commitment to whichever
+    // line happens to carry the higher markup.
+    const itemCost = (id: string) => {
+      const it = itemById.get(id)!;
+      return (it.unitPrice ?? 0) * (it.quantity ?? 0);
+    };
+    const weightTotal = links.reduce((s, id) => s + itemCost(id), 0);
 
     if (links.length === 0 || weightTotal <= 0) {
       untracedCommitted += committedAmt;
@@ -145,14 +162,21 @@ export function computeEstimateActuals(
 
     tracedCommitmentCount += 1;
     for (const id of links) {
-      const share = (itemById.get(id)!.lineTotal || 0) / weightTotal;
+      const share = itemCost(id) / weightTotal;
       committedByItem.set(id, (committedByItem.get(id) || 0) + committedAmt * share);
       actualByItem.set(id, (actualByItem.get(id) || 0) + actualAmt * share);
     }
   }
 
   const lines: EstimateLineActual[] = estimate.items.map(it => {
-    const bid = it.lineTotal || 0;
+    // COST basis — see the `bid` doc above. Comparing a marked-up bid against
+    // at-cost actuals made a line bought out EXACTLY at cost look like a win
+    // by the markup percentage, and utils/estimateCalibration.ts:138 turns that
+    // straight into `bias = actual / estimated` -> a suggested multiplier below
+    // 1.0. Applying that correction reprices future estimates BELOW cost, and
+    // the error compounds every time a correction is accepted. This is the loop
+    // the product's cost moat is built on; it was learning the wrong lesson.
+    const bid = (it.unitPrice ?? 0) * (it.quantity ?? 0);
     const committed = committedByItem.get(it.materialId) || 0;
     const actual = actualByItem.get(it.materialId) || 0;
     const qty = it.quantity || 0;
