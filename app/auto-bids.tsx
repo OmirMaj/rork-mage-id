@@ -37,9 +37,9 @@ const BASIS_LABEL: Record<PricedBid['basis'], string> = {
 
 export default function AutoBidsScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  const { canAccess, requiredTierFor } = useTierAccess();
   if (!canAccess('bid_scoring')) {
-    return <Paywall visible feature="MAGE bids for you" requiredTier="pro" onClose={() => router.back()} />;
+    return <Paywall visible feature="MAGE bids for you" requiredTier={requiredTierFor('bid_scoring')} onClose={() => router.back()} />;
   }
   return <AutoBidsInner />;
 }

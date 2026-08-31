@@ -24,7 +24,15 @@ export const [BidsProvider, useBids] = createContextHook(() => {
           const { data, error } = await supabase
             .from('public_bids')
             .select('*')
-            .order('fetched_at', { ascending: false });
+            // `fetched_at` DOES NOT EXIST on public_bids (verified against
+            // production: the table has created_at, posted_date and awarded_at).
+            // PostgREST answers an unknown order column with 42703/400, so
+            // `data` was null on EVERY server read, the `data.length > 0` guard
+            // below skipped the mapper and the AsyncStorage write, and the query
+            // fell through to a local cache that a fresh install has never
+            // populated. The marketplace feed was permanently empty, and the
+            // only trace was a console.log.
+            .order('created_at', { ascending: false });
           if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, title: r.title as string,

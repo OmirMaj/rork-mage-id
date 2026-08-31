@@ -45,7 +45,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** In all three catch branches except `isTerminalError`, push the failing mutation plus every remaining member of `group` into `gRemaining` and `break` out of the loop; separately give the update/delete arms `{ count: 'exact' }` or `.select('id')` and treat a zero-row match as a failure rather than success.
 
-## [ ] #4 — Cash-flow forecast silently drops any receivable whose expected date lands on the last day of a forecast week
+## [x] #4 — Cash-flow forecast silently drops any receivable whose expected date lands on the last day of a forecast week
 
 **Where:** `utils/cashFlowEngine.ts:94`
 
@@ -55,7 +55,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** After `weekEnd.setDate(weekEnd.getDate() + 6)` at line 169 add `weekEnd.setHours(23, 59, 59, 999);`, or change isDateInWeek to a half-open `d >= weekStart && d < new Date(weekStart).setDate(weekStart.getDate() + 7)`.
 
-## [ ] #5 — Four Business-gated screens render a Pro paywall — the user buys Pro at $29/mo and is still locked out
+## [x] #5 — Four Business-gated screens render a Pro paywall — the user buys Pro at $29/mo and is still locked out
 
 **Where:** `app/portfolio-margin.tsx:64`
 
@@ -105,7 +105,12 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** On the web branch, put a text-stripped `params.html` in the mailto body, warn that attachments could not be included, and `return { success: false, error: resendResult.error }` (or a distinct `outcome: 'composer_opened'`) so no caller flips a document to 'sent'.
 
-## [ ] #10 — plan_sheets insert writes three columns that do not exist, so every drawing upload is rejected and re-queued forever with no error surfaced
+## [~] REFUTED #10 — plan_sheets insert writes three columns that do not exist, so every drawing upload is rejected and re-queued forever with no error surfaced
+
+> **REFUTED 2026-08-31** by direct production introspection: plan_sheets.revision / previous_sheet_id / superseded ALL EXIST in production.
+> The verifiers that read `supabase/schema.sql` and the migrations concluded the
+> columns were missing; the repo schema file is STALE. Only the agent that
+> queried the live database got this right.
 
 **Where:** `contexts/ProjectContext.tsx:4996`
 
@@ -145,7 +150,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Compute `const alreadyApproved = paidToDate - ((invoice.status === 'approved' || invoice.status === 'paid') ? thisAmount : 0)` in the paidToDate branch, and change the null test to `typeof commitment.paidToDate === 'number'` (or drop the `?? 0` coercion at ProjectContext.tsx:797) so the offline fallback can actually run.
 
-## [ ] #14 — Marketplace bid feed orders public_bids by fetched_at, a column that does not exist — every server read 400s and silently falls back to an empty local cache
+## [x] #14 — Marketplace bid feed orders public_bids by fetched_at, a column that does not exist — every server read 400s and silently falls back to an empty local cache
 
 **Where:** `contexts/BidsContext.tsx:27`
 
@@ -205,7 +210,12 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Replace line 56 with `const startDate = formatCalendarDay(schedule.startDate) || '—';` using formatCalendarDay from @/utils/calendarDate, and rebuild finishDate at :58 with `addWorkingDays(parseCalendarDay(schedule.startDate), Math.max(0, totalDuration - 1), schedule.workingDaysPerWeek)`.
 
-## [ ] #20 — Homeowner-RFP fan-out selects four service_* columns that do not exist on companies, so notify-nearby-contractors throws before notifying anyone
+## [~] REFUTED #20 — Homeowner-RFP fan-out selects four service_* columns that do not exist on companies, so notify-nearby-contractors throws before notifying anyone
+
+> **REFUTED 2026-08-31** by direct production introspection: companies.service_states / _radius_miles / _origin_lat / _origin_lng ALL EXIST in production.
+> The verifiers that read `supabase/schema.sql` and the migrations concluded the
+> columns were missing; the repo schema file is STALE. Only the agent that
+> queried the live database got this right.
 
 **Where:** `supabase/functions/notify-nearby-contractors/index.ts:142`
 

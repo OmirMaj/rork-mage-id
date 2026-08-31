@@ -55,13 +55,17 @@ interface PortfolioRow {
 
 export default function PortfolioMarginScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  const { canAccess, requiredTierFor } = useTierAccess();
   if (!canAccess('portfolio_margin')) {
     return (
       <Paywall
         visible={true}
         feature="Portfolio Margin Board"
-        requiredTier="pro"
+        // requiredTier is DERIVED, never a literal. All four of these screens
+        // gated on a 'business' feature while hardcoding requiredTier="pro",
+        // so a contractor was told to buy Pro, bought it, and hit the same
+        // wall — a charge for undelivered product.
+        requiredTier={requiredTierFor('portfolio_margin')}
         onClose={() => router.back()}
       />
     );

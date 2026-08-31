@@ -21,7 +21,13 @@ import { showAlert } from '@/utils/alert';
 const IOS_APP_URL = 'https://apps.apple.com/app/id6762229238';
 const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=app.mageid.android';
 
-type RequiredTier = 'pro' | 'business' | 'enterprise';
+// Accepts 'free' so callers can pass requiredTierFor(feature) straight through
+// instead of hardcoding a literal. Hardcoding is what caused four screens to
+// gate on a 'business' feature while advertising Pro — the contractor bought
+// Pro, hit the identical wall, and had paid for nothing.
+//
+// 'free' is never a real paywall; it is rendered as nothing (see below).
+type RequiredTier = 'free' | 'pro' | 'business' | 'enterprise';
 type BillingPeriod = 'monthly' | 'annual';
 
 interface PaywallProps {
@@ -122,7 +128,13 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   const benefits = requiredTier === 'enterprise' ? ENTERPRISE_BENEFITS
     : requiredTier === 'business' ? BUSINESS_BENEFITS
     : PRO_BENEFITS;
-  const fallback = FALLBACK_PRICES[requiredTier];
+  // 'free' is not a purchasable tier and the component renders null for it —
+  // but that return has to sit AFTER every hook (there is a useMemo just
+  // below), so this lookup still needs a valid key. 'pro' is a placeholder
+  // that is never rendered; see the early return further down.
+  const paidTier: Exclude<RequiredTier, 'free'> =
+    requiredTier === 'free' ? 'pro' : requiredTier;
+  const fallback = FALLBACK_PRICES[paidTier];
 
   const pricing = useMemo(() => {
     // Try to use live RevenueCat pricing; fall back to static amounts.
@@ -219,6 +231,13 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   //   • Maintaining RC web billing live keys
   //   • A second checkout flow that competes with the invoice Stripe flow
   //   • Confusing users about which payment surface unlocks what
+  // A free feature cannot be paywalled. If a caller ever derives 'free' here,
+  // the honest thing is to show nothing rather than a wall demanding payment
+  // for something already included — a locked screen the user can never unlock
+  // is worse than an unstyled one. Placed after every hook so hook order stays
+  // unconditional.
+  if (requiredTier === 'free') return null;
+
   if (Platform.OS === 'web') {
     return (
       <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleDismiss}>

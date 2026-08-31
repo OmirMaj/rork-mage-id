@@ -165,8 +165,34 @@ eq('forecast income equals netBalanceDue — one formula, not two',
   );
 }
 
+// ── 9. no receivable falls between two weeks ────────────────────────────────
+// weekStart is midnight-aligned and isDateInWeek tests `d <= weekEnd`, so when
+// weekEnd was also midnight, every instant after 00:00:00.000 on a week's LAST
+// DAY belonged to no week at all. Invoice dates carry a real time-of-day
+// (app/invoice.tsx:354 stores a full ISO timestamp), so ~1 receivable in 7
+// vanished from the runway entirely — not late, not deferred: absent.
+{
+  const anchor = new Date(today); anchor.setHours(0, 0, 0, 0);
+  // Land the expected date on each day of forecast week 0, at 10:15 local.
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    const arrive = new Date(anchor);
+    arrive.setDate(arrive.getDate() + dayOffset);
+    arrive.setHours(10, 15, 0, 0);
+    const issued = new Date(arrive);
+    issued.setDate(issued.getDate() - 30); // net_30
+
+    const inv = invoice({ issueDate: iso(issued), dueDate: iso(issued) });
+    const total = forecast([inv]).totalIncome;
+    check(
+      `a receivable arriving on day ${dayOffset} of the week is counted`,
+      Math.abs(total - 100_000) < 0.01,
+      `got ${total} — day ${dayOffset} matched no forecast week`,
+    );
+  }
+}
+
 if (failures > 0) {
   console.error(`\n✗ validate-cashflow-retention: ${failures} failure(s)\n`);
   process.exit(1);
 }
-console.log('\n19 passed, 0 failed\n');
+console.log('\n26 passed, 0 failed\n');

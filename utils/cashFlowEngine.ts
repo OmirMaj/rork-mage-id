@@ -167,6 +167,17 @@ export function generateForecast(
     weekStart.setDate(weekStart.getDate() + w * 7);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
+    // END of day 6, not its midnight. isDateInWeek tests `d <= weekEnd`, and
+    // weekStart is midnight-aligned, so without this every instant after
+    // 00:00:00.000 on the last day of a week belonged to NO week at all.
+    //
+    // Invoice dates carry a real time-of-day — app/invoice.tsx:354 stores
+    // `issueDate: now` as a full ISO timestamp and generateForecast preserves
+    // it through `expectedDate.setDate(+termsDays)` — so roughly one receivable
+    // in seven fell through the gap and never appeared in the runway at all.
+    // Not late, not in a later week: absent. Verified with a $76,780 invoice
+    // landing on a week's last day, which forecast $0.
+    weekEnd.setHours(23, 59, 59, 999);
 
     const incomeItems: CashFlowWeek['incomeItems'] = [];
     const expenseItems: CashFlowWeek['expenseItems'] = [];
