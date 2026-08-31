@@ -10,6 +10,7 @@ import type { ThemeColors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { getPhaseColor } from '@/utils/scheduleEngine';
 import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 interface MobileGanttProps {
   tasks: ScheduleTask[];
@@ -43,6 +44,16 @@ type Row =
   | { kind: 'task'; task: ScheduleTask };
 
 function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
+
+// Local Y/M/D — NOT `toISOString().slice(0, 10)`. Every Date in this file is a
+// LOCAL midnight derived from baseMs, and toISOString() re-projects that into
+// UTC, so at any POSITIVE UTC offset it emits the PREVIOUS calendar day. The
+// long-press-to-add path fed that string straight into AddTaskModal, so the
+// column you pressed and the date the new task was prefilled with disagreed.
+// Matches GridPane.renderIso, which formats the same way.
+function toIsoDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 // One draggable gantt bar. Hold ~220ms then drag horizontally to reschedule
 // (changes startDay); a quick tap opens the task. Drag state is local so only
@@ -110,7 +121,20 @@ export function MobileGantt({
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  const baseMs = useMemo(() => startOfDayMs(startDate ? new Date(startDate) : new Date()), [startDate]);
+  // baseMs is LOCAL midnight of schedule day 1. It used to be
+  // `startOfDayMs(new Date(startDate))`, and `startDate` is a bare 'YYYY-MM-DD'
+  // (MobileScheduleScreen.tsx) — which the spec parses as UTC MIDNIGHT, so at
+  // any negative UTC offset (i.e. the entire US market) startOfDayMs floored it
+  // to the PREVIOUS local day. Every bar (dayToX), the week-tick labels and
+  // isWeekendOffset hang off this anchor, while `todayIdx` below is computed
+  // from the real local today — so the whole timeline sat one column LEFT of
+  // the today line and a Monday task was drawn under Sunday, reading as
+  // already late. It also disagreed with schedule-pro, which anchors on
+  // `startDate + 'T00:00:00'`, so auto-stamped actuals landed a column away
+  // from where the user tapped. parseCalendarDay (utils/calendarDate.ts) is the
+  // shared fix and additionally tolerates the full ISO timestamp Supabase can
+  // hand back for this field.
+  const baseMs = useMemo(() => startOfDayMs(parseCalendarDay(startDate) ?? new Date()), [startDate]);
   const todayIdx = Math.round((startOfDayMs(new Date()) - baseMs) / MS_DAY);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [zoom, setZoom] = useState<Zoom>('day');
@@ -353,7 +377,7 @@ export function MobileGantt({
                 delayLongPress={350}
                 onLongPress={(e) => {
                   const day = colToDay(Math.max(0, Math.round(e.nativeEvent.locationX / dayW)));
-                  const iso = new Date(baseMs + day * MS_DAY).toISOString().slice(0, 10);
+                  const iso = toIsoDay(new Date(baseMs + day * MS_DAY));
                   if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   onLongPressEmpty(iso);
                 }}

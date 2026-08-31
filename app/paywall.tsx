@@ -21,12 +21,48 @@ import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
 import type { SignupPlan } from '@/utils/signupIntent';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { REQUIRED_TIER, tierMeetsRequirement } from '@/utils/featureTiers';
+import type { FeatureKey } from '@/utils/featureTiers';
 
 interface FeatureRow {
   label: string;
   free: boolean;
   pro: boolean;
   business: boolean;
+}
+
+/**
+ * How a comparison row is written. Two shapes:
+ *
+ *   { label, key }                  — columns DERIVED from utils/featureTiers
+ *   { label, free, pro, business }  — columns stated literally
+ *
+ * Always prefer the first. Hand-typed columns are exactly how this table came
+ * to mark "Plan Viewer · Sheet Pinning" as Business-only while the enforced
+ * gate is plan_markup = 'pro' (app/plans.tsx:218, app/plan-viewer.tsx:79). A
+ * Pro subscriber read the pricing table, concluded the plan viewer needed
+ * Business, and was quoted another $50/mo for something their plan already
+ * included. With a `key` a column CANNOT disagree with the gate, because
+ * REQUIRED_TIER is its only input.
+ *
+ * The literal shape survives only for rows whose access is not one FeatureKey:
+ * always-on rows, and AI features metered by utils/aiRateLimiter FEATURE_CONFIG
+ * (`proOnly` / `freeLifetimeCap`) instead of by a tier gate. Each one says why
+ * inline, so the exception can't spread by copy-paste.
+ */
+type FeatureRowSpec =
+  | { label: string; key: FeatureKey }
+  | { label: string; free: boolean; pro: boolean; business: boolean };
+
+function toFeatureRow(spec: FeatureRowSpec): FeatureRow {
+  if (!('key' in spec)) return spec;
+  const required = REQUIRED_TIER[spec.key];
+  return {
+    label: spec.label,
+    free: tierMeetsRequirement('free', required),
+    pro: tierMeetsRequirement('pro', required),
+    business: tierMeetsRequirement('business', required),
+  };
 }
 
 // Enterprise has the same FEATURE access as Business — its differentiator
@@ -42,26 +78,40 @@ interface FeatureRow {
 // re-classified to match reality. SSO/SAML, Multi-tenant, Time tracking,
 // and QuickBooks sync rows were removed entirely — those features aren't
 // built. See utils/owner.ts comment for the gating rules.
-const FEATURES: FeatureRow[] = [
+const FEATURE_SPECS: FeatureRowSpec[] = [
+  // Ungated — no FeatureKey exists because nothing checks one.
   { label: 'Unlimited Projects', free: true, pro: true, business: true },
   { label: 'Manual Estimates', free: true, pro: true, business: true },
   { label: 'Manual Daily Reports', free: true, pro: true, business: true },
-  { label: 'AI Cost Estimator', free: false, pro: true, business: true },
+  { label: 'AI Cost Estimator', key: 'ai_estimate_wizard' },
+  // AI Takeoff and Voice-to-Report are NOT tier-gated screens — they are
+  // metered by utils/aiRateLimiter FEATURE_CONFIG (aiTakeoff is `proOnly`;
+  // voiceCapture gives free users a 3-use lifetime trial and the server
+  // hard-gates the takeoff steps to Pro+). There is no FeatureKey to derive
+  // from, so these two stay literal on purpose.
   { label: 'AI Takeoff (PDF → LF/SF)', free: false, pro: true, business: true },
-  { label: 'AI Schedule Builder (Gantt)', free: false, pro: true, business: true },
+  { label: 'AI Schedule Builder (Gantt)', key: 'schedule_gantt_pdf' },
   { label: 'Voice-to-Report (Android: beta)', free: false, pro: true, business: true },
+  // Spans two gates: Photo Triage is photo_documentation (Pro), AI Punch from
+  // Photos is punch_list_closeout (Business). Left literal at the Pro reading
+  // rather than derived, because no single key describes the row.
   { label: 'AI Photo Triage / Punch', free: false, pro: true, business: true },
-  { label: 'Cash Flow + EVM (CPI/SPI)', free: false, pro: true, business: true },
-  { label: 'AIA G702/G703 Pay Apps', free: false, pro: true, business: true },
-  { label: 'Change Orders + Invoicing', free: false, pro: true, business: true },
-  { label: 'Equipment Tracking', free: false, pro: true, business: true },
-  { label: 'Client Portal (custom branded)', free: false, pro: true, business: true },
-  { label: 'Subcontractor Management', free: false, pro: false, business: true },
-  { label: 'Punch List & Closeout', free: false, pro: false, business: true },
-  { label: 'RFIs & Submittals', free: false, pro: false, business: true },
-  { label: 'Full Budget Dashboard', free: false, pro: false, business: true },
-  { label: 'Plan Viewer · Sheet Pinning (Android: beta)', free: false, pro: false, business: true },
+  { label: 'Cash Flow + EVM (CPI/SPI)', key: 'cash_flow_forecaster' },
+  { label: 'AIA G702/G703 Pay Apps', key: 'aia_pay_app' },
+  { label: 'Change Orders + Invoicing', key: 'change_orders_invoicing' },
+  { label: 'Equipment Tracking', key: 'equipment_rental' },
+  { label: 'Client Portal (custom branded)', key: 'client_portal' },
+  { label: 'Subcontractor Management', key: 'subcontractor_management' },
+  { label: 'Punch List & Closeout', key: 'punch_list_closeout' },
+  { label: 'RFIs & Submittals', key: 'rfis_submittals' },
+  { label: 'Full Budget Dashboard', key: 'full_budget_dashboard' },
+  // Was hand-typed `pro: false, business: true` — an XCircle in the Pro column
+  // for a feature plan_markup actually unlocks at Pro. Now derived from
+  // featureTiers, so the Pro column reads as included.
+  { label: 'Plan Viewer · Sheet Pinning (Android: beta)', key: 'plan_markup' },
 ];
+
+const FEATURES: FeatureRow[] = FEATURE_SPECS.map(toFeatureRow);
 
 // Fintech & revenue products. Surfaced separately from the feature
 // matrix because they're not yes/no — they're priced + early-access

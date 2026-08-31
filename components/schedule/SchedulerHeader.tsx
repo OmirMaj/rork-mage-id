@@ -23,6 +23,8 @@ import { useScheduler, type ViewScale } from './SchedulerContext';
 import { computePillStatus } from '@/utils/scheduleHealth';
 import { scheduleVerdict } from '@/utils/scheduleVerdict';
 import { useResponsive } from '@/utils/useResponsive';
+import { parseCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
+import { addWorkingDays } from '@/utils/scheduleEngine';
 
 export interface SchedulerHeaderProps {
   projectName: string;
@@ -52,13 +54,35 @@ export function SchedulerHeader({
     ? Math.round(tasks.reduce((s, t) => s + (t.progress ?? 0), 0) / total)
     : 0;
 
-  const startDate = schedule.startDate
-    ? new Date(schedule.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—';
+  // START / FINISH are CALENDAR DAYS on the schedule's own working calendar,
+  // not instants — and both were wrong in a way the user could see.
+  //
+  // START used `new Date(schedule.startDate)`. schedule.startDate is a bare
+  // 'YYYY-MM-DD' (types/index.ts), which the spec parses as UTC MIDNIGHT, so
+  // everywhere west of Greenwich the headline "when does this job start"
+  // number rendered the PREVIOUS day — contradicting the task rows directly
+  // beneath it, the Gantt, and the shared PDF on the same data (they all
+  // anchor on `startDate + 'T00:00:00'`). parseCalendarDay/formatCalendarDay
+  // (utils/calendarDate.ts) exist for exactly this and also tolerate the full
+  // ISO timestamp Supabase hands back for the same field.
+  //
+  // FINISH added `totalDurationDays * 86400000` to that same bad anchor — raw
+  // CALENDAR milliseconds. totalDurationDays is the project FINISH DAY NUMBER
+  // on the WORKING-day calendar (scheduleEngine.buildScheduleFromTasks →
+  // projectFinishDay), so the old label both skipped no weekends and ran a
+  // fencepost long: day N is the Nth working day, i.e. N-1 working days after
+  // day 1. It now walks the same addWorkingDays path (weekends + site
+  // closures) that getTaskDateRange uses for the rows underneath.
+  const startAnchor = parseCalendarDay(schedule.startDate);
+  const startDate = startAnchor ? formatCalendarDay(schedule.startDate) : '—';
   const totalDuration = schedule.totalDurationDays ?? 0;
-  const finishDate = schedule.startDate
-    ? new Date(new Date(schedule.startDate).getTime() + totalDuration * 86400000)
-        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const finishDate = startAnchor
+    ? addWorkingDays(
+        startAnchor,
+        Math.max(0, totalDuration - 1),
+        schedule.workingDaysPerWeek,
+        schedule.nonWorkingDates,
+      ).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : '—';
 
   const pillStatus = computePillStatus({

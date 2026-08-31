@@ -13,7 +13,12 @@ Severity note: the sweep was scoped to MEDIUM, but ranks 1-5, 7, 10, 12, 14 and
 20 are materially worse than that. They are ordered by user impact, not by the
 label they were collected under.
 
-Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
+Status legend: [ ] open  [x] fixed  [~] refuted / needs founder call
+
+ALL 30 non-refuted findings are fixed as of 2026-08-31. #10 and #20 were
+refuted against the live database. Two items remain founder decisions and are
+NOT in this list: utils/jobCostEngine.ts:245 (client invoice payments counted
+as job-cost actual) and utils/aiaBilling.ts:144 (thisPeriod = scheduledValue).
 
 ## [x] #1 — Job-cost budget is seeded from the marked-up sell price, so every healthy job reports 0% margin and "critical" health
 
@@ -35,7 +40,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Replace line 155 with `const base = it.usesBulk ? it.bulkPrice : it.unitPrice; const bid = base * (it.quantity || 0);`, use the same cost basis for the `weightTotal`/`share` weighting at :137 and :148 and for livingEstimate.buyoutVariance's estimatedCost, and correct the doc comment at :39 plus the user-facing note at app/estimate-accuracy.tsx:204.
 
-## [ ] #3 — Offline flush keeps processing a record's group after an earlier mutation fails, so UPDATEs and DELETEs match zero rows, "succeed", and are discarded
+## [x] #3 — Offline flush keeps processing a record's group after an earlier mutation fails, so UPDATEs and DELETEs match zero rows, "succeed", and are discarded
 
 **Where:** `utils/offlineQueue.ts:271`
 
@@ -65,7 +70,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Replace the hardcoded literal with `requiredTier={requiredTierFor('portfolio_margin')}` (useTierAccess already exports requiredTierFor) at portfolio-margin.tsx:64, win-optimizer.tsx:41, estimate-calibration.tsx:44 and `requiredTierFor('bid_scoring')` at auto-bids.tsx:42, and make Paywall no-op when the current tier already meets requiredTier.
 
-## [ ] #6 — Mobile Gantt renders every task bar one calendar day early via UTC-midnight parse of the schedule anchor
+## [x] #6 — Mobile Gantt renders every task bar one calendar day early via UTC-midnight parse of the schedule anchor
 
 **Where:** `components/schedule/mobile/MobileGantt.tsx:113`
 
@@ -75,7 +80,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Change line 113 to `startOfDayMs(startDate ? new Date(startDate.slice(0, 10) + 'T00:00:00') : new Date())`, or route it through `parseCalendarDay` from utils/calendarDate.ts which exists for exactly this.
 
-## [ ] #7 — Change-order insert never writes schedule_impact_days, and the two anchor columns are neither written nor read — an approved CO's time extension never reaches the schedule
+## [x] #7 — Change-order insert never writes schedule_impact_days, and the two anchor columns are neither written nor read — an approved CO's time extension never reaches the schedule
 
 **Where:** `contexts/ProjectContext.tsx:2236`
 
@@ -85,7 +90,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Add `schedule_impact_days: finalCo.scheduleImpactDays ?? null, schedule_impact_task_ids: finalCo.scheduleImpactTaskIds ?? null, schedule_anchor_task_id: finalCo.scheduleAnchorTaskId ?? null` to the insert at :2236, add the latter two to the update at :2352, hydrate both in the mapper next to :707, and extract a shared `changeOrderToRow(co)` so insert and update cannot drift again.
 
-## [ ] #8 — A/R aging report counts unsent draft invoices as outstanding receivables
+## [x] #8 — A/R aging report counts unsent draft invoices as outstanding receivables
 
 **Where:** `utils/financialReports.ts:262`
 
@@ -95,7 +100,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Add `if (inv.status === 'draft') continue;` immediately before the outstanding check at line 261, and drop the now-redundant call-site filter in app/project-detail.tsx:222 so the two surfaces cannot drift.
 
-## [ ] #9 — sendEmail's web fallback returns success:true after opening a mailto: with a placeholder body and no attachments
+## [x] #9 — sendEmail's web fallback returns success:true after opening a mailto: with a placeholder body and no attachments
 
 **Where:** `utils/emailService.ts:196`
 
@@ -120,7 +125,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Ship `alter table public.plan_sheets add column if not exists revision integer, add column if not exists previous_sheet_id uuid, add column if not exists superseded boolean not null default false;` (the referenced add_plan_sheet_revisions.sql has never existed in this repo), or strip the three keys from the insert at :5001-5003 and the update at :4977 until it lands; also fix the mapper at :4849 which types revision as string|null while the writer produces a number.
 
-## [ ] #11 — Mobile task detail sheet shows a task's start and end one day early, weekday name included
+## [x] #11 — Mobile task detail sheet shows a task's start and end one day early, weekday name included
 
 **Where:** `components/schedule/mobile/TaskDetailSheet.tsx:74`
 
@@ -130,7 +135,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Change line 74 to `const d = startDate ? new Date(startDate.slice(0, 10) + 'T00:00:00') : new Date();`, or use parseCalendarDay from utils/calendarDate.ts.
 
-## [ ] #12 — batchSendToClientPortal loses the "sent" flag for every item but the last of each kind, so "Send all" reports success and the items stay in the outbox
+## [x] #12 — batchSendToClientPortal loses the "sent" flag for every item but the last of each kind, so "Send all" reports success and the items stay in the outbox
 
 **Where:** `contexts/ProjectContext.tsx:3704`
 
@@ -140,7 +145,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Convert updateItemPortalState's cases to functional setState (`setChangeOrders(prev => prev.map(...))`) and derive the persisted list from the updater result, or add a batch variant that applies all items of a kind in one map before calling the setter and mutation once.
 
-## [ ] #13 — Sub-invoice overpayment guard double-counts the invoice being paid, firing a false "Overpayment risk" on every fully-billed commitment
+## [x] #13 — Sub-invoice overpayment guard double-counts the invoice being paid, firing a false "Overpayment risk" on every fully-billed commitment
 
 **Where:** `app/sub-portal-setup.tsx:302`
 
@@ -160,7 +165,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Change line 27 to `.order('posted_date', { ascending: false })` (or created_at), and drop the `data.length > 0` condition so a genuinely empty successful read is distinguishable from a rejected one.
 
-## [ ] #15 — updateRFI never persists date_required, submitted_by, linked_drawing or linked_task_id, and the mapper reads them back over the local copy
+## [x] #15 — updateRFI never persists date_required, submitted_by, linked_drawing or linked_task_id, and the mapper reads them back over the local copy
 
 **Where:** `contexts/ProjectContext.tsx:4150`
 
@@ -170,7 +175,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Add `date_required: r.dateRequired, submitted_by: r.submittedBy, linked_drawing: r.linkedDrawing ?? null, linked_task_id: r.linkedTaskId ?? null` to the payload at :4150 — better, call the existing `rfiToRow(r)` for the update so insert and update share one row builder.
 
-## [ ] #16 — updateSubmittal never persists submitted_by or required_date, and the mapper reads them back over the local copy
+## [x] #16 — updateSubmittal never persists submitted_by or required_date, and the mapper reads them back over the local copy
 
 **Where:** `contexts/ProjectContext.tsx:4416`
 
@@ -180,7 +185,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Add `submitted_by: s.submittedBy, required_date: s.requiredDate` to the payload at :4416; ideally factor buildSubmittal's row construction into a `submittalToRow(s)` used by both insert and update, matching the commitmentToRow/permitToRow pattern already in this file.
 
-## [ ] #17 — Invited collaborators pass the screen gate but every AI action inside is still metered against their own free tier
+## [x] #17 — Invited collaborators pass the screen gate but every AI action inside is still metered against their own free tier
 
 **Where:** `app/ai-punch.tsx:245`
 
@@ -190,7 +195,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Thread an effectiveTier (the project owner's tier) or a `collaboratorGranted` flag from useProjectAccess into checkAILimit so it skips the proOnly/smart-cap branches, and give requireTier an optional projectId that resolves tier from the project owner's subscription for accepted collaborators, metering usage against the owner's MONTHLY_CAPS.
 
-## [ ] #18 — Schedule CSV export writes calendar-day dates for working-day task numbers
+## [x] #18 — Schedule CSV export writes calendar-day dates for working-day task numbers
 
 **Where:** `utils/scheduleOps.ts:275`
 
@@ -200,7 +205,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Give exportTasksToCsv `workingDaysPerWeek` (and optionally nonWorkingDates) parameters, build each date with `addWorkingDays(projectStartDate, dayNum - 1, workingDaysPerWeek, nonWorkingDates)`, and format from local Y/M/D components rather than toISOString().
 
-## [ ] #19 — Scheduler header START KPI shows the day before the schedule's actual start, contradicting the grid beneath it
+## [x] #19 — Scheduler header START KPI shows the day before the schedule's actual start, contradicting the grid beneath it
 
 **Where:** `components/schedule/SchedulerHeader.tsx:56`
 
@@ -225,7 +230,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Either add the columns (`alter table public.companies add column if not exists service_states jsonb default '[]'::jsonb, add column if not exists service_radius_miles integer, add column if not exists service_origin_lat double precision, add column if not exists service_origin_lng double precision;`) plus UI that populates them, or narrow the select at :142 to `id,user_id,company_name,city,state` and match on companies.state until the service-area feature is real.
 
-## [ ] #21 — Project end date on the client-facing shared schedule PDF is one working day later than the last task's finish
+## [x] #21 — Project end date on the client-facing shared schedule PDF is one working day later than the last task's finish
 
 **Where:** `components/schedule/ScheduleShareSheet.tsx:57`
 
@@ -235,7 +240,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Change line 57 to `addWorkingDays(projectStartDate, Math.max(0, schedule.totalDurationDays - 1), schedule.workingDaysPerWeek)` and apply the same -1 at app/(tabs)/schedule/index.tsx:397 and :1238.
 
-## [ ] #22 — Copilot estimate edit re-marks-up at-cost labor and assembly lines, silently raising the contract value on any voice edit
+## [x] #22 — Copilot estimate edit re-marks-up at-cost labor and assembly lines, silently raising the contract value on any voice edit
 
 **Where:** `utils/copilot/estimateEdit/estimateOps.ts:76`
 
@@ -245,7 +250,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Mirror the estimator in recomputeEstimate: `lineTotal = round2(it.quantity * base * (1 + (it.markup ?? 0) / 100))`, `baseTotal = Σ qty * base`, `grandTotal = Σ lineTotal`, `markupTotal = grandTotal - baseTotal`; and make the setGlobalMarkup op write `markup` onto material items the way MaterialCartContext.setGlobalMarkup does instead of applying it to the whole base.
 
-## [ ] #23 — Photo-queue opportunistic drain is swallowed by the in-flight guard and never re-armed, so photos taken during an upload sit on disk
+## [x] #23 — Photo-queue opportunistic drain is swallowed by the in-flight guard and never re-armed, so photos taken during an upload sit on disk
 
 **Where:** `utils/photoUploadQueue.ts:202`
 
@@ -255,7 +260,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Make the coalescing re-check for work: in scheduleOpportunisticDrain do `const r = await processPhotoUploadQueue(); if (r.remaining > 0) scheduleOpportunisticDrain();`, or set a module-level `dirty` flag in queuePhotoUpload and have processPhotoUploadQueue's .finally re-invoke itself once when dirty was set during the flush.
 
-## [ ] #24 — Offline-queue record key falls back to a per-mutation id when the payload has no `id`, so project_financials upserts race and a stale snapshot can win
+## [x] #24 — Offline-queue record key falls back to a per-mutation id when the payload has no `id`, so project_financials upserts race and a stale snapshot can win
 
 **Where:** `utils/offlineQueue.ts:204`
 
@@ -265,7 +270,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Add an optional `recordKey` to supabaseWrite/OfflineMutation and pass it for keyless payloads, or at minimum widen the fallback at :204 to `data.id ?? data.project_id ?? data.portal_id ?? mutation.id` so any two writes targeting the same server row share a group and apply in timestamp order.
 
-## [ ] #25 — Emailing an invoice or estimate from web silently sends with no PDF attached
+## [x] #25 — Emailing an invoice or estimate from web silently sends with no PDF attached
 
 **Where:** `app/invoice.tsx:720`
 
@@ -275,7 +280,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Give generateInvoicePDFUri / generateEstimatePDFUri a web arm that produces the PDF as a blob:/data: URI (or send the HTML for server-side rendering in the send-email function) so attachments is populated; failing that, block the web email path with an explicit message rather than sending under an "Email Sent" toast.
 
-## [ ] #26 — Stripe Connect onboarding on web pops "Setup Not Finished" the instant the Stripe tab opens
+## [x] #26 — Stripe Connect onboarding on web pops "Setup Not Finished" the instant the Stripe tab opens
 
 **Where:** `app/payments-setup.tsx:164`
 
@@ -285,7 +290,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Branch on Platform.OS: on web, fire-and-forget the open and rely on the returnUrl `?return=1` round-trip already configured at :141 to re-poll on mount (plus a visibilitychange/window-focus re-poll), keeping the await-then-poll only for native.
 
-## [ ] #27 — Universal Search lock chips read the wrong tier for three features, so Pro users are sent into Business walls and away from screens they own
+## [x] #27 — Universal Search lock chips read the wrong tier for three features, so Pro users are sent into Business walls and away from screens they own
 
 **Where:** `utils/featureRegistry.ts:137`
 
@@ -295,7 +300,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Set featureRegistry.ts:137 to `requires: 'portfolio_margin'` and :165 to `requires: 'rfis_submittals'`, reconcile plan-intelligence (:172 and DesktopSidebar.tsx:104 → 'ai_estimate_wizard', or move the screen's gate to ask_your_plans), and extend scripts/validate-feature-search.ts to parse each route's screen for its first top-level canAccess('<key>') and fail on any mismatch with entry.requires.
 
-## [ ] #28 — Estimate revision diff appends a markup row on top of already-markup-inclusive category deltas, so the rows sum to twice the Net Change
+## [x] #28 — Estimate revision diff appends a markup row on top of already-markup-inclusive category deltas, so the rows sum to twice the Net Change
 
 **Where:** `utils/estimateCommit.ts:148`
 
@@ -305,7 +310,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Delete the `__markup__` push at :146-149 since category deltas already carry markup — or, if a markup line is wanted, build the category map at :134 from `(it.usesBulk ? it.bulkPrice : it.unitPrice) * it.quantity` so the two pieces genuinely reconcile.
 
-## [ ] #29 — "Advance requested" confirmation is shown even when the feature_interest write is skipped or rejected
+## [x] #29 — "Advance requested" confirmation is shown even when the feature_interest write is skipped or rejected
 
 **Where:** `components/home/ReadyToBillCard.tsx:70`
 
@@ -315,7 +320,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Destructure `const { error } = await supabase.from('feature_interest').upsert(...)` and treat both `!user` and a non-null error as failure (`setAdvanceState('idle')` + the "Could not save" alert), matching RevenueEarlyAccessCard.tsx:117-131; and add the missing UPDATE RLS policy to feature_interest.
 
-## [ ] #30 — Paywall comparison table marks Plan Viewer as Business-only when the code unlocks it at Pro
+## [x] #30 — Paywall comparison table marks Plan Viewer as Business-only when the code unlocks it at Pro
 
 **Where:** `app/paywall.tsx:63`
 
@@ -325,7 +330,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Change line 63 to `pro: true` — better, give each FEATURES row a FeatureKey and compute the free/pro/business columns via `tierMeetsRequirement(tier, REQUIRED_TIER[key])` so a row can never claim a tier the gate does not enforce.
 
-## [ ] #31 — Schedule Pro share link claims "copied to clipboard" without awaiting or checking the clipboard write
+## [x] #31 — Schedule Pro share link claims "copied to clipboard" without awaiting or checking the clipboard write
 
 **Where:** `app/schedule-pro.tsx:1473`
 
@@ -335,7 +340,7 @@ Status legend: [ ] open  [x] fixed  [~] deliberate / needs founder call
 
 **Fix plan:** Replace lines 1471-1477 with `const ok = await copyToClipboard(url);` from utils/clipboard.ts and branch: `window.alert` on true, `window.prompt('Copy this share link:', url)` on false.
 
-## [ ] #32 — Lead "Map" quick action uses the iOS-only maps: scheme and opens a dead tab on web
+## [x] #32 — Lead "Map" quick action uses the iOS-only maps: scheme and opens a dead tab on web
 
 **Where:** `app/lead-detail.tsx:286`
 

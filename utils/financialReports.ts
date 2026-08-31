@@ -8,7 +8,10 @@
 //   • Profit-per-project — revenue (estimate + approved COs) minus
 //     projected final cost (from the job-cost engine), running margin %.
 //   • AR aging — open invoices bucketed by days-past-due (0-30, 31-60,
-//     61-90, 90+). Uses dueDate vs today, ignores closed/canceled.
+//     61-90, 90+). Uses dueDate vs today. Excludes DRAFTS (never sent, so
+//     never owed) and anything fully collected. ("ignores closed/canceled",
+//     which this line used to say, described statuses InvoiceStatus has never
+//     had — and no filter of any kind was actually applied.)
 //
 // All amounts in USD. All return shapes are PURE so the screen can
 // memoize them and the PDF builders can serialize them as-is.
@@ -257,7 +260,23 @@ export function computeARAgingReport(
 
   const rows: ARAgingRow[] = [];
   for (const inv of invoices) {
-    // Outstanding = totalDue - amountPaid. Skip if fully paid or canceled.
+    // DRAFTS ARE NOT RECEIVABLES. A draft is a document the client has never
+    // seen: nobody owes it, so it cannot be outstanding and it cannot be past
+    // due. This loop had NO status filter at all — and the comment that used to
+    // sit here claimed it skipped "canceled", a status `InvoiceStatus` does not
+    // even have (draft | sent | partially_paid | paid | overdue). So a $40K
+    // invoice staged by Bill-from-Estimate and never sent showed up as
+    // OUTSTANDING in danger red, aged into the 31-60 past-due bucket, and rode
+    // out on the exported CSV/PDF — while the WIP tab of the same Reports
+    // screen (computeWIPReport above, whose `billedInvoices` does exclude
+    // drafts) reported nothing billed. Two tabs of one screen contradicting
+    // each other, with the collections number overstated by every staged draft.
+    //
+    // Same population as WIP billings, deliberately: sent / partially_paid /
+    // paid / overdue have genuinely been billed; draft has not.
+    if (inv.status === 'draft') continue;
+    // Outstanding = totalDue - amountPaid. Skip anything already collected
+    // (half-dollar floor absorbs rounding on split payments).
     const outstanding = (inv.totalDue || 0) - (inv.amountPaid || 0);
     if (outstanding <= 0.5) continue;
 

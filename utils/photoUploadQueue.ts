@@ -175,11 +175,39 @@ export async function queuePhotoUpload(input: QueuePhotoInput): Promise<void> {
         notifyDroppedPhotos(dropped.length, 'queue cap exceeded');
       }
     });
+    // Raised only AFTER the photo is persisted, so the flag can never mean
+    // anything but "a task exists on disk that a running flush's snapshot
+    // predates". Raising it before the write would let a flush that snapshots
+    // in the gap clear it and lose the photo. See scheduleOpportunisticDrain.
+    photoQueuedSinceSnapshot = true;
     scheduleOpportunisticDrain();
   } catch (err) {
     console.warn('[PhotoQueue] Failed to queue photo upload:', err);
   }
 }
+
+let drainTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Raised by queuePhotoUpload once a task is on disk, lowered by
+ * runPhotoUploadQueue the instant it takes its snapshot. `true` therefore means
+ * exactly one thing: a queued photo exists that the currently-running flush
+ * cannot see.
+ *
+ * WHY IT EXISTS. processPhotoUploadQueue coalesces — a second caller gets the
+ * FIRST flush's promise back, and that flush's queue snapshot predates the new
+ * photo. So a photo taken during a flush used to: schedule a drain, fire it
+ * 1500 ms later, be handed the older flush's promise, and have the result
+ * (`remaining: 1` and all) thrown away by a bare `.catch()`. drainTimer was
+ * already null, so nothing re-armed, and OfflineSyncManager's backoff is idle
+ * whenever the user is online and synced — which is the normal case this drain
+ * was written for. The bytes then sat in documentDirectory until the next
+ * foreground cycle, and were lost outright if the app was deleted first: a
+ * super shooting a burst one frame at a time got only the FIRST photo of each
+ * burst into Storage, and the client portal / homeowner digest / every other
+ * device silently missed the rest.
+ */
+let photoQueuedSinceSnapshot = false;
 
 /**
  * Try to upload right away instead of waiting for the next foreground.
@@ -193,13 +221,38 @@ export async function queuePhotoUpload(input: QueuePhotoInput): Promise<void> {
  * we want ONE flush, not eight. Offline, the attempt simply classifies as
  * transient and costs nothing — there is no connectivity API here, so trying is
  * how we find out (exactly how supabaseWrite behaves).
+ *
+ * Scheduling alone is not enough: the flush this fires may be COALESCED into an
+ * older one that cannot see the photo we were scheduled for. So the drain now
+ * inspects its own result and re-arms itself once when there is provably more
+ * to do — see photoQueuedSinceSnapshot above.
  */
-let drainTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleOpportunisticDrain(): void {
   if (drainTimer) clearTimeout(drainTimer);
   drainTimer = setTimeout(() => {
     drainTimer = null;
-    void processPhotoUploadQueue().catch(() => {/* the queue keeps the work */});
+    void processPhotoUploadQueue()
+      .then((res) => {
+        // Re-arm only on positive evidence that another pass can achieve
+        // something:
+        //   • photoQueuedSinceSnapshot — we coalesced onto a flush that had
+        //     already read the queue, so our photo was never attempted.
+        //   • uploaded > 0 && remaining > 0 — the uplink is demonstrably alive
+        //     and the flush still left work behind (a burst that hiccupped
+        //     part-way through).
+        //
+        // Deliberately NOT a bare `remaining > 0`: offline, EVERY flush ends
+        // with remaining > 0 forever, which would turn this into a 1500 ms hot
+        // loop re-attempting multi-MB uploads on a jobsite with no signal.
+        // Retrying an offline device is OfflineSyncManager's exponential
+        // backoff's job, not this function's. Both clauses above terminate —
+        // the first needs a brand-new photo, the second needs a photo to have
+        // actually left the queue, and the queue is capped at PHOTO_MAX_QUEUE.
+        if (photoQueuedSinceSnapshot || (res.uploaded > 0 && res.remaining > 0)) {
+          scheduleOpportunisticDrain();
+        }
+      })
+      .catch(() => {/* the queue keeps the work */});
   }, 1500);
 }
 
@@ -218,6 +271,15 @@ export function processPhotoUploadQueue(): Promise<{ uploaded: number; failed: n
 }
 
 async function runPhotoUploadQueue(): Promise<{ uploaded: number; failed: number; remaining: number }> {
+  // Lower the flag BEFORE the snapshot read below, never after. A photo
+  // enqueued in the gap is then double-counted — it is in our snapshot AND
+  // re-raises the flag — which costs one extra flush that finds an empty queue
+  // and returns immediately. Lowering it after the read would instead SWALLOW
+  // that photo: it would be outside the snapshot and have no flag left to
+  // trigger a re-arm. Erring toward a redundant flush is the only safe
+  // direction here; photos are legal documentation on a job.
+  photoQueuedSinceSnapshot = false;
+
   if (!isSupabaseConfigured) return { uploaded: 0, failed: 0, remaining: 0 };
 
   const queue = await getPhotoUploadQueue();

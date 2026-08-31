@@ -14,6 +14,7 @@ import { Tokens } from '@/constants/designTokens';
 import { TaskChecklist } from './TaskChecklist';
 import { PercentSlider } from './PercentSlider';
 import { showAlert } from '@/utils/alert';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 interface TaskDetailSheetProps {
   visible: boolean;
@@ -70,8 +71,19 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
     }
   }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // baseMs is LOCAL midnight of schedule day 1. It used to be
+  // `new Date(startDate)` + setHours(0,0,0,0), and `startDate` is a bare
+  // 'YYYY-MM-DD' (MobileScheduleScreen.tsx) — the spec parses that as UTC
+  // MIDNIGHT, so at any negative UTC offset the floor landed on the PREVIOUS
+  // local day. Because `fmt` below prints the WEEKDAY NAME, the error was loud
+  // and pointed the wrong way: a startDay:1 task on a schedule anchored Monday
+  // Mar 2 read "Sun, Mar 1" while the desktop grid read Mar 2 for the same
+  // task. The ± stepper edits startDay against that mislabeled date, so a
+  // foreman "correcting" it moved real scheduled work by a day.
+  // parseCalendarDay (utils/calendarDate.ts) is the shared fix and also
+  // tolerates the full ISO timestamp Supabase can hand back for this field.
   const baseMs = useMemo(() => {
-    const d = startDate ? new Date(startDate) : new Date();
+    const d = parseCalendarDay(startDate) ?? new Date();
     d.setHours(0, 0, 0, 0);
     return d.getTime();
   }, [startDate]);

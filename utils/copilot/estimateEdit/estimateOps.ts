@@ -2,11 +2,25 @@
 // conversational ESTIMATE editing + a pure normalizer + the canonical total
 // recompute. React/RN-free so validators drive it.
 //
-// Money math (matches estimate-wizard / pdfGenerator / the estimate-create
-// capability): lineTotal = qty × (usesBulk ? bulkPrice : unitPrice);
-// baseTotal = Σ lineTotal; markupTotal = baseTotal × globalMarkup/100;
-// grandTotal = baseTotal + markupTotal. Per-item markup is intentionally NOT an
-// edit lever in v1 — globalMarkup is the canonical markup control.
+// Money math. This MUST mirror the estimator that authored the estimate
+// (app/(tabs)/estimate/full.tsx buildLinkedEstimate, :930-998), because an
+// edit here is written straight over project.linkedEstimate and therefore
+// moves the contract value:
+//   lineTotal   = qty × (usesBulk ? bulkPrice : unitPrice) × (1 + markup/100)
+//   baseTotal   = Σ qty × base        — pre-markup cost of every line
+//   grandTotal  = Σ lineTotal         — what the client is quoted
+//   markupTotal = grandTotal − baseTotal
+// Markup is PER LINE (full.tsx:933). Labor lines (adjustedRate is the all-in
+// rate) and assembly lines (totalCost is all-in) are stamped markup: 0 by the
+// estimator and must stay at cost — see isAtCostLine below.
+//
+// The header here used to claim "Per-item markup is intentionally NOT an edit
+// lever — globalMarkup is the canonical markup control", and the code matched
+// that claim: it dropped each line's own markup and re-applied globalMarkup to
+// the summed base. Both were wrong. On a $100K materials + $50K labor estimate
+// at 15%, changing one quantity by voice re-marked-up the at-cost labor and
+// raised the grand total by $7,500 — and the diff screen presented the inflated
+// number as if it were the change the contractor had asked for.
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 
 /** An item reference: a LinkedEstimateItem.materialId; the interpreter also
@@ -65,15 +79,52 @@ export function normalizeEstimateOps(raw: unknown): EstimateEditOp[] {
   return out;
 }
 
+/** Category labels the estimator writes for lines that are ALREADY all-in cost:
+ *  labor's adjustedRate carries the trade's own burden and an assembly's
+ *  totalCost bakes in its material + labor, so full.tsx:963/:980 and
+ *  estimate/review.tsx:196/:204 stamp both with markup: 0. Marking these up is
+ *  what silently inflated the contract value on every voice edit. */
+const AT_COST_CATEGORIES = new Set(['labor', 'assemblies']);
+
+/** True when a line is priced at cost and must never receive markup. */
+export function isAtCostLine(item: Pick<LinkedEstimateItem, 'category'>): boolean {
+  return AT_COST_CATEGORIES.has(String(item.category ?? '').trim().toLowerCase());
+}
+
+/** Cascade a new global markup across the lines that are allowed to carry one,
+ *  mirroring MaterialCartContext.setGlobalMarkup — which maps over `cart`
+ *  (materials) and never touches laborCart / assemblyCart. Pure; feed the
+ *  result to recomputeEstimate.
+ *
+ *  NOTE FOR THE setGlobalMarkup OP: interpretEstimateOps.ts currently only
+ *  reassigns estimate.globalMarkup, which — now that money is per-line — moves
+ *  no totals. That op's case should run its items through this helper so
+ *  "bump the markup to 20%" reprices materials and leaves labor/assemblies at
+ *  cost. recomputeEstimate re-zeroes at-cost lines regardless, so a cascade
+ *  written any other way still cannot mark up labor. */
+export function applyGlobalMarkupToItems(items: LinkedEstimateItem[], markupPct: number): LinkedEstimateItem[] {
+  return items.map((it) => (isAtCostLine(it) ? { ...it, markup: 0 } : { ...it, markup: markupPct }));
+}
+
 /** Recompute every line's total + the estimate's three totals from the current
- *  items + globalMarkup. The single source of money-truth for edits. */
+ *  items. The single source of money-truth for edits. */
 export function recomputeEstimate(estimate: LinkedEstimate): LinkedEstimate {
   const items: LinkedEstimateItem[] = estimate.items.map((it) => {
     const base = it.usesBulk ? it.bulkPrice : it.unitPrice;
-    return { ...it, lineTotal: round2(it.quantity * base) };
+    // Per-line markup, exactly as the estimator prices a line (full.tsx:933).
+    // At-cost lines are forced back to 0 so the line's own markup field and its
+    // lineTotal always agree, and so no upstream cascade can re-price labor or
+    // an assembly. numOr guards persisted rows with a missing/NaN markup, which
+    // would otherwise poison every total on the estimate.
+    const markup = isAtCostLine(it) ? 0 : numOr(it.markup, 0);
+    return { ...it, markup, lineTotal: round2(it.quantity * base * (1 + markup / 100)) };
   });
-  const baseTotal = round2(items.reduce((s, it) => s + it.lineTotal, 0));
-  const markupTotal = round2(baseTotal * (estimate.globalMarkup / 100));
-  const grandTotal = round2(baseTotal + markupTotal);
+  // baseTotal sums the PRE-markup cost of every line and grandTotal sums the
+  // markup-inclusive line totals, so the two differ by exactly the markup the
+  // lines actually carry. Summing the already-rounded lineTotals keeps the
+  // displayed rows footing to the displayed grand total.
+  const baseTotal = round2(items.reduce((s, it) => s + it.quantity * (it.usesBulk ? it.bulkPrice : it.unitPrice), 0));
+  const grandTotal = round2(items.reduce((s, it) => s + it.lineTotal, 0));
+  const markupTotal = round2(grandTotal - baseTotal);
   return { ...estimate, items, baseTotal, markupTotal, grandTotal };
 }

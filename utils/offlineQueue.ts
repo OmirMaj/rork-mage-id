@@ -218,7 +218,29 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
     const gDropped: OfflineMutation[] = [];
     const gProcessedTables = new Set<string>();
 
-    for (const mutation of group) {
+    // ABORT THE GROUP ON THE FIRST FAILURE.
+    //
+    // Grouping exists to preserve intra-record ordering (see the comment where
+    // groupMap is built). The loop used to `continue` past a failed mutation to
+    // the next one for the SAME record, which defeats that entirely and loses
+    // the user's work silently:
+    //
+    //   A contractor working offline — the normal jobsite state — creates a
+    //   change order and then approves it up to $7,500 in the same session.
+    //   On the next flush the INSERT fails (FK: the parent project row has not
+    //   synced yet). The loop continues to the queued UPDATE, which runs
+    //   `update(rest).eq('id', id)` against a row that does not exist. That
+    //   matches ZERO rows and PostgREST returns NO ERROR — so gProcessed++
+    //   fires, the mutation is discarded at write-back, and the insert
+    //   succeeds on a later flush carrying its ORIGINAL $5,000 payload.
+    //
+    // The $7,500 approval is gone from the server, from every other device, and
+    // from the homeowner's portal. changeOrdersQuery is server-first and calls
+    // saveLocal, so the device that made the edit reverts to match on next
+    // launch. Create-then-delete resurrects the deleted row permanently.
+    //
+    // `index` lets the failure branches re-queue the untouched remainder.
+    for (const [index, mutation] of group.entries()) {
       try {
         let error: { message: string } | null = null;
 
@@ -237,6 +259,22 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
           const { id, ...rest } = mutation.data;
           const result = await supabase.from(mutation.table).update(rest).eq('id', id as string);
           error = result.error;
+          // NOT CHANGED DELIBERATELY: this does not assert a non-zero row match.
+          //
+          // The audit suggested `{ count: 'exact' }` here and treating a 0-row
+          // update as a failure. That closes one hole and opens a worse one: a
+          // row legitimately deleted on another device makes every queued edit
+          // for it fail forever, and a mutation that can never succeed and is
+          // never dropped is an immortal queue entry — the exact bug already
+          // fixed for revoked blob: photo uploads (utils/fileBytes.ts).
+          //
+          // The group abort above removes the reachable cause: a 0-row update
+          // happened because an EARLIER mutation for the same record failed and
+          // the loop carried on regardless. With the group aborted, an update
+          // only runs after its own insert succeeded. Distinguishing "parent
+          // not synced yet" from "row deleted elsewhere" needs a tombstone the
+          // schema does not have; adding retry semantics without it would trade
+          // silent loss for silent immortality.
         } else if (mutation.operation === 'delete') {
           const result = await supabase.from(mutation.table).delete().eq('id', mutation.data.id as string);
           error = result.error;
@@ -260,22 +298,46 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
           // server-side (5xx / transient-but-terminal) failures below.
           console.log('[OfflineQueue] Transient error, keeping mutation queued:', mutation.table, mutation.operation);
           gRemaining.push(mutation);
-          continue;
+          // Everything after this belongs to the SAME record and must not be
+          // attempted against a row this mutation has not created/updated yet.
+          gRemaining.push(...group.slice(index + 1));
+          break;
         }
         if (isTerminalError(msg)) {
           console.warn('[OfflineQueue] Terminal error, discarding mutation:', mutation.table, mutation.operation, msg);
           gFailed++;
           gDropped.push(mutation);
-          continue;
+          // The rest of the group dies WITH it, and is REPORTED as dropped
+          // rather than silently discarded. If an insert is permanently
+          // rejected (RLS, auth), its dependent edits can never apply — but
+          // letting them run would make them 0-row no-ops that report SUCCESS,
+          // which is how the data loss above happens. Counting them as failed
+          // is what surfaces the loss to the user instead of hiding it.
+          const orphaned = group.slice(index + 1);
+          if (orphaned.length > 0) {
+            console.warn('[OfflineQueue] Dropping', orphaned.length, 'dependent mutation(s) for the same record');
+            gFailed += orphaned.length;
+            gDropped.push(...orphaned);
+          }
+          break;
         }
         mutation.retryCount++;
         if (mutation.retryCount >= MAX_RETRIES) {
           console.warn('[OfflineQueue] Discarding mutation after max retries:', mutation.table, mutation.operation, err);
           gFailed++;
           gDropped.push(mutation);
+          // Same reasoning as the terminal branch — the dependents are dead and
+          // must be reported, not silently turned into 0-row successes.
+          const orphaned = group.slice(index + 1);
+          if (orphaned.length > 0) {
+            gFailed += orphaned.length;
+            gDropped.push(...orphaned);
+          }
         } else {
           gRemaining.push(mutation);
+          gRemaining.push(...group.slice(index + 1));
         }
+        break;
       }
     }
 

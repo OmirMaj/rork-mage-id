@@ -134,7 +134,13 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   // `requires` mirrors the real gate at app/estimate-scorecard.tsx:51
   // (canAccess('job_costing')), NOT brain_accuracy like its neighbour.
   { id: 'estimate-scorecard', title: 'Estimate Scorecard', synonyms: ['bid accuracy', 'where i lose money', 'underbid', 'overbid', 'estimate misses', 'what did i get wrong', 'accuracy by trade'], route: '/estimate-scorecard', requires: 'job_costing', icon: 'BarChart3', group: 'workspace' },
-  { id: 'margin-board', title: 'Margin Board', synonyms: ['margins', 'portfolio', 'profit board'], route: '/portfolio-margin', requires: 'job_costing', icon: 'MageMargin', group: 'workspace' },
+  // `requires` mirrors the real gate at app/portfolio-margin.tsx:59
+  // (canAccess('portfolio_margin') = Business), NOT job_costing (Pro) like its
+  // neighbours. It said 'job_costing' until 2026-08-31: a Pro subscriber
+  // searching "margin" saw NO lock chip, tapped through, and hit the Business
+  // wall the chip exists to warn about — then got shown the wrong upsell.
+  // DesktopSidebar.tsx:65 already had the correct key; this row had drifted.
+  { id: 'margin-board', title: 'Margin Board', synonyms: ['margins', 'portfolio', 'profit board'], route: '/portfolio-margin', requires: 'portfolio_margin', icon: 'MageMargin', group: 'workspace' },
   { id: 'margin-alerts', title: 'Margin Alerts', synonyms: ['leak', 'profit alerts', 'slipping'], route: '/margin-alerts', requires: 'job_costing', icon: 'BellRing', group: 'workspace' },
   { id: 'cost-database', title: 'Cost Database', synonyms: ['unit costs', 'price book', 'learned costs', 'rates'], route: '/cost-database', requires: 'job_costing', icon: 'MageCostDb', group: 'workspace' },
   { id: 'cost-seed', title: 'Seed Your Rates', synonyms: ['import rates', 'my prices', 'set my rates', 'paste rates', 'starting rates', 'import price book', 'cold start'], route: '/cost-seed', requires: 'job_costing', icon: 'Upload', group: 'workspace' },
@@ -162,14 +168,26 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'companies', title: 'Companies', synonyms: ['firms', 'gc directory'], route: '/(tabs)/discover/companies', icon: 'Building2', group: 'network' },
   { id: 'sub-scorecard', title: 'Sub Scorecard', synonyms: ['sub grades', 'ratings', 'who is good'], route: '/sub-scorecard', icon: 'Award', group: 'network' },
   { id: 'prequal-manager', title: 'Prequalification', synonyms: ['prequal', 'qualify subs', 'packets'], route: '/prequal-manager', requires: 'prequal_coi', icon: 'ClipboardList', group: 'network' },
-  { id: 'coi-vault', title: 'COI Vault', synonyms: ['insurance', 'certificates', 'coi', 'expirations'], route: '/coi-vault', requires: 'prequal_coi', icon: 'ShieldCheck', group: 'network' },
+  // COI Vault gates on 'rfis_submittals' (Business) at app/coi-vault.tsx:50 —
+  // NOT on 'prequal_coi' (Pro) like the Prequalification row above it, despite
+  // the shared feature-key name. It advertised prequal_coi until 2026-08-31, so
+  // a Pro subscriber searching "coi" got no lock chip and walked into a
+  // Business wall. The key here must be the one the destination checks.
+  { id: 'coi-vault', title: 'COI Vault', synonyms: ['insurance', 'certificates', 'coi', 'expirations'], route: '/coi-vault', requires: 'rfis_submittals', icon: 'ShieldCheck', group: 'network' },
   { id: 'sub-portals', title: 'Sub Portals', synonyms: ['subcontractor portal', 'sub links'], route: '/sub-portals', icon: 'Handshake', group: 'network' },
 
   // ── AI tools ──────────────────────────────────────────────────────────
   { id: 'construction-ai', title: 'Construction AI', synonyms: ['code check', 'building code', 'permit roadmap', 'plan review', 'ada', 'zoning', 'egress'], route: '/(tabs)/construction-ai', icon: 'MageAIMark', group: 'ai' },
   { id: 'takeoff', title: 'AI Takeoff', synonyms: ['quantity takeoff', 'pdf takeoff', 'count', 'linear'], route: '/takeoff', icon: 'MageTakeoff', group: 'ai' },
   { id: 'area-takeoff', title: 'Visual Takeoff', synonyms: ['floor plan takeoff', 'measure', 'square feet', 'sqft'], route: '/area-takeoff', requires: 'job_costing', icon: 'MageTakeoff', group: 'ai' },
-  { id: 'plan-intelligence', title: 'Plan Intelligence', synonyms: ['ask your plans', 'plan search', 'find on plans'], route: '/plan-intelligence', requires: 'ask_your_plans', icon: 'FileSearch', group: 'ai' },
+  // Reads 'ai_estimate_wizard' (Pro) because that is what the screen actually
+  // enforces (app/plan-intelligence.tsx:61), even though the feature is named
+  // after 'ask_your_plans' (Business). It advertised ask_your_plans until
+  // 2026-08-31, which put a BUSINESS lock chip on a screen a Pro subscriber
+  // already owns — so they never opened a feature they were paying for.
+  // NOTE: components/DesktopSidebar.tsx:104 still says 'ask_your_plans' and
+  // needs the same correction (that file is not owned by this change).
+  { id: 'plan-intelligence', title: 'Plan Intelligence', synonyms: ['ask your plans', 'plan search', 'find on plans'], route: '/plan-intelligence', requires: 'ai_estimate_wizard', icon: 'FileSearch', group: 'ai' },
   { id: 'ai-punch', title: 'AI Punch from Photos', synonyms: ['photo punch', 'walk the site', 'auto punch'], route: '/ai-punch', icon: 'Camera', group: 'ai' },
   { id: 'compare-drawings', title: 'Compare Drawings', synonyms: ['diff', 'revisions', 'what changed', 'delta'], route: '/compare-drawings', icon: 'FileDiff', group: 'ai' },
   { id: 'extract-submittals', title: 'Spec Book Extract', synonyms: ['spec book', 'submittal log', 'divisions'], route: '/extract-submittals', icon: 'BookOpen', group: 'ai' },

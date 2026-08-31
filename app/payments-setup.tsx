@@ -8,12 +8,16 @@
 //   1. First open: shows the value prop ("Get paid faster — clients
 //      pay invoices in one tap, money lands in your bank") + a big
 //      "Set up payments" CTA. Disabled while we fetch status.
-//   2. Tap CTA: kick off connect-onboarding, open the returned URL
-//      in an in-app browser via expo-web-browser. We pass our app's
-//      payments-setup deep link as both returnUrl and refreshUrl.
-//   3. When the in-app browser closes (user finishes or bails),
-//      we re-poll status. If charges_enabled, switch to the
-//      Connected card.
+//   2. Tap CTA: kick off connect-onboarding, then open the returned URL.
+//      On NATIVE that's an in-app browser via expo-web-browser; on WEB
+//      it's a new tab (see handleStart — expo-web-browser's web shim
+//      does not wait for dismissal, so the native post-flight poll is
+//      wrong there). We pass our app's payments-setup deep link as both
+//      returnUrl and refreshUrl.
+//   3. Native: when the in-app browser closes (user finishes or bails),
+//      we re-poll status. Web: the returnUrl round-trip re-mounts this
+//      screen and polls, and the focus/visibilitychange listener re-polls
+//      the original tab. If charges_enabled, switch to the Connected card.
 //   4. If status is 'pending' (submitted but not yet enabled),
 //      show a soft "Stripe is reviewing your info — usually <1h"
 //      with a Refresh button.
@@ -123,6 +127,31 @@ export default function PaymentsSetupScreen() {
     refresh(true);
   }, [refresh]);
 
+  // Web only — re-poll Stripe when the user comes back to this tab.
+  //
+  // On native, openBrowserAsync resolves when the in-app browser is
+  // dismissed, so handleStart can poll straight after it. On web there is
+  // no such moment: Stripe onboarding happens in a different tab entirely
+  // and expo-web-browser's web shim resolves the instant the tab opens.
+  // Without this listener the original tab keeps showing "not connected"
+  // long after onboarding finished, until the user thinks to hit Refresh.
+  // Silent so it never flashes the header spinner; stops once connected
+  // so we're not calling connect-status on every tab switch forever.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (status === 'connected') return;
+    const onFocus = () => { void refresh(true); };
+    const onVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') onFocus();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [refresh, status]);
+
   const handleStart = useCallback(async () => {
     if (!user?.id || !user?.email) {
       showAlert('Sign In Required', 'Please sign in to set up payments.');
@@ -134,10 +163,12 @@ export default function PaymentsSetupScreen() {
       // Stripe's account_links API requires HTTPS URLs and rejects custom
       // schemes (mageid://, exp://). We point it at the web build of the
       // app at app.mageid.app/payments-setup which renders the same React
-      // component. After the redirect lands there, the user is still
+      // component. On NATIVE, the redirect lands while the user is still
       // inside the in-app browser (SafariViewController / Chrome Custom
-      // Tabs); they close it and our openBrowserAsync call returns,
-      // triggering the post-flight status re-poll below.
+      // Tabs); they close it, our openBrowserAsync call returns, and that
+      // triggers the post-flight status re-poll below. On WEB there is no
+      // such dismissal event (see the web branch after this call), so the
+      // redirect itself re-mounts this screen and polls on mount.
       const returnUrl = 'https://app.mageid.app/payments-setup?return=1';
       const refreshUrl = 'https://app.mageid.app/payments-setup?refresh=1';
 
@@ -159,8 +190,42 @@ export default function PaymentsSetupScreen() {
         return;
       }
 
-      // Open Stripe's hosted onboarding in a system browser/in-app
-      // browser. Returns when the user closes it OR returnUrl fires.
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        // Audit #26 — web must NOT await-then-poll.
+        //
+        // expo-web-browser's web implementation is literally
+        // `window.open(url, name, features); return { type: 'opened' }`
+        // (node_modules/expo-web-browser/build/ExpoWebBrowser.web.js) — it
+        // resolves the moment the tab opens, unlike SafariViewController /
+        // Custom Tabs on native which resolve on dismissal. The old code
+        // treated the two the same, so on web the post-flight poll ran
+        // within the same second: connect-onboarding has by then written
+        // stripe_account_id with charges_enabled=false, connect-status
+        // derives that as 'incomplete', and the contractor was told
+        // "Setup Not Finished" about a flow whose first page they hadn't
+        // even read yet. Worse, that early poll was the only one, so a
+        // user who DID finish in the other tab stayed stuck on the
+        // not-connected card. Open and get out of the way — the returnUrl
+        // (?return=1) round-trip re-mounts this screen and polls, and the
+        // focus/visibilitychange effect above re-polls this tab.
+        //
+        // We call window.open ourselves rather than openBrowserAsync so we
+        // get a full tab instead of the shim's 500x650 popup (Stripe's KYC
+        // forms and document upload are miserable in a popup) and so we can
+        // see a null handle, which means the browser blocked it — Safari
+        // drops the click's transient activation across the awaited
+        // connect-onboarding fetch above. Same-tab navigation is never
+        // blocked, and returnUrl brings them right back here. No
+        // `noopener`: it forces window.open to return null, which would
+        // destroy that popup-blocked signal; the target is Stripe's own
+        // hosted page.
+        const opened = window.open(res.url, '_blank');
+        if (!opened) window.location.assign(res.url);
+        return;
+      }
+
+      // Native — open Stripe's hosted onboarding in an in-app browser.
+      // Returns when the user closes it OR returnUrl fires.
       const result = await WebBrowser.openBrowserAsync(res.url, {
         dismissButtonStyle: 'close',
         toolbarColor: themeColors.surface,

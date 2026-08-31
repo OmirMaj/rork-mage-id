@@ -54,7 +54,23 @@ function ScheduleShareSheet({
   }, [tasks]);
 
   const generatePdfHtml = useCallback((filteredTasks: ScheduleTask[]): string => {
-    const endDate = addWorkingDays(projectStartDate, schedule.totalDurationDays, schedule.workingDaysPerWeek);
+    // totalDurationDays is the project FINISH DAY NUMBER, not a count of days
+    // to advance PAST day 1: scheduleEngine.buildScheduleFromTasks stores
+    // `max(startDay + durationDays - 1)` there. Advancing the anchor by the
+    // full number therefore overshot the real finish by one WORKING day (up to
+    // three calendar days when it straddled a weekend), and this PDF then
+    // contradicted the last row of its own task table — the rows below use
+    // getTaskDateRange, which correctly walks `startDay - 1` working days. A
+    // single startDay:1 / duration:5 task on a Monday anchor printed End Fri
+    // Mar 6 in the table and "Mar 2 – Mar 9 · 5 working days" in the header.
+    // nonWorkingDates is threaded too so holidays/closures move the client-
+    // facing completion date the same way they move the task rows.
+    const endDate = addWorkingDays(
+      projectStartDate,
+      Math.max(0, schedule.totalDurationDays - 1),
+      schedule.workingDaysPerWeek,
+      schedule.nonWorkingDates,
+    );
     const totalProgress = filteredTasks.length > 0
       ? Math.round(filteredTasks.reduce((s, t) => s + t.progress, 0) / filteredTasks.length)
       : 0;

@@ -701,11 +701,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
               // items became client-visible on the next project open.
               portalState: (r.portal_state as PortalState | null) ?? undefined,
-              // Written on update, never read. The days a CO adds to the schedule
-              // is the contractual time-extension claim; losing it on refetch
-              // means the reflow silently re-applies or the entitlement is gone.
+              // The days a CO adds to the schedule is the contractual
+              // time-extension claim; losing it on refetch means the reflow
+              // silently re-applies or the entitlement is gone.
               scheduleImpactDays: r.schedule_impact_days == null ? undefined : Number(r.schedule_impact_days),
               scheduleImpactApplied: r.schedule_impact_applied == null ? undefined : Boolean(r.schedule_impact_applied),
+              // The two anchor columns were written by NOTHING and read by
+              // NOTHING before this — migration 20260803150000 added them so
+              // "the anchor survives a device swap" and then no code ever
+              // touched them. Without them a second device forgets which task
+              // the GC picked to absorb the days and asks them to place the
+              // extension again (or silently re-derives a different anchor).
+              scheduleImpactTaskIds: (r.schedule_impact_task_ids as string[] | null) ?? undefined,
+              scheduleAnchorTaskId: (r.schedule_anchor_task_id as string | null) ?? undefined,
             })) as ChangeOrder[];
             await saveLocal(CHANGE_ORDERS_KEY, mapped);
             return mapped;
@@ -2216,6 +2224,45 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     [projects],
   );
 
+  // Snake/camel mapping for the change_orders row — every column an EDIT may
+  // change. ONE builder for insert and update so the two payloads cannot drift
+  // (the insert-only columns are added at the insert site).
+  //
+  // WHY THIS EXISTS. The insert used to hand-list its columns and omitted ALL
+  // FOUR schedule_* columns; the update wrote only schedule_impact_days and
+  // schedule_impact_applied. schedule_impact_task_ids / schedule_anchor_task_id
+  // were written by nothing and read by nothing anywhere in the repo, despite
+  // migration 20260803150000 adding them so "the anchor survives a device
+  // swap".
+  //
+  // What the user saw: a CO created with "+5 days" lost the days on the first
+  // server-first refetch (app restart, or past react-query's staleTime), so
+  // scheduleImpactDays hydrated as undefined; approving it then ran
+  // normalizeImpactDays(undefined) → 0 → 'no_impact' and NOTHING on the Gantt
+  // moved. The owner had signed off on the extension, the CO PDF dropped its
+  // Schedule Impact row, and the contractual time-extension entitlement was
+  // absent from the server row entirely. Losing scheduleAnchorTaskId meant the
+  // task the GC picked to absorb the days had to be picked again on every
+  // device.
+  //
+  // schedule_impact_applied is NOT the authoritative "already reflowed" signal
+  // — audit_trail is (utils/coScheduleReflowCore.isCoScheduleReflowApplied
+  // checks the CO_REFLOW_ACTION marker first), and audit_trail is written here
+  // too, so mirroring the local boolean cannot cause a double-apply.
+  const changeOrderToRow = useCallback((co: ChangeOrder) => ({
+    id: co.id, project_id: co.projectId, number: co.number, date: co.date,
+    description: co.description, reason: co.reason, line_items: co.lineItems,
+    original_contract_value: co.originalContractValue, change_amount: co.changeAmount,
+    new_contract_total: co.newContractTotal, status: co.status,
+    approvers: co.approvers, approval_mode: co.approvalMode,
+    approval_deadline_days: co.approvalDeadlineDays,
+    audit_trail: co.auditTrail, revision: co.revision, updated_at: co.updatedAt,
+    schedule_impact_days: co.scheduleImpactDays ?? null,
+    schedule_impact_applied: co.scheduleImpactApplied ?? false,
+    schedule_impact_task_ids: co.scheduleImpactTaskIds ?? null,
+    schedule_anchor_task_id: co.scheduleAnchorTaskId ?? null,
+  }), []);
+
   // Atomic multi-add. IMPORTANT: `addChangeOrder` closes over the render-time
   // `changeOrders` snapshot and commits the FULL array (state + AsyncStorage
   // persist), so calling it more than once in the same tick makes every call
@@ -2234,16 +2281,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) {
       for (const finalCo of finalCos) {
         void supabaseWrite('change_orders', 'insert', {
-          id: finalCo.id, user_id: userId, project_id: finalCo.projectId, number: finalCo.number, date: finalCo.date,
-          description: finalCo.description, reason: finalCo.reason, line_items: finalCo.lineItems, original_contract_value: finalCo.originalContractValue,
-          change_amount: finalCo.changeAmount, new_contract_total: finalCo.newContractTotal, status: finalCo.status,
-          approvers: finalCo.approvers, approval_mode: finalCo.approvalMode, approval_deadline_days: finalCo.approvalDeadlineDays,
-          audit_trail: finalCo.auditTrail, revision: finalCo.revision, created_at: finalCo.createdAt, updated_at: finalCo.updatedAt,
+          ...changeOrderToRow(finalCo),
+          user_id: userId, created_at: finalCo.createdAt,
           portal_state: finalCo.portalState,
         });
       }
     }
-  }, [changeOrders, saveChangeOrdersMutation, canSync, userId, initialPortalState]);
+  }, [changeOrders, saveChangeOrdersMutation, canSync, userId, initialPortalState, changeOrderToRow]);
 
   const addChangeOrder = useCallback((co: ChangeOrder) => {
     addChangeOrders([co]);
@@ -2344,16 +2388,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) {
       const co = committedCOs.find(c => c.id === id);
       if (co) {
-        void supabaseWrite('change_orders', 'update', {
-          id, description: co.description, reason: co.reason, line_items: co.lineItems,
-          original_contract_value: co.originalContractValue, change_amount: co.changeAmount,
-          new_contract_total: co.newContractTotal, status: co.status, approvers: co.approvers,
-          audit_trail: co.auditTrail, revision: co.revision, updated_at: now,
-          schedule_impact_days: co.scheduleImpactDays, schedule_impact_applied: co.scheduleImpactApplied,
-        });
+        // Shares changeOrderToRow with the insert so an edit can never persist
+        // fewer columns than a create. portal_state is deliberately NOT here:
+        // it is owned by sendToClientPortal / recallFromClientPortal, and
+        // writing a possibly-stale in-memory copy on every edit is exactly how
+        // warranties and aia_pay_apps nulled a good server row.
+        void supabaseWrite('change_orders', 'update', { ...changeOrderToRow(co), updated_at: now });
       }
     }
-  }, [changeOrders, projects, saveChangeOrdersMutation, saveProjectsMutation, syncProjectToSupabase, canSync, user]);
+  }, [changeOrders, projects, saveChangeOrdersMutation, saveProjectsMutation, syncProjectToSupabase, canSync, user, changeOrderToRow]);
 
   const getChangeOrdersForProject = useCallback((projectId: string) => {
     return changeOrders.filter(co => co.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -3571,33 +3614,63 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     void saveLocal(WARRANTIES_KEY, list);
   }, []);
 
-  const updateItemPortalState = useCallback(
-    (kind: SendableItemKind, itemId: string, next: PortalState) => {
-      const setNext = <T extends { id: string; portalState?: PortalState }>(list: T[]): T[] =>
-        list.map(i => i.id === itemId ? { ...i, portalState: next } : i);
+  // Apply portal-state changes to MANY items in one pass. Every list is mapped
+  // and persisted exactly ONCE, no matter how many of its items are in the
+  // batch.
+  //
+  // WHY A BATCH FORM EXISTS. The single-item version reads the state arrays
+  // straight out of its closure (`setNext(changeOrders)`), which is correct for
+  // one call but silently lossy when called N times in one synchronous tick:
+  // React does not re-render mid-loop, so iteration 2 maps over the ORIGINAL
+  // array and drops iteration 1's change. batchSendToClientPortal did exactly
+  // that, so only the LAST item of each kind kept status 'sent' while `sent++`
+  // counted every one. The GC was told "3 items sent to your client" and the
+  // Client Outbox still listed 2 of them as drafts; tapping Send all again
+  // inserted a SECOND consolidated portal message and re-versioned documents
+  // the client already had. Send 10 photos and 9 stayed 'draft' locally — the
+  // copy an offline device renders from.
+  const applyPortalStates = useCallback(
+    (entries: { kind: SendableItemKind; itemId: string; next: PortalState }[]) => {
+      if (entries.length === 0) return;
+      // kind → (itemId → next). Last write for a given id wins, matching what a
+      // sequential loop would have produced.
+      const byKind = new Map<SendableItemKind, Map<string, PortalState>>();
+      for (const e of entries) {
+        let m = byKind.get(e.kind);
+        if (!m) { m = new Map(); byKind.set(e.kind, m); }
+        m.set(e.itemId, e.next);
+      }
+      const setNext = <T extends { id: string; portalState?: PortalState }>(
+        list: T[], m: Map<string, PortalState>,
+      ): T[] => list.map(i => {
+        const next = m.get(i.id);
+        return next ? { ...i, portalState: next } : i;
+      });
       // PERSIST, don't just setState. These setters were React-state-only, so a
       // send or a recall lived in memory and nowhere else: restart the app
       // before a server refetch landed and the local cache still said 'draft'
       // for something already sent (or 'sent' for something recalled). The
       // queued server write was fine — the LOCAL copy was the stale one, which
       // is the copy an offline device renders from.
-      switch (kind) {
-        case 'change_order': { const n = setNext(changeOrders); setChangeOrders(n); saveChangeOrdersMutation.mutate(n); break; }
-        case 'invoice':      { const n = setNext(invoices);     setInvoices(n);     saveInvoicesMutation.mutate(n); break; }
-        case 'aia_pay_app':  { const n = setNext(aiaPayApps);   setAiaPayApps(n);   saveAiaPayAppsMutation.mutate(n); break; }
-        case 'rfi':          { const n = setNext(rfis);         setRfis(n);         saveRfisMutation.mutate(n); break; }
-        case 'submittal':    { const n = setNext(submittals);   setSubmittals(n);   saveSubmittalsMutation.mutate(n); break; }
-        case 'daily_report': { const n = setNext(dailyReports); setDailyReports(n); saveDailyReportsMutation.mutate(n); break; }
-        case 'photo':        { const n = setNext(projectPhotos); setProjectPhotos(n); savePhotosMutation.mutate(n); break; }
-        case 'selection':    break; // no-op — managed outside ProjectContext
-        // Unlike the branches above, persistWarranties sets the state itself —
-        // so there is no separate setWarranties call here.
-        case 'warranty':     { persistWarranties(setNext(warranties)); break; }
+      for (const [kind, m] of byKind) {
+        switch (kind) {
+          case 'change_order': { const n = setNext(changeOrders, m); setChangeOrders(n); saveChangeOrdersMutation.mutate(n); break; }
+          case 'invoice':      { const n = setNext(invoices, m);     setInvoices(n);     saveInvoicesMutation.mutate(n); break; }
+          case 'aia_pay_app':  { const n = setNext(aiaPayApps, m);   setAiaPayApps(n);   saveAiaPayAppsMutation.mutate(n); break; }
+          case 'rfi':          { const n = setNext(rfis, m);         setRfis(n);         saveRfisMutation.mutate(n); break; }
+          case 'submittal':    { const n = setNext(submittals, m);   setSubmittals(n);   saveSubmittalsMutation.mutate(n); break; }
+          case 'daily_report': { const n = setNext(dailyReports, m); setDailyReports(n); saveDailyReportsMutation.mutate(n); break; }
+          case 'photo':        { const n = setNext(projectPhotos, m); setProjectPhotos(n); savePhotosMutation.mutate(n); break; }
+          case 'selection':    break; // no-op — managed outside ProjectContext
+          // Unlike the branches above, persistWarranties sets the state itself —
+          // so there is no separate setWarranties call here.
+          case 'warranty':     { persistWarranties(setNext(warranties, m)); break; }
+        }
       }
     },
-    // The arrays are READ here now (setNext is applied to them directly rather
-    // than passed as a functional update), so they must be dependencies — a
-    // stale closure would apply the portal-state change to an old list and drop
+    // The arrays are READ here (setNext is applied to them directly rather than
+    // passed as a functional update), so they must be dependencies — a stale
+    // closure would apply the portal-state change to an old list and drop
     // whatever else changed in between. eslint-exhaustive-deps caught this.
     [
       changeOrders, setChangeOrders, saveChangeOrdersMutation,
@@ -3609,6 +3682,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       projectPhotos, setProjectPhotos, savePhotosMutation,
       warranties, persistWarranties, // persistWarranties owns setWarranties
     ],
+  );
+
+  // Single-item convenience wrapper. Safe on its own; NEVER call it in a loop —
+  // use applyPortalStates with the whole batch (see the note above).
+  const updateItemPortalState = useCallback(
+    (kind: SendableItemKind, itemId: string, next: PortalState) => {
+      applyPortalStates([{ kind, itemId, next }]);
+    },
+    [applyPortalStates],
   );
 
   const sendToClientPortal = useCallback(async ({ kind, itemId, projectId }: { kind: SendableItemKind; itemId: string; projectId: string }): Promise<void> => {
@@ -3691,6 +3773,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const nowIso = new Date().toISOString();
     let sent = 0;
     const counts: Partial<Record<SendableItemKind, number>> = {};
+    // Collected, then applied in ONE pass per kind. Calling the single-item
+    // updateItemPortalState here (as this used to) made every iteration map
+    // over the same pre-loop array, so only the last item of each kind stayed
+    // 'sent' locally while `sent` counted all of them — "3 items sent" with 2
+    // still sitting in the outbox as drafts.
+    const portalUpdates: { kind: SendableItemKind; itemId: string; next: PortalState }[] = [];
     for (const { kind, itemId } of items) {
       const item = findItemByKindAndId(kind, itemId);
       if (!item) continue;
@@ -3701,7 +3789,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         sentVersion: prevVersion + 1,
         lastSentSnapshot: captureSnapshot(item),
       };
-      updateItemPortalState(kind, itemId, next);
+      portalUpdates.push({ kind, itemId, next });
       if (canSync && userId) {
         void supabaseWrite(tableForKind[kind], 'update', {
           id: itemId,
@@ -3712,6 +3800,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       counts[kind] = (counts[kind] ?? 0) + 1;
       sent++;
     }
+    applyPortalStates(portalUpdates);
 
     // Build a consolidated summary message: "3 new updates from your builder:
     // 1 Change Order, 1 RFI, 1 Daily Report"
@@ -3735,7 +3824,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }
 
     return { sent };
-  }, [canSync, userId, projects, findItemByKindAndId, updateItemPortalState]);
+  }, [canSync, userId, projects, findItemByKindAndId, applyPortalStates]);
 
   const addSubcontractor = useCallback((sub: Subcontractor) => {
     const updated = [sub, ...subcontractors];
@@ -4068,18 +4157,38 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // resolves to undefined and the RFI screen opens in "new" mode with
   // empty fields — visible to the user as a "blank RFI" even though the
   // actual saved row was filled correctly.
-  // Snake/camel mapping for the rfis insert payload — shared by single-add and
-  // batch-add so the two write the same shape.
+  // Snake/camel mapping for the rfis row — every column an EDIT may change.
+  // Shared by insert (via rfiToRow) and update so the two cannot drift.
+  //
+  // WHY THIS EXISTS. updateRFI used to hand-list its columns and omitted four
+  // that the RFI screen edits: date_required, submitted_by, linked_drawing and
+  // linked_task_id. All four are written on INSERT and read back by the rfis
+  // mapper, which then calls saveLocal(RFIS_KEY, mapped) — so the next refetch
+  // pulled the SERVER's stale values over the edit AND destroyed the local
+  // copy. A GC who granted the architect a two-week extension watched the date
+  // revert on the next launch with no error, and dateRequired drives the whole
+  // overdue machinery (systemOfAction's chase list and its auto-drafted nudge,
+  // oacEngine agenda aging, the red overdue flag on the RFI Log PDF) — so the
+  // app kept chasing against a deadline they had already moved.
+  const rfiMutableRow = useCallback((r: RFI) => ({
+    id: r.id,
+    subject: r.subject, question: r.question, submitted_by: r.submittedBy,
+    assigned_to: r.assignedTo, assigned_sub_id: r.assignedSubId ?? null,
+    ball_in_court: r.ballInCourt ?? null, handoffs: r.handoffs ?? null,
+    date_submitted: r.dateSubmitted, date_required: r.dateRequired,
+    date_responded: r.dateResponded ?? null, response: r.response ?? null,
+    status: r.status, priority: r.priority,
+    linked_drawing: r.linkedDrawing ?? null, linked_task_id: r.linkedTaskId ?? null,
+    attachments: r.attachments, updated_at: r.updatedAt,
+  }), []);
+
+  // Insert payload — the mutable columns plus the insert-only ones. Shared by
+  // single-add and batch-add so the two write the same shape.
   const rfiToRow = useCallback((newRfi: RFI) => ({
-    id: newRfi.id, user_id: userId, project_id: newRfi.projectId, number: newRfi.number,
-    subject: newRfi.subject, question: newRfi.question, submitted_by: newRfi.submittedBy,
-    assigned_to: newRfi.assignedTo, assigned_sub_id: newRfi.assignedSubId ?? null,
-    ball_in_court: newRfi.ballInCourt ?? null, handoffs: newRfi.handoffs ?? null,
-    date_submitted: newRfi.dateSubmitted, date_required: newRfi.dateRequired,
-    status: newRfi.status, priority: newRfi.priority, linked_drawing: newRfi.linkedDrawing,
-    linked_task_id: newRfi.linkedTaskId, attachments: newRfi.attachments,
-    created_at: newRfi.createdAt, updated_at: newRfi.updatedAt, portal_state: newRfi.portalState,
-  }), [userId]);
+    ...rfiMutableRow(newRfi),
+    user_id: userId, project_id: newRfi.projectId, number: newRfi.number,
+    created_at: newRfi.createdAt, portal_state: newRfi.portalState,
+  }), [userId, rfiMutableRow]);
 
   // Next per-project RFI number given an authoritative current array (`base`).
   // RFI numbers are per project — one advancing counter per projectId.
@@ -4147,16 +4256,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) {
       const r = updated.find(x => x.id === id);
       if (r) {
-        void supabaseWrite('rfis', 'update', {
-          id, subject: r.subject, question: r.question, assigned_to: r.assignedTo,
-          assigned_sub_id: r.assignedSubId ?? null,
-          ball_in_court: r.ballInCourt ?? null, handoffs: r.handoffs ?? null,
-          date_responded: r.dateResponded, response: r.response, status: r.status,
-          priority: r.priority, attachments: r.attachments, updated_at: now,
-        });
+        // Shares rfiMutableRow with the insert so an edit can never persist
+        // fewer columns than a create. portal_state is deliberately NOT here:
+        // it is owned by sendToClientPortal / recallFromClientPortal, and
+        // writing a possibly-stale in-memory copy on every edit is exactly how
+        // warranties and aia_pay_apps nulled a good server row.
+        void supabaseWrite('rfis', 'update', { ...rfiMutableRow(r), updated_at: now });
       }
     }
-  }, [rfis, saveRfisMutation, canSync]);
+  }, [rfis, saveRfisMutation, canSync, rfiMutableRow]);
 
   const deleteRFI = useCallback((id: string) => {
     const updated = rfis.filter(r => r.id !== id);
@@ -4346,6 +4454,27 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
     [subPortalLinks]);
 
+  // Snake/camel mapping for the submittals row — every column an EDIT may
+  // change. Shared by insert (via buildSubmittal) and update so the two cannot
+  // drift, matching the commitmentToRow / permitToRow pattern above.
+  //
+  // WHY THIS EXISTS. updateSubmittal used to write only
+  // { id, title, spec_section, review_cycles, current_status, attachments,
+  // updated_at } — it dropped submitted_by and required_date, both real columns
+  // written on INSERT and read back by the submittals mapper before
+  // saveLocal(SUBMITTALS_KEY, mapped). A GC who extended a submittal's review
+  // window watched the date silently revert on the next launch, and
+  // requiredDate drives systemOfAction's awaiting-review chase list and its
+  // auto-drafted nudge ("awaiting review for N days past the required date") —
+  // so the reviewer kept being chased against a deadline that had moved, and
+  // the transmittal PDF printed the stale Required By.
+  const submittalMutableRow = useCallback((s: Submittal) => ({
+    id: s.id, title: s.title, spec_section: s.specSection, submitted_by: s.submittedBy,
+    submitted_date: s.submittedDate, required_date: s.requiredDate,
+    review_cycles: s.reviewCycles, current_status: s.currentStatus,
+    attachments: s.attachments, updated_at: s.updatedAt,
+  }), []);
+
   // Build one Submittal off the current list, assigning the next per-project
   // number. Reads `base` (the authoritative current array) so callers looping
   // synchronously can thread the just-updated array through each iteration.
@@ -4365,15 +4494,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       portalState: sub.portalState ?? initialPortalState('submittal', sub.projectId),
     };
     const row = {
-      id: newSub.id, user_id: userId, project_id: newSub.projectId, number: newSub.number,
-      title: newSub.title, spec_section: newSub.specSection, submitted_by: newSub.submittedBy,
-      submitted_date: newSub.submittedDate, required_date: newSub.requiredDate,
-      review_cycles: newSub.reviewCycles, current_status: newSub.currentStatus,
-      attachments: newSub.attachments, created_at: now, updated_at: now,
-      portal_state: newSub.portalState,
+      ...submittalMutableRow(newSub),
+      user_id: userId, project_id: newSub.projectId, number: newSub.number,
+      created_at: now, portal_state: newSub.portalState,
     };
     return { newSub, row };
-  }, [userId, initialPortalState]);
+  }, [userId, initialPortalState, submittalMutableRow]);
 
   const addSubmittal = useCallback((sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => {
     // Read the ref (not `submittals`) so numbering stays correct when this is
@@ -4413,13 +4539,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) {
       const s = updated.find(x => x.id === id);
       if (s) {
-        void supabaseWrite('submittals', 'update', {
-          id, title: s.title, spec_section: s.specSection, review_cycles: s.reviewCycles,
-          current_status: s.currentStatus, attachments: s.attachments, updated_at: now,
-        });
+        // Shares submittalMutableRow with the insert so an edit can never
+        // persist fewer columns than a create. portal_state is deliberately NOT
+        // here: it is owned by sendToClientPortal / recallFromClientPortal, and
+        // writing a possibly-stale in-memory copy on every edit is exactly how
+        // warranties and aia_pay_apps nulled a good server row.
+        void supabaseWrite('submittals', 'update', { ...submittalMutableRow(s), updated_at: now });
       }
     }
-  }, [submittals, saveSubmittalsMutation, canSync]);
+  }, [submittals, saveSubmittalsMutation, canSync, submittalMutableRow]);
 
   const deleteSubmittal = useCallback((id: string) => {
     const updated = submittals.filter(s => s.id !== id);

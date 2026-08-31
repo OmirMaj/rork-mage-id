@@ -595,9 +595,22 @@ function InvoiceInner() {
     if (!result.success) {
       // If we created this invoice just for the send, drop it back to draft
       // so the user can retry rather than stranding a phantom "sent" record.
+      //
+      // This branch is now also reached on web when Resend is down: sendEmail
+      // used to open a stub mailto: and return success:true, so the invoice was
+      // flipped to 'sent' — and A/R aging plus dunning started counting — for a
+      // client email that was never sent. success is true only for outcome
+      // 'sent' now, so the draft rollback below actually runs.
       if (createdNew) updateInvoice(workingInvoice.id, { status: 'draft' });
       if (result.error === 'cancelled') return;
-      console.warn('[Invoice] Email send failed:', result.error);
+      console.warn('[Invoice] Email send failed:', result.outcome, result.error);
+      if (result.outcome === 'composer_opened') {
+        showAlert(
+          'Draft opened — not sent yet',
+          `${result.error ?? 'A draft was opened in your email app.'}\n\nInvoice #${workingInvoice.number} is still ${createdNew ? 'a draft' : 'unsent'} until it goes out.`,
+        );
+        return;
+      }
       showAlert('Email Notice', `Invoice ${createdNew ? 'saved as draft' : 'saved'} but email could not be sent: ${result.error}`);
       return;
     }
@@ -712,6 +725,33 @@ function InvoiceInner() {
 
       const pdfUri = await generateInvoicePDFUri(existingInvoice, project, branding);
 
+      // generateInvoicePDFUri is a hard `if (Platform.OS === 'web') return null`
+      // (utils/pdfGenerator.ts:1407), and it also returns null when expo-print
+      // throws on native. The old code fed that straight into
+      // `attachments: pdfUri ? [pdfUri] : undefined` and then showed "Email Sent"
+      // either way — so a GC on the web app emailed their client an invoice with
+      // no invoice attached and was told the send succeeded. This flow exists to
+      // deliver a document; if the document isn't there, ask before sending
+      // rather than discovering it at the client's end.
+      if (!pdfUri) {
+        const proceedWithoutPdf = await new Promise<boolean>((resolve) => {
+          showAlert(
+            'PDF could not be attached',
+            Platform.OS === 'web'
+              ? `The web app cannot generate the invoice PDF file, so nothing can be attached to this email.\n\nWe can still email ${options.recipient.trim()} the invoice summary — amount due, terms${payLinkUrl ? ' and the Pay button' : ''}. To send the PDF itself, use Share instead and save it from the print dialog, or send from the iPhone app.`
+              : `The invoice PDF could not be generated on this device, so nothing can be attached.\n\nWe can still email ${options.recipient.trim()} the invoice summary without it.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Send without PDF', onPress: () => resolve(true) },
+            ],
+            // Backdrop / Android back must resolve the promise too, or this
+            // await never settles and the send button stays dead forever.
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!proceedWithoutPdf) return;
+      }
+
       const result = await sendEmail({
         to: options.recipient.trim(),
         subject: `Invoice #${existingInvoice.number}: ${(() => { const v = pdfNetDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project.name}`,
@@ -722,34 +762,55 @@ function InvoiceInner() {
         unsubscribe: { recipientEmail: options.recipient.trim(), eventKey: 'invoice', enabled: true },
       });
 
+      // The PDF can go missing in two places: we never had one (pdfUri null,
+      // handled above) or the service failed to encode it (attachmentsDropped).
+      // Either way the client got a summary, not the document, so the toast must
+      // not read "Invoice emailed" flat.
+      const pdfMissing = !pdfUri || (result.attachmentsDropped ?? 0) > 0;
+
       if (result.success) {
-        showAlert('Email Sent', `Invoice emailed to ${options.recipient}`);
+        showAlert(
+          pdfMissing ? 'Sent — without the PDF' : 'Email Sent',
+          pdfMissing
+            ? `The invoice summary was emailed to ${options.recipient}, but the PDF could not be attached. Send the PDF separately if the client needs the full document.`
+            : `Invoice emailed to ${options.recipient}`,
+        );
       } else if (result.error === 'cancelled') {
         return;
+      } else if (result.outcome === 'composer_opened') {
+        // sendEmail could not reach Resend and dropped a draft into the user's
+        // mail app instead. Nothing has been sent, and saying "Email Sent" here
+        // is exactly the lie this screen used to tell on web.
+        showAlert('Draft opened — not sent yet', result.error ?? 'Review the draft in your email app and press Send there.');
       } else {
         showAlert(
           'Email Issue',
-          'Could not send via email. Would you like to share the PDF using another app instead?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Share PDF',
-              onPress: async () => {
-                try {
-                  const uri = pdfUri ?? await generateInvoicePDFUri(existingInvoice, project, branding);
-                  if (uri && await Sharing.isAvailableAsync()) {
-                    await Sharing.shareAsync(uri, {
-                      mimeType: 'application/pdf',
-                      dialogTitle: `Invoice #${existingInvoice.number}`,
-                      UTI: 'com.adobe.pdf',
-                    });
-                  }
-                } catch (shareErr) {
-                  console.error('[Invoice] Share fallback failed:', shareErr);
-                }
-              },
-            },
-          ]
+          pdfUri
+            ? 'Could not send via email. Would you like to share the PDF using another app instead?'
+            : `Could not send via email.${result.error ? ` ${result.error}` : ''}`,
+          pdfUri
+            ? [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Share PDF',
+                  onPress: async () => {
+                    try {
+                      // pdfUri is non-null in this branch — no need to re-generate,
+                      // and re-generating on web would only hand Sharing a null.
+                      if (await Sharing.isAvailableAsync()) {
+                        await Sharing.shareAsync(pdfUri, {
+                          mimeType: 'application/pdf',
+                          dialogTitle: `Invoice #${existingInvoice.number}`,
+                          UTI: 'com.adobe.pdf',
+                        });
+                      }
+                    } catch (shareErr) {
+                      console.error('[Invoice] Share fallback failed:', shareErr);
+                    }
+                  },
+                },
+              ]
+            : undefined,
         );
       }
       return;

@@ -53,6 +53,27 @@ const LEAD_PIPELINE_STAGES: PipelineStage<LeadStage>[] = [
 function mapLeadStage(s: LeadStage): LeadStage {
   return s === 'lost' ? 'new' : s;
 }
+
+// Audit #32 — the "Map" quick action used to open `maps:?q=<address>`.
+// That custom scheme is registered by Apple Maps on iOS ONLY. On web,
+// react-native's Linking resolves to react-native-web's shim, which does
+// `new URL(url, window.location)` and then `window.open(url, '_blank')`
+// (only tel: gets special handling), so a desktop browser — which
+// registers no `maps:` handler — opened an empty tab and left it sitting
+// there. One of the three quick actions on the lead screen was simply
+// dead on web.
+//
+// Both replacements are https universal links, so the platform still
+// hands them to the installed map app rather than a browser: iOS keeps
+// opening Apple Maps (maps.apple.com is an Apple-registered universal
+// link, so behaviour on the primary target is unchanged), Android opens
+// Google Maps, and web finally renders a real map page.
+function mapSearchUrl(address: string): string {
+  const q = encodeURIComponent(address);
+  return Platform.OS === 'ios'
+    ? `https://maps.apple.com/?q=${q}`
+    : `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -283,7 +304,7 @@ export default function LeadDetailScreen() {
               )}
               {!!existing.address && (
                 <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
-                  onPress={() => Linking.openURL(`maps:?q=${encodeURIComponent(existing.address!)}`)}>
+                  onPress={() => Linking.openURL(mapSearchUrl(existing.address!))}>
                   <MapPin size={16} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.quickBtnText}>Map</Text>
                 </TouchableOpacity>

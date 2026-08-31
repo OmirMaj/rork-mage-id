@@ -6,6 +6,7 @@
 
 import type { ScheduleTask, ScheduleBaseline } from '@/types';
 import { runCpm, type RunCpmOptions } from '@/utils/cpm';
+import { addWorkingDays } from '@/utils/scheduleEngine';
 
 // ---------------------------------------------------------------------------
 // 1) Reflow from actuals
@@ -269,11 +270,46 @@ export function diffAgainstBaseline(tasks: ScheduleTask[], baseline: NamedBaseli
 // 3) CSV export
 // ---------------------------------------------------------------------------
 
-export function exportTasksToCsv(tasks: ScheduleTask[], projectStartDate: Date): string {
+/**
+ * CSV of the task table, with the same dates the grid shows.
+ *
+ * `workingDaysPerWeek` / `nonWorkingDates` come from the schedule
+ * (ProjectSchedule). They default to the app-wide 5-day fallback that every
+ * other date-rendering path uses (`schedule?.workingDaysPerWeek ?? 5`) —
+ * callers on a 6- or 7-day week MUST pass their real value or the export will
+ * skip weekends the schedule doesn't observe.
+ */
+export function exportTasksToCsv(
+  tasks: ScheduleTask[],
+  projectStartDate: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): string {
+  // `startDay` / `finishDay` are WORKING-day numbers — day 1 is
+  // projectStartDate, day 2 is the next working day — which is the convention
+  // scheduleEngine.getTaskDateRange and every on-screen date use.
+  //
+  // This walked RAW CALENDAR days (`d.setDate(d.getDate() + dayNum - 1)`), so
+  // on the default 5-day week the exported dates drifted one calendar day for
+  // every weekend crossed and the error GREW down the file: a task with
+  // startDay 11 / duration 10 on a Monday anchor exported Start 2026-03-12 /
+  // Finish 2026-03-21 where the grid showed Mar 16 → Mar 27. Subs mobilized on
+  // the wrong dates, and the CSV could not self-diagnose because the
+  // 'Start day' / 'Finish day' integer columns beside the dates were correct.
+  //
+  // Formatting is from LOCAL Y/M/D rather than `toISOString().slice(0, 10)`.
+  // addWorkingDays returns a local-midnight Date; toISOString() re-projects it
+  // into UTC and emits the PREVIOUS calendar day at any POSITIVE UTC offset.
+  // (The audit note claimed the ISO shift bit at NEGATIVE offsets — that is
+  // backwards: local midnight in, say, New York is 05:00Z on the same day.)
   const fmtDate = (dayNum: number) => {
-    const d = new Date(projectStartDate);
-    d.setDate(d.getDate() + dayNum - 1);
-    return d.toISOString().slice(0, 10);
+    const d = addWorkingDays(
+      projectStartDate,
+      Math.max(0, dayNum - 1),
+      workingDaysPerWeek,
+      nonWorkingDates,
+    );
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
   const headers = [
     'WBS', 'Task', 'Phase', 'Duration (d)', 'Start day', 'Start date',

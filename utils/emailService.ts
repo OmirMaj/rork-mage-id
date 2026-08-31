@@ -30,10 +30,38 @@ export interface SendEmailWithAttachmentsParams extends SendEmailParams {
   unsubscribe?: UnsubscribeOpts;
 }
 
-interface SendEmailResponse {
+/**
+ * What actually happened to the message. Modelled on ShareOutcome in
+ * utils/shareText.ts for the same reason: a bare boolean cannot tell
+ * "Resend accepted it" apart from "we opened a draft in your mail app and
+ * nothing has left the building", and the old code collapsed the two into
+ * `success: true`. Callers flip invoices/RFIs/submittals to 'sent' on the
+ * success path, so that collapse started dunning clocks on sends that never
+ * happened.
+ */
+export type SendEmailOutcome =
+  /** Resend accepted the message. It is on its way to the recipient. */
+  | 'sent'
+  /** A composer (mailto: on web, MailComposer on native) was opened with a
+   *  draft. NOTHING HAS BEEN SENT — the user still has to press Send. */
+  | 'composer_opened'
+  /** The user dismissed the composer without sending. Not an error. */
+  | 'cancelled'
+  /** No send path worked at all. */
+  | 'failed';
+
+export interface SendEmailResponse {
+  /** TRUE ONLY for outcome 'sent'. Never true for a composer we merely opened. */
   success: boolean;
+  outcome: SendEmailOutcome;
   id?: string;
   error?: string;
+  /**
+   * How many requested attachments did not make it onto the message. Non-zero
+   * means the recipient got the body without the PDF, so callers must not tell
+   * the user "invoice emailed" without qualification.
+   */
+  attachmentsDropped?: number;
 }
 
 // Read a local file URI and return { filename, content (base64), contentType }.
@@ -50,8 +78,11 @@ async function fileUriToAttachment(uri: string): Promise<{ filename: string; con
       lower.endsWith('.txt') ? 'text/plain' :
       undefined;
 
-    // On web, expo-file-system isn't available. We'd need to fetch the URI and
-    // convert to base64 via FileReader — for now just skip web attachments.
+    // On web, expo-file-system isn't available, so read the URI with
+    // fetch + FileReader instead. (This comment used to say web attachments
+    // were "skipped for now" — the opposite of what the code below does. The
+    // encoder has always worked on web; what was missing was any caller
+    // feeding it a web-reachable URI. See app/invoice.tsx handleSendPDF.)
     if (Platform.OS === 'web') {
       const res = await fetch(uri);
       const blob = await res.blob();
@@ -86,14 +117,23 @@ async function fileUriToAttachment(uri: string): Promise<{ filename: string; con
  */
 async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<SendEmailResponse> {
   if (!isSupabaseConfigured) {
-    return { success: false, error: 'Email service not configured (Supabase missing)' };
+    return { success: false, outcome: 'failed', error: 'Email service not configured (Supabase missing)' };
   }
 
   // Encode attachments in parallel — typical invoice is 1-2 files so this is fast.
   let attachments: { filename: string; content: string; contentType?: string }[] | undefined;
+  // fileUriToAttachment returns null on any read/encode failure and the filter
+  // below quietly discards it. That drop used to be invisible: the send still
+  // reported success and the client received an "invoice attached" email with
+  // nothing attached. Count what we lost and report it up.
+  let attachmentsDropped = 0;
   if (params.attachments && params.attachments.length > 0) {
     const encoded = await Promise.all(params.attachments.map(fileUriToAttachment));
     attachments = encoded.filter((a): a is NonNullable<typeof a> => a !== null);
+    attachmentsDropped = encoded.length - attachments.length;
+    if (attachmentsDropped > 0) {
+      console.warn('[EmailService] Dropped', attachmentsDropped, 'unreadable attachment(s)');
+    }
   }
 
   try {
@@ -112,18 +152,136 @@ async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<Se
 
     if (error) {
       console.error('[EmailService] Edge function error:', error);
-      return { success: false, error: error.message || 'Failed to send email' };
+      return { success: false, outcome: 'failed', error: error.message || 'Failed to send email' };
     }
 
     const result = data as { success?: boolean; id?: string; error?: string } | null;
     if (!result?.success) {
-      return { success: false, error: result?.error || 'Email send failed' };
+      return { success: false, outcome: 'failed', error: result?.error || 'Email send failed' };
     }
     console.log('[EmailService] Sent via Resend, id:', result.id);
-    return { success: true, id: result.id };
+    return { success: true, outcome: 'sent', id: result.id, attachmentsDropped };
   } catch (err) {
     console.error('[EmailService] Invoke threw:', err);
-    return { success: false, error: String(err) };
+    return { success: false, outcome: 'failed', error: String(err) };
+  }
+}
+
+// ─── mailto: fallback plumbing ──────────────────────────────────────
+//
+// Only used when Resend is unreachable. Everything here exists because the old
+// web fallback threw the message away: it opened
+//   mailto:…&body=Please view the attached document.
+// and returned success:true. The real HTML — line items, amount due, the Stripe
+// pay link, the financing block — never left the browser, and the caller then
+// marked the invoice 'sent'.
+
+// --- BEGIN mailto plain-text helpers ---
+// (scripts/validate-email-honesty.ts extracts this whole region between the
+//  sentinels and executes it — this file imports react-native so it cannot be
+//  imported from a bun validator. Keep the region import-free.)
+const HTML_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', zwnj: '',
+  middot: '·', bull: '·', ndash: '–', mdash: '—', hellip: '…',
+  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
+  times: '×', copy: '©', reg: '®', deg: '°',
+};
+
+/**
+ * Flatten one of our email templates into readable plain text for a mailto:
+ * body. Exported so scripts/validate-email-honesty.ts can pin it.
+ *
+ * Two things it deliberately does that a naive `replace(/<[^>]+>/g, '')`
+ * does not:
+ *   • Keeps anchor HREFs. The pay link / portal link IS the payload of most of
+ *     these emails; stripping tags alone leaves the words "Pay securely" and
+ *     silently deletes the URL they pointed at.
+ *   • Drops `display:none` blocks. wrapEmailHtml opens with a hidden preheader
+ *     and a run of &nbsp;&zwnj; spacer characters (utils/emailLayout.ts:386-387)
+ *     that would otherwise be the first thing the recipient reads.
+ */
+export function htmlToPlainText(html: string): string {
+  if (!html) return '';
+  let s = html;
+  // Non-prose containers first.
+  s = s.replace(/<(style|script|head|title)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  // Hidden preheader / spacer blocks (no nesting inside them, so non-greedy is safe).
+  s = s.replace(/<(div|span|td|p)\b[^>]*display\s*:\s*none[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  s = s.replace(
+    /<a\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    (_m, href: string, inner: string) => {
+      const label = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (!label) return ` ${href} `;
+      if (label === href || href.startsWith('mailto:') || href.startsWith('tel:')) return ` ${label} `;
+      return ` ${label}: ${href} `;
+    },
+  );
+  // Block boundaries have to become newlines BEFORE the generic strip, or the
+  // whole invoice collapses into one unreadable run-on line.
+  s = s.replace(/<br\s*\/?>/gi, '\n');
+  s = s.replace(/<\/(p|div|tr|table|h1|h2|h3|h4|li|blockquote)\s*>/gi, '\n');
+  s = s.replace(/<\/t[dh]\s*>/gi, '  ');
+  s = s.replace(/<[^>]+>/g, '');
+  s = s.replace(/&#(\d{1,7});/g, (m, d: string) => {
+    const n = Number(d);
+    return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : m;
+  });
+  s = s.replace(/&#x([0-9a-f]{1,6});/gi, (m, h: string) => {
+    const n = parseInt(h, 16);
+    return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : m;
+  });
+  s = s.replace(/&([a-z]+);/gi, (m, name: string) => HTML_ENTITIES[name.toLowerCase()] ?? m);
+  s = s.split('\n').map(l => l.replace(/[ \t ]+/g, ' ').trim()).join('\n');
+  return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Mail clients and the OS URL handler both cap how much of a mailto: they will
+ * accept — Outlook truncates around 2 KB and Windows' ShellExecute hard-fails
+ * past ~2048 characters, which would turn "we opened a draft" back into a lie.
+ * Budget the body well under that; the tail is a link back to the app anyway.
+ */
+const MAILTO_BODY_LIMIT = 1200;
+
+export function buildMailtoUrl(opts: {
+  to: string;
+  subject: string;
+  body: string;
+}): string {
+  const body = opts.body.length > MAILTO_BODY_LIMIT
+    ? `${opts.body.slice(0, MAILTO_BODY_LIMIT).trimEnd()}\n\n[…trimmed — open the full version in MAGE ID]`
+    : opts.body;
+  return `mailto:${encodeURIComponent(opts.to)}?subject=${encodeURIComponent(opts.subject)}&body=${encodeURIComponent(body)}`;
+}
+// --- END mailto plain-text helpers ---
+
+/**
+ * Hand a mailto: to the browser. Returns false when we could not even try.
+ *
+ * An anchor click, NOT window.open(): by the time we get here we have already
+ * awaited the Resend round-trip, so the user gesture that started the send is
+ * long gone and every popup blocker kills window.open() outright. That is how
+ * the old code managed to open nothing at all and still return success:true.
+ * The anchor technique is the same one utils/platformFile.ts uses for
+ * downloads, and it activates the mail handler without opening a window.
+ */
+function openMailtoWeb(mailtoUrl: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (typeof document !== 'undefined' && document.body) {
+      const a = document.createElement('a');
+      a.href = mailtoUrl;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return true;
+    }
+    window.location.href = mailtoUrl;
+    return true;
+  } catch (err) {
+    console.error('[EmailService] Could not open mailto:', err);
+    return false;
   }
 }
 
@@ -160,7 +318,17 @@ export async function sendEmailNative(params: {
     } else if (result.status === MailComposer.MailComposerStatus.CANCELLED) {
       console.log('[EmailService] User cancelled email');
       return { success: false, error: 'cancelled' };
+    } else if (result.status === MailComposer.MailComposerStatus.SAVED) {
+      // SAVED means the user tapped "Save Draft" in the iOS composer. It sits in
+      // their Drafts folder; the client has not received anything. This used to
+      // fall into the `else` below and report success, so a saved draft marked
+      // the invoice 'sent' and started the dunning clock.
+      console.log('[EmailService] Email saved to drafts, not sent');
+      return { success: false, error: 'Saved to your Drafts — it has not been sent yet.' };
     } else {
+      // UNDETERMINED. Android's mail intent never reports back, so this is the
+      // normal Android result and must stay a success or every Android send
+      // reads as a failure. iOS returns a real status above.
       console.log('[EmailService] Email status:', result.status);
       return { success: true };
     }
@@ -178,30 +346,63 @@ export async function sendEmailNative(params: {
  *   1. Try the server-side Resend pipeline first. This is the path that
  *      actually works — emails come from noreply@mageid.app with proper
  *      DKIM signatures and land in inboxes instead of spam/bounce.
- *   2. If Resend fails (network, outage, not configured), fall back to the
- *      native mail composer so the GC isn't stranded. The composer still
- *      bounces for the "spam filter" reason but at least it puts the draft
- *      in their hand where they can verify it and send manually.
+ *   2. If Resend fails (network, outage, not configured), open a composer so
+ *      the GC isn't stranded: MailComposer on native, a mailto: draft on web.
+ *      This returns outcome 'composer_opened' with success:FALSE, because a
+ *      draft in someone's hand is not a delivered email.
+ *
+ * WHAT CHANGED AND WHY. Step 2 on web used to open
+ * `mailto:…&body=Please view the attached document.` and return
+ * `{ success: true }`. Every caller treats success as "the client has it":
+ * app/invoice.tsx flips the invoice to 'sent' (so A/R aging and dunning start
+ * counting), rfi.tsx and submittal.tsx do the same for theirs. So a GC on the
+ * web app saw "Email Sent" while the client received one sentence with no
+ * invoice, no line items, no pay link and no PDF — or, if the browser blocked
+ * the popup, nothing at all. Callers keying off `success` now cannot mistake a
+ * draft for a send, and `outcome` lets a caller that cares tell 'composer_opened'
+ * apart from 'failed'.
  */
 export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise<SendEmailResponse> {
   // Path 1: Resend via Supabase edge function (the path that actually works).
   const resendResult = await sendViaResend(params);
   if (resendResult.success) return resendResult;
 
-  console.log('[EmailService] Resend failed, falling back to native composer:', resendResult.error);
+  console.log('[EmailService] Resend failed, falling back to a composer draft:', resendResult.error);
 
-  // Path 2: Native mail composer fallback. Only reached if Resend errors out.
+  const attachmentCount = params.attachments?.length ?? 0;
+
+  // Path 2: composer fallback. Only reached if Resend errors out.
   try {
     if (Platform.OS === 'web') {
-      const mailtoUrl = `mailto:${encodeURIComponent(params.to)}?subject=${encodeURIComponent(params.subject)}&body=${encodeURIComponent('Please view the attached document.')}`;
-      window.open(mailtoUrl, '_blank');
-      return { success: true };
+      // No mail client on the web can be handed a file by a mailto:, so say so
+      // rather than letting the recipient discover the missing PDF.
+      const attachmentNote = attachmentCount > 0
+        ? `\n\n---\n[${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'} could NOT be included in this draft — attach the file${attachmentCount === 1 ? '' : 's'} yourself before sending.]`
+        : '';
+      const body = `${htmlToPlainText(params.html)}${attachmentNote}`;
+      const opened = openMailtoWeb(buildMailtoUrl({ to: params.to, subject: params.subject, body }));
+
+      if (!opened) {
+        return {
+          success: false,
+          outcome: 'failed',
+          error: resendResult.error || 'Could not send the email, and this browser would not open your mail app.',
+          attachmentsDropped: attachmentCount,
+        };
+      }
+      return {
+        success: false,
+        outcome: 'composer_opened',
+        error: `Not sent. We opened a draft in your email app${attachmentCount > 0 ? ' without the attachment' : ''} — review it and press Send there.`,
+        attachmentsDropped: attachmentCount,
+      };
     }
 
     const isAvailable = await MailComposer.isAvailableAsync();
     if (!isAvailable) {
       return {
         success: false,
+        outcome: 'failed',
         error: resendResult.error || 'No email app configured on this device. Please set up an email account in Settings, or use the Share option instead.',
       };
     }
@@ -215,12 +416,23 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
     });
 
     if (result.status === MailComposer.MailComposerStatus.CANCELLED) {
-      return { success: false, error: 'cancelled' };
+      return { success: false, outcome: 'cancelled', error: 'cancelled' };
     }
-    return { success: true };
+    if (result.status === MailComposer.MailComposerStatus.SAVED) {
+      // Draft saved, not sent — see the matching branch in sendEmailNative.
+      return {
+        success: false,
+        outcome: 'composer_opened',
+        error: 'Saved to your Drafts — it has not been sent yet.',
+      };
+    }
+    // SENT, or UNDETERMINED (the normal Android result — the mail intent never
+    // reports back, so treating it as anything but sent would fail every
+    // Android send). Either way the user's own mail app owns it from here.
+    return { success: true, outcome: 'sent' };
   } catch (err) {
     console.error('[EmailService] Composer fallback failed too:', err);
-    return { success: false, error: resendResult.error || 'Failed to send email' };
+    return { success: false, outcome: 'failed', error: resendResult.error || 'Failed to send email' };
   }
 }
 

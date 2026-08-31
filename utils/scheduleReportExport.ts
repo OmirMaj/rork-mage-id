@@ -31,8 +31,19 @@ export async function generateScheduleReportPdf(html: string, title: string): Pr
   else await Print.printAsync({ uri });
 }
 
-export async function shareScheduleCsv(tasks: ScheduleTask[], projectStartDate: Date, projectName: string): Promise<void> {
-  const csv = exportTasksToCsv(tasks, projectStartDate);
+export async function shareScheduleCsv(
+  tasks: ScheduleTask[],
+  projectStartDate: Date,
+  projectName: string,
+  // Optional so existing callers keep compiling, but a caller that HAS the
+  // schedule must pass it: exportTasksToCsv defaults to a 5-day week, and a
+  // 6- or 7-day project would otherwise export dates that skip weekends it
+  // actually works.
+  calendar?: { workingDaysPerWeek?: number; nonWorkingDates?: string[] },
+): Promise<void> {
+  const csv = exportTasksToCsv(
+    tasks, projectStartDate, calendar?.workingDaysPerWeek, calendar?.nonWorkingDates,
+  );
   const filename = `${projectName.replace(/[^\w]+/g, '_')}_schedule.csv`;
   if (Platform.OS === 'web') {
     if (typeof window === 'undefined') return;

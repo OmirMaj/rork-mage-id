@@ -42,6 +42,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 // invited to do, even though their own tier is free. See
 // utils/collaboratorAccess.
 import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { tierMeetsRequirement } from '@/utils/featureTiers';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -156,6 +157,22 @@ function AiPunchScreenInner() {
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? null;
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
+
+  // Was this screen opened on the collaborator grant rather than on the
+  // viewer's own plan? Resolved against the project actually being analyzed
+  // (which the picker above can change), not just the route param.
+  // canAccess() is project-scoped (own tier OR the invite);
+  // canAccessOwnTier() is the plain subscription answer — so
+  // `granted && !ownTier` is exactly "in here because they were invited".
+  const { canAccess: canAccessOnProject, canAccessOwnTier } = useProjectAccess(projectId ?? undefined);
+  const collaboratorGranted =
+    canAccessOnProject('punch_list_closeout') && !canAccessOwnTier('punch_list_closeout');
+  // Tier the AI meter should charge. A collaborator is doing the owner's work
+  // on a seat the owner already bought, so they must not be metered as free;
+  // 'pro' is the floor at which photoAnalysis is allowed at all and is the
+  // conservative stand-in until the owner's real tier is resolvable here.
+  const meteringTier = collaboratorGranted && subscriptionTier === 'free' ? 'pro' : subscriptionTier;
+
   // Sort newest-first so the "Show recent" toggle label actually
   // matches what the gallery surfaces (round-2 #5). Bad/invalid
   // timestamps coerce to NaN which makes the sort non-deterministic
@@ -242,9 +259,44 @@ function AiPunchScreenInner() {
     // Photo Analysis is a Pro+ feature — vision API calls are 2-3x the cost
     // of text. Free tier hits a clean upgrade prompt instead of running the
     // analysis and silently eating the bill.
-    const limit = await checkAILimit(subscriptionTier, 'smart', 'photoAnalysis');
+    //
+    // Meter against `meteringTier`, NOT the viewer's own `subscriptionTier`.
+    // The screen gate is project-scoped, so an invited foreman on a free plan
+    // gets in here through COLLABORATOR_PROJECT_FEATURES — and then this line
+    // used to hand aiRateLimiterCore his own 'free' tier, which returned
+    // reason:'pro_only' and told him to buy Pro at $29/mo to do the work on a
+    // seat his GC had already paid for. That is the exact failure
+    // utils/collaboratorAccess.ts was written to end; it was fixed at the
+    // screen gate and missed one line deeper.
+    const limit = await checkAILimit(meteringTier, 'smart', 'photoAnalysis');
     if (!limit.allowed) {
       showAILimitAlert({ limit, router, monthly: true });
+      return;
+    }
+    // The client meter is only half the gate. supabase/functions/analyze-photos
+    // calls requireTier(req, ['pro','business']) and resolves the tier from the
+    // CALLER's own subscriptions row, so a free-tier collaborator's request is
+    // still rejected 403 server-side no matter what we decide here. Stop before
+    // the upload: encoding and shipping up to ~8 MB of photos over jobsite LTE
+    // only to surface supabase-js's "Edge Function returned a non-2xx status
+    // code" is worse for that foreman than being told what is actually true.
+    //
+    // DELETE THIS BLOCK once requireTier accepts a projectId and resolves the
+    // project OWNER's tier for accepted collaborators (metering usage against
+    // the owner's MONTHLY_CAPS). At that point `meteringTier` above is the
+    // whole fix and this early return becomes the bug.
+    if (collaboratorGranted && !tierMeetsRequirement(subscriptionTier, 'pro')) {
+      showAlert(
+        'Photo AI runs on the owner’s account',
+        'You were invited to this project, so the punch list is yours to work — but AI photo analysis is still billed to whoever runs it, and your own plan is Free. Ask the project owner to run this analysis, or upgrade your own account.',
+        // Keep the upgrade path one tap away: the old (wrong) "buy Pro" prompt
+        // at least deep-linked here, and losing that would trade one dead end
+        // for another.
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'See plans', onPress: () => router.push('/paywall') },
+        ],
+      );
       return;
     }
     setBusy(true);
@@ -292,7 +344,7 @@ function AiPunchScreenInner() {
     } finally {
       setBusy(false);
     }
-  }, [pickedPhotos, project, subscriptionTier]);
+  }, [pickedPhotos, project, subscriptionTier, meteringTier, collaboratorGranted, router]);
 
   // ── Step 3: review + save ────────────────────────────────────
   const updateReviewItem = useCallback((id: string, updates: Partial<ReviewableItem>) => {

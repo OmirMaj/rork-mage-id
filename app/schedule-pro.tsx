@@ -122,6 +122,7 @@ import type { ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { copyToClipboard } from '@/utils/clipboard';
 
 // Desktop/tablet-landscape breakpoint. Below this we send users to the
 // classic mobile experience — the grid is genuinely unusable under 900px.
@@ -1286,7 +1287,15 @@ function ScheduleProScreenInner() {
   // -------------------------------------------------------------------------
 
   const handleExportCsv = useCallback(() => {
-    const csv = exportTasksToCsv(workingTasks, projectStartDate);
+    // Pass the schedule's REAL calendar. exportTasksToCsv defaults to a 5-day
+    // week, so a 6- or 7-day project silently exported dates that skipped
+    // weekends it actually works — the CSV disagreeing with the grid beside it.
+    const csv = exportTasksToCsv(
+      workingTasks,
+      projectStartDate,
+      project?.schedule?.workingDaysPerWeek,
+      project?.schedule?.nonWorkingDates,
+    );
     const safeName = (project?.name ?? 'schedule').replace(/[^a-z0-9\-_]+/gi, '-').toLowerCase();
     const filename = `${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
     if (Platform.OS === 'web') {
@@ -1469,10 +1478,23 @@ function ScheduleProScreenInner() {
     }
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       url = `${window.location.origin}${url}`;
-      try {
-        navigator.clipboard?.writeText(url);
+      // Audit #31 — this used to be `navigator.clipboard?.writeText(url)`
+      // followed by an unconditional "copied to clipboard" alert. Both of
+      // its failure modes lied to the user: the un-awaited Promise rejected
+      // AFTER the synchronous try/catch had already exited (so the catch
+      // never ran), and in a non-secure context — plain http:// over a
+      // jobsite LAN, or an embedded iframe — `navigator.clipboard` is
+      // undefined entirely, so the optional chain short-circuited without
+      // throwing at all. Either way the window.prompt fallback below was
+      // unreachable in exactly the situations it was written for, and the
+      // GC pasted stale clipboard content instead of a base64 share token
+      // they have no way to retype. copyToClipboard() awaits the write,
+      // falls back to execCommand('copy') on non-secure origins, and
+      // returns an honest boolean.
+      const ok = await copyToClipboard(url);
+      if (ok) {
         window.alert?.(`Share link copied to clipboard.\n\n${url}`);
-      } catch {
+      } else {
         window.prompt?.('Copy this share link:', url);
       }
     } else {

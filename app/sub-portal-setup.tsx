@@ -42,6 +42,83 @@ const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
   || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
+/** The four numbers the "Overpayment risk" dialog puts in front of the GC. */
+export interface SubOverpayment {
+  overage: number;
+  commitmentTotal: number;
+  alreadyApproved: number;
+  thisAmount: number;
+}
+
+/** Minimal shapes this math needs — kept structural so the guard script can
+ *  exercise it without dragging in SubSubmittedInvoice/Commitment. */
+interface OverpaymentInvoice {
+  id: string;
+  amount?: number;
+  status: string;
+  commitmentId?: string;
+}
+interface OverpaymentCommitment {
+  amount?: number;
+  changeAmount?: number;
+  paidToDate?: number;
+}
+
+// --- BEGIN computeSubOverpayment (extracted + executed by
+//     scripts/validate-sub-overpayment.ts — keep the sentinels) ---
+/**
+ * Would paying/approving `invoice` push this sub past their commitment value?
+ * Returns null when it would not. Pure and exported so the guard can pin the
+ * exact dollar figures the dialog shows.
+ */
+export function computeSubOverpayment(args: {
+  invoice: OverpaymentInvoice;
+  commitment: OverpaymentCommitment;
+  /** Every sub-submitted invoice on this portal, including `invoice` itself. */
+  siblings: OverpaymentInvoice[];
+}): SubOverpayment | null {
+  const { invoice, commitment, siblings } = args;
+  const commitmentTotal = (commitment.amount ?? 0) + (commitment.changeAmount ?? 0);
+  const thisAmount = invoice.amount ?? 0;
+
+  // commitment.paidToDate is the server rollup kept by the
+  // recompute_commitment_paid_to_date trigger, and it sums every APPROVED
+  // *and* PAID sub invoice on the commitment. "Mark paid" only renders on
+  // invoices that are already 'approved', so the invoice in hand is ALREADY
+  // inside paidToDate — the old `paidToDate + thisAmount` counted this draw
+  // twice. On the final $10,000 draw of a fully-billed $50,000 commitment the
+  // GC got a blocking destructive "Overpayment risk / Overage: $10,000" on a
+  // payment that was exactly on contract. Subtract our own contribution back
+  // out here so it is added exactly once below. On the approve path the
+  // invoice is still 'submitted', so nothing is subtracted — that path was
+  // always right.
+  const countedInRollup = invoice.status === 'approved' || invoice.status === 'paid';
+  const rollupAlreadyApproved = typeof commitment.paidToDate === 'number'
+    ? Math.max(0, commitment.paidToDate - (countedInRollup ? thisAmount : 0))
+    : 0;
+
+  // Same figure computed from what THIS device knows. The old code treated
+  // this as an either/or fallback for "offline or column missing", but
+  // ProjectContext maps `paid_to_date == null ? 0 : Number(...)`, so the
+  // value is never null and the fallback was dead code. That mattered in the
+  // other direction: an approval made offline is queued by supabaseWrite and
+  // the trigger has not run, so the rollup reads stale-low (0 on a brand-new
+  // commitment) and the guard silently failed OPEN. Take the larger of the
+  // two — the server sees invoices this device never cached, and this device
+  // sees approvals the server has not rolled up yet.
+  const localAlreadyApproved = siblings
+    .filter(i => i.id !== invoice.id
+      && i.commitmentId === invoice.commitmentId
+      && (i.status === 'approved' || i.status === 'paid'))
+    .reduce((sum, i) => sum + (i.amount ?? 0), 0);
+
+  const alreadyApproved = Math.max(rollupAlreadyApproved, localAlreadyApproved);
+  const overage = alreadyApproved + thisAmount - commitmentTotal;
+  if (overage <= 0) return null;
+  return { overage, commitmentTotal, alreadyApproved, thisAmount };
+}
+// --- END computeSubOverpayment ---
+
 export default function SubPortalSetupScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -290,33 +367,18 @@ function SubPortalSetupScreenInner() {
   // Surfaces a confirm dialog the GC can override (an actual change-order may
   // explain the overage), but stops silent overpayment by default.
   const checkOverpayment = useCallback(
-    (invoiceId: string): { overage: number; commitmentTotal: number; alreadyApproved: number; thisAmount: number; subName: string } | null => {
+    (invoiceId: string): (SubOverpayment & { subName: string }) | null => {
       const invoice = submitted.invoices.find(i => i.id === invoiceId);
       if (!invoice || !invoice.commitmentId) return null;
       const commitment = allCommitments.find(c => c.id === invoice.commitmentId);
       if (!commitment) return null;
-      const commitmentTotal = (commitment.amount ?? 0) + (commitment.changeAmount ?? 0);
-      // Prefer commitment.paidToDate (maintained server-side by the
-      // recompute_commitment_paid_to_date trigger) when present; fall
-      // back to a client-side sum when offline or the column is missing.
-      const alreadyApproved = (commitment.paidToDate ?? null) != null
-        ? (commitment.paidToDate as number)
-        : submitted.invoices
-            .filter(i => i.id !== invoiceId
-              && i.commitmentId === invoice.commitmentId
-              && (i.status === 'approved' || i.status === 'paid'))
-            .reduce((sum, i) => sum + (i.amount ?? 0), 0);
-      const thisAmount = invoice.amount ?? 0;
-      const total = alreadyApproved + thisAmount;
-      const overage = total - commitmentTotal;
-      if (overage <= 0) return null;
-      return {
-        overage,
-        commitmentTotal,
-        alreadyApproved,
-        thisAmount,
-        subName: sub?.companyName ?? 'this sub',
-      };
+      const numbers = computeSubOverpayment({
+        invoice,
+        commitment,
+        siblings: submitted.invoices,
+      });
+      if (!numbers) return null;
+      return { ...numbers, subName: sub?.companyName ?? 'this sub' };
     },
     [submitted.invoices, allCommitments, sub],
   );

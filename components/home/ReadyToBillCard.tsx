@@ -66,18 +66,41 @@ export default function ReadyToBillCard() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('feature_interest')
-          .upsert({ user_id: user.id, event_key: 'revenue.factoring.altline' }, { onConflict: 'user_id,event_key' });
-      }
+      // An expired session resolves with user: null. The old code skipped the
+      // write inside `if (user)` and STILL fell through to 'done' + the
+      // success alert, so the GC was told MAGE had recorded a request to
+      // advance a specific dollar amount and that a lending partner would
+      // reach out — against a row that was never written. Nobody ever called,
+      // and the button had latched to 'done' so they could not retry.
+      if (!user) throw new Error('no authenticated user');
+      // supabase-js RESOLVES on a PostgREST error rather than rejecting, so
+      // discarding the result made every rejection read as success. Destructure
+      // it and fail loudly.
+      //
+      // ignoreDuplicates makes this ON CONFLICT DO NOTHING instead of DO
+      // UPDATE. That is not cosmetic: feature_interest has SELECT/INSERT/DELETE
+      // policies and NO UPDATE policy (20260512000000_feature_interest.sql), so
+      // the DO UPDATE arm is denied by RLS from the second tap onward. DO
+      // NOTHING only needs the INSERT policy. The row is (user_id, event_key)
+      // plus created_at — there is nothing an update could usefully change, so
+      // re-asserting interest is genuinely a no-op and "we noted it" stays
+      // true. Fixing the statement beats widening RLS to allow writes the
+      // feature never needed.
+      const { error } = await supabase
+        .from('feature_interest')
+        .upsert(
+          { user_id: user.id, event_key: 'revenue.factoring.altline' },
+          { onConflict: 'user_id,event_key', ignoreDuplicates: true },
+        );
+      if (error) throw error;
       setAdvanceState('done');
       showAlert(
         'Advance requested',
         `We've noted your interest in advancing up to ${formatMoney(advanceTotal)} against this work. ` +
           'Funding runs through a lending partner — we\'ll reach out as soon as it opens in your state.',
       );
-    } catch {
+    } catch (e) {
+      console.warn('[ReadyToBillCard] advance interest not recorded', e);
       setAdvanceState('idle');
       showAlert('Could not save', 'Please try again in a moment.');
     }

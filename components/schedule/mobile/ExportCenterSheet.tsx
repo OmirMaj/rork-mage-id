@@ -70,7 +70,7 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
     } finally { setBusy(false); }
   };
 
-  const runCsv = async () => { if (busy) return; setBusy(true); try { await shareScheduleCsv(tasks, new Date(startDateIso), project.name); onClose(); } catch (e) { showAlert('Export failed', e instanceof Error ? e.message : 'Try again.'); } finally { setBusy(false); } };
+  const runCsv = async () => { if (busy) return; setBusy(true); try { await shareScheduleCsv(tasks, new Date(startDateIso), project.name, { workingDaysPerWeek: project.schedule?.workingDaysPerWeek, nonWorkingDates: project.schedule?.nonWorkingDates }); onClose(); } catch (e) { showAlert('Export failed', e instanceof Error ? e.message : 'Try again.'); } finally { setBusy(false); } };
   const runShare = async () => {
     const url = buildScheduleShareUrl(project.name, new Date(startDateIso), tasks);
     if (!url) { showAlert('Schedule too large', 'This schedule is too large for a quick link — export a PDF instead.'); return; }

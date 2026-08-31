@@ -137,14 +137,43 @@ export function diffEstimates(a: LinkedEstimate, b: LinkedEstimate): EstimateDif
   };
   const ma = sum(a); const mb = sum(b);
   const keys = new Set<string>([...ma.keys(), ...mb.keys()]);
-  const categories = [...keys]
-    .map(k => ({ key: k, label: k, delta: (mb.get(k) ?? 0) - (ma.get(k) ?? 0) }))
+  const rawDeltas = [...keys]
+    .map(k => ({ key: k, label: k, delta: (mb.get(k) ?? 0) - (ma.get(k) ?? 0) }));
+  const categories = rawDeltas
     .filter(c => Math.abs(c.delta) > 0.0001)
     .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
   const netDelta = (b.grandTotal ?? 0) - (a.grandTotal ?? 0);
-  // Markup line so category deltas reconcile to netDelta (categories use pre-markup lineTotal).
-  const markupDelta = (b.markupTotal ?? 0) - (a.markupTotal ?? 0);
-  if (Math.abs(markupDelta) > 0.0001) {
+  // The markup row is the RESIDUAL, not the markupTotal delta.
+  //
+  // This used to push (b.markupTotal - a.markupTotal) unconditionally, under a
+  // comment that said "categories use pre-markup lineTotal" — the OPPOSITE of
+  // what the estimate builders actually write. app/(tabs)/estimate/full.tsx and
+  // app/takeoff-estimate.tsx both store lineTotal ALREADY multiplied by markup
+  // and set grandTotal = Σ lineTotal, so the category deltas alone already
+  // reconcile to netDelta. Adding markupTotal on top double-counted it: raising
+  // markup 15%→25% on a $100K estimate rendered "Materials +$10,000 / Markup
+  // +$10,000" above a "Net Change +$10,000" footer — a breakdown that footed to
+  // twice its own total, on the exact screen a GC opens to explain a price
+  // change to a client.
+  //
+  // We can't just delete the row either. Snapshots authored under the OTHER
+  // convention — lineTotal PRE-markup with grandTotal = baseTotal + markupTotal,
+  // which is what utils/copilot/estimateEdit/estimateOps.ts wrote until it was
+  // realigned to the estimator — are already sitting in users' revision
+  // histories, and for those the markup movement is the ONLY movement: no
+  // category budges at all, so dropping the row would render "no changes" above
+  // a nonzero Net Change.
+  //
+  // Taking netDelta minus the category movement satisfies both without this
+  // function having to know which builder wrote the snapshot, or when: the
+  // residual is 0 for markup-inclusive estimates (no row emitted) and exactly
+  // the markup movement for pre-markup ones. Rows now sum to Net Change by
+  // construction, so this cannot silently rot again if a builder's math moves.
+  const categorySum = rawDeltas.reduce((s, c) => s + c.delta, 0);
+  const markupDelta = netDelta - categorySum;
+  // Half-cent floor: the recompute paths round to cents, so anything smaller is
+  // float noise that would render as a meaningless "+$0" row.
+  if (Math.abs(markupDelta) > 0.005) {
     categories.push({ key: '__markup__', label: 'Markup & overhead', delta: markupDelta });
   }
   return { categories, netDelta };
