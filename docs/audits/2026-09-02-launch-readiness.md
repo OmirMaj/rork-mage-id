@@ -59,7 +59,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Switch to signed URLs, which utils/storage.ts:118-119 already does correctly for the documents bucket with a 7-day TTL. Replace getPublicUrl at utils/projectFiles.ts:161 and :84 and utils/projectDocuments.ts:113 with `createSignedUrl(path, 60*60*24*7)`. Because signed URLs expire, persist the storage PATH (not the URL) in cois.fileUri and the project-file rows, and resolve to a fresh signed URL at render time in components/ProjectFilesBrowser.tsx:222 and app/coi-vault.tsx:375. Add a one-time normalizer that strips the '/storage/v1/object/public/project-documents/' prefix off already-stored URLs to recover the path. Delete the two comments that assert the bucket is public. Do NOT simply flip the bucket to public — project_docs_select is scoped `owner = auth.uid()`, so these files are not meant to be URL-shareable.
 
-## [ ] #6 — [data_leak] grant_rfp_post_credit is SECURITY DEFINER with no caller check and EXECUTE-granted to anon in production — anyone can mint paid RFP credits into any user's billing row
+## [x] #6 — [data_leak] grant_rfp_post_credit is SECURITY DEFINER with no caller check and EXECUTE-granted to anon in production — anyone can mint paid RFP credits into any user's billing row
 
 **Where:** `supabase/schema.sql:4205`
 
@@ -69,7 +69,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Two layers, both required because the migration's revoke provably did not survive. (1) Run against prod and commit as a new migration: `revoke all on function public.grant_rfp_post_credit(uuid, text, integer) from public, anon, authenticated;` leaving only service_role and postgres. (2) Add an in-body guard as the first statement so an ACL slip cannot silently reopen it: `if auth.role() is distinct from 'service_role' then raise exception 'forbidden'; end if;`. Then re-audit the drift class: run has_function_privilege('anon', oid, 'EXECUTE') across all 57 SECURITY DEFINER functions, diff each against the grant its migration intended, and lock every write-capable outlier. Finally check for existing abuse with `select * from rfp_post_payments where session_id not like 'cs_%';`.
 
-## [ ] #7 — [data_leak] projects_update lets an invited 'editor' collaborator reassign projects.user_id and permanently steal the project from its owner
+## [x] #7 — [data_leak] projects_update lets an invited 'editor' collaborator reassign projects.user_id and permanently steal the project from its owner
 
 **Where:** `supabase/schema.sql:3163`
 
@@ -79,7 +79,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Do not try to fix this in the policy — the owner disjunct is always satisfiable by the row the attacker is writing. Add a BEFORE UPDATE trigger on public.projects modelled on crew_freeze_ownership_columns (schema.sql:3825): `if auth.uid() is not null and auth.uid() is distinct from old.user_id then new.user_id := old.user_id; end if; return new;`. Consider freezing client_portal/access_token the same way. Add a regression test that authenticates as an accepted editor collaborator, PATCHes user_id, and asserts the original owner still owns the row and can still SELECT it.
 
-## [ ] #8 — [data_leak] sub_submitted_invoices UPDATE policy's WITH CHECK drops the ownership test — a sub can move a money row into another contractor's books
+## [x] #8 — [data_leak] sub_submitted_invoices UPDATE policy's WITH CHECK drops the ownership test — a sub can move a money row into another contractor's books
 
 **Where:** `supabase/schema.sql:3283`
 
@@ -99,7 +99,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Add the missing policy, mirroring the existing 'gc updates read receipts' policy on portal_messages: `CREATE POLICY "gc stamps own CO approvals" ON public.change_order_approvals FOR UPDATE TO authenticated USING (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM projects p WHERE p.id::text = change_order_approvals.project_id AND p.user_id = auth.uid())) WITH CHECK (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM projects p WHERE p.id::text = change_order_approvals.project_id AND p.user_id = auth.uid()));`. Then make the write assert instead of silently no-oping: change line 73 to `const { data, error } = await supabase.from('change_order_approvals').update({...}).eq('id', row.id).select('id');` and log/retry when data is empty — this codebase has now been bitten twice by silent zero-row PostgREST writes. While in the file, gate re-application on `synced_to_co_at is null` (which the new policy finally makes meaningful) so a deliberate GC revert is not re-flipped.
 
-## [ ] #10 — [data_leak] portal_budget_proposals UPDATE policy's WITH CHECK omits the ownership test — a client budget demand can be injected into a stranger's portal
+## [x] #10 — [data_leak] portal_budget_proposals UPDATE policy's WITH CHECK omits the ownership test — a client budget demand can be injected into a stranger's portal
 
 **Where:** `supabase/schema.sql:3067`
 
