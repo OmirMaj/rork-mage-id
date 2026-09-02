@@ -75,20 +75,23 @@ Absent — these migrations have NOT applied:
 | `portal_snapshots_expires_at_idx` | `20260826170000_portal_link_expiry` |
 | `delivery_receipts_delivery_idx` + `delivery_receipts.delivery_id` | `20260828120000_delivery_receipt_link` |
 
-Live defects still in production:
+Live defects still in production — UPDATED 2026-09-02 after the security apply:
 
-- `subscriptions_tier_check` is `['free','pro','business']` — an Enterprise
-  purchase at $150/mo is silently rejected and the buyer is treated as free.
+- ~~`subscriptions_tier_check` rejects 'enterprise'~~ **CLOSED** — now accepts it.
 - `notification_outbox_recipient_kind_check` is `['gc','client','sub']` while
-  the app writes `'user'`.
-- `grant_rfp_post_credit` is SECURITY DEFINER **and executable by `anon`**. The
-  anon key ships inside the app bundle, so anyone can mint themselves unlimited
-  paid RFP post credits. This is the most urgent single item on this page.
-- Two RLS UPDATE policies re-check no ownership in `WITH CHECK`
-  (`sub_submitted_invoices`, `portal_budget_proposals`), so a row can be
-  rewritten into another tenant.
-- Both `project_collaborators` FKs to `auth.users` are `NO ACTION`, so account
-  deletion destroys the user's data and then fails with 23503.
+  the app writes `'user'`. **STILL OPEN** — no migration exists for this one; it
+  needs either the constraint widened or the app corrected, and which is right
+  is a modelling question nobody has answered.
+- ~~`grant_rfp_post_credit` executable by `anon`~~ **CLOSED** — anon and
+  authenticated revoked, service_role only, plus an in-body caller check.
+- ~~Two RLS UPDATE policies with no ownership in `WITH CHECK`~~ **CLOSED** —
+  both rewritten; a scan for that shape now returns zero.
+- ~~`project_collaborators` FKs are `NO ACTION`~~ **CLOSED** — both CASCADE;
+  blocking FKs to `auth.users` now zero.
+
+The table above under "Absent" is still accurate: the feature-enabling batch
+(project_financials, deliveries, building_access_rules, portal_get_snapshot_v2,
+five indexes) has NOT been applied.
 
 An oddity worth knowing: `delivery_receipts` exists while `deliveries` does not.
 The receipts table was created by some path other than these migrations.
