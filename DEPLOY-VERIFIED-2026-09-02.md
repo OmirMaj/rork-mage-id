@@ -1,5 +1,31 @@
 # Verified deploy plan — 2026-09-02
 
+> ## STATUS: the security half is APPLIED (2026-09-02)
+>
+> Applied via the Supabase MCP `apply_migration` and verified by introspection
+> immediately after each:
+>
+> | Applied | Verified by |
+> |---|---|
+> | `grant_rfp_post_credit` locked | `has_function_privilege(anon)` = **false**, `service_role` = true, guard present, still `returns boolean` |
+> | Two RLS write leaks closed | policies whose `qual` has `auth.uid()` but `with_check` does not = **0** |
+> | Three ownership-freeze triggers | present = **3** |
+> | `project_collaborators` FKs -> CASCADE | blocking (`NO ACTION`) FKs to `auth.users` = **0** |
+> | Four public-directory FKs -> CASCADE | `SET NULL` FKs remaining = **1** (`crew_members`, deliberate) |
+> | `change_order_approvals` UPDATE policy + evidence freeze | 1 policy, 1 trigger |
+> | `subscriptions_tier_check` widened | now includes `'enterprise'` |
+>
+> **STILL NOT APPLIED, and steps 1-2 below still stand for them:** the
+> 2026-08-26/28 batch that creates `project_financials`, `deliveries`,
+> `building_access_rules`, `portal_get_snapshot_v2` and five indexes. Those are
+> feature-enabling, not security. Step 6 (phase 2) remains gated as written.
+>
+> **`supabase/schema.sql` IS NOW STALE** in a new way: production moved and the
+> file did not. `validate-rls-write-leaks` parses it, so it will keep printing
+> its deploy-pending note about two leaks that are now closed. Regenerate it
+> (step 7) before trusting that guard again.
+
+
 Every claim here was checked against production (`nteoqhcswappxxjlpvap`) by
 read-only introspection on 2026-09-02, not inferred from migration filenames.
 The migration tracker is NOT reliable for this repo: its last entry is
