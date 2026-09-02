@@ -766,7 +766,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     if (!trimmed) throw new Error('Enter your email address.');
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!EMAIL_REGEX.test(trimmed)) throw new Error('That email address looks off — please double-check.');
-    console.log('[Auth] Sending magic link to', trimmed);
+    // Do NOT log `trimmed` (or any other raw identifier) here. Nothing in this
+    // app strips console calls from a release bundle — there is no
+    // babel-plugin-transform-remove-console in babel.config.js and no
+    // drop_console in metro.config.js — so this line used to write the user's
+    // email address into iOS os_log on device and into the browser console on
+    // app.mageid.app, from the signed-OUT login screen. On a shared or kiosk
+    // machine that told the next person who has an account here, before any
+    // authentication happened. The rest of this file already logs only
+    // outcomes ('found'/'none', error.message), so this was the one leak.
+    console.log('[Auth] Sending magic link');
 
     // Route through our auth-magic-link edge function so the user gets a
     // brand-styled email instead of Supabase's generic "Magic Link →

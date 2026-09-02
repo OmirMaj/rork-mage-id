@@ -19,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, MapPin, Calendar, FileText, ShieldCheck, AlertTriangle,
   Send, Pencil, ChevronRight, Clock, Trophy, Image as ImageIcon,
-  HelpCircle, MessageSquare, CheckCircle2,
+  HelpCircle, MessageSquare, CheckCircle2, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -66,20 +66,28 @@ export default function RfpDetailScreen() {
   const { user } = useAuth();
   const { bidId } = useLocalSearchParams<{ bidId: string }>();
 
-  const { data: rfp, isLoading } = useQuery({
+  const { data: rfp, isLoading, isError, isFetching, fetchStatus, refetch } = useQuery({
     queryKey: ['rfp-detail', bidId],
     enabled: !!bidId && isSupabaseConfigured,
     queryFn: async (): Promise<RfpRow | null> => {
+      // maybeSingle + throw, NOT single + `return null` (audit #13,
+      // 2026-09-02). The old queryFn caught every failure and returned null,
+      // which collapsed "the network is down" and "this RFP was deleted" into
+      // one indistinguishable value — react-query saw a resolved query with
+      // no row and could never surface a retry. maybeSingle keeps `error` for
+      // genuine failures (single also errors PGRST116 on zero rows, which is
+      // not an error here) and gives data:null for a row that is simply gone.
       const { data, error } = await supabase
         .from('public_bids')
         .select('id,user_id,title,city,state,status,category,posted_date,deadline,scope_description,photo_urls,drawing_urls,budget_min,budget_max,desired_start,address_verified,verified_only,awarded_response_id,awarded_at')
         .eq('id', bidId)
         .eq('is_homeowner_rfp', true)
-        .single();
+        .maybeSingle();
       if (error) {
         console.warn('[rfp-detail] fetch error', error);
-        return null;
+        throw new Error(error.message || 'Could not load this project.');
       }
+      if (!data) return null;
       return {
         ...data,
         photo_urls: data.photo_urls as string[] | null,
@@ -183,13 +191,120 @@ export default function RfpDetailScreen() {
     Linking.openURL(url).catch(() => showAlert('Could not open', 'The attachment link is broken.'));
   }, []);
 
-  if (isLoading || !rfp) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="small" color={themeColors.accent} />
+  // Back has to work even when this screen is the bottom of the stack. Both
+  // notification deep links (app/notifications-inbox.tsx:242,256) can cold-start
+  // straight into /rfp-detail, and this route runs headerShown:false, so a bare
+  // router.back() with nothing to pop leaves the user stranded — on web there
+  // is not even an edge-swipe gesture to fall back on.
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/(home)' as never);
+  }, [router]);
+
+  // react-query is configured networkMode:'offlineFirst' (app/_layout.tsx:181),
+  // so a query whose retries are paused for lack of network sits at
+  // fetchStatus:'paused' with status still 'pending'. That is a stalled state,
+  // not a loading one, and it must land in the retryable branch below rather
+  // than spin forever.
+  // `&& !rfp` is load-bearing. react-query KEEPS the previous data across a
+  // failed or paused refetch, so without it a background refetch that errors —
+  // or a device that drops off wifi mid-view, which sets fetchStatus:'paused' —
+  // would replace a fully rendered project the user is reading with a "We could
+  // not load this project" shell. The error state is for having NOTHING to
+  // show, not for the most recent attempt having failed.
+  //
+  // !isSupabaseConfigured stays unconditional: with no backend there can never
+  // be data, and saying so immediately beats an indefinite spinner.
+  const loadFailed = (!rfp && (isError || fetchStatus === 'paused')) || !isSupabaseConfigured;
+
+  // Chrome shared by every non-success state. Audit #13 (2026-09-02): the single
+  // `isLoading || !rfp` branch this replaces rendered an ActivityIndicator and
+  // nothing else under headerShown:false — zero text nodes, no retry, and no back
+  // chevron, because the chevron lived only in the success branch. A network
+  // error, an offline tap, a deleted or awarded RFP and a missing bidId all
+  // landed there, and with enabled:false TanStack v5 leaves isLoading false and
+  // data undefined, so the spinner was permanent rather than transient.
+  const renderShell = (heading: string, body: React.ReactNode) => (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.eyebrow}>Homeowner RFP</Text>
+          <Text style={styles.title} numberOfLines={2}>{heading}</Text>
+        </View>
       </View>
-    );
+      <View style={styles.stateWrap}>{body}</View>
+    </View>
+  );
+
+  if (!bidId) {
+    return renderShell('Project not found', (
+      <>
+        <AlertTriangle size={22} color={Colors.warning} strokeWidth={1.75} />
+        <Text style={styles.stateTitle}>We could not open that link</Text>
+        <Text style={styles.stateText}>
+          It is missing a project reference. Open the project again from your MAGE ID Bids tab.
+        </Text>
+        <TouchableOpacity style={styles.stateBtn} onPress={handleBack} accessibilityRole="button" testID="rfp-detail-back">
+          <Text style={styles.stateBtnText}>Go back</Text>
+        </TouchableOpacity>
+      </>
+    ));
+  }
+
+  if (isLoading) {
+    return renderShell('Loading', (
+      <>
+        <ActivityIndicator size="small" color={themeColors.accent} />
+        <Text style={styles.stateText}>Loading this project...</Text>
+      </>
+    ));
+  }
+
+  if (loadFailed) {
+    return renderShell('Could not load', (
+      <>
+        <AlertTriangle size={22} color={Colors.warning} strokeWidth={1.75} />
+        <Text style={styles.stateTitle}>We could not load this project</Text>
+        <Text style={styles.stateText}>
+          You may be offline or on a weak connection. Nothing was lost.
+        </Text>
+        <TouchableOpacity
+          style={[styles.stateBtn, isFetching && { opacity: 0.5 }]}
+          onPress={() => { void refetch(); }}
+          disabled={isFetching}
+          accessibilityRole="button"
+          testID="rfp-detail-retry"
+        >
+          {isFetching ? (
+            <ActivityIndicator size="small" color={themeColors.accent} />
+          ) : (
+            <>
+              <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.stateBtnText}>Try again</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </>
+    ));
+  }
+
+  if (!rfp) {
+    return renderShell('No longer available', (
+      <>
+        <FileText size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+        <Text style={styles.stateTitle}>This project is no longer available</Text>
+        <Text style={styles.stateText}>
+          The homeowner may have awarded it, closed it, or taken it down.
+        </Text>
+        <TouchableOpacity style={styles.stateBtn} onPress={handleBack} accessibilityRole="button" testID="rfp-detail-back">
+          <Text style={styles.stateBtnText}>Go back</Text>
+        </TouchableOpacity>
+      </>
+    ));
   }
 
   return (
@@ -197,7 +312,7 @@ export default function RfpDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={handleBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -240,7 +355,14 @@ export default function RfpDetailScreen() {
             {rfp.verified_only && (
               <View style={[styles.pill, { backgroundColor: themeColors.accent + '18' }]}>
                 <ShieldCheck size={10} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: themeColors.accent }]}>VERIFIED PROS ONLY</Text>
+                {/* Was "VERIFIED PROS ONLY" (audit #12, 2026-09-02). verified_only
+                    only narrows the notification fan-out in
+                    notify-nearby-contractors; it does not restrict who may read
+                    this RFP or submit a bid, because public_bids is SELECT
+                    USING(true) to authenticated and bid_responses has no
+                    verification predicate. "ONLY" claimed a restriction that does
+                    not exist, to both the homeowner and every bidder. */}
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>VERIFIED PROS NOTIFIED</Text>
               </View>
             )}
             {rfp.address_verified && (
@@ -494,6 +616,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   secondaryCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   ownerActions: { flexDirection: 'row', gap: 10 },
+
+  // Loading / failed / gone states (audit #13). Centred column with real copy,
+  // so none of these branches can render zero text nodes again.
+  stateWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 10 },
+  stateTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, textAlign: 'center' },
+  stateText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19 },
+  stateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 6, paddingHorizontal: 18, paddingVertical: 11,
+    borderRadius: Tokens.radius.md, backgroundColor: Colors.card,
+    borderWidth: 1, borderColor: t.line, minWidth: 132, minHeight: 42,
+  },
+  stateBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
 
   dimmedCta: {
     paddingVertical: 16, borderRadius: Tokens.radius.card, marginTop: 10,

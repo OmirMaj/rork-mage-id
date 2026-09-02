@@ -152,8 +152,26 @@ export default function PostRfpScreen() {
   const [desiredStart, setDesiredStart]   = useState('');
   const [deadline, setDeadline]           = useState('');
   // Verified-only RFP: when on, only license-verified contractors are
-  // notified and may bid. The antidote to shared-lead blasting — fewer,
-  // higher-quality bids from vetted pros.
+  // NOTIFIED. It is not a bidding restriction, and this comment used to claim
+  // it was ("notified and may bid"), which is the opposite of what ships.
+  // The only place verified_only is honoured is the push/email fan-out in
+  // supabase/functions/notify-nearby-contractors/index.ts:144-172. On the read
+  // and write side there is no verification predicate at all: public_bids
+  // carries `public_bids_select ... TO authenticated USING (true)` and
+  // bid_responses carries `bid_responses_own FOR ALL USING (auth.uid() =
+  // user_id)`, whose derived WITH CHECK only asks that the inserter own the
+  // row (verified against production 2026-09-02, audit #12). Any copy on this
+  // screen that promises a bidding restriction is a promise the backend does
+  // not keep — see the toggle subtitle below.
+  //
+  // Do NOT close that gap by bolting a verification predicate onto
+  // bid_responses INSERT until contractor_licenses means something. Checked
+  // against production the same day: that table is self-insert
+  // (contractor_licenses_insert_own WITH CHECK (auth.uid() = user_id), so a
+  // bidder can author their own "license"), and it holds zero rows. A
+  // predicate today would lock every single account out of every verified-only
+  // RFP while remaining one INSERT away from bypass — strictly worse than
+  // honest copy. Enforcement needs staff-issued licenses first.
   const [verifiedOnly, setVerifiedOnly]   = useState(false);
   const [attachments, setAttachments]     = useState<PickedAttachment[]>([]);
   const [submitting, setSubmitting]       = useState(false);
@@ -893,9 +911,19 @@ function BudgetStep({
         >
           <ShieldCheck size={20} color={verifiedOnly ? themeColors.success : themeColors.textMuted} strokeWidth={1.75} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.verifyToggleTitle}>Verified pros only</Text>
+            {/* Copy fix, audit #12 (2026-09-02). This read "Verified pros
+                only" / "...get notified and can bid", but only the notify
+                half is enforced (notify-nearby-contractors filters the fan-out
+                on contractor_licenses). Reading and bidding are not gated:
+                public_bids is SELECT USING(true) to every authenticated
+                account and nothing in the bid_responses policies checks for a
+                license. A homeowner ticking this box was being told unlicensed
+                strangers could not bid on their job, which was untrue. Until
+                the WITH CHECK predicate exists server-side, the promise here
+                is scoped to what actually happens: notification targeting. */}
+            <Text style={styles.verifyToggleTitle}>Notify verified pros only</Text>
             <Text style={styles.verifyToggleSub}>
-              Only license-verified contractors get notified and can bid. Fewer bids, higher quality.
+              We only alert contractors with a current license on file. Fewer bids, higher quality.
             </Text>
           </View>
           <View style={[styles.verifyCheckbox, verifiedOnly && styles.verifyCheckboxOn]}>

@@ -607,20 +607,44 @@ export default function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Today: {aiUsed} of {aiLimit} requests</Text>
               <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
-                <View style={{ height: 6, backgroundColor: themeColors.accent, borderRadius: 3, width: `${Math.min((aiUsed / aiLimit) * 100, 100)}%` }} />
+                {/* `aiLimit > 0 ?` is not currently reachable (every tier's
+                    daily cap is >= 5) but it is the same one-token guard the
+                    Advanced bar below was missing, and a zero denominator here
+                    would paint the identical full-bar lie. */}
+                <View style={{ height: 6, backgroundColor: themeColors.accent, borderRadius: 3, width: `${aiLimit > 0 ? Math.min((aiUsed / aiLimit) * 100, 100) : 0}%` }} />
               </View>
             </View>
           </View>
           <View style={styles.rowSeparator} />
+          {/* Advanced (smart-tier) AI quota. LIMITS.free.smart is 0, so on a
+              brand-new free account the cap for this row is zero.
+              Pre-fix the fill width was `${Math.min((aiSmartUsed / aiSmartLimit) * 100, 100)}%`
+              with no zero guard: 0/0 is NaN, Math.min(NaN, 100) is NaN, and
+              'NaN%' is not a resolvable dimension — RN drops the invalid width
+              and the child stretches to the full track. Every free user opened
+              Settings to a completely full orange bar labelled "Advanced: 0 of
+              0" having made zero calls. A cap of zero does not mean "all used
+              up", it means "not on this plan", so drop the meter entirely in
+              that case rather than drawing a bar over a zero denominator. */}
           <View style={styles.row}>
             <View style={styles.iconWrap}>
               <MageAIMark size={14} color={themeColors.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Advanced: {aiSmartUsed} of {aiSmartLimit}</Text>
-              <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
-                <View style={{ height: 6, backgroundColor: themeColors.accent, borderRadius: 3, width: `${Math.min((aiSmartUsed / aiSmartLimit) * 100, 100)}%` }} />
-              </View>
+              {aiSmartLimit > 0 ? (
+                <>
+                  <Text style={styles.rowLabel}>Advanced: {aiSmartUsed} of {aiSmartLimit}</Text>
+                  <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
+                    {/* The `aiSmartLimit > 0 ?` guard is kept inside the width
+                        expression as well as on the branch above, so the NaN
+                        cannot come back if this row is ever rendered
+                        unconditionally again. */}
+                    <View style={{ height: 6, backgroundColor: themeColors.accent, borderRadius: 3, width: `${aiSmartLimit > 0 ? Math.min((aiSmartUsed / aiSmartLimit) * 100, 100) : 0}%` }} />
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.rowLabel}>Advanced AI: upgrade to unlock</Text>
+              )}
             </View>
           </View>
           <View style={styles.rowSeparator} />
@@ -638,17 +662,29 @@ export default function SettingsScreen() {
               <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>
-                Takeoff: {takeoffQuota.used} of {takeoffQuota.cap} pages this month
-              </Text>
-              <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
-                <View style={{
-                  height: 6,
-                  backgroundColor: takeoffQuota.cap > 0 && takeoffQuota.used / takeoffQuota.cap > 0.8 ? themeColors.accentLabel : Colors.purple,
-                  borderRadius: 3,
-                  width: `${takeoffQuota.cap > 0 ? Math.min((takeoffQuota.used / takeoffQuota.cap) * 100, 100) : 0}%`,
-                }} />
-              </View>
+              {/* TAKEOFF_PAGES_CAP_BY_TIER.free is 0, so the fill width here
+                  already carried a zero guard — but the label still read
+                  "Takeoff: 0 of 0 pages this month" next to an empty track,
+                  which reads as a broken meter rather than as a plan limit.
+                  Same treatment as the Advanced row: no denominator, no
+                  meter. */}
+              {takeoffQuota.cap > 0 ? (
+                <>
+                  <Text style={styles.rowLabel}>
+                    Takeoff: {takeoffQuota.used} of {takeoffQuota.cap} pages this month
+                  </Text>
+                  <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
+                    <View style={{
+                      height: 6,
+                      backgroundColor: takeoffQuota.cap > 0 && takeoffQuota.used / takeoffQuota.cap > 0.8 ? themeColors.accentLabel : Colors.purple,
+                      borderRadius: 3,
+                      width: `${takeoffQuota.cap > 0 ? Math.min((takeoffQuota.used / takeoffQuota.cap) * 100, 100) : 0}%`,
+                    }} />
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.rowLabel}>Takeoff pages: upgrade to unlock</Text>
+              )}
             </View>
           </View>
           <View style={styles.rowSeparator} />

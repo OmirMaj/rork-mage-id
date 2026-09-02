@@ -62,7 +62,6 @@ import {
   suggestDuration,
   buildScheduleFromTasks,
   saveBaseline,
-  getBaselineVariance,
   getPhaseColor,
   PHASE_OPTIONS,
 } from '@/utils/scheduleEngine';
@@ -127,6 +126,25 @@ interface TaskDraft {
 
 type ScheduleViewMode = 'today' | 'lookahead' | 'board' | 'gantt' | 'resources' | 'summary';
 type FilterMode = 'all' | 'critical' | 'milestones' | 'overdue';
+
+/**
+ * One flattened Board row. The Board is phase-grouped, but a nested
+ * "section -> cards" tree cannot be windowed by a FlatList, so the groups are
+ * flattened into a single row stream: a 'phase' row followed by its 'task'
+ * rows (omitted when the phase is collapsed). See `boardRows` below.
+ */
+type BoardRow =
+  | {
+      kind: 'phase';
+      key: string;
+      phase: string;
+      taskCount: number;
+      phaseProgress: number;
+      isCollapsed: boolean;
+      /** First phase gets no top gap; the rest reproduce phaseSection's 6pt. */
+      isFirst: boolean;
+    }
+  | { kind: 'task'; key: string; task: ScheduleTask };
 
 const EMPTY_DRAFT: TaskDraft = {
   title: '', phase: 'General', durationDays: '5', startDayOverride: '',
@@ -382,6 +400,34 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     }
     return groups;
   }, [filteredTasks]);
+
+  /**
+   * Baseline end-day indexed by task id.
+   *
+   * Every task card and the task-detail modal used to call
+   * getBaselineVariance(task, schedule.baseline), which does a linear
+   * `baseline.tasks.find(...)` (utils/scheduleEngine.ts). One scan per rendered
+   * row makes the Board view O(tasks x baselineTasks). The schedule importer
+   * caps a file at 1,000 rows (supabase/functions/import-schedule/index.ts,
+   * MAX_ROWS = 1000) and captures a baseline on import, so a real MS Project /
+   * P6 file made the board do up to 1,000,000 id comparisons per render pass —
+   * on every progress tap, filter change and phase collapse.
+   *
+   * Indexing once per baseline change makes each lookup O(1). The arithmetic
+   * below (getTaskVariance) is character-for-character what getBaselineVariance
+   * computes, so no displayed variance number changes.
+   */
+  const baselineEndByTaskId = useMemo(() => {
+    const index = new Map<string, number>();
+    for (const bt of activeSchedule?.baseline?.tasks ?? []) index.set(bt.id, bt.endDay);
+    return index;
+  }, [activeSchedule?.baseline]);
+
+  const getTaskVariance = useCallback((task: ScheduleTask): number | null => {
+    const baselineEnd = baselineEndByTaskId.get(task.id);
+    if (baselineEnd === undefined) return null;
+    return (task.startDay + task.durationDays) - baselineEnd;
+  }, [baselineEndByTaskId]);
 
   const totalProgress = useMemo(() => {
     if (sortedTasks.length === 0) return 0;
@@ -1046,7 +1092,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const statusColor = getStatusColor(task.status);
     const borderColor = getTaskBorderColor(task, projectStartDate, activeSchedule?.workingDaysPerWeek ?? 5);
     const dateRange = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
-    const variance = getBaselineVariance(task, activeSchedule?.baseline);
+    const variance = getTaskVariance(task);
 
     return (
       <TouchableOpacity
@@ -1126,7 +1172,105 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </View>
       </TouchableOpacity>
     );
-  }, [activeSchedule, projectStartDate, handleProgressUpdate]);
+  }, [activeSchedule, projectStartDate, handleProgressUpdate, getTaskVariance]);
+
+  /**
+   * BOARD VIRTUALIZATION.
+   *
+   * The Board used to render `Object.entries(phaseGroups).map(...)` with
+   * `tasks.map(renderTaskCard)` inside the screen's outer ScrollView, so every
+   * task card mounted at once. A schedule imported from MS Project or P6 can
+   * carry up to 1,000 tasks (supabase/functions/import-schedule/index.ts caps
+   * at MAX_ROWS = 1000, and truncates MSPDI blocks to the same), and the
+   * cheapest possible card is 24 views (status chip + dot + label, title,
+   * two meta texts, progress track + fill + label, and four progress buttons
+   * with their labels) before the optional milestone / critical-path / weather
+   * / sub chips, each of which drags in a lucide SVG tree of its own. So a
+   * full import built 24,000+ views in one synchronous pass before the Board's
+   * first frame, and kept every one of them alive while scrolling.
+   *
+   * Phase sections and their cards are flattened into ONE row list so a single
+   * FlatList can window them. Nesting a FlatList inside the outer ScrollView
+   * would not have helped: a virtualized list inside a same-axis ScrollView is
+   * given unbounded height and renders every row anyway (and RN warns about
+   * it), which is why the Board becomes the scroll container in board mode
+   * rather than a child of one.
+   */
+  const boardRows = useMemo<BoardRow[]>(() => {
+    const rows: BoardRow[] = [];
+    let isFirst = true;
+    for (const [phase, tasks] of Object.entries(phaseGroups)) {
+      const isCollapsed = collapsedPhases[phase] === true;
+      const phaseProgress = tasks.length > 0
+        ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length) : 0;
+      rows.push({ kind: 'phase', key: `phase:${phase}`, phase, taskCount: tasks.length, phaseProgress, isCollapsed, isFirst });
+      isFirst = false;
+      if (!isCollapsed) {
+        for (const task of tasks) rows.push({ kind: 'task', key: `task:${task.id}`, task });
+      }
+    }
+    return rows;
+  }, [phaseGroups, collapsedPhases]);
+
+  const boardRowKey = useCallback((row: BoardRow) => row.key, []);
+
+  const renderBoardRow = useCallback(({ item }: { item: BoardRow }) => {
+    if (item.kind === 'task') {
+      // Was `phaseTaskList` (paddingHorizontal 16, gap 8, paddingBottom 8) around
+      // the whole phase. Flattened, each row carries its own inset and the 8pt
+      // gap as bottom padding, which lands the same spacing as the gap did.
+      return <View style={styles.phaseTaskRow}>{renderTaskCard(item.task)}</View>;
+    }
+    return (
+      <TouchableOpacity
+        style={[styles.phaseHeader, !item.isFirst && styles.phaseHeaderSpaced]}
+        onPress={() => togglePhaseCollapse(item.phase)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.phaseHeaderLeft}>
+          <View style={[styles.phaseColorDot, { backgroundColor: getPhaseColor(item.phase) }]} />
+          <ChevronRight
+            size={14}
+            color={themeColors.textSecondary}
+            style={item.isCollapsed ? undefined : { transform: [{ rotate: '90deg' }] }} strokeWidth={1.75}
+          />
+          <Text style={styles.phaseHeaderName}>{item.phase}</Text>
+        </View>
+        <View style={styles.phaseHeaderRight}>
+          <View style={styles.phaseProgressMini}>
+            <View style={[styles.phaseProgressMiniFill, {
+              width: `${item.phaseProgress}%` as any,
+              backgroundColor: getPhaseColor(item.phase),
+            }]} />
+          </View>
+          <Text style={styles.phaseHeaderMeta}>{item.phaseProgress}% · {item.taskCount}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [renderTaskCard, togglePhaseCollapse, styles, themeColors]);
+
+  const boardFilterBar = (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
+      <View style={styles.filterChipRow}>
+        {([
+          { key: 'all' as const, label: 'All' },
+          { key: 'critical' as const, label: 'Critical Path' },
+          { key: 'milestones' as const, label: 'Milestones' },
+          { key: 'overdue' as const, label: 'Overdue' },
+        ]).map(f => (
+          <TouchableOpacity
+            key={f.key}
+            style={[styles.filterChip, filterMode === f.key && styles.filterChipActive]}
+            onPress={() => setFilterMode(f.key)}
+          >
+            <Text style={[styles.filterChipText, filterMode === f.key && styles.filterChipTextActive]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
 
   const renderFieldMode = useCallback(() => (
     <View style={styles.fieldModeContainer}>
@@ -1936,6 +2080,25 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         <View style={desktopStyles.splitContainer}>
           {viewMode === 'gantt' && renderDesktopTaskListPanel()}
           <View style={desktopStyles.mainPanel}>
+            {viewMode === 'board' ? (
+              // Board owns the scroll container in board mode. It cannot be a
+              // child of the ScrollView below: a FlatList nested in a same-axis
+              // ScrollView is handed unbounded height and mounts every row, so
+              // a 1,000-task import would still build every card up front.
+              <FlatList
+                data={boardRows}
+                keyExtractor={boardRowKey}
+                renderItem={renderBoardRow}
+                extraData={renderBoardRow}
+                ListHeaderComponent={boardFilterBar}
+                contentContainerStyle={{ paddingBottom: 60 }}
+                showsVerticalScrollIndicator={false}
+                initialNumToRender={12}
+                maxToRenderPerBatch={12}
+                windowSize={7}
+                testID="schedule-board-list"
+              />
+            ) : (
             <ScrollView
               contentContainerStyle={{ paddingBottom: 60 }}
               showsVerticalScrollIndicator={false}
@@ -1964,53 +2127,6 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   onTaskPress={setTaskDetailModal}
                   location={selectedProject?.location}
                 />
-              )}
-              {viewMode === 'board' && (
-                <>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
-                    <View style={styles.filterChipRow}>
-                      {([
-                        { key: 'all' as const, label: 'All' },
-                        { key: 'critical' as const, label: 'Critical Path' },
-                        { key: 'milestones' as const, label: 'Milestones' },
-                        { key: 'overdue' as const, label: 'Overdue' },
-                      ]).map(f => (
-                        <TouchableOpacity
-                          key={f.key}
-                          style={[styles.filterChip, filterMode === f.key && styles.filterChipActive]}
-                          onPress={() => setFilterMode(f.key)}
-                        >
-                          <Text style={[styles.filterChipText, filterMode === f.key && styles.filterChipTextActive]}>
-                            {f.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                  {Object.entries(phaseGroups).map(([phase, tasks]) => {
-                    const isCollapsed = collapsedPhases[phase] === true;
-                    const phaseProgress = tasks.length > 0
-                      ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length) : 0;
-                    return (
-                      <View key={phase} style={styles.phaseSection}>
-                        <TouchableOpacity style={styles.phaseHeader} onPress={() => togglePhaseCollapse(phase)} activeOpacity={0.7}>
-                          <View style={styles.phaseHeaderLeft}>
-                            <View style={[styles.phaseColorDot, { backgroundColor: getPhaseColor(phase) }]} />
-                            <ChevronRight size={14} color={themeColors.textSecondary} style={isCollapsed ? undefined : { transform: [{ rotate: '90deg' }] }} strokeWidth={1.75} />
-                            <Text style={styles.phaseHeaderName}>{phase}</Text>
-                          </View>
-                          <View style={styles.phaseHeaderRight}>
-                            <View style={styles.phaseProgressMini}>
-                              <View style={[styles.phaseProgressMiniFill, { width: `${phaseProgress}%` as any, backgroundColor: getPhaseColor(phase) }]} />
-                            </View>
-                            <Text style={styles.phaseHeaderMeta}>{phaseProgress}% · {tasks.length}</Text>
-                          </View>
-                        </TouchableOpacity>
-                        {!isCollapsed && <View style={styles.phaseTaskList}>{tasks.map(renderTaskCard)}</View>}
-                      </View>
-                    );
-                  })}
-                </>
               )}
               {viewMode === 'gantt' && (
                 <View style={styles.ganttWrapper}>
@@ -2063,6 +2179,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               {viewMode === 'resources' && renderResourceView()}
               {viewMode === 'summary' && renderSummary()}
             </ScrollView>
+            )}
           </View>
         </View>
 
@@ -2318,13 +2435,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     );
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <ScrollView
-        {...fabScroll}
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
-        showsVerticalScrollIndicator={false}
-      >
+  /**
+   * Everything above the view-mode content: title, project chips, stats bar,
+   * copilot entries, the view tabs and the start-date bar.
+   *
+   * Hoisted out of the ScrollView because in Board mode the page's scroll
+   * container becomes the virtualized FlatList (see `boardRows`), and this
+   * block becomes that list's ListHeaderComponent instead of a sibling of the
+   * task cards. The page still scrolls as one surface either way.
+   */
+  const scheduleScrollHeader = (
+    <>
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View>
@@ -2511,8 +2632,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 </TouchableOpacity>
               </View>
             )}
+          </>
+        )}
+    </>
+  );
 
-            {isFieldMode ? renderFieldMode() : (
+  /**
+   * The view-mode content that sits under `scheduleScrollHeader`. Board is NOT
+   * here: it is rendered by the FlatList below so its rows are windowed.
+   */
+  const scheduleScrollBody = !hasScheduleData || !activeSchedule ? null : (
+            isFieldMode ? renderFieldMode() : (
               <>
                 {viewMode === 'today' && activeSchedule && (
                   <TodayView
@@ -2539,70 +2669,6 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     onTaskPress={setTaskDetailModal}
                     location={selectedProject?.location}
                   />
-                )}
-
-                {viewMode === 'board' && (
-                  <>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
-                      <View style={styles.filterChipRow}>
-                        {([
-                          { key: 'all' as const, label: 'All' },
-                          { key: 'critical' as const, label: 'Critical Path' },
-                          { key: 'milestones' as const, label: 'Milestones' },
-                          { key: 'overdue' as const, label: 'Overdue' },
-                        ]).map(f => (
-                          <TouchableOpacity
-                            key={f.key}
-                            style={[styles.filterChip, filterMode === f.key && styles.filterChipActive]}
-                            onPress={() => setFilterMode(f.key)}
-                          >
-                            <Text style={[styles.filterChipText, filterMode === f.key && styles.filterChipTextActive]}>
-                              {f.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
-
-                    {Object.entries(phaseGroups).map(([phase, tasks]) => {
-                      const isCollapsed = collapsedPhases[phase] === true;
-                      const phaseProgress = tasks.length > 0
-                        ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length) : 0;
-                      return (
-                        <View key={phase} style={styles.phaseSection}>
-                          <TouchableOpacity
-                            style={styles.phaseHeader}
-                            onPress={() => togglePhaseCollapse(phase)}
-                            activeOpacity={0.7}
-                          >
-                            <View style={styles.phaseHeaderLeft}>
-                              <View style={[styles.phaseColorDot, { backgroundColor: getPhaseColor(phase) }]} />
-                              <ChevronRight
-                                size={14}
-                                color={themeColors.textSecondary}
-                                style={isCollapsed ? undefined : { transform: [{ rotate: '90deg' }] }} strokeWidth={1.75}
-                              />
-                              <Text style={styles.phaseHeaderName}>{phase}</Text>
-                            </View>
-                            <View style={styles.phaseHeaderRight}>
-                              <View style={styles.phaseProgressMini}>
-                                <View style={[styles.phaseProgressMiniFill, {
-                                  width: `${phaseProgress}%` as any,
-                                  backgroundColor: getPhaseColor(phase),
-                                }]} />
-                              </View>
-                              <Text style={styles.phaseHeaderMeta}>{phaseProgress}% · {tasks.length}</Text>
-                            </View>
-                          </TouchableOpacity>
-                          {!isCollapsed && (
-                            <View style={styles.phaseTaskList}>
-                              {tasks.map(renderTaskCard)}
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </>
                 )}
 
                 {viewMode === 'gantt' && activeSchedule && (
@@ -2668,10 +2734,40 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   />
                 )}
               </>
-            )}
-          </>
-        )}
-      </ScrollView>
+            )
+  );
+
+  // Board mode swaps the page's ScrollView for the virtualized list. Field mode
+  // replaces the board content entirely, so it stays on the ScrollView branch.
+  const isBoardVirtualized = hasScheduleData && !!activeSchedule && !isFieldMode && viewMode === 'board';
+
+  return (
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
+      {isBoardVirtualized ? (
+        <FlatList
+          {...fabScroll}
+          data={boardRows}
+          keyExtractor={boardRowKey}
+          renderItem={renderBoardRow}
+          extraData={renderBoardRow}
+          ListHeaderComponent={<>{scheduleScrollHeader}{boardFilterBar}</>}
+          contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={7}
+          testID="schedule-board-list-compact"
+        />
+      ) : (
+        <ScrollView
+          {...fabScroll}
+          contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+          showsVerticalScrollIndicator={false}
+        >
+          {scheduleScrollHeader}
+          {scheduleScrollBody}
+        </ScrollView>
+      )}
 
       {hasScheduleData && (viewMode === 'today' || viewMode === 'lookahead') && activeSchedule && selectedProject && (
         <VoiceFieldButton
@@ -3000,7 +3096,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               const dateRange = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
               const preds = getPredecessors(task, sortedTasks);
               const succs = getSuccessors(task.id, sortedTasks);
-              const variance = getBaselineVariance(task, activeSchedule?.baseline);
+              const variance = getTaskVariance(task);
 
               return (
                 <ScrollView showsVerticalScrollIndicator={false}>
@@ -3407,7 +3503,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   filterChipTextActive: { color: '#FFF' },
 
-  phaseSection: { marginBottom: 6 },
   phaseHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
   phaseHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   phaseColorDot: { width: 8, height: 8, borderRadius: 4 },
@@ -3416,7 +3511,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   phaseProgressMini: { width: 40, height: 4, borderRadius: 2, backgroundColor: themeColors.surfaceAlt, overflow: 'hidden' as const },
   phaseProgressMiniFill: { height: '100%', borderRadius: 2 },
   phaseHeaderMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontWeight: '500' as const },
-  phaseTaskList: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },
+  // The Board used to nest cards in a `phaseTaskList` wrapper
+  // ({ paddingHorizontal: 16, gap: 8, paddingBottom: 8 }) inside a
+  // `phaseSection` ({ marginBottom: 6 }). Virtualizing it flattened that tree
+  // into one row stream, and a FlatList row cannot inherit a parent's `gap` —
+  // so the 8pt inter-card gap is now per-row bottom padding, and the 6pt
+  // between sections is a top margin on every phase header except the first.
+  // Rendered spacing is unchanged: 8 between cards, 8 + 6 = 14 from the last
+  // card of one phase to the next phase header, 6 between collapsed headers.
+  phaseTaskRow: { paddingHorizontal: 16, paddingBottom: 8 },
+  phaseHeaderSpaced: { marginTop: 6 },
 
   taskCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: themeColors.line, gap: 8 },
   taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

@@ -6,9 +6,21 @@
 // useProjectCollaborators, which is scoped to a single project — summing that
 // per project would bill a GC six times for one PM.
 //
-// RLS does the scoping: `pc_owner_all` on project_collaborators exposes only
-// rows for projects the caller owns, so an unfiltered select returns exactly
-// this account's collaborators.
+// SCOPING IS EXPLICIT HERE, NOT RLS. The comment that used to sit in this spot
+// claimed the opposite — that `pc_owner_all` was the only policy on
+// project_collaborators, so an unfiltered select already returned exactly this
+// account's rows. That was false. The table also carries `pc_invitee_read`
+// (`user_id = auth.uid() OR lower(invited_email) = lower(auth.jwt()->>'email')`),
+// and PERMISSIVE policies OR together, so an unfiltered select ALSO returned
+// every invite anyone else had ever sent to the caller's own email address.
+// countSeats only drops 'revoked' and 'owner', so a foreign editor/viewer row
+// was counted as a billable admin seat under the caller's own address: a fresh
+// Pro account that had been invited to somebody else's job opened the team
+// screen reading "1/2 team seats used" and could be told the next invite bills
+// $15/mo before it had invited anyone — a charge the server would never apply.
+// Constraining on the caller's own project ids mirrors seatCheck() in
+// supabase/functions/project-invite/index.ts, so client and server compute the
+// same number. Pinned by scripts/validate-account-seats-scoping.ts.
 //
 // Field collaborators are counted for display but never billed — see the
 // seatModel header for why that is load-bearing rather than generous.
@@ -40,9 +52,28 @@ export function useAccountSeats() {
     queryKey: ['accountSeats', userId ?? null],
     enabled,
     queryFn: async (): Promise<SeatOccupant[]> => {
+      if (!userId) return [];
+
+      // Seats are billed to the project OWNER, so the caller's own projects are
+      // the entire scope. Fetched first, and applied as an explicit filter
+      // below, because RLS cannot supply this scope — see the header.
+      const { data: owned, error: ownedError } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('user_id', userId);
+      if (ownedError) {
+        console.log('[useAccountSeats] owned-project fetch failed:', ownedError.message);
+        return [];
+      }
+      const ownedIds = ((owned ?? []) as { id: string }[]).map(p => p.id);
+      // Own no projects, own no collaborators. Returning early also avoids
+      // sending `project_id=in.()`, an empty IN list.
+      if (ownedIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from('project_collaborators')
-        .select('invited_email, role, status');
+        .select('invited_email, role, status')
+        .in('project_id', ownedIds);
       if (error) {
         console.log('[useAccountSeats] fetch failed:', error.message);
         return [];

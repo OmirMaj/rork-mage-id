@@ -39,7 +39,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Fastest path to submission: hide the cross-user browse surfaces (the browse list in app/(tabs)/mage-id-bids/index.tsx and app/nearby-rfps.tsx) behind a flag for 1.0, exactly as RFP_PAID_POST_ENABLED already does, and ship the 1.2 kit in 1.0.1. If the feed must ship: (a) create `content_reports (id, reporter_user_id, target_type, target_id, reason, created_at)` with insert-own RLS and a 'Report this listing' action on the browse card and app/rfp-detail.tsx; (b) create `blocked_users (blocker_user_id, blocked_user_id)` and add `.not('user_id','in','(...)')` to the two browse queries at mage-id-bids/index.tsx:96 and nearby-rfps.tsx:72; (c) add an EULA acceptance checkbox at signup with zero-tolerance-for-objectionable-content copy; (d) publish a support contact in App Store Connect and in-app. Apple requires all four, not a subset.
 
-## [ ] #4 — [privacy] Deleted users' home addresses, photos and contact emails survive account deletion as permanently undeletable public listings
+## [x] #4 — [privacy] Deleted users' home addresses, photos and contact emails survive account deletion as permanently undeletable public listings
 
 **Where:** `supabase/functions/delete-account/index.ts:53`
 
@@ -49,7 +49,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Do this in the same edit as rank 1. Add 'public_bids', 'companies', 'worker_profiles', 'job_listings' to USER_SCOPED_TABLES at line 53, and add a separate pass for crew_members keyed on claimed_by_user_id (that row belongs to the GC, so null the claim fields rather than deleting the row). Ship a migration flipping the four owner-FKs from SET NULL to ON DELETE CASCADE so the schema enforces it independently of the edge function. Extend STORAGE_PREFIXES to remove the RFP photo/drawing objects the deleted listings pointed at. Add the same pg_constraint-vs-USER_SCOPED_TABLES assertion test described in rank 1, extended to confdeltype='n'.
 
-## [ ] #5 — [data_loss] Every filed project document gets a dead 'public' URL — the project-documents bucket is private in production
+## [x] #5 — [data_loss] Every filed project document gets a dead 'public' URL — the project-documents bucket is private in production
 
 **Where:** `utils/projectFiles.ts:161`
 
@@ -89,7 +89,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Replace the WITH CHECK with the ownership predicate ANDed to the status allowlist: `WITH CHECK (EXISTS (SELECT 1 FROM sub_portal_links spl WHERE spl.id = sub_submitted_invoices.sub_portal_id AND spl.user_id = auth.uid()) AND status = ANY (ARRAY['submitted','approved','rejected','paid']))`. Additionally freeze the immutable columns with a BEFORE UPDATE trigger in the crew_freeze_ownership_columns style — `NEW.sub_portal_id := OLD.sub_portal_id; NEW.project_id := OLD.project_id; NEW.commitment_id := OLD.commitment_id; NEW.amount := OLD.amount;` — since the GC only ever needs to change status and notes_from_gc. Then audit for existing damage: `select i.id from sub_submitted_invoices i join sub_portal_links spl on spl.id = i.sub_portal_id where i.project_id is distinct from spl.project_id;` and recompute commitments.paid_to_date afterwards.
 
-## [ ] #9 — [data_loss] change_order_approvals has no UPDATE policy, so the portal-approval reconciler silently stalls and stops delivering signed change orders after 50
+## [x] #9 — [data_loss] change_order_approvals has no UPDATE policy, so the portal-approval reconciler silently stalls and stops delivering signed change orders after 50
 
 **Where:** `hooks/usePortalApprovalReconciler.ts:73`
 
@@ -109,7 +109,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Rewrite as `WITH CHECK (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM projects p WHERE p.id::text = portal_budget_proposals.project_id AND p.user_id = auth.uid()) AND status = ANY (ARRAY['pending','accepted','declined']))`. Also change trg_resolve_portal_project_id to fire BEFORE INSERT OR UPDATE, or add a trigger pinning NEW.project_id := OLD.project_id, so the column is immutable regardless of policy. Fix this and rank 8 in the same migration — they are the identical policy-authoring mistake, and a grep of pg_policies for `with_check` clauses that reference no ownership predicate will surface any third instance.
 
-## [ ] #11 — [first_run] Free-tier advanced-AI meter divides by a cap of zero — Settings renders width 'NaN%' as a 100%-full bar on every brand-new account
+## [x] #11 — [first_run] Free-tier advanced-AI meter divides by a cap of zero — Settings renders width 'NaN%' as a 100%-full bar on every brand-new account
 
 **Where:** `app/(tabs)/settings/index.tsx:622`
 
@@ -119,7 +119,13 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** One-line change at line 622 mirroring line 649: `width: `${aiSmartLimit > 0 ? Math.min((aiSmartUsed / aiSmartLimit) * 100, 100) : 0}%``. Also suppress the row or relabel it 'Advanced AI — upgrade to unlock' when aiSmartLimit === 0, since 'Advanced: 0 of 0' with an empty bar is still meaningless copy; do the same for the Takeoff row when cap is 0. Keep the render sweep that caught this as a CI check asserting no style value stringifies to 'NaN%' or 'Infinity%' on a free-tier mount.
 
-## [ ] #12 — [privacy] 'Verified pros only' is enforced for notifications but not for reading or bidding — public_bids is SELECT-true to every authenticated account
+## [~] PARTIAL #12 — [privacy] 'Verified pros only' is enforced for notifications but not for reading or bidding — public_bids is SELECT-true to every authenticated account
+
+> **PARTIAL 2026-09-02.** Fixed by DE-SCOPING the promise, not enforcing it: the
+> toggle now reads "Notify verified pros only" and says only that verified
+> contractors are alerted. Reading and bidding are still open to any signed-in
+> user. That is now truthful, but if the intent was genuinely to restrict who
+> can bid, that enforcement is still unbuilt. FOUNDER DECISION.
 
 **Where:** `app/post-rfp.tsx:898`
 
@@ -129,7 +135,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Decide enforce-or-stop-promising before submission. To de-scope for launch (lowest risk): change the copy at app/post-rfp.tsx:898 to 'Only license-verified contractors are notified.' and delete 'and can bid'. To enforce: add a WITH CHECK predicate to bid_responses INSERT of the form `NOT EXISTS (SELECT 1 FROM public_bids pb WHERE pb.id = bid_responses.bid_id AND pb.verified_only) OR EXISTS (SELECT 1 FROM contractor_licenses cl WHERE cl.user_id = auth.uid() AND (cl.expires_date IS NULL OR cl.expires_date >= CURRENT_DATE))`, reusing the exact verification definition already at notify-nearby-contractors/index.ts:156 so the two cannot drift. Separately, consider serving the browse list from a view that omits contact_email and address_line until a bid is awarded — that PII does not need to be in a USING(true) SELECT at all.
 
-## [ ] #13 — [first_run] /rfp-detail dead-ends on a bare spinner with zero text and no back control whenever the RFP query returns null
+## [x] #13 — [first_run] /rfp-detail dead-ends on a bare spinner with zero text and no back control whenever the RFP query returns null
 
 **Where:** `app/rfp-detail.tsx:186`
 
@@ -139,7 +145,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Split the branch at app/rfp-detail.tsx:186 into three states: (a) genuinely fetching -> spinner, but keep the header/back chevron visible rather than headerShown:false; (b) errored -> message plus a Retry button calling refetch(); (c) query resolved with no row -> 'This project is no longer available' plus the same ChevronLeft affordance the success branch uses. Change the queryFn to throw instead of returning null on error so react-query can distinguish errored from not-found. Apply the identical change to app/submit-bid-response.tsx:380. Add the 'route renders 0 text nodes' check from the render sweep as a CI assertion so any future blank-screen branch is caught.
 
-## [ ] #14 — [first_run] useAccountSeats reads seats unfiltered on a false RLS assumption — pc_invitee_read leaks other accounts' invite rows into the caller's seat count
+## [x] #14 — [first_run] useAccountSeats reads seats unfiltered on a false RLS assumption — pc_invitee_read leaks other accounts' invite rows into the caller's seat count
 
 **Where:** `hooks/useAccountSeats.ts:44`
 
@@ -149,7 +155,18 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Stop trusting RLS for scoping here. In hooks/useAccountSeats.ts, fetch the caller's owned project ids first (`supabase.from('projects').select('id').eq('user_id', userId)`) and add `.in('project_id', ownedIds)` to the collaborator query, mirroring seatCheck() at supabase/functions/project-invite/index.ts:146-153 so client and server compute the same number. Delete the false comment at lines 9-11 and replace it with a note that pc_invitee_read makes an unfiltered select cross-account. Grep for other unfiltered selects justified by a single-policy assumption on tables that have more than one PERMISSIVE SELECT policy.
 
-## [ ] #15 — [perf] Schedule tab renders all imported tasks unvirtualized (importer allows 1,000) and does an O(n^2) baseline lookup per Gantt row
+## [~] PARTIAL #15 — [perf] Schedule tab renders all imported tasks unvirtualized (importer allows 1,000) and does an O(n^2) baseline lookup per Gantt row
+
+> **PARTIAL 2026-09-02.** The desktop/tablet Board in app/(tabs)/schedule/index.tsx
+> is virtualized (1000 tasks -> 11 rendered cards, measured) and the O(n^2)
+> baseline scan is now a Map. TWO GAPS REMAIN, both outside that file:
+> (a) components/schedule/GanttChart.tsx:76 and :197 carry the identical
+>     per-row .find() and unvirtualized .map() inside a plain ScrollView.
+> (b) app.json sets ios.supportsTablet:false, so the FIXED screen never renders
+>     in the iOS build at all — the phone path is
+>     components/schedule/mobile/MobileScheduleList.tsx:99 and MobileGantt.tsx:305,
+>     both plain ScrollViews over .map(), both fed by the same 1000-row cap.
+> The iOS performance problem is therefore still entirely open.
 
 **Where:** `app/(tabs)/schedule/index.tsx:2009`
 
@@ -159,7 +176,7 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Two independent changes, both cheap. (1) Precompute the baseline index once: `const baselineById = useMemo(() => new Map((activeSchedule?.baseline?.tasks ?? []).map(t => [t.id, t])), [activeSchedule?.baseline])`, pass it into renderTaskCard and renderGanttRow, and add an overload to getBaselineVariance (utils/scheduleEngine.ts:472) that accepts the map instead of scanning. This alone removes the quadratic term. (2) Replace the phase-grouped .map() at index.tsx:2009 and :2599 and GanttChart.tsx:197 with a SectionList (or FlashList) using sticky phase headers, so only visible rows mount. Verify with a 1,000-row import fixture and a render-count assertion, since the importer's MAX_ROWS is the real upper bound.
 
-## [ ] #16 — [privacy] User's email address logged in plaintext on every magic-link request
+## [x] #16 — [privacy] User's email address logged in plaintext on every magic-link request
 
 **Where:** `contexts/AuthContext.tsx:769`
 
