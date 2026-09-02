@@ -1,5 +1,8 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform, type LayoutChangeEvent } from 'react-native';
+import {
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform,
+  type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent,
+} from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
@@ -31,6 +34,33 @@ const ROW_H = 40;
 const HEADER_H = 44;
 const LEFT_W = 150;
 const MS_DAY = 24 * 60 * 60 * 1000;
+
+// --- VERTICAL WINDOWING ------------------------------------------------------
+// This gantt used to render `rows.map(...)` twice — once for the frozen left
+// WORK PACKAGES column, once for the bars — inside one plain vertical
+// ScrollView, so every row mounted. The importer's hard cap is the realistic N
+// (supabase/functions/import-schedule/index.ts, MAX_ROWS = 1000), and each left
+// row is a TouchableOpacity + a lucide SVG + two Texts, so a full MS Project
+// import built thousands of views in one synchronous pass before the first
+// frame and then kept them all alive while scrolling.
+//
+// Why this is hand-windowed instead of a FlatList (the fix used for the Board
+// in app/(tabs)/schedule/index.tsx): this screen is a FROZEN-COLUMN GRID. The
+// left column must not scroll horizontally, so it cannot live inside the
+// timeline's horizontal ScrollView; the two columns are therefore separate
+// subtrees that have to scroll VERTICALLY IN LOCKSTEP. A FlatList per column
+// means two scroll owners and a bidirectional offset sync, and the timeline
+// also carries three full-content-height absolute overlays (the arrow layer,
+// the today line, the selected-day band) plus an absoluteFill long-press
+// target, none of which survive being pushed inside a virtualized list's cells
+// on iOS (a subview that overflows its superview's bounds renders but does not
+// hit-test). Every row here is exactly ROW_H tall, so the window is pure
+// arithmetic: keep ONE scroll owner, render the slice, and replace the rest
+// with two spacer views of the exact height they occupied.
+const OVERSCAN_ROWS = 6;      // rows kept mounted above and below the viewport
+const SCROLL_BLOCK_ROWS = 6;  // re-window once per this many rows scrolled, not per frame
+const INITIAL_ROWS = 12;      // rows drawn before onLayout reports the real viewport height
+
 // The task name is NOT drawn on the bar. It lives once in the frozen left
 // "WORK PACKAGES" column (always visible), so repeating it on the bar — inside
 // wide bars, floating outside narrow ones — was redundant and read as
@@ -190,21 +220,52 @@ export function MobileGantt({
   // calendar day-offset from baseMs. In weekday-only mode weekend days collapse
   // out, so columns != days.
 
+  // Weekday-only mode indexed ONCE per (anchor, span) instead of re-walked per
+  // call. colOf used to count weekdays from day 0 on every invocation — an O(d)
+  // loop doing `new Date(...).getDay()` per step — and barById calls it TWICE
+  // PER TASK (bar start and bar end), with weekTicks and every drag frame on top.
+  // At the importer's 1,000-row cap that is ~2,000,000 Date constructions per
+  // geometry pass, recomputed on every zoom, drag and collapse. Same predicate,
+  // same arithmetic, counted once:
+  //   colAt[d] = number of weekdays in [0, d)   (exactly what the walk returned)
+  //   dayAt[c] = calendar day-offset of the c-th weekday (colToDay's answer)
+  // `span` mirrors colToDay's original `numDays + 366` loop guard, including the
+  // value it returned when the target column fell past the end.
+  const weekdayIndex = useMemo(() => {
+    if (!weekdayOnly) return null;
+    const span = numDays + 366;
+    const colAt = new Int32Array(Math.max(1, numDays + 2));
+    const dayAt: number[] = [];
+    let cols = 0;
+    for (let d = 0; d < span; d++) {
+      if (d < colAt.length) colAt[d] = cols;
+      if (!isWeekendOffset(d)) { dayAt.push(d); cols++; }
+    }
+    return { colAt, dayAt, span };
+  }, [weekdayOnly, isWeekendOffset, numDays]);
+
   // colOf(d): index of the column at/just-before calendar day-offset d.
   //   normal: identity. weekday-only: count of weekdays in [0, d).
   const colOf = useCallback((dayOffset: number): number => {
     if (!weekdayOnly) return dayOffset;
     const upper = Math.max(0, Math.floor(dayOffset));
+    if (weekdayIndex && upper < weekdayIndex.colAt.length) return weekdayIndex.colAt[upper];
+    // Past the indexed span (only reachable by dragging a bar beyond the
+    // schedule's own horizon) — fall back to the original walk so the answer is
+    // identical either way.
     let cols = 0;
     for (let d = 0; d < upper; d++) if (!isWeekendOffset(d)) cols++;
     return cols;
-  }, [weekdayOnly, isWeekendOffset]);
+  }, [weekdayOnly, isWeekendOffset, weekdayIndex]);
 
   // colToDay(col): inverse of colOf — the calendar day-offset of the col-th
   // visible column (in weekday mode, the col-th weekday from baseMs).
   const colToDay = useCallback((col: number): number => {
     if (!weekdayOnly) return Math.max(0, col);
     const target = Math.max(0, col);
+    // The index is built whenever weekdayOnly is on; `?? span` reproduces the
+    // old loop's "ran off the end" return value (numDays + 366).
+    if (weekdayIndex) return weekdayIndex.dayAt[target] ?? weekdayIndex.span;
     let seen = 0;
     let d = 0;
     // Guard the loop so a pathological drag can't spin forever.
@@ -212,7 +273,7 @@ export function MobileGantt({
       if (!isWeekendOffset(d)) { if (seen === target) return d; seen++; }
     }
     return d;
-  }, [weekdayOnly, isWeekendOffset, numDays]);
+  }, [weekdayOnly, isWeekendOffset, numDays, weekdayIndex]);
 
   const totalCols = useMemo(() => colOf(numDays), [colOf, numDays]);
   const dayW = useMemo(() => {
@@ -263,8 +324,13 @@ export function MobileGantt({
     return m;
   }, [rows, dayToX, dayW]);
 
+  // y0/y1 are the arrow's vertical extent in timeline-content coordinates. They
+  // are carried on the arrow so the render pass can drop the ones that cannot
+  // touch the visible band without re-deriving geometry (a 1,000-task import
+  // with dependencies emits ~1,000 <Path> nodes into one Svg, which is the same
+  // "mount everything" defect as the rows).
   const arrows = useMemo(() => {
-    const out: { id: string; d: string; critical: boolean; from: string; to: string }[] = [];
+    const out: { id: string; d: string; critical: boolean; from: string; to: string; y0: number; y1: number }[] = [];
     rows.forEach((r) => {
       if (r.kind !== 'task') return;
       const succ = barById.get(r.task.id);
@@ -280,7 +346,10 @@ export function MobileGantt({
           { x: succ.x, y: succ.yMid },
         );
         const crit = !!r.task.isCriticalPath;
-        out.push({ id: `${link.taskId}->${r.task.id}`, d, critical: crit, from: link.taskId, to: r.task.id });
+        out.push({
+          id: `${link.taskId}->${r.task.id}`, d, critical: crit, from: link.taskId, to: r.task.id,
+          y0: Math.min(pred.yMid, succ.yMid), y1: Math.max(pred.yMid, succ.yMid),
+        });
       }
     });
     return out;
@@ -301,8 +370,74 @@ export function MobileGantt({
     { key: 'fit', label: 'Fit' },
   ];
 
+  // --- the vertical window (see the block comment on OVERSCAN_ROWS) ----------
+  // ONE scroll owner drives both columns, so there is nothing to keep in sync:
+  // the left WORK PACKAGES column and the timeline slice the same [firstRow,
+  // lastRow) out of the same `rows` array and both replace the remainder with
+  // spacers of the exact height it occupied, which keeps contentH, every bar's
+  // `top` and every arrow's y byte-identical to the unwindowed tree.
+  const [viewportH, setViewportH] = useState(0);
+  const [scrollBlock, setScrollBlock] = useState(0);
+  // Distance from the top of the scrollable content down to the first row —
+  // the controls bar (font-dependent, so measured) plus the column header. Held
+  // in a ref so the scroll handler stays stable across re-renders.
+  const rowsTopRef = useRef(0);
+
+  const onGridLayout = useCallback((e: LayoutChangeEvent) => {
+    rowsTopRef.current = e.nativeEvent.layout.y + HEADER_H;
+  }, []);
+
+  const onOuterLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    setViewportH((prev) => (prev === h ? prev : h));
+  }, []);
+
+  const onOuterScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y - rowsTopRef.current;
+    const block = Math.max(0, Math.floor(y / (ROW_H * SCROLL_BLOCK_ROWS)));
+    setScrollBlock((prev) => (prev === block ? prev : block));
+  }, []);
+
+  const [firstRow, lastRow] = useMemo(() => {
+    // Rows that fit on screen. Before the first onLayout we draw INITIAL_ROWS,
+    // the same "small first batch, widen once measured" shape a FlatList uses
+    // for initialNumToRender.
+    const perScreen = viewportH > 0 ? Math.ceil(viewportH / ROW_H) : INITIAL_ROWS;
+    // At block b the topmost visible row index is somewhere in
+    // [b * SCROLL_BLOCK_ROWS, (b + 1) * SCROLL_BLOCK_ROWS), so the window has to
+    // span that whole block plus a screenful plus the overscan on both sides.
+    //
+    // `top` is clamped into the list because collapsing a phase shortens `rows`
+    // one render BEFORE the ScrollView clamps its own offset and re-fires
+    // onScroll, so that frame runs the window against a scrollBlock from the old
+    // (much longer) list. Measured unclamped: scrolled to the bottom of 1,006
+    // rows and then collapsing every phase left the frozen left column 39,924pt
+    // tall against a 284pt timeline — a blank column and a scrollbar that goes
+    // nowhere. Clamped it is 324pt, which is exactly HEADER_H + 6 rows + the
+    // add row.
+    const top = Math.min(scrollBlock * SCROLL_BLOCK_ROWS, Math.max(0, rows.length - 1));
+    const first = Math.max(0, top - OVERSCAN_ROWS);
+    const last = Math.min(rows.length, Math.max(first, top + SCROLL_BLOCK_ROWS + perScreen + OVERSCAN_ROWS));
+    return [first, last] as const;
+  }, [viewportH, scrollBlock, rows.length]);
+
+  const visibleRows = useMemo(() => rows.slice(firstRow, lastRow), [rows, firstRow, lastRow]);
+  const topSpacerH = firstRow * ROW_H;
+  const bottomSpacerH = (rows.length - lastRow) * ROW_H;
+  // Arrow band in timeline-content coordinates, padded by one row so a link
+  // whose elbow sits just outside the window still draws into it.
+  const bandTop = HEADER_H + (firstRow - 1) * ROW_H;
+  const bandBottom = HEADER_H + (lastRow + 1) * ROW_H;
+
   return (
-    <ScrollView style={styles.outer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+    <ScrollView
+      style={styles.outer}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 8 }}
+      onLayout={onOuterLayout}
+      onScroll={onOuterScroll}
+      scrollEventThrottle={16}
+    >
       {/* controls — zoom segmented + weekday-only toggle (reduce horizontal scroll) */}
       <View style={styles.controls}>
         <View style={styles.segment}>
@@ -331,13 +466,16 @@ export function MobileGantt({
         </TouchableOpacity>
       </View>
 
-      <View style={{ flexDirection: 'row' }}>
+      <View style={{ flexDirection: 'row' }} onLayout={onGridLayout}>
         {/* LEFT — frozen WBS column */}
         <View style={{ width: LEFT_W }}>
           <View style={{ height: HEADER_H, justifyContent: 'flex-end', paddingBottom: 6, paddingLeft: 12 }}>
             <Text style={styles.leftHdr}>WORK PACKAGES</Text>
           </View>
-          {rows.map((r, i) => r.kind === 'phase' ? (
+          {/* Rows above the window. `lrow` is a fixed height with border-box
+              borders, so N * ROW_H is exactly the space they occupied. */}
+          {topSpacerH > 0 && <View style={{ height: topSpacerH }} />}
+          {visibleRows.map((r) => r.kind === 'phase' ? (
             <TouchableOpacity key={`p-${r.phase}`} style={[styles.lrow, styles.phaseRow]} activeOpacity={0.7} onPress={() => onTogglePhase(r.phase)}>
               {collapsedPhases[r.phase] ? <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={14} color={colors.textMuted} strokeWidth={1.75} />}
               <View style={[styles.phaseDot, { backgroundColor: getPhaseColor(r.phase) }]} />
@@ -356,6 +494,7 @@ export function MobileGantt({
               <Text style={[styles.taskName, r.task.status === 'done' ? styles.taskNameDone : null]} numberOfLines={1}>{r.task.title}</Text>
             </TouchableOpacity>
           ))}
+          {bottomSpacerH > 0 && <View style={{ height: bottomSpacerH }} />}
           <TouchableOpacity style={styles.addRow} activeOpacity={0.7} onPress={onAddTask} testID="mobile-gantt-add">
             <Plus size={15} color={colors.accent} strokeWidth={1.75} />
             <Text style={styles.addText}>New Work Package</Text>
@@ -400,12 +539,19 @@ export function MobileGantt({
             {/* dependency arrows */}
             <Svg width={timelineW} height={contentH} style={StyleSheet.absoluteFill} pointerEvents="none">
               {arrows.map((a) => (
-                <Path key={a.id} d={a.d} stroke={a.critical ? colors.danger : colors.textMuted} strokeWidth={1.25} fill="none" opacity={draggingId && (a.from === draggingId || a.to === draggingId) ? 0 : 0.65} />
+                a.y1 < bandTop || a.y0 > bandBottom ? null : (
+                  <Path key={a.id} d={a.d} stroke={a.critical ? colors.danger : colors.textMuted} strokeWidth={1.25} fill="none" opacity={draggingId && (a.from === draggingId || a.to === draggingId) ? 0 : 0.65} />
+                )
               ))}
             </Svg>
-            {/* bars (hold ~220ms then drag horizontally to reschedule) */}
-            {rows.map((r, i) => {
-              if (r.kind !== 'task') return <View key={`pg-${i}`} style={{ height: ROW_H }} />;
+            {/* bars (hold ~220ms then drag horizontally to reschedule).
+                Every bar is absolutely positioned off `top`, and the container's
+                height is the explicit contentH, so the windowed slice needs no
+                spacers on this side — the phase rows contributed nothing but an
+                empty flow-height View here. */}
+            {visibleRows.map((r, k) => {
+              const i = firstRow + k;
+              if (r.kind !== 'task') return null;
               const g = barById.get(r.task.id)!;
               const done = r.task.status === 'done';
               // Red is reserved for ACTIVE critical work; a completed task isn't

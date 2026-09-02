@@ -155,18 +155,21 @@ Status legend: [ ] open  [x] fixed  [~] deferred / founder call
 
 **Fix plan:** Stop trusting RLS for scoping here. In hooks/useAccountSeats.ts, fetch the caller's owned project ids first (`supabase.from('projects').select('id').eq('user_id', userId)`) and add `.in('project_id', ownedIds)` to the collaborator query, mirroring seatCheck() at supabase/functions/project-invite/index.ts:146-153 so client and server compute the same number. Delete the false comment at lines 9-11 and replace it with a note that pc_invitee_read makes an unfiltered select cross-account. Grep for other unfiltered selects justified by a single-policy assumption on tables that have more than one PERMISSIVE SELECT policy.
 
-## [~] PARTIAL #15 — [perf] Schedule tab renders all imported tasks unvirtualized (importer allows 1,000) and does an O(n^2) baseline lookup per Gantt row
+## [x] #15 — [perf] Schedule tab renders all imported tasks unvirtualized (importer allows 1,000) and does an O(n^2)
 
-> **PARTIAL 2026-09-02.** The desktop/tablet Board in app/(tabs)/schedule/index.tsx
-> is virtualized (1000 tasks -> 11 rendered cards, measured) and the O(n^2)
-> baseline scan is now a Map. TWO GAPS REMAIN, both outside that file:
-> (a) components/schedule/GanttChart.tsx:76 and :197 carry the identical
->     per-row .find() and unvirtualized .map() inside a plain ScrollView.
-> (b) app.json sets ios.supportsTablet:false, so the FIXED screen never renders
->     in the iOS build at all — the phone path is
->     components/schedule/mobile/MobileScheduleList.tsx:99 and MobileGantt.tsx:305,
->     both plain ScrollViews over .map(), both fed by the same 1000-row cap.
-> The iOS performance problem is therefore still entirely open.
+> **CLOSED 2026-09-02 (second pass).** The iOS half is now done:
+> - components/schedule/mobile/MobileScheduleList.tsx — 1,000 -> 11 rendered
+>   rows (re-measured independently by a reviewer, not just claimed)
+> - components/schedule/mobile/MobileGantt.tsx — 1,007 -> 25
+> - components/schedule/GanttChart.tsx — virtualization REFUTED for iOS (the
+>   component does not render there); its O(n^2) baseline .find() is fixed,
+>   which is a win on web/desktop where it does render.
+>
+> Widening the date-basis guard while here surfaced FOUR more surfaces carrying
+> the same UTC-midnight bug the earlier pass fixed on three files:
+> MobileScheduleList, LivingFloorPlan, ProgressTab and MobileScheduleScreen.
+> All fixed. Two apparent hits were verified as legitimate Date clones and
+> deliberately NOT touched.
 
 **Where:** `app/(tabs)/schedule/index.tsx:2009`
 

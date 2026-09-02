@@ -7,6 +7,7 @@ import type { ThemeColors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -24,7 +25,14 @@ function weighted(ts: ScheduleTask[]): number {
 export function ProgressTab({ tasks, startDate }: ProgressTabProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const baseMs = useMemo(() => { const d = startDate ? new Date(startDate) : new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }, [startDate]);
+  // parseCalendarDay, not new Date(): a bare 'YYYY-MM-DD' parses as UTC
+  // midnight and floors to the PREVIOUS local day at negative offsets, so every
+  // date here rendered a day early. Same fix as MobileGantt / TaskDetailSheet /
+  // SchedulerHeader / MobileScheduleList.
+  const baseMs = useMemo(() => {
+    const d = parseCalendarDay(startDate) ?? new Date();
+    d.setHours(0, 0, 0, 0); return d.getTime();
+  }, [startDate]);
 
   const overall = useMemo(() => weighted(tasks), [tasks]);
   const phases = useMemo(() => {

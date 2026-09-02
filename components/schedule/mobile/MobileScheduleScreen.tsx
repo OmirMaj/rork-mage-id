@@ -30,6 +30,7 @@ import { LivingFloorPlan } from './LivingFloorPlan';
 import { PlanZoneEditor } from './PlanZoneEditor';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
 const MS_DAY = 24 * 60 * 60 * 1000;
@@ -172,7 +173,12 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     // start). Legacy mobile-created tasks stored 0-indexed self-correct on their
     // next edit; we intentionally do NOT mutate stored data (can't safely tell a
     // 0-indexed mobile task apart from a 1-indexed desktop one).
-    const base = new Date(startDate); base.setHours(0, 0, 0, 0);
+    // parseCalendarDay, not new Date(): a bare 'YYYY-MM-DD' parses as UTC
+  // midnight and floors to the PREVIOUS local day at negative offsets, so every
+  // date here rendered a day early. Same fix as MobileGantt / TaskDetailSheet /
+  // SchedulerHeader / MobileScheduleList.
+    const base = parseCalendarDay(startDate) ?? new Date();
+    base.setHours(0, 0, 0, 0);
     let startDay: number;
     if (values.startIso) {
       const target = new Date(values.startIso); target.setHours(0, 0, 0, 0);

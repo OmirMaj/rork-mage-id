@@ -36,6 +36,7 @@ import { Type } from '@/constants/typography';
 import { zoneStateAsOf, type ZoneState } from '@/utils/planZoneStatus';
 import { TimelineScrubber } from './TimelineScrubber';
 import EmptyState from '@/components/EmptyState';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 const MS_DAY = 86400000;
 
@@ -80,7 +81,14 @@ export function LivingFloorPlan({
   // clientMode never has to remember to also pass readOnly.
   const locked = !!readOnly || !!clientMode;
   const startDate = scheduleStartDate ?? new Date().toISOString().slice(0, 10);
-  const baseMs = useMemo(() => { const d = new Date(startDate); d.setHours(0, 0, 0, 0); return d.getTime(); }, [startDate]);
+  // parseCalendarDay, not new Date(): a bare 'YYYY-MM-DD' parses as UTC
+  // midnight and floors to the PREVIOUS local day at negative offsets, so every
+  // date here rendered a day early. Same fix as MobileGantt / TaskDetailSheet /
+  // SchedulerHeader / MobileScheduleList.
+  const baseMs = useMemo(() => {
+    const d = parseCalendarDay(startDate) ?? new Date();
+    d.setHours(0, 0, 0, 0); return d.getTime();
+  }, [startDate]);
   // startDay is 1-indexed; the scrubber runs on a 0-indexed day offset, so shift down by one.
   const totalDays = useMemo(() => Math.max(1, tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 1)), [tasks]);
   const todayIndex = Math.round((Date.now() - baseMs) / MS_DAY);

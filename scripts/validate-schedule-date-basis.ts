@@ -36,7 +36,7 @@
 //
 // Run via: bun run test:schedule-date-basis
 
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { exportTasksToCsv } from '../utils/scheduleOps';
 import { addWorkingDays, getTaskDateRange, buildScheduleFromTasks } from '../utils/scheduleEngine';
@@ -182,6 +182,63 @@ console.log('\nthe schedule anchor never shifts with the reader\'s timezone:');
 // adoption is pinned textually.
 
 console.log('\nthe schedule surfaces route their anchor through calendarDate:');
+{
+  // SCOPE, not a list. The three checks below name their files, and that is
+  // exactly how components/schedule/mobile/MobileScheduleList.tsx — the PRIMARY
+  // iOS schedule surface — kept a `new Date(startDate)` through the whole
+  // 2026-09-02 date-basis fix: nobody added it here, so nothing looked at it.
+  // (Same failure as validate-alert-shim, whose ROOTS omitted utils/ and let a
+  // raw Alert.alert sit in two files while the guard printed green.)
+  //
+  // So: ENUMERATE every schedule component that consumes a schedule startDate
+  // and require the whole set to be clean. A new surface is covered the day it
+  // is written, without anyone remembering to come back here.
+  const dir = join(ROOT, 'components', 'schedule');
+  const walk = (d: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.tsx?$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+  const surfaces = walk(dir).filter(f => {
+    const src = stripComments(readFileSync(f, 'utf8'));
+    // Only files that actually anchor on a schedule start date can have this bug.
+    return /startDate/.test(src) && /new Date\(|parseCalendarDay/.test(src);
+  });
+
+  ok('schedule surfaces consuming startDate were found', surfaces.length >= 3,
+    `only ${surfaces.length} — the component layout changed; re-read this guard`);
+
+  // `new Date(startDate)` is only a BUG when startDate is a 'YYYY-MM-DD'
+  // STRING. Where it is already a Date, that expression is an ordinary
+  // defensive clone and flagging it would be a false accusation — which trains
+  // the reader to ignore this guard, the very thing that let the original three
+  // surfaces stay broken. Two such clones exist today and are correct:
+  //   WeatherReschedulePrompt.tsx:53 — `const startDate = new Date(startISO)`
+  //   TaskInspector.tsx:46          — `dayToDate(startDate: Date, ...)`
+  const bare = surfaces.filter(f => {
+    const src = stripComments(readFileSync(f, 'utf8'));
+    if (!/new Date\(\s*startDate\s*\)/.test(src)) return false;
+    // Locally constructed as a Date, or declared as one -> clone, not a parse.
+    if (/(?:const|let)\s+startDate\s*=\s*new Date\(/.test(src)) return false;
+    if (/startDate\s*\??\s*:\s*Date\b/.test(src)) return false;
+    return true;
+  });
+
+  ok(
+    `no schedule surface bare-parses its anchor (${surfaces.length} scanned)`,
+    bare.length === 0,
+    bare.length === 0 ? undefined :
+      `new Date('YYYY-MM-DD') is UTC MIDNIGHT and floors to the PREVIOUS local\n` +
+      `      day at any negative offset, so every date on these surfaces renders a\n` +
+      `      day early:\n` +
+      bare.map(f => `        • ${f.replace(`${ROOT}/`, '')}`).join('\n') +
+      `\n\n      Use parseCalendarDay(startDate) ?? new Date() from @/utils/calendarDate.`,
+  );
+}
+
 {
   const gantt = stripComments(read('components/schedule/mobile/MobileGantt.tsx'));
   ok('MobileGantt imports parseCalendarDay',

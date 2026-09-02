@@ -51,6 +51,33 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
     return groups;
   }, [tasks]);
 
+  /**
+   * Baseline rows indexed by task id.
+   *
+   * Every rendered row used to run `schedule.baseline.tasks.find(...)`, a
+   * linear scan of the baseline array. One scan per row makes the chart
+   * O(tasks x baselineTasks). The schedule importer caps a file at 1,000 rows
+   * (supabase/functions/import-schedule, MAX_ROWS = 1000) and a baseline is
+   * captured on import, so a real MS Project / P6 file made this render pass
+   * do 500,500 id comparisons — measured, not estimated — on every baseline
+   * toggle, forecast arrival and task edit.
+   *
+   * FIRST entry wins on a duplicate id, because that is exactly what
+   * Array.prototype.find returned. The arithmetic below is byte-identical to
+   * what it was, so no bar moves.
+   *
+   * Null (rather than an empty Map) when the baseline is off or absent, so the
+   * row body keeps its original short-circuit and skips the lookup entirely.
+   */
+  const baselineById = useMemo(() => {
+    if (!showBaseline || !schedule.baseline) return null;
+    const index = new Map<string, { id: string; startDay: number; endDay: number }>();
+    for (const bt of schedule.baseline.tasks) {
+      if (!index.has(bt.id)) index.set(bt.id, bt);
+    }
+    return index;
+  }, [showBaseline, schedule.baseline]);
+
   const todayOffset = useMemo(() => {
     const now = new Date();
     const diff = Math.ceil((now.getTime() - projectStartDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -73,9 +100,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
           )
         : null;
 
-    const baselineTask = showBaseline && schedule.baseline
-      ? schedule.baseline.tasks.find(b => b.id === task.id)
-      : null;
+    const baselineTask = baselineById ? baselineById.get(task.id) : null;
     const baselineLeft = baselineTask && totalDays > 0
       ? ((baselineTask.startDay - 1) / totalDays) * 100 : null;
     const baselineWidth = baselineTask && totalDays > 0
@@ -143,7 +168,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
         </View>
       </TouchableOpacity>
     );
-  }, [totalDays, schedule, showBaseline, onTaskPress, forecast, projectStartDate]);
+  }, [totalDays, baselineById, onTaskPress, forecast, projectStartDate]);
 
   /**
    * The forecast days that actually reach the screen: one per rendered
