@@ -25,6 +25,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { RFP_BROWSE_ENABLED } from '@/app/(tabs)/mage-id-bids';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
@@ -67,7 +68,12 @@ export default function NearbyRfpsScreen() {
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['nearby-rfps'],
-    enabled: isSupabaseConfigured,
+    // App Store Guideline 1.2 — this is the SECOND surface that renders other
+    // users' free text, photos and coordinates. See the RFP_BROWSE_ENABLED note
+    // in app/(tabs)/mage-id-bids/index.tsx; both must be gated together or the
+    // exposure just moves. Re-enable with the same flag when the report/block
+    // kit ships.
+    enabled: isSupabaseConfigured && RFP_BROWSE_ENABLED,
     queryFn: async (): Promise<RfpRow[]> => {
       const { data: rfps, error } = await supabase
         .from('public_bids')

@@ -48,8 +48,19 @@ function json(body: unknown, status = 200) {
 
 // Tables we own. Order doesn't matter much because we delete by user_id
 // not by FK chain — service role bypasses RLS so we can hit any table.
-// New tables added in the future need to be added here too; missing one
-// just means orphan rows (no functional break).
+//
+// THE COMMENT HERE USED TO SAY a missing table "just means orphan rows (no
+// functional break)". That is false for any FK to auth.users declared
+// ON DELETE NO ACTION: the leftover row makes step 4's auth.admin.deleteUser
+// raise 23503, and steps 2 and 3 have ALREADY destroyed the user's rows and
+// storage objects by then, in separate non-transactional calls with no
+// rollback. The user ends up with everything deleted, a 500, and an account
+// they are still signed in to. Apple exercises account deletion during review
+// (5.1.1(v)), so that path is also a rejection.
+//
+// project_collaborators is the live instance and is handled explicitly below.
+// scripts/validate-account-deletion.ts enumerates NO ACTION FKs to auth.users
+// and fails if a new one appears that nothing here clears.
 const USER_SCOPED_TABLES = [
   'projects', 'change_orders', 'invoices', 'daily_reports',
   'subcontractors', 'punch_items', 'photos', 'price_alerts',
@@ -128,6 +139,33 @@ serve(async (req) => {
     for (const projectId of projectIds) {
       await removePrefix('plan-sheets', `${projectId}/`);
       await removePrefix('project-documents', `${projectId}/`);
+    }
+
+    // 3b. Clear the rows that BLOCK the auth delete.
+    //
+    // project_collaborators has two FKs to auth.users declared ON DELETE
+    // NO ACTION (project_collaborators_user_id_fkey and _invited_by_fkey —
+    // verified against production). Its only cascade path is via project_id,
+    // which fires solely for projects this user OWNS. So a Project Manager or
+    // Expeditor invited onto someone ELSE's job still has a referencing row
+    // when step 4 runs, and the delete raises 23503 after their data is gone.
+    //
+    // invited_by is NOT NULL, so the row must be DELETED, not nulled. Removing
+    // rows this user invited is the same outcome the ON DELETE CASCADE backstop
+    // migration produces, so the two paths agree.
+    for (const column of ['user_id', 'invited_by'] as const) {
+      const { error: collabErr } = await sb
+        .from('project_collaborators').delete().eq(column, userId);
+      if (collabErr) {
+        // Fail BEFORE destroying anything else is pointless here (rows are
+        // already gone), but surfacing the real reason beats a 23503 the
+        // caller cannot interpret.
+        console.error(`[delete-account] project_collaborators.${column} clear failed:`, collabErr);
+        return json({
+          success: false,
+          error: `Could not release project invitations (${column}): ${collabErr.message}. Nothing further was deleted. Email support@mageid.app.`,
+        }, 500);
+      }
     }
 
     // 4. Delete the auth.users row LAST. Once this row is gone the

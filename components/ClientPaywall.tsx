@@ -79,7 +79,32 @@ interface ClientPaywallProps {
 // native, Payment Link on web) whose *server-confirmed* completion is
 // what grants the post credit (see handlePayPerPost placeholder), NOT a
 // client-side recordRfpPostCredit() call. Until then this MUST stay false.
-const RFP_PAID_POST_ENABLED = false;
+export const RFP_PAID_POST_ENABLED = false;
+
+// Same reasoning as RFP_PAID_POST_ENABLED above, for the two SUBSCRIPTION
+// tiers — and this one is an App Store rejection, not just an unfinished
+// feature.
+//
+// handleStartTrial below is a placeholder: it calls startClientTrial(), which
+// is a pure AsyncStorage write. No RevenueCat, no StoreKit product, no server
+// confirmation. Yet the modal rendered "$19 / month" and "$49 / month" with
+// "Start 14-day free trial" and the disclosure "Subscriptions auto-renew after
+// the trial unless cancelled at least 24h before renewal. Manage or cancel any
+// time in Settings."
+//
+// Nothing renews. Nothing charges. Settings has no cancel affordance. That is
+// Guideline 3.1.1 (digital subscription sold outside IAP) compounded by 2.3.1
+// (the auto-renew claim is false) — and it is the FIRST action the homeowner
+// persona takes, via Post a Project. Any user could also re-tap it forever for
+// free unlimited posting.
+//
+// With this false the homeowner path ships FREE for 1.0. To turn it on you need
+// real RevenueCat products, handleStartTrial routed through
+// SubscriptionContext.purchase*, the cards hidden on web (no StoreKit there),
+// and a Settings row deep-linking to itms-apps://apps.apple.com/account/subscriptions
+// so the "manage or cancel in Settings" claim becomes true. Until then this
+// MUST stay false.
+export const CLIENT_SUBS_ENABLED = false;
 
 const PRO_BENEFITS = [
   'Unlimited project posts',
@@ -374,12 +399,15 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             </Text>
           </View>
 
-          {/* Plain-language reassurance — every SaaS-pricing page in 2026
-              has this row. Helps users tap CTA without anxiety. */}
-          <Text style={styles.disclosureText}>
-            Subscriptions auto-renew after the trial unless cancelled at least 24h
-            before renewal. Manage or cancel any time in Settings.
-          </Text>
+          {/* Auto-renew language is only truthful once real IAP products exist.
+              Rendering it while handleStartTrial is an AsyncStorage stub is
+              Guideline 2.3.1. */}
+          {CLIENT_SUBS_ENABLED && (
+            <Text style={styles.disclosureText}>
+              Subscriptions auto-renew after the trial unless cancelled at least 24h
+              before renewal. Manage or cancel any time in Settings.
+            </Text>
+          )}
         </ScrollView>
       </View>
     </Modal>

@@ -19,7 +19,11 @@
 // posts.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import ClientPaywall, { type ClientPaywallMode } from '@/components/ClientPaywall';
+import ClientPaywall, {
+  type ClientPaywallMode,
+  RFP_PAID_POST_ENABLED,
+  CLIENT_SUBS_ENABLED,
+} from '@/components/ClientPaywall';
 import {
   consumeRfpPostCredit,
   getRfpPostCreditBalance,
@@ -74,6 +78,24 @@ export function useClientPaywall(): ClientPaywallController {
   }, [visible]);
 
   const gate = useCallback(async (nextMode: ClientPaywallMode, nextFeature?: string): Promise<boolean> => {
+    // NOTHING IS SELLABLE YET -> DO NOT SHOW A PAYWALL.
+    //
+    // Both monetization paths are behind kill switches in ClientPaywall:
+    // RFP_PAID_POST_ENABLED (no server-confirmed payment yet) and
+    // CLIENT_SUBS_ENABLED (handleStartTrial is an AsyncStorage stub, not IAP).
+    // With both off the modal has nothing to sell, but it still RENDERED —
+    // quoting $19/mo and $49/mo with auto-renew terms and a trial button that
+    // unlocked the feature without any purchase sheet. That is Guideline 3.1.1
+    // plus 2.3.1, on the homeowner persona's very first action.
+    //
+    // Allowing the action outright is the honest behaviour while the tiers are
+    // unbuilt: the homeowner path ships free for 1.0. Flip either flag and this
+    // short-circuit stops applying, so the gate returns automatically once
+    // there is something real to charge for.
+    if (!RFP_PAID_POST_ENABLED && !CLIENT_SUBS_ENABLED) {
+      return true;
+    }
+
     // Subscriber short-circuit: if the user is already on Pro/PM (or
     // in trial), skip the paywall for RFP posts entirely.
     if (nextMode === 'rfp-post' && hasActiveClientSubscriptionPure(clientSubState)) {
