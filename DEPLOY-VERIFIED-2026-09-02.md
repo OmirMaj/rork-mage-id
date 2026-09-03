@@ -15,15 +15,35 @@
 > | `change_order_approvals` UPDATE policy + evidence freeze | 1 policy, 1 trigger |
 > | `subscriptions_tier_check` widened | now includes `'enterprise'` |
 >
-> **STILL NOT APPLIED, and steps 1-2 below still stand for them:** the
-> 2026-08-26/28 batch that creates `project_financials`, `deliveries`,
-> `building_access_rules`, `portal_get_snapshot_v2` and five indexes. Those are
-> feature-enabling, not security. Step 6 (phase 2) remains gated as written.
+> **The feature batch is now APPLIED TOO (2026-09-03).** Verified present:
+> `project_financials` (5 rows backfilled), `deliveries`,
+> `building_access_rules`, `access_reservations`, `portal_get_snapshot_v2`,
+> `can_view_project_financials`, and all six indexes plus
+> `delivery_receipts.delivery_id`. The delivery and building-access features
+> were dead in production until now because their tables did not exist.
 >
-> **`supabase/schema.sql` IS NOW STALE** in a new way: production moved and the
-> file did not. `validate-rls-write-leaks` parses it, so it will keep printing
-> its deploy-pending note about two leaks that are now closed. Regenerate it
-> (step 7) before trusting that guard again.
+> **THREE THINGS DELIBERATELY HELD BACK:**
+>
+> 1. `20260826180000_portal_link_expiry_cron` — schedules a pg_cron job that
+>    calls the `portal-link-expiry-notice` EDGE FUNCTION, which is not
+>    deployed. Applying it now just creates recurring failing runs against a
+>    missing endpoint. Apply AFTER that function ships.
+> 2. `20260827120000_project_financials_drop_legacy` — phase 2. Still gated on
+>    the OTA. Phase 1 is applied, so the money now lives in BOTH places and the
+>    current app keeps working unchanged. The field-role leak stays open until
+>    phase 2 runs.
+> 3. The `alter table public.cost_seeds add column deleted_at` line from
+>    `20260826150000`. cost_seeds is under a standing do-not-touch instruction,
+>    so the migration was SPLIT and only its `delay_events` index applied.
+>    Without the column, soft-delete of a cost seed does not persist
+>    (hooks/useCostSeeds.ts expects it). Needs an explicit decision.
+>
+> **`supabase/schema.sql` is STALE AGAIN** as of 2026-09-03. It was regenerated
+> after the security apply, then the feature batch added four tables, two
+> functions, six indexes and a column. No guard BREAKS because of this — the new
+> FKs to auth.users are all CASCADE (so validate-account-deletion stays green)
+> and the new policies do not match the leak signature — but the file no longer
+> describes production. Regenerate before relying on it.
 
 
 Every claim here was checked against production (`nteoqhcswappxxjlpvap`) by
