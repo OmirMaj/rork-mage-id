@@ -2,8 +2,11 @@
 -- MAGE ID — public schema reference
 -- =============================================================================
 --
--- GENERATED on 2026-08-31 by introspecting the LIVE production Supabase
+-- GENERATED on 2026-09-02 by introspecting the LIVE production Supabase
 -- database, project ref `nteoqhcswappxxjlpvap`, schema `public`.
+--
+-- The security migrations applied directly to production on 2026-09-02 are now
+-- reflected here (see "WHAT CHANGED IN THE 2026-09-02 REGENERATION" below).
 --
 -- WHAT THIS FILE IS
 --   A reference artifact. It is a human- and tool-readable description of what
@@ -26,9 +29,9 @@
 --                           constraints already emitted in section 2 and are
 --                           deliberately skipped so the file does not duplicate)
 --   4. Row Level Security — enabled on all 104 tables
---   5. RLS policies      — 320
---   6. Triggers          — 52
---   7. Functions         — 194 routines exist in `public`; 76 emitted here
+--   5. RLS policies      — 321
+--   6. Triggers          — 56
+--   7. Functions         — 198 routines exist in `public`; 80 emitted here
 --                          (full bodies, incl. 57 SECURITY DEFINER RPCs).
 --                          The other 118 belong to the `vector` (pgvector)
 --                          extension, which is installed into `public`:
@@ -41,12 +44,13 @@
 --   Production has 0 views and 0 enum types in `public`.
 --
 -- NOTE ON TRIGGER COUNT
---   A previous tally put the trigger count at 59. The catalog says 52 real
---   user triggers (`pg_trigger` where NOT `tgisinternal`). 59 does not
---   correspond to anything in the catalog; `information_schema.triggers`
---   returns 56 rows because it emits one row per event (a single trigger
---   declared `INSERT OR UPDATE` appears twice), collapsing to the same 52
---   distinct triggers. 52 is the true number and 52 are emitted below.
+--   Count triggers with `pg_trigger` where NOT `tgisinternal`. That is 56, and
+--   56 are emitted below. Do NOT count `information_schema.triggers`: it emits
+--   one row per event, so a trigger declared `INSERT OR UPDATE` appears twice
+--   and a `INSERT OR DELETE OR UPDATE` three times. It currently returns 60
+--   rows for the same 56 distinct triggers. (Before the 2026-09-02 migrations
+--   the numbers were 52 real / 56 information_schema rows, which is how an
+--   earlier audit talked itself into a wrong tally.)
 --
 -- WHY THIS FILE IS REGENERATED
 --   The previous committed version of `supabase/schema.sql` was stale and was
@@ -58,6 +62,47 @@
 --   production. Only the agent that introspected the live database was right.
 --   If you are about to conclude from this file that something is missing,
 --   check the live database first, and if this file is wrong, regenerate it.
+--
+--   The 2026-09-02 regeneration was needed for the opposite reason: the file
+--   was accurate on 2026-08-31, then a batch of security migrations was applied
+--   directly to production on 2026-09-02 and the file did not move with it. It
+--   was stale in the "production moved forward" direction. Two tools parse this
+--   file (`scripts/validate-rls-write-leaks.ts`, `scripts/validate-account-
+--   deletion.ts`), so a stale file makes them report yesterday's truth.
+--
+-- WHAT CHANGED IN THE 2026-09-02 REGENERATION
+--   Deltas vs the 2026-08-31 file. Sections 1, 2a, 3 and 4 are unchanged.
+--     * 2b — `subscriptions_tier_check` now admits 'enterprise'.
+--     * 2c — six FKs to `auth.users` retargeted to ON DELETE CASCADE:
+--            `companies`, `job_listings`, `public_bids`, `worker_profiles`
+--            (were ON DELETE SET NULL) and both `project_collaborators` FKs
+--            (`user_id`, `invited_by`, which previously had no ON DELETE
+--            action at all, i.e. NO ACTION).
+--     * 5  — +1 policy (320 -> 321): new `gc stamps own CO approvals` on
+--            `change_order_approvals`. Two existing UPDATE policies had their
+--            WITH CHECK tightened to re-assert `auth.uid()` ownership rather
+--            than only constraining `status`: `gc can update own proposals`
+--            and `gc updates sub invoices for own portals`. Those two were the
+--            RLS write leaks; they are closed in production as of this file.
+--     * 6  — +4 triggers (52 -> 56): `projects_freeze_ownership`,
+--            `sub_submitted_invoices_freeze`, `portal_budget_proposals_freeze`,
+--            `change_order_approvals_freeze`.
+--     * 7  — +4 functions (76 -> 80), the trigger functions backing those
+--            triggers: `projects_freeze_ownership_columns`,
+--            `sub_invoice_freeze_columns`, `portal_proposal_freeze_project`,
+--            `co_approval_freeze_evidence`. `grant_rfp_post_credit` gained a
+--            `service_role` guard that raises SQLSTATE 42501.
+--   Formatting-only: six objects were missing the blank separator line before
+--   them in the 2026-08-31 file — tables `cost_benchmark_samples`, `messages`,
+--   `rate_overrides` and functions `fire_notify`, `notify_sub_invoice_fn`,
+--   `resolve_sub_invoice_project`. Corrected here. No content changed.
+--
+-- HOW THIS FILE WAS VERIFIED
+--   Each section was rendered server-side from the catalog and MD5'd, and the
+--   same MD5 was computed over the corresponding line range of this file. All
+--   nine sections (1, 2a, 2b, 2c, 3, 4, 5, 6, 7) match byte-for-byte. So this
+--   file is not merely "believed current" — it is a checked reproduction of
+--   `public` as of 2026-09-02. Re-verify the same way after any change.
 --
 -- ORDERING
 --   Every section is sorted alphabetically so that future regenerations
@@ -506,6 +551,7 @@ CREATE TABLE public.conversations (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
+
 CREATE TABLE public.cost_benchmark_samples (
     user_id uuid NOT NULL,
     category text NOT NULL,
@@ -982,6 +1028,7 @@ CREATE TABLE public.memory_embeddings (
     embedding vector(768) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
 CREATE TABLE public.messages (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     conversation_id uuid NOT NULL,
@@ -1479,6 +1526,7 @@ CREATE TABLE public.rate_limit_counters (
     bucket_start timestamp with time zone NOT NULL,
     count integer DEFAULT 0 NOT NULL
 );
+
 CREATE TABLE public.rate_overrides (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -2114,7 +2162,7 @@ ALTER TABLE ONLY public.sub_submitted_invoices ADD CONSTRAINT sub_submitted_invo
 ALTER TABLE ONLY public.sub_submitted_invoices ADD CONSTRAINT sub_submitted_invoices_retention_amount_check CHECK ((retention_amount >= (0)::numeric));
 ALTER TABLE ONLY public.sub_submitted_invoices ADD CONSTRAINT sub_submitted_invoices_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'approved'::text, 'rejected'::text, 'paid'::text])));
 ALTER TABLE ONLY public.submittals ADD CONSTRAINT submittals_portal_state_status_check CHECK (((portal_state IS NULL) OR (NOT (portal_state ? 'status'::text)) OR ((portal_state ->> 'status'::text) = ANY (ARRAY['draft'::text, 'sent'::text, 'recalled'::text]))));
-ALTER TABLE ONLY public.subscriptions ADD CONSTRAINT subscriptions_tier_check CHECK ((tier = ANY (ARRAY['free'::text, 'pro'::text, 'business'::text])));
+ALTER TABLE ONLY public.subscriptions ADD CONSTRAINT subscriptions_tier_check CHECK ((tier = ANY (ARRAY['free'::text, 'pro'::text, 'business'::text, 'enterprise'::text])));
 ALTER TABLE ONLY public.time_entries ADD CONSTRAINT time_entries_break_minutes_check CHECK ((break_minutes >= 0));
 ALTER TABLE ONLY public.time_entries ADD CONSTRAINT time_entries_overtime_hours_check CHECK ((overtime_hours >= (0)::numeric));
 ALTER TABLE ONLY public.time_entries ADD CONSTRAINT time_entries_status_check CHECK ((status = ANY (ARRAY['clocked_in'::text, 'clocked_out'::text, 'break'::text])));
@@ -2154,7 +2202,7 @@ ALTER TABLE ONLY public.comm_events ADD CONSTRAINT comm_events_project_id_fkey F
 ALTER TABLE ONLY public.comm_events ADD CONSTRAINT comm_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.commitments ADD CONSTRAINT commitments_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.commitments ADD CONSTRAINT commitments_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE ONLY public.companies ADD CONSTRAINT companies_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.companies ADD CONSTRAINT companies_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.contacts ADD CONSTRAINT contacts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.contractor_licenses ADD CONSTRAINT contractor_licenses_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.conversation_participants ADD CONSTRAINT conversation_participants_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE;
@@ -2185,7 +2233,7 @@ ALTER TABLE ONLY public.invoices ADD CONSTRAINT invoices_project_id_fkey FOREIGN
 ALTER TABLE ONLY public.invoices ADD CONSTRAINT invoices_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.jhas ADD CONSTRAINT jhas_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.jhas ADD CONSTRAINT jhas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE ONLY public.job_listings ADD CONSTRAINT job_listings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.job_listings ADD CONSTRAINT job_listings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.leads ADD CONSTRAINT leads_converted_project_id_fkey FOREIGN KEY (converted_project_id) REFERENCES projects(id) ON DELETE SET NULL;
 ALTER TABLE ONLY public.leads ADD CONSTRAINT leads_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.lien_waivers ADD CONSTRAINT lien_waivers_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
@@ -2215,13 +2263,13 @@ ALTER TABLE ONLY public.price_alerts ADD CONSTRAINT price_alerts_user_id_fkey FO
 ALTER TABLE ONLY public.pro_responses ADD CONSTRAINT pro_responses_rfi_id_fkey FOREIGN KEY (rfi_id) REFERENCES rfis(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.pro_responses ADD CONSTRAINT pro_responses_submittal_id_fkey FOREIGN KEY (submittal_id) REFERENCES submittals(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.profiles ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES auth.users(id);
+ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.project_contracts ADD CONSTRAINT project_contracts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.project_contracts ADD CONSTRAINT project_contracts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.projects ADD CONSTRAINT projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE ONLY public.public_bids ADD CONSTRAINT public_bids_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.public_bids ADD CONSTRAINT public_bids_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.punch_items ADD CONSTRAINT punch_items_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.punch_items ADD CONSTRAINT punch_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.qbo_connections ADD CONSTRAINT qbo_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
@@ -2255,7 +2303,7 @@ ALTER TABLE ONLY public.user_tracked_bids ADD CONSTRAINT user_tracked_bids_user_
 ALTER TABLE ONLY public.warranties ADD CONSTRAINT warranties_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.warranties ADD CONSTRAINT warranties_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.wip_periods ADD CONSTRAINT wip_periods_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE ONLY public.worker_profiles ADD CONSTRAINT worker_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.worker_profiles ADD CONSTRAINT worker_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.workers ADD CONSTRAINT workers_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 -- =============================================================================
@@ -2599,7 +2647,7 @@ ALTER TABLE public.workers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.zip_cost_factors ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
--- SECTION 5 — ROW LEVEL SECURITY POLICIES (320)
+-- SECTION 5 — ROW LEVEL SECURITY POLICIES (321)
 --
 -- Reconstructed from pg_policies (schemaname, tablename, policyname,
 -- permissive, roles, cmd, qual, with_check). The USING / WITH CHECK
@@ -2680,6 +2728,13 @@ CREATE POLICY "gc records client CO approval in own portal" ON public.change_ord
   WITH CHECK ((EXISTS ( SELECT 1
    FROM projects p
   WHERE (((p.client_portal ->> 'portalId'::text) = change_order_approvals.portal_id) AND (p.user_id = auth.uid())))));
+CREATE POLICY "gc stamps own CO approvals" ON public.change_order_approvals AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (((project_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM projects p
+  WHERE (((p.id)::text = change_order_approvals.project_id) AND (p.user_id = auth.uid()))))))
+  WITH CHECK (((project_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM projects p
+  WHERE (((p.id)::text = change_order_approvals.project_id) AND (p.user_id = auth.uid()))))));
 CREATE POLICY change_orders_delete ON public.change_orders AS PERMISSIVE FOR DELETE TO public
   USING ((auth.uid() = user_id));
 CREATE POLICY change_orders_insert ON public.change_orders AS PERMISSIVE FOR INSERT TO public
@@ -3068,7 +3123,9 @@ CREATE POLICY "gc can update own proposals" ON public.portal_budget_proposals AS
   USING (((project_id IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM projects p
   WHERE (((p.id)::text = portal_budget_proposals.project_id) AND (p.user_id = auth.uid()))))))
-  WITH CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text])));
+  WITH CHECK (((project_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM projects p
+  WHERE (((p.id)::text = portal_budget_proposals.project_id) AND (p.user_id = auth.uid())))) AND (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text]))));
 CREATE POLICY "gc reads own portal audit" ON public.portal_decision_audit AS PERMISSIVE FOR SELECT TO authenticated
   USING (((project_id IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM projects p
@@ -3284,7 +3341,9 @@ CREATE POLICY "gc updates sub invoices for own portals" ON public.sub_submitted_
   USING ((EXISTS ( SELECT 1
    FROM sub_portal_links spl
   WHERE ((spl.id = sub_submitted_invoices.sub_portal_id) AND (spl.user_id = auth.uid())))))
-  WITH CHECK ((status = ANY (ARRAY['submitted'::text, 'approved'::text, 'rejected'::text, 'paid'::text])));
+  WITH CHECK (((EXISTS ( SELECT 1
+   FROM sub_portal_links spl
+  WHERE ((spl.id = sub_submitted_invoices.sub_portal_id) AND (spl.user_id = auth.uid())))) AND (status = ANY (ARRAY['submitted'::text, 'approved'::text, 'rejected'::text, 'paid'::text]))));
 CREATE POLICY subcontractors_delete ON public.subcontractors AS PERMISSIVE FOR DELETE TO public
   USING ((auth.uid() = user_id));
 CREATE POLICY subcontractors_insert ON public.subcontractors AS PERMISSIVE FOR INSERT TO public
@@ -3386,7 +3445,7 @@ CREATE POLICY zip_factors_select_all ON public.zip_cost_factors AS PERMISSIVE FO
   USING ((auth.role() = 'authenticated'::text));
 
 -- =============================================================================
--- SECTION 6 — TRIGGERS (52)
+-- SECTION 6 — TRIGGERS (56)
 --
 -- All non-internal triggers (pg_trigger where NOT tgisinternal), rendered by
 -- pg_get_triggerdef. Ordered by (table, trigger name). Constraint-enforcement
@@ -3395,6 +3454,7 @@ CREATE POLICY zip_factors_select_all ON public.zip_cost_factors AS PERMISSIVE FO
 
 CREATE TRIGGER trg_freeze_certified_aia_pay_app BEFORE UPDATE ON public.aia_pay_apps FOR EACH ROW EXECUTE FUNCTION freeze_certified_aia_pay_app();
 CREATE TRIGGER certifications_updated_at BEFORE UPDATE ON public.certifications FOR EACH ROW EXECUTE FUNCTION safety_wave_b_set_updated_at();
+CREATE TRIGGER change_order_approvals_freeze BEFORE UPDATE ON public.change_order_approvals FOR EACH ROW EXECUTE FUNCTION co_approval_freeze_evidence();
 CREATE TRIGGER notify_co_approval AFTER INSERT ON public.change_order_approvals FOR EACH ROW EXECUTE FUNCTION trg_notify_co_approval();
 CREATE TRIGGER trg_resolve_co_approval_project BEFORE INSERT ON public.change_order_approvals FOR EACH ROW EXECUTE FUNCTION resolve_co_approval_project();
 CREATE TRIGGER change_orders_updated_at BEFORE UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -3417,12 +3477,14 @@ CREATE TRIGGER lien_waivers_updated_at BEFORE UPDATE ON public.lien_waivers FOR 
 CREATE TRIGGER oac_meetings_updated_at BEFORE UPDATE ON public.oac_meetings FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER plan_sheets_updated_at BEFORE UPDATE ON public.plan_sheets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER notify_budget_proposal AFTER INSERT ON public.portal_budget_proposals FOR EACH ROW EXECUTE FUNCTION trg_notify_budget_proposal();
+CREATE TRIGGER portal_budget_proposals_freeze BEFORE UPDATE ON public.portal_budget_proposals FOR EACH ROW EXECUTE FUNCTION portal_proposal_freeze_project();
 CREATE TRIGGER trg_resolve_portal_project_id BEFORE INSERT ON public.portal_budget_proposals FOR EACH ROW EXECUTE FUNCTION resolve_portal_project_id();
 CREATE TRIGGER notify_portal_message AFTER INSERT ON public.portal_messages FOR EACH ROW EXECUTE FUNCTION notify_portal_message_fn();
 CREATE TRIGGER trg_resolve_portal_msg_project BEFORE INSERT ON public.portal_messages FOR EACH ROW EXECUTE FUNCTION resolve_portal_msg_project();
 CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER project_contracts_updated_at BEFORE UPDATE ON public.project_contracts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER enforce_free_tier_project_cap_trigger BEFORE INSERT ON public.projects FOR EACH ROW EXECUTE FUNCTION enforce_free_tier_project_cap();
+CREATE TRIGGER projects_freeze_ownership BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION projects_freeze_ownership_columns();
 CREATE TRIGGER projects_updated_at BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_portal_access_token BEFORE INSERT OR UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION portal_set_access_token();
 CREATE TRIGGER public_bids_notify_nearby AFTER INSERT ON public.public_bids FOR EACH ROW EXECUTE FUNCTION public_bids_notify_nearby_fn();
@@ -3437,6 +3499,7 @@ CREATE TRIGGER selection_categories_updated_at BEFORE UPDATE ON public.selection
 CREATE TRIGGER notify_sub_invoice AFTER INSERT ON public.sub_submitted_invoices FOR EACH ROW EXECUTE FUNCTION trg_notify_sub_invoice();
 CREATE TRIGGER notify_sub_invoice_reviewed AFTER UPDATE ON public.sub_submitted_invoices FOR EACH ROW EXECUTE FUNCTION trg_notify_sub_invoice_reviewed();
 CREATE TRIGGER sub_invoice_recompute_commitment AFTER INSERT OR DELETE OR UPDATE ON public.sub_submitted_invoices FOR EACH ROW EXECUTE FUNCTION recompute_commitment_paid_to_date();
+CREATE TRIGGER sub_submitted_invoices_freeze BEFORE UPDATE ON public.sub_submitted_invoices FOR EACH ROW EXECUTE FUNCTION sub_invoice_freeze_columns();
 CREATE TRIGGER trg_resolve_sub_invoice_project BEFORE INSERT ON public.sub_submitted_invoices FOR EACH ROW EXECUTE FUNCTION resolve_sub_invoice_project();
 CREATE TRIGGER subcontractors_updated_at BEFORE UPDATE ON public.subcontractors FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER submittals_updated_at BEFORE UPDATE ON public.submittals FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -3447,22 +3510,24 @@ CREATE TRIGGER wip_periods_block_locked_update BEFORE UPDATE ON public.wip_perio
 CREATE TRIGGER wip_periods_updated_at BEFORE UPDATE ON public.wip_periods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================================================
--- SECTION 7 — FUNCTIONS (76 application functions)
+-- SECTION 7 — FUNCTIONS (80 application functions)
 --
 -- SCOPE NOTE, PLEASE READ:
---   pg_proc reports 194 routines in the `public` schema. 118 of those belong
+--   pg_proc reports 198 routines in the `public` schema. 118 of those belong
 --   to the `vector` (pgvector) extension, which is installed into `public`:
 --   114 C-language functions and 4 aggregates (avg(vector), avg(halfvec),
 --   sum(vector), sum(halfvec)). Those are extension-owned, are recreated by
 --   CREATE EXTENSION, and are deliberately NOT reproduced here — dumping their
 --   C stubs would add noise without adding information.
 --
---   What follows are the 76 functions that are actually this application's
+--   What follows are the 80 functions that are actually this application's
 --   own code (pg_proc rows with no `pg_depend` extension dependency),
---   rendered in full by pg_get_functiondef. 57 of the 76 are SECURITY
+--   rendered in full by pg_get_functiondef. 57 of the 80 are SECURITY
 --   DEFINER, so this section is the relevant surface for security review.
+--   (The four functions added on 2026-09-02 are plain trigger functions, not
+--   SECURITY DEFINER, so the SECURITY DEFINER count is unchanged at 57.)
 --
---   194 = 76 application + 114 vector functions + 4 vector aggregates.
+--   198 = 80 application + 114 vector functions + 4 vector aggregates.
 --
 -- Ordered by (function name, identity arguments); overloads appear together.
 -- =============================================================================
@@ -3763,6 +3828,38 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.co_approval_freeze_evidence()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if auth.uid() is not null then
+    new.id               := old.id;
+    new.portal_id        := old.portal_id;
+    new.project_id       := old.project_id;
+    new.invite_id        := old.invite_id;
+    new.change_order_id  := old.change_order_id;
+    new.decision         := old.decision;
+    new.signer_name      := old.signer_name;
+    new.signer_email     := old.signer_email;
+    new.signature_data   := old.signature_data;
+    new.note             := old.note;
+    new.user_agent       := old.user_agent;
+    new.created_at       := old.created_at;
+    new.signature_hash   := old.signature_hash;
+    new.consent_record   := old.consent_record;
+    new.document_hash    := old.document_hash;
+    new.consent_version  := old.consent_version;
+    new.consent_accepted := old.consent_accepted;
+    new.sealed_at        := old.sealed_at;
+    -- synced_to_co_at is deliberately NOT pinned. It is the one column an
+    -- authenticated GC is allowed to write, and the whole point of this file.
+  end if;
+  return new;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.consume_rfp_post_credit()
  RETURNS boolean
  LANGUAGE plpgsql
@@ -3970,6 +4067,7 @@ BEGIN
 END;
 $function$
 ;
+
 CREATE OR REPLACE FUNCTION public.fire_notify(p_event text, p_source_table text, p_source_id text, p_payload jsonb)
  RETURNS void
  LANGUAGE plpgsql
@@ -4209,6 +4307,11 @@ CREATE OR REPLACE FUNCTION public.grant_rfp_post_credit(p_user uuid, p_session t
  SET search_path TO 'public'
 AS $function$
 begin
+  if coalesce(auth.role(), '') is distinct from 'service_role' then
+    raise exception 'grant_rfp_post_credit: forbidden'
+      using errcode = '42501';
+  end if;
+
   insert into public.rfp_post_payments (session_id, user_id)
   values (p_session, p_user)
   on conflict (session_id) do nothing;
@@ -4378,6 +4481,7 @@ BEGIN
 END;
 $function$
 ;
+
 CREATE OR REPLACE FUNCTION public.notify_sub_invoice_fn()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4543,6 +4647,19 @@ AS $function$
      and coalesce(client_portal->>'accessToken','') <> ''
      and client_portal->>'accessToken' = p_access_token
    limit 1;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.portal_proposal_freeze_project()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if auth.uid() is not null then
+    new.project_id := old.project_id;
+  end if;
+  return new;
+end;
 $function$
 ;
 
@@ -4724,6 +4841,19 @@ begin
 end $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.projects_freeze_ownership_columns()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if auth.uid() is not null and auth.uid() is distinct from old.user_id then
+    new.user_id := old.user_id;
+  end if;
+  return new;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.public_bids_notify_nearby_fn()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4897,6 +5027,7 @@ BEGIN
 END;
 $function$
 ;
+
 CREATE OR REPLACE FUNCTION public.resolve_sub_invoice_project()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4938,6 +5069,22 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.sub_invoice_freeze_columns()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if auth.uid() is not null then
+    new.sub_portal_id := old.sub_portal_id;
+    new.project_id    := old.project_id;
+    new.commitment_id := old.commitment_id;
+    new.amount        := old.amount;
+  end if;
+  return new;
+end;
 $function$
 ;
 
