@@ -3,6 +3,111 @@
 _Written 2026-08-19 at the end of a long working session, so the next one begins
 where this ended. Read this, then `CLAUDE.md`, then `docs/PRODUCT-BIBLE.md`._
 
+---
+
+# ⚠ CURRENT STATE — 2026-09-03. READ THIS BEFORE ANYTHING BELOW.
+
+Everything under this banner is current. The sections further down were written
+2026-08-19 and are still broadly true about the product, but their status claims
+are stale.
+
+## Where the work stands
+
+Two full audits were run and closed. Findings live in:
+- `docs/audits/2026-08-31-medium-sweep.md` — 32 findings, all closed or refuted
+- `docs/audits/2026-09-02-launch-readiness.md` — 16 findings, 14 closed, 2 PARTIAL
+
+`bun run ship-check` is green: **205 guards, 465 jest tests, tsc clean.**
+`expo export` passes for both ios and web.
+
+## THE DEPLOY IS HALF DONE. Read `DEPLOY-VERIFIED-2026-09-02.md` next.
+
+Applied to production directly (via Supabase MCP `apply_migration`, each
+verified by introspection):
+- the security batch — anon-executable `grant_rfp_post_credit` locked, two RLS
+  write leaks closed, ownership-freeze triggers, account-deletion FK cascades,
+  `subscriptions_tier_check` widened to accept `'enterprise'`
+- the feature batch — `project_financials` (backfilled), `deliveries`,
+  `building_access_rules`, `access_reservations`, `portal_get_snapshot_v2`,
+  9 columns, 6 indexes, 16 policies
+
+**NOT deployed, and all still blocked from the CLI in that session:**
+- `git push` — the repo is ~108 commits ahead of origin/main
+- the edge functions. `invoice-dunning` is STILL emailing clients a "FINAL
+  NOTICE" demanding retention their contract entitles them to hold, on every
+  run. This is the most user-visible harm still live.
+- the OTA. Every app-side fix from those audits is in the repo and not on any
+  device.
+
+## THREE THINGS DELIBERATELY HELD BACK — do not just apply them
+
+1. **`20260826180000_portal_link_expiry_cron`** — schedules a pg_cron job that
+   calls the `portal-link-expiry-notice` EDGE FUNCTION, which is not deployed.
+   Applying it produces a silent stream of failing runs. Apply AFTER that
+   function ships.
+2. **`20260827120000_project_financials_drop_legacy`** — PHASE 2. It drops
+   `estimate` / `linked_estimate` / `estimate_versions` / `target_budget` off
+   `projects`. Phase 1 is applied, so the money lives in BOTH places and the
+   current app works. Phase 2 must not run until the OTA is live and verified,
+   or it removes columns every installed build still reads. **`supabase db push`
+   applies in filename order and WILL run it with everything else** — move the
+   file out of the directory for a bulk push.
+3. **`alter table cost_seeds add column deleted_at`** from `20260826150000`.
+   cost_seeds is under a standing do-not-touch instruction, so that migration
+   was SPLIT and only its `delay_events` index applied. Consequence: soft-delete
+   of a cost seed does not persist — `hooks/useCostSeeds.ts` writes a tombstone
+   the table cannot hold, so the UNION merge resurrects it. Needs a founder call.
+
+## FOUR OPEN FOUNDER DECISIONS — not bugs, do not "fix" unilaterally
+
+1. **`RFP_BROWSE_ENABLED = false`** (`app/(tabs)/mage-id-bids/index.tsx`).
+   Browsing other users' RFPs is gated OFF for 1.0 because App Store Guideline
+   1.2 requires report/block/filter for user-generated content and none exists.
+   Posting and "My RFPs" still work. The full 1.2 kit is specced in the
+   launch-readiness doc as a 1.0.1 item.
+2. **`CLIENT_SUBS_ENABLED = false`** (`components/ClientPaywall.tsx`). The $19
+   and $49 client tiers never touched StoreKit — `handleStartTrial` was an
+   AsyncStorage write — which is Guideline 3.1.1. The homeowner path ships FREE
+   for 1.0. Turning it on needs real RevenueCat products.
+3. **"Verified pros only"** (`app/post-rfp.tsx`) was fixed by DE-SCOPING the
+   claim to notifications only. If it should actually restrict who can BID,
+   that enforcement is unbuilt.
+4. **`notification_outbox_recipient_kind_check`** allows `['gc','client','sub']`
+   while the app writes `'user'`. Widen the constraint or fix the app? Nobody
+   has decided. No migration exists.
+
+Two more are recorded in the medium-sweep doc as tested, deliberate models
+awaiting a call: `utils/jobCostEngine.ts:245` (client payments counted as
+job-cost actual) and `utils/aiaBilling.ts:144` (`thisPeriod = scheduledValue`).
+
+## WHAT IS STILL UNPROVEN
+
+**None of this has run on a physical iPhone.** It is static analysis, jsdom
+mounts and database introspection. The closing section of
+`DEPLOY-VERIFIED-2026-09-02.md` lists five on-device checks, each sitting
+exactly where a bug was just fixed:
+delete an INVITED account · import a 1,000-row MS Project file and scroll ·
+offline create-then-approve a change order and check a second device ·
+open the schedule in a negative UTC offset · post an RFP as a homeowner.
+
+## TWO THINGS THAT WILL MISLEAD YOU
+
+1. **`supabase/schema.sql` is authoritative; the migrations are NOT.** The
+   migration tracker's last entry is `20260804225749` while objects from far
+   later migrations exist and earlier ones do not. During the 08-31 audit two
+   agents read `schema.sql` when it was stale and filed FALSE bug reports. It is
+   now regenerated from production with a per-section MD5 verification — its own
+   header explains how to re-run that check. Regenerate it after any deploy.
+2. **A guard that names files goes blind.** `validate-schedule-date-basis` named
+   three components and therefore never looked at `MobileScheduleList`, the
+   primary iOS schedule surface, which kept the exact bug the guard existed to
+   catch. Same shape as `validate-alert-shim`, whose ROOTS omitted `utils/`.
+   **Enumerate, do not list.** `scripts/validate-guard-coverage.ts` exists
+   because 19 validators were on disk and unreachable from `ship-check` —
+   including four security ones. It fails the build if a validator is not wired.
+
+---
+
 ## What MAGE ID is, in four lines
 
 React Native / Expo construction-management app for **small-to-mid general
@@ -29,6 +134,9 @@ enforced in the engine, in every AI prompt, and now visibly on the estimate row
 | `docs/audits/2026-08-15-where-mageid-could-lead.md` | market research; where the moat is |
 | `docs/audits/2026-08-15-bid-qualification-brief.md` | next feature, 3 decisions already made |
 | `docs/audits/2026-08-19-product-decisions.md` | founder calls on 4 deferred items |
+| **`DEPLOY-VERIFIED-2026-09-02.md`** | **the live deploy state + ordered runbook. Read this second.** |
+| `docs/audits/2026-08-31-medium-sweep.md` | 32 correctness findings, closed |
+| `docs/audits/2026-09-02-launch-readiness.md` | 16 App Store / tenant-isolation findings |
 
 ## THE OPERATIONAL GOTCHAS — these cost hours, none are obvious
 
