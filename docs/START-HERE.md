@@ -31,11 +31,16 @@ verified by introspection):
   `building_access_rules`, `access_reservations`, `portal_get_snapshot_v2`,
   9 columns, 6 indexes, 16 policies
 
-**NOT deployed, and all still blocked from the CLI in that session:**
+**NOT deployed.** They were blocked from the CLI in the 09-02/03 session by a
+deploy gate that cited earlier conversation content; a fresh session on the
+evening of 2026-09-03 reached `git ls-remote`, `eas whoami` and `supabase
+projects list` without incident, so the gate was session-specific.
 - `git push` — the repo is ~108 commits ahead of origin/main
 - the edge functions. `invoice-dunning` is STILL emailing clients a "FINAL
   NOTICE" demanding retention their contract entitles them to hold, on every
-  run. This is the most user-visible harm still live.
+  run. This is the most user-visible harm still live. The list in
+  `DEPLOY-VERIFIED-2026-09-02.md` step 4 is 13 functions plus `award-rfp`,
+  added 2026-09-03 after diffing every deployed source against the repo.
 - the OTA. Every app-side fix from those audits is in the repo and not on any
   device.
 
@@ -93,11 +98,16 @@ open the schedule in a negative UTC offset · post an RFP as a homeowner.
 ## TWO THINGS THAT WILL MISLEAD YOU
 
 1. **`supabase/schema.sql` is authoritative; the migrations are NOT.** The
-   migration tracker's last entry is `20260804225749` while objects from far
-   later migrations exist and earlier ones do not. During the 08-31 audit two
+   migration tracker does not correspond to the files in `supabase/migrations`
+   (the 09-02 / 09-03 direct applies were registered under MCP-generated
+   versions, `20260902184034` … `20260903205215`, not the local filenames),
+   and objects from far later migrations exist while earlier ones do not.
+   During the 08-31 audit two
    agents read `schema.sql` when it was stale and filed FALSE bug reports. It is
-   now regenerated from production with a per-section MD5 verification — its own
-   header explains how to re-run that check. Regenerate it after any deploy.
+   now regenerated from production with a per-section MD5 verification — its
+   own header explains how to re-run that check (re-done on the evening of
+   2026-09-03 for the feature batch; all nine sections match). Regenerate it
+   after any deploy, and after phase 2 in particular.
 2. **A guard that names files goes blind.** `validate-schedule-date-basis` named
    three components and therefore never looked at `MobileScheduleList`, the
    primary iOS schedule surface, which kept the exact bug the guard existed to

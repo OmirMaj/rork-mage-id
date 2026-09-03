@@ -38,19 +38,22 @@
 >    Without the column, soft-delete of a cost seed does not persist
 >    (hooks/useCostSeeds.ts expects it). Needs an explicit decision.
 >
-> **`supabase/schema.sql` is STALE AGAIN** as of 2026-09-03. It was regenerated
-> after the security apply, then the feature batch added four tables, two
-> functions, six indexes and a column. No guard BREAKS because of this — the new
-> FKs to auth.users are all CASCADE (so validate-account-deletion stays green)
-> and the new policies do not match the leak signature — but the file no longer
-> describes production. Regenerate before relying on it.
+> **`supabase/schema.sql` was regenerated again on the evening of 2026-09-03**
+> and all nine of its sections hash-match production, feature batch included
+> (+4 tables, +9 columns, +6 CHECK, +8 FK, +10 indexes, +16 policies, +2
+> functions). The first pass at that regeneration put `portal_get_snapshot_v2`
+> in the wrong slot of section 7 — every function block matched production and
+> the section still did not — so trust the per-section MD5 check described in
+> the file's header, never a line count. Regenerate once more after phase 2.
 
 
 Every claim here was checked against production (`nteoqhcswappxxjlpvap`) by
 read-only introspection on 2026-09-02, not inferred from migration filenames.
-The migration tracker is NOT reliable for this repo: its last entry is
-`20260804225749`, yet objects from later migrations exist and objects from
-earlier ones do not. Trust the object checks below, not the tracker.
+The migration tracker is NOT reliable for this repo: its filename-matching
+entries stop at `20260804225749`; the 09-02 and 09-03 direct applies sit under
+MCP-generated versions (`20260902184034` … `20260903205215`) that match no file
+in `supabase/migrations`, and objects from later migrations exist while objects
+from earlier ones do not. Trust the object checks below, not the tracker.
 
 ---
 
@@ -213,8 +216,22 @@ Then the rest, none of which are urgent:
 ```
 supabase functions deploy construction-answer mcp qbo-sync qbo-reconciler \
   project-invite portal-link-expiry-notice notify seal-document \
-  stripe-webhook import-schedule --project-ref nteoqhcswappxxjlpvap
+  stripe-webhook import-schedule award-rfp --project-ref nteoqhcswappxxjlpvap
 ```
+
+`award-rfp` was added to that list on 2026-09-03 after downloading every
+deployed function whose repo commit postdates its deployment and diffing it
+against the repo: eleven were byte-identical (deployed before the commit was
+cut), `award-rfp` was not — the deployed copy still identifies the caller by
+decoding the JWT payload, while the repo has verified it through GoTrue since
+PR #63 (2026-07-09). The platform gateway does verify the JWT for it
+(`verify_jwt: true`), so this is defence in depth, not an open hole.
+
+`qbo-connect-start`, `qbo-connect-callback` and `qbo-connect-status` also
+bundle the `_shared/qbo.ts` that changed on 2026-08-29. The fix itself only
+runs on the token-refresh paths, which live in `qbo-sync` and
+`qbo-reconciler`, so they are optional — include them if you want every bundle
+carrying the same helper.
 
 ### 5. OTA
 
@@ -244,6 +261,9 @@ collaborator can read `estimate` / `linked_estimate` / `estimate_versions` /
 to let them see the row at all for `projects.schedule`.
 
 ### 7. Regenerate the schema snapshot
+
+Done for the 2026-09-03 database state (see the status block at the top);
+redo it after phase 2 runs.
 
 `supabase/schema.sql` is a reference artifact that the audit tooling reads —
 `validate-rls-write-leaks` and `validate-account-deletion` both parse it. After

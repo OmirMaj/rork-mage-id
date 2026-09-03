@@ -2,11 +2,12 @@
 -- MAGE ID — public schema reference
 -- =============================================================================
 --
--- GENERATED on 2026-09-02 by introspecting the LIVE production Supabase
+-- GENERATED on 2026-09-03 by introspecting the LIVE production Supabase
 -- database, project ref `nteoqhcswappxxjlpvap`, schema `public`.
 --
--- The security migrations applied directly to production on 2026-09-02 are now
--- reflected here (see "WHAT CHANGED IN THE 2026-09-02 REGENERATION" below).
+-- The security migrations applied directly to production on 2026-09-02 and the
+-- feature migrations applied on 2026-09-03 are both reflected here (see the two
+-- "WHAT CHANGED IN THE ... REGENERATION" blocks below).
 --
 -- WHAT THIS FILE IS
 --   A reference artifact. It is a human- and tool-readable description of what
@@ -22,17 +23,17 @@
 --   database and expect it to work.
 --
 -- CONTENTS
---   1. Tables            — 104  (columns, types, NOT NULL, DEFAULTs)
---   2. Constraints       — 338  (104 PK, 126 FK w/ ON DELETE, 16 UNIQUE, 92 CHECK)
---   3. Indexes           — 338 total in pg_indexes; 218 emitted here
---                          (120 are the implicit indexes backing the PK/UNIQUE
+--   1. Tables            — 108  (columns, types, NOT NULL, DEFAULTs)
+--   2. Constraints       — 356  (108 PK, 134 FK w/ ON DELETE, 16 UNIQUE, 98 CHECK)
+--   3. Indexes           — 352 total in pg_indexes; 228 emitted here
+--                          (124 are the implicit indexes backing the PK/UNIQUE
 --                           constraints already emitted in section 2 and are
 --                           deliberately skipped so the file does not duplicate)
---   4. Row Level Security — enabled on all 104 tables
---   5. RLS policies      — 321
+--   4. Row Level Security — enabled on all 108 tables
+--   5. RLS policies      — 337
 --   6. Triggers          — 56
---   7. Functions         — 198 routines exist in `public`; 80 emitted here
---                          (full bodies, incl. 57 SECURITY DEFINER RPCs).
+--   7. Functions         — 200 routines exist in `public`; 82 emitted here
+--                          (full bodies, incl. 59 SECURITY DEFINER RPCs).
 --                          The other 118 belong to the `vector` (pgvector)
 --                          extension, which is installed into `public`:
 --                          114 C functions + 4 aggregates. They are
@@ -70,6 +71,11 @@
 --   file (`scripts/validate-rls-write-leaks.ts`, `scripts/validate-account-
 --   deletion.ts`), so a stale file makes them report yesterday's truth.
 --
+--   The 2026-09-03 regeneration is the same story one day later: the feature
+--   batch (project_financials, deliveries, building_access_rules,
+--   access_reservations, portal_get_snapshot_v2, nine columns, ten indexes)
+--   was applied to production on 2026-09-03 and the file did not move with it.
+--
 -- WHAT CHANGED IN THE 2026-09-02 REGENERATION
 --   Deltas vs the 2026-08-31 file. Sections 1, 2a, 3 and 4 are unchanged.
 --     * 2b — `subscriptions_tier_check` now admits 'enterprise'.
@@ -97,12 +103,63 @@
 --   `rate_overrides` and functions `fire_notify`, `notify_sub_invoice_fn`,
 --   `resolve_sub_invoice_project`. Corrected here. No content changed.
 --
+-- WHAT CHANGED IN THE 2026-09-03 REGENERATION
+--   Deltas vs the 2026-09-02 file: the feature batch applied to production on
+--   2026-09-03 (see DEPLOY-VERIFIED-2026-09-02.md). Section 6 is unchanged;
+--   every other section grew.
+--     * 1  — +4 tables (104 -> 108): `access_reservations`,
+--            `building_access_rules`, `deliveries`, `project_financials`.
+--            +9 columns on existing tables: `delivery_receipts.delivery_id`;
+--            `portal_snapshots.expires_at`, `.link_duration_days`;
+--            `rfis.assigned_sub_id`, `.ball_in_court`, `.handoffs`;
+--            `sub_submitted_invoices.payment_method`, `.payment_reference`,
+--            `.paid_on`.
+--     * 2a — +4 PRIMARY KEYs, one per new table (120 -> 124 rows).
+--     * 2b — +6 CHECKs (92 -> 98): `access_reservations_kind_check`,
+--            `access_reservations_status_check`,
+--            `building_access_rules_badge_lead_time_days_check`,
+--            `deliveries_status_check`,
+--            `portal_snapshots_link_duration_days_positive`,
+--            `sub_submitted_invoices_payment_method_check` (NOT VALID).
+--     * 2c — +8 FKs (126 -> 134): each new table has `project_id ->
+--            projects(id)` and `user_id -> auth.users(id)`, all ON DELETE
+--            CASCADE, so validate-account-deletion stays green.
+--     * 3  — +10 indexes (218 -> 228 emitted; 338 -> 352 in pg_indexes):
+--            `access_reservations_delivery_idx`, `access_reservations_open_idx`,
+--            `delay_events_open_notice_idx`, `deliveries_open_expected_idx`,
+--            `deliveries_project_idx`, `delivery_receipts_delivery_idx`,
+--            `portal_snapshots_expires_at_idx`, `project_financials_user_id_idx`,
+--            `rfis_assigned_sub_id_idx`, `sub_submitted_invoices_paid_on_idx`.
+--     * 4  — RLS enabled on the 4 new tables (104 -> 108).
+--     * 5  — +16 policies (321 -> 337): four per new table (collab insert /
+--            select / update + owner delete on `access_reservations`,
+--            `building_access_rules`, `deliveries`; select / insert / update /
+--            delete on `project_financials`).
+--     * 7  — +2 functions (80 -> 82), both SECURITY DEFINER (57 -> 59):
+--            `can_view_project_financials(uuid)` and
+--            `portal_get_snapshot_v2(text, text)`.
+--   NOT in production and therefore not here: `cost_seeds.deleted_at` (that
+--   half of 20260826150000 was deliberately not applied), the
+--   `portal_link_expiry_cron` job, and phase 2 of the project_financials split
+--   (`projects.estimate` / `linked_estimate` / `estimate_versions` /
+--   `target_budget` are still on `projects`, by design, until the OTA is live).
+--
 -- HOW THIS FILE WAS VERIFIED
 --   Each section was rendered server-side from the catalog and MD5'd, and the
 --   same MD5 was computed over the corresponding line range of this file. All
 --   nine sections (1, 2a, 2b, 2c, 3, 4, 5, 6, 7) match byte-for-byte. So this
 --   file is not merely "believed current" — it is a checked reproduction of
---   `public` as of 2026-09-02. Re-verify the same way after any change.
+--   `public` as of 2026-09-03. Re-verify the same way after any change.
+--   Three things the 2026-09-03 re-run learned, so the next one does not:
+--     * hash the section BODY only (first object line to last), joined with
+--       the generator's separators — a blank line between tables and between
+--       functions, none between one-line objects — not the commented headers.
+--     * the server's length() counts characters; section 7 carries non-ASCII
+--       in function comments, so its byte length on disk is a few bytes more
+--       than the length the server reports. Only the MD5 is the verdict.
+--     * new objects go where the server's ORDER BY puts them. The first pass
+--       slotted `portal_get_snapshot_v2` after `portal_project_for_token`; all
+--       82 function blocks matched individually while the section did not.
 --
 -- ORDERING
 --   Every section is sorted alphabetically so that future regenerations
@@ -112,8 +169,25 @@
 
 
 -- =============================================================================
--- SECTION 1 — TABLES (104)
+-- SECTION 1 — TABLES (108)
 -- =============================================================================
+
+CREATE TABLE public.access_reservations (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    kind text NOT NULL,
+    date date NOT NULL,
+    reservation_window text,
+    status text DEFAULT 'requested'::text NOT NULL,
+    confirmation_ref text,
+    delivery_id uuid,
+    requested_at timestamp with time zone,
+    confirmed_at timestamp with time zone,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 CREATE TABLE public.ai_daily_usage (
     user_id uuid NOT NULL,
@@ -269,6 +343,24 @@ CREATE TABLE public.brain_predictions (
     predicted_at timestamp with time zone DEFAULT now() NOT NULL,
     resolved_at timestamp with time zone,
     outcome jsonb
+);
+
+CREATE TABLE public.building_access_rules (
+    project_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    building_contact text,
+    building_phone text,
+    requires_freight_elevator boolean DEFAULT false NOT NULL,
+    requires_dock_reservation boolean DEFAULT false NOT NULL,
+    requires_coi_on_file boolean DEFAULT false NOT NULL,
+    coi_on_file_at date,
+    requires_badging boolean DEFAULT false NOT NULL,
+    badge_lead_time_days integer,
+    work_hours text,
+    after_hours_requires_approval boolean DEFAULT false NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE public.cached_bids (
@@ -647,6 +739,27 @@ CREATE TABLE public.delay_events (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE public.deliveries (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    description text NOT NULL,
+    supplier text NOT NULL,
+    commitment_id uuid,
+    po_number text,
+    expected_date date NOT NULL,
+    delivery_window text,
+    status text DEFAULT 'scheduled'::text NOT NULL,
+    confirmed_at timestamp with time zone,
+    delivered_at timestamp with time zone,
+    receipt_id uuid,
+    location text,
+    received_by text,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE public.delivery_receipts (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -664,7 +777,8 @@ CREATE TABLE public.delivery_receipts (
     received_by text NOT NULL,
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    delivery_id uuid
 );
 
 CREATE TABLE public.draw_periods (
@@ -1240,7 +1354,9 @@ CREATE TABLE public.portal_snapshots (
     portal_id text NOT NULL,
     project_id uuid,
     snapshot jsonb NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone,
+    link_duration_days integer
 );
 
 CREATE TABLE public.prequal_packets (
@@ -1383,6 +1499,17 @@ CREATE TABLE public.project_contracts (
     proposal_revision_id uuid,
     kind text,
     document_hash text
+);
+
+CREATE TABLE public.project_financials (
+    project_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    estimate jsonb,
+    linked_estimate jsonb,
+    estimate_versions jsonb,
+    target_budget jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE public.projects (
@@ -1559,7 +1686,10 @@ CREATE TABLE public.rfis (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     share_token uuid DEFAULT gen_random_uuid(),
-    portal_state jsonb
+    portal_state jsonb,
+    assigned_sub_id text,
+    ball_in_court text,
+    handoffs jsonb
 );
 
 CREATE TABLE public.rfp_post_credits (
@@ -1758,7 +1888,10 @@ CREATE TABLE public.sub_submitted_invoices (
     notes_from_gc text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     reviewed_at timestamp with time zone,
-    paid_at timestamp with time zone
+    paid_at timestamp with time zone,
+    payment_method text,
+    payment_reference text,
+    paid_on date
 );
 
 CREATE TABLE public.subcontractors (
@@ -1947,13 +2080,14 @@ CREATE TABLE public.zip_cost_factors (
 );
 
 -- =============================================================================
--- SECTION 2 — CONSTRAINTS (338)
+-- SECTION 2 — CONSTRAINTS (356)
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- 2a. PRIMARY KEY and UNIQUE constraints (104 PK + 16 UNIQUE)
+-- 2a. PRIMARY KEY and UNIQUE constraints (108 PK + 16 UNIQUE)
 -- -----------------------------------------------------------------------------
 
+ALTER TABLE ONLY public.access_reservations ADD CONSTRAINT access_reservations_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.ai_daily_usage ADD CONSTRAINT ai_daily_usage_pkey PRIMARY KEY (user_id, usage_date);
 ALTER TABLE ONLY public.ai_usage_counters ADD CONSTRAINT ai_usage_counters_pkey PRIMARY KEY (user_id, month_bucket, feature);
 ALTER TABLE ONLY public.aia_pay_apps ADD CONSTRAINT aia_pay_apps_pkey PRIMARY KEY (id);
@@ -1964,6 +2098,7 @@ ALTER TABLE ONLY public.bid_packages ADD CONSTRAINT bid_packages_pkey PRIMARY KE
 ALTER TABLE ONLY public.bid_questions ADD CONSTRAINT bid_questions_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.bid_responses ADD CONSTRAINT bid_responses_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.brain_predictions ADD CONSTRAINT brain_predictions_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.building_access_rules ADD CONSTRAINT building_access_rules_pkey PRIMARY KEY (project_id);
 ALTER TABLE ONLY public.cached_bids ADD CONSTRAINT cached_bids_notice_id_key UNIQUE (notice_id);
 ALTER TABLE ONLY public.cached_bids ADD CONSTRAINT cached_bids_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.cached_companies ADD CONSTRAINT cached_companies_pkey PRIMARY KEY (id);
@@ -1989,6 +2124,7 @@ ALTER TABLE ONLY public.crew_members ADD CONSTRAINT crew_members_claim_token_key
 ALTER TABLE ONLY public.crew_members ADD CONSTRAINT crew_members_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.daily_reports ADD CONSTRAINT daily_reports_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.delay_events ADD CONSTRAINT delay_events_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.deliveries ADD CONSTRAINT deliveries_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.delivery_receipts ADD CONSTRAINT delivery_receipts_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.draw_periods ADD CONSTRAINT draw_periods_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.drawing_pins ADD CONSTRAINT drawing_pins_pkey PRIMARY KEY (id);
@@ -2040,6 +2176,7 @@ ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborato
 ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_project_id_invited_email_key UNIQUE (project_id, invited_email);
 ALTER TABLE ONLY public.project_contracts ADD CONSTRAINT project_contracts_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.project_financials ADD CONSTRAINT project_financials_pkey PRIMARY KEY (project_id);
 ALTER TABLE ONLY public.projects ADD CONSTRAINT projects_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.public_bids ADD CONSTRAINT public_bids_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.punch_items ADD CONSTRAINT punch_items_pkey PRIMARY KEY (id);
@@ -2076,11 +2213,14 @@ ALTER TABLE ONLY public.workers ADD CONSTRAINT workers_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.zip_cost_factors ADD CONSTRAINT zip_cost_factors_pkey PRIMARY KEY (zip_prefix);
 
 -- -----------------------------------------------------------------------------
--- 2b. CHECK constraints (92)
+-- 2b. CHECK constraints (98)
 -- -----------------------------------------------------------------------------
 
+ALTER TABLE ONLY public.access_reservations ADD CONSTRAINT access_reservations_kind_check CHECK ((kind = ANY (ARRAY['freight_elevator'::text, 'dock'::text, 'after_hours'::text, 'badging'::text])));
+ALTER TABLE ONLY public.access_reservations ADD CONSTRAINT access_reservations_status_check CHECK ((status = ANY (ARRAY['requested'::text, 'confirmed'::text, 'denied'::text, 'cancelled'::text])));
 ALTER TABLE ONLY public.aia_pay_apps ADD CONSTRAINT aia_pay_apps_portal_state_status_check CHECK (((portal_state IS NULL) OR (NOT (portal_state ? 'status'::text)) OR ((portal_state ->> 'status'::text) = ANY (ARRAY['draft'::text, 'sent'::text, 'recalled'::text]))));
 ALTER TABLE ONLY public.brain_predictions ADD CONSTRAINT brain_predictions_kind_check CHECK ((kind = ANY (ARRAY['pace_suggestion_applied'::text, 'delay_ripple_applied'::text, 'leak_flag'::text, 'estimate_confidence_snapshot'::text, 'judges_verdict'::text, 'instant_bid_sent'::text, 'bid_score'::text, 'leveling_adjustment'::text])));
+ALTER TABLE ONLY public.building_access_rules ADD CONSTRAINT building_access_rules_badge_lead_time_days_check CHECK (((badge_lead_time_days IS NULL) OR (badge_lead_time_days >= 0)));
 ALTER TABLE ONLY public.certifications ADD CONSTRAINT certifications_status_check CHECK ((status = ANY (ARRAY['valid'::text, 'expiring'::text, 'expired'::text])));
 ALTER TABLE ONLY public.change_order_approvals ADD CONSTRAINT change_order_approvals_decision_check CHECK ((decision = ANY (ARRAY['approved'::text, 'declined'::text])));
 ALTER TABLE ONLY public.change_orders ADD CONSTRAINT change_orders_portal_state_status_check CHECK (((portal_state IS NULL) OR (NOT (portal_state ? 'status'::text)) OR ((portal_state ->> 'status'::text) = ANY (ARRAY['draft'::text, 'sent'::text, 'recalled'::text]))));
@@ -2097,6 +2237,7 @@ ALTER TABLE ONLY public.delay_events ADD CONSTRAINT delay_events_cause_check CHE
 ALTER TABLE ONLY public.delay_events ADD CONSTRAINT delay_events_claimed_days_check CHECK ((claimed_days >= 0));
 ALTER TABLE ONLY public.delay_events ADD CONSTRAINT delay_events_classification_check CHECK ((classification = ANY (ARRAY['excusable_compensable'::text, 'excusable_noncompensable'::text, 'nonexcusable'::text, 'unclassified'::text])));
 ALTER TABLE ONLY public.delay_events ADD CONSTRAINT delay_events_concurrent_days_check CHECK (((concurrent_days IS NULL) OR (concurrent_days >= 0)));
+ALTER TABLE ONLY public.deliveries ADD CONSTRAINT deliveries_status_check CHECK ((status = ANY (ARRAY['scheduled'::text, 'confirmed'::text, 'delivered'::text, 'cancelled'::text])));
 ALTER TABLE ONLY public.draw_periods ADD CONSTRAINT draw_periods_status_check CHECK ((status = ANY (ARRAY['open'::text, 'submitted'::text, 'approved'::text, 'funded'::text, 'closed'::text])));
 ALTER TABLE ONLY public.drawing_pins ADD CONSTRAINT drawing_pins_kind_check CHECK ((kind = ANY (ARRAY['note'::text, 'photo'::text, 'punch'::text, 'rfi'::text])));
 ALTER TABLE ONLY public.equipment ADD CONSTRAINT equipment_status_check CHECK ((status = ANY (ARRAY['available'::text, 'in_use'::text, 'maintenance'::text, 'retired'::text])));
@@ -2126,6 +2267,7 @@ ALTER TABLE ONLY public.plan_markups ADD CONSTRAINT plan_markups_type_check CHEC
 ALTER TABLE ONLY public.portal_budget_proposals ADD CONSTRAINT portal_budget_proposals_amount_check CHECK (((amount > (0)::numeric) AND (amount < (1000000000)::numeric)));
 ALTER TABLE ONLY public.portal_budget_proposals ADD CONSTRAINT portal_budget_proposals_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text])));
 ALTER TABLE ONLY public.portal_messages ADD CONSTRAINT portal_messages_author_type_check CHECK ((author_type = ANY (ARRAY['client'::text, 'gc'::text])));
+ALTER TABLE ONLY public.portal_snapshots ADD CONSTRAINT portal_snapshots_link_duration_days_positive CHECK (((link_duration_days IS NULL) OR (link_duration_days > 0)));
 ALTER TABLE ONLY public.price_alerts ADD CONSTRAINT price_alerts_direction_check CHECK ((direction = ANY (ARRAY['below'::text, 'above'::text])));
 ALTER TABLE ONLY public.pro_responses ADD CONSTRAINT pro_responses_exactly_one_parent CHECK ((((rfi_id IS NOT NULL) AND (submittal_id IS NULL)) OR ((rfi_id IS NULL) AND (submittal_id IS NOT NULL))));
 ALTER TABLE ONLY public.profiles ADD CONSTRAINT profiles_push_token_platform_check CHECK (((push_token_platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])) OR (push_token_platform IS NULL)));
@@ -2159,6 +2301,7 @@ ALTER TABLE ONLY public.selection_options ADD CONSTRAINT selection_options_chose
 ALTER TABLE ONLY public.selection_options ADD CONSTRAINT selection_options_source_check CHECK ((source = ANY (ARRAY['ai_generated'::text, 'gc_added'::text, 'homeowner_added'::text])));
 ALTER TABLE ONLY public.sub_change_requests ADD CONSTRAINT sub_change_requests_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'approved'::text, 'rejected'::text, 'needs_revision'::text])));
 ALTER TABLE ONLY public.sub_submitted_invoices ADD CONSTRAINT sub_submitted_invoices_amount_check CHECK (((amount > (0)::numeric) AND (amount < '1000000000'::numeric)));
+ALTER TABLE ONLY public.sub_submitted_invoices ADD CONSTRAINT sub_submitted_invoices_payment_method_check CHECK (((payment_method IS NULL) OR (payment_method = ANY (ARRAY['check'::text, 'ach'::text, 'card'::text, 'cash'::text, 'other'::text])))) NOT VALID;
 ALTER TABLE ONLY public.sub_submitted_invoices ADD CONSTRAINT sub_submitted_invoices_retention_amount_check CHECK ((retention_amount >= (0)::numeric));
 ALTER TABLE ONLY public.sub_submitted_invoices ADD CONSTRAINT sub_submitted_invoices_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'approved'::text, 'rejected'::text, 'paid'::text])));
 ALTER TABLE ONLY public.submittals ADD CONSTRAINT submittals_portal_state_status_check CHECK (((portal_state IS NULL) OR (NOT (portal_state ? 'status'::text)) OR ((portal_state ->> 'status'::text) = ANY (ARRAY['draft'::text, 'sent'::text, 'recalled'::text]))));
@@ -2173,12 +2316,14 @@ ALTER TABLE ONLY public.warranties ADD CONSTRAINT warranties_portal_state_status
 ALTER TABLE ONLY public.worker_profiles ADD CONSTRAINT worker_profiles_availability_check CHECK ((availability = ANY (ARRAY['available'::text, 'employed'::text, 'open_to_offers'::text])));
 
 -- -----------------------------------------------------------------------------
--- 2c. FOREIGN KEY constraints (126)
+-- 2c. FOREIGN KEY constraints (134)
 --
 -- NOTE: many of these reference auth.users(id). The auth schema itself is NOT
 -- described in this file (see header), only these references to it.
 -- -----------------------------------------------------------------------------
 
+ALTER TABLE ONLY public.access_reservations ADD CONSTRAINT access_reservations_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.access_reservations ADD CONSTRAINT access_reservations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.aia_pay_apps ADD CONSTRAINT aia_pay_apps_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.aia_pay_apps ADD CONSTRAINT aia_pay_apps_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.assemblies ADD CONSTRAINT assemblies_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
@@ -2192,6 +2337,8 @@ ALTER TABLE ONLY public.bid_responses ADD CONSTRAINT bid_responses_bid_id_fkey F
 ALTER TABLE ONLY public.bid_responses ADD CONSTRAINT bid_responses_proposer_company_id_fkey FOREIGN KEY (proposer_company_id) REFERENCES companies(id) ON DELETE SET NULL;
 ALTER TABLE ONLY public.bid_responses ADD CONSTRAINT bid_responses_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.brain_predictions ADD CONSTRAINT brain_predictions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.building_access_rules ADD CONSTRAINT building_access_rules_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.building_access_rules ADD CONSTRAINT building_access_rules_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.certifications ADD CONSTRAINT certifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.change_orders ADD CONSTRAINT change_orders_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.change_orders ADD CONSTRAINT change_orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
@@ -2214,6 +2361,8 @@ ALTER TABLE ONLY public.crew_members ADD CONSTRAINT crew_members_user_id_fkey FO
 ALTER TABLE ONLY public.daily_reports ADD CONSTRAINT daily_reports_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.daily_reports ADD CONSTRAINT daily_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.delay_events ADD CONSTRAINT delay_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.deliveries ADD CONSTRAINT deliveries_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.deliveries ADD CONSTRAINT deliveries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.delivery_receipts ADD CONSTRAINT delivery_receipts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.delivery_receipts ADD CONSTRAINT delivery_receipts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.draw_periods ADD CONSTRAINT draw_periods_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
@@ -2268,6 +2417,8 @@ ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborato
 ALTER TABLE ONLY public.project_collaborators ADD CONSTRAINT project_collaborators_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.project_contracts ADD CONSTRAINT project_contracts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.project_contracts ADD CONSTRAINT project_contracts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.project_financials ADD CONSTRAINT project_financials_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.project_financials ADD CONSTRAINT project_financials_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.projects ADD CONSTRAINT projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.public_bids ADD CONSTRAINT public_bids_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.punch_items ADD CONSTRAINT punch_items_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
@@ -2307,15 +2458,17 @@ ALTER TABLE ONLY public.worker_profiles ADD CONSTRAINT worker_profiles_user_id_f
 ALTER TABLE ONLY public.workers ADD CONSTRAINT workers_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 -- =============================================================================
--- SECTION 3 — INDEXES (218 of 338)
+-- SECTION 3 — INDEXES (228 of 352)
 --
--- pg_indexes reports 338 indexes on the public schema. 120 of those are the
+-- pg_indexes reports 352 indexes on the public schema. 124 of those are the
 -- implicit indexes Postgres creates to back the PRIMARY KEY / UNIQUE
 -- constraints already emitted in section 2a, and are intentionally omitted
--- here to avoid duplicating the same object twice. The 218 standalone indexes
+-- here to avoid duplicating the same object twice. The 228 standalone indexes
 -- below are the ones actually declared as indexes.
 -- =============================================================================
 
+CREATE INDEX access_reservations_delivery_idx ON public.access_reservations USING btree (delivery_id) WHERE (delivery_id IS NOT NULL);
+CREATE INDEX access_reservations_open_idx ON public.access_reservations USING btree (project_id, date) WHERE (status = ANY (ARRAY['requested'::text, 'confirmed'::text]));
 CREATE INDEX bid_package_bids_package_id_idx ON public.bid_package_bids USING btree (user_id, package_id);
 CREATE INDEX bid_package_bids_subcontractor_id_idx ON public.bid_package_bids USING btree (user_id, subcontractor_id);
 CREATE INDEX bid_package_bids_user_id_idx ON public.bid_package_bids USING btree (user_id);
@@ -2330,9 +2483,13 @@ CREATE INDEX certifications_worker_idx ON public.certifications USING btree (wor
 CREATE INDEX change_orders_pending_reflow_idx ON public.change_orders USING btree (project_id) WHERE ((schedule_impact_applied = false) AND (schedule_impact_days IS NOT NULL));
 CREATE INDEX cost_benchmark_public_idx ON public.cost_benchmark_samples USING btree (category, unit, region) WHERE public_index_opt_in;
 CREATE INDEX daily_reports_published_summary_idx ON public.daily_reports USING btree (project_id, date DESC) WHERE (homeowner_summary_published = true);
+CREATE INDEX delay_events_open_notice_idx ON public.delay_events USING btree (user_id, first_observed_date) WHERE (notices = '[]'::jsonb);
 CREATE INDEX delay_events_project_idx ON public.delay_events USING btree (project_id, first_observed_date DESC);
 CREATE UNIQUE INDEX delay_events_project_number_idx ON public.delay_events USING btree (project_id, number);
 CREATE INDEX delay_events_user_idx ON public.delay_events USING btree (user_id);
+CREATE INDEX deliveries_open_expected_idx ON public.deliveries USING btree (user_id, expected_date) WHERE (status = ANY (ARRAY['scheduled'::text, 'confirmed'::text]));
+CREATE INDEX deliveries_project_idx ON public.deliveries USING btree (project_id, expected_date);
+CREATE INDEX delivery_receipts_delivery_idx ON public.delivery_receipts USING btree (delivery_id) WHERE (delivery_id IS NOT NULL);
 CREATE INDEX feature_interest_event_idx ON public.feature_interest USING btree (event_key);
 CREATE INDEX field_tickets_project_idx ON public.field_tickets USING btree (project_id, date DESC);
 CREATE INDEX field_tickets_unbilled_idx ON public.field_tickets USING btree (user_id, status) WHERE (status = 'signed'::text);
@@ -2523,14 +2680,18 @@ CREATE INDEX mcp_tokens_user_idx ON public.mcp_tokens USING btree (user_id);
 CREATE INDEX memory_embeddings_user_project_idx ON public.memory_embeddings USING btree (user_id, project_id);
 CREATE INDEX memory_embeddings_vec_idx ON public.memory_embeddings USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX plan_sheets_project_number_idx ON public.plan_sheets USING btree (project_id, sheet_number) WHERE (superseded IS NOT TRUE);
+CREATE INDEX portal_snapshots_expires_at_idx ON public.portal_snapshots USING btree (expires_at) WHERE (expires_at IS NOT NULL);
 CREATE INDEX portal_snapshots_project_id_idx ON public.portal_snapshots USING btree (project_id);
+CREATE INDEX project_financials_user_id_idx ON public.project_financials USING btree (user_id);
 CREATE INDEX qbo_cost_lines_user_status ON public.qbo_cost_lines USING btree (user_id, status);
+CREATE INDEX rfis_assigned_sub_id_idx ON public.rfis USING btree (assigned_sub_id) WHERE (assigned_sub_id IS NOT NULL);
 CREATE INDEX safety_inspections_project_idx ON public.safety_inspections USING btree (project_id);
 CREATE INDEX safety_inspections_user_idx ON public.safety_inspections USING btree (user_id);
 CREATE INDEX safety_templates_user_idx ON public.safety_templates USING btree (user_id);
 CREATE INDEX shared_schedule_snapshots_expires_idx ON public.shared_schedule_snapshots USING btree (expires_at);
 CREATE INDEX shared_schedule_snapshots_user_idx ON public.shared_schedule_snapshots USING btree (user_id, created_at DESC);
 CREATE INDEX sub_portal_snapshots_project_id_idx ON public.sub_portal_snapshots USING btree (project_id);
+CREATE INDEX sub_submitted_invoices_paid_on_idx ON public.sub_submitted_invoices USING btree (paid_on) WHERE (paid_on IS NOT NULL);
 CREATE INDEX time_entries_project_date_idx ON public.time_entries USING btree (project_id, date);
 CREATE INDEX time_entries_status_idx ON public.time_entries USING btree (user_id, status);
 CREATE INDEX time_entries_user_idx ON public.time_entries USING btree (user_id);
@@ -2538,9 +2699,10 @@ CREATE INDEX time_entries_user_idx ON public.time_entries USING btree (user_id);
 -- =============================================================================
 -- SECTION 4 — ROW LEVEL SECURITY
 --
--- pg_class.relrowsecurity is true for all 104 tables in the public schema.
+-- pg_class.relrowsecurity is true for all 108 tables in the public schema.
 -- =============================================================================
 
+ALTER TABLE public.access_reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_daily_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_usage_counters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.aia_pay_apps ENABLE ROW LEVEL SECURITY;
@@ -2551,6 +2713,7 @@ ALTER TABLE public.bid_packages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bid_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bid_responses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.brain_predictions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.building_access_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cached_bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cached_companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cached_jobs ENABLE ROW LEVEL SECURITY;
@@ -2572,6 +2735,7 @@ ALTER TABLE public.cost_seeds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.crew_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.delay_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.delivery_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.draw_periods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drawing_pins ENABLE ROW LEVEL SECURITY;
@@ -2613,6 +2777,7 @@ ALTER TABLE public.pro_responses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_collaborators ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_contracts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_financials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.public_bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.punch_items ENABLE ROW LEVEL SECURITY;
@@ -2647,7 +2812,7 @@ ALTER TABLE public.workers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.zip_cost_factors ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
--- SECTION 5 — ROW LEVEL SECURITY POLICIES (321)
+-- SECTION 5 — ROW LEVEL SECURITY POLICIES (337)
 --
 -- Reconstructed from pg_policies (schemaname, tablename, policyname,
 -- permissive, roles, cmd, qual, with_check). The USING / WITH CHECK
@@ -2661,6 +2826,15 @@ ALTER TABLE public.zip_cost_factors ENABLE ROW LEVEL SECURITY;
 -- Ordered by (tablename, policyname).
 -- =============================================================================
 
+CREATE POLICY access_reservations_collab_insert ON public.access_reservations AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((auth.uid() = user_id) AND can_access_project(project_id, 'field'::text)));
+CREATE POLICY access_reservations_collab_select ON public.access_reservations AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((auth.uid() = user_id) OR can_access_project(project_id)));
+CREATE POLICY access_reservations_collab_update ON public.access_reservations AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (can_access_project(project_id, 'field'::text))
+  WITH CHECK (can_access_project(project_id, 'field'::text));
+CREATE POLICY access_reservations_owner_delete ON public.access_reservations AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((auth.uid() = user_id));
 CREATE POLICY ai_daily_usage_owner_read ON public.ai_daily_usage AS PERMISSIVE FOR SELECT TO public
   USING ((auth.uid() = user_id));
 CREATE POLICY users_read_own_usage ON public.ai_usage_counters AS PERMISSIVE FOR SELECT TO authenticated
@@ -2711,6 +2885,15 @@ CREATE POLICY br_homeowner_update_status ON public.bid_responses AS PERMISSIVE F
 CREATE POLICY brain_predictions_owner ON public.brain_predictions AS PERMISSIVE FOR ALL TO public
   USING ((user_id = auth.uid()))
   WITH CHECK ((user_id = auth.uid()));
+CREATE POLICY building_access_rules_collab_insert ON public.building_access_rules AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((auth.uid() = user_id) AND can_access_project(project_id, 'field'::text)));
+CREATE POLICY building_access_rules_collab_select ON public.building_access_rules AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((auth.uid() = user_id) OR can_access_project(project_id)));
+CREATE POLICY building_access_rules_collab_update ON public.building_access_rules AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (can_access_project(project_id, 'field'::text))
+  WITH CHECK (can_access_project(project_id, 'field'::text));
+CREATE POLICY building_access_rules_owner_delete ON public.building_access_rules AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((auth.uid() = user_id));
 CREATE POLICY anon_read_bids ON public.cached_bids AS PERMISSIVE FOR SELECT TO anon, authenticated
   USING (true);
 CREATE POLICY anon_read_companies ON public.cached_companies AS PERMISSIVE FOR SELECT TO anon, authenticated
@@ -2875,6 +3058,15 @@ CREATE POLICY delay_events_select_own ON public.delay_events AS PERMISSIVE FOR S
 CREATE POLICY delay_events_update_own ON public.delay_events AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((auth.uid() = user_id))
   WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY deliveries_collab_insert ON public.deliveries AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((auth.uid() = user_id) AND can_access_project(project_id, 'field'::text)));
+CREATE POLICY deliveries_collab_select ON public.deliveries AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((auth.uid() = user_id) OR can_access_project(project_id)));
+CREATE POLICY deliveries_collab_update ON public.deliveries AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (can_access_project(project_id, 'field'::text))
+  WITH CHECK (can_access_project(project_id, 'field'::text));
+CREATE POLICY deliveries_owner_delete ON public.deliveries AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((auth.uid() = user_id));
 CREATE POLICY delivery_receipts_delete_own ON public.delivery_receipts AS PERMISSIVE FOR DELETE TO public
   USING ((auth.uid() = user_id));
 CREATE POLICY delivery_receipts_insert_own ON public.delivery_receipts AS PERMISSIVE FOR INSERT TO public
@@ -3207,6 +3399,17 @@ CREATE POLICY contracts_gc_select ON public.project_contracts AS PERMISSIVE FOR 
   USING ((auth.uid() = user_id));
 CREATE POLICY contracts_gc_update ON public.project_contracts AS PERMISSIVE FOR UPDATE TO public
   USING ((auth.uid() = user_id));
+CREATE POLICY project_financials_delete ON public.project_financials AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM projects p
+  WHERE ((p.id = project_financials.project_id) AND (p.user_id = auth.uid())))));
+CREATE POLICY project_financials_insert ON public.project_financials AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (can_access_project(project_id, 'editor'::text));
+CREATE POLICY project_financials_select ON public.project_financials AS PERMISSIVE FOR SELECT TO authenticated
+  USING (can_view_project_financials(project_id));
+CREATE POLICY project_financials_update ON public.project_financials AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (can_access_project(project_id, 'editor'::text))
+  WITH CHECK (can_access_project(project_id, 'editor'::text));
 CREATE POLICY projects_delete ON public.projects AS PERMISSIVE FOR DELETE TO public
   USING ((auth.uid() = user_id));
 CREATE POLICY projects_delete_own ON public.projects AS PERMISSIVE FOR DELETE TO public
@@ -3510,24 +3713,25 @@ CREATE TRIGGER wip_periods_block_locked_update BEFORE UPDATE ON public.wip_perio
 CREATE TRIGGER wip_periods_updated_at BEFORE UPDATE ON public.wip_periods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================================================
--- SECTION 7 — FUNCTIONS (80 application functions)
+-- SECTION 7 — FUNCTIONS (82 application functions)
 --
 -- SCOPE NOTE, PLEASE READ:
---   pg_proc reports 198 routines in the `public` schema. 118 of those belong
+--   pg_proc reports 200 routines in the `public` schema. 118 of those belong
 --   to the `vector` (pgvector) extension, which is installed into `public`:
 --   114 C-language functions and 4 aggregates (avg(vector), avg(halfvec),
 --   sum(vector), sum(halfvec)). Those are extension-owned, are recreated by
 --   CREATE EXTENSION, and are deliberately NOT reproduced here — dumping their
 --   C stubs would add noise without adding information.
 --
---   What follows are the 80 functions that are actually this application's
+--   What follows are the 82 functions that are actually this application's
 --   own code (pg_proc rows with no `pg_depend` extension dependency),
---   rendered in full by pg_get_functiondef. 57 of the 80 are SECURITY
+--   rendered in full by pg_get_functiondef. 59 of the 82 are SECURITY
 --   DEFINER, so this section is the relevant surface for security review.
 --   (The four functions added on 2026-09-02 are plain trigger functions, not
---   SECURITY DEFINER, so the SECURITY DEFINER count is unchanged at 57.)
+--   SECURITY DEFINER. The two added on 2026-09-03 — `can_view_project_financials`
+--   and `portal_get_snapshot_v2` — are both SECURITY DEFINER, so 57 -> 59.)
 --
---   198 = 80 application + 114 vector functions + 4 vector aggregates.
+--   200 = 82 application + 114 vector functions + 4 vector aggregates.
 --
 -- Ordered by (function name, identity arguments); overloads appear together.
 -- =============================================================================
@@ -3824,6 +4028,27 @@ AS $function$
       select 1 from public.project_collaborators pc
       where pc.project_id = pid and pc.user_id = auth.uid() and pc.status = 'accepted'
         and case min_role when 'editor' then pc.role in ('owner','editor') else true end
+    );
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.can_view_project_financials(pid uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    exists (
+      select 1 from public.projects p
+      where p.id = pid and p.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.project_collaborators pc
+      where pc.project_id = pid
+        and pc.user_id = auth.uid()
+        and pc.status = 'accepted'
+        and pc.role in ('owner','editor','viewer')   -- 'field' excluded
     );
 $function$
 ;
@@ -4578,6 +4803,39 @@ begin
   v_pid := public.portal_project_for_token(p_portal_id, p_access_token);
   if v_pid is null then raise exception 'portal_denied'; end if;
   return (select snapshot from public.portal_snapshots where portal_id = p_portal_id limit 1);
+end; $function$
+;
+
+CREATE OR REPLACE FUNCTION public.portal_get_snapshot_v2(p_portal_id text, p_access_token text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_pid uuid;
+  v_snapshot jsonb;
+  v_expires_at timestamptz;
+  v_found boolean := false;
+begin
+  v_pid := public.portal_project_for_token(p_portal_id, p_access_token);
+  if v_pid is null then raise exception 'portal_denied'; end if;
+  select ps.snapshot, ps.expires_at, true
+    into v_snapshot, v_expires_at, v_found
+    from public.portal_snapshots ps
+   where ps.portal_id = p_portal_id
+   limit 1;
+  if not v_found then
+    return jsonb_build_object('status', 'not_published');
+  end if;
+  if v_expires_at is not null and v_expires_at <= now() then
+    return jsonb_build_object('status', 'expired', 'expiresAt', v_expires_at);
+  end if;
+  return jsonb_build_object(
+    'status', 'ok',
+    'snapshot', v_snapshot,
+    'expiresAt', v_expires_at
+  );
 end; $function$
 ;
 
