@@ -34,6 +34,30 @@ earlier ones do not. Trust the object checks below, not the tracker.
 
 ---
 
+## Post-apply check: the freeze triggers do not silently eat writes
+
+The 09-02 apply added four BEFORE UPDATE triggers that PIN columns — they
+discard a write rather than reject it. That is the same silent-success failure
+mode this whole audit has been chasing, so every app write path was checked
+against every pinned column BEFORE calling the deploy done:
+
+| Trigger pins | What the app actually writes | Collision |
+|---|---|---|
+| `projects.user_id` | nothing — no update path targets it, and there is no ownership-transfer feature | none |
+| `sub_submitted_invoices.sub_portal_id / project_id / commitment_id / amount` | `status`, `notes_from_gc`, `payment_method`, `payment_reference`, `paid_on` (hooks/useSubSubmittedInvoices.ts:130) | none |
+| `portal_budget_proposals.project_id` | `status`, `responded_at` (hooks/usePortalBudgetProposals.ts:66) | none |
+| `change_order_approvals` — 18 evidentiary columns | `synced_to_co_at` ONLY (hooks/usePortalApprovalReconciler.ts:61) | none |
+
+The `projects` trigger only fires its pin when `auth.uid() IS DISTINCT FROM
+old.user_id` — i.e. for a collaborator, never the owner — and service-role
+writes have no JWT so they bypass it entirely. Ownership transfer and support
+fixes therefore still work.
+
+If you ever DO add an ownership-transfer feature, it must run as service_role
+or that trigger will silently discard it.
+
+---
+
 ## The one thing that will hurt you
 
 **`20260827120000_project_financials_drop_legacy.sql` MUST NOT run in the bulk
