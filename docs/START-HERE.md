@@ -7,6 +7,12 @@ where this ended. Read this, then `CLAUDE.md`, then `docs/PRODUCT-BIBLE.md`._
 
 # ⚠ CURRENT STATE — 2026-09-03. READ THIS BEFORE ANYTHING BELOW.
 
+> **2026-09-03, evening — a full final-push audit exists.** Read
+> `docs/audits/2026-09-03-final-push-audit.md` before touching the deploy: 211
+> findings (5 P0), a fix order in waves, and corrections to claims in THIS file
+> and in `DEPLOY-VERIFIED-2026-09-02.md`. Two of the corrections are already
+> applied below and marked **Correction**.
+
 Everything under this banner is current. The sections further down were written
 2026-08-19 and are still broadly true about the product, but their status claims
 are stale.
@@ -36,11 +42,14 @@ deploy gate that cited earlier conversation content; a fresh session on the
 evening of 2026-09-03 reached `git ls-remote`, `eas whoami` and `supabase
 projects list` without incident, so the gate was session-specific.
 - `git push` — the repo is ~108 commits ahead of origin/main
-- the edge functions. `invoice-dunning` is STILL emailing clients a "FINAL
-  NOTICE" demanding retention their contract entitles them to hold, on every
-  run. This is the most user-visible harm still live. The list in
-  `DEPLOY-VERIFIED-2026-09-02.md` step 4 is 13 functions plus `award-rfp`,
-  added 2026-09-03 after diffing every deployed source against the repo.
+- the edge functions. **Correction (audit 2026-09-03):** `invoice-dunning` has
+  NOT been emailing anyone. It, `morning-digest` and `qbo-reconciler` are
+  deployed `verify_jwt: true`, the cron sends no JWT, and the gateway has
+  answered 401 on every fire since 2026-08-03 / 07-26 while `cron.job_run_details`
+  recorded "succeeded". Deploy the repo versions WITH `--no-verify-jwt` (the
+  deployed dunning copy still carries the retention bug). The list in
+  `DEPLOY-VERIFIED-2026-09-02.md` step 4 is 13 functions plus `award-rfp`; the
+  flag-per-function rule there is now written out.
 - the OTA. Every app-side fix from those audits is in the repo and not on any
   device.
 
@@ -62,6 +71,12 @@ projects list` without incident, so the gate was session-specific.
    was SPLIT and only its `delay_events` index applied. Consequence: soft-delete
    of a cost seed does not persist — `hooks/useCostSeeds.ts` writes a tombstone
    the table cannot hold, so the UNION merge resurrects it. Needs a founder call.
+   **Correction (audit 2026-09-03, CONTRACT-F2):** the consequence is larger —
+   every cost-seed upsert carries `deleted_at` (`utils/costSeedCore.ts:635`), so
+   PostgREST rejects ALL cost-seed writes (PGRST204), the queue retries them
+   forever with no toast, and production holds 0 cost seeds. The cost book is
+   device-only for everyone. Fix without touching the table: emit the key only
+   when set.
 
 ## FOUR OPEN FOUNDER DECISIONS — not bugs, do not "fix" unilaterally
 
@@ -79,7 +94,9 @@ projects list` without incident, so the gate was session-specific.
    that enforcement is unbuilt.
 4. **`notification_outbox_recipient_kind_check`** allows `['gc','client','sub']`
    while the app writes `'user'`. Widen the constraint or fix the app? Nobody
-   has decided. No migration exists.
+   has decided. No migration exists. **Audit 2026-09-03:** no code path writes
+   `'user'` any more — every writer (repo and deployed bundle) sends gc/client/sub,
+   and `scripts/validate-outbox-contract.ts` pins it. Treat as closed.
 
 Two more are recorded in the medium-sweep doc as tested, deliberate models
 awaiting a call: `utils/jobCostEngine.ts:245` (client payments counted as

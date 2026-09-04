@@ -104,7 +104,7 @@ Present:
 
 | Object | Meaning |
 |---|---|
-| `can_access_project()` (2 overloads) | `20260826130000_field_role` IS applied |
+| `can_access_project()` (2 overloads) | **CORRECTION 2026-09-03: NOT applied.** The overloads exist (the migration itself says the text one was created out of band), but live `project_collaborators_role_check` is still `owner\|editor\|viewer`, `can_access_project` has no `field` branch, and deployed `project-invite` v1 rejects `field`. Six 09-03 policies that pass `'field'` fall through to "any collaborator". Audit DB-F2. |
 | `delivery_receipts` table | exists, but see below |
 | `change_order_approvals`, `sub_portal_links`, `portal_budget_proposals`, `public_bids`, `companies`, `worker_profiles`, `job_listings`, `rfp_post_payments`, `rfp_post_credits`, `project_collaborators` | all preconditions for the four new migrations |
 
@@ -168,9 +168,21 @@ policy.
 
 ```
 mv supabase/migrations/20260827120000_project_financials_drop_legacy.sql /tmp/
+mv supabase/migrations/20260826180000_portal_link_expiry_cron.sql /tmp/
 supabase db push --project-ref nteoqhcswappxxjlpvap
 mv /tmp/20260827120000_project_financials_drop_legacy.sql supabase/migrations/
+mv /tmp/20260826180000_portal_link_expiry_cron.sql supabase/migrations/
 ```
+
+**Correction 2026-09-03 (audit OPS-F9 / HEALTH-F1):** move BOTH held-back files
+out, not only phase 2 — the tracker has none of the 17 local migrations ≥
+`20260826120000` (the 09-02/09-03 applies were registered under MCP-generated
+versions), so `db push` replays every one of them, including the expiry cron
+against an undeployed function and the `cost_seeds.deleted_at` line inside
+`20260826150000`. Either `supabase migration repair --status applied` the 15
+already-applied versions first, or apply the remaining SQL through the MCP as
+the 09-02/09-03 batches were. Do not paste `DEPLOY-NOW.sql` — it schedules the
+cron and adds the column too.
 
 Moving it out is cruder than a flag and is deliberately hard to do by accident.
 
@@ -202,9 +214,21 @@ note, and `bun run test:account-deletion` should still be green.
 ### 4. Edge functions
 
 ```
-supabase functions deploy invoice-dunning homeowner-weekly-digest delete-account \
-  --project-ref nteoqhcswappxxjlpvap
+# cron / webhook / portal targets: NO user JWT on the wire → --no-verify-jwt
+supabase functions deploy invoice-dunning homeowner-weekly-digest morning-digest \
+  qbo-reconciler --no-verify-jwt --project-ref nteoqhcswappxxjlpvap
+
+# called by the app with a user JWT → default (verify_jwt true)
+supabase functions deploy delete-account --project-ref nteoqhcswappxxjlpvap
 ```
+
+**Correction 2026-09-03 (audit EDGE-F1/F2, OPS-F1/F3):** `morning-digest`,
+`invoice-dunning` and `qbo-reconciler` are deployed `verify_jwt: true` today and
+have been rejected at the gateway (401 `UNAUTHORIZED_NO_AUTH_HEADER`) on every
+cron fire since 07-26 / 08-03 — dunning has never sent a notice. The flag is
+per deploy command and resets to `true` when omitted; there is no
+`supabase/config.toml` to pin it. Commit one (Wave 0 in the audit) so this
+cannot recur.
 
 Urgency order: `invoice-dunning` emails clients a FINAL NOTICE demanding
 retention their contract entitles them to hold, on every run.
@@ -214,10 +238,18 @@ retention their contract entitles them to hold, on every run.
 Then the rest, none of which are urgent:
 
 ```
-supabase functions deploy construction-answer mcp qbo-sync qbo-reconciler \
-  project-invite portal-link-expiry-notice notify seal-document \
-  stripe-webhook import-schedule award-rfp --project-ref nteoqhcswappxxjlpvap
+# no user JWT on the wire → --no-verify-jwt
+supabase functions deploy notify seal-document stripe-webhook mcp \
+  portal-link-expiry-notice --no-verify-jwt --project-ref nteoqhcswappxxjlpvap
+
+# called with a user JWT → default
+supabase functions deploy construction-answer qbo-sync project-invite \
+  import-schedule award-rfp --project-ref nteoqhcswappxxjlpvap
 ```
+
+(As previously written — one command, no flag — this step would have switched
+JWT verification ON for the Stripe webhook, `notify`, `mcp` and `seal-document`
+and silently stopped payment reconciliation. Corrected 2026-09-03.)
 
 `award-rfp` was added to that list on 2026-09-03 after downloading every
 deployed function whose repo commit postdates its deployment and diffing it
@@ -242,6 +274,18 @@ eas update --branch production --message "audit sweep: money correctness, tenant
 No new native dependencies in any of this session's work, so the reanimated
 runtime trap that silently rolled back build #12 is not in play. `expo export
 --platform ios` was verified exit 0 at 21.4 MB.
+
+**Correction 2026-09-03 (audit APPSTORE-F2):** the trap IS re-armed. The fix
+removed `react-native-reanimated` from `package.json` only; `bun.lock` and
+`node_modules` still carry 4.1.7 and a fresh `expo export` bundles "Native part
+of Reanimated" (21.4 MB is the contaminated size; the clean bundle was 20.1 MB).
+Only gesture-handler's guarded require prevents a boot crash today. Purge the
+lockfile entry and `node_modules`, re-export and assert the string is absent,
+before any OTA.
+
+**Also (audit APPSTORE-F1):** an OTA is not enough for App Review. Builds #11–#14
+all predate `bd6721e4` (the 09-02 blocker fixes), and a fresh install runs the
+embedded bundle on first launch. Build **#15 from HEAD** and submit that.
 
 ### 6. ONLY THEN: phase 2
 

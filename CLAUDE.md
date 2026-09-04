@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-MAGE ID — React Native / Expo construction management app (iOS primary, Android + web supported). Bundle IDs: `com.mageid.app` (iOS), `app.mageid.android` (Android). EAS project `9f6536e0-0774-47e0-a0ae-2f10a4e46b2b`, owner `omirmajeed`.
+MAGE ID — React Native / Expo construction management app (iOS primary, Android + web supported). Bundle IDs: `com.mageid.app` (iOS), `app.mageid.android` (Android). EAS project `00860b05-b25b-4b37-b85a-846ecb80bb4c` (the `9f6536e0…` id in older docs is a retired project), owner `omirmajeed`.
 
 ## Commands
 
@@ -106,7 +106,7 @@ All Supabase writes go through `utils/offlineQueue.ts` (`supabaseWrite` helper).
 
 ### Backend
 
-- **Supabase edge functions** (`supabase/functions/*`) are the primary backend — Deno runtime, deployed via `supabase functions deploy <name>`. AI relays, vision processing, Stripe Connect, Stripe webhook, magic-link, RFP-award, and notification fan-out all live here.
+- **Supabase edge functions** (`supabase/functions/*`) are the primary backend — Deno runtime, deployed via `supabase functions deploy <name>`. **Functions that must accept calls without a user JWT (pg_cron targets, the Stripe and RevenueCat webhooks, `notify`, `mcp`, portal/public endpoints) MUST be deployed with `--no-verify-jwt`; omitting it resets the gateway flag to `true` and silently breaks them (audit 2026-09-03, EDGE-F1/F2 — a committed `supabase/config.toml` is the permanent fix).** AI relays, vision processing, Stripe Connect, Stripe webhook, magic-link, RFP-award, and notification fan-out all live here.
 - **`backend/hono.ts`** is a tiny Hono app with one route (`/email/send`, a Resend proxy). It is NOT mounted as the app's primary backend; it appears unused at runtime. (Earlier docs claimed it mounted tRPC — that was incorrect; tRPC has never been wired in this repo.)
 - **Supabase client** in `lib/supabase.ts` (anon key, RLS-protected). Direct table access from the app uses RLS; expensive / paid AI calls go through edge functions that use `requireTier`.
 
