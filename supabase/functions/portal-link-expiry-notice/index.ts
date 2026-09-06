@@ -32,6 +32,8 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 // Hand-comparing an env var would work but would be the only function here
 // that does it differently.
 import { isValidCron } from "../_shared/cronAuth.ts";
+// EDGE-F6: the ONE place a customer-facing portal URL is built (minted id + ?t= token).
+import { portalUrlFor } from "../_shared/portalLinks.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -114,10 +116,14 @@ serve(async (req) => {
     if (await recentlyNotified(p.portal_id, kind)) { skipped++; continue; }
 
     // Who owns the project — the GC we are warning.
-    const projr = await rest(`projects?id=eq.${encodeURIComponent(p.project_id)}&select=user_id,name&limit=1`);
+    const projr = await rest(`projects?id=eq.${encodeURIComponent(p.project_id)}&select=user_id,name,client_portal&limit=1`);
     if (!projr.ok) { skipped++; continue; }
-    const proj = ((await projr.json()) as { user_id: string; name: string }[])[0];
+    const proj = ((await projr.json()) as { user_id: string; name: string; client_portal?: unknown }[])[0];
     if (!proj?.user_id) { skipped++; continue; }
+    // EDGE-F6: the client's CURRENT link, built by the shared helper (minted id
+    // + ?t= token), so the GC can re-share it straight from the notice. null =
+    // portal disabled / no token → omitted, never a dead /portal/<project.id>.
+    const portalUrl = portalUrlFor(proj.client_portal);
 
     const daysLeft = Math.max(0, Math.ceil((expMs - nowMs) / 86_400_000));
     const title = kind === "portal_link_expired"
@@ -149,6 +155,9 @@ serve(async (req) => {
           portalId: p.portal_id,
           expiresAt: p.expires_at,
           daysLeft,
+          // Only while the link still opens — an expired portal's URL IS the dead
+          // link this notice exists to warn about, so it is never attached.
+          ...(kind === "portal_link_expiring" && portalUrl ? { portalUrl } : {}),
           // Deep-link straight to the screen that can fix it.
           route: "/client-portal-setup",
         },

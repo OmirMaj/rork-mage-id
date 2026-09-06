@@ -3,8 +3,9 @@
 // Ask Your Home: the homeowner's question box in the client portal. Anonymous
 // (no JWT) — authenticated by the same 192-bit client_portal accessToken that
 // gates portal_get_snapshot / portal_sign_contract. Flow:
-//   1. Validate token against projects.client_portal->>'accessToken'
-//      (constant-time compare, mirroring validate-portal-passcode).
+//   1. Authorise through portal_project_for_token — the SECURITY DEFINER
+//      choke point every portal RPC uses (token + enabled, and expiry once
+//      20260904100800 is applied). Not an in-file token compare: see below.
 //   2. Rate limit via rate_limit_counters: 20 questions/day per portal
 //      (sum of today's hourly buckets) + a per-IP hourly cap.
 //   3. Embed the question (geminiEmbed) → match_project_memory with the
@@ -22,15 +23,17 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { rateLimitCount } from "../_shared/auth.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
+import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = GEMINI_TEXT_MODEL; // env-overridable (audit AI-F12)
 
 const PORTAL_DAILY_LIMIT = 20;   // questions per portal per UTC day (spec)
 const IP_HOURLY_LIMIT = 15;      // questions per source IP per hour
 const MAX_QUESTION_CHARS = 500;
+const TEXT_TIMEOUT_MS = 60_000;  // B3 (review): bounded upstream fetch → CORS 504, not a wall-clock death
 const MATCH_COUNT = 12;          // fetch wide, filter to safe sources, keep 8
 const KEEP_MATCHES = 8;
 
@@ -69,19 +72,7 @@ const CORS_HEADERS = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
 
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still iterate one of them so the timing on length mismatch is similar.
-    let _diff = 0;
-    for (let i = 0; i < a.length; i++) _diff |= a.charCodeAt(i) ^ 0;
-    return false;
-  }
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return diff === 0;
-}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Sum today's hourly buckets for this portal's ask scope. -1 = unavailable
  *  (caller fails OPEN — the access token is the primary gate and 20 flash
@@ -131,7 +122,11 @@ serve(async (req: Request) => {
 
   // Per-IP hourly throttle. Fail OPEN on limiter unavailability (count < 0):
   // the access token is the primary gate.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+  // A2 (review 2026-09-04) / EDGE-F15: the FIRST x-forwarded-for hop is
+  // client-suppliable. Key on cf-connecting-ip when present, else the LAST
+  // hop — the one the edge proxy itself appended.
+  const xff = (req.headers.get("x-forwarded-for") || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const ip = (req.headers.get("cf-connecting-ip") || xff[xff.length - 1] || "").trim();
   if (ip) {
     const ipHits = await rateLimitCount(`askhome:ip:${ip}`);
     if (ipHits > IP_HOURLY_LIMIT) {
@@ -139,29 +134,52 @@ serve(async (req: Request) => {
     }
   }
 
-  // Resolve the owning project (id + owner user_id + portal config) with the
-  // service role — anon can't read projects, and nothing here leaks: the
-  // response never includes ids or tokens.
+  // Authorise through the choke point, not by comparing the token here.
+  // portal_project_for_token (SECURITY DEFINER, EXECUTE for service_role
+  // only — the two-argument signature is the only one in production) is the
+  // ONE place that knows what a valid portal link is: token + enabled today,
+  // and NOT EXPIRED once 20260904100800 is applied (AUTH-F7). Until the
+  // 2026-09-05 review this file read projects.client_portal and compared the
+  // token itself, so an expired link kept getting AI answers after every RPC
+  // had started refusing it. Nothing here leaks: the response never includes
+  // ids or tokens, and the submitted token is never logged.
+  const gate = await fetch(`${SUPABASE_URL}/rest/v1/rpc/portal_project_for_token`, {
+    method: "POST",
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_portal_id: portalId, p_access_token: accessToken }),
+  });
+  if (!gate.ok) {
+    console.error("[portal-ask-home] portal_project_for_token failed:", gate.status);
+    return json({ success: false, error: "Lookup failed" }, 500);
+  }
+  const gateBody: unknown = await gate.json();
+  const projectId = typeof gateBody === "string" && UUID_RE.test(gateBody) ? gateBody : null;
+  if (!projectId) {
+    // Same shape + delay for "no such portal", "bad token", "disabled" and
+    // "expired" — don't reveal which.
+    await new Promise((r) => setTimeout(r, 250));
+    return json({ success: false, error: "Invalid portal link" }, 401);
+  }
+
+  // The OWNER's user_id is what match_project_memory is keyed on. Service
+  // role, by the uuid the choke point just vouched for.
   const lookup = await fetch(
-    `${SUPABASE_URL}/rest/v1/projects?select=id,user_id,client_portal&client_portal->>portalId=eq.${encodeURIComponent(portalId)}&limit=1`,
+    `${SUPABASE_URL}/rest/v1/projects?select=id,user_id&id=eq.${encodeURIComponent(projectId)}&limit=1`,
     { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } },
   );
   if (!lookup.ok) {
     console.error("[portal-ask-home] lookup failed:", lookup.status);
     return json({ success: false, error: "Lookup failed" }, 500);
   }
-  const rows = (await lookup.json()) as {
-    id: string;
-    user_id: string;
-    client_portal: { accessToken?: string; enabled?: boolean } | null;
-  }[];
+  const rows = (await lookup.json()) as { id: string; user_id: string }[];
   const proj = rows[0];
-  const portal = proj?.client_portal ?? null;
-  if (!proj || !portal?.enabled || !portal.accessToken || !constantTimeEqual(accessToken, portal.accessToken)) {
-    // Same shape + delay for "no such portal" and "bad token" — don't reveal
-    // which. Never log the submitted token.
-    await new Promise((r) => setTimeout(r, 250));
-    return json({ success: false, error: "Invalid portal link" }, 401);
+  if (!proj?.user_id) {
+    console.error("[portal-ask-home] project vanished between gate and lookup");
+    return json({ success: false, error: "Lookup failed" }, 500);
   }
 
   // Per-portal daily cap: increment this hour's bucket, then sum today.
@@ -216,17 +234,31 @@ serve(async (req: Request) => {
 
   // Grounded answer.
   const prompt = buildPrompt(question, matches.map((m) => ({ ref: m.ref, content: m.content })));
-  const gen = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 500, temperature: 0.2 },
-      }),
-    },
-  );
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
+  let gen: Response;
+  try {
+    gen = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 500, temperature: 0.2 },
+        }),
+        signal: ac.signal,
+      },
+    );
+  } catch (e) {
+    if ((e as Error).name === "AbortError") {
+      return json({ success: false, error: "No answer right now — try again in a moment.", code: "upstream_timeout" }, 504);
+    }
+    console.error("[portal-ask-home] gemini network error:", (e as Error).message);
+    return json({ success: false, error: "No answer right now — try again in a moment." }, 502);
+  } finally {
+    clearTimeout(timer);
+  }
   if (!gen.ok) {
     const t = await gen.text().catch(() => "");
     console.error("[portal-ask-home] gemini failed:", gen.status, t.slice(0, 200));

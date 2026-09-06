@@ -38,6 +38,10 @@
 //     description?: string,         // optional extra context on the pay page
 //     customerEmail?: string,       // prefills the email field on checkout
 //     companyName?: string,         // for the line-item product name fallback
+//     recordType?: 'invoice' | 'aia_pay_app',
+//     stripeAccountId?: string,     // caller's OWN Connect account (verified)
+//     userTier?: string,            // IGNORED for pricing: the tier is resolved
+//                                   // server-side (audit EDGE-F8 / MONEY-F8)
 //   }
 //
 // Response:
@@ -45,6 +49,9 @@
 //   { success: false, error: string }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+// EDGE-F8 / MONEY-F8: identity + tier are server-resolved (GoTrue-verified JWT,
+// `subscriptions` lookup, master override) — never taken from the request body.
+import { requireTier, type Tier } from "../_shared/auth.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_API_VERSION = "2024-06-20";
@@ -93,55 +100,48 @@ interface CreatePaymentLinkBody {
    */
   stripeAccountId?: string;
   /**
-   * GC's MAGE subscription tier. Drives the platform-fee schedule:
-   *   - free          →   0 bps (top-of-funnel — never take a payment fee)
-   *   - pro           →  30 bps (the take-rate: largest paid cohort, every
-   *                              invoice runs our rails — biggest ARR lever)
-   *   - business      →  50 bps (durable take-rate; Toast lives at 48)
-   *   - enterprise    →  40 bps (volume discount, also a sales lever)
-   *
-   * Trusting the client tier is a 5-minute fraud-win at most ($10 saved
-   * on a $100k invoice by spoofing enterprise). Not worth the latency
-   * of an auth round-trip on the hot path.
+   * The tier the CLIENT believes it is on. Audit EDGE-F8 / MONEY-F8: this used
+   * to drive the fee ("send 'free', pay 0 bps on every invoice forever" — at
+   * Business that is $500 per $100,000 invoice, not the "$10" the old comment
+   * priced it at). It is no longer trusted: the fee comes from the
+   * server-verified tier, and this value is only compared against it for a
+   * drift log so a stale build shows up in the function logs.
    */
   userTier?: "free" | "pro" | "business" | "enterprise";
 }
 
 /**
- * Default fee in basis points when the client doesn't send a tier (e.g.
- * older app version still on the road). Set to the Business-tier rate so
- * we don't accidentally undercollect from heavy users; a Business user
- * on an old build pays the same as one on a new build.
+ * Platform fee in basis points by tier — MUST stay byte-identical to
+ * PLATFORM_FEE_BPS in utils/platformFees.ts. Deno cannot import from utils/,
+ * so scripts/validate-platform-fees.ts diffs the two literals on every
+ * ship-check. Audit MONEY-F8: this schedule was stated four different ways to
+ * users; the client table and this copy are now the only two statements of it.
+ *
+ *   free        0 bps — top-of-funnel; never take a payment fee on free
+ *   pro        30 bps — the take-rate: largest paid cohort, every invoice and
+ *                       pay app runs our rails ($3 per $1,000)
+ *   business   50 bps — durable take-rate (Toast lives at 48)
+ *   enterprise 40 bps — volume discount, also a sales lever
  */
-const PLATFORM_FEE_BPS_DEFAULT = parseInt(
-  Deno.env.get("PLATFORM_FEE_BPS") ?? "50",
-  10,
-);
+const PLATFORM_FEE_BPS: Record<Tier, number> = {
+  free: 0,
+  pro: 30,
+  business: 50,
+  enterprise: 40,
+};
 
 /**
- * Tier → bps lookup. Easily flippable via env if we want to run a
- * promotional period (free payments for Business through Q1, etc.) by
- * just setting the env var.
+ * Tier → bps. A per-tier env override (PLATFORM_FEE_BPS_PRO=0 for a promo
+ * period, etc.) still wins when it parses as a non-negative integer; the
+ * default is the shared table above. There is no "unknown tier" default any
+ * more — the tier is always server-resolved (audit appendix: a free user on a
+ * stale build used to pay the Business rate). NOTE: if PLATFORM_FEE_BPS_PRO is
+ * set to "0" in the Supabase dashboard, unset it for the 30 bps to take hold.
  */
-function feeBpsForTier(tier?: string): number {
-  switch (tier) {
-    case "free":
-      // Free stays at 0 — top-of-funnel; never take a payment fee on free.
-      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_FREE") ?? "0", 10);
-    case "pro":
-      // Pro take-rate. Pro is the largest paid cohort and every invoice + pay
-      // app runs through our rails, so a modest bps here is the single biggest
-      // ARR lever in the app. Default 30 bps ($3 per $1,000); env-tunable for
-      // promos. NOTE: if PLATFORM_FEE_BPS_PRO is currently set to "0" in the
-      // Supabase dashboard, unset it (or set it to "30") for this to take hold.
-      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_PRO") ?? "30", 10);
-    case "business":
-      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_BUSINESS") ?? "50", 10);
-    case "enterprise":
-      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_ENTERPRISE") ?? "40", 10);
-    default:
-      return PLATFORM_FEE_BPS_DEFAULT;
-  }
+function feeBpsForTier(tier: Tier): number {
+  const override = Deno.env.get(`PLATFORM_FEE_BPS_${tier.toUpperCase()}`);
+  const parsed = override == null || override.trim() === "" ? NaN : parseInt(override, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : PLATFORM_FEE_BPS[tier];
 }
 
 // Stripe's REST API takes application/x-www-form-urlencoded with bracketed keys
@@ -259,32 +259,35 @@ serve(async (req) => {
   //   3. Send the link to the real homeowner who pays
   //   4. Stripe webhook fires with metadata.invoice_id = B's id → MAGE marks B's invoice paid
   //   5. Attacker pocketed the money; victim B sees "paid in full" without receiving funds
-  // Fix: decode caller's JWT, confirm invoice.user_id === caller.sub AND
+  // Fix: verify the caller's JWT, confirm invoice.user_id === caller.sub AND
   // profile.stripe_account_id === body.stripeAccountId (when provided).
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error("[create-payment-link] Supabase server config missing — cannot verify ownership");
     return jsonResponse({ success: false, error: "Server misconfigured" }, 500);
   }
-  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-  let callerSub: string | null = null;
-  try {
-    const parts = bearer.split(".");
-    if (parts.length === 3) {
-      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      while (b64.length % 4) b64 += "=";
-      const payload = JSON.parse(atob(b64));
-      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
-    }
-  } catch { /* fall through to 401 */ }
-  if (!callerSub) {
-    return jsonResponse({ success: false, error: "Unauthenticated" }, 401);
+  // EDGE-F8 / MONEY-F8: identity AND tier come from the server. requireTier
+  // verifies the JWT cryptographically via GoTrue (the bare claims decode this
+  // replaced is forgeable whenever the function runs with verify_jwt:false)
+  // and resolves the tier from `subscriptions` (master override included).
+  // Every tier is allowed — the fee schedule, not access, depends on it.
+  const auth = await requireTier(req, ["free", "pro", "business", "enterprise"], "create_payment_link");
+  if (!auth.ok) return jsonResponse(auth.body, auth.status);
+  const callerSub = auth.userId;
+  if (body.userTier && body.userTier !== auth.tier) {
+    console.warn(
+      "[create-payment-link] client-sent tier", body.userTier,
+      "differs from server tier", auth.tier, "for", callerSub, "— using server tier",
+    );
   }
   // Which table does the id point at? Default 'invoice' keeps every existing
   // caller's behavior byte-for-byte identical.
   const recordType: "invoice" | "aia_pay_app" =
     body.recordType === "aia_pay_app" ? "aia_pay_app" : "invoice";
 
+  // The link already on the row (invoice or AIA pay app), if any — retired
+  // after the new one is minted (MONEY-F2: a link minted for an earlier
+  // balance must not stay live once it is replaced).
+  let previousLinkId: string | null = null;
   // Verify the caller owns the record they're creating a payment link for.
   // The aia_pay_app branch mirrors the invoice ownership check EXACTLY — same
   // 500/404/403 posture — because it carries the identical attack surface:
@@ -292,15 +295,21 @@ serve(async (req) => {
   // therefore a webhook that flips paid_at) against a record they don't own.
   try {
     const table = recordType === "aia_pay_app" ? "aia_pay_apps" : "invoices";
+    // MONEY-F2: also read the link currently on the row — BOTH tables — so a
+    // re-mint retires it below. Without this an AIA pay app re-saved and
+    // re-minted left link #1 live: pay #1, then pay #2 → two session ids, the
+    // invoice credited twice. aia_pay_apps.pay_link_id lands in migration
+    // 20260904100100: apply it BEFORE deploying this function (HARD ordering
+    // gate; stripe-webhook carries the same dependency).
     const ownRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(body.invoiceId)}&select=id,user_id&limit=1`,
+      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(body.invoiceId)}&select=id,user_id,pay_link_id&limit=1`,
       { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
     );
     if (!ownRes.ok) {
       console.error("[create-payment-link]", recordType, "lookup failed:", ownRes.status);
       return jsonResponse({ success: false, error: "Could not verify invoice ownership" }, 500);
     }
-    const ownRows = await ownRes.json() as { id: string; user_id: string }[];
+    const ownRows = await ownRes.json() as { id: string; user_id: string; pay_link_id?: string | null }[];
     if (ownRows.length === 0) {
       return jsonResponse({ success: false, error: "Invoice not found" }, 404);
     }
@@ -308,6 +317,7 @@ serve(async (req) => {
       console.warn("[create-payment-link] caller", callerSub, "tried to create link for", recordType, "owned by", ownRows[0].user_id);
       return jsonResponse({ success: false, error: "Invoice does not belong to caller" }, 403);
     }
+    previousLinkId = ownRows[0].pay_link_id ?? null;
   } catch (e) {
     console.error("[create-payment-link] ownership check exception:", e);
     return jsonResponse({ success: false, error: "Ownership check failed" }, 500);
@@ -384,12 +394,12 @@ serve(async (req) => {
   // Compute the tier-aware platform fee in cents. 30 bps of $1,000 is $3
   // = 300 cents. We round half-up so the fee never undercollects. Free stays
   // at 0 bps (top-of-funnel); Pro and up carry the take-rate.
-  const feeBps = feeBpsForTier(body.userTier);
+  const feeBps = feeBpsForTier(auth.tier);
   const applicationFeeAmount = body.stripeAccountId
     ? Math.max(0, Math.round((body.amountCents * feeBps) / 10000))
     : 0;
   console.log(
-    "[create-payment-link] tier=", body.userTier ?? "(unknown)",
+    "[create-payment-link] tier=", auth.tier,
     "feeBps=", feeBps,
     "applicationFeeAmount=", applicationFeeAmount,
   );
@@ -409,7 +419,23 @@ serve(async (req) => {
       record_id: body.invoiceId,
     },
     billing_address_collection: "auto",
-    allow_promotion_codes: true,
+    // MONEY appendix: `allow_promotion_codes: true` let ANY promotion code in
+    // the GC's Stripe account discount a construction invoice at checkout.
+    // Nothing in the app creates or mentions promo codes — it was default-on,
+    // not a feature — so the key is simply omitted (Stripe default: false).
+    //
+    // MONEY-F2: single-use. Stripe deactivates the link itself once one
+    // Checkout Session completes — "When the payment link reaches the limit,
+    // it automatically deactivates and customers can't use it to make a
+    // purchase" (docs.stripe.com/payment-links/customize, "Limit the number
+    // of times a payment link can be paid"; parameter
+    // `restrictions[completed_sessions][limit]` on
+    // docs.stripe.com/api/payment-link/create, no API-version gate listed).
+    // stripe-webhook ALSO deactivates on checkout.session.completed, which is
+    // what retires links minted before this change.
+    restrictions: { completed_sessions: { limit: 1 } },
+    inactive_message:
+      "This payment link has already been used or replaced. Ask your contractor for a fresh link.",
     after_completion: { type: "hosted_confirmation" },
   };
 
@@ -465,30 +491,54 @@ serve(async (req) => {
     }
   }
 
-  // Persist the pay link server-side for invoices too (aia_pay_apps is handled
-  // above via certified_at). Without this the link lived ONLY in client state /
-  // AsyncStorage, so a failed local DB write (RLS/500) or a stale refetch that
-  // overwrites local state left a LIVE Stripe link the app had no record of.
-  // Writing it here makes the server row the source of truth — the app picks
-  // the link back up on the next refresh. Fire-and-forget; never fail the
-  // already-created link.
-  if (recordType === "invoice") {
-    try {
-      await fetch(
-        `${SUPABASE_URL}/rest/v1/invoices?id=eq.${encodeURIComponent(body.invoiceId)}`,
-        {
-          method: "PATCH",
-          headers: {
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal",
-          },
-          body: JSON.stringify({ pay_link_url: url, pay_link_id: id }),
+  // MONEY-F2 / MONEY-F16: the server row is the source of truth for the link
+  // AND the amount it was minted for. `pay_link_amount` is DOLLARS — the same
+  // unit as invoices.total_due — so the portal snapshot can refuse to show
+  // "Pay" unless today's balance still equals it, and stripe-webhook nulls all
+  // three the moment the link is paid. Before this the link lived only in
+  // client state / AsyncStorage (a failed local write or a stale refetch
+  // orphaned a LIVE Stripe link) and aia_pay_apps had no link columns at all.
+  // Fire-and-forget; never fail the already-created link — the app still
+  // receives url + id. Columns land in migration 20260904100100 (apply first).
+  try {
+    const table = recordType === "aia_pay_app" ? "aia_pay_apps" : "invoices";
+    const persistRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(body.invoiceId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
         },
+        body: JSON.stringify({
+          pay_link_url: url,
+          pay_link_id: id,
+          pay_link_amount: Math.round(body.amountCents) / 100,
+        }),
+      },
+    );
+    if (!persistRes.ok) {
+      console.error(
+        "[create-payment-link] pay-link persist failed (non-fatal):", table, persistRes.status,
+        (await persistRes.text()).slice(0, 200),
       );
-    } catch (e) {
-      console.error("[create-payment-link] invoice pay-link persist failed (non-fatal):", e);
+    }
+  } catch (e) {
+    console.error("[create-payment-link] pay-link persist failed (non-fatal):", e);
+  }
+
+  // MONEY-F2: a link minted for an EARLIER balance (or lost by the app and
+  // re-minted) must not stay live now that it is replaced — the client may
+  // still hold the emailed URL. Best-effort; the new link is already the one
+  // on the row. Same Stripe-Account the old link was minted under.
+  if (previousLinkId && previousLinkId !== id) {
+    const offRes = await stripeFetch(`/payment_links/${encodeURIComponent(previousLinkId)}`, { active: false }, body.stripeAccountId);
+    if (offRes.ok) {
+      console.log("[create-payment-link] Deactivated replaced link", previousLinkId);
+    } else {
+      console.error("[create-payment-link] could not deactivate replaced link", previousLinkId, offRes.status, offRes.json?.error);
     }
   }
 

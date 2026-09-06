@@ -11,12 +11,16 @@
 // Request: { photoUrls: string[] } OR { photos: [{ base64, mimeType? }] }.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+// B3 (review 2026-09-04): per-user hourly request ceiling + bounded upstream fetch.
+const HOURLY_LIMIT = 30;
+const VISION_TIMEOUT_MS = 120_000;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -111,6 +115,14 @@ serve(async (req) => {
   }
   if (goodPhotos.length === 0) return jsonResponse({ success: false, error: 'Could not load any of the supplied photos' }, 400);
 
+  // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+  // the precheck-then-charge window (N racing requests at cap-1) to at most
+  // HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+  // master accounts included. rateLimitCount returns the POST-increment count,
+  // so `n - 1 >= HOURLY_LIMIT` denies exactly the (HOURLY_LIMIT + 1)th request.
+  const hourly = await rateLimitCount(`safety-detect-hazards:user:${auth.userId}`);
+  if (hourly < 0) return jsonResponse({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
+  if (hourly - 1 >= HOURLY_LIMIT) return jsonResponse({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
   // Meter only now that a model call is certain (input validated + at least one
   // photo loaded). Read the current count first and deny an over-cap request
   // WITHOUT persisting an increment, so rejected retries don't climb the
@@ -124,11 +136,13 @@ serve(async (req) => {
       code: 'monthly_cap_reached', used, cap,
     }, 429);
   }
-  await aiUsageIncrement(auth.userId, 'safety_ai');
+  // The unit is charged AFTER Gemini answers (audit AI-F8) — see below.
 
   const parts: Record<string, unknown>[] = [{ text: HAZARD_PROMPT }];
   for (const p of goodPhotos) parts.push({ inline_data: { mime_type: p.mimeType, data: p.data } });
 
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), VISION_TIMEOUT_MS);
   let geminiResp: Response;
   try {
     geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
@@ -138,20 +152,35 @@ serve(async (req) => {
         contents: [{ parts }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 1500 },
       }),
+      signal: ac.signal,
     });
   } catch (e) {
-    return jsonResponse({ success: false, error: `Gemini network error: ${(e as Error).message}` }, 502);
+    if ((e as Error).name === 'AbortError') {
+      return jsonResponse({ success: false, error: 'The AI service timed out — please try again.', code: 'upstream_timeout' }, 504);
+    }
+    console.error('[safety-detect-hazards] Gemini network error:', (e as Error).message);
+    return jsonResponse({ success: false, error: 'The AI service is unreachable — please try again.', code: 'upstream_error' }, 502);
+  } finally {
+    clearTimeout(timer);
   }
   if (!geminiResp.ok) {
     const text = await geminiResp.text().catch(() => '');
-    return jsonResponse({ success: false, error: `Gemini ${geminiResp.status}: ${text.slice(0, 200)}` }, 502);
+    // Upstream text stays server-side (audit AI-F16); not charged.
+    console.error(`[safety-detect-hazards] Gemini ${geminiResp.status}: ${text.slice(0, 300)}`);
+    return jsonResponse({ success: false, error: 'The AI service returned an error — please try again.', code: 'upstream_error' }, 502);
   }
+  // The model answered — the spend is real; charge the safety_ai unit now.
+  await aiUsageIncrement(auth.userId, 'safety_ai');
 
   let j: unknown;
   try { j = await geminiResp.json(); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON' }, 502); }
   const raw = (j as { candidates?: { content?: { parts?: { text?: string }[] } }[] })?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   let parsed: unknown;
-  try { parsed = JSON.parse(raw); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON', raw }, 500); }
+  // Never echo `raw` (audit AI-F16) — an incident/JHA draft can carry names.
+  try { parsed = JSON.parse(raw); } catch {
+    console.log(`[safety-detect-hazards] non-JSON Gemini output (len=${raw.length})`);
+    return jsonResponse({ success: false, error: 'The AI returned an unreadable answer — please try again.' }, 500);
+  }
   if (!Array.isArray(parsed)) return jsonResponse({ success: false, error: 'Expected array of hazards' }, 500);
 
   const clampScale = (v: unknown) => {

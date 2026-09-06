@@ -15,6 +15,15 @@
 //   - Auto-generated plaintext fallback (deliverability + a11y)
 //   - Reply-to defaulting to the GC's email when client provides it
 //
+// Who may call: any signed-in account, free tier included — BY DESIGN. The
+// relay exists so a GC's own invoices, estimates, change orders and portal
+// invites reach THEIR clients from a verified domain instead of a personal
+// inbox that lands in spam; gating it to paid tiers would break the free
+// tier's core billing loop. Abuse is bounded instead: GoTrue-verified
+// identity (requireTier), server-forced FROM / reply-to, recipient
+// validation, a per-user hourly recipient bucket (60/h free, 500/h paid),
+// a global 500/h bucket shared by every account, and the 25-per-call cap.
+//
 // Secrets:
 //   RESEND_API_KEY — from resend.com/api-keys
 //
@@ -45,11 +54,21 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { resendSend, htmlToPlaintext, buildFromAddress, buildUnsubscribeUrl, type UnsubscribeOpts } from "../_shared/email.ts";
+import { requireTier, rateLimitCount } from "../_shared/auth.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const MAX_RECIPIENTS_PER_CALL = 25;
+// EDGE-F9: per-user hourly recipient bucket on top of the per-call cap.
+const RECIPIENTS_PER_HOUR_FREE = 60;
+const RECIPIENTS_PER_HOUR_PAID = 500;
+// A1 (review 2026-09-04): global ceiling across ALL accounts — Resend's plan
+// quota is shared with dunning, digests and COI warnings.
+const GLOBAL_RECIPIENTS_PER_HOUR = 500;
+// Plausible-address check — Resend would reject garbage anyway, but a 400 here
+// is cheaper and never touches the rate bucket.
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
 const MAX_HTML_BYTES = 250_000;
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
@@ -185,7 +204,8 @@ serve(async (req) => {
   // recipient count — abuse vector for Resend quota burn.
   //
   // Fix:
-  //   1. Decode caller JWT → identify the authenticated user
+  //   1. Verify the caller's JWT with GoTrue (requireTier → identity + tier;
+  //      audit EDGE-F14 replaced the bare claims decode that was here)
   //   2. Look up their profile.company_name + profile.email
   //   3. FORCE fromCompanyName to their company_name (ignore body.fromCompanyName)
   //   4. FORCE replyTo to their email (ignore body.replyTo)
@@ -195,24 +215,17 @@ serve(async (req) => {
     console.error("[send-email] Supabase server config missing — cannot verify caller identity");
     return jsonResponse({ success: false, error: "Server misconfigured" }, 500);
   }
-  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-  let callerSub: string | null = null;
-  try {
-    const parts = bearer.split(".");
-    if (parts.length === 3) {
-      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      while (b64.length % 4) b64 += "=";
-      const payload = JSON.parse(atob(b64));
-      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
-    }
-  } catch { /* fall through to 401 */ }
-  if (!callerSub) {
-    return jsonResponse({ success: false, error: "Unauthenticated" }, 401);
-  }
-  // Look up caller profile for the trust-derived FROM / reply-to.
+  // Audit EDGE-F14 / EDGE-F9: verified identity + tier in one call (GoTrue
+  // /auth/v1/user + the subscriptions row). This relay is a phishing kit if
+  // the caller can be forged, so a claims decode is not acceptable here.
+  const auth = await requireTier(req, ["free", "pro", "business", "enterprise"], "send_email");
+  if (!auth.ok) return jsonResponse(auth.body, auth.status);
+  const callerSub = auth.userId;
+  // Look up caller profile for the trust-derived FROM / reply-to. The reply-to
+  // is the GoTrue-verified address first (attributable — EDGE-F9), the profile
+  // row only as a fallback.
   let callerCompany: string | null = null;
-  let callerEmail: string | null = null;
+  let callerEmail: string | null = auth.email ?? null;
   try {
     const pRes = await fetch(
       `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(callerSub)}&select=company_name,contact_name,email&limit=1`,
@@ -222,7 +235,7 @@ serve(async (req) => {
       const rows = await pRes.json() as { company_name: string | null; contact_name: string | null; email: string | null }[];
       if (rows.length > 0) {
         callerCompany = rows[0].company_name || rows[0].contact_name || null;
-        callerEmail = rows[0].email || null;
+        callerEmail = callerEmail || rows[0].email || null;
       }
     }
   } catch (e) {
@@ -233,6 +246,11 @@ serve(async (req) => {
   const recipients = Array.isArray(body.to) ? body.to : [body.to];
   if (recipients.length > MAX_RECIPIENTS_PER_CALL) {
     return jsonResponse({ success: false, error: `Too many recipients (max ${MAX_RECIPIENTS_PER_CALL} per call)` }, 400);
+  }
+  // EDGE-F9: every recipient must be a plausible address.
+  const hasBadRecipient = recipients.some((to) => typeof to !== "string" || to.length > 320 || !EMAIL_RE.test(to.trim()));
+  if (hasBadRecipient) {
+    return jsonResponse({ success: false, error: "One or more recipient addresses are not valid email addresses" }, 400);
   }
   if (body.html.length > MAX_HTML_BYTES) {
     return jsonResponse({ success: false, error: `HTML body too large (max ${MAX_HTML_BYTES} bytes)` }, 400);
@@ -246,6 +264,42 @@ serve(async (req) => {
     if (totalAttachBytes > MAX_ATTACHMENT_BYTES) {
       return jsonResponse({ success: false, error: `Attachments too large (max ${MAX_ATTACHMENT_BYTES} bytes total decoded)` }, 400);
     }
+  }
+
+  // EDGE-F9: per-user hourly recipient bucket (60/h free, 500/h paid). Pre-fix
+  // an account could send 25 recipients per call, unlimited calls. Counted per
+  // RECIPIENT so a 25-address blast costs 25. The limiter fails OPEN (-1 = the
+  // RPC is unavailable): a limiter blip must not block a GC's invoice, and
+  // Resend's own account limits still apply.
+  const hourlyLimit = auth.tier === "free" ? RECIPIENTS_PER_HOUR_FREE : RECIPIENTS_PER_HOUR_PAID;
+  // Review 2026-09-05: this is TWO sequential RPCs PER RECIPIENT (a 25-address
+  // send = 50 round trips) because public.rate_limit_increment(p_scope text) in
+  // supabase/schema.sql only ever adds 1 — there is no (scope, by) overload —
+  // and bulk-incrementing would need a migration this branch deliberately does
+  // not add. The loop stays; collapse it to one RPC per bucket once a
+  // rate_limit_increment(p_scope, p_by) lands.
+  let bucket = 0;
+  let globalBucket = 0;
+  for (let i = 0; i < recipients.length; i++) {
+    const n = await rateLimitCount(`sendemail:user:${callerSub}`);
+    const g = await rateLimitCount(`sendemail:global`);
+    if (n < 0 || g < 0) { console.warn("[send-email] rate limiter unavailable — failing open"); break; }
+    bucket = n;
+    globalBucket = g;
+  }
+  // rateLimitCount returns the POST-increment count, so `count - 1 >= LIMIT`
+  // means LIMIT recipients were already counted this hour: the one that would
+  // be the (LIMIT + 1)th is denied and exactly LIMIT get through.
+  if (bucket - 1 >= hourlyLimit) {
+    return jsonResponse({
+      success: false,
+      error: `Sending limit reached (${hourlyLimit} recipients per hour on ${auth.tier}). Try again in an hour.`,
+      code: "rate_limited",
+    }, 429);
+  }
+  if (globalBucket - 1 >= GLOBAL_RECIPIENTS_PER_HOUR) {
+    console.error(`[send-email] global hourly recipient ceiling hit (${GLOBAL_RECIPIENTS_PER_HOUR}/h)`);
+    return jsonResponse({ success: false, error: "Email sending is temporarily paused — please try again in an hour.", code: "rate_limited" }, 429);
   }
 
   // Force server-derived FROM + reply-to. Caller's body.from / body.fromCompanyName / body.replyTo are IGNORED.
@@ -264,8 +318,12 @@ serve(async (req) => {
     if (body.attachments && body.attachments.length > 0) {
       // Build unsubscribe headers for this recipient.
       const unsubHeaders: Record<string, string> = {};
-      if (body.unsubscribe?.enabled !== false && (body.unsubscribe?.recipientEmail || to)) {
-        const u = { ...body.unsubscribe, recipientEmail: body.unsubscribe?.recipientEmail ?? to };
+      if (body.unsubscribe?.enabled !== false) {
+        // B1 (review 2026-09-04): the unsubscribe recipient is ALWAYS `to`.
+        // Honouring a caller-supplied recipientEmail let any signed-in account
+        // mint HMAC(UNSUB_SECRET, victim) by mailing itself and reading the
+        // List-Unsubscribe header. Only eventKey is taken from the body.
+        const u = { eventKey: body.unsubscribe?.eventKey, recipientEmail: to };
         const url = buildUnsubscribeUrl(u);
         if (url) {
           unsubHeaders['List-Unsubscribe'] = `<${url}>, <mailto:unsubscribe@mageid.app?subject=Unsubscribe%20${encodeURIComponent(u.eventKey ?? '')}>`;
@@ -299,7 +357,8 @@ serve(async (req) => {
         replyTo: body.replyTo,
         fromCompanyName: body.fromCompanyName,
         fromOverride: body.from,
-        unsubscribe: body.unsubscribe?.enabled === false ? undefined : { ...body.unsubscribe, recipientEmail: body.unsubscribe?.recipientEmail ?? to },
+        // B1: recipientEmail is `to`, never the body value (see above).
+        unsubscribe: body.unsubscribe?.enabled === false ? undefined : { eventKey: body.unsubscribe?.eventKey, recipientEmail: to },
       });
       const id = (r.resp as { id?: string } | null)?.id;
       const error = (r.resp as { message?: string; error?: string } | null);

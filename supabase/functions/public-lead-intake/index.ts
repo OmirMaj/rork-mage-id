@@ -17,6 +17,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { rateLimitCount } from "../_shared/auth.ts";
+import { clientIpFrom } from "../_shared/notifyGuards.ts";
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -131,8 +132,10 @@ serve(async (req: Request) => {
   // Rate limit: bound flooding per-IP and per-target-slug. Fail OPEN — if the
   // limiter is unavailable (count < 0) we still accept the lead rather than
   // risk dropping a real customer's quote request.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
-  const ipCount = ip ? await rateLimitCount(`lead:ip:${ip}`) : 0;
+  // EDGE-F15 (review 2026-09-05): clientIpFrom — the FIRST x-forwarded-for hop
+  // is client-supplied, so keying on it made the per-IP bucket attacker-chosen.
+  const ip = clientIpFrom(req.headers);
+  const ipCount = await rateLimitCount(`lead:ip:${ip}`);
   const slugCount = await rateLimitCount(`lead:slug:${slug}`);
   if (ipCount > LEAD_IP_HOURLY_LIMIT || slugCount > LEAD_SLUG_HOURLY_LIMIT) {
     return jsonResponse({ error: "Too many requests right now — please try again later." }, 429);

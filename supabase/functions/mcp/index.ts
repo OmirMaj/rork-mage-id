@@ -22,6 +22,9 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { hashMcpToken, TOKEN_PREFIX } from "../_shared/mcpToken.ts";
+// MONEY-F5: what a client can be asked for is NET of the retention the
+// contract lets them hold. The same rule the Stripe webhook settles on.
+import { netPayable, type SettlementInput } from "../_shared/paymentMath.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -176,6 +179,15 @@ async function moneyByProject(userId: string): Promise<Map<string, Record<string
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
+/** Retention-net balance still owed on an invoice row — never negative. */
+function invoiceBalance(inv: Record<string, unknown>): number {
+  const settlement: SettlementInput = {
+    total_due: num(inv.total_due),
+    retention_amount: num(inv.retention_amount),
+    retention_released: num(inv.retention_released),
+  };
+  return Math.max(0, netPayable(settlement) - num(inv.amount_paid));
+}
 function text(s: string) {
   return { content: [{ type: "text", text: s }] };
 }
@@ -185,7 +197,7 @@ const TOOLS = [
   {
     name: "financial_summary",
     description:
-      "Money roll-up across all of the contractor's projects: total invoiced, total paid, outstanding (unpaid) balance, and how much of that is overdue. Use for questions like 'how much money is owed to me?' or 'what's overdue?'.",
+      "Money roll-up across all of the contractor's projects: total invoiced, total paid, outstanding balance (net of retention the client is contractually holding), and how much of that is overdue. Use for questions like 'how much money is owed to me?' or 'what's overdue?'.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -242,17 +254,26 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
   switch (name) {
     case "financial_summary": {
       const invoices = await rest<Record<string, unknown>>(
-        `invoices?user_id=eq.${userId}&select=total_due,amount_paid,status,due_date`,
+        `invoices?user_id=eq.${userId}&select=total_due,amount_paid,status,due_date,retention_amount,retention_released`,
       );
       let invoiced = 0, paid = 0, outstanding = 0, overdue = 0, overdueCount = 0;
       const t = today();
       for (const inv of invoices) {
+        // Drafts are not billed — the app's getInvoicedToDate /
+        // getOutstandingBalance skip them, so this summary must too.
+        if (String(inv.status) === "draft") continue;
         const due = num(inv.total_due);
         const pd = num(inv.amount_paid);
-        const bal = Math.max(0, due - pd);
+        // Gross total_due − amount_paid reported held retention as owed (and
+        // overdue) — the client is not late on money the contract lets them keep.
+        // The MONEY decides whether an invoice is open, never the stored word:
+        // a row still marked 'paid' whose retention was released and not yet
+        // collected has a balance, and the app's getEffectiveInvoiceStatus
+        // distrusts a stored 'paid' the same way (review 2026-09-05).
+        const bal = invoiceBalance(inv);
         invoiced += due;
         paid += pd;
-        if (String(inv.status) !== "paid" && bal > 0) {
+        if (bal > 0) {
           outstanding += bal;
           if (inv.due_date && String(inv.due_date) < t) { overdue += bal; overdueCount++; }
         }
@@ -319,12 +340,14 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
     case "list_overdue": {
       const t = today();
       const invoices = await rest<Record<string, unknown>>(
-        `invoices?user_id=eq.${userId}&select=number,total_due,amount_paid,status,due_date,project_id&order=due_date.asc`,
+        `invoices?user_id=eq.${userId}&select=number,total_due,amount_paid,status,due_date,project_id,retention_amount,retention_released&order=due_date.asc`,
       );
       const names = await projectNameMap(userId);
       const overdueInv = invoices.filter((inv) => {
-        const bal = num(inv.total_due) - num(inv.amount_paid);
-        return String(inv.status) !== "paid" && bal > 0 && inv.due_date && String(inv.due_date) < t;
+        const bal = invoiceBalance(inv);
+        // Money decides (see financial_summary): a stored 'paid' with a balance
+        // is open; a draft is not billed and never overdue.
+        return String(inv.status) !== "draft" && bal > 0 && inv.due_date && String(inv.due_date) < t;
       });
       const rfis = await rest<Record<string, unknown>>(
         `rfis?user_id=eq.${userId}&status=eq.open&select=number,subject,date_required,project_id&order=date_required.asc`,
@@ -334,7 +357,7 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
       if (overdueInv.length) {
         out.push(`Overdue invoices (${overdueInv.length}):`);
         for (const inv of overdueInv) {
-          const bal = num(inv.total_due) - num(inv.amount_paid);
+          const bal = invoiceBalance(inv);
           out.push(`• Invoice #${inv.number} — ${money(bal)} due ${inv.due_date} [${names[String(inv.project_id)] || "—"}]`);
         }
       }

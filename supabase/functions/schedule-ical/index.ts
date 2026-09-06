@@ -26,8 +26,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const SECRET =
-  Deno.env.get('SCHEDULE_ICAL_SECRET') ?? 'mage-id-ical-fallback-rotate-on-leak';
+// No literal fallback (audit OPS-F11 / AUTH-F13): anyone holding the bundle
+// could mint feed tokens from the old constant. Unset → every request 500s
+// with a clear message (checked in the handler so the function still boots).
+const SECRET = Deno.env.get('SCHEDULE_ICAL_SECRET') ?? '';
 
 async function signToken(scheduleId: string, userId: string): Promise<string> {
   const enc = new TextEncoder();
@@ -76,6 +78,10 @@ Deno.serve(async (req) => {
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
     });
+  }
+
+  if (!SECRET) {
+    return new Response('SCHEDULE_ICAL_SECRET is not configured on the server — calendar feeds are disabled until it is set', { status: 500 });
   }
 
   const url = new URL(req.url);

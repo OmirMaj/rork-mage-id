@@ -47,15 +47,16 @@ serve(async (req: Request) => {
 
   // Cost ceiling (audit): monthly cap (fail-closed) + hourly burst limit, checked
   // before spending on the query embedding. Search embeds ONE query, so it charges
-  // 1 (unlike embed, which charges docs.length). Rate limiter fails OPEN (rl < 0):
-  // the monthly counter is the cost ceiling, so a limiter blip shouldn't lock out.
+  // 1 (unlike embed, which charges docs.length). The hourly bucket fails CLOSED
+  // like every other paid relay (review 2026-09-05): rl < 0 → 503, `rl - 1 >=`.
   const cap = MONTHLY_CAPS[auth.tier]?.project_memory ?? 0;
   const used = await aiUsageGet(auth.userId, "project_memory");
   if (used + 1 > cap) {
     return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
   }
   const rl = await rateLimitCount(`pm:${auth.userId}`);
-  if (rl > PM_HOURLY_LIMIT) {
+  if (rl < 0) return json({ success: false, error: "Rate limiter unavailable — please try again in a moment.", code: "rate_limiter_unavailable" }, 503);
+  if (rl - 1 >= PM_HOURLY_LIMIT) {
     return json({ success: false, error: "Too many Project Memory requests — please wait a moment and retry.", code: "rate_limited" }, 429);
   }
 
