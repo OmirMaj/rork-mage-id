@@ -23,7 +23,7 @@ import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronRight, CheckCircle2 } from 'lucide-react-native';
+import { CloudOff, ChevronRight, CheckCircle2 } from 'lucide-react-native';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import type { AttentionItem, AttnSeverity } from '@/utils/brainWatch';
 import { Type } from '@/constants/typography';
@@ -40,12 +40,17 @@ const SEVERITY_COLOR: Record<AttnSeverity, string> = {
 
 const RAIL_WIDTH = 300;
 
+/** RT-R1: shown instead of "All caught up" when the probe could not reach
+ *  MAGE — identical wording to components/home/BrainWatchCard. */
+const UNREACHABLE_LINE =
+  `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+
 interface Props {
   width?: number;
 }
 
 const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_WIDTH }: Props) {
-  const { items } = useBrainWatch();
+  const { items, sourceFailed } = useBrainWatch();
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -71,13 +76,26 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
       </View>
 
       {items.length === 0 ? (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconWrap}>
-            <CheckCircle2 size={22} color={colors.success} strokeWidth={1.8} />
+        sourceFailed ? (
+          // RT-R1: an empty set from a failed read (dead session, no network)
+          // is this device's last cache, not "all caught up" — same copy as
+          // BrainWatchCard.
+          <View style={styles.emptyState} testID="rail-unreachable">
+            <View style={styles.emptyIconWrap}>
+              <CloudOff size={22} color={colors.warningLabel} strokeWidth={1.8} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.warningLabel }]}>{UNREACHABLE_LINE}</Text>
+            <Text style={styles.emptySubtitle}>Nothing cached needs attention; the live read failed.</Text>
           </View>
-          <Text style={styles.emptyTitle}>All caught up</Text>
-          <Text style={styles.emptySubtitle}>Nothing urgent across your projects.</Text>
-        </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconWrap}>
+              <CheckCircle2 size={22} color={colors.success} strokeWidth={1.8} />
+            </View>
+            <Text style={styles.emptyTitle}>All caught up</Text>
+            <Text style={styles.emptySubtitle}>Nothing urgent across your projects.</Text>
+          </View>
+        )
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listWrap}>
           {top.map(item => (

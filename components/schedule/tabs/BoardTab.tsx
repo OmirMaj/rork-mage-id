@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
@@ -199,10 +200,10 @@ function CardDonut({ percent }: { percent: number }) {
 
 function formatDate(task: ScheduleTask): string {
   if (task.deadline) {
-    return new Date(task.deadline).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+    // UX-F9: deadline is a bare calendar day (GridPane writes 'YYYY-MM-DD');
+    // new Date() parsed it as UTC midnight, so the Board card showed the day
+    // before the Grid's "Due by" anywhere west of Greenwich.
+    return formatCalendarDay(task.deadline, { month: 'short', day: 'numeric' });
   }
   return `${task.durationDays ?? 0}d`;
 }

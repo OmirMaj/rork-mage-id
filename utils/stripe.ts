@@ -9,7 +9,7 @@
 //     invoiceId: invoice.id,
 //     invoiceNumber: invoice.number,
 //     projectName: project.name,
-//     amountCents: Math.round((invoice.totalDue - invoice.amountPaid) * 100),
+//     amountCents: Math.round(netBalanceDue(invoice) * 100), // retention-net (utils/invoiceBilling)
 //     customerEmail: client?.email,
 //     companyName: settings.branding?.companyName,
 //   });
@@ -36,10 +36,11 @@ export interface CreatePaymentLinkParams {
    */
   stripeAccountId?: string;
   /**
-   * GC's current MAGE subscription tier. Drives the platform-fee schedule
-   * server-side (Pro: 0 bps, Business: 50 bps, Enterprise: 40 bps). Pass
-   * this from the calling screen via useTierAccess(); the edge function
-   * falls back to 50 bps if it's missing.
+   * GC's current MAGE subscription tier, for telemetry/labels only. The fee
+   * the edge function applies comes from the SERVER-resolved tier and the one
+   * schedule in utils/platformFees.ts (PLATFORM_FEE_BPS — mirrored byte-for-
+   * byte in create-payment-link and diffed by scripts/validate-platform-fees).
+   * Audit 2026-09-03 MONEY-F8: this comment used to state its own rate table.
    */
   userTier?: 'free' | 'pro' | 'business' | 'enterprise';
   /**

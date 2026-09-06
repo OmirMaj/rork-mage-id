@@ -15,7 +15,7 @@
 // ============================================================================
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   CalendarDays,
@@ -29,6 +29,7 @@ import {
   ChevronRight,
   Truck,
   Building2,
+  CloudOff,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -81,16 +82,34 @@ export default function BrainWatchCard() {
   // The CANONICAL needs-attention set — same hook that feeds the Summary
   // hero pill and the Your-Projects tab badge, so every "needs attention"
   // number in the app is the same number (sim-audit #15).
-  const { items, total } = useBrainWatch();
+  const { items, total, sourceFailed } = useBrainWatch();
   const { accuracyReport } = useBrainGrading();
   const { canAccess } = useTierAccess();
 
   const visible = items.slice(0, MAX_VISIBLE);
 
+  // RT-R1: a failed fetch (dead session, no network) yields the same
+  // `total === 0` as a genuinely quiet book — a dead session once showed a
+  // green all-clear while every read 401'd. When MAGE could not be reached,
+  // say so; what is listed is this device's last cache, not a current read.
+  const unreachableLine =
+    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
+
   // ── Render ───────────────────────────────────────────────────────────────
 
-  // All-clear state: render a calming "nothing to do" row
   if (total === 0) {
+    if (sourceFailed) {
+      return (
+        <View style={styles.card} testID="brain-watch-unreachable">
+          <View style={styles.unreachableRow}>
+            <CloudOff size={16} color={colors.warningLabel} strokeWidth={2} />
+            <Text style={styles.unreachableText}>{unreachableLine}</Text>
+          </View>
+        </View>
+      );
+    }
+    // All-clear state: render a calming "nothing to do" row — only when the
+    // source actually answered.
     return (
       <View style={styles.card}>
         <View style={styles.allClearRow}>
@@ -112,6 +131,14 @@ export default function BrainWatchCard() {
             : `${total} things need your attention`}
         </Text>
       </View>
+
+      {/* RT-R1: the rows below came from the local cache, not MAGE */}
+      {sourceFailed ? (
+        <View style={[styles.unreachableRow, styles.unreachableRowSpaced]} testID="brain-watch-unreachable">
+          <CloudOff size={12} color={colors.warningLabel} strokeWidth={2} />
+          <Text style={styles.unreachableText}>{unreachableLine}</Text>
+        </View>
+      ) : null}
 
       {/* Attention rows */}
       <View style={styles.list}>
@@ -247,6 +274,24 @@ const makeStyles = (t: ThemeColors) =>
     allClearText: {
       ...Type.footnote,
       color: t.textSecondary,
+    },
+    // RT-R1 "couldn't reach MAGE" — warning tone, never the success green.
+    unreachableRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: Tokens.spacing.xs,
+      paddingVertical: 6,
+      paddingHorizontal: Tokens.spacing.sm,
+      borderRadius: Tokens.radius.md,
+      backgroundColor: t.warningSoft,
+    },
+    unreachableRowSpaced: {
+      marginBottom: Tokens.spacing.sm,
+    },
+    unreachableText: {
+      ...Type.footnote,
+      color: t.warningLabel,
+      flex: 1,
     },
     accuracyChip: {
       flexDirection: 'row' as const,

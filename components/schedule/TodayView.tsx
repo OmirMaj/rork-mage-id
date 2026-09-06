@@ -26,6 +26,7 @@ import {
   Droplet,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { parseCalendarDay } from '@/utils/calendarDate';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
   formatShortDate,
@@ -491,8 +492,10 @@ function TodayView({
       {forecast.length > 1 && (
         <View style={s.forecastRow}>
           {forecast.slice(1).map((f) => {
-            const d = new Date(f.date);
-            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+            // UX-F10: f.date is a bare 'YYYY-MM-DD' — as UTC midnight the strip
+            // was labelled Sun…Sat for Mon…Sun data west of Greenwich.
+            const d = parseCalendarDay(f.date);
+            const dayName = d ? d.toLocaleDateString('en-US', { weekday: 'short' }) : f.date;
             return (
               <View key={f.date} style={[s.forecastDay, !f.isWorkable && s.forecastDayBad]}>
                 <Text style={s.forecastDayName}>{dayName}</Text>

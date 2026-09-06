@@ -109,6 +109,31 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         return;
       }
 
+      // PRODUCT-F8: the seven server push kinds that fell through to a no-op.
+      // Field names come from supabase/functions/notify/index.ts pushData —
+      // `rfpId` for the RFP family, `projectId` (+portalId) for the portal family.
+      const rfpId = data?.rfpId as string | undefined;
+      if ((kind === 'nearby_rfp_posted' || kind === 'bid_question_asked' || kind === 'bid_question_answered') && rfpId) {
+        router.push(`/rfp-detail?bidId=${rfpId}`);
+        return;
+      }
+      if (kind === 'rfp_awarded' && projectId) {
+        router.push(`/project-detail?id=${projectId}`);
+        return;
+      }
+      if (kind === 'contract_signed' && projectId) {
+        router.push(`/contract?projectId=${projectId}`);
+        return;
+      }
+      if (kind === 'selection_chosen' && projectId) {
+        router.push(`/selections?projectId=${projectId}`);
+        return;
+      }
+      if (kind === 'closeout_binder_sent_confirmation' && projectId) {
+        router.push(`/closeout-binder?projectId=${projectId}`);
+        return;
+      }
+
       if (conversationId) {
         router.push(`/messages?id=${conversationId}`);
       } else if (bidId) {

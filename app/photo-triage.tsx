@@ -48,6 +48,7 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { toCalendarDayString, addCalendarDays, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 
 // Same trade mapping used in ai-punch.tsx — funnels the loose AI string
 // to the strict SubTrade enum without losing signal.
@@ -280,10 +281,15 @@ function PhotoTriageInner() {
       // advancing counter (the single-add path recomputed from a stale closure,
       // so every RFI collided on the same number and only the last survived).
       // `number` below is a placeholder the batch overrides.
-      const today = new Date().toISOString().slice(0, 10);
-      const oneWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      // B4 review A2: RFI.dateRequired is a CALENDAR DAY (this writer, the
+      // voice parsers and DatePickerModal's noon-UTC instant all name a day,
+      // and every reader resolves it parseCalendarDay-first). This used to be
+      // `toISOString().slice(0, 10)` — the UTC day, i.e. tomorrow from ~6 pm
+      // anywhere west of Greenwich. dateSubmitted is the instant the RFI was
+      // created, like app/rfi.tsx writes it.
+      const now = new Date().toISOString();
+      const oneWeek = toCalendarDayString(addCalendarDays(new Date(), 7));
       const rfis: RFI[] = grouped.rfi.map(e => {
-        const now = new Date().toISOString();
         return {
           id: generateUUID(),
           number: 0,
@@ -292,7 +298,7 @@ function PhotoTriageInner() {
           question: e.rationale || e.title,
           submittedBy: settings?.branding?.contactName || settings?.branding?.companyName || 'Project Team',
           assignedTo: '',
-          dateSubmitted: today,
+          dateSubmitted: now,
           dateRequired: oneWeek,
           status: 'open',
           priority: e.priority === 'high' ? 'urgent' : e.priority === 'low' ? 'low' : 'normal',
@@ -321,8 +327,14 @@ function PhotoTriageInner() {
         // Merge into today's existing DRAFT report if there is one, rather than
         // always stamping out a fresh DFR — otherwise triaging twice in a day
         // (or a double-tap) leaves multiple draft reports for the same date.
+        // DailyFieldReport.date is an INSTANT (app/daily-report.tsx writes
+        // new Date().toISOString(), and its hero parses it as one), so the
+        // match is by LOCAL calendar day, whichever shape a stored draft has
+        // — this used to write and compare a bare UTC day, which never matched
+        // a draft the report screen made and read a day early in its hero.
+        const todayKey = todayCalendarDay();
         const existingDraft = getDailyReportsForProject(project.id)
-          .find(dr => dr.date === today && dr.status === 'draft');
+          .find(dr => dr.status === 'draft' && calendarDayOf(dr.date) === todayKey);
         if (existingDraft) {
           updateDailyReport(existingDraft.id, {
             workPerformed: [existingDraft.workPerformed, workLines.join('\n')]
@@ -334,7 +346,7 @@ function PhotoTriageInner() {
           const dfr: DailyFieldReport = {
             id: generateUUID(),
             projectId: project.id,
-            date: today,
+            date: now,
             weather: { temperature: '', conditions: '', wind: '', isManual: false },
             manpower: [],
             workPerformed: workLines.join('\n'),

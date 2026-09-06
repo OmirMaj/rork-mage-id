@@ -30,10 +30,10 @@ import { LivingFloorPlan } from './LivingFloorPlan';
 import { PlanZoneEditor } from './PlanZoneEditor';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
-import { parseCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { startDayNumberFor } from '@/utils/scheduleOps';
 
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
-const MS_DAY = 24 * 60 * 60 * 1000;
 const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', '4D Model'], ['progress', 'Progress'], ['team', 'Team']];
 
 // Mobile-native "Schedule Pro" — touch-first gantt + task-detail sheet +
@@ -95,7 +95,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // entries on it so estimate-less projects only see the manual path.
   const hasEstimate = !!selectedProject?.linkedEstimate;
   const tasks = useMemo(() => activeSchedule?.tasks ?? [], [activeSchedule]);
-  const startDate = activeSchedule?.startDate ?? new Date().toISOString().slice(0, 10);
+  // UX-F2 (appendix): the fallback anchor is a LOCAL calendar day — the
+  // toISOString().slice(0, 10) idiom named tomorrow after ~6 pm Denver time.
+  const startDate = activeSchedule?.startDate ?? todayCalendarDay();
 
   const [showExport, setShowExport] = useState(false);
   const reportCpm = useMemo(
@@ -180,9 +182,19 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     const base = parseCalendarDay(startDate) ?? new Date();
     base.setHours(0, 0, 0, 0);
     let startDay: number;
-    if (values.startIso) {
-      const target = new Date(values.startIso); target.setHours(0, 0, 0, 0);
-      startDay = 1 + Math.max(0, Math.round((target.getTime() - base.getTime()) / MS_DAY));
+    // UX-F2: AddTaskModal hands back a bare 'YYYY-MM-DD'; new Date() of that
+    // is UTC midnight and lands on the previous local day west of Greenwich,
+    // so a task picked for Monday used to get Sunday's day number.
+    const target = values.startIso ? parseCalendarDay(values.startIso) : null;
+    if (target) {
+      // B4 review A9: startDay is a WORKING-day number (the CPM engine,
+      // getTaskDateRange and the desktop grid all walk addWorkingDays from
+      // the anchor), so the picked date is converted with the inverse walk —
+      // not `round((target - base) / MS_DAY) + 1`, which handed a task picked
+      // for the second Monday of a 5-day-week schedule startDay 8 and drew it
+      // on the Wednesday after. A pick on a closed day starts the next
+      // working day, as the desktop scheduler does.
+      startDay = startDayNumberFor(base, target, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates);
     } else {
       startDay = tasks.length === 0 ? 1 : Math.max(...tasks.map((t) => (t.startDay ?? 1) + Math.max(1, t.durationDays || 1)));
     }
@@ -201,7 +213,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     saveTasks([...tasks, newTask]);
     setShowAdd(false);
     setAddPrefillDate(undefined);
-  }, [tasks, saveTasks, startDate]);
+  }, [tasks, saveTasks, startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
 
   const onDeleteTask = useCallback((id: string) => {
     saveTasks(tasks.filter((t) => t.id !== id));
@@ -330,6 +342,8 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
               <MobileScheduleList
                 tasks={tasks}
                 startDate={startDate}
+                workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
+                nonWorkingDates={activeSchedule?.nonWorkingDates}
                 collapsedPhases={collapsed}
                 onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
                 onPressTask={setDetailTask}
@@ -341,6 +355,8 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
               <MobileGantt
                 tasks={tasks}
                 startDate={startDate}
+                workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
+                nonWorkingDates={activeSchedule?.nonWorkingDates}
                 selectedDate={selectedDate}
                 collapsedPhases={collapsed}
                 onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
@@ -353,7 +369,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           </>
         )
       ) : tab === 'progress' ? (
-        <ProgressTab tasks={tasks} startDate={startDate} />
+        <ProgressTab tasks={tasks} startDate={startDate} workingDaysPerWeek={activeSchedule?.workingDaysPerWeek} nonWorkingDates={activeSchedule?.nonWorkingDates} />
       ) : tab === 'team' ? (
         <TeamTab tasks={tasks} onPressTask={setDetailTask} />
       ) : (
@@ -365,6 +381,8 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         task={detailTask}
         allTasks={tasks}
         startDate={startDate}
+        workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
+        nonWorkingDates={activeSchedule?.nonWorkingDates}
         onClose={() => setDetailTask(null)}
         onUpdateTask={onUpdateTask}
         onDeleteTask={onDeleteTask}
@@ -384,6 +402,8 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         selectedDate={selectedDate}
         tasks={tasks}
         startDateIso={startDate}
+        workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
+        nonWorkingDates={activeSchedule?.nonWorkingDates}
         onSelect={setSelectedDate}
         onClose={() => setShowCalendar(false)}
       />
@@ -568,6 +588,8 @@ function LivingFloorPlanContainer({
     <LivingFloorPlan
       tasks={project.schedule?.tasks ?? []}
       scheduleStartDate={project.schedule?.startDate}
+      workingDaysPerWeek={project.schedule?.workingDaysPerWeek}
+      nonWorkingDates={project.schedule?.nonWorkingDates}
       planSheetId={firstSheet?.id ?? ''}
       zones={zones}
       pins={pins}

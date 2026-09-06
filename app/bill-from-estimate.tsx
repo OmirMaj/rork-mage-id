@@ -39,15 +39,16 @@ import { Tokens } from '@/constants/designTokens';
 
 import { generateUUID } from '@/utils/generateId';
 import { billedAmountForLine } from '@/utils/invoiceBilling';
+import { billFromEstimateLine, billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { showAlert } from '@/utils/alert';
+import { formatMoney } from '@/utils/formatters';
 
 function createId(_prefix: string): string {
   return generateUUID();
 }
 
-function money(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// HEALTH-F5: sign-correct money via the one formatter — no local Math.abs copy.
+const money = (n: number): string => formatMoney(n, 2);
 
 function clampPct(v: number): number {
   if (!Number.isFinite(v)) return 0;
@@ -66,7 +67,7 @@ interface Row {
   category: string;
   unit: string;
   quantity: number;            // full contracted qty
-  unitPrice: number;           // effective price used for invoice line total
+  unitPrice: number;           // SELL unit price = lineTotal ÷ quantity, markup folded in (MONEY-F14)
   lineTotal: number;           // full contract line value
   alreadyBilled: number;       // $ already invoiced against this row
   remaining: number;           // $ still to bill
@@ -147,7 +148,9 @@ export default function BillFromEstimateScreen() {
           category: item.category,
           unit: item.unit,
           quantity: item.quantity,
-          unitPrice: effectivePrice,
+          // MONEY-F14: the invoice shows the markup-inclusive unit price, not
+          // the estimate's cost basis — see utils/billFromEstimateCore.
+          unitPrice: billFromEstimateUnitPrice(full, item.quantity, effectivePrice),
           lineTotal: full,
           alreadyBilled: already,
           remaining,
@@ -175,7 +178,7 @@ export default function BillFromEstimateScreen() {
         category: item.category,
         unit: item.unit,
         quantity: item.quantity,
-        unitPrice: item.unitPrice,
+        unitPrice: billFromEstimateUnitPrice(full, item.quantity, item.unitPrice),
         lineTotal: full,
         alreadyBilled: already,
         remaining,
@@ -211,7 +214,9 @@ export default function BillFromEstimateScreen() {
     if (subtotal > 0) setBillingHint(null);
   }, [subtotal]);
 
-  const taxRate = settings.taxRate ?? 7.5;
+  // MONEY-F3: the persisted setting, 0 % when the GC never set one — never an
+  // invented client-side rate.
+  const taxRate = settings.taxRate ?? 0;
   const taxAmount = subtotal * (taxRate / 100);
   const totalDue = subtotal + taxAmount;
 
@@ -265,20 +270,22 @@ export default function BillFromEstimateScreen() {
     const lineItems: InvoiceLineItem[] = activeRows.map(r => {
       const pct = clampPct(billPercents[r.key] ?? 0);
       const billAmount = amountsByKey[r.key] ?? 0;
-      // Reconstruct a plausible "quantity" for this invoice line. We bill in
-      // dollar terms (pct of remaining), so we derive a display quantity by
-      // preserving the unit price and dividing — this keeps the PDF
-      // quantity × unitPrice = total invariant. When the whole remaining is
-      // being billed, this collapses to the original units.
-      const qty = r.unitPrice > 0 ? Math.round((billAmount / r.unitPrice) * 1000) / 1000 : 0;
+      // MONEY-F14: bill the CONTRACT quantity (its share of this bill) at the
+      // markup-inclusive unit price. Dividing the billed dollars by the
+      // pre-markup price used to print "115 sf @ $10.00" for 100 sf of scope
+      // — on the PDF, the portal and in QuickBooks. The line total stays
+      // authoritative; see utils/billFromEstimateCore.
+      const line = billFromEstimateLine({
+        quantity: r.quantity, lineTotal: r.lineTotal, fallbackUnitPrice: r.unitPrice, billAmount,
+      });
       return {
         id: createId('ili'),
         name: r.name,
         description: `${r.category} · ${pct.toFixed(0)}% of remaining${r.alreadyBilled > 0 ? ` (${money(r.alreadyBilled)} prior)` : ''}`,
-        quantity: qty || r.quantity * (pct / 100),
+        quantity: line.quantity,
         unit: r.unit,
-        unitPrice: r.unitPrice,
-        total: billAmount,
+        unitPrice: line.unitPrice,
+        total: line.total,
         sourceEstimateItemId: r.key,
         billedPercent: pct,
       };

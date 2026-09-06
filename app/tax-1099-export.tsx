@@ -1,7 +1,8 @@
 // Year-end 1099-NEC export — the report a CPA actually wants.
 //
 // Rolls up sub payments by subcontractor for a chosen calendar year,
-// flags every recipient owed a 1099 (>= $600), and exports a CSV the
+// flags every recipient owed a 1099 (paid >= thresholdForYear(year) — $2,000
+// for 2026+, $600 before; MONEY-F4), and exports a CSV the
 // CPA can map into their own template (Bench / Pilot / TurboTax for
 // Business / paper Form 1099-NEC). Surfaces TIN-missing, address-blank,
 // W-9-not-on-file warnings inline so the GC can chase the data BEFORE
@@ -26,7 +27,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { buildTax1099Dataset, tax1099DatasetToCsv, type Tax1099Row } from '@/utils/tax1099Export';
+import { buildTax1099Dataset, tax1099DatasetToCsv, thresholdInfoForYear, THRESHOLD_PROVISIONAL_NOTE, type Tax1099Row } from '@/utils/tax1099Export';
 import type { SubSubmittedInvoice } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -67,7 +68,8 @@ export default function Tax1099ExportScreen() {
     try {
       const { data, error } = await supabase
         .from('sub_submitted_invoices')
-        .select('id,sub_portal_id,project_id,subcontractor_id,commitment_id,invoice_number,amount,retention_amount,status,created_at,reviewed_at,paid_at')
+        // MONEY-F4: paid_on (the day money left the account) decides the tax year.
+        .select('id,sub_portal_id,project_id,subcontractor_id,commitment_id,invoice_number,amount,retention_amount,status,created_at,reviewed_at,paid_at,paid_on')
         .eq('status', 'paid');
       if (error) throw error;
       const mapped = (data ?? []).map((r: Record<string, unknown>) => ({
@@ -84,6 +86,7 @@ export default function Tax1099ExportScreen() {
         createdAt: r.created_at as string,
         reviewedAt: (r.reviewed_at as string | null) ?? undefined,
         paidAt: (r.paid_at as string | null) ?? undefined,
+        paidOn: (r.paid_on as string | null) ?? undefined,
       })) as SubSubmittedInvoice[];
       setSubInvoices(mapped);
     } catch (err) {
@@ -128,6 +131,11 @@ export default function Tax1099ExportScreen() {
     const cur = new Date().getFullYear();
     return [cur, cur - 1, cur - 2, cur - 3];
   }, []);
+
+  // MONEY-F4: the threshold is a function of the tax year, never a literal.
+  // For 2027+ it is the unindexed $2,000 floor and the screen must say so.
+  const thresholdInfo = thresholdInfoForYear(year);
+  const thresholdLabel = `$${thresholdInfo.amount.toLocaleString('en-US')}`;
 
   const handleExport = useCallback(async () => {
     setGenerating(true);
@@ -178,8 +186,13 @@ export default function Tax1099ExportScreen() {
           </View>
           <Text style={styles.heroTitle}>Year-end 1099-NEC export</Text>
           <Text style={styles.heroBody}>
-            Sub-payments rolled up for the year, flagged for who needs a 1099 (paid &ge; $600), with TIN / W-9 / address gaps surfaced. Hand the CSV to your CPA — they map it into their template.
+            Sub-payments rolled up for the year — net of retention you still hold — flagged for who needs a 1099 (paid &ge; {thresholdLabel} for {year}), with TIN / W-9 / address gaps surfaced. Hand the CSV to your CPA — they map it into their template.
           </Text>
+          {thresholdInfo.provisional && (
+            <Text style={styles.heroCaveat} testID="threshold-provisional-note">
+              {year} threshold is provisional: {THRESHOLD_PROVISIONAL_NOTE}.
+            </Text>
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>Tax year</Text>
@@ -302,6 +315,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 8 },
   heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
+  heroCaveat: { marginTop: 8, fontSize: Type.caption1.fontSize, color: '#7A4500', lineHeight: 17, fontWeight: '600' },
   sectionLabel: {
     marginHorizontal: 16, marginTop: 8, marginBottom: 6,
     fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.textMuted,

@@ -21,6 +21,7 @@ import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
+import { parseCalendarDay, formatCalendarDay, toCalendarDayString, todayCalendarDay, addCalendarMonths } from '@/utils/calendarDate';
 import { warrantyStatus } from '@/utils/workflowPipelines';
 import type { DerivedStatus } from '@/utils/workflowPipelines';
 
@@ -38,11 +39,22 @@ const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
-function addMonths(isoDate: string, months: number): string {
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return new Date().toISOString();
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString();
+// UX-F4: warranty dates are CALENDAR DAYS and round-trip through Postgres
+// `date` columns as bare 'YYYY-MM-DD'. This used to do the month arithmetic on
+// a UTC-midnight parse and re-emit toISOString() — the end date moved a day
+// whenever start and end sat on different DST offsets — and the card then
+// parsed the bare day as UTC again, a day early west of Greenwich. Local
+// calendar days in, local calendar days out.
+//
+// B4 review item 1: the month arithmetic lives in addCalendarMonths now, which
+// CLAMPS to the end of the target month. A bare setMonth() overflowed — a
+// one-month warranty starting Jan 31 was stored ending '2026-03-03', a
+// twelve-month one from Feb 29 2028 ended '2029-03-01' — and that value went
+// straight into warranties.end_date. An unparseable start (handleSave rejects
+// one before getting here) counts from today, as before.
+function addMonths(day: string, months: number): string {
+  const from = parseCalendarDay(day) ? day : todayCalendarDay();
+  return addCalendarMonths(from, months) ?? from;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -98,11 +110,12 @@ function deriveStatus(w: Warranty): DisplayStatus {
 /** A warranty plus the status it should RENDER as (see DisplayStatus above). */
 type WarrantyRow = Warranty & { displayStatus: DisplayStatus };
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+function formatDate(day: string): string {
+  // UX-F4: a calendar day (see addMonths) — never new Date() of the bare form.
+  return parseCalendarDay(day) ? formatCalendarDay(day) : '—';
 }
+
+const endDayMs = (w: Warranty): number => parseCalendarDay(w.endDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
 
 // Themed per-status chip styling — a FUNCTION of the palette (not a module
 // static) so the chip fills flip with the theme instead of staying bright
@@ -139,7 +152,7 @@ export default function WarrantiesScreen() {
   const list: WarrantyRow[] = useMemo(() => {
     const base = project
       ? getWarrantiesForProject(project.id)
-      : [...warranties].sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+      : [...warranties].sort((a, b) => endDayMs(a) - endDayMs(b));
     // Recompute status on read so an expired warranty stops showing "Active"
     // even though nothing wrote to it since it crossed its endDate. Kept in a
     // SEPARATE field: `displayStatus` can be 'unknown', which is not a member
@@ -170,7 +183,7 @@ export default function WarrantiesScreen() {
   const [category, setCategory] = useState<WarrantyCategory>('general');
   const [provider, setProvider] = useState('');
   const [description, setDescription] = useState('');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => todayCalendarDay()); // UX-F4: local day
   const [durationMonths, setDurationMonths] = useState('12');
   const [coverage, setCoverage] = useState('');
 
@@ -209,18 +222,18 @@ export default function WarrantiesScreen() {
     if (!formProjectId) { showAlert('Missing Project', 'Please select a project.'); return; }
     const months = parseInt(durationMonths, 10);
     if (!Number.isFinite(months) || months <= 0) { showAlert('Invalid Duration', 'Enter months as a positive integer.'); return; }
-    // Guard the start date before deriving start/end. new Date('garbage')
-    // yields Invalid Date, whose toISOString() throws — and addMonths would
+    // Guard the start date before deriving start/end — addMonths would
     // otherwise silently fall back to "today + N months", saving dates the GC
-    // never intended with no warning.
-    const startParsed = new Date(startDate);
-    if (Number.isNaN(startParsed.getTime())) {
+    // never intended with no warning. parseCalendarDay also rejects rolled-over
+    // components (2026-02-30), which new Date() used to accept silently.
+    const startParsed = parseCalendarDay(startDate);
+    if (!startParsed) {
       showAlert('Invalid Start Date', 'Enter the start date as YYYY-MM-DD (e.g. 2026-07-14).');
       return;
     }
     const proj = projects.find(p => p.id === formProjectId);
-    const startISO = startParsed.toISOString();
-    const endISO = addMonths(startISO, months);
+    const startDay = toCalendarDayString(startParsed);
+    const endDay = addMonths(startDay, months);
     const payload = {
       projectId: formProjectId,
       projectName: proj?.name ?? 'Project',
@@ -228,9 +241,9 @@ export default function WarrantiesScreen() {
       category,
       description: description.trim() || undefined,
       provider: provider.trim() || 'Unknown',
-      startDate: startISO,
+      startDate: startDay,
       durationMonths: months,
-      endDate: endISO,
+      endDate: endDay,
       coverageDetails: coverage.trim() || undefined,
       reminderDays: 30,
     };

@@ -67,7 +67,9 @@ import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { safeJsonParse } from '@/utils/safeJson';
-import { progressSubtotal, netBalanceDue, markupInclusiveUnitPrice } from '@/utils/invoiceBilling';
+import { progressSubtotal, netBalanceDue, invoiceIsSettled } from '@/utils/invoiceBilling';
+import { billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
+import { formatMoney } from '@/utils/formatters';
 import { markMilestoneInvoiced } from '@/utils/contractEngine';
 import {
   reminderEligibility, reminderBlockMessage, reminderSentLabel, dunningStageLabel,
@@ -80,9 +82,8 @@ function createId(_prefix: string): string {
   return generateUUID();
 }
 
-function formatCurrency(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// HEALTH-F5: sign-correct money — one formatter (utils/formatters), no local Math.abs copy.
+const formatCurrency = (n: number): string => formatMoney(n, 2);
 
 const PAYMENT_TERMS_OPTIONS: { value: PaymentTerms; label: string }[] = [
   { value: 'due_on_receipt', label: 'Due on Receipt' },
@@ -240,9 +241,12 @@ function InvoiceInner() {
         // (100 × $10 shown beside a $1,200 total). Fold markup into the shown
         // unit price so quantity × unitPrice = total; `total` stays the source
         // of truth, so this changes nothing about what the client is charged.
+        // The unit price is UNROUNDED (utils/billFromEstimateCore): rounding it
+        // to cents breaks the foot on any line whose sell price is not
+        // cent-exact (3 × $33.33 ≠ $100.00). Only the line total is rounded.
         unit: item.unit,
-        unitPrice: markupInclusiveUnitPrice(item.lineTotal, item.quantity, item.usesBulk ? item.bulkPrice : item.unitPrice),
-        total: item.lineTotal,
+        unitPrice: billFromEstimateUnitPrice(item.lineTotal, item.quantity, item.usesBulk ? item.bulkPrice : item.unitPrice),
+        total: Math.round(item.lineTotal * 100) / 100,
       }));
     }
     const legacy = project.estimate;
@@ -303,7 +307,6 @@ function InvoiceInner() {
   );
   const [showRetentionModal, setShowRetentionModal] = useState(false);
   const [retentionReleaseAmount, setRetentionReleaseAmount] = useState('');
-  const [retentionReleaseMethod, setRetentionReleaseMethod] = useState<PaymentMethod>('check');
   const [retentionReleaseNote, setRetentionReleaseNote] = useState('');
   const [generatingPayLink, setGeneratingPayLink] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -327,7 +330,10 @@ function InvoiceInner() {
   // to the Settings default silently rewrite an already-sent invoice's total,
   // its Stripe pay-link charge, and the paid/partial threshold. Read the rate
   // stored ON the invoice; fall back to settings ONLY for a brand-new invoice.
-  const taxRate = existingInvoice?.taxRate ?? settings.taxRate ?? 7.5;
+  // MONEY-F3: the settings default is 0 % (a rate the GC never set is not a
+  // rate); the invented client-side fallback that taxed every account at a
+  // Florida-ish figure is gone.
+  const taxRate = existingInvoice?.taxRate ?? settings.taxRate ?? 0;
   const taxAmount = subtotal * (taxRate / 100);
   const totalDue = subtotal + taxAmount;
 
@@ -335,12 +341,77 @@ function InvoiceInner() {
   const retentionAmount = useMemo(() => totalDue * (retentionPctValue / 100), [totalDue, retentionPctValue]);
   const retentionReleased = existingInvoice?.retentionReleased ?? 0;
   const retentionPending = Math.max(0, retentionAmount - retentionReleased);
-  const netPayable = Math.max(0, totalDue - retentionPending);
-  const balanceDue = netPayable - amountPaid;
+  // MONEY-F5: ONE formula for what the client owes (utils/invoiceBilling).
+  // netPayable = retention-net total before payments; balanceDue = collectible
+  // today, never negative (an overpayment reads as $0 due, not −$X).
+  const netPayable = netBalanceDue({ totalDue, retentionAmount, retentionReleased });
+  const balanceDue = netBalanceDue({ totalDue, amountPaid, retentionAmount, retentionReleased });
+
+  // MONEY-F2 (review 2026-09-05): a Stripe Payment Link charges the ONE amount
+  // it was minted for. pay_link_* are SERVER-owned — the client never writes
+  // them — so clearing the link locally after a payment or a retention release
+  // is undone by the next refetch, and every path that reused "any existing
+  // link" then re-sent a link for the OLD balance: link minted for $90,000, a
+  // $50,000 check recorded, "Send" emails "$40,000 due" with a button that
+  // charges $90,000. Nothing may copy, share, email or embed a link unless the
+  // amount it was minted for IS today's balance; otherwise re-mint
+  // (create-payment-link retires the replaced link on Stripe).
+  const payLinkMatchesBalance =
+    !!existingInvoice?.payLinkUrl
+    && existingInvoice.payLinkAmount != null
+    && Math.abs(existingInvoice.payLinkAmount - balanceDue) <= 0.01;
 
   const handleRemoveItem = useCallback((id: string) => {
     setLineItems(prev => prev.filter(item => item.id !== id));
   }, []);
+
+  /**
+   * The GC's connected Stripe account, or undefined when charges are not
+   * enabled — a platform-owned link would route the client's money to the
+   * wrong bank, so every mint site skips the link entirely in that case.
+   */
+  const resolveStripeAccountId = useCallback(async (): Promise<string | undefined> => {
+    if (!user?.id) return undefined;
+    const status = await fetchStripeConnectStatus(user.id);
+    return status.success && status.chargesEnabled && status.accountId ? status.accountId : undefined;
+  }, [user?.id]);
+
+  type MintResult =
+    | { ok: true; url: string; id: string }
+    | { ok: false; reason: 'not_connected' | 'failed'; error?: string };
+
+  /**
+   * Mint a Stripe Payment Link for `amount` (dollars) against `invoice` and
+   * stamp url / id / amount locally. create-payment-link persists the same
+   * three columns server-side and DEACTIVATES the link it replaces, so minting
+   * for a fresh balance is also how a stale link is retired — there is no
+   * standalone deactivate endpoint. Callers that get `ok: false` must go on
+   * WITHOUT a link, never with the old one.
+   */
+  const mintPayLinkFor = useCallback(async (
+    invoice: Pick<Invoice, 'id' | 'number'>,
+    amount: number,
+    customerEmail?: string,
+  ): Promise<MintResult> => {
+    if (amount <= 0) return { ok: false, reason: 'failed', error: 'Nothing due' };
+    const stripeAccountId = await resolveStripeAccountId();
+    if (!stripeAccountId) return { ok: false, reason: 'not_connected' };
+    const res = await createPaymentLink({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.number,
+      projectName: project?.name ?? 'Project',
+      amountCents: Math.round(amount * 100),
+      customerEmail,
+      companyName: settings.branding?.companyName,
+      stripeAccountId,
+      userTier: tier,
+    });
+    if (!res.success || !res.url || !res.id) return { ok: false, reason: 'failed', error: res.error };
+    // MONEY-F2: remember the amount this link charges — the portal shows Pay,
+    // and this screen offers Copy / Share, only while it still equals the balance.
+    updateInvoice(invoice.id, { payLinkUrl: res.url, payLinkId: res.id, payLinkAmount: Math.round(amount * 100) / 100 });
+    return { ok: true, url: res.url, id: res.id };
+  }, [resolveStripeAccountId, project?.name, settings.branding?.companyName, tier, updateInvoice]);
 
   const buildNewInvoice = useCallback((status: 'draft' | 'sent'): Invoice => {
     const now = new Date().toISOString();
@@ -437,7 +508,9 @@ function InvoiceInner() {
         progressPercent: isProgressType ? pctValue : undefined,
         retentionPercent: retentionPctValue || undefined,
         retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
-        ...(totalChanged ? { payLinkUrl: undefined, payLinkId: undefined } : {}),
+        // All three together: a surviving payLinkAmount would still describe a
+        // link that no longer exists, and payLinkMatchesBalance reads it.
+        ...(totalChanged ? { payLinkUrl: undefined, payLinkId: undefined, payLinkAmount: undefined } : {}),
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
@@ -494,50 +567,38 @@ function InvoiceInner() {
       void linkMilestone(workingInvoice);
     }
 
-    // Auto-generate a Stripe payment link if the invoice doesn't have one
-    // yet. Without this, the email goes out with no Pay button — clients
-    // get an invoice they can read but not pay, and we lose the whole
-    // value prop of the integration. Graceful degradation: if Stripe is
-    // unreachable we still send, just without the button.
+    // Auto-generate a Stripe payment link unless the invoice already carries
+    // one minted for TODAY'S balance. Without this, the email goes out with no
+    // Pay button — clients get an invoice they can read but not pay, and we
+    // lose the whole value prop of the integration. Graceful degradation: if
+    // Stripe is unreachable we still send, just without the button.
     // Charge the retention-NET balance, not the gross totalDue. Retention is
     // held back until closeout, so an emailed pay link must bill the same
     // amount as the in-app "Generate Payment Link" button (balanceDue =
     // netPayable − amountPaid). Charging totalDue overcharges the client by the
     // held retention.
-    let payLinkUrl: string | undefined = workingInvoice.payLinkUrl;
+    //
+    // MONEY-F2: a link minted for an EARLIER balance is never reused and never
+    // rides along as a fallback — if the re-mint fails, the email goes out
+    // without a Pay button rather than with one charging the wrong amount.
+    // (workingInvoice is existingInvoice here, or a brand-new invoice with no
+    // link — the same predicate as payLinkMatchesBalance, read off the row
+    // being sent.)
+    const workingLinkMatchesBalance = !!workingInvoice.payLinkUrl
+      && workingInvoice.payLinkAmount != null
+      && Math.abs(workingInvoice.payLinkAmount - balanceDue) <= 0.01;
+    let payLinkUrl: string | undefined = workingLinkMatchesBalance ? workingInvoice.payLinkUrl : undefined;
     let stripeNotConnected = false;
-    if (!payLinkUrl && balanceDue > 0) {
+    if (!workingLinkMatchesBalance && balanceDue > 0) {
       try {
-        // Look up the GC's Stripe Connect account so the payment lands in
-        // their bank, not the platform's. If they're not connected we skip
-        // the link entirely — a platform-owned link would misroute money.
-        let stripeAccountId: string | undefined;
-        if (user?.id) {
-          const status = await fetchStripeConnectStatus(user.id);
-          if (status.success && status.chargesEnabled && status.accountId) {
-            stripeAccountId = status.accountId;
-          }
-        }
-        if (stripeAccountId) {
-          const res = await createPaymentLink({
-            invoiceId: workingInvoice.id,
-            invoiceNumber: workingInvoice.number,
-            projectName: project?.name ?? 'Project',
-            amountCents: Math.round(balanceDue * 100),
-            customerEmail: sendRecipientEmail.trim(),
-            companyName: branding.companyName,
-            stripeAccountId,
-            userTier: tier,
-          });
-          if (res.success && res.url && res.id) {
-            payLinkUrl = res.url;
-            updateInvoice(workingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
-          } else {
-            console.warn('[Invoice] Auto-generate payment link failed:', res.error);
-          }
-        } else {
+        const minted = await mintPayLinkFor(workingInvoice, balanceDue, sendRecipientEmail.trim());
+        if (minted.ok) {
+          payLinkUrl = minted.url;
+        } else if (minted.reason === 'not_connected') {
           console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
           stripeNotConnected = true;
+        } else {
+          console.warn('[Invoice] Auto-generate payment link failed:', minted.error);
         }
       } catch (err) {
         console.warn('[Invoice] Auto-generate payment link threw:', err);
@@ -656,7 +717,7 @@ function InvoiceInner() {
       nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}`);
     }
     router.back();
-  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, balanceDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral, linkMilestone]);
+  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, balanceDue, mintPayLinkFor, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral, linkMilestone]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;
@@ -672,33 +733,21 @@ function InvoiceInner() {
       // retention-NET balance (held retention isn't collectible yet); this
       // path reads the stored invoice fields, so compute net from them.
       const pdfNetDue = netBalanceDue(existingInvoice);
-      let payLinkUrl: string | undefined = existingInvoice.payLinkUrl;
-      if (!payLinkUrl && pdfNetDue > 0) {
+      // MONEY-F2: reuse the stored link only while it still charges this
+      // balance; otherwise re-mint, and on failure send without a link.
+      const storedLinkMatchesBalance = !!existingInvoice.payLinkUrl
+        && existingInvoice.payLinkAmount != null
+        && Math.abs(existingInvoice.payLinkAmount - pdfNetDue) <= 0.01;
+      let payLinkUrl: string | undefined = storedLinkMatchesBalance ? existingInvoice.payLinkUrl : undefined;
+      if (!storedLinkMatchesBalance && pdfNetDue > 0) {
         try {
-          let stripeAccountId: string | undefined;
-          if (user?.id) {
-            const status = await fetchStripeConnectStatus(user.id);
-            if (status.success && status.chargesEnabled && status.accountId) {
-              stripeAccountId = status.accountId;
-            }
-          }
-          if (stripeAccountId) {
-            const res = await createPaymentLink({
-              invoiceId: existingInvoice.id,
-              invoiceNumber: existingInvoice.number,
-              projectName: project.name,
-              amountCents: Math.round(pdfNetDue * 100),
-              customerEmail: options.recipient.trim(),
-              companyName: branding.companyName,
-              stripeAccountId,
-              userTier: tier,
-            });
-            if (res.success && res.url && res.id) {
-              payLinkUrl = res.url;
-              updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
-            }
-          } else {
+          const minted = await mintPayLinkFor(existingInvoice, pdfNetDue, options.recipient.trim());
+          if (minted.ok) {
+            payLinkUrl = minted.url;
+          } else if (minted.reason === 'not_connected') {
             console.log('[Invoice] PDF send: skipping payment link — Stripe Connect not set up');
+          } else {
+            console.warn('[Invoice] PDF send: payment link mint failed:', minted.error);
           }
         } catch (err) {
           console.warn('[Invoice] Auto pay-link gen failed in handleSendPDF:', err);
@@ -824,7 +873,7 @@ function InvoiceInner() {
       console.error('[Invoice] PDF share error:', e);
       showAlert('Error', 'Failed to generate PDF. Please try again.');
     }
-  }, [project, existingInvoice, settings, updateInvoice]);
+  }, [project, existingInvoice, settings, mintPayLinkFor]);
 
   const handleMarkPaid = useCallback(() => {
     const amt = parseFloat(paymentAmount) || 0;
@@ -841,7 +890,12 @@ function InvoiceInner() {
       method: paymentMethod,
     };
     const newPaid = amountPaid + amt;
-    const newStatus = newPaid >= totalDue ? 'paid' as const : 'partially_paid' as const;
+    // MONEY-F5: settled = the retention-net balance is covered. Held retention
+    // no longer parks an invoice at "partially paid" until closeout.
+    const newStatus = invoiceIsSettled({ totalDue, amountPaid: newPaid, retentionAmount, retentionReleased })
+      ? 'paid' as const
+      : 'partially_paid' as const;
+    const newBalance = netBalanceDue({ totalDue, amountPaid: newPaid, retentionAmount, retentionReleased });
 
     updateInvoice(existingInvoice.id, {
       amountPaid: newPaid,
@@ -850,18 +904,34 @@ function InvoiceInner() {
       // Recording a payment moves the balance. The existing Stripe link is
       // pinned to the pre-payment amount, so leaving it live would let the
       // client pay the ORIGINAL total again (double-charge) and the webhook
-      // could mark 'paid' past the real balance. Clear it so the next Send
-      // mints a fresh link for the remaining balanceDue.
+      // could mark 'paid' past the real balance. Clear it locally so nothing on
+      // this screen offers it before the re-mint below lands.
       payLinkUrl: undefined,
       payLinkId: undefined,
+      payLinkAmount: undefined,
     });
+
+    // MONEY-F2: pay_link_* are server-owned, so the local clear above is undone
+    // by the next refetch. When a link is live for the now-wrong amount and a
+    // balance remains, re-mint for the remaining balance — create-payment-link
+    // deactivates the replaced link on Stripe. There is no standalone
+    // deactivate endpoint, so when the payment SETTLES the invoice the old link
+    // is left to the server-side last line: it is single-use, the portal hides
+    // Pay once the minted amount no longer equals the balance, and
+    // stripe-webhook nulls + deactivates it if it is ever paid. Fire-and-forget;
+    // the payment is already recorded whether or not the mint succeeds.
+    if (existingInvoice.payLinkUrl && newBalance > 0) {
+      void mintPayLinkFor(existingInvoice, newBalance).catch((err) => {
+        console.warn('[Invoice] re-mint after payment failed:', err);
+      });
+    }
 
     setShowPaymentModal(false);
     setPaymentAmount('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Payment Recorded', `${formatCurrency(amt)} payment recorded. Status: ${newStatus.replace('_', ' ')}`);
     router.back();
-  }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, updateInvoice, router]);
+  }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, retentionAmount, retentionReleased, updateInvoice, mintPayLinkFor, router]);
 
   // Stripe payment link: generate once per invoice (or regenerate if the link
   // is lost/stale). We persist `payLinkUrl` + `payLinkId` on the invoice so the
@@ -929,6 +999,9 @@ function InvoiceInner() {
       updateInvoice(existingInvoice.id, {
         payLinkUrl: res.url,
         payLinkId: res.id,
+        // MONEY-F2: the amount this link charges — the portal shows Pay only
+        // while it still equals the balance due.
+        payLinkAmount: Math.round(balanceDue * 100) / 100,
       });
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -944,18 +1017,21 @@ function InvoiceInner() {
     }
   }, [existingInvoice, project, balanceDue, contacts, settings, updateInvoice, user, tier, router]);
 
+  // MONEY-F2: Copy / Share hand the client a URL that charges a fixed amount,
+  // so both refuse a link whose minted amount is not today's balance (the card
+  // below already hides them in that state; this is the belt to its braces).
   const handleCopyPayLink = useCallback(async () => {
-    if (!existingInvoice?.payLinkUrl) return;
+    if (!existingInvoice?.payLinkUrl || !payLinkMatchesBalance) return;
     const ok = await copyToClipboard(existingInvoice.payLinkUrl);
     if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
       ok ? 'Copied' : 'Copy Failed',
       ok ? 'Payment link copied to clipboard.' : 'Could not copy to clipboard.',
     );
-  }, [existingInvoice]);
+  }, [existingInvoice, payLinkMatchesBalance]);
 
   const handleSharePayLink = useCallback(async () => {
-    if (!existingInvoice?.payLinkUrl || !project) return;
+    if (!existingInvoice?.payLinkUrl || !payLinkMatchesBalance || !project) return;
     const brandingName = settings.branding?.companyName || 'MAGE ID';
     const message =
       `${brandingName} — Invoice #${existingInvoice.number} for ${project.name}\n` +
@@ -970,7 +1046,7 @@ function InvoiceInner() {
     } catch (err) {
       console.error('[Invoice] Share pay link failed:', err);
     }
-  }, [existingInvoice, project, balanceDue, settings]);
+  }, [existingInvoice, payLinkMatchesBalance, project, balanceDue, settings]);
 
   // ── Payment reminders (dunning) ────────────────────────────────────
   // The invoice-dunning cron has always emailed escalating notices; the GC
@@ -993,6 +1069,9 @@ function InvoiceInner() {
       status: existingInvoice.status,
       totalDue: existingInvoice.totalDue ?? 0,
       amountPaid: existingInvoice.amountPaid ?? 0,
+      // MONEY-F5: eligibility is net of held retention (see billingFlowCore).
+      retentionAmount: existingInvoice.retentionAmount ?? 0,
+      retentionReleased: existingInvoice.retentionReleased ?? 0,
       dueMs: existingInvoice.dueDate ? new Date(existingInvoice.dueDate).getTime() : NaN,
       dunningStage: existingInvoice.dunningStage ?? 0,
       lastSentMs: lastMs != null && Number.isFinite(lastMs) ? lastMs : null,
@@ -1051,24 +1130,61 @@ function InvoiceInner() {
       showAlert('Exceeds Pending', `Only ${formatCurrency(retentionPending)} of retention is pending. Reduce the amount.`);
       return;
     }
+    // MONEY-F7: ONE meaning — released = now collectible. The amount flows
+    // into the balance due / forecast income; the cash is recorded later as a
+    // payment ("Record Payment"), never here. No payment method is collected
+    // because nothing has been paid yet.
     const release: RetentionRelease = {
       id: createId('ret'),
       date: new Date().toISOString(),
       amount: amt,
-      method: retentionReleaseMethod,
       note: retentionReleaseNote.trim() || undefined,
     };
     const newReleased = retentionReleased + amt;
+    const newBalance = netBalanceDue({ totalDue, amountPaid, retentionAmount, retentionReleased: newReleased });
     updateInvoice(existingInvoice.id, {
       retentionReleased: newReleased,
       retentionReleases: [...(existingInvoice.retentionReleases || []), release],
+      // A release on a SETTLED invoice reopens it: the stored 'paid' used to
+      // survive this write, and every reader that trusts stored status —
+      // dunning's cron query, the portal pill, this screen's own gates — kept
+      // treating the released $10,000 as already collected. Reopen to
+      // partially_paid when money has been received, else sent.
+      ...(existingInvoice.status === 'paid' && newBalance > 0.01
+        ? {
+            status: amountPaid > 0 ? 'partially_paid' as const : 'sent' as const,
+            // The released money became collectible today, not on the original
+            // due date: without a fresh dueDate the A/R report ages it from the
+            // old date and dunning's first run would send a FINAL NOTICE for a
+            // balance that is hours old. Restart the clock and the dunning stage.
+            dueDate: getDueDate(new Date().toISOString(), existingInvoice.paymentTerms),
+            dunningStage: 0,
+          }
+        : {}),
+      // The balance just grew; a link minted for the old balance would charge
+      // the wrong amount (MONEY-F2). Clear it locally so nothing here offers it
+      // before the re-mint below lands.
+      payLinkUrl: undefined,
+      payLinkId: undefined,
+      payLinkAmount: undefined,
     });
+    // MONEY-F2: pay_link_* are server-owned, so the local clear is undone by
+    // the next refetch. When a link is live for the old balance, re-mint for
+    // the new one — create-payment-link retires the replaced link on Stripe
+    // (there is no standalone deactivate endpoint). Fire-and-forget; the
+    // release is recorded either way, and a failed mint leaves the stale link
+    // hidden behind payLinkMatchesBalance until Send / Regenerate re-mints.
+    if (existingInvoice.payLinkUrl && newBalance > 0) {
+      void mintPayLinkFor(existingInvoice, newBalance).catch((err) => {
+        console.warn('[Invoice] re-mint after retention release failed:', err);
+      });
+    }
     setShowRetentionModal(false);
     setRetentionReleaseAmount('');
     setRetentionReleaseNote('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Retention Released', `${formatCurrency(amt)} marked as released.`);
-  }, [existingInvoice, retentionReleaseAmount, retentionReleaseMethod, retentionReleaseNote, retentionPending, retentionReleased, updateInvoice]);
+    showAlert('Retention Released', `${formatCurrency(amt)} is now collectible. Regenerate the pay link or send the invoice to bill it; record the payment when it arrives.`);
+  }, [existingInvoice, retentionReleaseAmount, retentionReleaseNote, retentionPending, retentionReleased, totalDue, amountPaid, retentionAmount, updateInvoice, mintPayLinkFor]);
 
   // Use the effective status so an unpaid-but-past-due invoice flips to "overdue"
   // in the UI without anyone having to run a cron to mutate the record, and a
@@ -1081,6 +1197,12 @@ function InvoiceInner() {
     || effectiveStatus === 'partially_paid'
     || effectiveStatus === 'overdue';
   useBrainFabLift(!isLocked ? bottomBarH : 0);
+  // Money can be recorded on any invoice the client has seen that is not yet
+  // settled. Effective, not stored, status — so a legacy row stored 'paid' with
+  // a balance reopened by a retention release still offers Record Payment and
+  // the pay-link card (review of B3a: the released $10,000 was a dead end).
+  const canRecordPayment = !!existingInvoice && effectiveStatus !== 'draft' && effectiveStatus !== 'paid';
+  const openRecordPayment = () => { setPaymentAmount(balanceDue.toFixed(2)); setShowPaymentModal(true); };
 
   if (!project) {
     return (
@@ -1164,6 +1286,12 @@ function InvoiceInner() {
                 startedAt={existingInvoice.issueDate}
                 dueAt={existingInvoice.dueDate}
                 onAdvance={(next) => {
+                  // "Mark paid" records the money; it does not just flip a
+                  // word. A stored 'paid' with nothing in amountPaid is a
+                  // balance every money surface (A/R aging, cash-flow, the
+                  // effective status) still sees as open — so route it
+                  // through Record Payment, prefilled with the balance.
+                  if (next === 'paid') { openRecordPayment(); return; }
                   updateInvoice(existingInvoice.id, { status: next });
                 }}
                 advanceLabel={
@@ -1370,6 +1498,23 @@ function InvoiceInner() {
             )}
           </View>
 
+          {/* Record Payment lives in the content, not the absolute bottom bar:
+              that bar is hidden for every invoice past draft (isLocked), which
+              left the button unreachable and "Mark paid" — a status flip with
+              no money — as the only way to close an invoice. */}
+          {canRecordPayment && (
+            <TouchableOpacity
+              style={styles.recordPaymentBtn}
+              onPress={openRecordPayment}
+              activeOpacity={0.7}
+              testID="mark-paid-btn"
+            >
+              <CreditCard size={16} color={themeColors.success} strokeWidth={1.75} />
+              <Text style={styles.markPaidBtnText}>Record Payment</Text>
+              <Text style={styles.recordPaymentBtnMeta}>{formatCurrency(balanceDue)} due</Text>
+            </TouchableOpacity>
+          )}
+
           {existingInvoice && retentionPctValue > 0 && retentionPending > 0 && (
             <TouchableOpacity
               style={styles.releaseRetentionBtn}
@@ -1391,7 +1536,7 @@ function InvoiceInner() {
                   <View style={styles.paymentInfo}>
                     <Text style={styles.paymentDate}>{new Date(r.date).toLocaleDateString()}</Text>
                     <Text style={styles.paymentMethodText}>
-                      {r.method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      {(r.method ?? 'released').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                       {r.note ? ` · ${r.note}` : ''}
                     </Text>
                   </View>
@@ -1465,8 +1610,9 @@ function InvoiceInner() {
 
           {/* Stripe Payment Link: only meaningful for sent/partially-paid/overdue
               invoices with a positive balance. Drafts shouldn't be collectable
-              yet; paid invoices don't need a link. */}
-          {existingInvoice && existingInvoice.status !== 'draft' && existingInvoice.status !== 'paid' && balanceDue > 0 && (
+              yet; settled invoices don't need a link. Effective status, so a
+              stored 'paid' reopened by a retention release still gets one. */}
+          {existingInvoice && effectiveStatus !== 'draft' && effectiveStatus !== 'paid' && balanceDue > 0 && (
             <View style={styles.payLinkCard}>
               <View style={styles.payLinkHeader}>
                 <View style={styles.payLinkIconWrap}>
@@ -1475,40 +1621,54 @@ function InvoiceInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.payLinkTitle}>Stripe Payment Link</Text>
                   <Text style={styles.payLinkSub}>
-                    {existingInvoice.payLinkUrl
+                    {payLinkMatchesBalance
                       ? 'Clients can pay by card or ACH via the portal.'
-                      : `Let your client pay ${formatCurrency(balanceDue)} online in one tap.`}
+                      : existingInvoice.payLinkUrl
+                        ? existingInvoice.payLinkAmount == null
+                          ? `This link predates amount tracking — regenerate it for the current balance of ${formatCurrency(balanceDue)}.`
+                          : `This link is for ${formatCurrency(existingInvoice.payLinkAmount)} — regenerate for the current balance of ${formatCurrency(balanceDue)}.`
+                        : `Let your client pay ${formatCurrency(balanceDue)} online in one tap.`}
                   </Text>
                 </View>
               </View>
 
               {existingInvoice.payLinkUrl ? (
                 <>
-                  <View style={styles.payLinkUrlBox}>
-                    <Link2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-                    <Text style={styles.payLinkUrlText} numberOfLines={1} ellipsizeMode="middle">
-                      {existingInvoice.payLinkUrl}
-                    </Text>
-                  </View>
+                  {/* MONEY-F2: the URL, Copy and Share are shown only while the
+                      link's minted amount IS today's balance. A link for an old
+                      balance charges the old figure every time it is opened, so
+                      the only action it gets is Regenerate. */}
+                  {payLinkMatchesBalance && (
+                    <View style={styles.payLinkUrlBox}>
+                      <Link2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                      <Text style={styles.payLinkUrlText} numberOfLines={1} ellipsizeMode="middle">
+                        {existingInvoice.payLinkUrl}
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.payLinkActions}>
-                    <TouchableOpacity
-                      style={styles.payLinkActionBtn}
-                      onPress={handleCopyPayLink}
-                      activeOpacity={0.7}
-                      testID="copy-pay-link-btn"
-                    >
-                      <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.payLinkActionText}>Copy</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.payLinkActionBtn}
-                      onPress={handleSharePayLink}
-                      activeOpacity={0.7}
-                      testID="share-pay-link-btn"
-                    >
-                      <Share2 size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.payLinkActionText}>Share</Text>
-                    </TouchableOpacity>
+                    {payLinkMatchesBalance && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.payLinkActionBtn}
+                          onPress={handleCopyPayLink}
+                          activeOpacity={0.7}
+                          testID="copy-pay-link-btn"
+                        >
+                          <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
+                          <Text style={styles.payLinkActionText}>Copy</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.payLinkActionBtn}
+                          onPress={handleSharePayLink}
+                          activeOpacity={0.7}
+                          testID="share-pay-link-btn"
+                        >
+                          <Share2 size={14} color={themeColors.accent} strokeWidth={1.75} />
+                          <Text style={styles.payLinkActionText}>Share</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                     <TouchableOpacity
                       style={[styles.payLinkActionBtn, styles.payLinkRegenBtn]}
                       onPress={handleGeneratePayLink}
@@ -1519,7 +1679,7 @@ function InvoiceInner() {
                       {generatingPayLink ? (
                         <ActivityIndicator size="small" color={themeColors.textSecondary} />
                       ) : (
-                        <Text style={styles.payLinkRegenText}>Regenerate</Text>
+                        <Text style={styles.payLinkRegenText}>{payLinkMatchesBalance ? 'Regenerate' : `Regenerate for ${formatCurrency(balanceDue)}`}</Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -1527,7 +1687,7 @@ function InvoiceInner() {
                       balance exists — otherwise these are noise on the
                       "fully paid" view. See RevenueEarlyAccessCard for
                       the strategy doc context. */}
-                  {(existingInvoice.totalDue - (existingInvoice.amountPaid ?? 0)) > 0 && (
+                  {balanceDue > 0 && (
                     <>
                       <RevenueEarlyAccessCard
                         eventKey="revenue.factoring.altline"
@@ -1673,17 +1833,6 @@ function InvoiceInner() {
 
         {!isLocked && (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
-            {existingInvoice && existingInvoice.status !== 'draft' && existingInvoice.status !== 'paid' && (
-              <TouchableOpacity
-                style={styles.markPaidBtn}
-                onPress={() => { setPaymentAmount(balanceDue.toFixed(2)); setShowPaymentModal(true); }}
-                activeOpacity={0.7}
-                testID="mark-paid-btn"
-              >
-                <CreditCard size={16} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={styles.markPaidBtnText}>Record Payment</Text>
-              </TouchableOpacity>
-            )}
             {(!existingInvoice || existingInvoice.status === 'draft') && (
               <>
                 <Button
@@ -1787,21 +1936,11 @@ function InvoiceInner() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.modalFieldLabel}>Method</Text>
-              <View style={styles.methodGrid}>
-                {PAYMENT_METHOD_OPTIONS.map(opt => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[styles.methodChip, retentionReleaseMethod === opt.value && styles.methodChipActive]}
-                    onPress={() => setRetentionReleaseMethod(opt.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.methodChipText, retentionReleaseMethod === opt.value && styles.methodChipTextActive]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/* MONEY-F7: no payment-method chips — releasing retention makes
+                  it collectible; the payment is recorded separately when it lands. */}
+              <Text style={styles.retentionModalMeta}>
+                Releasing adds the amount to the balance due. Record the payment when the client sends it.
+              </Text>
 
               <Text style={styles.modalFieldLabel}>Note (optional)</Text>
               <TextInput
@@ -2040,7 +2179,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '10' },
   pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   recipientModalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
-  markPaidBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: themeColors.success + '30' },
+  // In-content Record Payment row (mirrors releaseRetentionBtn's placement).
+  recordPaymentBtn: { marginHorizontal: 16, marginBottom: 12, minHeight: 48, borderRadius: Tokens.radius.card, backgroundColor: themeColors.successSoft, alignItems: 'center', flexDirection: 'row', gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.success + '30' },
+  recordPaymentBtnMeta: { marginLeft: 'auto', fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.success },
   markPaidBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.success },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
   modalCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },

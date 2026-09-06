@@ -19,6 +19,7 @@ import type { ProjectDocument, DocumentStatus } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 // Themed per-status chip styling — a FUNCTION of the palette (not a module
 // static) so the chip fills flip with the theme instead of staying bright
@@ -148,7 +149,16 @@ export default function DocumentsScreen() {
     // Permits — `expiresDate` is the actual field (not `expirationDate`).
     // Status mapping reflects the PermitStatus union values.
     for (const p of permits) {
-      const expired = p.expiresDate && new Date(p.expiresDate).getTime() < Date.now();
+      // B4 review A2/A3: permits.applied_date / expires_date are `date`
+      // columns (supabase/schema.sql), i.e. CALENDAR DAYS, while every other
+      // createdAt/expiresAt on this screen is a toISOString() instant. They
+      // are normalised to local-midnight instants HERE so the shared
+      // renderers below can keep parsing instants: `new Date('2026-09-04')`
+      // is UTC midnight, which showed "Sep 3" in Denver and flipped a permit
+      // to expired the evening before its expiry day.
+      const appliedAt = p.appliedDate ? (parseCalendarDay(p.appliedDate) ?? new Date(p.appliedDate)) : null;
+      const expiresAt = p.expiresDate ? (parseCalendarDay(p.expiresDate) ?? new Date(p.expiresDate)) : null;
+      const expired = !!expiresAt && Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now();
       const status: DocumentStatus = expired ? 'expired'
         : p.status === 'approved' ? 'signed'
         : p.status === 'inspection_passed' ? 'signed'
@@ -162,8 +172,8 @@ export default function DocumentsScreen() {
         type: 'permit',
         title: `Permit · ${p.type ?? p.permitNumber ?? 'Building Permit'}`,
         status,
-        createdAt: p.appliedDate ?? new Date().toISOString(),
-        expiresAt: p.expiresDate,
+        createdAt: appliedAt && Number.isFinite(appliedAt.getTime()) ? appliedAt.toISOString() : new Date().toISOString(),
+        expiresAt: expiresAt && Number.isFinite(expiresAt.getTime()) ? expiresAt.toISOString() : undefined,
         notes: p.permitNumber ? `# ${p.permitNumber}` : undefined,
       });
     }

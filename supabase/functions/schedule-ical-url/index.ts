@@ -14,8 +14,11 @@
 // The returned `webcalUrl` uses the webcal:// scheme (for Apple Calendar
 // on iOS/macOS — tapping it opens the native Subscribe dialog).
 
-const SECRET =
-  Deno.env.get('SCHEDULE_ICAL_SECRET') ?? 'mage-id-ical-fallback-rotate-on-leak';
+import { verifyUser } from '../_shared/verifyUser.ts';
+
+// No literal fallback (audit OPS-F11 / AUTH-F13) — see schedule-ical. Unset →
+// 500 with a clear message from the handler.
+const SECRET = Deno.env.get('SCHEDULE_ICAL_SECRET') ?? '';
 
 async function signToken(scheduleId: string, userId: string): Promise<string> {
   const enc = new TextEncoder();
@@ -49,24 +52,18 @@ Deno.serve(async (req) => {
     return new Response('Method not allowed', { status: 405, headers: CORS });
   }
 
-  const auth = req.headers.get('authorization');
-  if (!auth) {
+  if (!SECRET) {
+    return new Response('SCHEDULE_ICAL_SECRET is not configured on the server — calendar feeds are disabled until it is set', { status: 500, headers: CORS });
+  }
+
+  // Cryptographically verify the caller (audit EDGE-F14). The previous bare
+  // claims decode trusted whatever `sub` the token carried and depended on the
+  // gateway's verify_jwt flag — which the deploy runbooks kept flipping.
+  const verified = await verifyUser(req);
+  if (!verified?.id) {
     return new Response('Unauthorized', { status: 401, headers: CORS });
   }
-
-  // Decode the JWT payload (no verification needed — Supabase gateway
-  // already verified the signature when verify_jwt: true).
-  let userId: string | undefined;
-  try {
-    const jwtPayload = JSON.parse(atob(auth.replace(/^Bearer\s+/i, '').split('.')[1]));
-    userId = jwtPayload.sub;
-  } catch {
-    return new Response('Bad token', { status: 401, headers: CORS });
-  }
-
-  if (!userId) {
-    return new Response('No user id in token', { status: 401, headers: CORS });
-  }
+  const userId = verified.id;
 
   let body: { scheduleId?: string };
   try {

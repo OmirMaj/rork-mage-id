@@ -51,6 +51,13 @@ export interface CashFlowSummary {
  * payments recorded since the balance was last set. Lets the GC set the balance
  * once ("my bank shows $42k today"), then record payments as checks come in
  * without manually re-typing the balance each time.
+ *
+ * MONEY-F7 (audit 2026-09-03): a RETENTION RELEASE is not cash received. Release
+ * means "now collectible" — it flows into netBalanceDue() and is forecast as
+ * income below; the cash arrives when the GC records the payment, which lands
+ * here through `payments`. Adding `retentionReleases[].amount` as well counted
+ * the same $10,000 as bank balance AND as receivable, then a third time when
+ * the check was recorded.
  */
 export function getEffectiveStartingBalance(
   storedBalance: number,
@@ -67,12 +74,6 @@ export function getEffectiveStartingBalance(
       const ts = new Date(p.date).getTime();
       if (!Number.isNaN(ts) && ts > cutoff) {
         additional += p.amount ?? 0;
-      }
-    }
-    for (const r of inv.retentionReleases ?? []) {
-      const ts = new Date(r.date).getTime();
-      if (!Number.isNaN(ts) && ts > cutoff) {
-        additional += r.amount ?? 0;
       }
     }
   }

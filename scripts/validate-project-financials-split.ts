@@ -77,7 +77,8 @@ if (!/from\(\s*'project_financials'\s*\)/.test(src)) {
 
 // Both migrations must exist and stay in the intended order.
 const split = 'supabase/migrations/20260826140000_project_financials_split.sql';
-const drop = 'supabase/migrations/20260827120000_project_financials_drop_legacy.sql';
+// Phase 2 is parked under held/ until the OTA is verified (see held/README.md).
+const drop = 'supabase/migrations/held/20260827120000_project_financials_drop_legacy.sql';
 for (const f of [split, drop]) {
   try { readFileSync(f, 'utf8'); } catch { fail(`missing migration ${f}`); }
 }

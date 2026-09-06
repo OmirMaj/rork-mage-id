@@ -10,9 +10,10 @@
 //   2. Decisions   — what's waiting on the GC to approve
 //   3. Field       — what crews + owners are doing day-to-day
 //   4. Money       — cash, draws, taxes, sales pipeline
-//   5. Compliance  — COI, permits, warranties
-//   6. Closeout    — substantial completion + handover
-//   7. Reporting   — daily report inbox, snapshots, data exports
+//   5. Find work   — pre-priced bids, suppliers (PRODUCT-F4: sidebar-only before)
+//   6. Compliance  — COI, permits, warranties
+//   7. Closeout    — substantial completion + handover + Home Passport
+//   8. Reporting   — daily report inbox, snapshots, data exports
 //
 // Route targets verified against the actual app/ directory — every
 // NavRow links to a route file that exists. Tones constrained to
@@ -31,8 +32,9 @@ import {
   Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
   PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
   Ruler, ScanLine, HardHat, ScanSearch, IdCard, ScanEye,
+  Truck, Building2, Hourglass, Store, Zap, BadgeCheck, CalendarClock, Code,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageEquipment } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -168,6 +170,17 @@ export default function DiscoverToolsScreen() {
         {/* Decisions — what's waiting on the GC to act on. */}
         {hasProjects && (
           <Section title="DECISIONS" styles={styles}>
+            {/* PRODUCT-F4 / UX-F16: the marketed chase list was sidebar-only —
+                unreachable on iPhone except through search. */}
+            <NavRow
+              Icon={Hourglass}
+              title="Waiting on others"
+              subtitle="Who owes you an answer — overdue RFIs, submittals, sub confirmations"
+              tone="warning"
+              onPress={() => router.push('/waiting-on' as never)}
+              testID="tools-waiting-on"
+            />
+            <Divider styles={styles} />
             <NavRow
               Icon={MessageSquare}
               title="Change orders"
@@ -202,6 +215,17 @@ export default function DiscoverToolsScreen() {
               tone="primary"
               onPress={() => router.push('/oac-meeting' as never)}
               testID="tools-oac-meeting"
+            />
+            <Divider styles={styles} />
+            {/* PRODUCT-F4: sidebar-only before — the owner-facing delay record
+                was unreachable on the phone that logs the delays. */}
+            <NavRow
+              Icon={CalendarClock}
+              title="Delay register"
+              subtitle="Weather, RFI and owner delays with the notice clock running"
+              tone="warning"
+              onPress={() => router.push('/delay-events' as never)}
+              testID="tools-delay-events"
             />
           </Section>
         )}
@@ -284,6 +308,35 @@ export default function DiscoverToolsScreen() {
               onPress={() => router.push('/safety' as never)}
               testID="tools-safety"
             />
+            <Divider styles={styles} />
+            {/* PRODUCT-F4 / UX-F16: the 09-02 Deliveries batch shipped with no
+                iOS entry point at all (sidebar ≥1024pt + search only). */}
+            <NavRow
+              Icon={Truck}
+              title="Deliveries"
+              subtitle="What's arriving, what's late — chase it before the crew waits"
+              tone="accent"
+              onPress={() => router.push('/deliveries' as never)}
+              testID="tools-deliveries"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={Building2}
+              title="Building access"
+              subtitle="Freight elevator, dock and badge bookings that gate a delivery"
+              tone="info"
+              onPress={() => router.push('/building-access' as never)}
+              testID="tools-building-access"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={MageEquipment}
+              title="Equipment"
+              subtitle="Rentals, utilization and what's on which site"
+              tone="primary"
+              onPress={() => router.push('/(tabs)/equipment' as never)}
+              testID="tools-equipment"
+            />
           </Section>
         )}
 
@@ -346,6 +399,16 @@ export default function DiscoverToolsScreen() {
                 tone="warning"
                 onPress={() => router.push('/estimate-calibration' as never)}
                 testID="tools-estimate-calibration"
+              />
+              <Divider styles={styles} />
+              {/* PRODUCT-F4: sidebar-only before. */}
+              <NavRow
+                Icon={BarChart3}
+                title="Estimate scorecard"
+                subtitle="Bid vs. actual on your closed jobs — where the money went"
+                tone="success"
+                onPress={() => router.push('/estimate-scorecard' as never)}
+                testID="tools-estimate-scorecard"
               />
               <Divider styles={styles} />
               <NavRow
@@ -414,6 +477,27 @@ export default function DiscoverToolsScreen() {
           />
         </Section>
 
+        {/* Find work — PRODUCT-F4: Suppliers and Pre-priced Bids were sidebar-only. */}
+        <Section title="FIND WORK" styles={styles}>
+          <NavRow
+            Icon={Zap}
+            title="Pre-priced bids"
+            subtitle="Bids MAGE has already priced from your cost book — review and send"
+            tone="accent"
+            onPress={() => router.push('/auto-bids' as never)}
+            testID="tools-auto-bids"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={Store}
+            title="Suppliers"
+            subtitle="Vendors, yards and price history"
+            tone="neutral"
+            onPress={() => router.push('/(tabs)/marketplace' as never)}
+            testID="tools-suppliers"
+          />
+        </Section>
+
         {/* Compliance — the regulatory side. */}
         {hasProjects && (
           <Section title="COMPLIANCE" styles={styles}>
@@ -465,6 +549,17 @@ export default function DiscoverToolsScreen() {
               tone="primary"
               onPress={() => router.push('/handover' as never)}
               testID="tools-handover"
+            />
+            <Divider styles={styles} />
+            {/* PRODUCT-F4: the homeowner's keepsake record — the best referral
+                surface in the product — had zero inbound navigation on iOS. */}
+            <NavRow
+              Icon={BadgeCheck}
+              title="Home Passport"
+              subtitle="The record the homeowner keeps — warranties, permits, model numbers"
+              tone="success"
+              onPress={() => router.push('/home-passport' as never)}
+              testID="tools-home-passport"
             />
           </Section>
         )}
@@ -518,6 +613,17 @@ export default function DiscoverToolsScreen() {
             tone="info"
             onPress={() => router.push('/contacts' as never)}
             testID="tools-contacts"
+          />
+          <Divider styles={styles} />
+          {/* PRODUCT-F4: the embed widget is how a contractor turns their own
+              website into a lead source; its setup was sidebar-only. */}
+          <NavRow
+            Icon={Code}
+            title="Website widget"
+            subtitle="Embed an instant-estimate form on your site — leads land in Pipeline"
+            tone="accent"
+            onPress={() => router.push('/widget-setup' as never)}
+            testID="tools-widget-setup"
           />
           <Divider styles={styles} />
           {/* Crew roster — Business-tier worker profiles / ID scan. Distinct

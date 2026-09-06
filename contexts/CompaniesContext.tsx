@@ -24,8 +24,18 @@ export const [CompaniesProvider, useCompanies] = createContextHook(() => {
           const { data, error } = await supabase
             .from('companies')
             .select('*')
-            .order('fetched_at', { ascending: false });
-          if (!error && data && data.length > 0) {
+            // CONTRACT-F3: `fetched_at` does not exist on companies (schema.sql:
+            // the table ends created_at, service_states, service_radius_miles,
+            // service_origin_lat/lng). PostgREST answered 42703/400, the guard
+            // below swallowed it, and every device served only its local cache.
+            .order('created_at', { ascending: false });
+          if (error) {
+            // Branch on the error ALONE: a legitimately empty account must
+            // return [] (and replace a stale cache), not fall through as if
+            // the read had been rejected. Log the code so a schema drift is
+            // visible instead of silent.
+            console.log('[CompaniesContext] companies read rejected:', error.code, error.message);
+          } else if (data) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, companyName: (r.company_name as string) ?? '',
               city: (r.city as string) ?? '', state: (r.state as string) ?? '',

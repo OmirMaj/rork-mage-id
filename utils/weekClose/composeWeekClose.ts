@@ -30,6 +30,7 @@ import type {
   Project, Invoice, ChangeOrder, DailyFieldReport,
 } from '@/types';
 import { localDateISO } from '@/utils/brief/composeBrief';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import type { PaymentPredictionResult } from '@/utils/paymentPrediction';
 import type { WeeklyCommitment } from '@/utils/lastPlanner';
 import { computePpc } from '@/utils/lastPlanner';
@@ -207,10 +208,12 @@ function buildChaseLeg(
       .map(p => p.id),
   );
 
-  // Overdue invoices: dueDate in the past, balance > 0, on active projects
+  // Overdue invoices: dueDate in the past, balance > 0, on active projects.
+  // MONEY-F5: balance is net of held retention — an invoice paid down to its
+  // retention is not "45d overdue" on the Friday close.
   const overdueInvoices = invoices.filter(inv => {
     if (!activeProjectIds.has(inv.projectId)) return false;
-    const balance = inv.totalDue - (inv.amountPaid ?? 0);
+    const balance = invoiceOutstanding(inv);
     if (balance <= 0) return false;
     const due = toLocalDay(inv.dueDate);
     if (!due) return false;
@@ -228,7 +231,7 @@ function buildChaseLeg(
   for (const inv of overdueInvoices) {
     const proj = projects.find(p => p.id === inv.projectId);
     const projName = proj?.name ?? 'Project';
-    const balance = inv.totalDue - (inv.amountPaid ?? 0);
+    const balance = invoiceOutstanding(inv);
 
     const daysOverdue = Math.round(
       (now.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000,

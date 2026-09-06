@@ -21,7 +21,7 @@ export default function ResetPasswordScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { updatePassword, onNewSessionEstablished } = useAuth();
+  const { updatePassword, beginSessionFromToken, onNewSessionEstablished } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -42,6 +42,10 @@ export default function ResetPasswordScreen() {
     // computer leaves the previous user's cached project data in localStorage
     // under the new session — the exact cross-tenant leak that sweep exists to
     // prevent, and localStorage is per-ORIGIN so it genuinely persists.
+    //
+    // No pre-session step is possible here: supabase-js consumed the fragment
+    // and switched the session at client creation, before this screen
+    // mounted. The post-session guard is the whole guard on this path.
     if (Platform.OS === 'web' && !accessToken) {
       void supabase.auth.getSession().then(async ({ data }) => {
         if (data.session) await onNewSessionEstablished();
@@ -51,19 +55,33 @@ export default function ResetPasswordScreen() {
 
     if (accessToken) {
       console.log('[ResetPassword] Setting session from deep link');
-      void supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken ?? '',
-      }).then(async ({ error }) => {
-        if (error) {
-          console.log('[ResetPassword] Failed to set session:', error.message);
-          showAlert('Error', 'Invalid or expired reset link. Please request a new one.');
-        } else {
-          await onNewSessionEstablished();
+      void (async () => {
+        try {
+          // SYNC-F13: identical order to the magic-link handler in
+          // app/_layout.tsx. The token's claims name the arriving account;
+          // when it is not the last user on this device, the previous
+          // tenant's pending writes are flushed under THEIR still-active
+          // session and their caches wiped BEFORE the session switches.
+          // Calling onNewSessionEstablished() alone ran that guard only
+          // after setSession, so the new user's first queries could merge
+          // the previous tenant's local rows under the new account.
+          const handoff = await beginSessionFromToken(accessToken);
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken ?? '',
+          });
+          if (error) {
+            console.log('[ResetPassword] Failed to set session:', error.message);
+            showAlert('Error', 'Invalid or expired reset link. Please request a new one.');
+          } else {
+            await onNewSessionEstablished(handoff);
+          }
+        } catch (e) {
+          console.warn('[ResetPassword] redeem error:', e);
         }
-      });
+      })();
     }
-  }, [params.access_token, params.refresh_token, onNewSessionEstablished]);
+  }, [params.access_token, params.refresh_token, beginSessionFromToken, onNewSessionEstablished]);
 
   const handleSubmit = useCallback(async () => {
     if (!newPassword.trim() || newPassword.length < 8) {

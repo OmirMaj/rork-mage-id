@@ -50,6 +50,8 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // receipts, the morning brief, the homeowner weekly digest, and COI
 // warnings.
 import { wrapEmailHtml, resendSend, emailButton, fmtMoney, isEmailUnsubscribed } from '../_shared/email.ts';
+// EDGE-F6: the ONE place a customer-facing portal URL is built (minted id + ?t= token).
+import { portalUrlFor } from '../_shared/portalLinks.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
 
@@ -109,6 +111,8 @@ interface ProjectRow {
   name: string;
   client_portal?: {
     enabled?: boolean;
+    portalId?: string | null;
+    accessToken?: string | null;
     invites?: Array<{ email?: string; name?: string }>;
   } | null;
 }
@@ -192,7 +196,8 @@ function buildDunningHtml(opts: {
   dueDate: string;
   daysOverdue: number;
   stage: number;
-  portalUrl: string;
+  /** Tokenized portal URL from portalUrlFor(), or null → no button (never a dead link). */
+  portalUrl: string | null;
   recipientEmail: string;
 }): string {
   const dueDateLabel = (() => {
@@ -252,9 +257,9 @@ function buildDunningHtml(opts: {
         </table>
       </td></tr>
     </table>
-    ${emailButton('View invoice', opts.portalUrl)}
+    ${opts.portalUrl ? emailButton('View invoice', opts.portalUrl) : ''}
     <p style="margin:18px 0 0;font-family:${FONT_STACK};font-size:13px;color:${FOG};line-height:19px;">
-      Questions about this invoice? Reply to this email or visit your project portal.
+      Questions about this invoice? Reply to this email${opts.portalUrl ? ' or visit your project portal' : ''}.
     </p>
   `;
 
@@ -396,8 +401,13 @@ async function processInvoice(
     }
   }
 
-  // ── Build portal URL exactly as homeowner-weekly-digest does ──
-  const portalUrl = `https://mageid.app/portal/${project.id}`;
+  // ── Portal URL (EDGE-F6) ──
+  // The portal page identifies a portal by the MINTED id in
+  // client_portal.portalId and refuses every RPC without the ?t= access token.
+  // The old `/portal/${project.id}` link always landed on the fallback page, so
+  // the "View invoice" button on a final notice was dead. null = portal disabled
+  // or never set up → the button is omitted rather than pointed at a dead URL.
+  const portalUrl = portalUrlFor(project.client_portal);
 
   // ── Compose email ──
   const subject =

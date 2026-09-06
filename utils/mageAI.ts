@@ -23,8 +23,9 @@ interface MageAIParams {
   timeoutMs?: number;
   /** Product feature id (same vocabulary as FEATURE_CONFIG / AIFeature, e.g.
    *  'bidLeveling'). Sent to the relay so it can enforce a per-feature MINIMUM
-   *  subscription tier server-side. Omit for free/all-tier features — the relay
-   *  only gates an explicit allowlist, so an absent feature behaves as today. */
+   *  subscription tier server-side. Defaults to 'general' (registered on the
+   *  relay, no Pro floor) so EVERY call is tagged — the relay 400s a non-empty
+   *  id it does not know (audit EDGE-F7). */
   feature?: string;
 }
 
@@ -72,7 +73,7 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
   // + Schedule Builder); 30s was cutting too close and aborted before
   // Gemini finished. Pre-fix the user got "AI estimate unavailable" because
   // the abort fired during what would otherwise have been a successful call.
-  const { prompt, schema, schemaHint, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2, timeoutMs = 60000, feature } = params;
+  const { prompt, schema, schemaHint, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2, timeoutMs = 60000, feature = 'general' } = params;
   if (cacheKey) { const c = await getCache(cacheKey); if (c) return c; }
 
   // AbortController-based timeout. Without this, a hung edge function (or a
@@ -85,9 +86,10 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
     // produces Zod internal structure, not a usable JSON example for the model.
     // Use schemaHint (a plain JS object) for the model, and schema (Zod) for client-side validation.
     const payload: Record<string, unknown> = { prompt, tier, maxTokens };
-    // Feature id → lets the relay enforce a per-feature minimum tier. Only sent
-    // when a call site opts in; unlisted/absent features get the baseline gate.
-    if (feature) payload.feature = feature;
+    // Feature id → lets the relay enforce a per-feature minimum tier. ALWAYS
+    // sent ('general' when a call site does not tag itself) so the relay never
+    // sees an untagged request from this build (audit EDGE-F7).
+    payload.feature = feature;
     if (schemaHint) {
       payload.schemaHint = schemaHint;
       payload.jsonMode = true;
@@ -279,12 +281,12 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
   }
 }
 
-export async function mageAIFast(prompt: string, schema?: any, cacheKey?: string) {
-  return mageAI({ prompt, schema, tier: "fast", cacheKey });
+export async function mageAIFast(prompt: string, schema?: any, cacheKey?: string, feature: string = 'general') {
+  return mageAI({ prompt, schema, tier: "fast", cacheKey, feature });
 }
 
-export async function mageAISmart(prompt: string, schema?: any, cacheKey?: string) {
-  return mageAI({ prompt, schema, tier: "smart", maxTokens: 2000, cacheKey });
+export async function mageAISmart(prompt: string, schema?: any, cacheKey?: string, feature: string = 'general') {
+  return mageAI({ prompt, schema, tier: "smart", maxTokens: 2000, cacheKey, feature });
 }
 
 /**

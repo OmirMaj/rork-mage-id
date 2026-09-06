@@ -20,6 +20,7 @@
 // Response:      { url: string, id: string } | { error: string }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { verifyUser } from "../_shared/verifyUser.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_BASE = "https://api.stripe.com/v1";
@@ -39,31 +40,17 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-// Decode `sub` (user id) + email from the caller's Supabase JWT. The app
-// invokes this with the user's access token, so the sub is the paying user.
-// We don't cryptographically verify here: the sub only decides who receives
-// the credit they themselves paid for, so forging it is self-defeating.
-function decodeCaller(auth: string | null): { sub: string; email?: string } | null {
-  if (!auth) return null;
-  const token = auth.replace(/^Bearer\s+/i, "");
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    if (!payload?.sub) return null;
-    return { sub: String(payload.sub), email: payload.email ? String(payload.email) : undefined };
-  } catch {
-    return null;
-  }
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
   if (!STRIPE_SECRET_KEY) return jsonResponse({ error: "Payments are not configured." }, 500);
 
-  const caller = decodeCaller(req.headers.get("Authorization"));
-  if (!caller) return jsonResponse({ error: "Unauthorized" }, 401);
+  // Audit EDGE-F14: GoTrue-verified identity, not a claims decode. The sub is
+  // what stripe-webhook trusts in metadata.user_id when it grants the post
+  // credit, so it must not be forgeable under any verify_jwt setting.
+  const verified = await verifyUser(req);
+  if (!verified?.id) return jsonResponse({ error: "Unauthorized" }, 401);
+  const caller = { sub: verified.id, email: verified.email };
 
   let body: { returnUrl?: string } = {};
   try {

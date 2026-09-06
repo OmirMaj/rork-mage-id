@@ -46,6 +46,7 @@ import {
   type CpmResult, type CpmTaskResult,
 } from '@/utils/cpm';
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
+import { scheduleDayNumberFor } from '@/utils/scheduleOps';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { parsePastedRows } from '@/utils/pasteRows';
@@ -201,9 +202,12 @@ export interface GridPaneProps {
   /** 5 = workdays only, 7 = calendar days. */
   workingDaysPerWeek: number;
   /**
-   * Phase 27 carryover — passed through from GanttTab/ListTab so the grid can
-   * shade non-working dates if/when the calendar-grid mode adds visual support.
-   * Currently accepted but unused on this branch.
+   * Jobsite closures (bare 'YYYY-MM-DD'). These are NOT decoration: the CPM
+   * engine, the mobile layouts, the CSV, the share sheet and the header's
+   * finish date all skip them, so a grid that ignores them puts every task
+   * after a closure one working day early (B4 review: 5-day week, closure
+   * 2026-09-08, anchor Mon 09-07, startDay 6 → grid said Mon 09-14 while
+   * everything else said Tue 09-15).
    */
   nonWorkingDates?: string[];
   /**
@@ -261,7 +265,7 @@ export interface GridPaneProps {
 // ---------------------------------------------------------------------------
 
 export default function GridPane({
-  tasks, projectStartDate, workingDaysPerWeek,
+  tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates,
   onEdit, onAddTask, onAddTasks, onDeleteTask, onOutline, onReorder, focusedTaskId,
   selectedIds, onSelectionChange,
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
@@ -544,31 +548,22 @@ export default function GridPane({
 
   const renderDate = useCallback((dayNumber: number): string => {
     if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
-    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek);
+    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek, nonWorkingDates);
     return formatShortDate(d);
-  }, [projectStartDate, workingDaysPerWeek]);
+  }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
 
   const renderIso = useCallback((dayNumber: number): string => {
-    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek);
+    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek, nonWorkingDates);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, [projectStartDate, workingDaysPerWeek]);
+  }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
 
-  const dateToDayNumber = useCallback((target: Date): number => {
-    const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
-    const tgt = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-    if (tgt <= base) return 1;
-    if (workingDaysPerWeek >= 7) {
-      return Math.floor((tgt.getTime() - base.getTime()) / 86400000) + 1;
-    }
-    let count = 1;
-    const cur = new Date(base);
-    while (cur < tgt) {
-      cur.setDate(cur.getDate() + 1);
-      const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) count++;
-    }
-    return count;
-  }, [projectStartDate, workingDaysPerWeek]);
+  // The exact inverse of renderDate/renderIso. It used to walk days itself and
+  // skip only Sat/Sun, which disagreed with `addWorkingDays` the moment a
+  // closure existed (and floored raw ms on a 7-day week, losing a day across a
+  // fall-back DST boundary). `scheduleDayNumberFor` is the shared implementation.
+  const dateToDayNumber = useCallback((target: Date): number => (
+    scheduleDayNumberFor(projectStartDate, target, workingDaysPerWeek, nonWorkingDates)
+  ), [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
 
   // -------------------------------------------------------------------------
   // Begin / commit / cancel edit helpers

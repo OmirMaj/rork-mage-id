@@ -45,7 +45,10 @@ export async function verifyUserToken(token: string): Promise<VerifiedUser | nul
   // The service-role key is itself a JWT with role 'service_role'; it is NOT a
   // user token and /auth/v1/user would reject it. Short-circuit so callers that
   // (legitimately) hold the service key don't get mistaken for "no user".
-  if (SERVICE_ROLE_KEY && token === SERVICE_ROLE_KEY) return null;
+  // Constant-time compare (audit 2026-09-03, EDGE-F14 appendix): `===` bails on
+  // the first differing byte and leaks the key prefix through timing.
+  // constantTimeEqual is declared below — function declarations hoist.
+  if (SERVICE_ROLE_KEY && constantTimeEqual(token, SERVICE_ROLE_KEY)) return null;
   try {
     const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: {
@@ -54,8 +57,12 @@ export async function verifyUserToken(token: string): Promise<VerifiedUser | nul
       },
     });
     if (!r.ok) return null;
-    const u = await r.json() as { id?: string; email?: string; role?: string };
+    const u = await r.json() as { id?: string; email?: string; role?: string; is_anonymous?: boolean };
     if (!u || !u.id) return null;
+    // A1 (review 2026-09-04): anonymous GoTrue sessions are not users of this
+    // app — production carries 18 stale anonymous sign-ins from spring 2026
+    // that would otherwise pass every verifyUser / requireTier gate.
+    if (u.is_anonymous === true) return null;
     return { id: u.id, email: u.email, role: u.role };
   } catch {
     return null;

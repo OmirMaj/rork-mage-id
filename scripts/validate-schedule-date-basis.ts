@@ -38,7 +38,7 @@
 
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { exportTasksToCsv } from '../utils/scheduleOps';
+import { exportTasksToCsv, scheduleDayNumberFor, startDayNumberFor, taskCalendarRange } from '../utils/scheduleOps';
 import { addWorkingDays, getTaskDateRange, buildScheduleFromTasks } from '../utils/scheduleEngine';
 import { parseCalendarDay } from '../utils/calendarDate';
 import type { ScheduleTask } from '../types';
@@ -242,14 +242,14 @@ console.log('\nthe schedule surfaces route their anchor through calendarDate:');
 {
   const gantt = stripComments(read('components/schedule/mobile/MobileGantt.tsx'));
   ok('MobileGantt imports parseCalendarDay',
-    /import \{ parseCalendarDay \} from '@\/utils\/calendarDate'/.test(gantt));
+    /import \{ parseCalendarDay(?:, [^}]+)? \} from '@\/utils\/calendarDate'/.test(gantt));
   ok('MobileGantt baseMs uses parseCalendarDay',
     /startOfDayMs\(parseCalendarDay\(startDate\) \?\? new Date\(\)\)/.test(gantt));
   ok('MobileGantt no longer bare-parses the anchor',
     !/new Date\(startDate\)/.test(gantt),
     (gantt.match(/.*new Date\(startDate\).*/g) ?? []).join('\n       '));
   ok('MobileGantt emits the long-press ISO from local components, not toISOString',
-    /toIsoDay\(new Date\(baseMs \+ day \* MS_DAY\)\)/.test(gantt) && !/toISOString\(\)/.test(gantt));
+    /toIsoDay\(dayAt\(day\)\)/.test(gantt) && !/toISOString\(\)/.test(gantt));
 
   const sheet = stripComments(read('components/schedule/mobile/TaskDetailSheet.tsx'));
   ok('TaskDetailSheet imports parseCalendarDay',
@@ -286,6 +286,136 @@ console.log('\nthe schedule surfaces route their anchor through calendarDate:');
     !/d\.setDate\(d\.getDate\(\) \+ dayNum - 1\)/.test(ops));
   ok('exportTasksToCsv formats from local Y/M/D, not toISOString',
     !/toISOString\(\)/.test(ops.slice(ops.indexOf('export function exportTasksToCsv'), ops.indexOf('function csvEscape'))));
+}
+
+// ── 7. The MOBILE surfaces use the working-day basis too (B4 review A9) ──
+// startDay is a working-day number everywhere else, but the phone list, gantt,
+// month sheet, detail sheet and progress tab laid tasks out at
+// `baseMs + (startDay - 1) * MS_DAY` — calendar days — and AddTask wrote the
+// calendar-day inverse. A startDay-6 task on a Monday anchor was drawn on the
+// Saturday; a task picked for the second Monday got startDay 8. The pure math
+// they now share is fixed here; the adoption is pinned textually below.
+
+console.log('\nthe mobile schedule resolves startDay as WORKING days:');
+{
+  const MS_DAY = 86_400_000;
+  const MON_SEP_7 = new Date(2026, 8, 7);
+  ok('the fixture anchor (2026-09-07) really is a Monday', MON_SEP_7.getDay() === 1, String(MON_SEP_7));
+
+  eq('startDay 6 on a Mon 2026-09-07 anchor renders on Mon 2026-09-14',
+    isoLocal(taskCalendarRange(T('a', 6, 1), MON_SEP_7, 5).start), '2026-09-14');
+  eq('… and the calendar-day layout it replaced drew it on Sat 2026-09-12',
+    isoLocal(new Date(MON_SEP_7.getFullYear(), MON_SEP_7.getMonth(), MON_SEP_7.getDate() + 5)), '2026-09-12');
+  eq('a 3-day task starting Thu (day 4) ends the next Mon, spanning the weekend',
+    isoLocal(taskCalendarRange(T('b', 4, 3), MON_SEP_7, 5).end), '2026-09-14');
+  eq('a milestone ends on its start day',
+    isoLocal(taskCalendarRange(T('m', 6, 0, { isMilestone: true }), MON_SEP_7, 5).end), '2026-09-14');
+  eq('a site closure on Mon 14 pushes day 6 to Tue 15',
+    isoLocal(taskCalendarRange(T('c', 6, 1), MON_SEP_7, 5, ['2026-09-14']).start), '2026-09-15');
+  eq('on a 7-day week day 6 is Sat 12',
+    isoLocal(taskCalendarRange(T('d', 6, 1), MON_SEP_7, 7).start), '2026-09-12');
+  ok('taskCalendarRange agrees with getTaskDateRange wherever the latter applies',
+    [1, 2, 5, 6, 11, 23].every(n => isoLocal(taskCalendarRange(T('x', n, 4), MON_SEP_7, 5).end) === isoLocal(getTaskDateRange(T('x', n, 4), MON_SEP_7, 5).end)));
+
+  // AddTask's inverse: the day the user picked → the working-day number.
+  eq('picking Mon Sep 14 gives startDay 6', startDayNumberFor(MON_SEP_7, new Date(2026, 8, 14), 5), 6);
+  eq('picking Fri Sep 11 gives startDay 5', startDayNumberFor(MON_SEP_7, new Date(2026, 8, 11), 5), 5);
+  eq('picking Sat Sep 12 (closed) starts the next working day, Mon 14 = 6', startDayNumberFor(MON_SEP_7, new Date(2026, 8, 12), 5), 6);
+  eq('picking Sun Sep 13 (closed) also gives 6', startDayNumberFor(MON_SEP_7, new Date(2026, 8, 13), 5), 6);
+  eq('picking the anchor gives 1', startDayNumberFor(MON_SEP_7, MON_SEP_7, 5), 1);
+  eq('picking before the anchor clamps to 1', startDayNumberFor(MON_SEP_7, new Date(2026, 8, 5), 5), 1);
+  eq('on a 7-day week Sat Sep 12 is day 6', startDayNumberFor(MON_SEP_7, new Date(2026, 8, 12), 7), 6);
+  eq('with Mon 14 closed, picking it lands on Tue 15 = day 6', startDayNumberFor(MON_SEP_7, new Date(2026, 8, 14), 5, ['2026-09-14']), 6);
+  eq('the calendar-day inverse it replaced said 8 for Mon Sep 14',
+    1 + Math.round((new Date(2026, 8, 14).getTime() - MON_SEP_7.getTime()) / MS_DAY), 8);
+  ok('startDayNumberFor round-trips taskCalendarRange for days 1..40 (5-day week + a closure)',
+    Array.from({ length: 40 }, (_, i) => i + 1).every(n =>
+      startDayNumberFor(MON_SEP_7, taskCalendarRange(T('r', n, 1), MON_SEP_7, 5, ['2026-09-14']).start, 5, ['2026-09-14']) === n));
+  // scheduleDayNumberFor (today-on-site) keeps its on/before semantics: a
+  // Saturday is still "day 5's week", not day 6.
+  eq('scheduleDayNumberFor treats Sat Sep 12 as day 5', scheduleDayNumberFor(MON_SEP_7, new Date(2026, 8, 12), 5), 5);
+}
+
+// The adoption. Every file under components/schedule/mobile/ that turns a
+// startDay into a calendar day must do it through addWorkingDays /
+// taskCalendarRange, and NOTHING under that directory may build a Date from
+// day-multiplied milliseconds any more (B4 review item 2: `getTime() + d *
+// MS_DAY` lands at 23:00 the day before across the 2026-11-01 fall-back).
+console.log('\nthe mobile surfaces adopted it:');
+{
+  const dir = join(ROOT, 'components', 'schedule', 'mobile');
+  const files = readdirSync(dir).filter(f => /\.tsx?$/.test(f)).map(f => join(dir, f));
+  ok('the mobile schedule directory was found', files.length >= 8, `only ${files.length} files`);
+  const msDay: string[] = [];
+  for (const f of files) {
+    const code = stripComments(readFileSync(f, 'utf8'));
+    code.split('\n').forEach((line, i) => {
+      if (/\*\s*(?:MS_DAY|86400000|86_400_000)\b|\b(?:MS_DAY|86400000|86_400_000)\s*\*/.test(line)) msDay.push(`${f.slice(ROOT.length + 1)}:${i + 1}: ${line.trim()}`);
+    });
+  }
+  ok('no mobile schedule surface multiplies days into milliseconds (DST-unsafe day walk)',
+    msDay.length === 0, msDay.join('\n       '));
+
+  const uses = (file: string, re: RegExp) => re.test(stripComments(read(`components/schedule/mobile/${file}`)));
+  for (const [file, re] of [
+    ['MobileScheduleList.tsx', /taskCalendarRange\(t, base, workingDaysPerWeek, nonWorkingDates\)/],
+    ['TaskDetailSheet.tsx', /taskCalendarRange\(task, base, workingDaysPerWeek, nonWorkingDates\)/],
+    ['ProgressTab.tsx', /taskCalendarRange\(m, base, workingDaysPerWeek, nonWorkingDates\)/],
+    ['MonthCalendarSheet.tsx', /addWorkingDays\(base, \(t\.startDay \?\? 1\) - 1, wdpw, nonWorkingDates\)/],
+    ['MobileGantt.tsx', /const x = dayToX\(offsetOfWorkingDay\(n\)\);/],
+    ['MobileGantt.tsx', /return startDayNumberFor\(base, dayAt\(colToDay\(targetCol\)\), wdpw, nonWorkingDates\);/],
+    ['MobileGantt.tsx', /const dow = dayAt\(d\)\.getDay\(\);/],
+    ['MonthCalendarSheet.tsx', /addCalendarDays\(first, i - startOffset\)/],
+    ['LivingFloorPlan.tsx', /scheduleDayNumberFor\(base, new Date\(\), workingDaysPerWeek, nonWorkingDates\) - 1/],
+    ['MobileScheduleScreen.tsx', /startDay = startDayNumberFor\(base, target, activeSchedule\?\.workingDaysPerWeek, activeSchedule\?\.nonWorkingDates\)/],
+  ] as const) {
+    ok(`${file} resolves ${String(re).slice(1, 60)}…`, uses(file, re));
+  }
+  const screen = stripComments(read('components/schedule/mobile/MobileScheduleScreen.tsx'));
+  for (const c of ['MobileScheduleList', 'MobileGantt', 'TaskDetailSheet', 'MonthCalendarSheet', 'ProgressTab', 'LivingFloorPlan']) {
+    ok(`MobileScheduleScreen hands <${c}> the schedule calendar (workingDaysPerWeek + nonWorkingDates)`,
+      new RegExp(`<${c}[\\s\\S]{0,400}?workingDaysPerWeek=\\{[^}]+\\}[\\s\\S]{0,120}?nonWorkingDates=\\{[^}]+\\}`).test(screen));
+  }
+}
+
+// ── 8. One "which day is today" basis (B4 review item 3) ───────────────────
+// Home and Summary each carried a private todayScheduleDayNumber that ignored
+// nonWorkingDates and floored raw milliseconds on 7-day weeks (a day behind
+// all summer in Denver). They must call scheduleDayNumberFor — the inverse of
+// getTaskDateRange that app/daily-report.tsx already used — with the
+// schedule's closures, and no private copy may exist anywhere.
+console.log('\nHome, Summary and the daily report share scheduleDayNumberFor:');
+{
+  const walk = (d: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const p = join(d, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.tsx?$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+  const copies: string[] = [];
+  for (const root of ['app', 'components', 'utils', 'hooks', 'contexts']) {
+    for (const f of walk(join(ROOT, root))) {
+      if (/\b(?:function|const|let)\s+todayScheduleDayNumber\b/.test(stripComments(readFileSync(f, 'utf8')))) copies.push(f.slice(ROOT.length + 1));
+    }
+  }
+  ok('no private todayScheduleDayNumber definition survives', copies.length === 0, copies.join('\n       '));
+  for (const [file, re] of [
+    ['app/(tabs)/(home)/index.tsx', /scheduleDayNumberFor\(base, now, sched\.workingDaysPerWeek, sched\.nonWorkingDates\)/],
+    ['app/(tabs)/summary/index.tsx', /scheduleDayNumberFor\(base, now, p\.schedule\?\.workingDaysPerWeek, p\.schedule\?\.nonWorkingDates\)/],
+    ['app/daily-report.tsx', /scheduleDayNumberFor\(base, reportDay, project\.schedule\.workingDaysPerWeek, project\.schedule\.nonWorkingDates\)/],
+    ['app/daily-report.tsx', /scheduleDayNumberFor\(startDay, reportDay, sched\.workingDaysPerWeek, sched\.nonWorkingDates\)/],
+  ] as const) {
+    ok(`${file} calls scheduleDayNumberFor with the schedule's closures`, re.test(stripComments(read(file))));
+  }
+  // 7-day weeks no longer floor milliseconds: across the spring-forward the
+  // 23-hour day still counts as one.
+  eq('7-day week across the 2026-03-08 spring-forward: Mar 9 is day 3 from Mar 7',
+    scheduleDayNumberFor(new Date(2026, 2, 7), new Date(2026, 2, 9), 7), 3);
+  eq('a closure is skipped on Home/Summary too: Wed 4 closed → Thu Mar 5 is day 3',
+    scheduleDayNumberFor(new Date(2026, 2, 2), new Date(2026, 2, 5), 5, ['2026-03-04']), 3);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

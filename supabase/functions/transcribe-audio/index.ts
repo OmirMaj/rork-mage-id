@@ -21,6 +21,8 @@
 // Response: the upstream JSON relayed verbatim — `{ text, ... }`.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { verifyUser } from '../_shared/verifyUser.ts';
+import { rateLimitCount } from '../_shared/auth.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -35,7 +37,13 @@ const STT_ENDPOINT = 'https://toolkit.rork.com/stt/transcribe/';
 
 // Upstream tops out around 40 MB; reject bigger uploads before we buffer
 // them, matching the guidance the OAC screen already shows the user.
+// Size cap in context: VoiceCaptureModal records 16 kHz / 16-bit mono WAV
+// (32 KB/s), so 40 MB ≈ 21 minutes of audio; the OAC upload path is the
+// only surface that gets near it. With the hourly quota below, one account
+// can relay at most 60 × 40 MB = 2.4 GB/h to the vendor in the worst case.
 const MAX_BYTES = 40 * 1024 * 1024;
+// Audit EDGE-F14 / AI-F14: per-user hourly quota (transcriptions per hour).
+const UPLOADS_PER_HOUR = 60;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -50,6 +58,20 @@ serve(async (req) => {
   }
   if (req.method !== 'POST') {
     return json({ error: 'Method not allowed. POST audio as multipart/form-data.' }, 405);
+  }
+
+  // Audit EDGE-F14: this proxy had NO in-code identity check — it relied on
+  // the gateway's verify_jwt flag alone. Verify the caller with GoTrue, then
+  // apply a per-user hourly quota so one account cannot relay unlimited 40 MB
+  // uploads to the paid STT vendor. The limiter fails OPEN (-1 = RPC
+  // unavailable): the JWT gate still holds and one upload is bounded by
+  // MAX_BYTES.
+  const user = await verifyUser(req);
+  if (!user?.id) return json({ error: 'Sign in is required to transcribe audio.' }, 401);
+  const uploads = await rateLimitCount(`stt:user:${user.id}`);
+  // Post-increment count: `uploads - 1 >= LIMIT` denies exactly the (LIMIT+1)th.
+  if (uploads - 1 >= UPLOADS_PER_HOUR) {
+    return json({ error: `Transcription limit reached (${UPLOADS_PER_HOUR} uploads per hour). Try again in an hour.` }, 429);
   }
 
   const contentType = req.headers.get('content-type') || '';
@@ -89,7 +111,9 @@ serve(async (req) => {
 
   const text = await upstream.text().catch(() => '');
   if (!upstream.ok) {
-    return json({ error: `Transcription upstream returned ${upstream.status}.`, detail: text.slice(0, 200) }, 502);
+    // Vendor error text stays server-side (audit AI-F16 class).
+    console.error(`[transcribe-audio] upstream ${upstream.status}: ${text.slice(0, 200)}`);
+    return json({ error: `Transcription upstream returned ${upstream.status}.` }, 502);
   }
 
   // Upstream returns JSON (`{ text }` / `{ transcript }`). Relay it as-is so

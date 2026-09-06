@@ -28,6 +28,7 @@ import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import type { SubScheduleUpdate, ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface SubUpdatesPanelProps {
   projectId: string;
@@ -73,7 +74,8 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
   );
 
   // Stats for the header tile.
-  const todayISO = new Date().toISOString().split('T')[0];
+  // UX-F11: local day, so the "today" filter no longer flips at 5 pm PDT.
+  const todayISO = todayCalendarDay();
   const todayUpdates = updates.filter(u => u.forDate === todayISO);
   const blockerCount = updates.filter(u => u.blocker && u.blocker.trim().length > 0).length;
   const uniqueSubsToday = new Set(todayUpdates.map(u => u.subName.toLowerCase())).size;

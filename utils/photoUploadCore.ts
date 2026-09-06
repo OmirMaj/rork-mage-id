@@ -42,6 +42,33 @@ export const PHOTO_QUEUE_KEY = 'mageid_photo_upload_queue';
 export const PHOTO_MAX_RETRIES = 5;
 
 /**
+ * Separate, wider budget for a Storage RLS refusal (HTTP 403 / SQLSTATE 42501 /
+ * "new row violates row-level security policy").
+ *
+ * Since 20260904100400_storage_membership_policies.sql the
+ * `project_photos_upload` policy checks `can_access_project(folder[2],
+ * 'editor')` — it needs the PROJECT ROW, not just the JWT. A photo taken on a
+ * project created offline can therefore reach Storage BEFORE that project's
+ * upsert has flushed through utils/offlineQueue.ts, and the refusal lasts
+ * exactly as long as the upsert stays queued: the next drain runs the offline
+ * queue first and the photos after it (OfflineSyncManager in app/_layout.tsx,
+ * AuthContext.flushQueuesBeforeSignOut), the row lands, and the very same
+ * upload succeeds. Classifying the refusal terminal — which this module did —
+ * deleted the bytes on the spot.
+ *
+ * So it is retried, but BOUNDED and on its own counter: the identical message
+ * also means "the project upsert was dropped" or "this user no longer has
+ * editor access", and neither ever resolves. Exhaustion drops the photo and
+ * tells the user, exactly like any terminal failure.
+ *
+ * Why not reuse PHOTO_MAX_RETRIES: that budget answers "is the server
+ * broken?", this one answers "has the parent landed yet?". A photo that waited
+ * through five drains for its project and then met one 500 should not be one
+ * strike from being dropped.
+ */
+export const PHOTO_RLS_MAX_RETRIES = 6;
+
+/**
  * FIFO cap. Smaller than offlineQueue's 1000 because every queued photo task
  * also PINS A FILE ON DISK (we keep our own copy so an OS cache purge can't
  * destroy an un-uploaded photo). 500 entries at a few MB each is already a
@@ -66,6 +93,12 @@ export interface PhotoUploadTask {
   contentType: string;
   queuedAt: number;
   retryCount: number;
+  /**
+   * Storage RLS refusals so far — "the project row has not synced yet".
+   * Bounded by PHOTO_RLS_MAX_RETRIES, independent of retryCount. Optional so
+   * tasks persisted before the field existed still parse; absent means 0.
+   */
+  rlsRetryCount?: number;
 }
 
 /**
@@ -79,8 +112,14 @@ export interface PhotoUploadTask {
  *                        treating it as an error would retry forever.
  * - `transient`        — offline / connectivity. Re-queue UNCHANGED, do NOT
  *                        burn the retry budget.
- * - `terminal`         — auth/RLS denial, or the local file is gone. Retrying
+ * - `terminal`         — auth denial, or the local file is gone. Retrying
  *                        cannot fix it; drop and tell the user.
+ * - `rls-pending`      — Storage refused the object under row-level security
+ *                        (403 / 42501 / "row-level security"). Since the
+ *                        membership policies that almost always means "the
+ *                        project row has not synced yet": re-queue and try
+ *                        again after the next offline-queue flush, bounded by
+ *                        PHOTO_RLS_MAX_RETRIES on the task's own rlsRetryCount.
  * - `retryable`        — anything else (5xx, unknown). Bounded by PHOTO_MAX_RETRIES.
  */
 export type PhotoUploadOutcome =
@@ -88,6 +127,7 @@ export type PhotoUploadOutcome =
   | 'already-uploaded'
   | 'transient'
   | 'terminal'
+  | 'rls-pending'
   | 'retryable';
 
 // ─── URI classification ─────────────────────────────────────────────────────
@@ -232,9 +272,37 @@ function isAlreadyUploaded(msg: string): boolean {
   );
 }
 
+/** HTTP status carried by a supabase-js StorageApiError-shaped object, if any. */
+function statusOf(err: unknown): number | null {
+  if (!err || typeof err !== 'object') return null;
+  const o = err as { status?: unknown; statusCode?: unknown };
+  for (const raw of [o.status, o.statusCode]) {
+    const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+/**
+ * Storage refused the INSERT under row-level security. Since migration
+ * 20260904100400 `project_photos_upload` requires the `projects` row to exist
+ * and be the caller's (can_access_project), so this is what a photo gets when
+ * it reaches Storage before its project's upsert has flushed — see
+ * PHOTO_RLS_MAX_RETRIES. The message is the only signal that survives
+ * utils/storage.uploadProjectPhoto (it re-throws `error.message`); the status
+ * check covers a caller that hands over the raw StorageApiError. Mirrors
+ * offlineQueue.isRlsRejection. A 401 is NOT this: that is the session, not the
+ * parent row, and stays terminal.
+ */
+function isRlsRejection(err: unknown, msg: string): boolean {
+  const m = msg.toLowerCase();
+  return m.includes('row-level security') || m.includes('42501') || statusOf(err) === 403;
+}
+
 /**
  * Unrecoverable. Two families:
- *  - auth/RLS: retrying with the same (bad) session or path can never succeed.
+ *  - auth: retrying with the same (bad) session or path can never succeed.
+ *    (An RLS refusal is deliberately NOT here any more — see isRlsRejection.)
  *  - missing local file: the source bytes are gone (OS purged the picker's
  *    cache entry, user deleted it). No amount of network fixes that, and
  *    looping forever would keep a dead task at the head of the queue.
@@ -245,7 +313,6 @@ function isTerminal(msg: string): boolean {
     m.includes('jwt') ||
     m.includes('unauthorized') ||
     m.includes('permission denied') ||
-    m.includes('row-level security') ||
     m.includes('not authenticated') ||
     m.includes('invalid signature') ||
     m.includes('bucket not found') ||
@@ -265,14 +332,17 @@ function isTerminal(msg: string): boolean {
 
 /**
  * Decide what an upload failure means. Order matters: "already exists" is
- * checked before terminal so a 409 is never mistaken for a hard failure, and
+ * checked before terminal so a 409 is never mistaken for a hard failure,
  * transient is checked before retryable so an offline device never spends its
- * retry budget.
+ * retry budget, and the RLS refusal is checked before terminal so a photo
+ * whose project row has not synced yet is never mistaken for an auth failure
+ * and deleted.
  */
 export function classifyPhotoUploadError(err: unknown): PhotoUploadOutcome {
   const msg = messageOf(err);
   if (isAlreadyUploaded(msg)) return 'already-uploaded';
   if (isTransient(err, msg)) return 'transient';
+  if (isRlsRejection(err, msg)) return 'rls-pending';
   if (isTerminal(msg)) return 'terminal';
   return 'retryable';
 }
@@ -314,7 +384,13 @@ export function enqueuePhotoUpload(
     deduped = true;
     const existing = queue[existingIdx];
     next = [...queue];
-    next[existingIdx] = { ...task, queuedAt: existing.queuedAt, retryCount: existing.retryCount };
+    next[existingIdx] = {
+      ...task,
+      queuedAt: existing.queuedAt,
+      retryCount: existing.retryCount,
+      // Same rule for the RLS wait: a re-save is not a budget reset.
+      ...(existing.rlsRetryCount !== undefined ? { rlsRetryCount: existing.rlsRetryCount } : {}),
+    };
   } else {
     next = [...queue, task];
   }
@@ -351,6 +427,7 @@ export function applyPhotoUploadOutcome(
   task: PhotoUploadTask,
   outcome: PhotoUploadOutcome,
   maxRetries: number = PHOTO_MAX_RETRIES,
+  rlsMaxRetries: number = PHOTO_RLS_MAX_RETRIES,
 ): OutcomeDecision {
   if (isUploadSettled(outcome)) {
     return { keep: false, task, dropped: false };
@@ -360,6 +437,17 @@ export function applyPhotoUploadOutcome(
   }
   if (outcome === 'terminal') {
     return { keep: false, task, dropped: true };
+  }
+  if (outcome === 'rls-pending') {
+    // Waiting for the parent row is counted on its own budget — retryCount
+    // is left alone — and the last refusal drops the photo LOUDLY, because
+    // the same message also means "the project upsert was dropped" or "no
+    // editor access", which no amount of waiting fixes.
+    const waited = { ...task, rlsRetryCount: (task.rlsRetryCount ?? 0) + 1 };
+    if (waited.rlsRetryCount >= rlsMaxRetries) {
+      return { keep: false, task: waited, dropped: true };
+    }
+    return { keep: true, task: waited, dropped: false };
   }
   const bumped = { ...task, retryCount: task.retryCount + 1 };
   if (bumped.retryCount >= maxRetries) {

@@ -259,11 +259,19 @@ console.log('\ninvoiceAttention:');
 
 console.log('\npermitAttention:');
 
+// inspectionDate is a CALENDAR DAY (bare 'YYYY-MM-DD'), so permitAttention counts
+// whole LOCAL days (daysUntilCalendarDay) — B4 review A3 replaced a UTC-midnight
+// Date.parse + floored-millisecond count that read a day short every morning
+// west of Greenwich. The fixture clock is therefore LOCAL noon on Jan 20, not
+// the UTC-midnight NOW_MS the instant-based sections use: that instant is still
+// Jan 19 in Denver, and a local-day count from it is one day longer.
+const PERMIT_NOW_MS = new Date(2025, 0, 20, 12).getTime();
+
 // inspection in 5 days → high
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-25' }); // 5d from Jan 20
-  const items = permitAttention(p, [perm], NOW_MS);
+  const items = permitAttention(p, [perm], PERMIT_NOW_MS);
   ok('5d inspection → 1 item', items.length === 1);
   ok('5d inspection → high', items[0].severity === 'high');
   ok('5d inspection → permit kind', items[0].kind === 'permit');
@@ -276,42 +284,42 @@ console.log('\npermitAttention:');
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-21' }); // 1d
-  ok('1d inspection → critical', permitAttention(p, [perm], NOW_MS)[0].severity === 'critical');
+  ok('1d inspection → critical', permitAttention(p, [perm], PERMIT_NOW_MS)[0].severity === 'critical');
 }
 
 // inspection in 2 days → critical (≤ 2)
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-22' }); // 2d
-  ok('2d inspection → critical', permitAttention(p, [perm], NOW_MS)[0].severity === 'critical');
+  ok('2d inspection → critical', permitAttention(p, [perm], PERMIT_NOW_MS)[0].severity === 'critical');
 }
 
 // inspection in 8 days → empty (> 7)
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-28' }); // 8d
-  ok('8d inspection → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('8d inspection → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // inspection in past → empty
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-18' }); // 2d ago
-  ok('past inspection → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('past inspection → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // no inspectionDate → empty
 {
   const p = mkProject();
   const perm = mkPermit();
-  ok('no inspectionDate → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('no inspectionDate → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // wrong projectId → empty
 {
   const p = mkProject({ id: 'p2' });
   const perm = mkPermit({ inspectionDate: '2025-01-25' }); // belongs to p1
-  ok('wrong projectId → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('wrong projectId → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // ─── certAttention ───────────────────────────────────────────────────────────

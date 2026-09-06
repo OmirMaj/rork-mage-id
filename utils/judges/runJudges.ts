@@ -6,7 +6,8 @@ import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { computeMarginRisk } from '@/utils/marginRiskScore';
 import { mageAISmart } from '@/utils/mageAI';
-import { buildEstimatePrompt, estimateSchema, scopeCacheKey, type WizardAnswers } from '@/utils/scopeQuestions';
+import { buildEstimatePrompt, estimateSchema, type WizardAnswers } from '@/utils/scopeQuestions';
+import { stableHash } from '@/utils/stableHash';
 import { computeBidVerdict } from './computeBidVerdict';
 import { computeCapacityLoad } from './capacityLoad';
 import { aggregateTypeMargin } from './typeMargin';
@@ -40,7 +41,10 @@ export interface JudgesResult {
 
 /** Turn a described scope into priced line inputs via the estimate-wizard AI. */
 export async function draftLinesFromScope(answers: WizardAnswers): Promise<{ lines: JudgesLine[]; summary: string } | null> {
-  const res = await mageAISmart(buildEstimatePrompt(answers), estimateSchema, scopeCacheKey(answers));
+  // AI-F4 sibling of the wizard fix: key the cache on the full prompt, not scopeCacheKey(answers),
+  // which omits specialRequirements/timelineWeeks/targetBudget and served stale results for refined scopes.
+  const prompt = buildEstimatePrompt(answers);
+  const res = await mageAISmart(prompt, estimateSchema, 'judges::' + stableHash(prompt));
   if (!res.success || !res.data || !Array.isArray(res.data.lineItems)) return null;
   const lines: JudgesLine[] = res.data.lineItems.map((li: { category: string; unit: string; quantity: number; unitCost: number; total: number }) => ({
     category: li.category,

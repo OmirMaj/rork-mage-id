@@ -24,10 +24,29 @@ const config = getSentryExpoConfig(__dirname);
 // specifier so all other resolution (incl. Sentry's resolveRequest, chained
 // below) is untouched.
 const tslibCjsPath = require.resolve("tslib");
+
+// --- reanimated must not reach the bundle (audit APPSTORE-F2) ------------------
+// `react-native-reanimated` is NOT a dependency of this app, but `expo-router`
+// declares it as an optional peer, so bun installs it on every clean install and
+// Metro — which bundles what resolves, not what package.json declares — pulls its
+// JS half in through react-native-gesture-handler's guarded require. On a binary
+// with no reanimated native module (build #12, and every build until one ships
+// it) that JS throws at startup and expo-updates rolls the OTA back silently.
+// Resolving the specifier to an empty stub is the only fix that survives an
+// install; see stubs/react-native-reanimated-absent.js for why an empty object is
+// the correct shape and what to delete when a native build finally carries it.
+// `scripts/validate-native-surface.ts` exports the real bundle and fails if the
+// markers come back.
+const reanimatedStubPath = require.resolve("./stubs/react-native-reanimated-absent.js");
+const REANIMATED_SPECIFIER = /^react-native-reanimated(\/.*)?$/;
+
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === "tslib") {
     return { type: "sourceFile", filePath: tslibCjsPath };
+  }
+  if (REANIMATED_SPECIFIER.test(moduleName)) {
+    return { type: "sourceFile", filePath: reanimatedStubPath };
   }
   return originalResolveRequest
     ? originalResolveRequest(context, moduleName, platform)

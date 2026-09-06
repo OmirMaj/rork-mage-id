@@ -5,7 +5,15 @@ import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollabo
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { supabaseWrite } from '@/utils/offlineQueue';
+import { supabaseWrite, getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import {
+  acceptedRolesByProject, aiaRowToSaved, claimProjectForUser, classifyProjectForSync, coerceRate, financialPickAfterLoad,
+  financialsLoadedFor, legacyMoneyPresent, mergeLocalOnly, myRoleAfterLoad, pendingIdsByTable, pendingIdsForTable,
+  queryKeysForFlushedTables, savedToAiaRow, shouldFlipInvoiceToPaid, stripPortalCredentials,
+  subCoiExpiryAcross, vanishedPendingIds,
+} from '@/utils/projectContextPure';
+import type { CollaboratorRowLike } from '@/utils/projectContextPure';
 import { generateUUID } from '@/utils/generateId';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { buildCostDatabase } from '@/utils/costDatabase';
@@ -178,7 +186,10 @@ const DEFAULT_BRANDING: CompanyBranding = {
 const DEFAULT_SETTINGS: AppSettings = {
   location: 'United States',
   units: 'imperial',
-  taxRate: 7.5,
+  // MONEY-F3: 0 until the GC says otherwise. 7.5 % was applied to every
+  // invoice, progress bill and CO preview of every account that never set a
+  // rate — and to the ones that explicitly set 0 (see coerceRate).
+  taxRate: 0,
   contingencyRate: 10,
   branding: DEFAULT_BRANDING,
 };
@@ -198,6 +209,11 @@ async function saveLocal(key: string, data: unknown): Promise<void> {
   } catch (err) {
     console.log('[ProjectContext] Local save failed for', key, err);
   }
+}
+
+/** SYNC-F3: ids with a queued create/edit for `table` — what mergeLocalOnly keeps. */
+async function queuedIdsFor(table: string): Promise<Set<string>> {
+  return pendingIdsForTable(await getOfflineQueue(), table);
 }
 
 // ─── Per-bucket context objects ───────────────────────────────────────────────
@@ -434,6 +450,10 @@ type StableActionsValue = {
    *  /persona-select) and mirrors to `public.profiles.user_role` server-side
    *  when online. */
   setUserRole: (role: UserRole) => Promise<void>;
+  /** SYNC-F7: fire every debounced project sync now (AppState background /
+   *  inactive, `pagehide` on web) so a kill inside the 800 ms window cannot
+   *  lose the edit. Resolves once the writes have been sent or queued. */
+  flushPendingProjectSyncs: () => Promise<void>;
 };
 
 /** Extra intent a caller can attach to a change-order update that approves it.
@@ -485,6 +505,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const userEmail = user?.email ?? null;
 
   const [projects, setProjects] = useState<Project[]>([]);
   // True once the projects query has settled AND local state has been hydrated
@@ -552,7 +573,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [permits, setPermits] = useState<Permit[]>([]);
   const [aiaPayApps, setAiaPayApps] = useState<SavedAIAPayApp[]>([]);
   const [subPortalLinks, setSubPortalLinks] = useState<SubPortalLink[]>([]);
-  const syncDebounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // SYNC-F7: each entry keeps its `run` so flushPendingProjectSyncs can fire it
+  // immediately on background — a bare timer dies with the process. An entry
+  // stays in the map until its write has REPORTED (landed, queued, or refused
+  // terminally), so a flush that arrives while the write is in flight can still
+  // re-issue it; `timer` is null once the debounce has fired. `inFlight` is
+  // set the moment `run` starts (A-8): the flush skips those — their write is
+  // already on the wire or queued, and re-issuing it sent the row twice.
+  type PendingProjectSync = { timer: ReturnType<typeof setTimeout> | null; inFlight: boolean; run: () => Promise<void> };
+  const syncDebounceMap = useRef<Map<string, PendingProjectSync>>(new Map());
 
   const canSync = !!userId && isSupabaseConfigured;
 
@@ -573,39 +602,110 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           // here for a field user, which is the point: their projects simply
           // arrive with no estimate. Failure is non-fatal — we fall back to the
           // legacy columns, which still exist until the phase-2 drop.
+          //
+          // B-1: this SELECT never throws — it returns `{ error }` — and an
+          // error used to look exactly like "no rows", so a transient failure
+          // handed every shared project `estimate: null`, which the device
+          // cache kept and the collaborator's next PATCH carried into BOTH
+          // tables. `finReadOk` is false on either failure mode; the mapper
+          // then keeps the cached money and stamps financialsLoaded: false so
+          // no write carries it until a read succeeds.
           const finById = new Map<string, Record<string, unknown>>();
+          let finReadOk = false;
           try {
-            const { data: fin } = await supabase.from('project_financials').select('*');
-            for (const f of (fin ?? []) as Record<string, unknown>[]) {
-              finById.set(f.project_id as string, f);
+            const { data: fin, error: finError } = await supabase.from('project_financials').select('*');
+            if (finError) {
+              console.log('[ProjectContext] project_financials read failed — keeping cached money, holding it back from writes:', finError.message);
+            } else {
+              finReadOk = true;
+              for (const f of (fin ?? []) as Record<string, unknown>[]) {
+                finById.set(f.project_id as string, f);
+              }
             }
           } catch {
             // table not created yet (pre-migration) — legacy columns cover us
           }
+          // B-2: the caller's role on each shared project, from the table the
+          // invite flow actually writes (project-invite → project_collaborators;
+          // the display `collaborators` roster is never touched by it, so it
+          // could not tell a field foreman from an editor). Own rows only —
+          // pc_invitee_read. A failed read keeps the cached stamp: it must
+          // never downgrade a shared project to owned.
+          const roleById = new Map<string, ProjectCollaborator['role']>();
+          let rolesReadOk = false;
+          try {
+            const { data: pcRows, error: pcError } = await supabase
+              .from('project_collaborators')
+              .select('project_id, role, status')
+              .eq('user_id', userId);
+            if (pcError) {
+              console.log('[ProjectContext] project_collaborators read failed — keeping cached roles:', pcError.message);
+            } else {
+              rolesReadOk = true;
+              for (const [pid, role] of acceptedRolesByProject(pcRows as CollaboratorRowLike[] | null)) roleById.set(pid, role);
+            }
+          } catch {
+            // table absent (pre-migration) — cached roles / display list cover us
+          }
           if (!error && data && data.length > 0) {
+            // The device copy: local-only rows to merge back in below, and the
+            // per-project stamps (myRole, money) to keep when a read failed.
+            const localForMerge = await loadLocal<Project[]>(PROJECTS_KEY, []);
+            const localById = new Map(localForMerge.map((p) => [p.id, p] as const));
             const mapped = data.map((r: Record<string, unknown>) => {
               const f = finById.get(r.id as string);
+              const owned = r.user_id === userId;
+              const cached = localById.get(r.id as string);
+              const myRole = myRoleAfterLoad(rolesReadOk, roleById.get(r.id as string), cached?.myRole);
+              // B-3: the legacy columns still carry money for every project
+              // estimated on the pre-split build since the backfill (devices
+              // write projects.* only until the OTA lands). No fin row + legacy
+              // money = the fin table is provably behind, NOT "no estimate
+              // exists": an editor stamped "loaded" there sent `estimate: null`
+              // over the owner's estimate on its next PATCH.
+              const legacyHasMoney = legacyMoneyPresent(r);
               // Prefer the new table; fall back to the legacy column so this
-              // build is correct both before and after the phase-2 drop.
-              const pick = (key: string, legacy: unknown) =>
-                f && f[key] != null ? f[key] : legacy;
+              // build is correct both before and after the phase-2 drop —
+              // AUTH-F2: for the OWNER, and (B-3 companion) for DISPLAY to a
+              // known non-field server role read fresh on THIS load — never a
+              // cached role, so a foreman demoted since the last load is not
+              // handed the estimate on a launch whose roles read failed. Any
+              // other collaborator whose role could not read project_financials
+              // must not get the legacy estimate.
+              // B-1: after a FAILED financials read a shared project keeps the
+              // money it last loaded (display only — financialsLoaded keeps it
+              // out of every write) instead of `undefined`.
+              const displayRole = rolesReadOk ? myRole : undefined;
+              const pick = (key: string, legacy: unknown, cachedValue: unknown) =>
+                financialPickAfterLoad(f, key, legacy, owned, finReadOk, cachedValue, displayRole);
               return ({
               id: r.id as string, name: r.name as string, type: r.type as string,
+              // Who the row belongs to. Persisted with the local copy so the
+              // write path (classifyProjectForSync) knows a shared project from
+              // an owned one on an OFFLINE launch too — the old in-memory
+              // "shared ids" set was empty until a server load succeeded.
+              ownerUserId: (r.user_id as string | null) ?? undefined,
+              myRole,
+              financialsLoaded: financialsLoadedFor({ owned, hasRow: !!f, readSucceeded: finReadOk, myRole, legacyHasMoney }),
               location: (r.location as string) ?? '', squareFootage: Number(r.square_footage) || 0,
               quality: (r.quality as string) ?? 'standard', description: (r.description as string) ?? '',
               locationLatitude: r.location_latitude != null ? Number(r.location_latitude) : undefined,
               locationLongitude: r.location_longitude != null ? Number(r.location_longitude) : undefined,
               locationGeocodedAt: (r.location_geocoded_at as string | null) ?? undefined,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
-              estimate: pick('estimate', r.estimate) as Project['estimate'],
+              estimate: (pick('estimate', r.estimate, cached?.estimate) ?? null) as Project['estimate'],
               schedule: r.schedule as Project['schedule'],
-              linkedEstimate: pick('linked_estimate', r.linked_estimate) as Project['linkedEstimate'],
-              estimateVersions: pick('estimate_versions', r.estimate_versions) as Project['estimateVersions'],
+              linkedEstimate: pick('linked_estimate', r.linked_estimate, cached?.linkedEstimate) as Project['linkedEstimate'],
+              estimateVersions: pick('estimate_versions', r.estimate_versions, cached?.estimateVersions) as Project['estimateVersions'],
               status: (r.status as Project['status']) ?? 'draft',
               collaborators: r.collaborators as ProjectCollaborator[] ?? [],
               scope: (r.scope ?? undefined) as Project['scope'],
-              clientPortal: r.client_portal as Project['clientPortal'],
-              targetBudget: pick('target_budget', r.target_budget) as Project['targetBudget'],
+              // AUTH-F5: the portal token + passcode authenticate the HOMEOWNER;
+              // they never reach a collaborator's memory or AsyncStorage cache.
+              clientPortal: (owned
+                ? r.client_portal
+                : stripPortalCredentials(r.client_portal as Project['clientPortal'] | null)) as Project['clientPortal'],
+              targetBudget: pick('target_budget', r.target_budget, cached?.targetBudget) as Project['targetBudget'],
               primaryContact: (r.primary_contact as Project['primaryContact']) ?? undefined,
               leadSource: (r.lead_source as string | null) ?? undefined,
               targetTimelineNotes: (r.target_timeline_notes as string | null) ?? undefined,
@@ -621,7 +721,6 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // or an offline-created one. A server-first load must NEVER silently
             // drop them (that's what made the demo seeder's project — and any
             // offline-created project — vanish on the next reload).
-            const localForMerge = await loadLocal<Project[]>(PROJECTS_KEY, []);
             const remoteIds = new Set(mapped.map((p) => p.id));
             const merged = [...mapped, ...localForMerge.filter((p) => !remoteIds.has(p.id))];
             await saveLocal(PROJECTS_KEY, merged);
@@ -646,8 +745,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             const s: AppSettings = {
               location: (data.location as string) ?? 'United States',
               units: ((data.units as string) ?? 'imperial') as 'imperial' | 'metric',
-              taxRate: Number(data.tax_rate) || 7.5,
-              contingencyRate: Number(data.contingency_rate) || 10,
+              // MONEY-F3: `Number(x) || 7.5` turned a saved 0 % back into 7.5 % on
+              // every synced load (and saveLocal below then overwrote the device
+              // copy too). Only a MISSING value falls back.
+              taxRate: coerceRate(data.tax_rate, DEFAULT_SETTINGS.taxRate),
+              contingencyRate: coerceRate(data.contingency_rate, DEFAULT_SETTINGS.contingencyRate),
               branding: {
                 companyName: (data.company_name as string) ?? '', contactName: (data.contact_name as string) ?? '',
                 email: (data.email as string) ?? '', phone: (data.phone as string) ?? '',
@@ -715,8 +817,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               scheduleImpactTaskIds: (r.schedule_impact_task_ids as string[] | null) ?? undefined,
               scheduleAnchorTaskId: (r.schedule_anchor_task_id as string | null) ?? undefined,
             })) as ChangeOrder[];
-            await saveLocal(CHANGE_ORDERS_KEY, mapped);
-            return mapped;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, await loadLocal<ChangeOrder[]>(CHANGE_ORDERS_KEY, []), await queuedIdsFor('change_orders'));
+            await saveLocal(CHANGE_ORDERS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -750,6 +855,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               retentionReleases: (r.retention_releases as Invoice['retentionReleases']) ?? undefined,
               payLinkUrl: (r.pay_link_url as string | null) ?? undefined,
               payLinkId: (r.pay_link_id as string | null) ?? undefined,
+              // MONEY-F2: the dollars the link was minted for (column arrives
+              // with migration 20260904100100; absent → undefined). Without it
+              // every refetch hid the portal's Pay button — portalSnapshot shows
+              // Pay only while payLinkAmount matches the balance to the cent.
+              payLinkAmount: r.pay_link_amount == null ? undefined : Number(r.pay_link_amount),
               portalState: (r.portal_state as Invoice['portalState']) ?? undefined,
               qboId: (r.qbo_id as string | null) ?? undefined,
               qboHash: (r.qbo_hash as string | null) ?? undefined,
@@ -768,8 +878,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               dunningStage: r.dunning_stage == null ? undefined : Number(r.dunning_stage),
               dunningLastSentAt: (r.dunning_last_sent_at as string | null) ?? undefined,
             })) as Invoice[];
-            await saveLocal(INVOICES_KEY, mapped);
-            return mapped;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, await loadLocal<Invoice[]>(INVOICES_KEY, []), await queuedIdsFor('invoices'));
+            await saveLocal(INVOICES_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -805,8 +918,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               paidToDate: r.paid_to_date == null ? 0 : Number(r.paid_to_date),
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
             })) as Commitment[];
-            await saveLocal(COMMITMENTS_KEY, mapped);
-            return mapped;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, await loadLocal<Commitment[]>(COMMITMENTS_KEY, []), await queuedIdsFor('commitments'));
+            await saveLocal(COMMITMENTS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -911,8 +1027,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               const localLeakScan = priorById.get(dr.id)?.leakScan;
               return localLeakScan !== undefined ? { ...dr, leakScan: localLeakScan } : dr;
             });
-            await saveLocal(DAILY_REPORTS_KEY, withLeakScan);
-            return withLeakScan;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(withLeakScan, prior, await queuedIdsFor('daily_reports'));
+            await saveLocal(DAILY_REPORTS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -1312,7 +1431,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // device's local original when it still has one. Same treatment as
             // the photo gallery (see photosQuery).
             const cachedLocal = new Map<string, string>();
-            for (const p of await loadLocal<PunchItem[]>(PUNCH_ITEMS_KEY, [])) {
+            const priorPunch = await loadLocal<PunchItem[]>(PUNCH_ITEMS_KEY, []);
+            for (const p of priorPunch) {
               const local = p.photoLocalUri ?? (isDeviceLocalUri(p.photoUri) ? p.photoUri : undefined);
               if (local) cachedLocal.set(p.id, local);
             }
@@ -1352,8 +1472,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               closedAt: r.closed_at as string | undefined, createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               };
             }) as PunchItem[];
-            await saveLocal(PUNCH_ITEMS_KEY, mapped);
-            return mapped;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, priorPunch, await queuedIdsFor('punch_items'));
+            await saveLocal(PUNCH_ITEMS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -1372,7 +1495,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // keep this device's own local files where it still has them so
             // the gallery stays instant and survives losing signal.
             const cachedLocal = new Map<string, string>();
-            for (const p of await loadLocal<ProjectPhoto[]>(PHOTOS_KEY, [])) {
+            const priorPhotos = await loadLocal<ProjectPhoto[]>(PHOTOS_KEY, []);
+            for (const p of priorPhotos) {
               const local = p.localUri ?? (isDeviceLocalUri(p.uri) ? p.uri : undefined);
               if (local) cachedLocal.set(p.id, local);
             }
@@ -1396,8 +1520,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               portalState: (r.portal_state as PortalState | null) ?? undefined,
               };
             }) as ProjectPhoto[];
-            await saveLocal(PHOTOS_KEY, mapped);
-            return mapped;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, priorPhotos, await queuedIdsFor('photos'));
+            await saveLocal(PHOTOS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -1504,8 +1631,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // items became client-visible on the next project open.
               portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as RFI[];
-            await saveLocal(RFIS_KEY, mapped);
-            return mapped;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, await loadLocal<RFI[]>(RFIS_KEY, []), await queuedIdsFor('rfis'));
+            await saveLocal(RFIS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -1536,8 +1666,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // items became client-visible on the next project open.
               portalState: (r.portal_state as PortalState | null) ?? undefined,
             })) as Submittal[];
-            await saveLocal(SUBMITTALS_KEY, mapped);
-            return mapped;
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, await loadLocal<Submittal[]>(SUBMITTALS_KEY, []), await queuedIdsFor('submittals'));
+            await saveLocal(SUBMITTALS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -1796,27 +1929,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           const { data, error } = await supabase.from('aia_pay_apps').select('*').order('application_number', { ascending: false });
           if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
-              id: r.id as string, projectId: r.project_id as string,
-              invoiceId: (r.invoice_id as string | null) ?? undefined,
-              applicationNumber: Number(r.application_number) || 1,
-              applicationDate: (r.application_date as string | null) ?? '',
-              periodTo: (r.period_to as string | null) ?? '',
-              contractDate: (r.contract_date as string | null) ?? undefined,
-              ownerName: (r.owner_name as string | null) ?? '',
-              contractorName: (r.contractor_name as string | null) ?? '',
-              architectName: (r.architect_name as string | null) ?? undefined,
-              projectName: (r.project_name as string | null) ?? '',
-              projectLocation: (r.project_location as string | null) ?? undefined,
-              contractForDescription: (r.contract_for_description as string | null) ?? undefined,
-              originalContractSum: Number(r.original_contract_sum) || 0,
-              netChangeByCO: Number(r.net_change_by_co) || 0,
-              contractSumToDate: Number(r.contract_sum_to_date) || 0,
-              retainagePercent: Number(r.retainage_percent) || 10,
-              lessPreviousCertificates: Number(r.less_previous_certificates) || 0,
-              lines: (r.lines as SavedAIAPayApp['lines']) ?? [],
-              notes: (r.notes as string | null) ?? undefined,
-              ...(r.snapshot_totals ? { snapshotTotals: r.snapshot_totals } : {}),
-              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // MONEY-F1: the data columns hydrate through the pure, round-trip-
+              // tested mapper — snapshot_totals → totals (this used to be dropped,
+              // so the second pay app of a project crashed on priorAIA.totals and
+              // WIP read $0 billed), plus pay_link_* / paid_at read defensively
+              // until migration 20260904100100 lands. utils/projectContextPure.ts.
+              ...aiaRowToSaved(r),
               // portal_state MUST be read back. It is written on insert and on every
               // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
               // stripped it here, saveLocal destroyed the local copy, and
@@ -1824,9 +1942,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // pre-portal records). Net effect: unsent DRAFTS and explicitly RECALLED
               // items became client-visible on the next project open.
               portalState: (r.portal_state as PortalState | null) ?? undefined,
-            })) as unknown as SavedAIAPayApp[];
-            await saveLocal(AIA_PAY_APPS_KEY, mapped);
-            return mapped;
+            })) as SavedAIAPayApp[];
+            // SYNC-F3: keep offline-created rows whose write is still queued — the
+            // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
+            const merged = mergeLocalOnly(mapped, await loadLocal<SavedAIAPayApp[]>(AIA_PAY_APPS_KEY, []), await queuedIdsFor('aia_pay_apps'));
+            await saveLocal(AIA_PAY_APPS_KEY, merged);
+            return merged;
           }
         } catch { /* fallback */ }
       }
@@ -1880,57 +2001,125 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const syncProjectToSupabase = useCallback((project: Project, action: 'upsert' | 'delete', opts?: { immediate?: boolean }) => {
     if (!canSync) return;
     const existing = syncDebounceMap.current.get(project.id);
-    if (existing) clearTimeout(existing);
+    if (existing?.timer) clearTimeout(existing.timer);
+    const entry: PendingProjectSync = { timer: null, inFlight: false, run: async () => undefined };
     const run = async () => {
-      syncDebounceMap.current.delete(project.id);
-      if (action === 'delete') {
-        await supabaseWrite('projects', 'delete', { id: project.id });
-      } else {
-        // MUST be 'upsert', not 'insert': this path also fires on every EDIT,
-        // and a plain insert on the existing PK fails with a duplicate-key
-        // violation (classified terminal) — so edits would silently never
-        // reach the server, and the server-first load on next launch would
-        // revert them locally.
-        await supabaseWrite('projects', 'upsert', {
-          id: project.id, user_id: userId, name: project.name, type: project.type,
-          location: project.location, square_footage: project.squareFootage, quality: project.quality,
-          location_latitude: project.locationLatitude ?? null,
-          location_longitude: project.locationLongitude ?? null,
-          location_geocoded_at: project.locationGeocodedAt ?? null,
-          description: project.description,
-          scope: (project.scope ?? null) as unknown,
-          estimate: project.estimate as unknown, schedule: project.schedule as unknown,
-          linked_estimate: project.linkedEstimate as unknown,
-          estimate_versions: project.estimateVersions as unknown, status: project.status,
-          collaborators: project.collaborators as unknown, client_portal: project.clientPortal as unknown,
-          target_budget: project.targetBudget as unknown,
-          primary_contact: project.primaryContact ?? null,
-          lead_source: project.leadSource ?? null,
-          target_timeline_notes: project.targetTimelineNotes ?? null,
-          handover_checklist: (project.handoverChecklist ?? {}) as unknown,
-          closed_at: project.closedAt,
-          substantial_completion_date: project.substantialCompletionDate,
-          warranty_walk_completed_at: project.warrantyWalkCompletedAt,
-          photo_count: project.photoCount,
-          created_at: project.createdAt, updated_at: project.updatedAt,
-        });
-        // Money also goes to project_financials, which field collaborators
-        // cannot read. DUAL-WRITE on purpose: the legacy columns above stay
-        // until the phase-2 drop migration, so an older build still loads.
-        // Queued like everything else, so a device that gets this OTA before
-        // the migration lands parks the write (PGRST205 is classified
-        // transient) and it self-heals.
-        await supabaseWrite('project_financials', 'upsert', {
-          project_id: project.id, user_id: userId,
-          estimate: project.estimate as unknown,
-          linked_estimate: project.linkedEstimate as unknown,
-          estimate_versions: project.estimateVersions as unknown,
-          target_budget: project.targetBudget as unknown,
-          created_at: project.createdAt, updated_at: project.updatedAt,
-        });
+      // SYNC-F7: the slot is released only AFTER the write has reported —
+      // deleting it up front meant a flush arriving mid-write found nothing to
+      // re-issue. Identity-checked: a newer edit may have replaced this entry.
+      entry.inFlight = true;
+      if (syncDebounceMap.current.get(project.id) === entry) entry.timer = null;
+      try {
+        if (action === 'delete') {
+          await supabaseWrite('projects', 'delete', { id: project.id });
+        } else {
+          // AUTH-F2/F5: a project this account only COLLABORATES on must not be
+          // echoed back with the owner's columns blanked or re-owned. Decided
+          // from the project itself (ownerUserId persisted by the loader, the
+          // caller's role in the collaborator list) — never from what the last
+          // successful server load remembered, which was nothing on an offline
+          // launch or after a transient SELECT failure, so a collaborator's
+          // edits went out owner-style with the credential-stripped
+          // client_portal blob and wiped the owner's passcode.
+          const { shared, sendMoney, financialsUserId } = classifyProjectForSync(project, userId, userEmail);
+          const base = {
+            id: project.id, name: project.name, type: project.type,
+            location: project.location, square_footage: project.squareFootage, quality: project.quality,
+            location_latitude: project.locationLatitude ?? null,
+            location_longitude: project.locationLongitude ?? null,
+            location_geocoded_at: project.locationGeocodedAt ?? null,
+            description: project.description,
+            scope: (project.scope ?? null) as unknown,
+            schedule: project.schedule as unknown, status: project.status,
+            collaborators: project.collaborators as unknown,
+            primary_contact: project.primaryContact ?? null,
+            lead_source: project.leadSource ?? null,
+            target_timeline_notes: project.targetTimelineNotes ?? null,
+            handover_checklist: (project.handoverChecklist ?? {}) as unknown,
+            closed_at: project.closedAt,
+            substantial_completion_date: project.substantialCompletionDate,
+            warranty_walk_completed_at: project.warrantyWalkCompletedAt,
+            photo_count: project.photoCount,
+            updated_at: project.updatedAt,
+          };
+          // The four legacy money columns are spelled out at BOTH call sites
+          // below on purpose: validate-project-financials-split reads the
+          // literal call to prove each is paired with a project_financials write.
+          const landed = shared
+            // Shared row: PATCH by id. Passes projects_update for an editor,
+            // needs no user_id (the column is NOT NULL, so the old owner-less
+            // upsert failed 23502 — a "violates" the queue classes terminal —
+            // and editors could not save anything), can never INSERT, and
+            // cannot re-own the row (projects_freeze_ownership would reset it
+            // anyway). The owner's client_portal is never echoed back: this
+            // device only ever held the credential-stripped copy (AUTH-F5).
+            // B-1: money rides along ONLY when this device positively holds it
+            // (financialsLoaded !== false — after a transient financials read
+            // failure the editor's copy held `estimate: null` it never read,
+            // and sending it NULLed the owner's estimate on both tables; B-3:
+            // the loader also withholds the stamp while the legacy columns
+            // carry money no fin row has caught up with), the caller is not
+            // blinded and not a viewer (A-2), and the owner is known (A-1: the
+            // paired project_financials row below needs the owner's id, and
+            // money must never reach one table without the other). A-1: a
+            // cache with NO ownerUserId (pre-field) takes this PATCH path too,
+            // base columns only — an owner-style upsert on a guess re-stamped
+            // project_financials.user_id with an editor's id.
+            ? await supabaseWrite('projects', 'update', {
+                ...base,
+                ...(sendMoney ? {
+                  estimate: project.estimate as unknown,
+                  linked_estimate: project.linkedEstimate as unknown,
+                  estimate_versions: project.estimateVersions as unknown,
+                  target_budget: project.targetBudget as unknown,
+                } : {}),
+              })
+            // Own row: MUST be 'upsert', not 'insert' — this path also fires on
+            // every EDIT, and a plain insert on the existing PK fails with a
+            // duplicate-key violation (classified terminal), so edits would
+            // silently never reach the server and the server-first load on the
+            // next launch would revert them locally.
+            : await supabaseWrite('projects', 'upsert', {
+                ...base, user_id: userId, created_at: project.createdAt,
+                client_portal: project.clientPortal as unknown,
+                estimate: project.estimate as unknown,
+                linked_estimate: project.linkedEstimate as unknown,
+                estimate_versions: project.estimateVersions as unknown,
+                target_budget: project.targetBudget as unknown,
+              });
+          // Money also goes to project_financials, which field collaborators
+          // cannot read. DUAL-WRITE on purpose: the legacy columns above stay
+          // until the phase-2 drop migration, so an older build still loads.
+          // Skipped whenever no money went out above (financialsUserId is
+          // undefined: blinded, not loaded, or — A-1 — owner unknown on a
+          // legacy cache: `user_id` is the tenant filter the mcp function and
+          // the QBO mapping read, so stamping the editor's id would move the
+          // project out of the owner's views) and when the project write
+          // itself was REFUSED — a second RLS refusal would only add a second
+          // toast. A write that merely queued (offline) still proceeds: the
+          // queue lands projects before project_financials.
+          if (financialsUserId && (landed || (await queuedIdsFor('projects')).has(project.id))) {
+            await supabaseWrite('project_financials', 'upsert', {
+              // PK is project_id (the queue's 'update' targets `id`), so this
+              // stays an upsert. Its INSERT policy is can_access_project(…,
+              // 'editor'), not auth.uid() = user_id, and the NOT NULL user_id
+              // carries the OWNER's id for a shared row.
+              project_id: project.id, user_id: financialsUserId,
+              estimate: project.estimate as unknown,
+              linked_estimate: project.linkedEstimate as unknown,
+              estimate_versions: project.estimateVersions as unknown,
+              target_budget: project.targetBudget as unknown,
+              created_at: project.createdAt, updated_at: project.updatedAt,
+            });
+          }
+        }
+      } finally {
+        if (syncDebounceMap.current.get(project.id) === entry) syncDebounceMap.current.delete(project.id);
       }
       console.log('[ProjectContext] Synced project to Supabase:', project.name);
     };
+    entry.run = run;
+    syncDebounceMap.current.set(project.id, entry);
     if (opts?.immediate) {
       // New project: enqueue the upsert NOW (synchronously) so the project row
       // reaches Supabase BEFORE its sub-collections (permits/submittals/etc.)
@@ -1940,9 +2129,108 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       // so enqueuing first = inserted first.
       void run();
     } else {
-      syncDebounceMap.current.set(project.id, setTimeout(run, 800));
+      entry.timer = setTimeout(run, 800);
     }
-  }, [canSync, userId]);
+  }, [canSync, userId, userEmail]);
+
+  // SYNC-F7: run every debounced project sync NOW. The root layout calls this
+  // from its AppState handler on background/inactive (and `pagehide` on web):
+  // the 800 ms timer never enters the offline queue, so a kill inside the
+  // window lost the edit outright and the next server-first load overwrote
+  // the only copy. Each `run` sends or queues its own write.
+  const flushPendingProjectSyncs = useCallback(async (): Promise<void> => {
+    // A-8: an entry whose run is already in flight stays in the map — its
+    // write is on the wire (or queued) and its own finally releases the slot.
+    // Only entries still waiting on their debounce timer are fired here.
+    const pending: PendingProjectSync[] = [];
+    for (const [id, p] of syncDebounceMap.current) {
+      if (p.inFlight) continue;
+      syncDebounceMap.current.delete(id);
+      if (p.timer) clearTimeout(p.timer);
+      pending.push(p);
+    }
+    await Promise.all(pending.map(p => p.run().catch((err) => {
+      console.log('[ProjectContext] Flushing a pending project sync failed:', err);
+    })));
+  }, []);
+
+  // SYNC-F3: after the offline queue drains, re-pull the collections it wrote
+  // so an offline-created record is replaced by its server copy and anything
+  // the SELECT-before-INSERT race dropped comes back. Pending debounced project
+  // syncs go out first so a refetch cannot revert an edit still sitting in
+  // the 800 ms window. One listener per provider.
+  //
+  // A write also leaves the queue when it is DISCARDED (terminal RLS /
+  // validation refusal, retry exhaustion) — and a flush with nothing but
+  // discards reports no flushed tables, so the optimistic row used to sit in
+  // state until some later refetch happened by. The change listener diffs the
+  // pending ids on every queue change and re-pulls exactly the tables whose
+  // ids vanished (trailing-debounced, and skipping tables the flush listener
+  // re-pulled since): the loader's merge keeps a landed row and drops a
+  // discarded one, which is neither on the server nor queued any more.
+  useEffect(() => {
+    let disposed = false;
+    const flushedAt = new Map<string, number>();
+    const vanishedAt = new Map<string, number>();
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    let before: Map<string, Set<string>> | null = null;
+    let chain: Promise<void> = getOfflineQueue()
+      .then((q) => { before = pendingIdsByTable(q); })
+      .catch(() => undefined);
+
+    const refetch = async (keys: string[]) => {
+      if (keys.includes('projects')) await flushPendingProjectSyncs();
+      await Promise.all(keys.map(key => queryClient.invalidateQueries({ queryKey: [key, userId] })));
+    };
+
+    const settle = () => {
+      settleTimer = null;
+      if (disposed) return;
+      const due = Array.from(vanishedAt.entries());
+      vanishedAt.clear();
+      const tables = due.filter(([table, since]) => (flushedAt.get(table) ?? -1) < since).map(([table]) => table);
+      const keys = queryKeysForFlushedTables(tables);
+      if (keys.length === 0) return;
+      refetch(keys).catch((err) => console.log('[ProjectContext] Post-discard refetch failed:', err));
+    };
+
+    const unsubscribeFlushed = onQueueFlushed((tables) => {
+      const now = Date.now();
+      for (const t of tables) flushedAt.set(t, now);
+      const keys = queryKeysForFlushedTables(tables);
+      if (keys.length === 0) return;
+      refetch(keys).catch((err) => console.log('[ProjectContext] Post-flush refetch failed:', err));
+    });
+
+    const unsubscribeChanged = onQueueChanged(() => {
+      // Stamped NOW, synchronously: the flush listener may run (and re-pull
+      // the table) before the async diff below gets to read the queue, and a
+      // vanish must compare against the flush by when it was signalled.
+      const notifiedAt = Date.now();
+      chain = chain.then(async () => {
+        if (disposed) return;
+        const next = pendingIdsByTable(await getOfflineQueue());
+        const prior = before;
+        before = next;
+        if (!prior) return;
+        // A-8: the trailing timer restarts on a VANISH only. Checking the
+        // accumulated map instead meant every enqueue after one vanish pushed
+        // the settle out again, and a busy device never re-pulled.
+        const gone = vanishedPendingIds(prior, next);
+        if (gone.size === 0) return;
+        for (const table of gone.keys()) vanishedAt.set(table, notifiedAt);
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(settle, 1_500);
+      }).catch((err) => console.log('[ProjectContext] Queue diff failed:', err));
+    });
+
+    return () => {
+      disposed = true;
+      if (settleTimer) clearTimeout(settleTimer);
+      unsubscribeFlushed();
+      unsubscribeChanged();
+    };
+  }, [queryClient, userId, flushPendingProjectSyncs]);
 
   const saveProjectsMutation = useMutation({
     mutationFn: async (updatedProjects: Project[]) => { await saveLocal(PROJECTS_KEY, updatedProjects); return updatedProjects; },
@@ -2088,7 +2376,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }).catch(() => { /* silent — falls back to no-coords path */ });
   }, [saveProjectsMutation, syncProjectToSupabase]);
 
-  const addProject = useCallback((project: Project) => {
+  const addProject = useCallback((incoming: Project) => {
+    // A-1: the creator owns what they create. Stamps ownerUserId and drops the
+    // loader's per-load stamps that a clone of a SHARED project (home →
+    // duplicate) carries in from its source — with the other owner's id the
+    // new row was PATCHed by an id the server had never seen and never landed.
+    // With every creation path stamping the owner, a project with NO
+    // ownerUserId can only be a cache predating the field (classifyProjectForSync).
+    const project = claimProjectForUser(incoming, userId);
     const updated = [project, ...projects];
     // Activation funnel: fire once at the imperative create (never on hydration,
     // which replaces `projects` via the query, not through addProject).
@@ -2425,14 +2720,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         tax_amount: finalInvoice.taxAmount, total_due: finalInvoice.totalDue, amount_paid: finalInvoice.amountPaid,
         status: finalInvoice.status, payments: finalInvoice.payments, created_at: finalInvoice.createdAt, updated_at: finalInvoice.updatedAt,
         qbo_sync_status: 'pending', portal_state: finalInvoice.portalState,
-        // Retention + pay-link are cloud-backed as of the 20260713 migration —
-        // without these they were local-only and lost on the next refetch.
+        // Retention is cloud-backed as of the 20260713 migration — without
+        // these it was local-only and lost on the next refetch.
         retention_percent: finalInvoice.retentionPercent ?? null,
         retention_amount: finalInvoice.retentionAmount ?? null,
         retention_released: finalInvoice.retentionReleased ?? null,
         retention_releases: finalInvoice.retentionReleases ?? null,
-        pay_link_url: finalInvoice.payLinkUrl ?? null,
-        pay_link_id: finalInvoice.payLinkId ?? null,
+        // MONEY-F2: pay_link_url / pay_link_id / pay_link_amount are SERVER-owned.
+        // create-payment-link writes them and stripe-webhook nulls them once the
+        // (single-use) link is paid; a client write would resurrect a spent
+        // link's URL and put a dead Pay button back in the client portal. The
+        // read side (payLinkUrl / payLinkId) is unchanged.
         // Contract-milestone provenance. Must be written on INSERT — it is
         // what stops the same milestone being billed a second time if the
         // milestone's own status flip never reaches project_contracts.
@@ -2456,12 +2754,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       // querying the raw status (AI digests, A/R, Supabase filters) sees stale
       // 'sent' or 'partially_paid'. The Stripe webhook does this server-side
       // already; this mirrors it for non-Stripe payment recording paths.
-      if (
-        next.status !== 'draft'
-        && next.status !== 'paid'
-        && (next.totalDue ?? 0) > 0
-        && (next.amountPaid ?? 0) >= (next.totalDue ?? 0) - 0.01
-      ) {
+      // MONEY-F5: settled NET of held retention (invoiceIsSettled, 1-cent
+      // tolerance) — the gross totalDue gate could never flip a retention
+      // invoice. Pure + tested in utils/projectContextPure.ts.
+      if (shouldFlipInvoiceToPaid(next)) {
         next.status = 'paid';
       }
       return next;
@@ -2494,21 +2790,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         } else if ('status' in updates) {
           payload.status = inv.status;
         }
-        // Retention + pay-link (cloud-backed as of the 20260713 migration). Use
-        // ?? null, NOT bare undefined: clearing a stale pay-link (set to
-        // undefined when the total changes) must reach the DB as null, or the
-        // omitted key leaves the old link and the client is shown a Pay button
-        // for the wrong amount on the next refetch.
+        // Retention (cloud-backed as of the 20260713 migration). Use ?? null,
+        // NOT bare undefined: a cleared value must reach the DB as null, or
+        // the omitted key leaves the old one in place on the next refetch.
         if ('retentionPercent' in updates) payload.retention_percent = inv.retentionPercent ?? null;
         if ('retentionAmount' in updates) payload.retention_amount = inv.retentionAmount ?? null;
         if ('retentionReleased' in updates || 'retentionReleases' in updates) {
           payload.retention_released = inv.retentionReleased ?? null;
           payload.retention_releases = inv.retentionReleases ?? null;
         }
-        if ('payLinkUrl' in updates || 'payLinkId' in updates) {
-          payload.pay_link_url = inv.payLinkUrl ?? null;
-          payload.pay_link_id = inv.payLinkId ?? null;
-        }
+        // MONEY-F2: pay_link_url / pay_link_id / pay_link_amount are never written
+        // from the client — create-payment-link sets them and stripe-webhook nulls
+        // them once the single-use link is paid. Echoing local payLinkUrl here
+        // resurrected a spent link and re-armed a dead Pay button in the portal.
         // Dunning markers are OWNED by the invoice-dunning edge function; the
         // app only ever echoes back the values that function just returned
         // from a confirmed send, so this write is idempotent and can't invent
@@ -2536,7 +2830,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, [invoices, saveInvoicesMutation, canSync]);
 
   const getInvoicesForProject = useCallback((projectId: string) => invoices.filter(inv => inv.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [invoices]);
-  const getTotalOutstandingBalance = useCallback(() => invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft').reduce((sum, inv) => sum + (inv.totalDue - inv.amountPaid), 0), [invoices]);
+  // MONEY-F5: net of held retention — `totalDue − amountPaid` reported retention
+  // the contract lets the client hold as owed on the home strip.
+  const getTotalOutstandingBalance = useCallback(() => invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft').reduce((sum, inv) => sum + invoiceOutstanding(inv), 0), [invoices]);
 
   // Commitments — signed sub contracts and POs. Core data for the job
   // costing dashboard (see utils/jobCostEngine.ts). Stored locally only;
@@ -3203,6 +3499,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       : undefined;
     const newProject: Project = {
       id: projectId,
+      // A-1: created by this account — see claimProjectForUser / addProject.
+      ownerUserId: userId ?? undefined,
       name: lead.name + (lead.projectType ? ` — ${lead.projectType}` : ''),
       type: (lead.projectTypeMapped ?? 'renovation') as ProjectType,
       location: lead.address ?? 'United States',
@@ -3226,24 +3524,34 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setProjects(prev => [newProject, ...prev]);
     saveProjectsMutation.mutate([newProject, ...projects]);
     if (canSync) {
-      void supabaseWrite('projects', 'insert', {
-        id: projectId, user_id: userId, name: newProject.name, type: newProject.type,
-        location: newProject.location, square_footage: 0, quality: 'standard',
-        description: newProject.description, status: newProject.status,
-        target_budget: newProject.targetBudget,
-        primary_contact: newProject.primaryContact ?? null,
-        lead_source: newProject.leadSource ?? null,
-        target_timeline_notes: newProject.targetTimelineNotes ?? null,
-        created_at: now, updated_at: now,
-      });
-      // Dual-write the budget to project_financials — see the sync path above.
-      if (newProject.targetBudget) {
-        void supabaseWrite('project_financials', 'upsert', {
-          project_id: projectId, user_id: userId,
-          target_budget: newProject.targetBudget,
+      // SYNC-F14: the project_financials INSERT policy needs the project row to
+      // exist, so the two writes must not race — await the project first
+      // (mirrors syncProjectToSupabase). The pair is fire-and-forget as a whole
+      // so the conversion itself stays synchronous.
+      const targetBudget = newProject.targetBudget;
+      void (async () => {
+        const landed = await supabaseWrite('projects', 'insert', {
+          id: projectId, user_id: userId, name: newProject.name, type: newProject.type,
+          location: newProject.location, square_footage: 0, quality: 'standard',
+          description: newProject.description, status: newProject.status,
+          target_budget: targetBudget,
+          primary_contact: newProject.primaryContact ?? null,
+          lead_source: newProject.leadSource ?? null,
+          target_timeline_notes: newProject.targetTimelineNotes ?? null,
           created_at: now, updated_at: now,
         });
-      }
+        // Dual-write the budget to project_financials — see the sync path above.
+        // Gated on the project write: a REFUSED insert (RLS) must not be followed
+        // by a second refusal and a second toast; a write that merely QUEUED
+        // (offline) still proceeds — the queue lands projects first.
+        if (targetBudget && (landed || (await queuedIdsFor('projects')).has(projectId))) {
+          await supabaseWrite('project_financials', 'upsert', {
+            project_id: projectId, user_id: userId,
+            target_budget: targetBudget,
+            created_at: now, updated_at: now,
+          });
+        }
+      })();
     }
     updateLead(leadId, { stage: 'won', convertedProjectId: projectId });
     return projectId;
@@ -4336,30 +4644,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // simple — no SOV math here, just persistence + de-dupe by (projectId,
   // applicationNumber).
   const aiaPayAppToRow = useCallback((a: SavedAIAPayApp) => ({
-    id: a.id,
-    user_id: userId,
-    project_id: a.projectId,
-    invoice_id: a.invoiceId ?? null,
-    application_number: a.applicationNumber,
-    application_date: a.applicationDate || null,
-    period_to: a.periodTo || null,
-    contract_date: a.contractDate || null,
-    owner_name: a.ownerName ?? null,
-    contractor_name: a.contractorName ?? null,
-    architect_name: a.architectName ?? null,
-    project_name: a.projectName ?? null,
-    project_location: a.projectLocation ?? null,
-    contract_for_description: a.contractForDescription ?? null,
-    original_contract_sum: a.originalContractSum ?? 0,
-    net_change_by_co: a.netChangeByCO ?? 0,
-    contract_sum_to_date: a.contractSumToDate ?? 0,
-    retainage_percent: a.retainagePercent ?? 10,
-    less_previous_certificates: a.lessPreviousCertificates ?? 0,
-    lines: a.lines ?? [],
-    notes: a.notes ?? null,
-    snapshot_totals: (a as unknown as { snapshotTotals?: unknown }).snapshotTotals ?? null,
-    created_at: (a as unknown as { createdAt?: string }).createdAt ?? new Date().toISOString(),
-    updated_at: (a as unknown as { updatedAt?: string }).updatedAt ?? new Date().toISOString(),
+    // MONEY-F1: data columns come from the round-trip-tested pure writer —
+    // `snapshot_totals: a.totals`. The old `a.snapshotTotals` never existed, so
+    // every saved pay app wrote NULL and lost its totals on the next launch.
+    // TODO(20260904100100): send pay_link_url / pay_link_id / pay_link_amount
+    // once the migration is applied — an unknown column makes PostgREST reject
+    // the WHOLE upsert, and the offline queue would retry it forever.
+    ...savedToAiaRow(a, userId),
     // Spread, not `?? null`. PostgREST writes only the keys present in the
     // payload, so omitting an undefined portalState PRESERVES the server value.
     // Writing null actively destroyed it: before the read mappers were fixed, a
@@ -4623,14 +4914,35 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     notes: c.notes,
   }), [userId]);
 
+  // PRODUCT-F1: the vault never told the subcontractor record when its
+  // certificate expires, so coi-expiry-watch (which reads
+  // subcontractors.coi_expiry) and the Subs tab compliance badge never saw a
+  // vaulted cert. The sub's coiExpiry is the LATEST expiry across every
+  // certificate on file for them (each cert counting from its earliest
+  // coverage), recomputed on add, edit and delete — stamping the one cert
+  // being edited regressed the sub to an older certificate. `verified` stamps
+  // coiVerifiedAt (a cert was uploaded or edited, so it was looked at); a
+  // delete only moves the date. No usable date anywhere → nothing changes.
+  const syncSubCoiExpiry = useCallback((subcontractorId: string | undefined, all: CertificateOfInsurance[], verified: boolean) => {
+    if (!subcontractorId) return;
+    const latest = subCoiExpiryAcross(all.filter(c => c.subcontractorId === subcontractorId));
+    if (!latest) return;
+    if (!verified && subcontractors.find(s => s.id === subcontractorId)?.coiExpiry === latest) return;
+    updateSubcontractor(subcontractorId, verified
+      ? { coiExpiry: latest, coiVerifiedAt: new Date().toISOString() }
+      : { coiExpiry: latest });
+  }, [updateSubcontractor, subcontractors]);
+
   const addCOI = useCallback((coi: CertificateOfInsurance) => {
     const updated = [...cois, coi];
     setCois(updated);
     saveCOIsMutation.mutate(updated);
     if (canSync) void supabaseWrite('cois', 'insert', coiToRow(coi));
-  }, [cois, saveCOIsMutation, canSync, coiToRow]);
+    syncSubCoiExpiry(coi.subcontractorId, updated, true);
+  }, [cois, saveCOIsMutation, canSync, coiToRow, syncSubCoiExpiry]);
 
   const updateCOI = useCallback((id: string, patch: Partial<CertificateOfInsurance>) => {
+    const prior = cois.find(c => c.id === id);
     const updated = cois.map(c => c.id === id ? { ...c, ...patch } : c);
     setCois(updated);
     saveCOIsMutation.mutate(updated);
@@ -4638,14 +4950,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (merged && canSync) {
       void supabaseWrite('cois', 'update', coiToRow(merged));
     }
-  }, [cois, saveCOIsMutation, canSync, coiToRow]);
+    if (merged) {
+      syncSubCoiExpiry(merged.subcontractorId, updated, true);
+      // Re-filed under another sub: the previous sub loses this cert too.
+      if (prior && prior.subcontractorId !== merged.subcontractorId) syncSubCoiExpiry(prior.subcontractorId, updated, false);
+    }
+  }, [cois, saveCOIsMutation, canSync, coiToRow, syncSubCoiExpiry]);
 
   const deleteCOI = useCallback((id: string) => {
+    const removed = cois.find(c => c.id === id);
     const updated = cois.filter(c => c.id !== id);
     setCois(updated);
     saveCOIsMutation.mutate(updated);
     if (canSync) void supabaseWrite('cois', 'delete', { id });
-  }, [cois, saveCOIsMutation, canSync]);
+    syncSubCoiExpiry(removed?.subcontractorId, updated, false);
+  }, [cois, saveCOIsMutation, canSync, syncSubCoiExpiry]);
 
   const getCOIsForSub = useCallback(
     (subId: string) => cois.filter(c => c.subcontractorId === subId),
@@ -5568,7 +5887,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const stableActions = useMemo<StableActionsValue>(() => ({
     completeOnboarding,
     setUserRole,
-  }), [completeOnboarding, setUserRole]);
+    flushPendingProjectSyncs,
+  }), [completeOnboarding, setUserRole, flushPendingProjectSyncs]);
 
   // Non-destructive import (app/data-import.tsx). Merges records from a MAGE
   // export BY ID — never overwrites or deletes existing rows, so re-importing
@@ -5585,7 +5905,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
     if (payload.projects?.length) {
       const have = new Set(projects.map(p => p.id));
-      const add = payload.projects.filter(p => p.id && !have.has(p.id));
+      // A-1: a backup may come from another account — the importer owns the
+      // rows it creates here (ownerUserId stamped, loader stamps dropped).
+      const add = payload.projects.filter(p => p.id && !have.has(p.id)).map(p => claimProjectForUser(p, userId));
       if (add.length) {
         const merged = [...add, ...projects];
         setProjects(merged);

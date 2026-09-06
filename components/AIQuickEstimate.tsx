@@ -11,6 +11,7 @@ import {
 import { MageAIMark } from '@/components/icons';
 import { nailIt } from '@/components/animations/NailItToast';
 import { BrainCard } from '@/components/brain/BrainCard';
+import { EMPTY_GROUNDING, groundingChipLabel, type GroundingBundle, type ScopeHints } from '@/utils/groundingChip';
 import { Colors } from '@/constants/colors';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
@@ -60,8 +61,14 @@ interface Props {
   globalMarkup: number;
   location: string;
   calculateAssemblyCost: (assembly: AssemblyItem, qty: number) => { materialsCost: number; laborCost: number; totalCost: number };
-  groundingFacts?: string[];
-  learnedRateCount?: number;
+  /** PRODUCT-F18 / re-review A2: the grounding for ONE run, chosen from what
+   *  is being priced. Called inside handleGenerate with the description and
+   *  project type the model is about to see, so the owner (the estimator
+   *  screen, which holds the cost book) can pick the entries that match THIS
+   *  job — not the six largest in the book. The bundle that comes back is the
+   *  prompt's grounding and the chip's counts, snapshotted next to the result
+   *  so the chip cannot drift from the prompt if the book changes mid-call. */
+  groundingFor?: (hints: ScopeHints) => GroundingBundle;
 }
 
 const QUALITY_TIERS: { id: QualityTier; label: string; desc: string }[] = [
@@ -84,7 +91,7 @@ const QUICK_PROMPTS = [
 
 export default React.memo(function AIQuickEstimate({
   visible, onClose, onApplyEstimate, existingMaterials, globalMarkup, location, calculateAssemblyCost,
-  groundingFacts, learnedRateCount,
+  groundingFor,
 }: Props) {
   const { tier } = useSubscription();
   const router = useRouter();
@@ -94,6 +101,11 @@ export default React.memo(function AIQuickEstimate({
   const [sqft, setSqft] = useState('');
   const [quality, setQuality] = useState<QualityTier>('standard');
   const [result, setResult] = useState<AIQuickEstimateResult | null>(null);
+  // The grounding that went into the prompt behind `result` — the facts the
+  // model was given and the MEASURED / STATED counts behind them. Set in
+  // handleGenerate from the same bundle the call used; the chip reads this,
+  // never a live prop, so it describes the prompt that was actually sent.
+  const [resultGrounding, setResultGrounding] = useState<GroundingBundle | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>('materials');
   const [error, setError] = useState<string | null>(null);
 
@@ -127,6 +139,7 @@ export default React.memo(function AIQuickEstimate({
   const handleReset = useCallback(() => {
     setStep('input');
     setResult(null);
+    setResultGrounding(null);
     setError(null);
     setExpandedSection('materials');
     setDescription('');
@@ -167,13 +180,18 @@ export default React.memo(function AIQuickEstimate({
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      // Grounding chosen for THIS job from what the model is about to see,
+      // and snapshotted before the call so the chip describes this prompt
+      // even if the cost book finishes loading (or changes) mid-call.
+      const used = groundingFor ? groundingFor({ projectType, scope: description }) : EMPTY_GROUNDING;
+      setResultGrounding(used);
       const data = await generateQuickEstimate(
         description,
         projectType,
         parseInt(sqft, 10) || 0,
         quality,
         location,
-        groundingFacts,
+        used.facts,
       );
       // Set the result FIRST so the UI transitions out of the loading
       // screen immediately. recordAIUsage is best-effort AsyncStorage
@@ -198,7 +216,7 @@ export default React.memo(function AIQuickEstimate({
       setStep('input');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [description, projectType, sqft, quality, location, tier, groundingFacts]);
+  }, [description, projectType, sqft, quality, location, tier, groundingFor]);
 
   const matchMaterial = useCallback((aiMat: { name: string; category: string; unit: string; unitPrice: number; supplier: string }) => {
     const nameLower = aiMat.name.toLowerCase();
@@ -498,9 +516,17 @@ export default React.memo(function AIQuickEstimate({
             style={{ marginBottom: 12 }}
             confidence={result.confidenceScore}
             ground={[
-              (learnedRateCount ?? 0) > 0
-                ? `Priced with your cost history · ${learnedRateCount} learned rate${learnedRateCount === 1 ? '' : 's'}`
-                : 'Priced from market averages — close jobs to teach MAGE your real costs',
+              // AI-F4: only MEASURED entries may be called "learned"; a seeded
+              // rate is named as one the contractor set; a calibration-only
+              // prompt says history-only (utils/groundingChip). Counts come
+              // from the bundle snapshotted for THIS result, not a live prop.
+              groundingChipLabel(
+                (resultGrounding ?? EMPTY_GROUNDING).counts,
+                {
+                  emptyLabel: 'Priced from market averages — close jobs to teach MAGE your real costs',
+                  calibration: resultGrounding?.calibration,
+                },
+              ),
               result.confidenceScore === undefined ? 'No confidence score returned for this run' : null,
             ].filter(Boolean).join(' · ')}
           />

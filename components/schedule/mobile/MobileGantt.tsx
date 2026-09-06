@@ -11,13 +11,20 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
-import { getPhaseColor } from '@/utils/scheduleEngine';
+import { getPhaseColor, addWorkingDays } from '@/utils/scheduleEngine';
 import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
-import { parseCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, addCalendarDays } from '@/utils/calendarDate';
+import { startDayNumberFor } from '@/utils/scheduleOps';
 
 interface MobileGanttProps {
   tasks: ScheduleTask[];
   startDate: string; // ISO yyyy-mm-dd
+  /** Schedule calendar — startDay is a WORKING-day number, so where a bar sits
+   *  on the calendar-day columns depends on which days are worked
+   *  (ProjectSchedule.workingDaysPerWeek / nonWorkingDates). Defaults to the
+   *  app-wide 5-day week. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
   selectedDate: Date;
   collapsedPhases: Record<string, boolean>;
   onTogglePhase: (phase: string) => void;
@@ -93,9 +100,10 @@ function toIsoDay(d: Date): string {
 // Positioning is COLUMN-based: dragging snaps to whole columns (dragCols), and
 // the on-screen offset is column-quantized (dragCols * dayW). On release we hand
 // the raw pixel translation to dragToStartDay, which converts column movement
-// back into a calendar-day startDay; onReschedule still takes a delta in
-// *calendar days* so its contract (and onUpdateTask) is unchanged. This keeps
-// drag correct under weekday-only mode and every zoom level.
+// back into a WORKING-day startDay (the column it lands on, resolved through
+// the schedule calendar); onReschedule still takes a delta in *working days*
+// so its contract (and onUpdateTask) is unchanged. This keeps drag correct
+// under weekday-only mode and every zoom level.
 function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, dragToStartDay, onDragChange }: {
   task: ScheduleTask; x: number; w: number; top: number; dayW: number; color: string; done: boolean;
   onPress: (t: ScheduleTask) => void; onReschedule: (t: ScheduleTask, deltaDays: number) => void;
@@ -146,7 +154,7 @@ function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, d
 }
 
 export function MobileGantt({
-  tasks, startDate, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onLongPressEmpty, onUpdateTask,
+  tasks, startDate, workingDaysPerWeek, nonWorkingDates, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onLongPressEmpty, onUpdateTask,
 }: MobileGanttProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -165,6 +173,16 @@ export function MobileGantt({
   // shared fix and additionally tolerates the full ISO timestamp Supabase can
   // hand back for this field.
   const baseMs = useMemo(() => startOfDayMs(parseCalendarDay(startDate) ?? new Date()), [startDate]);
+  const base = useMemo(() => new Date(baseMs), [baseMs]);
+  const wdpw = workingDaysPerWeek ?? 5;
+  // The calendar day at column-offset `d` from the anchor, from LOCAL
+  // components. B4 review item 2: this was `new Date(baseMs + d * MS_DAY)`,
+  // and on the 2026-11-01 fall-back that lands at 23:00 the day BEFORE — every
+  // weekend shade, week tick and long-press date after Nov 1 was a day early
+  // in Denver. The reverse direction (a local midnight → its offset) stays a
+  // millisecond division because Math.round absorbs the 23h/25h day.
+  const dayAt = useCallback((d: number): Date => addCalendarDays(base, d), [base]);
+  const offsetOf = useCallback((d: Date): number => Math.round((startOfDayMs(d) - baseMs) / MS_DAY), [baseMs]);
   const todayIdx = Math.round((startOfDayMs(new Date()) - baseMs) / MS_DAY);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [zoom, setZoom] = useState<Zoom>('day');
@@ -178,9 +196,9 @@ export function MobileGantt({
 
   // True when calendar day-offset `d` (from baseMs) lands on Sat/Sun.
   const isWeekendOffset = useCallback((d: number): boolean => {
-    const dow = new Date(baseMs + d * MS_DAY).getDay(); // 0=Sun .. 6=Sat
+    const dow = dayAt(d).getDay(); // 0=Sun .. 6=Sat
     return dow === 0 || dow === 6;
-  }, [baseMs]);
+  }, [dayAt]);
 
   // Ordered phases (first-seen) with rolled-up %.
   const phases = useMemo(() => {
@@ -209,9 +227,38 @@ export function MobileGantt({
     return out;
   }, [phases, collapsedPhases]);
 
-  // startDay is 1-indexed; convert to a 0-indexed day-offset ((startDay ?? 1) - 1)
-  // before combining with duration to get the task's end day-offset from baseMs.
-  const maxDay = useMemo(() => tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 7), [tasks]);
+  // --- WORKING DAYS → CALENDAR COLUMNS -------------------------------------
+  // startDay is a 1-indexed WORKING-day number (the CPM engine, the desktop
+  // grid and getTaskDateRange all walk addWorkingDays from the anchor), while
+  // a column here is a CALENDAR day-offset. B4 review A9: bars used to be
+  // placed at column `startDay - 1` directly, so a startDay-6 task on a
+  // Monday anchor was drawn under Saturday instead of the next Monday, and
+  // the drift grew by two columns per week down the schedule.
+  //
+  // Walked ONCE per (anchor, calendar, horizon) rather than per task:
+  // workingDayOffset[n] is the calendar day-offset of working day n
+  // (0-indexed, so n = startDay - 1), built with the same addWorkingDays every
+  // other surface uses. barById then reads it O(1) per task — the same
+  // "index it once" shape as the weekday-only column index below.
+  const workingDayOffset = useMemo(() => {
+    const maxN = tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 0);
+    const out: number[] = [0];
+    let cur = base;
+    for (let n = 1; n <= maxN; n++) {
+      cur = addWorkingDays(cur, 1, wdpw, nonWorkingDates);
+      out.push(offsetOf(cur));
+    }
+    return out;
+  }, [tasks, base, wdpw, nonWorkingDates, offsetOf]);
+  // Calendar day-offset of working day n; past the indexed horizon (only a
+  // drag can get there) it walks the same calendar.
+  const offsetOfWorkingDay = useCallback((n: number): number => {
+    const idx = Math.max(0, n);
+    return workingDayOffset[idx] ?? offsetOf(addWorkingDays(base, idx, wdpw, nonWorkingDates));
+  }, [workingDayOffset, offsetOf, base, wdpw, nonWorkingDates]);
+  // The column just past the last bar (working day maxN is the day AFTER the
+  // last task day, so its offset is the exclusive end), floored at a week.
+  const maxDay = Math.max(7, workingDayOffset[workingDayOffset.length - 1] ?? 0);
   const numDays = maxDay + 2;
 
   // --- COLUMN ABSTRACTION ---------------------------------------------------
@@ -284,13 +331,14 @@ export function MobileGantt({
 
   const dayToX = useCallback((dayOffset: number): number => colOf(dayOffset) * dayW, [colOf, dayW]);
 
-  // Convert a live pixel drag into a new 1-indexed startDay: startDay maps to a
-  // 0-indexed day-offset (startDay - 1) for the column math, then the resulting
-  // day-offset (clamped to >= 0) is re-indexed to 1-based on the way out.
+  // Convert a live pixel drag into a new 1-indexed startDay: the bar's current
+  // column comes from its working day, the drop column resolves to a calendar
+  // day, and startDayNumberFor turns that back into a working-day number
+  // (a drop on a closed day starts the next working day).
   const dragToStartDay = useCallback((currentStartDay: number, translationX: number): number => {
-    const targetCol = Math.max(0, colOf(currentStartDay - 1) + Math.round(translationX / dayW));
-    return colToDay(targetCol) + 1;
-  }, [colOf, colToDay, dayW]);
+    const targetCol = Math.max(0, colOf(offsetOfWorkingDay(currentStartDay - 1)) + Math.round(translationX / dayW));
+    return startDayNumberFor(base, dayAt(colToDay(targetCol)), wdpw, nonWorkingDates);
+  }, [colOf, colToDay, dayW, offsetOfWorkingDay, base, dayAt, wdpw, nonWorkingDates]);
 
   const timelineW = totalCols * dayW;
   const contentH = HEADER_H + rows.length * ROW_H;
@@ -314,15 +362,18 @@ export function MobileGantt({
     const m = new Map<string, { x: number; w: number; yMid: number }>();
     rows.forEach((r, i) => {
       if (r.kind !== 'task') return;
-      // startDay is 1-indexed; dayToX/colOf take a 0-indexed day-offset from baseMs.
-      const startOffset = (r.task.startDay ?? 1) - 1;
-      const x = dayToX(startOffset);
-      const endX = dayToX(startOffset + Math.max(1, r.task.durationDays || 1));
+      // startDay is a 1-indexed WORKING day; dayToX/colOf take a 0-indexed
+      // CALENDAR day-offset from baseMs, so both ends go through the index.
+      // The bar covers its last working day's column, so the right edge is
+      // the column after it.
+      const n = (r.task.startDay ?? 1) - 1;
+      const x = dayToX(offsetOfWorkingDay(n));
+      const endX = dayToX(offsetOfWorkingDay(n + Math.max(1, r.task.durationDays || 1) - 1) + 1);
       const w = Math.max(dayW * 0.6, endX - x - 3);
       m.set(r.task.id, { x, w, yMid: HEADER_H + i * ROW_H + ROW_H / 2 });
     });
     return m;
-  }, [rows, dayToX, dayW]);
+  }, [rows, dayToX, dayW, offsetOfWorkingDay]);
 
   // y0/y1 are the arrow's vertical extent in timeline-content coordinates. They
   // are carried on the arrow so the render pass can drop the ones that cannot
@@ -358,11 +409,11 @@ export function MobileGantt({
   const weekTicks = useMemo(() => {
     const ticks: { x: number; label: string }[] = [];
     for (let d = 0; d < numDays; d += 7) {
-      const dt = new Date(baseMs + d * MS_DAY);
+      const dt = dayAt(d);
       ticks.push({ x: dayToX(d), label: `${dt.getMonth() + 1}/${dt.getDate()}` });
     }
     return ticks;
-  }, [numDays, baseMs, dayToX]);
+  }, [numDays, dayAt, dayToX]);
 
   const zoomOptions: { key: Zoom; label: string }[] = [
     { key: 'day', label: 'Day' },
@@ -516,7 +567,7 @@ export function MobileGantt({
                 delayLongPress={350}
                 onLongPress={(e) => {
                   const day = colToDay(Math.max(0, Math.round(e.nativeEvent.locationX / dayW)));
-                  const iso = toIsoDay(new Date(baseMs + day * MS_DAY));
+                  const iso = toIsoDay(dayAt(day));
                   if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   onLongPressEmpty(iso);
                 }}

@@ -13,10 +13,16 @@
 //   • the home "Inbox" card — the dismissible Smart Inbox feed
 //   • the Morning Brief "N need you" line — the brief's own composed
 //     document (canonical set + brief-only rollups like leak flags)
+//
+// RT-R1: the builders read contexts that swallow fetch errors and serve the
+// local cache, so an empty set can mean "quiet" OR "every read 401'd". The
+// hook therefore also carries `sourceFailed` from useMageReachability, and a
+// surface that says "all clear" must gate on it.
 
 import { useMemo } from 'react';
 import { useCoreData, useFinancialsData, useDocsData, useFieldData } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
+import { useMageReachability } from '@/hooks/useMageReachability';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import {
   scheduleAttention,
@@ -38,6 +44,10 @@ export interface BrainWatchResult {
   /** THE canonical needs-attention count. */
   total: number;
   byKind: Record<AttnKind, number>;
+  /** RT-R1: true when MAGE's backend could not be reached as this user (dead
+   *  session, no network). `items`/`total` are then whatever this device last
+   *  cached — a surface must not present total === 0 as "all clear". */
+  sourceFailed: boolean;
 }
 
 export function useBrainWatch(): BrainWatchResult {
@@ -46,6 +56,7 @@ export function useBrainWatch(): BrainWatchResult {
   const { getPermitsForProject } = useDocsData();
   const { punchItems } = useFieldData();
   const safety = useSafety();
+  const reachability = useMageReachability();
 
   const items: AttentionItem[] = useMemo(() => {
     const nowMs = Date.now();
@@ -75,7 +86,7 @@ export function useBrainWatch(): BrainWatchResult {
 
   const summary = useMemo(() => summarize(items), [items]);
 
-  return { items, total: summary.total, byKind: summary.byKind };
+  return { items, total: summary.total, byKind: summary.byKind, sourceFailed: reachability.failed };
 }
 
 export default useBrainWatch;

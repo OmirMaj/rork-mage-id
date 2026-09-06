@@ -99,7 +99,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
             <ThinkingStates steps={thinkingSteps} active={visible} />
           ) : (
             <Text style={styles.subtitle}>
-              {subtitle ?? 'AI is pulling materials, labor, and pricing for your project. Hang tight — usually 8 to 30 seconds.'}
+              {subtitle ?? 'The model is estimating from your scope plus the rates listed above — nothing is pulled from a price list. Usually 8 to 30 seconds.'}
             </Text>
           )}
 

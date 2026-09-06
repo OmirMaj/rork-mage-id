@@ -46,7 +46,10 @@ import type {
   MaterialReceipt,
   TimeEntry,
 } from '@/types';
-import { isEligibleLaborEntry, normalizeTradeKey, type LaborRateMap } from '@/utils/laborSamples';
+import {
+  isEligibleLaborEntry, normalizeTradeKey, priceLaborEntry, DEFAULT_OVERTIME_MULTIPLIER,
+  type LaborRateMap,
+} from '@/utils/laborSamples';
 
 export interface JobCostLine {
   /** Grouping key — phase name or '(uncategorized)'. */
@@ -173,6 +176,10 @@ export interface JobCostInput {
    *  original behavior. */
   timeEntries?: TimeEntry[];
   laborRates?: LaborRateMap;
+  /** MONEY-F19: the GC's overtime premium (hooks/useLaborRates.ts
+   *  overtimeMultiplier). Overtime hours on a shift are priced at
+   *  rate × multiplier; omit for the 1.5× default. */
+  overtimeMultiplier?: number;
 }
 
 /**
@@ -182,7 +189,10 @@ export interface JobCostInput {
  * wire it up from ProjectContext and re-run on every mutation. Results are
  * cheap to recompute because the input arrays are already in memory.
  */
-export function computeJobCost({ project, commitments, invoices, changeOrders, receipts = [], timeEntries = [], laborRates = {} }: JobCostInput): JobCostSummary {
+export function computeJobCost({
+  project, commitments, invoices, changeOrders, receipts = [], timeEntries = [], laborRates = {},
+  overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER,
+}: JobCostInput): JobCostSummary {
   const projectCommitments = commitments.filter(c => c.projectId === project.id && c.status !== 'draft');
   const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
   const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
@@ -306,7 +316,9 @@ export function computeJobCost({ project, commitments, invoices, changeOrders, r
       if (e.projectId !== project.id || !isEligibleLaborEntry(e)) continue;
       const rate = laborRates[normalizeTradeKey(e.trade)];
       if (!Number.isFinite(rate) || rate <= 0) continue;
-      laborActual += e.totalHours * rate;
+      // MONEY-F19: overtime is PRICED, not just counted. totalHours × rate
+      // booked a 10-hour day at $500 when the crew cost $550.
+      laborActual += priceLaborEntry(e, rate, overtimeMultiplier);
       counted++;
     }
     if (laborActual > 0) {
@@ -324,9 +336,12 @@ export function computeJobCost({ project, commitments, invoices, changeOrders, r
   if (estimate) {
     for (const c of projectCommitments) {
       if (!c.linkedEstimateItems || c.linkedEstimateItems.length === 0) continue;
+      // MONEY-F11: COST basis (unitPrice × quantity), not the marked-up
+      // lineTotal — a commitment is at cost, and measuring it against sell
+      // hid a sub signed 17% over the estimate behind the 15% markup.
       const linkedTotal = c.linkedEstimateItems.reduce((s, id) => {
         const item = estimate.items.find(it => it.materialId === id);
-        return s + (item?.lineTotal ?? 0);
+        return s + (item ? (item.unitPrice ?? 0) * (item.quantity ?? 0) : 0);
       }, 0);
       if (linkedTotal > 0 && (c.amount + (c.changeAmount ?? 0)) > linkedTotal * 1.02) {
         overcommitted.push(c);

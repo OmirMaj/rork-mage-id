@@ -8,12 +8,14 @@ import type { ScheduleTask } from '@/types';
 import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { parseCalendarDay } from '@/utils/calendarDate';
-
-const MS_DAY = 24 * 60 * 60 * 1000;
+import { taskCalendarRange } from '@/utils/scheduleOps';
 
 interface ProgressTabProps {
   tasks: ScheduleTask[];
   startDate: string;
+  /** Schedule calendar — see MobileScheduleList. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
 }
 
 function weighted(ts: ScheduleTask[]): number {
@@ -22,16 +24,16 @@ function weighted(ts: ScheduleTask[]): number {
   return Math.round(ts.reduce((s, t) => s + (t.progress || 0) * Math.max(1, t.durationDays || 1), 0) / dur);
 }
 
-export function ProgressTab({ tasks, startDate }: ProgressTabProps) {
+export function ProgressTab({ tasks, startDate, workingDaysPerWeek, nonWorkingDates }: ProgressTabProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // parseCalendarDay, not new Date(): a bare 'YYYY-MM-DD' parses as UTC
   // midnight and floors to the PREVIOUS local day at negative offsets, so every
   // date here rendered a day early. Same fix as MobileGantt / TaskDetailSheet /
   // SchedulerHeader / MobileScheduleList.
-  const baseMs = useMemo(() => {
+  const base = useMemo(() => {
     const d = parseCalendarDay(startDate) ?? new Date();
-    d.setHours(0, 0, 0, 0); return d.getTime();
+    d.setHours(0, 0, 0, 0); return d;
   }, [startDate]);
 
   const overall = useMemo(() => weighted(tasks), [tasks]);
@@ -76,8 +78,10 @@ export function ProgressTab({ tasks, startDate }: ProgressTabProps) {
         {milestones.length === 0 ? (
           <Text style={styles.empty}>No milestones set.</Text>
         ) : milestones.map((m, i) => {
-          // startDay is 1-indexed (day 1 = schedule start); shift -1 to a day-offset.
-          const d = new Date(baseMs + ((m.startDay ?? 1) - 1) * MS_DAY);
+          // startDay is a 1-indexed WORKING-day number (day 1 = schedule start):
+          // walk it with taskCalendarRange, not `baseMs + offset * MS_DAY`
+          // (B4 review A9 / item 2).
+          const d = taskCalendarRange(m, base, workingDaysPerWeek, nonWorkingDates).start;
           const done = m.status === 'done';
           return (
             <View key={m.id} style={[styles.prow, i > 0 ? styles.rowDivider : null]}>

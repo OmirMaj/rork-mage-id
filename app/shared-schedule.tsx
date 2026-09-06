@@ -40,6 +40,7 @@ import {
   type SharedSchedulePayload,
 } from '@/utils/scheduleOps';
 import { addWorkingDays, formatShortDate } from '@/utils/scheduleEngine';
+import { parseCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
 import { SubDailyUpdateModal } from '@/components/SubDailyUpdateModal';
 import { appendSubUpdate, loadSubUpdates, rollupLatest } from '@/utils/subScheduleUpdatesStorage';
 import { supabase } from '@/lib/supabase';
@@ -84,8 +85,12 @@ export default function SharedScheduleScreen() {
   const payload = inlinePayload ?? snapshotPayload;
   const tasks = useMemo(() => payload ? tasksFromSharePayload(payload) : [], [payload]);
   const cpm = useMemo(() => runCpm(tasks), [tasks]);
+  // UX-F2: the payload carries the schedule's calendar day ('YYYY-MM-DD';
+  // older tokens carry a full instant, which parseCalendarDay truncates to its
+  // date part). new Date() of the bare form is UTC midnight — the homeowner
+  // saw every task a day early west of Greenwich.
   const projectStartDate = useMemo(
-    () => payload ? new Date(payload.projectStartISO) : new Date(),
+    () => payload ? (parseCalendarDay(payload.projectStartISO) ?? new Date(payload.projectStartISO)) : new Date(),
     [payload],
   );
 
@@ -340,7 +345,7 @@ export default function SharedScheduleScreen() {
                           <View style={styles.subUpdateChip}>
                             <Activity size={11} color={themeColors.success} strokeWidth={1.75} />
                             <Text style={styles.subUpdateChipText}>
-                              {last.progressPercent}% on {new Date(last.forDate).toLocaleDateString()}
+                              {last.progressPercent}% on {formatCalendarDay(last.forDate)}
                             </Text>
                           </View>
                         )}

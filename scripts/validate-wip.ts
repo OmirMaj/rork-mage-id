@@ -311,6 +311,53 @@ expect('originalContract falls back to gmpCap',
 expect('originalContract → 0 when nothing available',
   deriveOriginalContract({} as unknown as Project, [], []), 0);
 
+// ── MONEY-F10: two approved COs must not count the first one twice ──────────
+// app/change-order.tsx stamps each CO's originalContractValue as
+//   estimate grandTotal + Σ OTHER approved COs at save time
+// and getChangeOrdersForProject hands them out newest-first, so
+// `changeOrders[0]` (CO#2) already contained CO#1. $500,000 estimate, CO#1
+// +$20,000, CO#2 +$30,000: pre-fix original = $520,000 → revised $570,000,
+// earned revenue at 40% $228,000, underbilling $8,000 — on the schedule a
+// surety underwrites. The truth is $550,000 / $220,000 / $0.
+{
+  const proj = { linkedEstimate: { grandTotal: 500_000, baseTotal: 400_000 } } as unknown as Project;
+  const twoCOs = [ // newest first, exactly as the context sorts them
+    { id: 'co2', number: 2, status: 'approved', changeAmount: 30_000, originalContractValue: 520_000, createdAt: '2026-03-01T00:00:00.000Z' },
+    { id: 'co1', number: 1, status: 'approved', changeAmount: 20_000, originalContractValue: 500_000, createdAt: '2026-02-01T00:00:00.000Z' },
+  ] as unknown as ChangeOrder[];
+  const original = deriveOriginalContract(proj, twoCOs, []);
+  expect('original contract is the base contract, not the newest CO\'s CO-inclusive snapshot',
+    original, 500_000);
+  const row = computeWipRow({
+    originalContract: original,
+    approvedChangeOrders: sumApprovedChangeOrders(twoCOs),
+    totalEstimatedCost: 440_000, costToDate: 176_000, billedToDate: 220_000,
+  });
+  expect('revised contract = $550,000 (was $570,000)', row.revisedContract, 550_000);
+  expect('earned revenue at 40% = $220,000 (was $228,000)', row.earnedRevenue, 220_000);
+  expect('underbilling is $0, not the $8,000 the double count invented', row.underbilling, 0);
+
+  // A deductive CO approved first: the later CO's snapshot sits BELOW the base
+  // contract, so "smallest snapshot" alone would shrink the original by $10k.
+  const deductiveFirst = [
+    { id: 'co2', number: 2, status: 'approved', changeAmount: 30_000, originalContractValue: 490_000 },
+    { id: 'co1', number: 1, status: 'approved', changeAmount: -10_000, originalContractValue: 500_000 },
+  ] as unknown as ChangeOrder[];
+  expect('a deductive CO approved first does not shrink the original contract',
+    deriveOriginalContract(proj, deductiveFirst, []), 500_000);
+
+  // No estimate on the project — nothing to reconstruct from — so the least
+  // CO-inclusive snapshot is the closest thing to the base contract.
+  expect('without an estimate, the smallest positive CO snapshot wins, never the newest',
+    deriveOriginalContract({} as unknown as Project, twoCOs, []), 500_000);
+  expect('a pay app still outranks the CO reconstruction',
+    deriveOriginalContract(proj, twoCOs, [{ originalContractSum: 505_000 }] as unknown as SavedAIAPayApp[]),
+    505_000);
+  // The CO cost ratio inherits the corrected base: 0.8 × $50,000 of CO revenue.
+  expect('deriveEstimatedCost prices the COs at the corrected cost ratio',
+    deriveEstimatedCost(proj, [], { approvedChangeOrders: 50_000, originalContract: original }), 440_000);
+}
+
 // ── flagWipRow: profit fade (margin drops > 2 pts vs prior) ─────────────────
 const prevHiMargin = computeWipRow({ ...base, totalEstimatedCost: 70000 }); // 0.30 margin
 const curLoMargin  = computeWipRow({ ...base, totalEstimatedCost: 75000 }); // 0.25 margin

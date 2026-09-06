@@ -15,10 +15,10 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Modal, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Plus, Building2, X, Check, ArrowUpDown, Truck, Moon, IdCard } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -29,6 +29,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import {
   findAccessConflicts, summarizeAccess,
   type BuildingAccessRules, type AccessReservation, type AccessKind,
@@ -62,7 +63,7 @@ export default function BuildingAccessScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const fabScroll = useBrainFabScroll();
-  const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
 
   const {
@@ -142,7 +143,7 @@ export default function BuildingAccessScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={() => router.back()} title="Building access" subtitle="" styles={styles} t={t} onAdd={undefined} />
+        <Header onBack={goBack} title="Building access" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
           toolName="Building access"
           message="Building rules are per project — pick the job whose building you're working in."
@@ -164,7 +165,7 @@ export default function BuildingAccessScreen() {
     <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <Header
-        onBack={() => router.back()}
+        onBack={goBack}
         title={project.name}
         subtitle={summarizeAccess(conflicts) ?? 'Nothing blocking'}
         styles={styles}
@@ -459,7 +460,9 @@ function AddSlotSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      {/* UX-F15: same keyboard fix as app/deliveries.tsx — the Date / Window
+          inputs and the Save button sat under the keyboard. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Book a slot</Text>
@@ -467,6 +470,7 @@ function AddSlotSheet({
               <X size={20} color={t.textSecondary} strokeWidth={1.9} />
             </TouchableOpacity>
           </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false} style={styles.sheetScroll}>
 
           <Text style={styles.fieldLabel}>What</Text>
           <View style={styles.kindRow}>
@@ -521,8 +525,9 @@ function AddSlotSheet({
           <Text style={styles.saveHint}>
             Starts as requested. Mark it confirmed only once the building says yes.
           </Text>
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -586,7 +591,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sheet: {
     backgroundColor: t.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: 18, paddingBottom: 34, gap: 4,
+    maxHeight: '90%', // UX-F15: bounded so the body scrolls above the keyboard
   },
+  sheetScroll: { flexShrink: 1 },
   sheetHead: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 4 },
   // Compact sheet, not a full-screen modal — system sans, not serif.
   sheetTitle: { ...Type.headline, color: t.text },

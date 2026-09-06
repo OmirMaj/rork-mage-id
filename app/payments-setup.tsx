@@ -44,6 +44,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { platformFeeLabel, STRIPE_CARD_PROCESSING } from '@/utils/platformFees';
 import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
 import { financingDisclosure } from '@/utils/financing';
 import type { FinancingConfig } from '@/types';
@@ -65,6 +67,8 @@ export default function PaymentsSetupScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { settings, updateSettings } = useProjects();
+  // MONEY-F8: the fee this GC actually pays, from the one schedule.
+  const { tier } = useTierAccess();
 
   const [status, setStatus] = useState<ConnectStatus>('none');
   const [loading, setLoading] = useState<boolean>(true);
@@ -347,8 +351,8 @@ export default function PaymentsSetupScreen() {
         <View style={styles.fineprint}>
           <Lock size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.fineprintText}>
-            Secured by Stripe. MAGE ID never stores card data. A 1% platform fee plus standard
-            Stripe processing (2.9% + 30¢) is deducted from each successful payment.
+            Secured by Stripe. MAGE ID never stores card data. A {platformFeeLabel(tier)} platform fee on your plan plus standard
+            Stripe processing ({STRIPE_CARD_PROCESSING.percent}% + {STRIPE_CARD_PROCESSING.fixedCents}¢) is deducted from each successful payment.
           </Text>
         </View>
       </ScrollView>
@@ -444,6 +448,7 @@ function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refresh
 function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useTierAccess(); // MONEY-F8
   return (
     <View style={styles.card}>
       <View style={[styles.heroIcon, { backgroundColor: themeColors.success + '15' }]}>
@@ -464,7 +469,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
         </View>
         <View style={styles.stat}>
           <Text style={styles.statLabel}>Platform fee</Text>
-          <Text style={styles.statValue}>1%</Text>
+          <Text style={styles.statValue}>{platformFeeLabel(tier)}</Text>
         </View>
       </View>
 

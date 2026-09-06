@@ -5,6 +5,7 @@
 // never throws. React/RN-free so the validator drives it.
 import type { ProjectSchedule, RFI } from '@/types';
 import { runCpm, type RunCpmOptions } from '@/utils/cpm';
+import { calendarDayStart } from '@/utils/calendarDate';
 
 export interface RfiBlockStatus {
   critical: boolean;
@@ -20,12 +21,18 @@ const NOT_BLOCKING: RfiBlockStatus = { critical: false };
  * DatePickerModal's anchor — reads as overdue at local midnight after the due
  * day, not at some arbitrary hour the next morning. Due today → 0 (not
  * overdue all day). Invalid/empty input → 0. Pure; `now` injectable for tests.
+ *
+ * calendarDayStart, not `new Date(dueIso)`: RFI.dateRequired is a bare
+ * 'YYYY-MM-DD' from the voice/photo writers and app/rfi.tsx's two-week
+ * default, and the spec parses that as UTC midnight — the previous local day
+ * west of Greenwich, so a due-today RFI read as one day overdue all day. A
+ * noon-UTC instant still resolves to its own day (B4 review A2).
  */
 export function overdueCalendarDays(dueIso: string | null | undefined, now: Date = new Date()): number {
   if (!dueIso) return 0;
-  const due = new Date(dueIso);
-  if (Number.isNaN(due.getTime())) return 0;
-  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const due = calendarDayStart(dueIso);
+  if (!due) return 0;
+  const dueDay = due.getTime();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   // Math.round absorbs DST-shifted 23h/25h "days" in the local-midnight diff.
   return Math.max(0, Math.round((today - dueDay) / 86400000));

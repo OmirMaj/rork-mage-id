@@ -36,6 +36,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
 import { groupReadyPunchItems } from '@/utils/brainWatch';
+import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildNoticeStatus } from '@/utils/noticeClock';
 import type {
   EntityRef, Project, Invoice, RFI, Submittal, ChangeOrder, PunchItem,
@@ -162,7 +163,10 @@ export function useSmartInbox(): SmartInboxResult {
       if (due === null) continue;
       if (due < today) {
         const daysLate = Math.floor((today - due) / MS_PER_DAY);
-        const outstanding = Math.max(0, (inv.totalDue ?? 0) - (inv.amountPaid ?? 0));
+        // MONEY-F5: net of held retention — a balance that is only retention
+        // the client may hold is not "late".
+        const outstanding = invoiceOutstanding(inv);
+        if (outstanding <= 0) continue;
         out.push({
           id: `overdue_invoice:invoice:${inv.id}`,
           rule: 'overdue_invoice',

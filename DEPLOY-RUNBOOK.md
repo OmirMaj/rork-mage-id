@@ -1,3 +1,10 @@
+> **SUPERSEDED 2026-09-04.** This runbook predates the verified state in
+> `DEPLOY-VERIFIED-2026-09-02.md`, which is the only deploy runbook. Two of its
+> steps were shown by the 2026-09-03 audit to be harmful as written (pasting
+> `DEPLOY-NOW.sql` scheduled a cron against an undeployed function and added a
+> column under a do-not-touch instruction; the edge deploy line omitted
+> `--no-verify-jwt`). `DEPLOY-NOW.sql` has been deleted. Kept for history only.
+
 # Deploy runbook — 2026-08-27
 
 Everything built on 2026-08-26/27 is inert until this runs. ~25 minutes.

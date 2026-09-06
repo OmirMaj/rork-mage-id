@@ -3676,6 +3676,7 @@
       notifyEvent('selection_chosen', {
         project_id: data.project && data.project.id,
         portal_id: api.portalId,
+        access_token: getPortalToken(),
         project_name: data.project && data.project.name,
         category: selCat && selCat.category,
         product_name: selOpt && selOpt.productName,
@@ -3801,6 +3802,7 @@
       notifyEvent('contract_signed', {
         project_id: data.project && data.project.id,
         portal_id: api.portalId,
+        access_token: getPortalToken(),
         project_name: data.project && data.project.name,
         signer_name: typedName,
         contract_value: data.contract && data.contract.contractValue,
@@ -4040,9 +4042,19 @@
       : 'https://nteoqhcswappxxjlpvap.supabase.co';
     out.innerHTML = '<div class="ah-status">' + esc(t('askHomeThinking')) + '</div>';
     if (btn) btn.disabled = true;
+    // Send the anon key as apikey + bearer REGARDLESS of the function's
+    // verify_jwt flag (audit AUTH-F4): the gateway rejects a bare request when
+    // the flag is on, and the headers are harmless when it is off — the same
+    // headers the passcode and message calls send. The portal access token in
+    // the body is the real credential. `typeof` guards the page-level fallback.
+    var anonKey = api.supabaseAnonKey || (typeof SUPABASE_ANON_PUBLIC === 'string' ? SUPABASE_ANON_PUBLIC : '');
     fetch(base + '/functions/v1/portal-ask-home', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': anonKey,
+        'Authorization': 'Bearer ' + anonKey,
+      },
       body: JSON.stringify({ portalId: api.portalId, accessToken: token, question: q }),
     }).then(function (r) {
       if (r.status === 404) throw { kind: 'unavailable' };
@@ -4169,7 +4181,12 @@
     if (!invs || !invs.length) return emptyState('No invoices shared yet.');
     return invs.map(function (i) {
       var balance = (typeof i.balance === 'number') ? i.balance : i.total;
-      var isPaid = String(i.status || '').toLowerCase() === 'paid' || balance <= 0;
+      // The pill and the paid test read the status the APP computes
+      // (effectiveStatus: overdue past due, paid once the retention-net
+      // balance is covered, reopened when a release creates a balance on a
+      // stored 'paid'); `status` is the stored word, kept for old snapshots.
+      var invStatus = i.effectiveStatus || i.status;
+      var isPaid = String(invStatus || '').toLowerCase() === 'paid' || balance <= 0;
       var canPay = i.payLinkUrl && !isPaid && balance > 0;
       var amountDisplay = isPaid ? fmtMoney(i.total) : fmtMoney(balance);
       var amountLabel = isPaid ? 'Paid' : 'Balance due';
@@ -4185,7 +4202,7 @@
           '<div class="row-main">' +
             '<div class="invoice-num">' +
               '<strong>Invoice #'+esc(i.number)+'</strong>' +
-              '<span class="pill '+statusPillClass(i.status)+'">'+esc(statusLabel(i.status))+'</span>' +
+              '<span class="pill '+statusPillClass(invStatus)+'">'+esc(statusLabel(invStatus))+'</span>' +
             '</div>' +
             '<div class="invoice-amount num">'+amountDisplay+'</div>' +
             '<div class="invoice-meta">' +
@@ -4216,9 +4233,12 @@
       // apps had no payment wiring at all — homeowners got a print-only
       // PDF while regular invoices got Pay buttons. Now both have parity.
       var due = a.currentPaymentDue || 0;
-      var canPay = !!a.payLinkUrl && due > 0;
+      // MONEY-F2: a pay app the Stripe webhook stamped `paidAt` is settled —
+      // show that, never a second Pay button.
+      var aiaPaid = !!a.paidAt;
+      var canPay = !aiaPaid && !!a.payLinkUrl && due > 0;
       return (
-        '<div class="aia-card" data-aia="'+esc(a.id)+'" data-item-id="'+esc(a.id)+'">' +
+        '<div class="aia-card' + (aiaPaid ? ' paid' : '') + '" data-aia="'+esc(a.id)+'" data-item-id="'+esc(a.id)+'">' +
           '<div class="row-main">' +
             '<div class="aia-num-block">' +
               '<span class="aia-num-eyebrow">G702 / G703 · App</span>' +
@@ -4256,7 +4276,9 @@
               ? '<button class="invoice-pay-btn" data-aia-pay="'+esc(a.payLinkUrl)+'">' +
                   icn(ICONS.dollar, 14) + ' Pay ' + fmtMoney(due) +
                 '</button>'
-              : '') +
+              : aiaPaid
+                ? '<span class="pill pill-success">' + icn(ICONS.check, 12) + ' Paid ' + fmtDate(a.paidAt) + '</span>'
+                : '') +
           '</div>' +
           '<div class="aia-progress-ring">' +
             '<svg width="88" height="88" viewBox="0 0 88 88">' +
@@ -4513,7 +4535,10 @@
 
   function renderInvoiceDrawer(inv) {
     var balance = (typeof inv.balance === 'number') ? inv.balance : inv.total;
-    var isPaid = String(inv.status || '').toLowerCase() === 'paid' || balance <= 0;
+    // effectiveStatus is what the GC's app shows; `status` is the stored word
+    // (older snapshots carry only that).
+    var invStatus = inv.effectiveStatus || inv.status;
+    var isPaid = String(invStatus || '').toLowerCase() === 'paid' || balance <= 0;
     var lineItemsHtml = (inv.lineItems && inv.lineItems.length)
       ? inv.lineItems.map(function (li) {
           var qtyUnit = (li.quantity ? li.quantity : '') + ' ' + (li.unit || '');
@@ -4538,8 +4563,18 @@
     if (typeof inv.taxAmount === 'number' && inv.taxAmount > 0) {
       totalsRows += '<div class="detail-row"><span class="detail-row-label">Tax</span><span class="detail-row-value num">'+fmtMoney(inv.taxAmount, {dec:2})+'</span></div>';
     }
-    if (typeof inv.retentionAmount === 'number' && inv.retentionAmount > 0) {
-      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage'+(inv.retentionPercent ? ' ('+inv.retentionPercent+'%)' : '')+'</span><span class="detail-row-value num">−'+fmtMoney(inv.retentionAmount, {dec:2})+'</span></div>';
+    // Retainage is shown as what is still HELD (retentionAmount − released),
+    // not the original withholding — once the GC releases it, it is payable
+    // and belongs in the balance, not in a line that subtracts it.
+    var retentionReleased = (typeof inv.retentionReleased === 'number') ? Math.max(0, inv.retentionReleased) : 0;
+    var retentionHeld = (typeof inv.retentionHeld === 'number')
+      ? inv.retentionHeld
+      : (typeof inv.retentionAmount === 'number' ? Math.max(0, inv.retentionAmount - retentionReleased) : 0);
+    if (retentionHeld > 0) {
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage held'+(inv.retentionPercent ? ' ('+inv.retentionPercent+'%)' : '')+'</span><span class="detail-row-value num">−'+fmtMoney(retentionHeld, {dec:2})+'</span></div>';
+    }
+    if (retentionReleased > 0) {
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage released — now payable</span><span class="detail-row-value num" style="color:var(--success)">'+fmtMoney(retentionReleased, {dec:2})+'</span></div>';
     }
     totalsRows += '<div class="detail-row"><span class="detail-row-label">Total Due</span><span class="detail-row-value num">'+fmtMoney(inv.total, {dec:2})+'</span></div>';
     if (typeof inv.amountPaid === 'number' && inv.amountPaid > 0) {
@@ -4549,7 +4584,7 @@
 
     var summaryRows = '';
     summaryRows += '<div class="detail-row"><span class="detail-row-label">Invoice number</span><span class="detail-row-value">#'+esc(inv.number)+'</span></div>';
-    summaryRows += '<div class="detail-row"><span class="detail-row-label">Status</span><span class="detail-row-value"><span class="pill '+statusPillClass(inv.status)+'">'+esc(statusLabel(inv.status))+'</span></span></div>';
+    summaryRows += '<div class="detail-row"><span class="detail-row-label">Status</span><span class="detail-row-value"><span class="pill '+statusPillClass(invStatus)+'">'+esc(statusLabel(invStatus))+'</span></span></div>';
     if (inv.issueDate) summaryRows += '<div class="detail-row"><span class="detail-row-label">Issued</span><span class="detail-row-value">'+fmtDate(inv.issueDate)+'</span></div>';
     summaryRows += '<div class="detail-row"><span class="detail-row-label">Due</span><span class="detail-row-value">'+fmtDate(inv.dueDate)+'</span></div>';
     if (inv.paymentTerms) summaryRows += '<div class="detail-row"><span class="detail-row-label">Terms</span><span class="detail-row-value">'+esc(termLabel(inv.paymentTerms))+'</span></div>';
@@ -4628,6 +4663,7 @@
     if (a.ownerName) sumRows += '<div class="detail-row"><span class="detail-row-label">Owner</span><span class="detail-row-value">'+esc(a.ownerName)+'</span></div>';
     if (a.architectName) sumRows += '<div class="detail-row"><span class="detail-row-label">Architect</span><span class="detail-row-value">'+esc(a.architectName)+'</span></div>';
     sumRows += '<div class="detail-row"><span class="detail-row-label">Contractor</span><span class="detail-row-value">'+esc(a.contractorName || brandName || '—')+'</span></div>';
+    if (a.paidAt) sumRows += '<div class="detail-row"><span class="detail-row-label">Status</span><span class="detail-row-value"><span class="pill pill-success">Paid ' + fmtDate(a.paidAt) + '</span></span></div>';
 
     var coverRows = '';
     coverRows += '<div class="detail-row"><span class="detail-row-label">Contract sum to date</span><span class="detail-row-value num">'+fmtMoney(a.contractSumToDate, {dec:2})+'</span></div>';
@@ -4701,13 +4737,20 @@
     // payLinkUrl exists and there's a balance due. Print stays available
     // as a secondary action either way.
     var aiaDue = a.currentPaymentDue || 0;
-    var aiaCanPay = !!a.payLinkUrl && aiaDue > 0;
+    // MONEY-F2: `paidAt` (stamped by the Stripe webhook) wins over any link
+    // that may still be on the record — a paid application shows Paid.
+    var aiaPaid = !!a.paidAt;
+    var aiaCanPay = !aiaPaid && !!a.payLinkUrl && aiaDue > 0;
     var footerHtml =
       (aiaCanPay
         ? '<a class="drawer-btn drawer-btn-primary" href="'+esc(a.payLinkUrl)+'" target="_blank" rel="noopener">' +
             icn(ICONS.dollar, 16) + ' Pay ' + fmtMoney(aiaDue) +
           '</a>'
-        : '') +
+        : aiaPaid
+          ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
+              icn(ICONS.check, 16) + ' Paid ' + fmtDate(a.paidAt) +
+            '</button>'
+          : '') +
       '<button class="drawer-btn drawer-btn-secondary" id="aia-print">' +
         icn(ICONS.print, 16) + ' Print / save PDF' +
       '</button>';

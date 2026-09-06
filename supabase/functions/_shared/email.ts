@@ -294,34 +294,121 @@ function projectContextHtml(opts: ProjectContextOpts): string {
 
 const PORTAL_BASE_URL = 'https://mageid.app';
 
-// Project-bound HMAC seed for unsubscribe / re-subscribe tokens. Not a
-// crypto secret in the strong sense — it lives in the deployed edge fn
-// code. Threat model: a script attacker could otherwise re-subscribe
-// arbitrary emails by guessing the URL, which would put unwanted mail
-// into their inboxes. The token gates re-subscribe specifically. Plain
-// unsubscribe doesn't require a token (it's user-protective).
-const UNSUB_SECRET = 'mage-id-unsub-2026-rotate-on-leak';
+// ─── Unsubscribe / preferences tokens ────────────────────────────────
+//
+// Audit 2026-09-03 OPS-F11: the token used to be FNV-1a over a string
+// literal that ships in the deployed bundle — anyone who read the bundle
+// (get_edge_function returns this file verbatim) could globally suppress
+// any address's invoices, dunning and COI warnings. It is now
+// HMAC-SHA256 keyed by the UNSUB_SECRET edge secret, truncated to 128
+// bits and base64url-encoded (22 chars, no padding). The token gates BOTH
+// directions in unsubscribe/index.ts (suppress + re-subscribe).
+//
+// Why a hand-written digest: Web Crypto's HMAC is async-only and
+// wrapEmailHtml is synchronous with fourteen callers across the edge
+// functions, so the SHA-256 (FIPS 180-4) + HMAC (RFC 2104) live here in
+// plain JS. scripts/validate-edge-security.ts proves byte-equality against
+// crypto.subtle on every ship-check.
+//
+// FAIL CLOSED: with UNSUB_SECRET unset, minting THROWS — every function
+// that renders an unsubscribable email 500s instead of shipping a
+// forgeable link — and verification returns false. Set the secret before
+// deploying anything that imports this file.
 
-/**
- * FNV-1a 64-bit hash of `email:UNSUB_SECRET`, base36-encoded, 12 chars.
- * Synchronous (Web Crypto is async-only and would force every caller of
- * wrapEmailHtml to be async). Sufficient for our threat model — see
- * UNSUB_SECRET note above. If you ever need real crypto here, derive a
- * key from SUPABASE_JWT_SECRET via Web Crypto and make this async.
- */
-export function buildUnsubscribeToken(email: string): string {
-  const data = email.toLowerCase().trim() + ':' + UNSUB_SECRET;
-  // FNV-1a 64-bit
-  let h = 14695981039346656037n;
-  for (let i = 0; i < data.length; i++) {
-    h ^= BigInt(data.charCodeAt(i));
-    h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn;
+const UNSUB_SECRET = Deno.env.get('UNSUB_SECRET') || '';
+// A3 (review 2026-09-04): the MAC is bound to a purpose + version prefix so a
+// token for this feature can never be replayed against another HMAC use of
+// the same secret, and can be rotated by bumping the version.
+const UNSUB_TOKEN_PURPOSE = 'unsub:v1:';
+
+const SHA256_K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+
+/** Synchronous SHA-256 (FIPS 180-4). Exported so the ship-check can test it. */
+export function sha256(message: Uint8Array): Uint8Array {
+  const H = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+  const bitLen = message.length * 8;
+  // Pad to a 64-byte multiple that still fits the 0x80 marker + 8-byte length.
+  const padLen = ((message.length + 9 + 63) >> 6) << 6;
+  const buf = new Uint8Array(padLen);
+  buf.set(message);
+  buf[message.length] = 0x80;
+  const view = new DataView(buf.buffer);
+  view.setUint32(padLen - 8, Math.floor(bitLen / 0x100000000), false);
+  view.setUint32(padLen - 4, bitLen >>> 0, false);
+  const W = new Uint32Array(64);
+  for (let off = 0; off < padLen; off += 64) {
+    for (let i = 0; i < 16; i++) W[i] = view.getUint32(off + i * 4, false);
+    for (let i = 16; i < 64; i++) {
+      const w15 = W[i - 15], w2 = W[i - 2];
+      const s0 = ((w15 >>> 7) | (w15 << 25)) ^ ((w15 >>> 18) | (w15 << 14)) ^ (w15 >>> 3);
+      const s1 = ((w2 >>> 17) | (w2 << 15)) ^ ((w2 >>> 19) | (w2 << 13)) ^ (w2 >>> 10);
+      W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let i = 0; i < 64; i++) {
+      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + SHA256_K[i] + W[i]) >>> 0;
+      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+    H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
   }
-  return h.toString(36).padStart(12, '0').slice(0, 12);
+  const out = new Uint8Array(32);
+  const ov = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) ov.setUint32(i * 4, H[i], false);
+  return out;
+}
+
+/** Synchronous HMAC-SHA256 (RFC 2104). Exported so the ship-check can test it. */
+export function hmacSha256(key: Uint8Array, message: Uint8Array): Uint8Array {
+  const BLOCK = 64;
+  const k = key.length > BLOCK ? sha256(key) : key;
+  const padded = new Uint8Array(BLOCK);
+  padded.set(k);
+  const inner = new Uint8Array(BLOCK + message.length);
+  const outer = new Uint8Array(BLOCK + 32);
+  for (let i = 0; i < BLOCK; i++) { inner[i] = padded[i] ^ 0x36; outer[i] = padded[i] ^ 0x5c; }
+  inner.set(message, BLOCK);
+  outer.set(sha256(inner), BLOCK);
+  return sha256(outer);
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** True when UNSUB_SECRET is configured — endpoints check this to 500 loudly. */
+export function unsubscribeSecretConfigured(): boolean {
+  return UNSUB_SECRET.length > 0;
+}
+
+/** HMAC-SHA256(UNSUB_SECRET, 'unsub:v1:' + lowercased email), first 128 bits, base64url (22 chars). */
+export function buildUnsubscribeToken(email: string): string {
+  if (!UNSUB_SECRET) {
+    throw new Error('UNSUB_SECRET is not set — refusing to mint an unsubscribe token (set the edge secret before sending mail)');
+  }
+  const enc = new TextEncoder();
+  const mac = hmacSha256(enc.encode(UNSUB_SECRET), enc.encode(UNSUB_TOKEN_PURPOSE + email.toLowerCase().trim()));
+  return base64Url(mac.subarray(0, 16));
 }
 
 export function verifyUnsubscribeToken(email: string, token: string): boolean {
-  if (!email || !token) return false;
+  if (!email || !token || !UNSUB_SECRET) return false;
   const expected = buildUnsubscribeToken(email);
   if (expected.length !== token.length) return false;
   // Constant-time compare to avoid timing oracles.
@@ -330,15 +417,40 @@ export function verifyUnsubscribeToken(email: string, token: string): boolean {
   return r === 0;
 }
 
+// ─── LEGACY pre-rotation token — DELETE after 2026-10-04 ─────────────
+//
+// Review 2026-09-05: every unsubscribe link in mail sent BEFORE the HMAC
+// rotation carries the OLD 12-char FNV-1a token, which verifyUnsubscribeToken
+// now rejects — a homeowner clicking "Unsubscribe" in last month's digest
+// would get token_invalid. unsubscribe/index.ts accepts this token for the
+// UNSUBSCRIBE direction only (never re-subscribe) until its
+// LEGACY_UNSUB_GRACE_UNTIL, then both sides must be deleted together.
+//
+// The seed below shipped verbatim in the deployed bundle for months and is
+// public — which is exactly why it can only ever authorize the
+// user-protective direction. This is the ONLY permitted caller of it
+// (validate-edge-security pins the single importer and the resubscribe
+// path's silence about it). Never mint with it; never import it elsewhere.
+export function legacyFnvUnsubscribeToken(email: string): string {
+  const data = email.toLowerCase().trim() + ':mage-id-unsub-2026-rotate-on-leak';
+  let h = 14695981039346656037n;
+  for (let i = 0; i < data.length; i++) {
+    h ^= BigInt(data.charCodeAt(i));
+    h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn;
+  }
+  return h.toString(36).padStart(12, '0').slice(0, 12);
+}
+
 export function buildUnsubscribeUrl(opts: UnsubscribeOpts): string | null {
   if (opts.enabled === false) return null;
   if (!opts.recipientEmail) return null;
   const params = new URLSearchParams();
   params.set('e', opts.recipientEmail);
   if (opts.eventKey) params.set('k', opts.eventKey);
-  // Token lets the recipient re-subscribe via /preferences without us
-  // exposing a privileged API. Plain unsubscribe ignores it (anyone may
-  // suppress an address) — re-subscribe verifies it.
+  // The signed token gates BOTH directions in unsubscribe/index.ts (suppress
+  // AND re-subscribe): the Gmail one-click POST reads it from this URL's query
+  // and the static marketing/unsubscribe page forwards it as `token` (review
+  // B2, 2026-09-04). Without it anyone could globally suppress any address.
   params.set('t', buildUnsubscribeToken(opts.recipientEmail));
   return `${PORTAL_BASE_URL}/unsubscribe?${params.toString()}`;
 }
@@ -359,7 +471,11 @@ function footerHtml(opts: {
     : '';
 
   const unsubUrl = opts.unsubscribe ? buildUnsubscribeUrl(opts.unsubscribe) : null;
-  const prefsUrl = opts.unsubscribe?.recipientEmail ? buildPreferencesUrl(opts.unsubscribe.recipientEmail) : null;
+  // No preferences link (and so no token) when the email is not unsubscribable
+  // (account / security mail) — those must render even before UNSUB_SECRET is set.
+  const prefsUrl = (opts.unsubscribe?.enabled !== false && opts.unsubscribe?.recipientEmail)
+    ? buildPreferencesUrl(opts.unsubscribe.recipientEmail)
+    : null;
   const unsubLine = unsubUrl
     ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="color:${FOG};text-decoration:underline;">manage email preferences</a>` : ''}</p>`
     : '';

@@ -20,6 +20,7 @@ import {
   PHOTO_BUCKET,
   PHOTO_MAX_QUEUE,
   PHOTO_MAX_RETRIES,
+  PHOTO_RLS_MAX_RETRIES,
   applyPhotoUploadOutcome,
   buildPhotoStoragePath,
   classifyPhotoUploadError,
@@ -80,6 +81,9 @@ ok('empty is not a storage path', !looksLikeStoragePath('') && !looksLikeStorage
 // ── Path construction ───────────────────────────────────────────────────────
 // RLS on project-photos is `(storage.foldername(name))[1] = auth.uid()::TEXT`
 // (supabase/schema.sql) — folder[1] MUST be the user id or every upload 403s.
+// Since 20260904100400_storage_membership_policies.sql folder[2] must ALSO be
+// a project the caller can edit — which needs the `projects` ROW to exist; see
+// the rls-pending block below for what that does to a project created offline.
 expect('path is <userId>/<projectId>/<photoId>.<ext>',
   buildPhotoStoragePath('u1', 'p1', 'ph1', 'jpg'), 'u1/p1/ph1.jpg');
 expect('folder[1] is the user id (RLS requirement)',
@@ -111,9 +115,63 @@ expect('"Failed to fetch" (web) is transient',
   classifyPhotoUploadError(new Error('Failed to fetch')), 'transient');
 expect('a timeout is transient', classifyPhotoUploadError(new Error('Request timed out')), 'transient');
 
-expect('RLS denial is terminal',
-  classifyPhotoUploadError(new Error('new row violates row-level security policy')), 'terminal');
 expect('expired JWT is terminal', classifyPhotoUploadError(new Error('JWT expired')), 'terminal');
+
+// ── a storage RLS refusal waits for its parent row — bounded ────────────────
+// 20260904100400_storage_membership_policies.sql made `project_photos_upload`
+// require the PROJECT ROW (can_access_project(folder[2], 'editor')), not just
+// the JWT. A photo taken on a project created offline reaches Storage before
+// that project's upsert has flushed through utils/offlineQueue.ts and is
+// refused with "new row violates row-level security policy". This file used
+// to pin that as TERMINAL — which deleted the bytes on the spot, on the one
+// jobsite flow (new project, no signal, photos) the queue exists for. It is
+// now re-queued on its own bounded counter: the next drain runs the offline
+// queue first, the row lands, and the same upload succeeds.
+expect('a storage RLS refusal is rls-pending, not terminal',
+  classifyPhotoUploadError(new Error('new row violates row-level security policy')), 'rls-pending');
+expect('...also as the raw postgres text',
+  classifyPhotoUploadError(new Error('new row violates row-level security policy for table "objects"')), 'rls-pending');
+expect('a bare SQLSTATE 42501 (insufficient_privilege) is rls-pending',
+  classifyPhotoUploadError(new Error('42501')), 'rls-pending');
+expect('a raw StorageApiError carrying status 403 is rls-pending',
+  classifyPhotoUploadError({ message: 'Unauthorized', status: 403, statusCode: '403' }), 'rls-pending');
+expect('a 401 stays terminal — the session, not the parent row, is the problem',
+  classifyPhotoUploadError({ message: 'Unauthorized', status: 401, statusCode: '401' }), 'terminal');
+expect('an offline device is still transient even when the message mentions a policy',
+  classifyPhotoUploadError(new TypeError('Network request failed (row-level security)')), 'transient');
+{
+  const d1 = applyPhotoUploadOutcome(task(), 'rls-pending');
+  expect('an rls-pending photo stays queued', d1.keep, true);
+  expect('...with the wait counted on its own counter', d1.task.rlsRetryCount, 1);
+  expect('...without spending the 5xx budget', d1.task.retryCount, 0);
+  expect('...and is not reported as a drop', d1.dropped, false);
+  // The two budgets must not add up: a 500 after waiting for the parent is
+  // the FIRST 5xx strike, not the sixth.
+  const d500 = applyPhotoUploadOutcome(task({ rlsRetryCount: PHOTO_RLS_MAX_RETRIES - 1 }), 'retryable');
+  expect('a 500 after five waits is only the first 5xx strike', d500.task.retryCount, 1);
+  expect('...and leaves the wait count alone', d500.task.rlsRetryCount, PHOTO_RLS_MAX_RETRIES - 1);
+  ok('...and the photo is kept', d500.keep && !d500.dropped);
+  // Exhaustion. The same message also means "the project upsert was dropped"
+  // or "this user lost editor access", which no amount of waiting fixes — so
+  // it MUST terminate, and terminate loudly.
+  let waiting = task();
+  let waits = 0;
+  let droppedAtEnd = false;
+  for (;;) {
+    const d = applyPhotoUploadOutcome(waiting, 'rls-pending');
+    waits++;
+    if (!d.keep) { droppedAtEnd = d.dropped; break; }
+    waiting = d.task;
+    if (waits > 50) break;
+  }
+  expect('a photo refused under RLS on every flush is dropped after PHOTO_RLS_MAX_RETRIES attempts', waits, PHOTO_RLS_MAX_RETRIES);
+  expect('...and the last refusal is surfaced as a drop, never silently settled', droppedAtEnd, true);
+  expect('the RLS budget is 6', PHOTO_RLS_MAX_RETRIES, 6);
+  ok('the RLS budget is wider than the 5xx budget (a parent row takes more drains to land than a server takes to recover)',
+    PHOTO_RLS_MAX_RETRIES > PHOTO_MAX_RETRIES);
+  expect('a task persisted before the counter existed counts from zero',
+    applyPhotoUploadOutcome(task(), 'rls-pending').task.rlsRetryCount, 1);
+}
 
 // ── a revoked blob: URL is terminal, not transient ──────────────────────────
 // THE IMMORTAL-TASK BUG. A blob:/data: URI is read from browser memory, but a
@@ -226,6 +284,13 @@ expect('dedupe does not grow the queue', dup.queue.length, 1);
 expect('the newer localUri wins (it is the file actually on disk)', dup.queue[0].localUri, 'file:///tmp/newer.jpg');
 expect('the original queuedAt is kept so a retried photo cannot starve newer ones', dup.queue[0].queuedAt, 100);
 expect('the accrued retry count is kept (dedupe is not a budget reset)', dup.queue[0].retryCount, 2);
+{
+  const waited = enqueuePhotoUpload([], task({ id: 'w1', storagePath: 'u/p/w.jpg', rlsRetryCount: 3 })).queue;
+  const resaved = enqueuePhotoUpload(waited, task({ id: 'w2', storagePath: 'u/p/w.jpg' }));
+  expect('the accrued RLS wait count survives a dedupe too', resaved.queue[0].rlsRetryCount, 3);
+  ok('a task that never waited does not grow a counter on dedupe',
+    !('rlsRetryCount' in enqueuePhotoUpload(dupBase, task({ id: 'again', storagePath: 'u/p/x.jpg' })).queue[0]));
+}
 const notDup = enqueuePhotoUpload(dupBase, task({ id: 'other', storagePath: 'u/p/y.jpg' }));
 ok('a different photo is NOT deduped', !notDup.deduped && notDup.queue.length === 2);
 
@@ -329,14 +394,26 @@ ok('queueing also kicks an opportunistic drain',
   /scheduleOpportunisticDrain/.test(readFileSync('utils/photoUploadQueue.ts', 'utf8')),
   'a user who stays in the foreground would otherwise wait for a background/foreground cycle');
 // The key itself moved to utils/localCacheKeys.ts (OFFLINE_WRITE_QUEUE_KEYS)
-// when wipeLocalUserCache became a prefix sweep; AuthContext now removes it via
-// that constant. Assert both halves so neither can quietly drop the other.
+// when wipeLocalUserCache became a prefix sweep. Assert both halves so neither
+// can quietly drop the other.
 ok('the photo queue rides the offline-write-queue exemption',
   /'mageid_photo_upload_queue'/.test(readFileSync('utils/localCacheKeys.ts', 'utf8')),
   'it is a pending WRITE, not a cache — it must not be dropped on a same-user re-auth');
+// A2 (2026-09-05): this used to pin `multiRemove(OFFLINE_WRITE_QUEUE_KEYS` in
+// AuthContext. That multiRemove is gone on purpose — it ran OUTSIDE the queue's
+// lock, so a flush that outlived the 20 s sign-out ceiling wrote its pre-wipe
+// snapshot back and re-created the key with the previous tenant's photos. The
+// wipe now calls clearPhotoUploadQueue(), which empties the key under the same
+// lock the write-back takes (and unlinks the durable copies in
+// documentDirectory, which the multiRemove never did). Same guarantee, new
+// route — so the pin follows the route.
 ok('the photo queue is wiped on tenant switch, like the offline write queue',
-  /multiRemove\(OFFLINE_WRITE_QUEUE_KEYS/.test(readFileSync('contexts/AuthContext.tsx', 'utf8')),
+  /await clearPhotoUploadQueue\(\);/.test(readFileSync('contexts/AuthContext.tsx', 'utf8')),
   'a pending upload must not follow one user onto the next tenant on a shared device');
+ok('…and that wipe is lock-safe, so a still-running flush cannot resurrect it',
+  /export async function clearPhotoUploadQueue\(\): Promise<void> \{\s*const cleared = await withQueueLock\(/
+    .test(readFileSync('utils/photoUploadQueue.ts', 'utf8')),
+  'an unlocked removal races the flush write-back that is still in the air');
 
 // ── Testability invariant ───────────────────────────────────────────────────
 // bun cannot parse `react-native`, so the moment this core imports it (directly
@@ -351,6 +428,30 @@ const queueCode = stripComments(readFileSync('utils/photoUploadQueue.ts', 'utf8'
 const coreImports = [...coreCode.matchAll(/^\s*import\s[\s\S]*?from\s+'([^']+)'/gm)].map(m => m[1]);
 expect('the core has no imports at all — nothing can drag react-native in', coreImports, []);
 ok('the RN-bound shell is a separate module', /from 'react-native'/.test(queueCode));
+
+// ── The RLS wait is wired through the shell, and ordered right in the core ──
+ok('the shell applies the RLS budget (not the 5xx one) to a refused upload',
+  /applyPhotoUploadOutcome\(task, outcome, PHOTO_MAX_RETRIES, PHOTO_RLS_MAX_RETRIES\)/.test(queueCode),
+  'without the fourth argument the wait silently falls back to the default budget');
+ok('the shell tells the user something distinct when the wait is exhausted',
+  /refused under storage RLS/.test(queueCode),
+  'a Sentry line reading "terminal error" hides that the project row never synced');
+{
+  const termStart = coreCode.indexOf('function isTerminal(');
+  const classifyStart = coreCode.indexOf('export function classifyPhotoUploadError');
+  const termBody = termStart === -1 || classifyStart === -1 ? '' : coreCode.slice(termStart, classifyStart);
+  ok('isTerminal was located', termBody.length > 0);
+  ok('the core no longer lists "row-level security" among the terminal messages',
+    termBody.length > 0 && !/row-level security/.test(termBody),
+    'that string is how the membership-policy refusal reads; terminal means the bytes are deleted');
+  const classifyBody = classifyStart === -1 ? '' : coreCode.slice(classifyStart);
+  const rlsAt = classifyBody.indexOf('isRlsRejection(err, msg)');
+  const termAt = classifyBody.indexOf('isTerminal(msg)');
+  const transientAt = classifyBody.indexOf('isTransient(err, msg)');
+  ok('classifyPhotoUploadError checks the RLS refusal AFTER transient and BEFORE terminal',
+    rlsAt !== -1 && termAt !== -1 && transientAt !== -1 && transientAt < rlsAt && rlsAt < termAt,
+    'order is the fix: terminal first would still delete the photo, RLS before transient would spend the wait budget offline');
+}
 
 // The queue must not hold image BYTES — it is AsyncStorage-backed and that
 // budget is measured in a few MB, total.

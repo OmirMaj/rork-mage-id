@@ -24,7 +24,8 @@ import {
 } from '@/utils/clientPricing';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { platformFeeLabel } from '@/utils/platformFees';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
 import { THEME_PRESETS } from '@/types';
@@ -41,8 +42,36 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
+import Constants from 'expo-constants';
+import { getOwnOfflineQueue } from '@/utils/offlineQueue';
+import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+// OPS-F13: what this device is actually running — the JS version, the OTA
+// that is live (its first 8 hex chars, or "embedded" when the bundle shipped
+// with the binary) and the EAS channel. `expo-updates` binds a native module
+// at import, which a web build or a dev client without it can throw on, so it
+// is loaded lazily and any failure reads as "no OTA".
+function readBuildInfo(): { version: string; detail: string } {
+  const version = Constants.expoConfig?.version ?? '1.0.0';
+  let updateId: string | null = null;
+  let channel: string | null = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Updates = require('expo-updates') as { updateId?: string | null; channel?: string | null };
+    updateId = Updates.updateId ?? null;
+    channel = Updates.channel ?? null;
+  } catch {
+    /* no updates module on this platform / build */
+  }
+  const ota = updateId ? updateId.slice(0, 8) : 'embedded';
+  return { version, detail: `OTA ${ota} · ${channel ?? (__DEV__ ? 'dev' : 'no channel')}` };
+}
+
+function countNoun(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
 
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
@@ -94,9 +123,9 @@ export default function SettingsScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { settings, updateSettings, projects, deleteProject, userRole } = useCoreData();
-  const { user, logout, deleteAccount, isAuthenticated } = useAuth();
+  const { user, logout, deleteAccount, isAuthenticated, signingOut } = useAuth();
   const queryClient = useQueryClient();
-  const { tier } = useSubscription();
+  const { tier } = useTierAccess();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -117,6 +146,40 @@ export default function SettingsScreen() {
       return () => { cancelled = true; };
     }, []),
   );
+
+  // OPS-F13: version / OTA / channel for the About row and the support email.
+  const buildInfo = useMemo(readBuildInfo, []);
+
+  // SYNC-F2: sign-out flushes both offline queues first (AuthContext.logout),
+  // but whatever still cannot reach the cloud is discarded with the session.
+  // The dialog used to be a bare "Are you sure?" — now it says what is at
+  // stake, in the user's numbers, before they confirm.
+  const confirmSignOut = useCallback(async () => {
+    // A5: the button is disabled while a sign-out is in flight, and
+    // AuthContext.logout joins the running one anyway — but a tap that
+    // raced the re-render must not open a second dialog on top of it.
+    if (signingOut) return;
+    const [queued, photos] = await Promise.all([
+      getOwnOfflineQueue().then((q) => q.length).catch(() => 0),
+      getOwnPhotoUploadQueue().then((q) => q.length).catch(() => 0),
+    ]);
+    const pending = queued + photos;
+    const parts = [queued > 0 ? countNoun(queued, 'change') : '', photos > 0 ? countNoun(photos, 'photo') : ''].filter(Boolean);
+    const message = pending > 0
+      ? `${parts.join(' and ')} ${pending === 1 ? "hasn't" : "haven't"} reached the cloud yet. Signing out will try to sync ${pending === 1 ? 'it' : 'them'} first; anything that still can't sync will be discarded.`
+      : 'Are you sure you want to sign out?';
+    showAlert('Sign Out', message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: pending > 0 ? 'Sync & Sign Out' : 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout(true);
+          router.replace('/login');
+        },
+      },
+    ]);
+  }, [logout, router, signingOut]);
 
   // Client subscription state — drives the subtitle on the ACCOUNT TYPE
   // row so a client user can see "Pro · 12 days left in trial" without
@@ -532,25 +595,26 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
+              {/* A5: disabled — with a spinner and a "Signing out…" caption —
+                  from the tap until the device is clean (AuthContext.logout
+                  runs a bounded queue flush first, up to 20 s on a dead
+                  uplink). A second tap used to start a second flush + wipe
+                  underneath the first. */}
               <TouchableOpacity
-                style={styles.profileSignOutBtn}
-                onPress={() => {
-                  showAlert('Sign Out', 'Are you sure you want to sign out?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Sign Out',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await logout(true);
-                        router.replace('/login');
-                      },
-                    },
-                  ]);
-                }}
+                style={[styles.profileSignOutBtn, signingOut && styles.profileSignOutBtnBusy]}
+                onPress={() => { void confirmSignOut(); }}
                 activeOpacity={0.7}
-                testID="logout-button" accessibilityRole="button" accessibilityLabel="Sign out">
-                <LogOut size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+                disabled={signingOut}
+                testID="logout-button" accessibilityRole="button"
+                accessibilityLabel={signingOut ? 'Signing out…' : 'Sign out'}
+                accessibilityState={{ disabled: signingOut, busy: signingOut }}>
+                {signingOut
+                  ? <ActivityIndicator size="small" color={themeColors.textSecondary} />
+                  : <LogOut size={16} color={themeColors.textSecondary} strokeWidth={1.75} />}
               </TouchableOpacity>
+              {signingOut ? (
+                <Text style={styles.profileSignOutLabel} numberOfLines={1} testID="logout-busy-label">Signing out…</Text>
+              ) : null}
             </View>
           </TouchableOpacity>
         ) : (
@@ -769,7 +833,7 @@ export default function SettingsScreen() {
                 value={taxRate}
                 onChangeText={setTaxRate}
                 keyboardType="decimal-pad"
-                placeholder="7.5"
+                placeholder="0"
                 placeholderTextColor={themeColors.textMuted}
                 textAlign="right"
                 testID="settings-tax"
@@ -1078,7 +1142,11 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHeader}>PAYMENTS</Text>
         <Text style={styles.sectionSubtext}>
-          Connect your bank to accept invoice payments in-app. Money goes to you, not us — we take a 1% platform fee per transaction.
+          {/* MONEY-F8: the fee is the tier's, rendered from the one table
+              (utils/platformFees) — never a literal in copy. */}
+          Connect your bank to accept invoice payments in-app. Money goes to you, not us — {platformFeeLabel(tier) === '0%'
+            ? 'your plan pays no platform fee on payments'
+            : `your plan pays a ${platformFeeLabel(tier)} platform fee per transaction`}, plus Stripe&apos;s standard processing.
         </Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1561,6 +1629,8 @@ export default function SettingsScreen() {
                 '',
                 '---',
                 `Sent from MAGE ID · ${Platform.OS}${Platform.OS === 'ios' || Platform.OS === 'android' ? ' ' + Platform.Version : ''}`,
+                // OPS-F13: the build support would otherwise have to ask for.
+                `App ${buildInfo.version} · ${buildInfo.detail}`,
               ];
               const body = encodeURIComponent(bodyLines.join('\n'));
               const url = `mailto:support@mageid.app?subject=MAGE%20ID%20Support&body=${body}`;
@@ -1629,12 +1699,19 @@ export default function SettingsScreen() {
             </View>
           </View>
           <View style={styles.rowSeparator} />
-          <View style={[styles.row, { opacity: 0.7 }]}>
+          {/* OPS-F13: the version was a hard-coded "1.0.0" — support could not
+              tell which OTA a device was running. Now the JS version, the live
+              OTA id and the EAS channel, straight from expo-constants /
+              expo-updates. */}
+          <View style={[styles.row, { opacity: 0.7 }]} testID="settings-about-version">
             <View style={styles.iconWrap}>
               <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Version</Text>
-            <Text style={styles.rowValue}>1.0.0</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Version</Text>
+              <Text style={styles.rowSubtext} selectable>{buildInfo.detail}</Text>
+            </View>
+            <Text style={styles.rowValue} selectable>{buildInfo.version}</Text>
           </View>
         </View>
 
@@ -2059,6 +2136,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.line,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
+  },
+  profileSignOutBtnBusy: {
+    opacity: 0.6,
+  },
+  profileSignOutLabel: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600' as const,
+    color: themeColors.textMuted,
   },
   // Tightened section header — smaller, more refined, less visual weight.
   // Premium apps use small section labels as silent dividers, not headlines.

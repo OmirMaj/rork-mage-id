@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import { supabase } from '@/lib/supabase';
+import { supabase, onSessionExpired } from '@/lib/supabase';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { PENDING_DEEPLINK_KEY } from '@/utils/pendingDeepLink';
 import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
-import { OFFLINE_WRITE_QUEUE_KEYS, selectTenantKeysToWipe } from '@/utils/localCacheKeys';
-import { processOfflineQueue, getOfflineQueue } from '@/utils/offlineQueue';
+import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
+import { processOfflineQueue, getOfflineQueue, clearOfflineQueue, retainOfflineQueueForUser } from '@/utils/offlineQueue';
+import { processPhotoUploadQueue, clearPhotoUploadQueue, retainPhotoUploadQueueForUser } from '@/utils/photoUploadQueue';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -22,6 +23,142 @@ WebBrowser.maybeCompleteAuthSession();
 
 const AUTH_EMAIL_KEY = 'mageid_auth_email';
 const AUTH_PASSWORD_KEY = 'mageid_auth_password';
+
+// ── Who was signed in last on this device (SYNC-F2 / SYNC-F13) ──────────────
+// Read BEFORE a sign-in establishes the next session, so that
+//   • a DIFFERENT user's arrival wipes the previous tenant's re-fetchable caches
+//     before the new session exists (F13 — otherwise the new user's queries can
+//     merge the previous tenant's local-only rows under the new account), and
+//   • the SAME user signing back in (a session that expired, a biometric
+//     re-login) keeps their pending offline field work instead of losing it
+//     (F2 — the queue used to be dropped on every sign-in).
+// Both keys carry the `mageid_` prefix the tenant sweep owns, so they are
+// removed with everything else; wipeLocalUserCache re-writes them on request
+// (keepLastUserMarker) for the paths where the identity must outlive the wipe.
+const LAST_USER_ID_KEY = 'mageid_last_user_id';
+const LAST_USER_EMAIL_KEY = 'mageid_last_user_email';
+
+interface LastUser { id: string; email: string | null }
+
+async function readLastUser(): Promise<LastUser | null> {
+  try {
+    const pairs = await AsyncStorage.multiGet([LAST_USER_ID_KEY, LAST_USER_EMAIL_KEY]);
+    const id = pairs[0]?.[1] ?? null;
+    const email = pairs[1]?.[1] ?? null;
+    return id ? { id, email } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeLastUser(user: LastUser | null): Promise<void> {
+  if (!user) return;
+  try {
+    await AsyncStorage.multiSet([
+      [LAST_USER_ID_KEY, user.id],
+      [LAST_USER_EMAIL_KEY, (user.email ?? '').trim().toLowerCase()],
+    ]);
+  } catch (err) {
+    console.log('[Auth] Failed to record last user:', err);
+  }
+}
+
+/** What a sign-in path knows about the arriving user BEFORE the session exists. */
+interface IncomingIdentity { id?: string | null; email?: string | null }
+
+/** beginSignIn's verdict, carried to the post-session step of the same sign-in. */
+export interface SessionHandoff { sameUser: boolean; last: LastUser | null }
+
+function isSameUser(last: LastUser | null, incoming: IncomingIdentity): boolean {
+  if (!last) return false;
+  if (incoming.id && incoming.id === last.id) return true;
+  const email = incoming.email?.trim().toLowerCase();
+  return !!email && !!last.email && email === last.email;
+}
+
+// The pre-session wipe: re-fetchable caches go, the offline WRITE queues stay
+// (decided only once the sign-in has succeeded — a failed attempt by someone
+// else must never destroy the previous user's pending work), and the last-user
+// marker is re-written so the post-sign-in decision still has its reference.
+const PRE_SESSION_WIPE = { dropOfflineQueue: false, keepLastUserMarker: true } as const;
+
+// Base64url → string without relying on a global atob (Hermes has one, older
+// runtimes and some polyfill orders do not). ASCII-safe, which is all the
+// claims read here (sub / email) need.
+const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function base64Decode(input: string): string {
+  let out = '';
+  let bits = 0;
+  let acc = 0;
+  for (const ch of input) {
+    if (ch === '=') break;
+    const v = B64_ALPHABET.indexOf(ch);
+    if (v < 0) continue;
+    acc = (acc << 6) | v;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out += String.fromCharCode((acc >> bits) & 0xff);
+    }
+  }
+  return out;
+}
+
+/** Unverified claims of a JWT (a Supabase access token or a Google/Apple id
+ *  token) — used ONLY to compare identities locally, never for trust. */
+function decodeJwtClaims(token: string | null | undefined): { sub?: string; email?: string } | null {
+  if (!token) return null;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const parsed = JSON.parse(base64Decode(b64)) as { sub?: unknown; email?: unknown };
+    return {
+      sub: typeof parsed.sub === 'string' ? parsed.sub : undefined,
+      email: typeof parsed.email === 'string' ? parsed.email : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// SYNC-F2: sign-out flushes BOTH offline queues first, so the "sync looks
+// stuck → sign out and back in" reflex no longer destroys exactly the data
+// that was pending. Bounded so a dead uplink cannot hang the sign-out button:
+// whatever is still queued after the ceiling is discarded by the wipe, which
+// the Settings dialog warned about.
+//
+// SEQUENTIAL — text mutations first, photo bytes after — never the two raced.
+// Since the storage membership policies (20260904100400) a photo upload is
+// refused under RLS until its `projects` row exists, so a photo taken on a
+// project created offline can only land AFTER this flush has pushed that
+// project's upsert. Racing the two (Promise.allSettled, as this used to)
+// turned every such photo's one chance before the session died into an RLS
+// refusal. Same order OfflineSyncManager (app/_layout.tsx) drains in. The
+// ceiling still covers the pair, so the sign-out button cannot hang; a leg
+// that throws does not skip the other.
+const SIGN_OUT_FLUSH_CEILING_MS = 20_000;
+async function flushQueuesBeforeSignOut(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const ceiling = new Promise<void>((resolve) => { timer = setTimeout(resolve, SIGN_OUT_FLUSH_CEILING_MS); });
+  const flush = (async () => {
+    try {
+      await processOfflineQueue();
+    } catch (err) {
+      console.log('[Auth] Offline queue flush before sign-out failed:', err);
+    }
+    try {
+      await processPhotoUploadQueue();
+    } catch (err) {
+      console.log('[Auth] Photo queue flush before sign-out failed:', err);
+    }
+  })();
+  try {
+    await Promise.race([flush, ceiling]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 // FALLBACK LIST — not the mechanism any more.
 //
@@ -124,8 +261,11 @@ const LOCAL_USER_CACHE_KEYS = [
 // The explicit multiRemove of LOCAL_USER_CACHE_KEYS is kept as a FALLBACK for
 // the one failure mode the sweep has: if getAllKeys() throws, the highest-value
 // keys still go. Do NOT add new keys to that list — the sweep already has them.
-async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promise<void> {
+async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean; keepLastUserMarker?: boolean }): Promise<void> {
   const dropOfflineQueue = opts?.dropOfflineQueue ?? true;
+  // The marker lives under the swept prefix; read it first when the caller
+  // needs the identity to outlive the wipe (pre-session wipe, session expiry).
+  const marker = opts?.keepLastUserMarker ? await readLastUser() : null;
   if (dropOfflineQueue) {
     try {
       // The photo-upload queue is governed by the same rule and for the same
@@ -133,7 +273,19 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
       // anywhere. It rides the dropOfflineQueue flag so a same-user re-auth
       // (magic link / password reset) keeps un-uploaded jobsite photos, while a
       // deliberate sign-out still leaves nothing behind for the next tenant.
-      await AsyncStorage.multiRemove(OFFLINE_WRITE_QUEUE_KEYS as string[]);
+      //
+      // A2 (review 2026-09-05, round 3): emptied through each queue's OWN
+      // clear function, never with a multiRemove of its key. Both run under the
+      // same lock as their flush's read-modify-write. Removing the key directly
+      // lost that race: `flushQueuesBeforeSignOut` is bounded by a 20 s ceiling,
+      // a flush that outlives it is still in its network phase holding a
+      // snapshot, and its write-back then RE-CREATED the key with the previous
+      // tenant's entries seconds after the wipe. Under the lock the write-back
+      // reconciles against an empty queue instead and persists nothing.
+      // clearPhotoUploadQueue also unlinks the durable copies in
+      // documentDirectory — the previous user's jobsite photos.
+      await clearOfflineQueue();
+      await clearPhotoUploadQueue();
     } catch (err) {
       console.log('[Auth] Failed to clear offline queue:', err);
     }
@@ -151,13 +303,21 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
   //   • the legacy `buildwise_*` / `tertiary_*` residue the de-brand left
   //     behind, which no live code can even read any more;
   //   • the app's few un-namespaced keys (`bids_*`, `post-rfp:draft:*`).
+  //
+  // A2: the sweep is ALWAYS run with `dropOfflineQueue: false`, whatever this
+  // call decided. That is not a change of policy — the two write queues were
+  // already emptied above, under their own locks — it is what keeps the queue
+  // keys out of this multiRemove, which is the unlocked path a live flush can
+  // write back behind. `selectTenantKeysToWipe`'s own default stays `true` for
+  // every other caller (see scripts/validate-storage-hygiene.ts).
   try {
     const allKeys = await AsyncStorage.getAllKeys();
-    const doomed = selectTenantKeysToWipe(allKeys, { dropOfflineQueue });
+    const doomed = selectTenantKeysToWipe(allKeys, { dropOfflineQueue: false });
     if (doomed.length > 0) await AsyncStorage.multiRemove(doomed);
   } catch (err) {
     console.log('[Auth] Failed to sweep local app storage:', err);
   }
+  if (marker) await writeLastUser(marker);
 }
 
 // Google OAuth web client ID — same one referenced in the native flow
@@ -391,6 +551,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
+  // RT-R1: set when the server rejected the session and a refresh could not
+  // save it; the login screen shows it. Cleared by the next established session.
+  const [sessionExpiredReason, setSessionExpiredReason] = useState<string | null>(null);
+  const expiringRef = useRef(false);
+  // A5: true from the sign-out tap until the device is clean, so the UI can
+  // disable the button. logoutInFlight is the re-entrancy guard behind it — a
+  // second tap while the bounded flush is still running joins the first
+  // sign-out instead of starting another flush + signOut + wipe underneath it.
+  const [signingOut, setSigningOut] = useState(false);
+  const logoutInFlight = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     console.log('[Auth] Initializing Supabase auth listener');
@@ -401,6 +571,83 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         setSession(currentSession);
         setUser(mapSupabaseUser(currentSession.user));
         setIsAuthenticated(true);
+        // Installs that pre-date the last-user marker: remember who this is,
+        // so their first re-auth after the update is recognised as the same
+        // user and keeps its pending field work (SYNC-F2). Only when absent —
+        // the sign-in paths compare against it and must be the ones to set it.
+        //
+        // BLOCKING (review 2026-09-05, round 4): NARROW BEFORE STAMPING. Writing
+        // the marker is precisely what makes an UNTAGGED queue entry adoptable —
+        // a flush treats "no tag + the marker names me" as mine (B1,
+        // utils/offlineQueue.partitionQueueForSession) — so stamping it first
+        // hands the previous tenant's untagged writes to whoever is signed in
+        // now. On a pre-marker web install with a shared browser profile that is
+        // a live cross-tenant leak: A's untagged entries sit in the queue with no
+        // marker; B opens a recovery link and supabase-js's own
+        // detectSessionInUrl swaps the session at CLIENT CONSTRUCTION, before
+        // this screen ever mounts; this effect stamps marker = B; and
+        // app/reset-password.tsx then calls onNewSessionEstablished() with no
+        // handoff, re-reads the marker it just wrote, concludes `sameUser` and
+        // never reaches the `last === null` narrowing. The next flush sends A's
+        // writes under B's JWT.
+        //
+        // So: narrow the queues first and stamp the marker only once they can
+        // no longer be misread. The backfill's purpose is unchanged: this user
+        // is recognised as the same user at their next re-auth, and everything
+        // they queue from here on is tagged.
+        //
+        // …but only the WEB has to pay for it with the untagged entries
+        // themselves (A8, round 5). That leak needs a session to change hands
+        // before any app code runs, and `detectSessionInUrl` is the only thing
+        // that does it — a browser-only feature of supabase-js. On native there
+        // is no such door: a session present at mount is whoever last signed in
+        // THROUGH this app, and every one of those paths (beginSignIn /
+        // beginSessionFromToken → completeSignIn / onNewSessionEstablished)
+        // writes the marker. So "no marker" on native means nobody has signed
+        // in since the marker shipped, and the untagged entries in the queue are
+        // this session's own pending field work — a day of DFRs and photos that
+        // used to be deleted, and whose durable photo bytes used to be unlinked,
+        // by the mere act of opening the app after an update. Keep them; the
+        // marker stamped a line later is what vouches for them. An entry tagged
+        // for a DIFFERENT user still goes on both platforms: it could never
+        // flush under this session anyway.
+        //
+        // What makes "nobody else's entries are still here" true on native: the
+        // pre-marker build hard-wiped the whole queue on every login / signup /
+        // logout (that is the behaviour SYNC-F2 was filed against), so a second
+        // user arriving through any of those paths could not leave the first
+        // user's writes behind. KNOWN RESIDUAL, accepted: a pre-marker TOKEN
+        // redemption (magic link / password reset) by a second user on the same
+        // native device whose flush did not drain could. That needs two users,
+        // one of them arriving by deep link, an undrained queue, and no ordinary
+        // sign-in since — against which the certain cost of narrowing is every
+        // native user's pending field work, on the update that ships this.
+        //
+        // The stricter rule stays on the path where an explicit sign-in says
+        // this is NOT the same user (onNewSessionEstablished, marker-less) —
+        // there the arriving identity is known, so nothing untagged is theirs.
+        const u = currentSession.user;
+        void readLastUser().then(async (last) => {
+          if (last) return;
+          const dropUntagged = Platform.OS === 'web';
+          const [text, photos] = await Promise.all([
+            retainOfflineQueueForUser(u.id, { dropUntagged }),
+            retainPhotoUploadQueueForUser(u.id, { dropUntagged }),
+          ]);
+          if (text.readFailed || photos.readFailed) {
+            // A8: storage refused one of the reads, so that queue is untouched
+            // and unexamined. Stamping the marker now would vouch for entries
+            // nobody has looked at. Leave it unwritten — the next flush then
+            // refuses to adopt anything untagged, and the next mount tries again.
+            console.log('[Auth] A write queue could not be read at mount — last-user marker left unwritten');
+            return;
+          }
+          await writeLastUser({ id: u.id, email: u.email ?? null });
+        }).catch((err) => {
+          // The marker is not written: the next flush keeps refusing to adopt
+          // untagged entries, which is the safe direction.
+          console.log('[Auth] Failed to backfill the last-user marker:', err);
+        });
       }
       setIsLoading(false);
     }).catch((err) => {
@@ -414,6 +661,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         setSession(newSession);
         setUser(mapSupabaseUser(newSession.user));
         setIsAuthenticated(true);
+        setSessionExpiredReason(null);
       } else {
         setSession(null);
         setUser(null);
@@ -430,6 +678,117 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     };
   }, []);
 
+  // RT-R1: the server rejected the access token and a refresh did not fix it
+  // (lib/supabase.ts). Until now such a session stayed "signed in" forever:
+  // every read failed silently, Home showed "All clear", queued writes could
+  // never land. Sign out LOCALLY (there is no server session to revoke), keep
+  // the pending field work and the last-user marker — this user did not leave,
+  // their session died — and tell the login screen why it is showing.
+  useEffect(() => {
+    // The jest Supabase mock (__tests__/mocks/supabase.ts) has no registry.
+    if (typeof onSessionExpired !== 'function') return;
+    return onSessionExpired(() => {
+      if (expiringRef.current) return;
+      expiringRef.current = true;
+      void (async () => {
+        try {
+          console.warn('[Auth] Session rejected by the server and refresh failed — signing out locally');
+          try {
+            const { error } = await supabase.auth.signOut({ scope: 'local' });
+            if (error) console.log('[Auth] Local sign-out after session expiry failed:', error.message);
+          } catch (err) {
+            console.log('[Auth] Local sign-out after session expiry threw:', err);
+          }
+          // A4: NO local wipe here. The user whose session died is, as far as
+          // this device knows, the one still standing in front of it — wiping
+          // their re-fetchable caches AND local-only work products (material
+          // cart, scope sheets, takeoffs — see utils/localCacheKeys.ts) for a
+          // token rotation would punish them for the server's housekeeping.
+          // The queue stays (session-bound: utils/offlineQueue.ts only flushes
+          // it under this user's next session) and the last-user marker stays;
+          // the next sign-in's identity check (beginSignIn / completeSignIn)
+          // is what decides whether a wipe is due, exactly as it does for a
+          // normal expiry.
+          setSession(null);
+          setUser(null);
+          setIsAuthenticated(false);
+          setSessionExpiredReason('Your session expired — please sign in again.');
+          queryClient.clear();
+        } finally {
+          expiringRef.current = false;
+        }
+      })();
+    });
+  }, [queryClient]);
+
+  // SYNC-F13: called by every sign-in path BEFORE it establishes the session.
+  // Decides whether the arriving identity is the last user on this device. The
+  // caller wipes the previous tenant's re-fetchable caches (PRE_SESSION_WIPE)
+  // when it is not — before the new session exists, so the new user's queries
+  // cannot merge the previous tenant's local-only rows under the new account.
+  const beginSignIn = useCallback(async (incoming: IncomingIdentity): Promise<{ sameUser: boolean; last: LastUser | null }> => {
+    const last = await readLastUser();
+    const sameUser = isSameUser(last, incoming);
+    if (!sameUser) queryClient.clear();
+    return { sameUser, last };
+  }, [queryClient]);
+
+  // SYNC-F2: after a sign-in succeeded. The SAME user keeps their pending
+  // offline queues (they were preserved by the pre-session wipe); a DIFFERENT
+  // or unknown user must never flush the previous tenant's writes under this
+  // JWT, so the queues are dropped now. Records who is signed in for next time.
+  const completeSignIn = useCallback(async (
+    signedIn: User | null | undefined,
+    handoff: { sameUser: boolean; last: LastUser | null },
+  ) => {
+    const incoming: LastUser | null = signedIn ? { id: signedIn.id, email: signedIn.email ?? null } : null;
+    const sameUser = !!incoming && !!handoff.last && handoff.last.id === incoming.id;
+    if (!sameUser) {
+      if (handoff.sameUser) {
+        // The email matched but the account id did not (re-created account):
+        // the pre-session wipe was skipped, so wipe everything now.
+        await wipeLocalUserCache();
+      } else {
+        try {
+          // A2: same lock discipline as wipeLocalUserCache — this is the exact
+          // window a still-running flush lives in (gotrue's SIGNED_IN fires,
+          // and starts a drain, before signInWithPassword resolves here), so
+          // removing the keys unlocked is how the previous tenant's entries
+          // came back moments after being dropped.
+          await clearOfflineQueue();
+          await clearPhotoUploadQueue();
+        } catch (err) {
+          console.log('[Auth] Failed to drop the previous user\'s offline queues:', err);
+        }
+      }
+    }
+    await writeLastUser(incoming);
+    queryClient.clear();
+    console.log('[Auth] Sign-in completed —', sameUser ? 'same user, offline queue kept' : 'tenant switch, offline queue dropped');
+  }, [queryClient]);
+
+  // SYNC-F13 for the paths that redeem a token URL THEMSELVES — the magic-link
+  // handler in app/_layout.tsx (and password reset) call supabase.auth.
+  // setSession() directly. Same order as the password/OAuth paths above: read
+  // the arriving identity from the token's claims and, when it is not the last
+  // user on this device, deal with the previous tenant BEFORE the session
+  // switches. Here that is flush-then-wipe: the previous user's session is
+  // still the active one, so their pending offline work lands under THEIR JWT
+  // first (bounded, like sign-out); the wipe then clears their re-fetchable
+  // caches while keeping the queues and the last-user marker for the
+  // post-session decision in onNewSessionEstablished. The wipe used to run
+  // only AFTER setSession, so the new user's first queries could merge the
+  // previous tenant's local-only rows under the new account.
+  const beginSessionFromToken = useCallback(async (accessToken: string | null | undefined): Promise<SessionHandoff> => {
+    const claims = decodeJwtClaims(accessToken);
+    const handoff = await beginSignIn({ id: claims?.sub, email: claims?.email });
+    if (!handoff.sameUser) {
+      await flushQueuesBeforeSignOut();
+      await wipeLocalUserCache(PRE_SESSION_WIPE);
+    }
+    return handoff;
+  }, [beginSignIn]);
+
   // Shared post-sign-in side-effects for any path that establishes a
   // session WITHOUT going through login()/signup() — magic link and
   // password-reset redemption both call supabase.auth.setSession()
@@ -438,53 +797,159 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // local cache and clear the react-query cache BEFORE the contexts
   // hydrate, so on a shared device user-B never sees user-A's projects/
   // DFRs/queued mutations flush under B's JWT. Idempotent — safe to call
-  // even when the same user re-establishes their own session.
-  const onNewSessionEstablished = useCallback(async () => {
+  // even when the same user re-establishes their own session. Pass the
+  // handoff from beginSessionFromToken when that pre-session step ran.
+  const onNewSessionEstablished = useCallback(async (handoff?: SessionHandoff) => {
     // Re-fetchable caches (projects/DFRs/RFIs + react-query) are always safe to
-    // nuke here — they rehydrate from Supabase under the new JWT. But the
-    // offline WRITE queue can't be re-fetched: unconditionally dropping it (the
-    // old behavior) silently loses pending offline writes when the SAME user
-    // re-establishes their session via a magic link or password reset.
-    //
-    // We can't cleanly read the prior user's id at this call site (the new
-    // session's onAuthStateChange has already run by the time this executes,
-    // and threading a prior-id through would require a lagging ref plumbed into
-    // every sign-in path). So we take the safe queue-preserving route: flush
-    // the queue first under the now-active session, then drop it ONLY if the
-    // flush fully drained it.
-    //   • Same user: their queued writes sync to the server, the queue empties,
-    //     and we drop the empty shell — no data lost.
-    //   • Different user on a shared device: those writes are rejected by RLS
-    //     server-side and discarded via the queue's terminal-error path, so the
-    //     queue still empties and gets dropped — no cross-tenant leak.
-    //   • Transient network failure mid-flush: writes are re-queued unchanged,
-    //     the queue is NOT empty, so we PRESERVE it rather than lose the writes.
-    let queueDrained = false;
+    // nuke here — they rehydrate from Supabase under the new JWT. The offline
+    // WRITE queue can't be re-fetched, so what happens to it depends on WHO
+    // just arrived, compared with the last-user marker (SYNC-F2 / SYNC-F13):
+    //   • Same user (magic link / password reset for the account already on
+    //     this device): flush under the now-active session and KEEP whatever
+    //     did not drain — no data lost.
+    //   • A different, known-previous user: the previous tenant's writes must
+    //     not be replayed under this JWT at all (they would be rejected by RLS
+    //     and the new user would see a toast naming the other tenant's tables)
+    //     — drop them without flushing here (beginSessionFromToken already
+    //     flushed them under the previous session).
+    //   • Unknown (no marker yet — an install that pre-dates it): the old
+    //     safe route — flush first, drop the queue only if it fully drained.
+    // Without a handoff (a caller that could not run the pre-session step)
+    // this is the whole guard, just later than ideal.
+    let incoming: LastUser | null = null;
     try {
-      await processOfflineQueue();
-    } catch (err) {
-      console.log('[Auth] Offline queue flush before wipe failed:', err);
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) incoming = { id: data.session.user.id, email: data.session.user.email ?? null };
+    } catch { /* treated as unknown below */ }
+    const last = await readLastUser();
+    const sameUser = !!incoming && !!last && incoming.id === last.id;
+    const knownOtherUser = !!incoming && !!last && !sameUser;
+
+    let keepQueue = false;
+    // A8 (round 5): set when a queue could not even be READ. The marker is then
+    // left unwritten — see the narrowing block below for why that is what makes
+    // keeping the queue safe rather than reckless.
+    let markerUnsafe = false;
+    if (knownOtherUser) {
+      keepQueue = false;
+    } else {
+      // The pre-session step flushed under the PREVIOUS session for anyone
+      // but the same user; the same user's queue drains under the new one.
+      if (!handoff || handoff.sameUser) {
+        try {
+          await processOfflineQueue();
+        } catch (err) {
+          console.log('[Auth] Offline queue flush before wipe failed:', err);
+        }
+      }
+      try {
+        // Read the ACTUAL persisted queue (not processOfflineQueue's return
+        // value, which short-circuits to remaining:0 when Supabase is
+        // unconfigured) so we never drop a still-populated queue.
+        const queue = await getOfflineQueue();
+        if (last === null && incoming && !handoff?.sameUser) {
+          // A-3: no last-user marker, and nothing has vouched for this being
+          // the same user. Only entries TAGGED for the arriving user may
+          // survive. An untagged entry would be adopted by the marker written
+          // below — the flush treats "no tag + marker names me" as mine — and
+          // on a marker-less install it may be another tenant's write. Entries
+          // tagged for someone else go too; they could never flush under this
+          // session.
+          //
+          // BLOCKING 2 (review 2026-09-05, round 3): a MISSING handoff counts
+          // as "not the same user", exactly like `handoff.sameUser === false`.
+          // The condition used to require `handoff && !handoff.sameUser`, so
+          // the one caller that cannot run the pre-session step — the web
+          // password-reset path in app/reset-password.tsx, which redeems the
+          // recovery token through supabase-js's own detectSessionInUrl and
+          // reaches here with no handoff at all — fell through to the `else`
+          // and kept the WHOLE queue on `queue.length > 0`. On a marker-less
+          // install (a fresh browser profile, or storage cleared) that is the
+          // previous tenant's queue, adopted by the marker written moments
+          // later. The narrowing is the safe default: with no handoff we know
+          // less, not more.
+          const incomingId = incoming.id;
+          try {
+            const [text, photos] = await Promise.all([
+              // A2: narrowing runs under each queue's own lock, in the queue
+              // module that owns the storage key. This used to be an unlocked
+              // `AsyncStorage.setItem('mageid_offline_queue', …)` right here —
+              // a duplicated key literal, and a plain write that a flush's
+              // write-back could clobber (restoring the foreign entries) or be
+              // clobbered by (losing this user's own).
+              retainOfflineQueueForUser(incomingId),
+              retainPhotoUploadQueueForUser(incomingId),
+            ]);
+            if (text.readFailed || photos.readFailed) {
+              // A8 (round 5): storage refused one of the reads. `{kept: 0,
+              // dropped: 0}` used to be the only thing that came back from
+              // this, and it reads exactly like "there was nothing of theirs
+              // here" — so the queue was dropped and the marker stamped over a
+              // queue nobody had looked at. Both halves are wrong: KEEP the
+              // queue (nothing in it has been shown to belong to anyone else)
+              // and leave the marker UNWRITTEN. Those two go together — with no
+              // marker, partitionQueueForSession refuses to adopt an untagged
+              // entry, so a kept queue cannot leak; stamping while keeping is
+              // the one combination that could.
+              console.log('[Auth] Marker-less session — a write queue could not be read; keeping both, marker left unwritten');
+              keepQueue = true;
+              markerUnsafe = true;
+            } else {
+              keepQueue = text.kept > 0 || photos.kept > 0;
+              if (text.dropped > 0 || photos.dropped > 0) {
+                console.log('[Auth] Marker-less session — dropped', text.dropped, 'queued mutation(s) and', photos.dropped, 'photo(s) not tagged for this user');
+              }
+            }
+          } catch (err) {
+            // Its OWN catch, deliberately: a failed narrowing must fall the
+            // other way from the outer one below. If we cannot prove which
+            // entries are this user's, keeping them means the marker written
+            // moments from now vouches for entries that may be the previous
+            // tenant's. Dropping is the safe direction on THIS path.
+            console.log('[Auth] Failed to narrow the offline queues to this user; dropping them:', err);
+            keepQueue = false;
+          }
+        } else {
+          keepQueue = sameUser || queue.length > 0;
+        }
+      } catch (err) {
+        // Only the `else` path can land here (the narrowing has its own catch
+        // above, which falls the other way). Could not even READ the queue:
+        // keeping it is right for the same-user re-auth this branch mostly
+        // serves — losing un-synced field work to a storage hiccup would be
+        // worse — and the flush's own per-entry tag check (B1) still refuses
+        // to send another tenant's writes under this JWT.
+        console.log('[Auth] Could not decide the offline queue\'s fate; keeping it:', err);
+        keepQueue = true;
+      }
     }
-    try {
-      // Read the ACTUAL persisted queue (not processOfflineQueue's return
-      // value, which short-circuits to remaining:0 when Supabase is
-      // unconfigured) so we never drop a still-populated queue.
-      queueDrained = (await getOfflineQueue()).length === 0;
-    } catch {
-      queueDrained = false;
-    }
-    await wipeLocalUserCache({ dropOfflineQueue: queueDrained });
+    await wipeLocalUserCache({ dropOfflineQueue: !keepQueue });
+    // A8: not while a queue is unreadable. The marker is what lets a later
+    // flush adopt an untagged entry; writing it over a queue this call could
+    // not inspect is the leak the narrowing above exists to prevent. The next
+    // sign-in re-runs this whole guard against a marker-less device — the safe
+    // side to fall on.
+    if (markerUnsafe) console.log('[Auth] Last-user marker not written — a write queue was unreadable this session');
+    else await writeLastUser(incoming);
     queryClient.clear();
     console.log(
       '[Auth] New session established — re-fetchable cache cleared; offline queue',
-      queueDrained ? 'flushed + dropped' : 'preserved',
+      keepQueue ? 'preserved' : 'dropped',
     );
   }, [queryClient]);
 
   const login = useCallback(async (email: string, password: string, rememberMe: boolean = true) => {
     console.log('[Auth] Logging in');
+    const normalizedEmail = email.toLowerCase().trim();
+    // SYNC-F13: on a shared device, user-B signing in must NOT see user-A's
+    // projects/DFRs/RFIs — and must not have them merged into B's account.
+    // The wipe therefore runs BEFORE the session switches, whenever the
+    // arriving identity is not the last user on this device.
+    const handoff = await beginSignIn({ email: normalizedEmail });
+    if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       password,
     });
 
@@ -494,20 +959,18 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
 
     if (rememberMe) {
-      await saveCredentials(email.toLowerCase().trim(), password);
+      await saveCredentials(normalizedEmail, password);
       setHasStoredCredentials(true);
     }
 
-    // Wipe any local cache from a prior session before contexts hydrate.
-    // On a shared device, user-B signing in must NOT see user-A's
-    // projects/DFRs/RFIs flicker through while Supabase is loading.
-    await wipeLocalUserCache();
+    // SYNC-F2: same user → pending offline work is kept; different user → the
+    // previous tenant's queues are dropped now, before anything can flush them.
+    await completeSignIn(data.user, handoff);
 
     const authUser = mapSupabaseUser(data.user);
-    queryClient.clear();
     console.log('[Auth] Login successful');
     return authUser;
-  }, [queryClient]);
+  }, [beginSignIn, completeSignIn]);
 
   const signup = useCallback(async (email: string, password: string, name: string) => {
     console.log('[Auth] Signing up');
@@ -520,6 +983,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     const emailRedirectTo = Platform.OS === 'web'
       ? 'https://app.mageid.app/'
       : PRIMARY_SCHEME;
+    // SYNC-F13: a new account is (almost always) a different tenant — wipe the
+    // previous user's caches BEFORE the session exists.
+    const handoff = await beginSignIn({ email: email.toLowerCase().trim() });
+    if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
     const { data, error } = await supabase.auth.signUp({
       email: email.toLowerCase().trim(),
       password,
@@ -538,13 +1005,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       throw new Error('Signup succeeded but no user returned. Check your email for verification.');
     }
 
-    // Same shared-device guard as login — wipe pre-existing local cache
-    // before the new user's contexts hydrate so they never momentarily
-    // see whoever was on the device before them.
-    await wipeLocalUserCache();
+    // Same shared-device guard as login — the previous tenant's offline queues
+    // are dropped now that a different user's session exists.
+    await completeSignIn(data.user, handoff);
 
     const authUser = mapSupabaseUser(data.user);
-    queryClient.clear();
     console.log('[Auth] Signup successful');
     // Funnel entry — distinct from user_logged_in so signup→activation is
     // measurable (login.tsx only ever emitted logged_in, even for new users).
@@ -578,7 +1043,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     })();
 
     return authUser;
-  }, [queryClient]);
+  }, [beginSignIn, completeSignIn]);
 
   const loginWithBiometrics = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -605,43 +1070,65 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     return login(creds.email, creds.password, true);
   }, [login]);
 
-  const logout = useCallback(async (clearCredentials: boolean = false) => {
-    console.log('[Auth] Logging out');
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      // A FAILED signOut LEAVES THE SESSION ON THE DEVICE. The default scope is
-      // 'global', which needs the network; when that call fails the token is
-      // still sitting in storage — and on web that storage is
-      // window.localStorage, shared per ORIGIN. The UI would show a logged-out
-      // app while supabase-js silently restored the previous user's session on
-      // the next launch. On a shared office machine that is the wrong person's
-      // jobs, costs and client data.
-      //
-      // scope:'local' does no network round-trip, so it cannot fail the same
-      // way. Whatever happened upstream, the local session dies here.
-      console.log('[Auth] Logout error, forcing local sign-out:', error.message);
-      const { error: localErr } = await supabase.auth.signOut({ scope: 'local' });
-      if (localErr) console.warn('[Auth] Local sign-out ALSO failed:', localErr.message);
-    }
+  const logout = useCallback((clearCredentials: boolean = false): Promise<void> => {
+    // A5: a second tap during the bounded flush is a no-op — it joins the
+    // sign-out already under way. Two concurrent sign-outs would run the flush
+    // race twice and let the second wipe land while the first one's
+    // still-running flush writes back into storage.
+    if (logoutInFlight.current) return logoutInFlight.current;
+    setSigningOut(true);
+    const run = (async () => {
+      console.log('[Auth] Logging out');
+      // SYNC-F2: land what is pending BEFORE the session dies. Sign-out used to
+      // drop both offline queues unflushed — the "sync looks stuck, sign out and
+      // back in" reflex destroyed exactly the day's field work. Bounded; whatever
+      // is still queued afterwards is discarded by the wipe below (the Settings
+      // dialog has already said so). Cancel-safe: the ceiling's timer is always
+      // cleared, and a flush that outlives the ceiling stops dispatching on its
+      // own the moment the session below is gone (utils/offlineQueue.ts B1) —
+      // it cannot send anything anonymously or under the next user.
+      await flushQueuesBeforeSignOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        // A FAILED signOut LEAVES THE SESSION ON THE DEVICE. The default scope is
+        // 'global', which needs the network; when that call fails the token is
+        // still sitting in storage — and on web that storage is
+        // window.localStorage, shared per ORIGIN. The UI would show a logged-out
+        // app while supabase-js silently restored the previous user's session on
+        // the next launch. On a shared office machine that is the wrong person's
+        // jobs, costs and client data.
+        //
+        // scope:'local' does no network round-trip, so it cannot fail the same
+        // way. Whatever happened upstream, the local session dies here.
+        console.log('[Auth] Logout error, forcing local sign-out:', error.message);
+        const { error: localErr } = await supabase.auth.signOut({ scope: 'local' });
+        if (localErr) console.warn('[Auth] Local sign-out ALSO failed:', localErr.message);
+      }
 
-    if (clearCredentials) {
-      await clearStoredCredentials();
-      setHasStoredCredentials(false);
-    }
+      if (clearCredentials) {
+        await clearStoredCredentials();
+        setHasStoredCredentials(false);
+      }
 
-    // Drop the offline queue + cached project/sub-collection data so the
-    // next user that signs in starts with a clean local cache and pulls
-    // their own rows from Supabase. Without this, queued mutations from
-    // the previous user would flush under whoever signs in next, and
-    // the new user would briefly see the previous user's projects/DFRs/
-    // punch items before Supabase responds.
-    await wipeLocalUserCache();
+      // Drop the offline queue + cached project/sub-collection data so the
+      // next user that signs in starts with a clean local cache and pulls
+      // their own rows from Supabase. Without this, queued mutations from
+      // the previous user would flush under whoever signs in next, and
+      // the new user would briefly see the previous user's projects/DFRs/
+      // punch items before Supabase responds.
+      await wipeLocalUserCache();
 
-    setSession(null);
-    setUser(null);
-    setIsAuthenticated(false);
-    queryClient.clear();
-    console.log('[Auth] Logged out');
+      setSession(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      queryClient.clear();
+      console.log('[Auth] Logged out');
+    })();
+    logoutInFlight.current = run.finally(() => {
+      logoutInFlight.current = null;
+      setSigningOut(false);
+    });
+    return logoutInFlight.current;
   }, [queryClient]);
 
   /**
@@ -845,14 +1332,17 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           if (!idToken) {
             throw new Error('Google did not return an ID token.');
           }
-          const { error } = await supabase.auth.signInWithIdToken({
+          // SYNC-F13: the id token names the arriving account — wipe the
+          // previous tenant BEFORE the session switches when it is not them.
+          const handoff = await beginSignIn({ email: decodeJwtClaims(idToken)?.email });
+          if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
+          const { data, error } = await supabase.auth.signInWithIdToken({
             provider: 'google',
             token: idToken,
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (native flow)');
-          await wipeLocalUserCache();
-          queryClient.clear();
+          await completeSignIn(data.user ?? data.session?.user, handoff);
           return;
         } catch (gErr) {
           const code = (gErr as { code?: string | number })?.code;
@@ -901,14 +1391,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             console.log('[Auth] GIS sign-in cancelled or empty token');
             return;
           }
-          const { error } = await supabase.auth.signInWithIdToken({
+          // SYNC-F13: wipe the previous tenant BEFORE the session switches.
+          const handoff = await beginSignIn({ email: decodeJwtClaims(idToken)?.email });
+          if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
+          const { data, error } = await supabase.auth.signInWithIdToken({
             provider: 'google',
             token: idToken,
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (web GIS flow)');
-          await wipeLocalUserCache();
-          queryClient.clear();
+          await completeSignIn(data.user ?? data.session?.user, handoff);
           return;
         } catch (gisErr) {
           // Fall through to the legacy redirect flow if GIS isn't
@@ -940,14 +1432,18 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           const accessToken = url.searchParams.get('access_token') || url.hash?.match(/access_token=([^&]*)/)?.[1];
           const refreshToken = url.searchParams.get('refresh_token') || url.hash?.match(/refresh_token=([^&]*)/)?.[1];
           if (accessToken) {
-            const { error: sessionError } = await supabase.auth.setSession({
+            // SYNC-F13: the access token carries the arriving user id — wipe
+            // the previous tenant BEFORE setSession when it is someone else.
+            const claims = decodeJwtClaims(accessToken);
+            const handoff = await beginSignIn({ id: claims?.sub, email: claims?.email });
+            if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || '',
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Google sign-in session set successfully');
-            await wipeLocalUserCache();
-            queryClient.clear();
+            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
           } else {
             console.log('[Auth] No access token found in Google callback URL');
           }
@@ -958,7 +1454,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       showAlert('Sign In Failed', 'Could not sign in with Google. Please try again.');
       throw err;
     }
-  }, [queryClient]);
+  }, [beginSignIn, completeSignIn]);
 
   const signInWithApple = useCallback(async () => {
     console.log('[Auth] Starting Apple sign-in');
@@ -997,7 +1493,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         if (!credential.identityToken) {
           throw new Error('Apple did not return an identity token.');
         }
-        const { error } = await supabase.auth.signInWithIdToken({
+        // SYNC-F13: wipe the previous tenant BEFORE the session switches.
+        const handoff = await beginSignIn({ email: credential.email ?? decodeJwtClaims(credential.identityToken)?.email });
+        if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
+        const { data, error } = await supabase.auth.signInWithIdToken({
           provider: 'apple',
           token: credential.identityToken,
           nonce: rawNonce,
@@ -1016,8 +1515,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           }
         }
         console.log('[Auth] Apple sign-in session set (native iOS flow)');
-        await wipeLocalUserCache();
-        queryClient.clear();
+        await completeSignIn(data.user ?? data.session?.user, handoff);
         return;
       }
 
@@ -1044,14 +1542,18 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           const accessToken = url.searchParams.get('access_token') || url.hash?.match(/access_token=([^&]*)/)?.[1];
           const refreshToken = url.searchParams.get('refresh_token') || url.hash?.match(/refresh_token=([^&]*)/)?.[1];
           if (accessToken) {
-            const { error: sessionError } = await supabase.auth.setSession({
+            // SYNC-F13: wipe the previous tenant BEFORE setSession when the
+            // token's user id is someone else.
+            const claims = decodeJwtClaims(accessToken);
+            const handoff = await beginSignIn({ id: claims?.sub, email: claims?.email });
+            if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken || '',
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Apple sign-in session set successfully');
-            await wipeLocalUserCache();
-            queryClient.clear();
+            await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
           } else {
             console.log('[Auth] No access token found in Apple callback URL');
           }
@@ -1068,7 +1570,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       showAlert('Sign In Failed', 'Could not sign in with Apple. Please try again.');
       throw err;
     }
-  }, [queryClient]);
+  }, [beginSignIn, completeSignIn]);
 
   return useMemo(() => ({
     user,
@@ -1076,6 +1578,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     isLoading,
     isAuthenticated,
     hasStoredCredentials,
+    sessionExpiredReason,
+    signingOut,
     login,
     signup,
     logout,
@@ -1087,6 +1591,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     signInWithGoogle,
     signInWithApple,
     sendMagicLink,
+    beginSessionFromToken,
     onNewSessionEstablished,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink, onNewSessionEstablished]);
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, sessionExpiredReason, signingOut, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink, beginSessionFromToken, onNewSessionEstablished]);
 });

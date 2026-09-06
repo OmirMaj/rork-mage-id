@@ -12,16 +12,17 @@
 //   changeRole { collaboratorId, role }     — caller must OWN the parent project
 //
 // Auth model: deployed with the default platform JWT verification (the caller's
-// Supabase session). We ALSO decode the JWT here to get sub/email, then run all
-// DB work with the service-role key (bypassing RLS) after our own ownership /
-// token / email checks — so RLS can't be tricked and the invite flow can set
-// user_id on accept.
+// Supabase session). We ALSO verify the JWT with GoTrue here (verifyUser →
+// sub/email), then run all DB work with the service-role key (bypassing RLS)
+// after our own ownership / token / email checks — so RLS can't be tricked
+// and the invite flow can set user_id on accept.
 //
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SERVICE_ROLE_KEY),
 //          RESEND_API_KEY (optional — email is best-effort; the link is always
 //          returned so the owner can copy/share it), APP_ORIGIN (optional).
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { verifyUser } from "../_shared/verifyUser.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -55,22 +56,6 @@ async function rest(pathAndQuery: string, init: RequestInit = {}): Promise<Respo
       ...(init.headers ?? {}),
     },
   });
-}
-
-function decodeCaller(req: Request): { sub: string; email: string } | null {
-  const auth = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-  const bearer = auth.replace(/^Bearer\s+/i, "").trim();
-  try {
-    const parts = bearer.split(".");
-    if (parts.length !== 3) return null;
-    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4) b64 += "=";
-    const p = JSON.parse(atob(b64));
-    if (p && typeof p.sub === "string") {
-      return { sub: p.sub, email: typeof p.email === "string" ? p.email.toLowerCase() : "" };
-    }
-  } catch { /* fall through */ }
-  return null;
 }
 
 async function callerOwnsProject(projectId: string, uid: string): Promise<boolean> {
@@ -204,8 +189,13 @@ serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (!SUPABASE_URL || !SERVICE) return json({ error: "Server misconfigured" }, 500);
 
-  const caller = decodeCaller(req);
-  if (!caller) return json({ error: "Unauthenticated" }, 401);
+  // Audit EDGE-F14: identity AND email come from GoTrue (verifyUser), never
+  // from a bare claims decode — `accept` compares the invite's address to the
+  // caller's, so a forged `email` claim used to be enough to take a seat on
+  // someone else's project.
+  const verified = await verifyUser(req);
+  if (!verified?.id) return json({ error: "Unauthenticated" }, 401);
+  const caller = { sub: verified.id, email: (verified.email ?? "").toLowerCase() };
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
