@@ -35,6 +35,7 @@ import {
   getCachedAIAnalysis, setCachedAIAnalysis,
 } from '@/utils/cashFlowStorage';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -270,7 +271,7 @@ function CashFlowScreenInner() {
   }, [forecast.length, summary.lowestBalance, summary.netProfit]);
 
   // Aggregate "Total Pending" across every source of expected money that hasn't landed:
-  //   - unpaid invoice balances (totalDue - amountPaid)
+  //   - unpaid invoice balances, net of held retention (MONEY-F5: invoiceOutstanding)
   //   - manually-entered expected payments
   // Approved change orders are intentionally excluded — a CO is billed through a
   // progress invoice, so its dollars already live in that invoice's totalDue.
@@ -280,7 +281,7 @@ function CashFlowScreenInner() {
   const totalPending = useMemo(() => {
     const invoiceTotal = relevantInvoices
       .filter(i => i.status !== 'paid')
-      .reduce((sum, i) => sum + Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)), 0);
+      .reduce((sum, i) => sum + invoiceOutstanding(i), 0);
     const expectedTotal = (cashFlowData?.expectedPayments ?? [])
       .reduce((sum, p) => sum + (p.amount ?? 0), 0);
     return invoiceTotal + expectedTotal;
@@ -831,7 +832,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           {expandedSections.income && (
             <View style={styles.expandedContent}>
               {relevantInvoices.filter(i => i.status !== 'paid').map(inv => {
-                const remaining = inv.totalDue - inv.amountPaid;
+                const remaining = invoiceOutstanding(inv); // MONEY-F5: net of held retention
                 return (
                   <View key={inv.id} style={styles.incomeListRow}>
                     <View style={styles.incomeListInfo}>

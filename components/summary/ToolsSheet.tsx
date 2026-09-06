@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Inbox, FileDown, Wallet, UserPlus, Gavel, Gauge, Library, PenTool, BellRing } from 'lucide-react-native';
+import { Inbox, FileDown, Wallet, UserPlus, Gavel, Gauge, Library, PenTool, BellRing, Hourglass } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
@@ -32,6 +32,8 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
         <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
           <NavRow Icon={Gauge} title="Margin board" subtitle="Every active job's projected margin + risk, ranked" onPress={() => onNavigate('/portfolio-margin')} testID="tools-margin-board" />
           <NavRow Icon={BellRing} title="Margin alerts" subtitle="What crossed since you last looked — risk, health, erosion" onPress={() => onNavigate('/margin-alerts')} testID="tools-margin-alerts" />
+          {/* PRODUCT-F4: the chase list was sidebar-only — invisible on iPhone. */}
+          <NavRow Icon={Hourglass} title="Waiting on others" subtitle="Who owes you an answer — overdue RFIs, submittals, sub confirmations" onPress={() => onNavigate('/waiting-on')} testID="tools-waiting-on" />
           <NavRow Icon={Library} title="Cost database" subtitle="Your unit prices, learned from closed jobs" onPress={() => onNavigate('/cost-database')} testID="tools-cost-database" />
           <NavRow Icon={PenTool} title="Visual takeoff" subtitle="Circle an area on a plan → instant priced quantity" onPress={() => onNavigate('/area-takeoff')} testID="tools-area-takeoff" />
           <NavRow Icon={Inbox} title="Reports inbox" subtitle="Daily field reports waiting for review" onPress={() => onNavigate('/report-inbox')} testID="tools-report-inbox" />

@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { parseCalendarDay } from '@/utils/calendarDate';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
   getPhaseColor,
@@ -249,8 +250,8 @@ function LookaheadView({
       });
 
       const weekForecast = forecast.filter(f => {
-        const d = new Date(f.date);
-        return d >= weekStart && d <= weekEnd;
+        const d = parseCalendarDay(f.date); // UX-F10: a calendar day, not UTC midnight
+        return !!d && d >= weekStart && d <= weekEnd;
       });
 
       const monthDay = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -286,8 +287,8 @@ function LookaheadView({
         {week.forecast.length > 0 && (
           <View style={s.weekWeatherRow}>
             {week.forecast.map(f => {
-              const d = new Date(f.date);
-              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+              const d = parseCalendarDay(f.date); // UX-F10
+              const dayName = d ? d.toLocaleDateString('en-US', { weekday: 'short' }) : f.date;
               const hasWeatherSensitive = week.tasks.some(t => t.isWeatherSensitive);
               const isRisky = !f.isWorkable && hasWeatherSensitive;
               return (

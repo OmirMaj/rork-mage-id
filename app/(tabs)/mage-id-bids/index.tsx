@@ -352,17 +352,21 @@ export default function MageIdBidsTabScreen() {
           </View>
           {/* Map view link — was an orphan route until May 2026 audit
               wiring. Same RFP feed but rendered with full distance-sort
-              + map visualization. */}
-          <TouchableOpacity
-            style={styles.mapBtn}
-            onPress={() => router.push('/nearby-rfps' as never)}
-            activeOpacity={0.85}
-            testID="mageid-bids-nearby-map"
-          >
-            <MapPin size={13} color={Colors.primary} strokeWidth={1.75} />
-            <Text style={styles.mapBtnText}>Map view</Text>
-            <ChevronRight size={12} color={Colors.primary} strokeWidth={1.75} />
-          </TouchableOpacity>
+              + map visualization. PRODUCT-F8: hidden while browse is gated
+              off — /nearby-rfps never fetches, so the link only led to a
+              permanent empty state. */}
+          {RFP_BROWSE_ENABLED && (
+            <TouchableOpacity
+              style={styles.mapBtn}
+              onPress={() => router.push('/nearby-rfps' as never)}
+              activeOpacity={0.85}
+              testID="mageid-bids-nearby-map"
+            >
+              <MapPin size={13} color={Colors.primary} strokeWidth={1.75} />
+              <Text style={styles.mapBtnText}>Map view</Text>
+              <ChevronRight size={12} color={Colors.primary} strokeWidth={1.75} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 

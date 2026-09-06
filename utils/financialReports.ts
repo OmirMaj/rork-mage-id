@@ -19,6 +19,7 @@
 import type { Project, Invoice, ChangeOrder, Commitment } from '@/types';
 import { computeJobCost } from './jobCostEngine';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 
 // ─── WIP ─────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export interface WIPRow {
   contractValue: number;        // original signed contract (linked estimate grand total or estimate.grandTotal)
   approvedChangeOrders: number; // sum of approved CO change amounts
   revisedContract: number;      // contractValue + approvedChangeOrders
-  percentComplete: number;      // 0–100, derived from billed-to-date / revised contract
+  percentComplete: number;      // 0–100, cost basis (job actual / EAC) like utils/wip.ts; schedule progress when no cost yet
   billedToDate: number;         // sum of every invoice's totalDue (issued amount)
   paidToDate: number;           // sum of every invoice's amountPaid
   unbilled: number;             // revisedContract * %complete - billed (≥ 0)
@@ -92,13 +93,17 @@ export function computeWIPReport(
     const job = computeJobCost({ project, commitments, invoices, changeOrders });
     const estimatedFinalCost = job.projectedFinal;
 
-    // Percent complete by billed value vs revised contract — the most
-    // common bank/architect convention. If there's no contract at all,
-    // fall back to schedule progress (avg task progress) so the row isn't
-    // useless for a project that was estimated outside the app.
+    // MONEY-F13 (audit 2026-09-03): percent complete on a COST basis —
+    // job actual ÷ estimate-at-completion — the same basis utils/wip.ts uses
+    // (costToDate / totalEstimatedCost). The old basis was billed ÷ revised,
+    // which makes earned ≡ billed, so the Unbilled column below was
+    // identically zero: no input could make it non-zero, and a banker reading
+    // it concluded the contractor was never underbilled. When the job has no
+    // cost picture yet, fall back to schedule progress (avg task progress);
+    // with neither, 0 — the honest answer, not "as billed".
     let percentComplete: number;
-    if (revisedContract > 0) {
-      percentComplete = Math.min(100, (billedToDate / revisedContract) * 100);
+    if (job.projectedFinal > 0 && job.actual > 0) {
+      percentComplete = Math.min(100, Math.max(0, (job.actual / job.projectedFinal) * 100));
     } else {
       const tasks = project.schedule?.tasks ?? [];
       percentComplete = tasks.length > 0
@@ -231,6 +236,9 @@ export interface ARAgingRow {
   dueDate: string;
   totalDue: number;
   amountPaid: number;
+  /** Retention still held on the invoice — not due, so not aged (MONEY-F5). */
+  retainageHeld: number;
+  /** Collectible today: totalDue − retainageHeld − amountPaid, never negative. */
   outstanding: number;
   daysPastDue: number;
   bucket: AgingBucket | 'current';
@@ -247,6 +255,8 @@ export interface ARAgingReport {
     '61-90': number;
     '90+': number;
     totalOutstanding: number;
+    /** Retention still held across the listed invoices — a receivable, not aged. */
+    retainageHeld: number;
   };
 }
 
@@ -275,13 +285,23 @@ export function computeARAgingReport(
     // Same population as WIP billings, deliberately: sent / partially_paid /
     // paid / overdue have genuinely been billed; draft has not.
     if (inv.status === 'draft') continue;
-    // Outstanding = totalDue - amountPaid. Skip anything already collected
-    // (half-dollar floor absorbs rounding on split payments).
-    const outstanding = (inv.totalDue || 0) - (inv.amountPaid || 0);
-    if (outstanding <= 0.5) continue;
+    // MONEY-F5: outstanding is NET of the retention the contract lets the
+    // client hold (utils/invoiceBilling.invoiceOutstanding). Aging held
+    // retention as "past due" told the bank a client was late on money that
+    // is not due until closeout. Skip anything already collected (half-dollar
+    // floor absorbs rounding on split payments).
+    const outstanding = invoiceOutstanding(inv);
+    const retainageHeld = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+    // Nothing collectible AND nothing held → fully collected, no receivable.
+    // A settled invoice that still HOLDS retainage stays on the report as a
+    // zero-current row: the $10,000 the client keeps until closeout is a
+    // receivable the bank needs to see (review of B3a, 2026-09-05) — disclosed
+    // under Retainage Held, never aged, never in a bucket.
+    if (outstanding <= 0.5 && retainageHeld <= 0.5) continue;
 
     const dueMs = new Date(inv.dueDate).getTime();
-    const daysPastDue = isNaN(dueMs) ? 0 : Math.max(0, Math.floor((now - dueMs) / DAY));
+    // Only a collectible balance ages; held retainage is not past due.
+    const daysPastDue = outstanding <= 0.5 || isNaN(dueMs) ? 0 : Math.max(0, Math.floor((now - dueMs) / DAY));
 
     let bucket: AgingBucket | 'current';
     if (daysPastDue === 0)        bucket = 'current';
@@ -299,6 +319,7 @@ export function computeARAgingReport(
       dueDate: inv.dueDate,
       totalDue: inv.totalDue || 0,
       amountPaid: inv.amountPaid || 0,
+      retainageHeld,
       outstanding,
       daysPastDue,
       bucket,
@@ -312,11 +333,13 @@ export function computeARAgingReport(
   const totals = {
     current: 0, '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0,
     totalOutstanding: 0,
+    retainageHeld: 0,
   };
   for (const r of rows) {
     if (r.bucket === 'current') totals.current += r.outstanding;
     else totals[r.bucket] += r.outstanding;
     totals.totalOutstanding += r.outstanding;
+    totals.retainageHeld += r.retainageHeld;
   }
 
   return { asOf: new Date().toISOString(), rows, totals };
@@ -364,14 +387,25 @@ export function wipReportToCSV(report: WIPReport): string {
 }
 
 export function arAgingReportToCSV(report: ARAgingReport): string {
+  // MONEY-F5: Total Due − Paid − Retainage Held = Outstanding, so the CSV foots
+  // for the banker who reads it (held retention is disclosed, not aged).
   const headers = [
     'Project', 'Invoice #', 'Issue Date', 'Due Date',
-    'Total Due', 'Paid', 'Outstanding', 'Days Past Due', 'Bucket', 'Status',
+    'Total Due', 'Paid', 'Retainage Held', 'Outstanding', 'Days Past Due', 'Bucket', 'Status',
   ];
   const rows = report.rows.map(r => [
     r.projectName, r.invoiceNumber, r.issueDate, r.dueDate,
-    r.totalDue.toFixed(2), r.amountPaid.toFixed(2), r.outstanding.toFixed(2),
+    r.totalDue.toFixed(2), r.amountPaid.toFixed(2), r.retainageHeld.toFixed(2), r.outstanding.toFixed(2),
     r.daysPastDue, r.bucket, r.status,
   ]);
-  return [headers, ...rows].map(r => r.map(csvEscape).join(',')).join('\n');
+  // A TOTAL line that foots the same way, so the held retainage the report
+  // discloses is also visible as one number.
+  const sumTotalDue = report.rows.reduce((s, r) => s + r.totalDue, 0);
+  const sumPaid = report.rows.reduce((s, r) => s + r.amountPaid, 0);
+  const totals = [
+    'TOTAL', '', '', '',
+    sumTotalDue.toFixed(2), sumPaid.toFixed(2), report.totals.retainageHeld.toFixed(2), report.totals.totalOutstanding.toFixed(2),
+    '', '', '',
+  ];
+  return [headers, ...rows, totals].map(r => r.map(csvEscape).join(',')).join('\n');
 }

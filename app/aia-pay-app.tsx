@@ -167,7 +167,9 @@ function AIAPayAppScreenInner() {
         ...seeded,
         applicationNumber: priorAIA.applicationNumber + 1,
         lines: carriedLines,
-        lessPreviousCertificates: priorAIA.totals.totalEarnedLessRetainage || 0,
+        // MONEY-F1 (client half): a record hydrated from the server can arrive
+        // without `totals`; the second period must not crash on it.
+        lessPreviousCertificates: priorAIA.totals?.totalEarnedLessRetainage ?? 0,
       };
       setApp(carried);
       setCarriedFromAppNumber(priorAIA.applicationNumber);
@@ -212,7 +214,10 @@ function AIAPayAppScreenInner() {
     if (!project || !app) return null;
     return getAIAPayAppsForProject(project.id).find(a => a.applicationNumber === app.applicationNumber) ?? null;
   }, [project, app, getAIAPayAppsForProject]);
-  const isLocked = !!savedForThisAppNumber?.payLinkUrl;
+  // MONEY-F2 / F16: `paidAt` is set by the Stripe webhook and hydrated by the
+  // context mapper; read defensively so an older local record reads "unpaid".
+  const savedPaidAt = (savedForThisAppNumber as (SavedAIAPayApp & { paidAt?: string }) | null)?.paidAt || null;
+  const isLocked = !!savedForThisAppNumber?.payLinkUrl || !!savedPaidAt;
 
   const updateLine = useCallback((lineId: string, patch: Partial<AIASOVLine>) => {
     if (isLocked) return;
@@ -372,7 +377,8 @@ function AIAPayAppScreenInner() {
     let stripeNotConnected = false;
     let stripeFailureReason: string | null = null;
     const due = rec.totals?.currentPaymentDue ?? 0;
-    if (!payLinkUrl && due > 0 && user?.id) {
+    // MONEY-F2: never mint a Pay button for a pay app that is already paid.
+    if (!payLinkUrl && due > 0 && !savedPaidAt && user?.id) {
       try {
         const status = await fetchStripeConnectStatus(user.id);
         if (status.success && status.chargesEnabled && status.accountId) {
@@ -411,7 +417,9 @@ function AIAPayAppScreenInner() {
       }
     }
 
-    addAIAPayApp({ ...rec, payLinkUrl, payLinkId });
+    // MONEY-F2: remember the amount the link charges (portal shows Pay only
+    // while it still equals what is owed).
+    addAIAPayApp({ ...rec, payLinkUrl, payLinkId, payLinkAmount: payLinkUrl ? Math.round(due * 100) / 100 : undefined });
     setSavedFlash(true);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setSavedFlash(false), 2200);
@@ -438,7 +446,7 @@ function AIAPayAppScreenInner() {
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, tier]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, savedPaidAt, tier]);
 
   // Tap "Generate PDF" → show pre-export confirmation first (liability
   // reducer). Once user confirms they reviewed the totals, we actually
@@ -544,7 +552,9 @@ function AIAPayAppScreenInner() {
               Period #{app.applicationNumber} locked
             </Text>
             <Text style={styles.lockedBannerBody}>
-              This pay application has been generated with a payment link active for ${(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. To revise the numbers, create the next period instead — carry-forward will seed the next pay-app from this period&apos;s billed-through totals.
+              {savedPaidAt
+                ? `This pay application was paid on ${new Date(savedPaidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. The portal no longer shows a Pay button for it. To bill the next period, create the next application — carry-forward will seed it from this period's billed-through totals.`
+                : `This pay application has been generated with a payment link active for ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. To revise the numbers, create the next period instead — carry-forward will seed the next pay-app from this period's billed-through totals.`}
             </Text>
             <TouchableOpacity
               style={styles.lockedBannerCta}

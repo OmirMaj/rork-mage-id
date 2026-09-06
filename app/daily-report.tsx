@@ -39,6 +39,8 @@ import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, LeakScanRecord, ScheduleTask } from '@/types';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
+import { scheduleDayNumberFor } from '@/utils/scheduleOps';
+import { parseCalendarDay } from '@/utils/calendarDate';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
@@ -154,6 +156,9 @@ export default function DailyReportScreen() {
     existingReport?.weather ?? { temperature: '', conditions: '', wind: '', isManual: true }
   );
   const [manpower, setManpower] = useState<ManpowerEntry[]>(existingReport?.manpower ?? []);
+  // Signature of the roster the schedule prefill last wrote, so a date change
+  // can tell an untouched auto-seed from crews the GC typed (see the prefill effect).
+  const autoSeedRef = useRef<string | null>(null);
   const [workPerformed, setWorkPerformed] = useState(existingReport?.workPerformed ?? '');
   // Structured per-task progress chips. Each entry pins a task from the
   // project schedule + a percent-complete the GC observed today.
@@ -262,17 +267,23 @@ export default function DailyReportScreen() {
   // hero card builds confidence that the app understands the project's
   // calendar, and gives the GC a constant pacing signal.
   const projectDayInfo = useMemo(() => {
-    const start = project?.schedule?.startDate;
-    const total = project?.schedule?.totalDurationDays;
-    if (!start || !total || total <= 0) return null;
-    const startMs = Date.parse(start);
-    if (!Number.isFinite(startMs)) return null;
-    const elapsedMs = Date.now() - startMs;
-    const ONE_DAY = 86_400_000;
-    // 1-indexed: the start day itself is "Day 1", not "Day 0".
-    const day = Math.max(1, Math.min(total, Math.floor(elapsedMs / ONE_DAY) + 1));
+    const sched = project?.schedule;
+    const start = sched?.startDate;
+    const total = sched?.totalDurationDays;
+    if (!sched || !start || !total || total <= 0) return null;
+    // UX-F1: day 1 is the schedule's start CALENDAR DAY and the count is in
+    // WORKING days (scheduleEngine.addWorkingDays / getTaskDateRange) — not
+    // raw elapsed milliseconds from a UTC-midnight parse, which ran a day
+    // ahead west of Greenwich and counted weekends as worked days. Anchored
+    // on the report's own date so a backfilled Friday report says Friday's day.
+    const startDay = parseCalendarDay(start);
+    if (!startDay) return null;
+    const reportDay = new Date(reportDate); // reportDate is an instant, not a calendar day
+    if (!Number.isFinite(reportDay.getTime())) return null;
+    const day = Math.max(1, Math.min(total,
+      scheduleDayNumberFor(startDay, reportDay, sched.workingDaysPerWeek, sched.nonWorkingDates)));
     return { day, total };
-  }, [project?.schedule?.startDate, project?.schedule?.totalDurationDays]);
+  }, [project?.schedule, reportDate]);
 
   // The most recent saved report, excluding the one being edited (if any).
   // Drives the "Copy from yesterday" carry-forward affordance — the single
@@ -371,27 +382,37 @@ export default function DailyReportScreen() {
   // tracks who's assigned (`assignedSubName` or free-text `crew`) per task
   // and roughly how many people (`crewSize`). Pre-fix this opened blank,
   // so the GC retyped the same crew that was already on screen in the
-  // schedule view five minutes earlier. Idempotent — only runs once when
-  // editing a fresh DFR with an empty manpower roster.
+  // schedule view five minutes earlier. Idempotent — seeds a fresh DFR's
+  // empty roster, and re-seeds when the report DATE changes as long as the
+  // roster is still the untouched auto-seed (B4 review A7: a Friday report
+  // backfilled on Monday used to keep Monday's crews).
   useEffect(() => {
     if (existingReport) return;
     if (!project?.schedule || !project.schedule.tasks?.length) return;
-    if (manpower.length > 0) return;
+    if (manpower.length > 0 && JSON.stringify(manpower) !== autoSeedRef.current) return;
 
     const baseIso = project.schedule.startDate || project.createdAt;
-    const baseMs = Date.parse(baseIso);
-    if (!Number.isFinite(baseMs)) return;
-    const dayMs = 24 * 60 * 60 * 1000;
-    const todayDay = Math.floor((Date.now() - baseMs) / dayMs);
+    // UX-F1: same 1-indexed working-day anchor as the hero above and the
+    // Home/Summary "today on site" strips (day 1 = the start calendar day).
+    // The old 0-indexed raw-elapsed count never matched a startDay-1 task on
+    // day 1 and drifted a day for every weekend crossed.
+    const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
+    if (!Number.isFinite(base.getTime())) return;
+    // B4 review A7: anchored on the report's own date like the hero above —
+    // a Friday report backfilled on Monday prefilled Monday's crews.
+    const reportDay = new Date(reportDate); // reportDate is an instant, not a calendar day
+    if (!Number.isFinite(reportDay.getTime())) return;
+    const todayDay = scheduleDayNumberFor(base, reportDay, project.schedule.workingDaysPerWeek, project.schedule.nonWorkingDates);
 
     // Gather today's live tasks — started but not finished, not done.
     const liveTasks = project.schedule.tasks.filter(t => {
       if (t.status === 'done') return false;
       if (t.isMilestone) return false; // milestones aren't crew assignments
       if (t.isLevelOfEffort || t.isSummary) return false;
-      const start = t.startDay ?? 0;
-      const dur = t.durationDays ?? 0;
-      return start <= todayDay && start + dur > todayDay;
+      const start = Math.max(1, t.startDay ?? 1);
+      const dur = Math.max(0, t.durationDays ?? 0);
+      // Inclusive last active day = start + dur - 1 (matches getTaskDateRange).
+      return todayDay >= start && todayDay <= start + dur - 1;
     });
     if (liveTasks.length === 0) return;
 
@@ -417,9 +438,10 @@ export default function DailyReportScreen() {
       headcount: g.headcount,
       hoursWorked: 8,
     }));
+    autoSeedRef.current = JSON.stringify(seeded);
     setManpower(seeded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reportDate]);
 
   const handleAddManpower = useCallback(() => {
     const trade = mpTrade.trim();

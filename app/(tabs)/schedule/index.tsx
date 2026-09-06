@@ -76,6 +76,7 @@ import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
 import { getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
+import { parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import {
   SimulatedWeatherBanner,
   SimulatedDayChip,
@@ -1056,8 +1057,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           if (precip > 60 || wind > 40) {
             weatherSensitiveTasks.forEach(task => {
               const { start, end } = getTaskDateRange(task, projectStartDate, activeSchedule?.workingDaysPerWeek ?? 5);
-              const forecastDate = new Date(date);
-              if (forecastDate >= start && forecastDate <= end) {
+              // open-meteo's daily.time is a bare 'YYYY-MM-DD' (timezone=auto);
+              // the task range is noon-anchored — same UX-F10 class as the
+              // Weather Impact panel, same calendar-day comparison.
+              const forecastDay = parseCalendarDay(date);
+              const forecastKey = forecastDay ? toCalendarDayString(forecastDay) : '';
+              if (forecastKey && forecastKey >= toCalendarDayString(start) && forecastKey <= toCalendarDayString(end)) {
                 alerts.push({
                   taskName: task.title,
                   date,
@@ -3255,9 +3260,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     const weatherForecast = ganttForecast;
                     const taskDr = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
                     if (!taskDr) return null;
+                    // UX-F10 (B4 review A1): forecast days are bare 'YYYY-MM-DD'
+                    // and the task range is NOON-anchored (projectStartDate), so
+                    // a local-midnight parse still sorted BEFORE the start day
+                    // (00:00 < 12:00) and dropped it. Compare calendar days.
+                    const rangeStart = toCalendarDayString(taskDr.start);
+                    const rangeEnd = toCalendarDayString(taskDr.end);
                     const relevantDays = weatherForecast.filter(f => {
-                      const fDate = new Date(f.date);
-                      return fDate >= taskDr.start && fDate <= taskDr.end;
+                      const fDate = parseCalendarDay(f.date);
+                      if (!fDate) return false;
+                      const day = toCalendarDayString(fDate);
+                      return day >= rangeStart && day <= rangeEnd;
                     });
                     const badDays = relevantDays.filter(f => !f.isWorkable);
                     if (relevantDays.length === 0) return null;
@@ -3272,8 +3285,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                         <SimulatedWeatherBanner days={shownDays} />
                         <View style={styles.weatherImpactForecastRow}>
                           {shownDays.map(f => {
-                            const d = new Date(f.date);
-                            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                            const d = parseCalendarDay(f.date); // UX-F10: a calendar day, not an instant
+                            const dayName = d ? d.toLocaleDateString('en-US', { weekday: 'short' }) : f.date;
                             return (
                               <View key={f.date} style={[styles.weatherImpactDay, !f.isWorkable && styles.weatherImpactDayBad]}>
                                 <Text style={styles.weatherImpactDayName}>{dayName}</Text>

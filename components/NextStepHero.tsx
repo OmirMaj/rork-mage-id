@@ -46,6 +46,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { Project, Invoice, RFI, PrequalPacket, Subcontractor, PunchItem } from '@/types';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { computeProjectProgress } from '@/utils/projectProgress';
 
 export interface NextStepHeroProps {
@@ -117,7 +118,8 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
     return days > 30;
   });
   if (overdueInvoices.length > 0) {
-    const totalDue = overdueInvoices.reduce((acc, inv) => acc + (inv.totalDue - (inv.amountPaid ?? 0)), 0);
+    // MONEY-F5: past-due dollars are net of held retention.
+    const totalDue = overdueInvoices.reduce((acc, inv) => acc + invoiceOutstanding(inv), 0);
     const usd = totalDue.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
     const first = overdueInvoices.sort((a, b) => getDaysPastDue(b) - getDaysPastDue(a))[0];
     return {

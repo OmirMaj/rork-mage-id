@@ -17,6 +17,7 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import type {
   Project, ScheduleTask, Invoice, Warranty,
 } from '@/types';
@@ -70,7 +71,7 @@ export function buildProjectEvents(input: BuildProjectEventsInput): IcsEvent[] {
     if (!inv.dueDate) continue;
     const iso = toIsoDate(inv.dueDate);
     if (!iso) continue;
-    const amountRemaining = Math.max(0, (inv.totalDue ?? 0) - (inv.amountPaid ?? 0));
+    const amountRemaining = invoiceOutstanding(inv); // MONEY-F5: net of held retention
     const label = amountRemaining > 0 ? ` — ${formatMoney(amountRemaining)} due` : '';
     events.push({
       uid: `mageid-invoice-${inv.id}@mageid.app`,

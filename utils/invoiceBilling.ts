@@ -105,17 +105,37 @@ export function billedAmountForLine(
   return total;
 }
 
+// NOTE: the markup-inclusive unit price for an estimate-sourced invoice line
+// lives in utils/billFromEstimateCore.billFromEstimateUnitPrice (UNROUNDED, so
+// quantity × unitPrice foots; only the line total is rounded). The rounding
+// helper that used to live here (markupInclusiveUnitPrice) broke the foot on
+// non-cent-exact prices — 3 × $33.33 ≠ $100.00 — and was deleted 2026-09-04
+// once its last caller (app/invoice.tsx) moved.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Outstanding / settled — the ONLY definitions the app may use (audit MONEY-F5).
+//
+// "Outstanding" is what the client can be asked for today: the invoice total
+// net of retention the contract lets them hold, less what they have paid. The
+// gross `totalDue - amountPaid` form reported held retention as overdue on
+// eighteen surfaces (A/R aging, the home strip, the portal, the PDF, the Stripe
+// receipt, the weekly client email) and made a retention invoice impossible to
+// settle. A guard (scripts/validate-money-outstanding.ts) fails the build on
+// `totalDue -` arithmetic outside this file.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Amount the client currently owes on this invoice — net of held retention, never negative. */
+export function invoiceOutstanding(inv: NetBalanceInput): number {
+  return netBalanceDue(inv);
+}
+
 /**
- * Fold estimate markup into the invoice line's displayed unit price so that
- * quantity × unitPrice = lineTotal on the invoice and PDF.
- *
- * The estimate stores a PRE-markup unitPrice and a markup-INCLUSIVE lineTotal;
- * copying both across verbatim makes the printed row not foot (100 × $10 shown
- * next to a $1,200 total). Derive an effective unit price from the total. The
- * line `total` stays authoritative (it drives the billed amount); only the
- * displayed unit price is adjusted, so this never changes what's charged.
+ * True when everything collectible today has been paid. Held retention does not
+ * keep an invoice open; a released-and-unpaid retention amount does (release
+ * reduces `retentionPending`, so it flows back into the net payable).
  */
-export function markupInclusiveUnitPrice(lineTotal: number, quantity: number, fallbackPrice: number): number {
-  if (quantity > 0) return Math.round((lineTotal / quantity) * 100) / 100;
-  return fallbackPrice;
+export function invoiceIsSettled(inv: NetBalanceInput): boolean {
+  const retentionPending = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+  const netPayable = Math.max(0, (inv.totalDue ?? 0) - retentionPending);
+  return (inv.amountPaid ?? 0) >= netPayable - 0.01;
 }

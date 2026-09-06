@@ -17,21 +17,28 @@ import { PROVIDER_INFO } from '@/mocks/payments';
 import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { estimateNetAfterFees, platformFeeLabel, STRIPE_CARD_PROCESSING } from '@/utils/platformFees';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
-// Total deduction on a successful card payment, matched to what payments-setup
-// tells the GC: "A 1% platform fee plus standard Stripe processing (2.9% +
-// 30¢)". Both come out of the deposit, so the "net after fees" column must
-// account for BOTH — otherwise the dashboard's Received / net figures overstate
-// what actually cleared the bank. Kept in sync with payments-setup.tsx.
-const STRIPE_FEE_PERCENT = 0.029;
-const STRIPE_FEE_FIXED = 0.30;
-const PLATFORM_FEE_PERCENT = 0.01;
-// Combined percent taken off the gross (Stripe processing + MAGE platform fee).
-const TOTAL_FEE_PERCENT = STRIPE_FEE_PERCENT + PLATFORM_FEE_PERCENT;
+// MONEY-F8: every fee figure comes from the ONE schedule in
+// utils/platformFees.ts (mirrored byte-for-byte by the create-payment-link edge
+// function). Stripe card processing and the caller's tier-specific platform
+// fee both come out of the deposit, so "net after fees" accounts for both —
+// otherwise the Received / net figures overstate what cleared the bank. This
+// file used to hard-code its own rates, which matched neither the paywall nor
+// what the server actually charged.
+function cardFeeFor(amountDollars: number, tier: string): number {
+  const { stripeFeeCents, platformFeeCents } = estimateNetAfterFees(Math.round(amountDollars * 100), tier);
+  return (stripeFeeCents + platformFeeCents) / 100;
+}
+function feeScheduleLabel(tier: string): string {
+  return `${platformFeeLabel(tier)} + ${STRIPE_CARD_PROCESSING.percent}% + ${STRIPE_CARD_PROCESSING.fixedCents}¢`;
+}
 
 // Map the narrower PaymentMethod used on InvoicePayment to the broader
 // PaymentProvider used on the dashboard. credit_card is assumed to flow through
@@ -68,7 +75,7 @@ function displayClientName(project: Project, contacts: Contact[]): string {
 //
 // Sorted newest-first so the dashboard always shows the most recent activity.
 function derivePayments(
-  projects: Project[], invoices: Invoice[], contacts: Contact[],
+  projects: Project[], invoices: Invoice[], contacts: Contact[], tier: string,
 ): Payment[] {
   const rows: Payment[] = [];
 
@@ -80,9 +87,7 @@ function derivePayments(
     // 1. Recorded payments — one row per payment, always 'completed'.
     for (const p of inv.payments ?? []) {
       const provider = methodToProvider(p.method);
-      const fee = provider === 'stripe'
-        ? Math.round((p.amount * TOTAL_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
-        : 0;
+      const fee = provider === 'stripe' ? cardFeeFor(p.amount, tier) : 0;
       rows.push({
         id: p.id,
         invoiceId: inv.id,
@@ -102,17 +107,15 @@ function derivePayments(
 
     // 2/3. Outstanding balance row — only for sent/partially_paid/overdue with a
     // positive balance. Draft and fully-paid invoices don't belong on a
-    // payments feed.
-    const balance = Math.max(0, inv.totalDue - inv.amountPaid);
+    // payments feed. MONEY-F5: balance is net of held retention.
+    const balance = invoiceOutstanding(inv);
     if (
       balance > 0 &&
       inv.status !== 'draft' &&
       inv.status !== 'paid'
     ) {
       const hasStripeLink = !!inv.payLinkUrl;
-      const estimatedFee = hasStripeLink
-        ? Math.round((balance * TOTAL_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
-        : 0;
+      const estimatedFee = hasStripeLink ? cardFeeFor(balance, tier) : 0;
       rows.push({
         id: `pending-${inv.id}`,
         invoiceId: inv.id,
@@ -217,13 +220,14 @@ export default function PaymentsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const { projects, invoices, contacts } = useProjects();
+  const { tier } = useTierAccess();
   const [selectedTab, setSelectedTab] = useState<'all' | 'pending' | 'completed'>('all');
 
   // Derive the whole feed from real invoice data. Recomputes cheaply — the
   // three inputs are already memoized by ProjectContext.
   const payments = useMemo(
-    () => derivePayments(projects, invoices, contacts),
-    [projects, invoices, contacts],
+    () => derivePayments(projects, invoices, contacts, tier),
+    [projects, invoices, contacts, tier],
   );
 
   const filtered = useMemo(() => {
@@ -271,7 +275,7 @@ export default function PaymentsScreen() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const outstanding = invoices
       .filter(inv =>
-        (inv.totalDue - inv.amountPaid) > 0 &&
+        invoiceOutstanding(inv) > 0 &&
         inv.status !== 'draft' &&
         inv.status !== 'paid',
       )
@@ -329,7 +333,7 @@ export default function PaymentsScreen() {
 
         <View style={styles.feeRow}>
           <View style={styles.feeItem}>
-            <Text style={styles.feeItemLabel}>Est. Fees (1% + 2.9% + 30¢)</Text>
+            <Text style={styles.feeItemLabel}>Est. Fees ({feeScheduleLabel(tier)})</Text>
             <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
           </View>
           {stats.failedCount > 0 && (

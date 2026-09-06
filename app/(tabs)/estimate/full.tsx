@@ -65,6 +65,10 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { buildCostDatabase, lookupRate, type CostBookEntry } from '@/utils/costDatabase';
+import {
+  EMPTY_GROUNDING, buildGroundingFacts, selectGroundingEntries,
+  type GroundingBundle, type ScopeHints,
+} from '@/utils/groundingChip';
 import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
@@ -215,23 +219,25 @@ export default function EstimateScreen() {
     [costDb],
   );
 
-  const quickEstimateGrounding = useMemo<{ facts: string[]; rateCount: number }>(() => {
+  // Quick Estimate grounding, chosen per run (PRODUCT-F18, re-review A2 —
+  // the same selection the wizard makes). AIQuickEstimate calls this inside
+  // its generate with the description + project type the model is about to
+  // see, so the entries are the ones that match THAT job — not the six
+  // largest-exposure entries in the book, which handed a bathroom roofing,
+  // concrete and siding. buildGroundingFacts words each entry through groundingFactLine
+  // (a SEEDED rate is told to the model as told-to-us, never "on your jobs"
+  // — see utils/costSeedCore) and counts MEASURED vs STATED for the chip;
+  // the calibration sentence is a fact, never an entry (utils/groundingChip).
+  const quickEstimateGroundingFor = useCallback((hints: ScopeHints): GroundingBundle => {
     try {
-      // A rate the contractor SEEDED is told to the model as told-to-us. Handing
-      // the LLM "runs $X on your jobs" for a number they typed would launder a
-      // claim into evidence — see utils/costSeedCore.
-      const facts = costDb.entries.slice(0, 6).map(
-        e => e.provenance === 'seeded'
-          ? `${e.trade}: the contractor's own stated rate is $${e.suggestedRate.toFixed(2)}/${e.unit} (self-reported, no closed job yet — use it, but don't call it measured)`
-          : `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`,
-      );
       const cal = computeCalibration({ projects, commitments });
-      if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
-        facts.push(cal.categories[0].detail);
-      }
-      return { facts, rateCount: costDb.entries.length };
+      const top = cal.hasData ? cal.categories[0] : undefined;
+      return buildGroundingFacts(
+        selectGroundingEntries(costDb.entries, hints, 6),
+        top && top.direction !== 'aligned' ? top.detail : null,
+      );
     } catch {
-      return { facts: [], rateCount: 0 };
+      return EMPTY_GROUNDING;
     }
   }, [costDb, projects, commitments]);
 
@@ -3878,8 +3884,7 @@ export default function EstimateScreen() {
         globalMarkup={globalMarkup}
         location={settings.location}
         calculateAssemblyCost={calculateAssemblyCost}
-        groundingFacts={quickEstimateGrounding.facts}
-        learnedRateCount={quickEstimateGrounding.rateCount}
+        groundingFor={quickEstimateGroundingFor}
       />
 
       {/* Cart-level AI suggestions modal — opens from the "Ask AI" button at

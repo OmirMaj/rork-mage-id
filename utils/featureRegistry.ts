@@ -245,7 +245,12 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'tax-1099', title: '1099 Export', synonyms: ['1099', 'taxes', 'cpa', 'year end'], route: '/tax-1099-export', icon: 'Receipt', group: 'money' },
   { id: 'buyout', title: 'Buyout', synonyms: ['sub packages', 'award', 'procurement', 'purchase'], route: '/buyout', icon: 'Handshake', group: 'money' },
   { id: 'reports', title: 'Reports', synonyms: ['all records', 'exports', 'filterable list'], route: '/reports', icon: 'BarChart3', group: 'money' },
-  { id: 'integrations', title: 'QuickBooks & Integrations', synonyms: ['quickbooks', 'qbo', 'accounting', 'bookkeeping', 'sync'], route: '/integrations', icon: 'Plug', group: 'money' },
+  // PRODUCT-F2: "quickbooks" used to land on app/integrations.tsx — a preview
+  // catalog whose Connect button flips local state and never OAuths. The real
+  // QuickBooks Online connect is /qbo-setup and the bill-review queue is
+  // /qbo-review; /integrations is owner-only and deliberately unindexed.
+  { id: 'quickbooks', title: 'QuickBooks Online', synonyms: ['quickbooks', 'qbo', 'accounting', 'bookkeeping', 'sync', 'integrations', 'intuit'], route: '/qbo-setup', icon: 'Plug', group: 'money' },
+  { id: 'qbo-review', title: 'QuickBooks bills to review', synonyms: ['qbo review', 'bills to review', 'quickbooks bills', 'unmatched bills', 'accounting review'], route: '/qbo-review', icon: 'Receipt', group: 'money' },
 
   // ── Client ────────────────────────────────────────────────────────────
   { id: 'client-portal', title: 'Client Portal', synonyms: ['owner portal', 'share with client', 'homeowner view'], route: '/client-portal-setup', requires: 'client_portal', icon: 'Briefcase', group: 'client' },

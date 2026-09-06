@@ -23,10 +23,9 @@ import type { PaymentPredictionResult, InvoicePrediction } from '@/utils/payment
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-
-function formatMoney(n: number): string {
-  return '$' + Math.round(Math.abs(n)).toLocaleString('en-US');
-}
+// HEALTH-F5: sign-correct money via the one formatter (the local Math.abs copy is gone).
+import { formatMoney } from '@/utils/formatters';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 
 function formatShortDate(iso: string): string {
   try {
@@ -104,23 +103,16 @@ function PaymentPredictionsScreenInner() {
     return map;
   }, [projects]);
 
-  const unpaidCount = useMemo(() => {
-    return relevantInvoices.filter(i => {
-      const retentionPending = Math.max(0, (i.retentionAmount ?? 0) - (i.retentionReleased ?? 0));
-      const netPayable = Math.max(0, (i.totalDue ?? 0) - retentionPending);
-      const out = Math.max(0, netPayable - (i.amountPaid ?? 0));
-      return out > 0 && i.status !== 'draft';
-    }).length;
-  }, [relevantInvoices]);
+  // MONEY-F5: one definition of outstanding (utils/invoiceBilling), net of held retention.
+  const unpaidCount = useMemo(
+    () => relevantInvoices.filter(i => invoiceOutstanding(i) > 0 && i.status !== 'draft').length,
+    [relevantInvoices],
+  );
 
-  const totalOutstanding = useMemo(() => {
-    return relevantInvoices.reduce((sum, i) => {
-      const retentionPending = Math.max(0, (i.retentionAmount ?? 0) - (i.retentionReleased ?? 0));
-      const netPayable = Math.max(0, (i.totalDue ?? 0) - retentionPending);
-      const out = Math.max(0, netPayable - (i.amountPaid ?? 0));
-      return sum + out;
-    }, 0);
-  }, [relevantInvoices]);
+  const totalOutstanding = useMemo(
+    () => relevantInvoices.reduce((sum, i) => sum + invoiceOutstanding(i), 0),
+    [relevantInvoices],
+  );
 
   // Clear forecastGate whenever unpaidCount changes (invoices were added/paid).
   React.useEffect(() => {

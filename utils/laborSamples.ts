@@ -64,20 +64,68 @@ export function isEligibleLaborEntry(e: TimeEntry): boolean {
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
+/** Time-and-a-half — the FLSA default and what nearly every GC pays. The
+ *  per-GC override lives in hooks/useLaborRates.ts (overtimeMultiplier). */
+export const DEFAULT_OVERTIME_MULTIPLIER = 1.5;
+/** Ceiling for a typed multiplier — "15" meant as "1.5" must not price OT at 15×. */
+export const MAX_OVERTIME_MULTIPLIER = 3;
+
+/** Sane a per-GC overtime multiplier before it prices anything: junk / unset
+ *  → the default; below 1× (overtime cheaper than straight time) → 1×; above
+ *  the ceiling → the ceiling. */
+export function normalizeOvertimeMultiplier(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_OVERTIME_MULTIPLIER;
+  return Math.min(MAX_OVERTIME_MULTIPLIER, Math.max(1, n));
+}
+
+/**
+ * MONEY-F19: the DOLLAR cost of one shift — straight hours at the loaded rate,
+ * overtime hours at rate × multiplier. hooks/useTimeEntries.computeShiftHours
+ * splits every shift (anything past 8h/day is OT), but nothing downstream
+ * priced the premium: a 10-hour day at $50 booked $500 when the crew cost
+ * $550, so every OT day understated self-perform actuals and the cost book
+ * learned a $/hr no crew on overtime ever achieves. Legacy entries with no
+ * overtimeHours price at straight time; OT is clamped to [0, totalHours] so a
+ * corrupt row can never price more hours than it has.
+ */
+export function priceLaborEntry(
+  e: Pick<TimeEntry, 'totalHours' | 'overtimeHours'>,
+  rate: number,
+  overtimeMultiplier: number = DEFAULT_OVERTIME_MULTIPLIER,
+): number {
+  const total = Number.isFinite(e.totalHours) ? Math.max(0, e.totalHours) : 0;
+  const otRaw = Number.isFinite(e.overtimeHours) ? e.overtimeHours : 0;
+  const ot = Math.min(total, Math.max(0, otRaw));
+  const m = normalizeOvertimeMultiplier(overtimeMultiplier);
+  return (total - ot) * rate + ot * rate * m;
+}
+
 /**
  * Convert time entries into Cost Database samples: one sample per
  * (project, trade), quantity = summed hours, actualUnit = the GC's loaded
- * rate. bidUnit is 0 (clocked hours carry no bid context — same as
+ * rate — or, once a shift ran into overtime, the EFFECTIVE $/hr (priced cost
+ * ÷ hours, MONEY-F19) so hours × actualUnit reproduces what the crew really
+ * cost. bidUnit is 0 (clocked hours carry no bid context — same as
  * receipts), so labor never distorts bid-bias math. Entries whose trade has
  * no configured rate are skipped entirely.
  */
-export function buildLaborSamples(entries: TimeEntry[], rates: LaborRateMap): CostSample[] {
+export function buildLaborSamples(
+  entries: TimeEntry[],
+  rates: LaborRateMap,
+  overtimeMultiplier: number = DEFAULT_OVERTIME_MULTIPLIER,
+): CostSample[] {
   interface Group {
     projectId: string;
     projectName: string;
     label: string;
     rate: number;
     hours: number;
+    /** Priced dollars (straight + overtime premium) across the group. */
+    cost: number;
+    /** Whether any shift in the group carried overtime — a straight-time
+     *  group keeps actualUnit === rate exactly (no division noise). */
+    overtime: boolean;
     lastDate: string;
   }
   const groups = new Map<string, Group>();
@@ -88,10 +136,14 @@ export function buildLaborSamples(entries: TimeEntry[], rates: LaborRateMap): Co
     const rate = rates?.[tradeKey];
     if (!Number.isFinite(rate) || (rate as number) <= 0) continue;
 
+    const cost = priceLaborEntry(e, rate as number, overtimeMultiplier);
+    const overtime = Number.isFinite(e.overtimeHours) && e.overtimeHours > 0;
     const key = `${e.projectId}|${tradeKey}`;
     const g = groups.get(key);
     if (g) {
       g.hours += e.totalHours;
+      g.cost += cost;
+      g.overtime = g.overtime || overtime;
       if (e.date > g.lastDate) g.lastDate = e.date;
     } else {
       groups.set(key, {
@@ -100,6 +152,8 @@ export function buildLaborSamples(entries: TimeEntry[], rates: LaborRateMap): Co
         label: laborTradeLabel(e.trade),
         rate: rate as number,
         hours: e.totalHours,
+        cost,
+        overtime,
         lastDate: e.date || '',
       });
     }
@@ -114,7 +168,7 @@ export function buildLaborSamples(entries: TimeEntry[], rates: LaborRateMap): Co
       unit: LABOR_UNIT,
       quantity: round2(g.hours),
       bidUnit: 0,
-      actualUnit: g.rate,
+      actualUnit: g.overtime && g.hours > 0 ? g.cost / g.hours : g.rate,
       basis: 'actual',
       closedAt: g.lastDate,
     });

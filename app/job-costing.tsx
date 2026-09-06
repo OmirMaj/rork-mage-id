@@ -15,6 +15,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -22,7 +23,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, Minus, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
-  CheckCircle2, Clock, Calculator, Activity, Receipt,
+  CheckCircle2, Clock, Calculator, Activity, Receipt, RefreshCw,
 } from 'lucide-react-native';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import * as Haptics from 'expo-haptics';
@@ -32,7 +33,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
-import { useProjectRole } from '@/hooks/useProjectRole';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { isFinancialsBlinded } from '@/utils/roleBlinding';
 import LockedAccessCard from '@/components/LockedAccessCard';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -59,7 +61,7 @@ import { showAlert } from '@/utils/alert';
 export default function JobCostingScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { canAccess } = useTierAccess();
   if (!canAccess('job_costing')) {
     return (
@@ -67,7 +69,7 @@ export default function JobCostingScreen() {
         visible={true}
         feature="Job Costing"
         requiredTier="pro"
-        onClose={() => router.back()}
+        onClose={goBack}
       />
     );
   }
@@ -83,6 +85,7 @@ function JobCostingInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const {
     getProject, commitments, invoices, changeOrders,
@@ -101,7 +104,10 @@ function JobCostingInner() {
   // rates land as an ACTUAL "Self-perform labor" line — the largest actual
   // stream a self-perform crew generates was previously invisible here.
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates } = useLaborRates();
+  // overtimeMultiplier is the GC's configured OT premium
+  // (mageid_labor_overtime_multiplier); without it computeJobCost priced every
+  // overtime hour at straight time (B3b follow-up).
+  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
   const laborSamples = useLaborCostSamples();
   // Cold-start seeds — this book feeds checkSubBid's trade_match basis, which
   // is how the Sub-Bid Reality Check knows a $4,600 bid is 30% under. With an
@@ -111,12 +117,12 @@ function JobCostingInner() {
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   // Field-role collaborators get the operational project, never its money.
-  const role = useProjectRole(projectId);
+  const { role, isError: roleError, refetch: refetchRole } = useProjectRoleState(projectId);
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
-    return computeJobCost({ project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates });
-  }, [project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates]);
+    return computeJobCost({ project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier });
+  }, [project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
@@ -167,15 +173,52 @@ function JobCostingInner() {
     );
   }
 
-  // Role still resolving → render nothing rather than flash the numbers.
-  if (role === null) return null;
+  // Role still resolving, or the collaborator read failed → keep the numbers
+  // hidden (the role-blinding intent stands) but say so. RT-R2 / UX-F6: this
+  // used to `return null`, a blank light sheet with no Back that was PERMANENT
+  // after a failed read — the only exit was the modal swipe.
+  if (role === null) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+            <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
+          </TouchableOpacity>
+          <View style={styles.headerText}>
+            <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
+          </View>
+          <View style={styles.headerBtn} />
+        </View>
+        <View style={styles.errorWrap} testID={roleError ? 'job-costing-role-error' : 'job-costing-role-loading'}>
+          {roleError ? (
+            <>
+              <AlertTriangle size={22} color={themeColors.warningLabel} strokeWidth={1.75} />
+              <Text style={styles.errorText}>Couldn't verify your access</Text>
+              <Text style={styles.stateHint}>You may be offline. Costs stay hidden until your role on this project is confirmed.</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={refetchRole} accessibilityRole="button" testID="job-costing-role-retry">
+                <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.retryBtnText}>Retry</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <ActivityIndicator size="small" color={themeColors.accent} />
+              <Text style={styles.errorText}>Checking your access…</Text>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  }
   // Field access: the whole screen is money, so blind the whole screen.
   if (isFinancialsBlinded(role)) {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+          <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
@@ -202,7 +245,7 @@ function JobCostingInner() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
@@ -857,8 +900,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   // Cost-to-complete dashboard — data-dense, so use the viewport on desktop.
   contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const },
-  errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 },
   errorText: { fontSize: Type.subhead.fontSize, color: t.textSecondary },
+  stateHint: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 4, paddingHorizontal: 18, paddingVertical: 11, minWidth: 132, minHeight: 42,
+    borderRadius: Tokens.radius.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+  },
+  retryBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
 
   // Header
   header: {

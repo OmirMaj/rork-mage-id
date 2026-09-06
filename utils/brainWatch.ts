@@ -7,9 +7,11 @@
 import type { Route } from 'expo-router';
 import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '@/types';
 import { computeProjectProgress } from './projectProgress';
+import { invoiceOutstanding } from './invoiceBilling';
 // Reused, not re-derived: classifyDelivery is the single source of truth for
 // late / unconfirmed, pinned by test:delivery-schedule.
 import { classifyDelivery, type Delivery } from './deliverySchedule';
+import { daysUntilCalendarDay } from './calendarDate';
 import {
   findAccessConflicts,
   type BuildingAccessRules, type AccessReservation,
@@ -110,10 +112,15 @@ export function invoiceAttention(
     const overdueDays = daysBetween(nowMs, dueMs);
     if (overdueDays <= 7) continue; // grace window
 
+    // MONEY-F5: net of held retention. An invoice whose only open balance is
+    // retention the client is entitled to hold is not overdue for anything.
+    const outstanding = invoiceOutstanding(inv);
+    if (outstanding <= 0) continue;
+
     const severity: AttnSeverity =
       overdueDays > 30 ? 'critical' : overdueDays > 14 ? 'high' : 'medium';
 
-    const amt = (inv.totalDue - inv.amountPaid).toFixed(0);
+    const amt = outstanding.toFixed(0);
 
     items.push({
       id: `invoice-${inv.id}`,
@@ -150,10 +157,14 @@ export function permitAttention(
     if (permit.projectId !== project.id) continue;
     if (!permit.inspectionDate) continue;
 
-    const inspMs = Date.parse(permit.inspectionDate);
-    if (Number.isNaN(inspMs)) continue;
-
-    const daysUntil = daysBetween(inspMs, nowMs);
+    // B4 review A3: inspectionDate is a CALENDAR DAY (bare 'YYYY-MM-DD',
+    // app/permits.tsx UX-F4). Date.parse read it as UTC midnight and the
+    // floored millisecond difference then came out a day short from any
+    // morning west of Greenwich — "inspection in 1d" for a two-day-out
+    // inspection, and the critical/high threshold moved with it. Whole local
+    // calendar days, like the permits screen itself.
+    const daysUntil = daysUntilCalendarDay(permit.inspectionDate, new Date(nowMs));
+    if (daysUntil === null) continue;
     if (daysUntil < 0 || daysUntil > 7) continue; // past or too far out
 
     const severity: AttnSeverity = daysUntil <= 2 ? 'critical' : 'high';

@@ -11,6 +11,8 @@
 // — it returns a readable answer or a plain error string.
 
 import { mageAI } from '@/utils/mageAI';
+import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
+import { calendarDayStart, todayCalendarDay } from '@/utils/calendarDate';
 import type {
   Project, Invoice, Lead, ChangeOrder, RFI, ProjectSchedule,
 } from '@/types';
@@ -43,7 +45,7 @@ function projectValue(p: Project): number {
 }
 
 function invoiceBalance(inv: Invoice): number {
-  return Math.max(0, (inv.totalDue ?? 0) - (inv.amountPaid ?? 0));
+  return invoiceOutstanding(inv); // MONEY-F5: net of held retention
 }
 
 function isInvoiceOverdue(inv: Invoice, today: Date): boolean {
@@ -79,7 +81,9 @@ export function buildBusinessContext(data: MageAgentData, today: Date = new Date
 
   const nameById = new Map(projects.map(p => [p.id, p.name]));
   const out: string[] = [];
-  out.push(`TODAY: ${today.toISOString().slice(0, 10)}`);
+  // Local calendar day, not toISOString().slice(0, 10) — that names TOMORROW
+  // from ~6 pm anywhere west of Greenwich, and the model reasons from it.
+  out.push(`TODAY: ${todayCalendarDay(today)}`);
 
   // ── Money roll-up ────────────────────────────────────────────────────
   let outstanding = 0, overdue = 0, overdueCount = 0;
@@ -156,8 +160,11 @@ export function buildBusinessContext(data: MageAgentData, today: Date = new Date
   const openRfis = rfis.filter(r => r.status === 'open');
   if (openRfis.length > 0) {
     const overdueRfis = openRfis.filter(r => {
-      const need = r.dateRequired ? new Date(r.dateRequired) : null;
-      return !!need && !isNaN(need.getTime()) && need < today;
+      // calendarDayStart: a bare 'YYYY-MM-DD' dateRequired parsed with
+      // `new Date()` is UTC midnight — overdue the evening BEFORE the due day
+      // west of Greenwich (B4 review A2).
+      const need = calendarDayStart(r.dateRequired);
+      return !!need && need < today;
     });
     out.push(`\nRFIs: ${openRfis.length} open${overdueRfis.length ? `, ${overdueRfis.length} past their needed-by date` : ''}.`);
     for (const r of openRfis.slice(0, 12)) {

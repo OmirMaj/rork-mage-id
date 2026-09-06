@@ -13,10 +13,16 @@ import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { taskCalendarRange } from '@/utils/scheduleOps';
 
 interface MobileScheduleListProps {
   tasks: ScheduleTask[];
   startDate: string; // ISO yyyy-mm-dd
+  /** Schedule calendar — startDay is a WORKING-day number, so the row dates
+   *  depend on which days are worked (ProjectSchedule.workingDaysPerWeek /
+   *  nonWorkingDates). Defaults to the app-wide 5-day week. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
   collapsedPhases: Record<string, boolean>;
   onTogglePhase: (phase: string) => void;
   onPressTask: (task: ScheduleTask) => void;
@@ -56,9 +62,6 @@ type ListRow =
       isLastInPhase: boolean;
     };
 
-const MS_DAY = 24 * 60 * 60 * 1000;
-
-function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
 function fmt(d: Date): string { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
 
 function weighted(ts: ScheduleTask[]): number {
@@ -111,7 +114,7 @@ function SwipeRow({ done, onDone, onDelete, children }: { done: boolean; onDone:
 // ScrollView does not help, because RN hands it unbounded height and it mounts
 // every row anyway.
 export function MobileScheduleList({
-  tasks, startDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onUpdateTask, onDeleteTask,
+  tasks, startDate, workingDaysPerWeek, nonWorkingDates, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onUpdateTask, onDeleteTask,
 }: MobileScheduleListProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -127,10 +130,11 @@ export function MobileScheduleList({
   // scripts/validate-schedule-date-basis.ts named those three explicitly and
   // had never heard of the primary iOS list surface. That scope hole is now
   // closed in the guard as well.
-  const baseMs = useMemo(
-    () => startOfDayMs(parseCalendarDay(startDate) ?? new Date()),
-    [startDate],
-  );
+  const base = useMemo(() => {
+    const d = parseCalendarDay(startDate) ?? new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [startDate]);
 
   const phases = useMemo(() => {
     const order: string[] = [];
@@ -205,11 +209,14 @@ export function MobileScheduleList({
     // here made the two surfaces contradict (sim-audit #2).
     const isMilestone = !!t.isMilestone || (t.durationDays || 0) === 0;
     const dur = Math.max(1, t.durationDays || 1);
-    // startDay is 1-indexed (day 1 = schedule start), matching the
-    // desktop + CPM engine; shift by -1 to a 0-indexed day-offset.
-    const startOffset = (t.startDay ?? 1) - 1;
-    const start = new Date(baseMs + startOffset * MS_DAY);
-    const end = new Date(baseMs + (startOffset + dur - 1) * MS_DAY);
+    // startDay is 1-indexed (day 1 = schedule start) and counts WORKING days,
+    // matching the desktop + CPM engine — so the dates are walked with
+    // taskCalendarRange (addWorkingDays + site closures), the same resolver
+    // the desktop grid and CSV use. This used to be `baseMs + offset * MS_DAY`
+    // (B4 review A9 / item 2): a startDay-6 task on a Monday anchor printed
+    // the Saturday, and after the 2026-11-01 fall-back every label sat a
+    // day early because the 25-hour day floors to 23:00 the day before.
+    const { start, end } = taskCalendarRange(t, base, workingDaysPerWeek, nonWorkingDates);
     const done = t.status === 'done';
     const crit = !!t.isCriticalPath && !done;
     const pct = Math.min(100, t.progress ?? 0);
@@ -240,7 +247,7 @@ export function MobileScheduleList({
         </SwipeRow>
       </View>
     );
-  }, [styles, colors, baseMs, onTogglePhase, onPressTask, markDone, confirmDelete]);
+  }, [styles, colors, base, workingDaysPerWeek, nonWorkingDates, onTogglePhase, onPressTask, markDone, confirmDelete]);
 
   const footer = (
     <TouchableOpacity

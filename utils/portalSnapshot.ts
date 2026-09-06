@@ -13,6 +13,8 @@ import type {
   SavedAIAPayApp, PortalState,
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { computeProjectProgress } from '@/utils/projectProgress';
 import { addWorkingDays } from '@/utils/scheduleEngine';
@@ -326,11 +328,15 @@ export interface PortalSnapshot {
     invoices?: {
       id: string; number: number | string; total: number; status: string;
       dueDate?: string; dateSubmitted?: string;
-      // Remaining balance for the invoice (totalDue - amountPaid). Portal uses
-      // this to decide whether to show a "Pay Now" button and for how much.
+      // Remaining balance for the invoice, NET of the retention the contract
+      // lets the client hold (MONEY-F5: utils/invoiceBilling.invoiceOutstanding).
+      // Portal uses this to decide whether to show "Pay Now" and for how much.
       balance?: number;
+      // Retention still held on this invoice — shown, never charged.
+      retentionHeld?: number;
       // If the GC has generated a Stripe payment link for this invoice, the
-      // portal surfaces a one-tap "Pay Now" button that opens it.
+      // portal surfaces a one-tap "Pay Now" button that opens it. MONEY-F2:
+      // only carried while the link's minted amount equals `balance`.
       payLinkUrl?: string;
       // v2 — populated when the snapshot is built to drive the invoice detail
       // drawer in the portal. Capped to a reasonable size (10 line items per
@@ -343,6 +349,16 @@ export interface PortalSnapshot {
       }[];
       retentionPercent?: number;
       retentionAmount?: number;
+      // Retention already released back into the balance, so the portal can
+      // show what is still HELD (retentionAmount − retentionReleased) rather
+      // than the original withholding.
+      retentionReleased?: number;
+      // Status as the app computes it (utils/projectFinancials
+      // .getEffectiveInvoiceStatus): overdue past the due date, paid when the
+      // retention-net balance is covered, reopened when a release creates a
+      // balance on a stored 'paid'. The portal pill reads THIS; `status` is
+      // the stored value, kept for older portal builds.
+      effectiveStatus?: string;
       taxAmount?: number;
       subtotal?: number;
       paymentTerms?: string;
@@ -381,7 +397,10 @@ export interface PortalSnapshot {
       // Stripe payment link auto-attached on save when GC has Connect set
       // up (see app/aia-pay-app.tsx). Renders the Pay button on the
       // portal AIA card + drawer footer at marketing/portal/index.html.
+      // MONEY-F2: omitted once the pay app is paid (`paidAt` set by the
+      // Stripe webhook), so a paid application never shows Pay again.
       payLinkUrl?: string;
+      paidAt?: string;
       lines: {
         itemNo: string; description: string;
         scheduledValue: number; fromPreviousApp: number;
@@ -556,7 +575,21 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       sections.invoices = visibleInvoices.map(i => renderSerialized(i, (inv) => {
         const total = inv.totalDue ?? 0;
         const amountPaid = inv.amountPaid ?? 0;
-        const balance = Math.max(0, total - amountPaid);
+        // MONEY-F5: the balance the client sees is net of held retention.
+        const balance = invoiceOutstanding(inv);
+        const retentionHeld = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+        // MONEY-F2 (client half): a Stripe Payment Link charges the ONE amount
+        // it was minted for, every time it is opened. After a net-of-retention
+        // payment the old link would charge the pre-payment figure again, so
+        // the portal gets a Pay button only while the minted amount is still
+        // exactly what is owed. A link with no recorded amount (minted before
+        // pay_link_amount existed) is hidden until the GC regenerates it.
+        const payLinkUrl =
+          inv.payLinkUrl && balance > 0
+          && inv.payLinkAmount != null
+          && Math.abs(inv.payLinkAmount - balance) <= 0.01
+            ? inv.payLinkUrl
+            : undefined;
         const lineItems = (inv.lineItems ?? []).slice(0, maxInvoiceLines).map(li => ({
           name: li.name ?? '',
           description: li.description || undefined,
@@ -573,12 +606,18 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           dueDate: inv.dueDate,
           dateSubmitted: inv.issueDate,
           balance,
-          payLinkUrl: inv.payLinkUrl,
+          retentionHeld: retentionHeld > 0 ? retentionHeld : undefined,
+          payLinkUrl,
           amountPaid,
           issueDate: inv.issueDate,
           lineItems,
           retentionPercent: inv.retentionPercent,
           retentionAmount: inv.retentionAmount,
+          retentionReleased: inv.retentionReleased,
+          // The status the app shows the GC — so the client's pill agrees
+          // with it (overdue past due; paid once the net balance is covered;
+          // reopened when a release puts a balance back on a stored 'paid').
+          effectiveStatus: getEffectiveInvoiceStatus(inv),
           taxAmount: inv.taxAmount,
           subtotal: inv.subtotal,
           paymentTerms: inv.paymentTerms,
@@ -595,7 +634,11 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     const visibleAIA = aiaPayApps.filter(a => isShared(a.portalState));
     if (visibleAIA.length) {
       const sorted = [...visibleAIA].sort((a, b) => b.applicationNumber - a.applicationNumber);
-      sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => renderSerialized(a, (app) => ({
+      sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => renderSerialized(a, (app) => {
+        // `paidAt` is hydrated from aia_pay_apps.paid_at by the context mapper
+        // (MONEY-F1/F16); read defensively so an older local record is just "unpaid".
+        const paidAt = (app as SavedAIAPayApp & { paidAt?: string }).paidAt || undefined;
+        return {
         id: app.id,
         applicationNumber: app.applicationNumber,
         applicationDate: app.applicationDate,
@@ -612,7 +655,9 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         totalEarnedLessRetainage: app.totals.totalEarnedLessRetainage,
         balanceToFinish: app.totals.balanceToFinish,
         percentComplete: app.totals.percentComplete,
-        payLinkUrl: app.payLinkUrl,
+        // MONEY-F2: a paid pay app must not carry a live Pay button.
+        payLinkUrl: paidAt ? undefined : app.payLinkUrl,
+        paidAt,
         lines: app.lines.map(l => ({
           itemNo: l.itemNo,
           description: l.description,
@@ -622,7 +667,8 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           materialsPresentlyStored: l.materialsPresentlyStored,
           retainagePercent: l.retainagePercent,
         })),
-      }))) as PortalSnapshot['sections']['aiaPayApps'];
+        };
+      })) as PortalSnapshot['sections']['aiaPayApps'];
     }
   }
 

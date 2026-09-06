@@ -23,7 +23,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Pressable, TextInput, KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -43,6 +43,8 @@ import DatePickerModal from '@/components/DatePickerModal';
 import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
+import { parseCalendarDay, formatCalendarDay, todayCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
@@ -110,13 +112,16 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
   const typeInfo = PERMIT_TYPE_INFO[permit.type] ?? PERMIT_TYPE_INFO.other;
   const statusInfo = PERMIT_STATUS_INFO[permit.status] ?? PERMIT_STATUS_INFO.applied;
 
-  const isInspectionUpcoming = permit.inspectionDate &&
-    (permit.status === 'inspection_scheduled') &&
-    new Date(permit.inspectionDate).getTime() > Date.now();
-
-  const daysUntilInspection = isInspectionUpcoming
-    ? Math.ceil((new Date(permit.inspectionDate!).getTime() - Date.now()) / 86400000)
-    : 0;
+  // UX-F4: inspectionDate is a CALENDAR DAY — bare 'YYYY-MM-DD' once it has
+  // round-tripped through the Postgres `date` column, a full ISO before. new
+  // Date() of the bare form is UTC midnight, so the countdown ran a day early
+  // west of Greenwich and the same permit changed date after a sync. Whole
+  // local days: 0 = today, which the old `> Date.now()` test could never reach.
+  const daysToInspection = permit.status === 'inspection_scheduled'
+    ? daysUntilCalendarDay(permit.inspectionDate)
+    : null;
+  const isInspectionUpcoming = daysToInspection !== null && daysToInspection >= 0;
+  const daysUntilInspection = isInspectionUpcoming ? daysToInspection : 0;
 
   return (
     <Animated.View style={[styles.permitCard, { transform: [{ scale: scaleAnim }] }]}>
@@ -174,7 +179,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
           <View style={styles.inspectionAlert}>
             <Calendar size={13} color={Colors.purple} strokeWidth={1.75} />
             <Text style={styles.inspectionAlertText}>
-              Inspection in {daysUntilInspection} day{daysUntilInspection !== 1 ? 's' : ''} — {new Date(permit.inspectionDate!).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              Inspection in {daysUntilInspection} day{daysUntilInspection !== 1 ? 's' : ''} — {formatCalendarDay(permit.inspectionDate, { weekday: 'short', month: 'short', day: 'numeric' })}
             </Text>
           </View>
         )}
@@ -196,7 +201,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
         <View style={styles.permitFooter}>
           <Text style={styles.permitFee}>{formatMoney(permit.fee)}</Text>
           <Text style={styles.permitDate}>
-            Applied {new Date(permit.appliedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            Applied {formatCalendarDay(permit.appliedDate, { month: 'short', day: 'numeric' })}
           </Text>
         </View>
       </TouchableOpacity>
@@ -231,7 +236,7 @@ const EMPTY_FORM: PermitFormState = {
   permitNumber: '',
   jurisdiction: '',
   status: 'applied',
-  appliedDate: new Date().toISOString().slice(0, 10),
+  appliedDate: todayCalendarDay(), // UX-F4: local day (refreshed again in openNewForm)
   inspectionDate: '',
   inspectionNotes: '',
   fee: '',
@@ -241,7 +246,7 @@ const EMPTY_FORM: PermitFormState = {
 
 export default function PermitsScreen() {
   const { canAccess } = useTierAccess();
-  const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: cold-start safe
   // Permit + inspection tracking is a Pro-tier field-PM capability — it rolls
   // up fees and drives the inspection countdown, matching the paid siblings in
   // this cluster (material-receipt is also 'job_costing'/Pro). Pre-fix the
@@ -255,7 +260,7 @@ export default function PermitsScreen() {
         visible
         feature="Permits & Inspections"
         requiredTier="pro"
-        onClose={() => router.back()}
+        onClose={goBack}
       />
     );
   }
@@ -316,7 +321,7 @@ function PermitsScreenInner() {
   const stats = useMemo(() => {
     const totalFees = permits.reduce((s, p) => s + p.fee, 0);
     const upcomingInspections = permits.filter(p =>
-      p.status === 'inspection_scheduled' && p.inspectionDate && new Date(p.inspectionDate).getTime() > Date.now()
+      p.status === 'inspection_scheduled' && (daysUntilCalendarDay(p.inspectionDate) ?? -1) >= 0 // UX-F4
     ).length;
     const pending = permits.filter(p => ['applied', 'under_review'].includes(p.status)).length;
     const passed = permits.filter(p => ['approved', 'inspection_passed'].includes(p.status)).length;
@@ -329,10 +334,11 @@ function PermitsScreenInner() {
   // Sorted by inspectionDate ascending so we always show the closest one.
   // Anything "scheduled in the past" is excluded (those need a status fix).
   const nextInspection = useMemo(() => {
+    // UX-F4: local calendar days; an inspection scheduled for today still counts.
+    const dayMs = (p: Permit) => parseCalendarDay(p.inspectionDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
     const upcoming = permits
-      .filter(p => p.status === 'inspection_scheduled' && p.inspectionDate)
-      .filter(p => new Date(p.inspectionDate!).getTime() > Date.now())
-      .sort((a, b) => new Date(a.inspectionDate!).getTime() - new Date(b.inspectionDate!).getTime());
+      .filter(p => p.status === 'inspection_scheduled' && (daysUntilCalendarDay(p.inspectionDate) ?? -1) >= 0)
+      .sort((a, b) => dayMs(a) - dayMs(b));
     return upcoming[0] ?? null;
   }, [permits]);
 
@@ -347,6 +353,7 @@ function PermitsScreenInner() {
     setEditingPermit(null);
     setForm({
       ...EMPTY_FORM,
+      appliedDate: todayCalendarDay(),
       projectId: projects[0]?.id ?? '',
     });
     setShowForm(true);
@@ -419,8 +426,10 @@ function PermitsScreenInner() {
       permitNumber: form.permitNumber.trim() || undefined,
       jurisdiction: form.jurisdiction.trim(),
       status: form.status,
-      appliedDate: form.appliedDate ? new Date(form.appliedDate).toISOString() : new Date().toISOString(),
-      inspectionDate: form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined,
+      // UX-F4: stored as bare calendar days — exactly what the `date` columns
+      // hand back after a sync, so a local row and its synced twin render alike.
+      appliedDate: form.appliedDate || todayCalendarDay(),
+      inspectionDate: form.inspectionDate || undefined,
       inspectionNotes: form.inspectionNotes.trim() || undefined,
       fee,
       phase: form.phase.trim() || undefined,
@@ -431,7 +440,7 @@ function PermitsScreenInner() {
       specialInspectionCategory: form.type === 'special_inspection' ? form.specialInspectionCategory : undefined,
       inspectorName:    form.type === 'special_inspection' ? (form.inspectorName?.trim() || undefined)    : undefined,
       lastReportSummary: form.type === 'special_inspection' ? (form.lastReportSummary?.trim() || undefined) : undefined,
-      lastReportDate:    form.type === 'special_inspection' && form.lastReportDate ? new Date(form.lastReportDate).toISOString() : undefined,
+      lastReportDate:    form.type === 'special_inspection' && form.lastReportDate ? form.lastReportDate : undefined,
     };
 
     if (editingPermit) {
@@ -481,7 +490,7 @@ function PermitsScreenInner() {
             is one. Calculates days countdown live so "tomorrow" shows
             up amber. Tap to jump to the permit detail. */}
         {nextInspection && (() => {
-          const days = Math.ceil((new Date(nextInspection.inspectionDate!).getTime() - Date.now()) / 86400000);
+          const days = daysUntilCalendarDay(nextInspection.inspectionDate) ?? 0; // UX-F4: whole local days
           const dayLabel = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`;
           const urgent = days <= 1;
           const typeInfo = PERMIT_TYPE_INFO[nextInspection.type] ?? PERMIT_TYPE_INFO.other;
@@ -500,7 +509,7 @@ function PermitsScreenInner() {
                   </Text>
                 </View>
                 <Text style={styles.nextInspectionDate}>
-                  {new Date(nextInspection.inspectionDate!).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  {formatCalendarDay(nextInspection.inspectionDate, { weekday: 'long', month: 'long', day: 'numeric' })}
                 </Text>
               </View>
               <Text style={styles.nextInspectionType}>{typeInfo.label} Inspection</Text>
@@ -678,7 +687,7 @@ function PermitsScreenInner() {
                     <StatusPipeline
                       stages={stagesFor('permit')}
                       current={visualStageFor('permit', form.status)}
-                      startedAt={form.appliedDate ? new Date(form.appliedDate).toISOString() : undefined}
+                      startedAt={form.appliedDate || undefined}
                       onAdvance={isSideBranch('permit', form.status) ? undefined : (next) => {
                         setForm(f => ({ ...f, status: next as PermitStatus }));
                       }}
@@ -699,7 +708,7 @@ function PermitsScreenInner() {
                       <StatusPipeline
                         stages={stagesFor('permitInspection')}
                         current={visualStageFor('permitInspection', form.status)}
-                        dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
+                        dueAt={form.inspectionDate || undefined}
                         notStarted={inspectionNotStarted(form.status)}
                         onAdvance={isSideBranch('permitInspection', form.status) ? undefined : (next) => {
                           setForm(f => ({ ...f, status: next as PermitStatus }));
@@ -956,7 +965,10 @@ function PermitsScreenInner() {
           allow future picks only for that field. */}
       <DatePickerModal
         visible={dateField !== null}
-        value={dateField ? (form[dateField] ?? '') : ''}
+        // UX-F4: the form holds bare calendar days; the picker parses its
+        // `value` with new Date(), so hand it LOCAL midnight as an instant or
+        // it opens on the previous day west of Greenwich.
+        value={dateField ? (parseCalendarDay(form[dateField])?.toISOString() ?? '') : ''}
         allowFuture={dateField === 'inspectionDate'}
         title={
           dateField === 'appliedDate' ? 'Applied date'
@@ -966,7 +978,9 @@ function PermitsScreenInner() {
         onClose={() => setDateField(null)}
         onChange={(iso) => {
           const field = dateField;
-          if (field) setForm(f => ({ ...f, [field]: iso }));
+          // DatePickerModal emits noon-UTC of the picked day, so the date part
+          // IS the picked calendar day in every timezone.
+          if (field) setForm(f => ({ ...f, [field]: iso.slice(0, 10) }));
         }}
       />
     </View>
@@ -976,9 +990,8 @@ function PermitsScreenInner() {
 // Formats a stored date (either a 'YYYY-MM-DD' slice or a full ISO string)
 // into a short, human label for the permit date-picker buttons.
 function formatDateLabel(value: string): string {
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // UX-F4: a calendar day, not an instant — unparseable input echoes back.
+  return formatCalendarDay(value);
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({

@@ -17,7 +17,8 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Platform,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Scale, List } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -45,7 +46,10 @@ import { recordPrediction } from '@/utils/brain/predictionLedger';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
-  const router = useRouter();
+  // UX-F14/F18: the route is gestureEnabled:false, so Back must still work
+  // when this screen is the first route (cold-start deep link) — falls
+  // through to the home tab instead of an unhandled GO_BACK.
+  const goBack = useSafeBack();
   const { canAccess } = useTierAccess();
   if (!canAccess('bid_scoring')) {
     return (
@@ -53,7 +57,7 @@ export default function JudgesScreen() {
         visible={true}
         feature="Bid Advisor"
         requiredTier="business"
-        onClose={() => router.back()}
+        onClose={goBack}
       />
     );
   }
@@ -66,7 +70,7 @@ function JudgesInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const goBack = useSafeBack();
   const { isDesktop } = useResponsiveLayout();
   const { projects, commitments, changeOrders, invoices } = useProjects();
   const { receipts } = useMaterialReceipts();
@@ -254,7 +258,7 @@ function JudgesInner() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+          <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
             <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
@@ -284,7 +288,7 @@ function JudgesInner() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>

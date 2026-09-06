@@ -7,6 +7,81 @@
 import type { ScheduleTask, ScheduleBaseline } from '@/types';
 import { runCpm, type RunCpmOptions } from '@/utils/cpm';
 import { addWorkingDays } from '@/utils/scheduleEngine';
+import { toCalendarDayString } from '@/utils/calendarDate';
+
+// ---------------------------------------------------------------------------
+// 0) Which schedule day is a given calendar date?
+// ---------------------------------------------------------------------------
+// The exact inverse of scheduleEngine.getTaskDateRange (start =
+// addWorkingDays(startDate, startDay - 1)): 1-indexed, day 1 = the schedule's
+// start day, a date on/before the start is day 1, and weekends / site
+// closures are skipped exactly as addWorkingDays skips them. Audit UX-F1: the
+// daily report counted raw elapsed milliseconds instead.
+
+export function scheduleDayNumberFor(
+  start: Date,
+  target: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): number {
+  const base = new Date(start.getTime());
+  base.setHours(0, 0, 0, 0);
+  const tgt = new Date(target.getTime());
+  tgt.setHours(0, 0, 0, 0);
+  if (tgt.getTime() <= base.getTime()) return 1;
+  const blocked = nonWorkingDates && nonWorkingDates.length > 0 ? new Set(nonWorkingDates) : null;
+  let count = 1;
+  const cur = new Date(base.getTime());
+  while (cur < tgt) {
+    cur.setDate(cur.getDate() + 1);
+    const dow = cur.getDay();
+    if (workingDaysPerWeek < 7 && (dow === 0 || dow === 6)) continue;
+    if (blocked && blocked.has(toCalendarDayString(cur))) continue;
+    count++;
+  }
+  return count;
+}
+
+/**
+ * The `startDay` a task PICKED to start on `target` gets. scheduleDayNumberFor
+ * answers "which day is this date" and treats a closed day (weekend, site
+ * closure) as still belonging to the working day before it — right for "today
+ * on site", wrong for a start date: a task the user put on Saturday must start
+ * the next working day, not roll back to Friday (B4 review A9; MS Project does
+ * the same). A target on/before the anchor is day 1.
+ */
+export function startDayNumberFor(
+  start: Date,
+  target: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): number {
+  const n = scheduleDayNumberFor(start, target, workingDaysPerWeek, nonWorkingDates);
+  const onOrBefore = addWorkingDays(start, n - 1, workingDaysPerWeek, nonWorkingDates);
+  const tgt = new Date(target.getTime());
+  tgt.setHours(0, 0, 0, 0);
+  return onOrBefore.getTime() < tgt.getTime() ? n + 1 : n;
+}
+
+/**
+ * The calendar days a task occupies: scheduleEngine.getTaskDateRange with site
+ * closures honoured (that signature predates `nonWorkingDates`). `start` is
+ * the parsed schedule anchor (parseCalendarDay(schedule.startDate)); startDay
+ * is 1-indexed and in WORKING days — the mobile list/gantt/month sheet used to
+ * multiply it by 86 400 000 instead, drawing a startDay-6 task on the Saturday
+ * five calendar days after a Monday anchor rather than the next Monday (B4
+ * review A9). Milestones (0 days) end on their start day.
+ */
+export function taskCalendarRange(
+  task: Pick<ScheduleTask, 'startDay' | 'durationDays'>,
+  start: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): { start: Date; end: Date } {
+  const s = addWorkingDays(start, Math.max(0, (task.startDay ?? 1) - 1), workingDaysPerWeek, nonWorkingDates);
+  const e = addWorkingDays(s, Math.max(0, (task.durationDays || 1) - 1), workingDaysPerWeek, nonWorkingDates);
+  return { start: s, end: e };
+}
 
 // ---------------------------------------------------------------------------
 // 1) Reflow from actuals
@@ -387,6 +462,9 @@ export interface SharedSchedulePayload {
    *  v=3 adds projectId for the Sub Schedule Collab daily-update flow. */
   v: 1 | 2 | 3;
   name: string;
+  /** The schedule's start CALENDAR DAY, 'YYYY-MM-DD'. Tokens minted before
+   *  2026-09-04 carry a full toISOString() instant instead; parseCalendarDay
+   *  truncates those to their date part (audit UX-F2). */
   projectStartISO: string;
   /** v3+: project this schedule belongs to. Lets the sub post updates
    *  that the GC's app picks up under the right project context. */
@@ -525,7 +603,18 @@ export function buildSharePayload(
   return {
     v,
     name,
-    projectStartISO: projectStartDate.toISOString(),
+    // UX-F2: a calendar day, from LOCAL components. toISOString() re-projected
+    // local midnight into UTC, and the viewer re-parsed that as UTC midnight —
+    // every shared task sat a day early west of Greenwich.
+    //
+    // Legacy tokens (minted before this fix) still carry that toISOString()
+    // instant, and app/shared-schedule.tsx now reads the date PREFIX of it
+    // (parseCalendarDay). For a token minted WEST of Greenwich the prefix is
+    // the intended day (local midnight is later the same UTC day); for one
+    // minted EAST of Greenwich — where local midnight is still the previous
+    // UTC day — every task in the legacy token reads a day EARLY. Only
+    // re-sharing fixes such a link (B4 review A10).
+    projectStartISO: toCalendarDayString(projectStartDate),
     projectId: opts.projectId,
     gc: opts.gc,
     tasks: tasks.map(t => ({

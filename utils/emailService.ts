@@ -2,6 +2,7 @@ import * as MailComposer from 'expo-mail-composer';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { calendarDayStart } from '@/utils/calendarDate';
 import {
   wrapEmailHtml,
   emailStatRow,
@@ -864,7 +865,10 @@ export function buildRFIEmailHtml(opts: {
     replyPortalUrl,
   } = opts;
   const priorityAccent = priority === 'urgent' ? '#C2410C' : priority === 'normal' ? '#1E5BC6' : '#6B7280';
-  const formattedDue = dateRequired ? new Date(dateRequired).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  // calendarDayStart: dateRequired is a bare 'YYYY-MM-DD' in the common case,
+  // and `new Date()` of that is UTC midnight — the email named the day BEFORE
+  // the due day west of Greenwich (B4 review A2).
+  const formattedDue = calendarDayStart(dateRequired)?.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) ?? '';
 
   const stats: string[] = [];
   stats.push(emailStatRow('Priority', (priority || 'normal').toUpperCase(), { valueColor: priorityAccent }));

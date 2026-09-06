@@ -32,6 +32,7 @@ import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface SubDailyUpdateModalProps {
   visible: boolean;
@@ -61,7 +62,9 @@ function generateId(): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().split('T')[0];
+  // UX-F11: the LOCAL calendar day. toISOString() stamped a 7 pm PDT post
+  // with tomorrow's date, and the homeowner's viewer then showed it a day off.
+  return todayCalendarDay();
 }
 
 function SubDailyUpdateModalImpl({

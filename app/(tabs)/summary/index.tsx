@@ -16,6 +16,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton, SkeletonCard } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { parseCalendarDay } from '@/utils/calendarDate';
+import { scheduleDayNumberFor } from '@/utils/scheduleOps';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { generateForecast } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import {
@@ -36,32 +39,6 @@ import StatusBarMask from '@/components/StatusBarMask';
 // money snapshot + what needs the GC's attention. Tools that used to clutter
 // this screen now live behind the ••• overflow (ToolsSheet). Per-project
 // detail lives on the "Your Projects" tab; drill-in happens via the widgets.
-
-// Canonical 1-indexed, working-day-aware "which schedule day is today" — the
-// exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
-// startDate, startDay - 1)). Day 1 = the schedule start date; a date on/before
-// start is day 1; weekends are skipped when workingDaysPerWeek < 7 so the count
-// matches how task bars are laid out. Replicated verbatim in
-// app/(tabs)/(home)/index.tsx so Home and Summary agree on "today on site".
-function todayScheduleDayNumber(baseMs: number, now: Date, workingDaysPerWeek?: number): number {
-  const base = new Date(baseMs);
-  base.setHours(0, 0, 0, 0);
-  const tgt = new Date(now);
-  tgt.setHours(0, 0, 0, 0);
-  if (tgt.getTime() <= base.getTime()) return 1;
-  const wdpw = workingDaysPerWeek ?? 5;
-  if (wdpw >= 7) {
-    return Math.floor((tgt.getTime() - base.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-  }
-  let count = 1;
-  const cur = new Date(base);
-  while (cur < tgt) {
-    cur.setDate(cur.getDate() + 1);
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) count++;
-  }
-  return count;
-}
 
 export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
@@ -84,7 +61,7 @@ export default function SummaryScreen() {
 
   // "Today on site" — computed inline (not via summaryBriefing.computeTodayTasks)
   // so membership matches the Projects/Home tab's "TODAY ON SITE" strip EXACTLY.
-  // Both use the canonical 1-indexed working-day model (todayScheduleDayNumber
+  // Both use the canonical 1-indexed working-day model (scheduleDayNumberFor
   // + inclusive last day = startDay + durationDays - 1). Previously Summary used
   // a 0-indexed rounded calendar index with an off-by-one-long inclusive end,
   // so the same project/day could appear on one tab and not the other.
@@ -95,9 +72,14 @@ export default function SummaryScreen() {
       const tasks = p.schedule?.tasks;
       if (!tasks || tasks.length === 0) continue;
       const baseIso = p.schedule?.startDate || p.createdAt;
-      const baseMs = Date.parse(baseIso);
-      if (!Number.isFinite(baseMs)) continue;
-      const todayDayNumber = todayScheduleDayNumber(baseMs, now, p.schedule?.workingDaysPerWeek);
+      // UX-F1: same fix as app/(tabs)/(home)/index.tsx — a bare startDate
+      // must resolve to LOCAL midnight, not Date.parse's UTC midnight.
+      const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
+      if (!Number.isFinite(base.getTime())) continue;
+      // B4 review item 3: same basis as Home and the daily report —
+      // scheduleDayNumberFor with the schedule's site closures (see the note
+      // in app/(tabs)/(home)/index.tsx).
+      const todayDayNumber = scheduleDayNumberFor(base, now, p.schedule?.workingDaysPerWeek, p.schedule?.nonWorkingDates);
       for (const t of tasks) {
         if (t.status === 'done') continue;
         const start = Math.max(1, t.startDay ?? 1);
@@ -146,7 +128,7 @@ export default function SummaryScreen() {
       // Exclude drafts — an unsent draft invoice isn't owed yet, so it must
       // not inflate Outstanding (mirrors how SmartInbox already excludes drafts).
       .filter(i => i.status !== 'paid' && i.status !== 'draft')
-      .reduce((s, i) => s + Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)), 0),
+      .reduce((s, i) => s + invoiceOutstanding(i) /* MONEY-F5: net of held retention */, 0),
     [invoices],
   );
 

@@ -605,8 +605,11 @@ export interface CostSeedRow {
   /** Soft-delete tombstone — see SeededRate.deletedAt. Added by
    *  supabase/migrations/20260812093000_cost_seeds_soft_delete.sql.
    *  NOT `updated_at`: that column is owned by the BEFORE UPDATE trigger, and a
-   *  client-supplied value would defeat the whole point of trusting it. */
-  deleted_at: string | null;
+   *  client-supplied value would defeat the whole point of trusting it.
+   *  CONTRACT-F2: OPTIONAL and ABSENT (never null) on a live row — the column
+   *  is deliberately not applied in production yet, and PostgREST rejects any
+   *  row that so much as names it (PGRST204). See seedToRow. */
+  deleted_at?: string;
 }
 
 /**
@@ -632,7 +635,16 @@ export function seedToRow(s: SeededRate, userId: string): CostSeedRow {
     note: s.note ?? null,
     method: s.method === 'manual' ? 'manual' : 'paste',
     created_at: s.createdAt,
-    deleted_at: s.deletedAt ?? null,
+    // CONTRACT-F2: emit the key ONLY on a tombstone. Production cost_seeds has
+    // no deleted_at column (the soft-delete migration is held back), and
+    // PostgREST rejects a row naming an unknown column with PGRST204 — which
+    // utils/offlineQueue classifies as transient and re-queues forever. With
+    // `deleted_at: null` on EVERY row (JSON.stringify keeps null on the wire)
+    // the whole cost book was rejected and production held 0 seeds. Now live
+    // rows sync immediately; tombstones keep waiting in the queue until the
+    // column lands, and the delete still takes effect on-device through
+    // activeSeeds — nothing is lost either way.
+    ...(s.deletedAt ? { deleted_at: s.deletedAt } : {}),
   };
 }
 

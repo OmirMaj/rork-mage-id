@@ -37,14 +37,19 @@ import { zoneStateAsOf, type ZoneState } from '@/utils/planZoneStatus';
 import { TimelineScrubber } from './TimelineScrubber';
 import EmptyState from '@/components/EmptyState';
 import { parseCalendarDay } from '@/utils/calendarDate';
-
-const MS_DAY = 86400000;
+import { addWorkingDays } from '@/utils/scheduleEngine';
+import { scheduleDayNumberFor } from '@/utils/scheduleOps';
 
 interface LivingFloorPlanProps {
   /** Schedule tasks the zones link to. NOT a Project — see the header. */
   tasks: ScheduleTask[];
   /** Schedule anchor (yyyy-mm-dd). Day 0 of the scrubber. */
   scheduleStartDate?: string;
+  /** Schedule calendar. The scrubber's dayIndex is a WORKING-day offset
+   *  (zoneStateAsOf compares it to task.startDay), so the day it names on the
+   *  calendar depends on which days are worked. Defaults to a 5-day week. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
   planSheetId: string;
   zones: PlanZone[];
   pins: DrawingPin[];                 // pins on this plan sheet (for photo→zone)
@@ -71,7 +76,7 @@ function clientStatusLine(state: ZoneState): string {
 }
 
 export function LivingFloorPlan({
-  tasks, scheduleStartDate, planSheetId, zones, pins, photoById, imageUri, imageW, imageH,
+  tasks, scheduleStartDate, workingDaysPerWeek, nonWorkingDates, planSheetId, zones, pins, photoById, imageUri, imageW, imageH,
   readOnly, clientMode, onEdit, onShare, onAddPlan,
 }: LivingFloorPlanProps) {
   const { colors } = useTheme();
@@ -85,15 +90,25 @@ export function LivingFloorPlan({
   // midnight and floors to the PREVIOUS local day at negative offsets, so every
   // date here rendered a day early. Same fix as MobileGantt / TaskDetailSheet /
   // SchedulerHeader / MobileScheduleList.
-  const baseMs = useMemo(() => {
+  const base = useMemo(() => {
     const d = parseCalendarDay(startDate) ?? new Date();
-    d.setHours(0, 0, 0, 0); return d.getTime();
+    d.setHours(0, 0, 0, 0); return d;
   }, [startDate]);
   // startDay is 1-indexed; the scrubber runs on a 0-indexed day offset, so shift down by one.
   const totalDays = useMemo(() => Math.max(1, tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 1)), [tasks]);
-  const todayIndex = Math.round((Date.now() - baseMs) / MS_DAY);
+  // B4 review A9 / item 2: dayIndex is a WORKING-day offset, so "today" is the
+  // schedule's day number for today minus one — not `(Date.now() - baseMs) /
+  // MS_DAY`, which counted weekends the schedule skips and, being rounded
+  // from the current time rather than midnight, pointed at TOMORROW from noon.
+  const todayIndex = scheduleDayNumberFor(base, new Date(), workingDaysPerWeek, nonWorkingDates) - 1;
 
   const [dayIndex, setDayIndex] = useState(Math.max(0, Math.min(totalDays, todayIndex)));
+  // The calendar day the scrubbed working day falls on (feeds the scrubber's
+  // label and the photo cutoff).
+  const dateAtIndex = useMemo(
+    () => addWorkingDays(base, Math.max(0, dayIndex), workingDaysPerWeek ?? 5, nonWorkingDates),
+    [base, dayIndex, workingDaysPerWeek, nonWorkingDates],
+  );
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [openZone, setOpenZone] = useState<PlanZone | null>(null);
 
@@ -114,7 +129,7 @@ export function LivingFloorPlan({
   }
 
   const linkedTasksFor = (z: PlanZone): ScheduleTask[] => z.linkedTaskIds.map((id) => taskById.get(id)).filter(Boolean) as ScheduleTask[];
-  const cutoffMs = baseMs + dayIndex * MS_DAY;
+  const cutoffMs = dateAtIndex.getTime();
   const photosInZone = (z: PlanZone): string[] => {
     const W = imageW || 1, H = imageH || 1;
     return pins
@@ -172,7 +187,7 @@ export function LivingFloorPlan({
             );
           })}
         </View>
-        <TimelineScrubber baseMs={baseMs} totalDays={totalDays} dayIndex={dayIndex} todayIndex={todayIndex} onChange={setDayIndex} />
+        <TimelineScrubber dateAtIndex={dateAtIndex} totalDays={totalDays} dayIndex={dayIndex} todayIndex={todayIndex} onChange={setDayIndex} />
       </ScrollView>
 
       <Modal visible={!!openZone} transparent animationType="slide" onRequestClose={() => setOpenZone(null)}>

@@ -18,14 +18,11 @@ import { useProjects } from '@/contexts/ProjectContext';
 import type { Invoice, Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { formatMoney } from '@/utils/formatters';
 
-function formatCurrency(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-function formatCurrencyPrecise(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// HEALTH-F5: sign-correct money via the one formatter — no local Math.abs copies.
+const formatCurrency = (n: number): string => formatMoney(n);
+const formatCurrencyPrecise = (n: number): string => formatMoney(n, 2);
 
 interface ProjectRetention {
   project: Project;

@@ -2,6 +2,7 @@ import type {
   Project, Invoice, ChangeOrder, DailyFieldReport, PunchItem, ProjectPhoto, RFI,
 } from '@/types';
 import { mageAI } from './mageAI';
+import { invoiceOutstanding } from './invoiceBilling';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // AI-drafted weekly owner update.
@@ -63,7 +64,10 @@ function compressContext(ctx: WeeklyUpdateContext, gcName: string, ownerName: st
     status: i.status,
     totalDue: i.totalDue,
     amountPaid: i.amountPaid,
-    balance: i.totalDue - i.amountPaid,
+    // MONEY-F5: the balance the owner reads is net of the retention their
+    // contract lets them hold — never "you owe $10,000" for money not yet due.
+    balance: invoiceOutstanding(i),
+    retentionHeld: Math.max(0, (i.retentionAmount ?? 0) - (i.retentionReleased ?? 0)),
   }));
 
   const openPunch = ctx.punchItems.filter(p => p.status !== 'closed').length;

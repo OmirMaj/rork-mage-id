@@ -44,6 +44,8 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { parseCalendarDay } from '@/utils/calendarDate';
+import { scheduleDayNumberFor } from '@/utils/scheduleOps';
 
 // Sticky-dismiss key for the proactive Stripe Connect home banner.
 // Versioned so we can re-show after a future revamp if needed.
@@ -71,32 +73,6 @@ import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 import DailyLogCard from '@/components/home/DailyLogCard';
 import { showAlert } from '@/utils/alert';
-
-// Canonical 1-indexed, working-day-aware "which schedule day is today" — the
-// exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
-// startDate, startDay - 1)). Day 1 = the schedule start date; a date on/before
-// start is day 1; weekends are skipped when workingDaysPerWeek < 7 so the count
-// matches how task bars are laid out. Replicated verbatim in
-// app/(tabs)/summary/index.tsx so Home and Summary agree on "today on site".
-function todayScheduleDayNumber(baseMs: number, now: Date, workingDaysPerWeek?: number): number {
-  const base = new Date(baseMs);
-  base.setHours(0, 0, 0, 0);
-  const tgt = new Date(now);
-  tgt.setHours(0, 0, 0, 0);
-  if (tgt.getTime() <= base.getTime()) return 1;
-  const wdpw = workingDaysPerWeek ?? 5;
-  if (wdpw >= 7) {
-    return Math.floor((tgt.getTime() - base.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-  }
-  let count = 1;
-  const cur = new Date(base);
-  while (cur < tgt) {
-    cur.setDate(cur.getDate() + 1);
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) count++;
-  }
-  return count;
-}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -371,9 +347,21 @@ export default function HomeScreen() {
       const sched = p.schedule;
       if (!sched || !sched.tasks || sched.tasks.length === 0) continue;
       const baseIso = sched.startDate || p.createdAt;
-      const baseMs = Date.parse(baseIso);
-      if (!Number.isFinite(baseMs)) continue;
-      const todayDayNumber = todayScheduleDayNumber(baseMs, now, sched.workingDaysPerWeek);
+      // UX-F1: schedule.startDate is a bare 'YYYY-MM-DD'. Date.parse reads
+      // that as UTC midnight — the PREVIOUS evening anywhere west of
+      // Greenwich — so this ran one working day ahead of the schedule tab,
+      // which anchors via parseCalendarDay. createdAt is a full instant and
+      // still goes through new Date().
+      const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
+      if (!Number.isFinite(base.getTime())) continue;
+      // B4 review item 3: ONE day-number basis — scheduleDayNumberFor (the
+      // inverse of getTaskDateRange, shared with app/daily-report.tsx and the
+      // Summary tab). The local copy this replaced ignored nonWorkingDates
+      // (a site closure put the strip a day ahead of the schedule tab) and
+      // floored raw milliseconds on 7-day weeks — a day behind all summer in
+      // Denver, since local midnight-to-midnight is 23 hours after the
+      // spring-forward.
+      const todayDayNumber = scheduleDayNumberFor(base, now, sched.workingDaysPerWeek, sched.nonWorkingDates);
       const liveTasks = sched.tasks.filter(t => {
         if (t.status === 'done') return false;
         const start = Math.max(1, t.startDay ?? 1);

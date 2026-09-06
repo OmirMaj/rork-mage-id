@@ -3,6 +3,8 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding, ContractSignature, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal } from '@/types';
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
+import { netBalanceDue } from './invoiceBilling';
+import { calendarDayStart } from './calendarDate';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
@@ -920,7 +922,16 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
   const termsLabel = inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-  const balance = Math.max(0, inv.totalDue - inv.amountPaid);
+  // MONEY-F5 / MONEY-F6: the PDF must show the SAME amounts as the covering
+  // email and the Pay button. Retention the contract holds back is subtracted
+  // BEFORE the payable figure, and the balance is computed by the same helper
+  // the pay link uses (utils/invoiceBilling.netBalanceDue), so the client never
+  // reads "Total Due $100,000" beside an email that says "$90,000 due".
+  const retentionPending = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+  const retentionReleased = Math.min(inv.retentionAmount ?? 0, inv.retentionReleased ?? 0);
+  const hasRetention = (inv.retentionAmount ?? 0) > 0;
+  const netPayable = netBalanceDue({ totalDue: inv.totalDue, retentionAmount: inv.retentionAmount, retentionReleased: inv.retentionReleased });
+  const balance = netBalanceDue(inv);
 
   const headerHtml = D.pdfHeader(branding);
   const titleHtml = D.pdfTitle({
@@ -954,19 +965,29 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
     lineRows,
   );
 
+  const row = (label: string, value: string, color = D.PDF_PALETTE.text2) =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${color}">${label}</span><span class="num">${value}</span></div>`;
   const totalsRows = [
-    `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Subtotal</span><span class="num">${D.fmtMoney(inv.subtotal, { decimals: 2 })}</span></div>`,
-    `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Tax (${inv.taxRate}%)</span><span class="num">${D.fmtMoney(inv.taxAmount, { decimals: 2 })}</span></div>`,
-    inv.retentionAmount && inv.retentionAmount > 0
-      ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Retainage${inv.retentionPercent ? ` (${inv.retentionPercent}%)` : ''}</span><span class="num">−${D.fmtMoney(inv.retentionAmount, { decimals: 2 })}</span></div>`
+    row('Subtotal', D.fmtMoney(inv.subtotal, { decimals: 2 })),
+    row(`Tax (${inv.taxRate}%)`, D.fmtMoney(inv.taxAmount, { decimals: 2 })),
+    // MONEY-F6: with retention, the gross is the contract value billed this
+    // period; what the client pays now is the net figure printed as the total.
+    hasRetention ? row('Contract value billed this period', D.fmtMoney(inv.totalDue, { decimals: 2 })) : '',
+    // Only while something is actually held — once fully released the line
+    // read "Retainage held (10%) −$0.00", which is noise on a client document.
+    hasRetention && retentionPending > 0
+      ? row(`Retainage held${inv.retentionPercent ? ` (${inv.retentionPercent}%)` : ''}`, `−${D.fmtMoney(retentionPending, { decimals: 2 })}`)
+      : '',
+    hasRetention && retentionReleased > 0
+      ? row('Retainage released — now payable', D.fmtMoney(retentionReleased, { decimals: 2 }), D.PDF_PALETTE.success)
       : '',
   ].filter(Boolean).join('');
   const totalsBlock = `<div style="background:${D.PDF_PALETTE.cream2};border:1px solid ${D.PDF_PALETTE.bone2};border-radius:14px;padding:18px 20px;margin-top:18px">
     ${totalsRows}
     <div style="height:1.5px;background:${D.PDF_PALETTE.ink};margin:8px 0"></div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
-      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">Total Due</span>
-      <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:700;color:${D.PDF_PALETTE.amber};letter-spacing:-0.012em">${D.fmtMoney(inv.totalDue, { decimals: 2 })}</span>
+      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">${hasRetention ? 'Net payable this invoice' : 'Total Due'}</span>
+      <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:700;color:${D.PDF_PALETTE.amber};letter-spacing:-0.012em">${D.fmtMoney(netPayable, { decimals: 2 })}</span>
     </div>
     ${inv.amountPaid > 0 ? `
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:${D.PDF_PALETTE.success}"><span>Paid to date</span><span class="num">−${D.fmtMoney(inv.amountPaid, { decimals: 2 })}</span></div>
@@ -1084,8 +1105,12 @@ function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: Company
 // massive HTML can OOM on lower-end Android.
 function formatRfiDate(iso: string): string {
   if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  // calendarDayStart: RFI.dateRequired is a bare 'YYYY-MM-DD' (voice/photo
+  // writers, the two-week default) that `new Date()` read as UTC midnight —
+  // the RFI log printed the day BEFORE the due day west of Greenwich (B4
+  // review A2). dateSubmitted / dateResponded instants keep their local day.
+  const d = calendarDayStart(iso);
+  if (!d) return '—';
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
@@ -1105,11 +1130,13 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
 
   // sort: open + overdue first, then open, then answered, then closed/void; tiebreak by RFI number desc.
   const today = new Date();
+  // Same mixed-shape parse as formatRfiDate: a bare due day is overdue from its
+  // own local midnight, not from UTC midnight (the evening before, in the US).
+  const isPastDue = (r: RFI) => { const due = calendarDayStart(r.dateRequired); return !!due && due < today; };
   const sorted = [...rfis].sort((a, b) => {
     const score = (r: RFI) => {
       if (r.status === 'open') {
-        const due = new Date(r.dateRequired);
-        if (!Number.isNaN(due.getTime()) && due < today) return 0;
+        if (isPastDue(r)) return 0;
         return 1;
       }
       if (r.status === 'answered') return 2;
@@ -1125,7 +1152,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
     open: rfis.filter(r => r.status === 'open').length,
     answered: rfis.filter(r => r.status === 'answered').length,
     closed: rfis.filter(r => r.status === 'closed').length,
-    overdue: rfis.filter(r => r.status === 'open' && new Date(r.dateRequired) < today).length,
+    overdue: rfis.filter(r => r.status === 'open' && isPastDue(r)).length,
   };
 
   const summaryRow = `<div class="rfi-summary">
@@ -1137,7 +1164,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
   </div>`;
 
   const tableRows = sorted.map((r, i) => {
-    const isOverdue = r.status === 'open' && new Date(r.dateRequired) < today;
+    const isOverdue = r.status === 'open' && isPastDue(r);
     const statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
     return `<tr class="${i % 2 === 0 ? 'alt' : ''}">
       <td style="text-align:center;font-weight:700">#${r.number}</td>
@@ -1150,7 +1177,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
   }).join('');
 
   const detailCards = sorted.map(r => {
-    const isOverdue = r.status === 'open' && new Date(r.dateRequired) < today;
+    const isOverdue = r.status === 'open' && isPastDue(r);
     return `<div class="rfi-card${isOverdue ? ' overdue' : ''}">
       <div class="rfi-card-head">
         <div class="rfi-card-title"><span class="rfi-num">RFI #${r.number}</span> ${escapeHtml(r.subject)}</div>

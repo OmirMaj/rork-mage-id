@@ -16,8 +16,9 @@
 // sections (summary first, everything else collapsed) so users don't
 // have to scroll through a wall of text. A second Modal overlays while
 // the AI request is in flight, with an animated loader that actually
-// communicates what's happening ("Scanning IRC…", "Checking local
-// amendments…") so the spinner doesn't feel dead.
+// communicates what's happening ("Recalling the codes that apply…",
+// "Flagging required permits…") so the spinner doesn't feel dead — and,
+// per AI-F3, never implies a code lookup that does not happen.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,6 +39,7 @@ import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -61,6 +63,7 @@ import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/uti
 import { InspectionResultReviewSheet } from '@/components/automation/InspectionResultReviewSheet';
 import { useSafety } from '@/contexts/SafetyContext';
 import { generateUUID } from '@/utils/generateId';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -136,7 +139,11 @@ const codeCheckSchema = z.object({
   summary: z.string().catch('').default(''),
   applicableCodes: z.array(z.object({
     code: z.string().catch('').default(''),
-    section: z.string().catch('').default(''),
+    // AI-F3: `section` is OPTIONAL on the wire. The prompt tells the model to
+    // leave it empty when unsure (an absent/non-string value lands here as
+    // ''), and the row renders code-only when it is — nothing here retrieves
+    // a code text, so a section number is model recall, never a lookup.
+    section: z.string().optional().catch('').default(''),
     requirement: z.string().catch('').default(''),
   })).default([]),
   permitsRequired: z.array(z.string()).default([]),
@@ -619,7 +626,11 @@ function ConstructionAIScreenInner() {
       type: toPermitType(p.type),
       jurisdiction: roadmapProject.location || '',
       status: 'applied',
-      appliedDate: new Date().toISOString(),
+      // B4 review A3: Permit.appliedDate is a CALENDAR DAY (permits.applied_date
+      // is a `date` column and app/permits.tsx writes todayCalendarDay()). The
+      // instant this used to write was cast to its UTC date on sync — tomorrow
+      // from ~6 pm, west of Greenwich.
+      appliedDate: todayCalendarDay(),
       fee: 0,
       // Carry the roadmap's descriptive name as the first line of notes (the
       // permits tracker has no dedicated title column), with the "why" below it.
@@ -666,13 +677,14 @@ Scenario: ${scenario.trim()}
 
 Return a JSON object with:
 - summary: one paragraph explaining the key code implications
-- applicableCodes: array of { code (e.g. "IRC 2021", "NYC BC 2022"), section (e.g. "R310.1"), requirement (plain English) }
+- applicableCodes: array of { code (e.g. "IRC 2021", "NYC BC 2022"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English) }
 - permitsRequired: array of permit names the contractor should pull before work
 - inspections: array of inspections this project will likely need
 - commonViolations: array of the most common code violations for this type of work
 - disclaimer: a one-sentence reminder that this is AI guidance, not legal advice, and the AHJ governs
 
-Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.`;
+Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
+Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite only what you would stake your license on.`;
 
     const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${location.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
 
@@ -1608,11 +1620,13 @@ function RoadmapLoadingModal({ visible, subject }: { visible: boolean; subject?:
 // Shows a rotating gavel + a rotating status line so the wait feels
 // like something is actually happening rather than a dead spinner.
 
+// AI-F3: nothing here scans or checks a code text — the model recalls. The
+// steps say so, matching the recall chip on the result.
 const LOADING_STEPS = [
-  'Scanning applicable codes…',
-  'Checking local amendments…',
+  'Recalling the codes that apply…',
+  'Recalling likely local amendments…',
   'Flagging required permits…',
-  'Reviewing common violations…',
+  'Listing common violations…',
   'Drafting inspection checklist…',
 ];
 
@@ -1625,7 +1639,7 @@ function LoadingModal({ visible, subject }: { visible: boolean; subject?: string
       return;
     }
     // Walk the checklist forward and HOLD on the last step rather than looping
-    // back to the top. A pass that restarts at "Scanning applicable codes…"
+    // back to the top. A pass that restarts at "Recalling the codes that apply…"
     // after reaching the end reads as stuck; holding reads as "finishing up".
     const interval = setInterval(() => {
       setStepIdx(i => Math.min(i + 1, LOADING_STEPS.length - 1));
@@ -1667,6 +1681,7 @@ function ResultModal({
   scenario: string;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<SectionKey | null>('codes');
   /** Which code row is open, plus its lazily-fetched detail. Rendered INLINE:
@@ -1761,6 +1776,15 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               expanded={expanded === 'codes'}
               onToggle={toggle}
             >
+              {/* AI-F3: these citations are model recall, not a code lookup —
+                  no retrieval runs on this surface. Say so ABOVE the codes,
+                  not in the footer (brain-center directive, HONEST leg). */}
+              <View style={styles.recallChip} testID="code-check-recall-chip">
+                <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />
+                <Text style={styles.recallChipText}>
+                  From model recall — verify with your AHJ before relying on a section number
+                </Text>
+              </View>
               <Text style={styles.codeTapHint}>Tap a code for what it requires and what the inspector checks.</Text>
               {result.applicableCodes.map((c, i) => {
                 const key = codeDetailKey(c);
@@ -1789,7 +1813,10 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                         {st?.loading && (
                           <View style={styles.codeDetailLoading}>
                             <ActivityIndicator size="small" color={Colors.primary} />
-                            <Text style={styles.codeDetailLoadingText}>Looking up {[c.code, c.section].filter(Boolean).join(' ')}…</Text>
+                            {/* AI-F3: "Looking up" implied a retrieval that never
+                                happens; the drill-in is the model explaining its
+                                own citation. */}
+                            <Text style={styles.codeDetailLoadingText}>Explaining {[c.code, c.section].filter(Boolean).join(' ')}…</Text>
                           </View>
                         )}
                         {st?.error && (
@@ -2127,6 +2154,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
+  // AI-F3 recall chip — warning tone (theme tokens), never the primary blue
+  // the code rows use, so "from model recall" cannot read as a citation.
+  recallChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10,
+    borderRadius: Tokens.radius.md, backgroundColor: themeColors.warningSoft,
+  },
+  recallChipText: {
+    ...Type.caption1, fontWeight: '600' as const, color: themeColors.warningLabel, flex: 1,
+  },
   codeTapHint: {
     fontSize: Type.caption2.fontSize, color: themeColors.textMuted,
     fontStyle: 'italic' as const, marginBottom: 10, lineHeight: 15,

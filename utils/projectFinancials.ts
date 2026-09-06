@@ -9,6 +9,7 @@
 
 import type { Project, ChangeOrder, Invoice, InvoiceStatus } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling';
 
 /**
  * Total contract value = base estimate + approved change orders.
@@ -64,12 +65,40 @@ export function getInvoicedToDate(invoices: Invoice[] | null | undefined): numbe
 }
 
 /**
- * Outstanding = invoiced – paid. The amount the GC is waiting on.
+ * Outstanding = what clients can be asked for today, summed over sent
+ * invoices: each invoice's total NET of the retention the contract lets the
+ * client hold, less what they have paid (utils/invoiceBilling.invoiceOutstanding).
+ *
+ * MONEY-F5 (audit 2026-09-03): this used to be invoiced − paid, which reported
+ * held retention as money the GC was "waiting on" and painted it overdue.
+ * Held retention is reported separately by getRetentionHeld().
  */
 export function getOutstandingBalance(invoices: Invoice[] | null | undefined): number {
-  const billed = getInvoicedToDate(invoices);
-  const paid = getPaidToDate(invoices);
-  return Math.max(0, billed - paid);
+  return (invoices ?? [])
+    .filter(inv => inv.status !== 'draft')
+    .reduce((sum, inv) => sum + invoiceOutstanding(inv), 0);
+}
+
+/** Retention still held on sent invoices (released amounts excluded). Not due today. */
+export function getRetentionHeld(invoices: Invoice[] | null | undefined): number {
+  return (invoices ?? [])
+    .filter(inv => inv.status !== 'draft')
+    .reduce((sum, inv) => sum + pendingRetentionOf(inv), 0);
+}
+
+/** Retention currently held on one invoice — retentionAmount less what has been released. */
+export function pendingRetentionOf(invoice: Pick<Invoice, 'retentionAmount' | 'retentionReleased'>): number {
+  return Math.max(0, (invoice.retentionAmount ?? 0) - (invoice.retentionReleased ?? 0));
+}
+
+/**
+ * True while retention is still held on this invoice. Independent of
+ * paid/settled: a settled invoice can have retention open until closeout,
+ * which is exactly the state getEffectiveInvoiceStatus() no longer hides
+ * behind 'partially_paid'.
+ */
+export function retentionOpen(invoice: Pick<Invoice, 'retentionAmount' | 'retentionReleased'>): boolean {
+  return pendingRetentionOf(invoice) > 0;
 }
 
 /**
@@ -93,16 +122,31 @@ export function getUnbilledValue(
  */
 export function getEffectiveInvoiceStatus(invoice: Invoice): InvoiceStatus {
   if (invoice.status === 'draft') return 'draft';
-  if (invoice.status === 'paid') return 'paid';
-  if (invoice.amountPaid >= invoice.totalDue && invoice.totalDue > 0) return 'paid';
-  if (invoice.amountPaid > 0 && invoice.amountPaid < invoice.totalDue) return 'partially_paid';
+  // A stored 'paid' is trusted only while nothing is collectible. Releasing
+  // retention on a settled invoice (or a legacy row whose status was flipped
+  // without the money) reopens a balance, and a short-circuit here hid that
+  // balance from cash-flow, the portal and the invoice screen — the released
+  // $10,000 could never be billed or recorded (review of B3a, 2026-09-05).
+  // The money rules below decide instead, so such rows heal on read.
+  const settled = invoiceIsSettled(invoice);
+  if (invoice.status === 'paid' && invoiceOutstanding(invoice) <= 0.01) return 'paid';
+  // MONEY-F5: "paid" means everything collectible TODAY has been paid — net of
+  // the retention the contract lets the client hold. Before this, a $100k
+  // invoice holding $10k retention and paid down to the $90k asked for stayed
+  // 'partially_paid' forever. Held retention is a separate fact: retentionOpen().
+  if (invoice.totalDue > 0 && settled) return 'paid';
+  if (invoice.amountPaid > 0 && !settled) return 'partially_paid';
+
+  // A distrusted 'paid' (balance open, nothing paid) reads as 'sent' from here
+  // on, so the overdue rule and the fallthrough never hand back 'paid'.
+  const base: InvoiceStatus = invoice.status === 'paid' ? 'sent' : invoice.status;
 
   // Overdue check — 'sent' with a due date in the past.
-  if (invoice.status === 'sent' && invoice.dueDate) {
+  if (base === 'sent' && invoice.dueDate) {
     const dueTs = new Date(invoice.dueDate).getTime();
     if (!Number.isNaN(dueTs) && dueTs < Date.now()) return 'overdue';
   }
-  return invoice.status;
+  return base;
 }
 
 /**
@@ -157,7 +201,10 @@ export interface ProjectFinancialSummary {
   contractValue: number;
   invoiced: number;
   paidToDate: number;
+  /** Collectible today, net of held retention (MONEY-F5). */
   outstanding: number;
+  /** Retention still held on sent invoices — not due, not overdue. */
+  retentionHeld: number;
   unbilled: number;
   pctBilled: number;
   pctPaid: number;
@@ -178,14 +225,15 @@ export function summarizeProjectFinancials(
   const contractValue = baseContract + approvedCO;
   const invoiced = getInvoicedToDate(invoices);
   const paidToDate = getPaidToDate(invoices);
-  const outstanding = Math.max(0, invoiced - paidToDate);
+  const outstanding = getOutstandingBalance(invoices);
+  const retentionHeld = getRetentionHeld(invoices);
   const unbilled = Math.max(0, contractValue - invoiced);
 
   const overdueInvoices = (invoices ?? []).filter(
     inv => getEffectiveInvoiceStatus(inv) === 'overdue',
   );
   const overdueAmount = overdueInvoices.reduce(
-    (sum, inv) => sum + Math.max(0, inv.totalDue - inv.amountPaid),
+    (sum, inv) => sum + invoiceOutstanding(inv),
     0,
   );
 
@@ -197,6 +245,7 @@ export function summarizeProjectFinancials(
     invoiced,
     paidToDate,
     outstanding,
+    retentionHeld,
     unbilled,
     pctBilled: contractValue > 0 ? Math.min(100, Math.round((invoiced / contractValue) * 100)) : 0,
     pctPaid: contractValue > 0 ? Math.min(100, Math.round((paidToDate / contractValue) * 100)) : 0,

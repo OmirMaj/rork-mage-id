@@ -14,7 +14,10 @@
 // reason utils/alertCore.ts and utils/brain/predictionLedgerCore.ts exist).
 //
 // NOTHING in this file may import react-native, expo-*, @/lib/supabase, or
-// anything that transitively does. Types only.
+// anything that transitively does. Types only — plus utils/invoiceBilling.ts,
+// which is pure arithmetic with no imports of its own (MONEY-F5).
+
+import { invoiceOutstanding } from './invoiceBilling';
 
 // ─── 1. Milestone → invoice ──────────────────────────────────────────
 
@@ -180,7 +183,7 @@ export function milestoneTriggerText(m: MilestoneLike): string {
 /**
  * The single invoice line a milestone becomes. Lump-sum, quantity 1, so
  * quantity × unitPrice === total and the printed PDF row foots (the same
- * invariant markupInclusiveUnitPrice protects on estimate-sourced lines).
+ * invariant billFromEstimateUnitPrice protects on estimate-sourced lines).
  *
  * Deliberately NOT tagged with billedPercent: that field means "already scaled
  * by bill-from-estimate" and would flip progressSubtotal's anyPreScaled gate on
@@ -275,6 +278,14 @@ export interface ReminderEligibilityInput {
   status?: string | null;
   totalDue: number;
   amountPaid?: number | null;
+  /**
+   * MONEY-F5: retention the contract lets the client hold. Outstanding is
+   * computed NET of it, so a client who paid everything they were asked for
+   * is never chased — least of all with a FINAL NOTICE — for money that is
+   * not due until closeout.
+   */
+  retentionAmount?: number | null;
+  retentionReleased?: number | null;
   /** ms epoch. Callers parse the ISO string; NaN is handled as bad_due_date. */
   dueMs: number;
   dunningStage?: number | null;
@@ -315,7 +326,13 @@ export interface ReminderEligibility {
  * recipient never burns a stage.
  */
 export function reminderEligibility(input: ReminderEligibilityInput): ReminderEligibility {
-  const outstanding = (input.totalDue ?? 0) - (input.amountPaid ?? 0);
+  // MONEY-F5: one definition of outstanding — net of held retention, never negative.
+  const outstanding = invoiceOutstanding({
+    totalDue: input.totalDue ?? 0,
+    amountPaid: input.amountPaid ?? 0,
+    retentionAmount: input.retentionAmount ?? 0,
+    retentionReleased: input.retentionReleased ?? 0,
+  });
   const status = (input.status ?? '').toLowerCase();
   const stage = input.dunningStage ?? 0;
 

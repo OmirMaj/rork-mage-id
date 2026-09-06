@@ -15,12 +15,16 @@ import { TaskChecklist } from './TaskChecklist';
 import { PercentSlider } from './PercentSlider';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { taskCalendarRange } from '@/utils/scheduleOps';
 
 interface TaskDetailSheetProps {
   visible: boolean;
   task: ScheduleTask | null;
   allTasks: ScheduleTask[];
   startDate: string;
+  /** Schedule calendar — see MobileScheduleList. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
   onClose: () => void;
   onUpdateTask: (next: ScheduleTask) => void;
   onDeleteTask: (id: string) => void;
@@ -28,7 +32,6 @@ interface TaskDetailSheetProps {
 
 type DetailTab = 'overview' | 'resources' | 'docs' | 'activity';
 const STATUSES: TaskStatus[] = ['not_started', 'in_progress', 'done'];
-const MS_DAY = 24 * 60 * 60 * 1000;
 
 function fmt(d: Date): string { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
 
@@ -51,7 +54,7 @@ function Stepper({ value, onDec, onInc }: { value: string; onDec: () => void; on
   );
 }
 
-export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, onUpdateTask, onDeleteTask }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask }: TaskDetailSheetProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -82,10 +85,10 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
   // foreman "correcting" it moved real scheduled work by a day.
   // parseCalendarDay (utils/calendarDate.ts) is the shared fix and also
   // tolerates the full ISO timestamp Supabase can hand back for this field.
-  const baseMs = useMemo(() => {
+  const base = useMemo(() => {
     const d = parseCalendarDay(startDate) ?? new Date();
     d.setHours(0, 0, 0, 0);
-    return d.getTime();
+    return d;
   }, [startDate]);
 
   if (!task) return null;
@@ -98,11 +101,12 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
   // (sim-audit slop #5).
   const phaseColor = getPhaseColor(task.phase || 'Other');
   const dur = Math.max(1, task.durationDays || 1);
-  // startDay is 1-indexed (day 1 = schedule start), matching the desktop + CPM
-  // engine; shift by -1 to a 0-indexed day-offset from baseMs for the date math.
-  const startOffset = (task.startDay ?? 1) - 1;
-  const start = new Date(baseMs + startOffset * MS_DAY);
-  const end = new Date(baseMs + (startOffset + dur - 1) * MS_DAY);
+  // startDay is 1-indexed (day 1 = schedule start) and counts WORKING days,
+  // matching the desktop + CPM engine, so the dates come from
+  // taskCalendarRange — not `baseMs + offset * MS_DAY`, which printed the
+  // Saturday for a startDay-6 task and contradicted the list row for the
+  // same task (B4 review A9 / item 2).
+  const { start, end } = taskCalendarRange(task, base, workingDaysPerWeek, nonWorkingDates);
   const predNames = (task.dependencyLinks ?? []).map((l) => allTasks.find((t) => t.id === l.taskId)?.title).filter(Boolean) as string[];
   const checklist = task.checklist ?? [];
 

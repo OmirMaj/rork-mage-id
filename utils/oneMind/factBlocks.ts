@@ -45,6 +45,7 @@ import type { CostSample } from '@/utils/costDatabase';
 import type { Constraint } from '@/utils/lastPlanner';
 import { buildReadinessBlock } from './buildReadinessBlock';
 import type { OneMindScope } from './resolveScope';
+import { calendarDayStart } from '@/utils/calendarDate';
 
 // ─── The common currency ─────────────────────────────────────────────────────
 
@@ -299,8 +300,11 @@ export function buildRfiTriggerBlock(project: Project, projectRfis: RFI[], now: 
   const atRisk = projectRfis
     .filter(r => r.status === 'open' && !!r.dateRequired)
     .map(r => {
-      const due = new Date(`${r.dateRequired}T00:00:00`);
-      const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+      // `new Date(`${bare}T00:00:00`)` is Invalid Date for the picker's own
+      // value ('2026-09-04T12:00:00.000Z'), which silently dropped every
+      // picker-dated RFI from this block. calendarDayStart takes both shapes.
+      const due = calendarDayStart(r.dateRequired);
+      const days = due ? Math.round((due.getTime() - today.getTime()) / 86_400_000) : Number.NaN;
       const linkedTitle = r.linkedTaskId ? tasks.find(t => t.id === r.linkedTaskId)?.title : undefined;
       return { r, days, linkedTitle };
     })

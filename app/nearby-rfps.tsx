@@ -169,9 +169,15 @@ export default function NearbyRfpsScreen() {
         {!isLoading && filtered.length === 0 && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
+            {/* PRODUCT-F8: while RFP_BROWSE_ENABLED is false the feed is never
+                fetched, so "no projects within N miles yet" was a permanent lie. */}
+            <Text style={styles.emptyTitle}>
+              {RFP_BROWSE_ENABLED ? `No projects within ${radius} miles yet` : 'Browsing nearby projects is coming soon'}
+            </Text>
             <Text style={styles.emptyBody}>
-              {!location ? 'Allow location access to see projects near you, or expand your radius.' : 'Try expanding the radius — new projects show up here as homeowners post them.'}
+              {!RFP_BROWSE_ENABLED
+                ? 'Homeowner projects near you will show up here once browsing opens. Until then, post your own project from MAGE ID Bids.'
+                : !location ? 'Allow location access to see projects near you, or expand your radius.' : 'Try expanding the radius — new projects show up here as homeowners post them.'}
             </Text>
           </View>
         )}
