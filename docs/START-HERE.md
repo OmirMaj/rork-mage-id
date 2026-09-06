@@ -58,25 +58,29 @@ projects list` without incident, so the gate was session-specific.
 1. **`20260826180000_portal_link_expiry_cron`** — schedules a pg_cron job that
    calls the `portal-link-expiry-notice` EDGE FUNCTION, which is not deployed.
    Applying it produces a silent stream of failing runs. Apply AFTER that
-   function ships.
+   function ships (it is in the 2026-09-04 deploy list, `verify_jwt = false`
+   per `supabase/config.toml`). **Now parked in `supabase/migrations/held/`**
+   so no bulk push can sweep it up; `git mv` it back up to apply.
 2. **`20260827120000_project_financials_drop_legacy`** — PHASE 2. It drops
    `estimate` / `linked_estimate` / `estimate_versions` / `target_budget` off
    `projects`. Phase 1 is applied, so the money lives in BOTH places and the
    current app works. Phase 2 must not run until the OTA is live and verified,
-   or it removes columns every installed build still reads. **`supabase db push`
-   applies in filename order and WILL run it with everything else** — move the
-   file out of the directory for a bulk push.
+   or it removes columns every installed build still reads. **Now parked in
+   `supabase/migrations/held/`** (its README lists the precondition per file);
+   `scripts/validate-project-financials-split.ts` reads it from there.
 3. **`alter table cost_seeds add column deleted_at`** from `20260826150000`.
    cost_seeds is under a standing do-not-touch instruction, so that migration
    was SPLIT and only its `delay_events` index applied. Consequence: soft-delete
-   of a cost seed does not persist — `hooks/useCostSeeds.ts` writes a tombstone
-   the table cannot hold, so the UNION merge resurrects it. Needs a founder call.
-   **Correction (audit 2026-09-03, CONTRACT-F2):** the consequence is larger —
-   every cost-seed upsert carries `deleted_at` (`utils/costSeedCore.ts:635`), so
-   PostgREST rejects ALL cost-seed writes (PGRST204), the queue retries them
-   forever with no toast, and production holds 0 cost seeds. The cost book is
-   device-only for everyone. Fix without touching the table: emit the key only
-   when set.
+   of a cost seed does not persist server-side — the tombstone carries
+   `deleted_at`, a column the table cannot hold. Needs a founder call.
+   **Audit 2026-09-03 (CONTRACT-F2) found the consequence was larger**: every
+   cost-seed upsert carried `deleted_at`, so PostgREST rejected ALL cost-seed
+   writes (PGRST204) and production held 0 cost seeds.
+   **Fixed on `claude/final-push-fixes` without touching the table:**
+   `utils/costSeedCore.ts` `seedToRow` emits `deleted_at` only on a tombstone,
+   so live seeds sync again the moment the OTA lands. Only the delete tombstone
+   still needs the column; until the founder adds it, a deleted seed stays
+   deleted on the device that deleted it and can reappear from another device.
 
 ## FOUR OPEN FOUNDER DECISIONS — not bugs, do not "fix" unilaterally
 

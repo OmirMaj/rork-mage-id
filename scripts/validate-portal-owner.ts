@@ -35,7 +35,7 @@ import {
   type OwnerDecision,
 } from '../utils/portalOwnerCore';
 import { buildPortalSnapshot, PORTAL_SNAPSHOT_VERSION } from '../utils/portalSnapshot';
-import type { Project, ClientPortalSettings, SavedAIAPayApp, SelectionCategory, ChangeOrder, DailyFieldReport, ProjectPhoto } from '../types';
+import type { Project, ClientPortalSettings, SavedAIAPayApp, SelectionCategory, ChangeOrder, DailyFieldReport, ProjectPhoto, Invoice } from '../types';
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -374,9 +374,43 @@ const snapshot = buildPortalSnapshot({
       options: [{ id: 'o1', productName: 'Zellige 4x4', brand: 'Clé', description: '', unitPrice: 22, unit: 'sf', quantity: 180, total: 3960, supplier: 'Tile Co', highlights: [], isChosen: false }],
     },
   ] as unknown as SelectionCategory[],
+  // Review of B3a (2026-09-05): the portal pill must read the status the app
+  // computes. #7 is the worked invoice — settled at $90,000 with $10,000 held,
+  // then released — whose stored 'paid' hid the reopened balance; #8 is simply
+  // unpaid and past due.
+  invoices: [
+    {
+      id: 'inv-released', number: 7, projectId: 'p1', type: 'progress', issueDate: '2026-05-01', dueDate: '2026-05-31',
+      paymentTerms: 'net_30', notes: '', lineItems: [], subtotal: 100_000, taxRate: 0, taxAmount: 0,
+      totalDue: 100_000, amountPaid: 90_000, status: 'paid', payments: [],
+      retentionPercent: 10, retentionAmount: 10_000, retentionReleased: 10_000,
+      createdAt: '2026-05-01', updatedAt: '2026-06-10',
+    },
+    {
+      id: 'inv-late', number: 8, projectId: 'p1', type: 'progress', issueDate: '2026-05-01', dueDate: '2026-05-31',
+      paymentTerms: 'net_30', notes: '', lineItems: [], subtotal: 20_000, taxRate: 0, taxAmount: 0,
+      totalDue: 20_000, amountPaid: 0, status: 'sent', payments: [],
+      createdAt: '2026-05-01', updatedAt: '2026-05-01',
+    },
+  ] as unknown as Invoice[],
   supabaseUrl: 'https://example.supabase.co',
   supabaseAnonKey: 'anon',
 });
+
+// Review of B3a — the client sees the status the GC sees.
+{
+  const snapInvs = snapshot.sections.invoices ?? [];
+  const released = snapInvs.find(i => i.id === 'inv-released');
+  const late = snapInvs.find(i => i.id === 'inv-late');
+  expect('snapshot invoices carry effectiveStatus (stored paid + released, unpaid retention → partially_paid)',
+    released?.effectiveStatus, 'partially_paid');
+  expect('…while the stored status is still carried for older portal builds', released?.status, 'paid');
+  expect('…and the reopened $10,000 is the balance the portal shows', released?.balance, 10_000);
+  expect('…with retentionReleased alongside so the drawer shows what is still held', released?.retentionReleased, 10_000);
+  ok('…and nothing is reported as still held once it is all released', released?.retentionHeld === undefined,
+    JSON.stringify(released?.retentionHeld));
+  expect('an unpaid invoice past its due date reads overdue', late?.effectiveStatus, 'overdue');
+}
 
 // Job 3 — the mapping that never existed.
 expect('SelectionCategory.dueDate now reaches the snapshot',
@@ -483,6 +517,24 @@ ok('NEGATIVE: the dollar-figure check actually fires on a leaked figure',
 console.log('\nportal owner — change-order e-signature:');
 
 const portalHtml = read('marketing/portal/index.html');
+
+// Review of B3a (2026-09-05) — the static portal renders the money the way the
+// app computes it: the pill from effectiveStatus, retainage as what is still
+// HELD, and a pay app the webhook stamped paidAt as Paid, never as a Pay button.
+{
+  ok('portal invoice card derives its pill from effectiveStatus (stored status is the fallback)',
+    /var invStatus = i\.effectiveStatus \|\| i\.status;/.test(portalHtml) && /statusPillClass\(invStatus\)/.test(portalHtml));
+  ok('portal invoice drawer does the same',
+    /var invStatus = inv\.effectiveStatus \|\| inv\.status;/.test(portalHtml));
+  ok('portal invoice drawer renders retainage as the pending amount (retentionAmount − retentionReleased)',
+    /inv\.retentionAmount - retentionReleased/.test(portalHtml) && /Retainage held/.test(portalHtml));
+  ok('…and never subtracts the ORIGINAL withholding',
+    !/fmtMoney\(inv\.retentionAmount, \{dec:2\}\)/.test(portalHtml));
+  ok('portal AIA card shows Paid for a pay app with paidAt instead of a Pay button',
+    /var aiaPaid = !!a\.paidAt;/.test(portalHtml) && /var canPay = !aiaPaid && !!a\.payLinkUrl && due > 0;/.test(portalHtml));
+  ok('portal AIA drawer footer shows Paid for a pay app with paidAt',
+    /var aiaCanPay = !aiaPaid && !!a\.payLinkUrl && aiaDue > 0;/.test(portalHtml) && /Paid ' \+ fmtDate\(a\.paidAt\)/.test(portalHtml));
+}
 ok('portal/index.html loaded', portalHtml.length > 0);
 
 // The regression this whole job exists to prevent.

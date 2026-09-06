@@ -13,7 +13,7 @@
 //
 // Pure modules, no React Native deps — bun imports and runs them directly.
 
-import { computeARAgingReport } from '../utils/financialReports';
+import { computeARAgingReport, arAgingReportToCSV } from '../utils/financialReports';
 import { diffEstimates } from '../utils/estimateCommit';
 import type { Invoice, Project, LinkedEstimate, LinkedEstimateItem } from '../types';
 
@@ -76,6 +76,50 @@ console.log('\nA/R aging — draft invoices:');
   );
   eq('sent + partially_paid + overdue stay in A/R (paid nets to zero)',
     billed.totals.totalOutstanding, 2_600);
+}
+
+// ── 1b. A/R aging: held retainage on a settled-net invoice is still a receivable
+// Review of B3a (2026-09-05): the $100,000 invoice holding $10,000 retention,
+// paid down to the $90,000 asked for, is settled — so it produced NO A/R row and
+// the $10,000 the client still holds vanished from the report a bank reads.
+console.log('\nA/R aging — retainage held on a settled invoice:');
+{
+  const report = computeARAgingReport(
+    [
+      invoice({ id: 'settled-retained', number: 7, status: 'paid', totalDue: 100_000, amountPaid: 90_000, retentionAmount: 10_000 }),
+      invoice({ id: 'open-retained',    number: 8, status: 'sent', totalDue: 100_000, amountPaid: 50_000, retentionAmount: 10_000 }),
+      invoice({ id: 'fully-done',       number: 9, status: 'paid', totalDue: 100_000, amountPaid: 100_000, retentionAmount: 10_000, retentionReleased: 10_000 }),
+    ],
+    projects,
+  );
+  const settled = report.rows.find(r => r.invoiceId === 'settled-retained');
+  ok('the settled-net invoice with retainage held produces a row', !!settled);
+  eq('…with $0 current (nothing is collectible today)', settled?.outstanding ?? -1, 0);
+  eq('…and the $10,000 held disclosed on the row', settled?.retainageHeld ?? -1, 10_000);
+  ok('…which is not aged (held retainage is not past due)', settled?.daysPastDue === 0 && settled?.bucket === 'current',
+    JSON.stringify({ days: settled?.daysPastDue, bucket: settled?.bucket }));
+  ok('an invoice whose retainage was released AND collected produces no row',
+    !report.rows.some(r => r.invoiceId === 'fully-done'));
+  eq('totals.retainageHeld sums the held retention across rows', report.totals.retainageHeld, 20_000);
+  eq('total outstanding is only the collectible $40,000', report.totals.totalOutstanding, 40_000);
+  eq('the settled row adds nothing to any bucket',
+    report.totals.current + report.totals['0-30'] + report.totals['31-60'] + report.totals['61-90'] + report.totals['90+'], 40_000);
+
+  // The CSV must foot for the banker: Total Due − Paid − Retainage Held = Outstanding, on every row and on the TOTAL line.
+  const csv = arAgingReportToCSV(report);
+  const lines = csv.split('\n');
+  const header = lines[0].split(',');
+  const col = (name: string) => header.indexOf(name);
+  ok('CSV carries the Retainage Held column', col('Retainage Held') >= 0 && col('Outstanding') >= 0);
+  const foots = lines.slice(1).every(l => {
+    const c = l.split(',');
+    const due = Number(c[col('Total Due')]), paid = Number(c[col('Paid')]), held = Number(c[col('Retainage Held')]), out = Number(c[col('Outstanding')]);
+    return Math.abs(due - paid - held - out) < 0.005;
+  });
+  ok('every CSV line foots: Total Due − Paid − Retainage Held = Outstanding', foots, csv);
+  ok('the CSV ends with a TOTAL line', lines[lines.length - 1].startsWith('TOTAL,'));
+  ok('the TOTAL line carries $20,000 retainage held and $40,000 outstanding',
+    lines[lines.length - 1].includes('20000.00') && lines[lines.length - 1].includes('40000.00'), lines[lines.length - 1]);
 }
 
 // ── 2. Revision diff: rows must foot to Net Change ──────────────────────────

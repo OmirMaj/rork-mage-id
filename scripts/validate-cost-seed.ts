@@ -1055,7 +1055,15 @@ const delRow = seedToRow(tombstone, UID);
 expect('a tombstone reaches Postgres as a soft delete, not a vanished row',
   delRow.deleted_at, T_NEW);
 expect('…and comes back as a tombstone', rowToSeed(delRow)?.deletedAt, T_NEW);
-expect('a live row carries no deleted_at', seedToRow(base, UID).deleted_at, null);
+// CONTRACT-F2: production cost_seeds has NO deleted_at column (the soft-delete
+// migration is deliberately held back). `null` is not "absent" — JSON.stringify
+// keeps it on the wire — so a live row carrying `deleted_at: null` was rejected
+// with PGRST204, classified transient and re-queued forever; production held 0
+// seeds. The key must be ABSENT on a live row and present only on a tombstone.
+const liveRow = seedToRow(base, UID) as unknown as Record<string, unknown>;
+ok('a live row carries NO deleted_at key at all (not even null)', !('deleted_at' in liveRow));
+ok('…and the key is not on the wire', !/deleted_at/.test(JSON.stringify(liveRow)));
+ok('a tombstone still carries deleted_at', 'deleted_at' in (delRow as unknown as Record<string, unknown>));
 expect('rowToSeed reads the server updated_at', rowToSeed({ ...pgRow, updated_at: T_NEW })?.updatedAt, T_NEW);
 ok('seedToRow does NOT send updated_at — the DB trigger owns it',
   !('updated_at' in (seedToRow(base, UID) as unknown as Record<string, unknown>)));

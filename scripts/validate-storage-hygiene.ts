@@ -261,6 +261,120 @@ ok('offline write queues are dropped on a deliberate sign-out',
 ok('offline write queues survive a same-user re-auth',
   selectTenantKeysToWipe(OFFLINE_WRITE_QUEUE_KEYS, { dropOfflineQueue: false }).length === 0);
 
+// ── A2 (review 2026-09-05, round 3): those two keys are the ONLY ones the wipe
+// may not remove itself ────────────────────────────────────────────────────
+// Every other key here is a re-fetchable cache: worst case a wipe races a read
+// and the read re-populates it from Supabase. The two write queues are the
+// opposite — pending writes that exist nowhere else, with a WRITER (the flush)
+// that outlives the wipe. `flushQueuesBeforeSignOut` is bounded by a 20 s
+// ceiling; when the ceiling wins, the flush is still in its network phase
+// holding a pre-wipe snapshot, and its write-back RE-CREATED the key seconds
+// after the multiRemove — with the previous tenant's entries, on a shared
+// device, now vouched for by the incoming user's last-user marker. So the wipe
+// hands both keys to the module that owns them, which empties them under the
+// same lock the write-back takes.
+{
+  // Comment-stripped: this file's prose (and AuthContext's) describes the OLD
+  // multiRemove verbatim, and a negative pin must not be tripped by prose.
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const authNoComments = strip(auth);
+  const queueSrc = strip(read('utils/offlineQueue.ts'));
+  const photoSrc = strip(read('utils/photoUploadQueue.ts'));
+
+  for (const key of OFFLINE_WRITE_QUEUE_KEYS) {
+    ok(`AuthContext never removes ${key} by key`,
+      !new RegExp(`(multiRemove|removeItem|setItem)\\([^)]*['"]${key}['"]`).test(authNoComments),
+      'touching a write queue outside its lock is how a flush resurrects it');
+  }
+  ok('AuthContext does not reach for OFFLINE_WRITE_QUEUE_KEYS at all',
+    !/OFFLINE_WRITE_QUEUE_KEYS/.test(authNoComments),
+    'the list is for selectTenantKeysToWipe to honour, not for a caller to multiRemove');
+  ok('the wipe empties both queues through their own locked clear functions',
+    /await clearOfflineQueue\(\);/.test(authNoComments) && /await clearPhotoUploadQueue\(\);/.test(authNoComments));
+  ok('the prefix sweep is pinned to dropOfflineQueue: false so its multiRemove cannot include them',
+    /selectTenantKeysToWipe\(allKeys, \{ dropOfflineQueue: false \}\)/.test(authNoComments),
+    'the sweep\'s multiRemove is unlocked; the locked clears above already cover both keys');
+  // Coverage is unchanged, only the route: what the sweep no longer removes,
+  // the two clear functions do. Assert that, or "don't wipe it here" becomes
+  // "don't wipe it".
+  const clearedByModule = [
+    /AsyncStorage\.removeItem\(OFFLINE_QUEUE_KEY\)/.test(queueSrc) ? 'mageid_offline_queue' : '',
+    /AsyncStorage\.removeItem\(PHOTO_QUEUE_KEY\)/.test(photoSrc) ? 'mageid_photo_upload_queue' : '',
+  ].filter(Boolean);
+  ok('every write-queue key is still emptied by SOMETHING on a sign-out',
+    OFFLINE_WRITE_QUEUE_KEYS.every((k) => clearedByModule.includes(k)),
+    `not cleared anywhere: ${OFFLINE_WRITE_QUEUE_KEYS.filter((k) => !clearedByModule.includes(k)).join(', ')}`);
+  ok('…and each clear runs inside withQueueLock',
+    /export async function clearOfflineQueue\(\): Promise<void> \{\s*await withQueueLock\(/.test(queueSrc)
+      && /export async function clearPhotoUploadQueue\(\): Promise<void> \{\s*const cleared = await withQueueLock\(/.test(photoSrc),
+    'outside the lock this is the same race with extra steps');
+  ok('…as does the per-user narrowing AuthContext calls on a marker-less session',
+    /export async function retainOfflineQueueForUser\([\s\S]{0,120}?await withQueueLock\(/.test(queueSrc)
+      && /export async function retainPhotoUploadQueueForUser\([\s\S]{0,120}?await withQueueLock\(/.test(photoSrc));
+
+  // ── BLOCKING (review 2026-09-05, round 4): the marker backfill NARROWS
+  // before it STAMPS ─────────────────────────────────────────────────────────
+  // The AuthProvider mount effect writes the last-user marker on an install
+  // that pre-dates it. Stamping that marker is exactly what makes an UNTAGGED
+  // queue entry adoptable — a flush treats "no tag + the marker names me" as
+  // mine (utils/offlineQueue.partitionQueueForSession) — so a backfill that
+  // stamps first hands the previous tenant's untagged writes to whoever is
+  // signed in now. On web that is reachable today: supabase-js's
+  // detectSessionInUrl redeems a recovery link and switches the session at
+  // CLIENT CONSTRUCTION, so on a shared browser profile the mount effect can
+  // stamp user B over user A's untagged queue, and app/reset-password.tsx's
+  // handoff-less onNewSessionEstablished() then reads the marker it just wrote,
+  // concludes "same user" and never reaches the narrowing that would have
+  // caught it. The retains must therefore come FIRST, in the same continuation.
+  const backfillAt = authNoComments.indexOf('void readLastUser().then(');
+  const backfill = backfillAt === -1 ? '' : authNoComments.slice(backfillAt, backfillAt + 700);
+  ok('the mount-effect last-user backfill is where this guard expects it',
+    backfillAt !== -1, 'renamed or restructured — re-read this pin before trusting it');
+  {
+    const retainText = backfill.indexOf('retainOfflineQueueForUser(');
+    const retainPhotos = backfill.indexOf('retainPhotoUploadQueueForUser(');
+    const stamp = backfill.indexOf('writeLastUser(');
+    ok('the backfill narrows BOTH queues to the arriving user before it stamps the marker',
+      retainText !== -1 && retainPhotos !== -1 && stamp !== -1
+        && retainText < stamp && retainPhotos < stamp,
+      'stamping first makes every untagged entry — possibly the previous tenant\'s, on a shared browser profile — adoptable by the very next flush');
+
+    // A8 (round 5): …and how HARD it narrows is a platform decision, because
+    // the leak above needs detectSessionInUrl — a browser-only feature of
+    // supabase-js. On native no session can be in front of this effect without
+    // a sign-in path having written the marker, so the untagged entries are the
+    // session user's own day of field work; dropping them (and unlinking the
+    // photo bytes behind them) buys nothing there. Behaviour is executed in
+    // __tests__/sync/auth-marker-backfill.test.tsx; what is pinned here is that
+    // the gate exists at all — a hard-coded `dropUntagged: true` would pass
+    // every one of the assertions above.
+    const gate = /const dropUntagged = Platform\.OS === 'web';/.test(backfill);
+    ok('…and the narrowing is gated on the platform that can actually leak',
+      gate && /retainOfflineQueueForUser\(u\.id, \{ dropUntagged \}\)/.test(backfill)
+        && /retainPhotoUploadQueueForUser\(u\.id, \{ dropUntagged \}\)/.test(backfill),
+      'either the Platform.OS === \'web\' gate or one of the two calls that consumes it is gone');
+    // A8: a read that FAILED is not a queue that was empty. Stamping over a
+    // queue this call could not inspect is the same leak by another route.
+    const guard = backfill.indexOf('if (text.readFailed || photos.readFailed) {');
+    ok('…and a queue that could not be READ leaves the marker unwritten',
+      guard !== -1 && guard < stamp,
+      'without this the marker goes down over an unreadable queue and every untagged entry in it becomes adoptable');
+  }
+
+  // The stricter rule stays where an explicit sign-in has already said this is
+  // NOT the same user: onNewSessionEstablished passes NO options, so it gets
+  // the default (drop everything untagged) on every platform.
+  const establishAt = authNoComments.indexOf('const onNewSessionEstablished = useCallback');
+  const establish = establishAt === -1 ? '' : authNoComments.slice(establishAt, establishAt + 4000);
+  ok('onNewSessionEstablished still narrows with the STRICT default, on every platform',
+    /retainOfflineQueueForUser\(incomingId\),\s*retainPhotoUploadQueueForUser\(incomingId\),/.test(establish),
+    'an explicit not-same-user sign-in must not inherit the backfill\'s native leniency');
+  ok('…and it too refuses to stamp the marker over a queue it could not read',
+    /if \(text\.readFailed \|\| photos\.readFailed\)/.test(establish)
+      && /if \(markerUnsafe\)/.test(establish),
+    'a swallowed read error here drops the queue AND stamps the marker — the worst of both');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Blast radius — the sweep must not touch anyone else's keys
 // ─────────────────────────────────────────────────────────────────────────────
@@ -297,6 +411,58 @@ ok('every current prefix is still written by the app',
 ok('every un-namespaced app key prefix is still written by the app',
   UNNAMESPACED_APP_KEY_PREFIXES.every((p) => [...discovered.keys()].some((k) => k.startsWith(p))),
   `stale: ${UNNAMESPACED_APP_KEY_PREFIXES.filter((p) => ![...discovered.keys()].some((k) => k.startsWith(p))).join(', ')}`);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Every token-redeeming entry point runs the PRE-session identity check
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n── 5. setSession() outside AuthContext goes through beginSessionFromToken ──');
+//
+// The magic-link handler (app/_layout.tsx) and the password-reset screen
+// (app/reset-password.tsx) redeem a token URL THEMSELVES with
+// supabase.auth.setSession(). Calling onNewSessionEstablished() afterwards ran
+// the shared-device guard only AFTER the session had switched, so on a shared
+// machine the new user's first queries could merge the previous tenant's local
+// rows under the new account (SYNC-F13). AuthContext.beginSessionFromToken()
+// is the pre-session step — decode the token's claims, flush the previous
+// user's queues under THEIR still-active session, wipe their caches — and
+// every direct setSession() caller must (a) await it BEFORE setSession and
+// (b) hand its verdict to onNewSessionEstablished(handoff) afterwards.
+// The reset-password screen had (b) without (a) until 2026-09-05.
+const AUTH_HOME = 'contexts/AuthContext.tsx';
+const SET_SESSION_RE = /supabase\.auth\.setSession\(/g;
+const setSessionCallers: string[] = [];
+const unguarded: string[] = [];
+for (const file of FILES) {
+  const rel = relative(ROOT, file);
+  if (rel === AUTH_HOME) continue;
+  const code = readFileSync(file, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  let m: RegExpExecArray | null;
+  SET_SESSION_RE.lastIndex = 0;
+  while ((m = SET_SESSION_RE.exec(code)) !== null) {
+    setSessionCallers.push(rel);
+    const guardAt = code.lastIndexOf('await beginSessionFromToken(', m.index);
+    const handoffAt = code.indexOf('onNewSessionEstablished(handoff)', m.index);
+    const destructured = /\{[^}]*\bbeginSessionFromToken\b[^}]*\}\s*=\s*useAuth\(\)/.test(code);
+    if (guardAt === -1 || handoffAt === -1 || !destructured) {
+      unguarded.push(`${rel}: ${guardAt === -1 ? 'no await beginSessionFromToken() before setSession' : handoffAt === -1 ? 'verdict not passed to onNewSessionEstablished(handoff)' : 'beginSessionFromToken not taken from useAuth()'}`);
+    }
+  }
+}
+ok('setSession() is called outside AuthContext by the two token-redeeming entry points',
+  setSessionCallers.includes('app/_layout.tsx') && setSessionCallers.includes('app/reset-password.tsx'),
+  `found: ${setSessionCallers.join(', ') || 'none'} — the handlers moved or the scan regex is broken`);
+ok('every setSession() outside AuthContext awaits beginSessionFromToken() first and hands the verdict to onNewSessionEstablished(handoff)',
+  unguarded.length === 0,
+  unguarded.length
+    ? `UNGUARDED — the previous tenant's rows can merge under the new session:\n   ${unguarded.join('\n   ')}`
+    : '');
+ok('no runtime file outside AuthContext redeems a token with beginSessionFromToken missing from its imports',
+  FILES.every((f) => {
+    const rel = relative(ROOT, f);
+    if (rel === AUTH_HOME) return true;
+    const src = readFileSync(f, 'utf8');
+    return !/supabase\.auth\.setSession\(/.test(src) || /beginSessionFromToken/.test(src);
+  }));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -11,7 +11,7 @@
 //
 // fileURLToPath + join because the repo path contains a space.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -74,6 +74,61 @@ for (const r of sidebarRoutes) {
   assert(registryRoutes.has(r), `sidebar route '${r}' is searchable in the registry`);
 }
 
+// ── 2b. iOS reachability ───────────────────────────────────────────────────
+// PRODUCT-F4 / UX-F16: thirty sidebar destinations had NO inbound navigation
+// on iPhone — the sidebar mounts at ≥1024pt only, so Deliveries, Waiting-on,
+// Equipment, Suppliers, Pre-priced Bids and Home Passport shipped invisible on
+// the primary platform. Every sidebar route must be referenced from a surface
+// a phone user can reach — a tab screen (app/(tabs)/**), the project tile
+// grid, a Summary sheet, a home card or the create menu — or be listed in
+// IOS_EXEMPT with a reason. Exemptions must still exist in the sidebar.
+
+function listFiles(dir: string): string[] {
+  const out: string[] = [];
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...listFiles(full));
+    else if (/\.tsx?$/.test(name)) out.push(full);
+  }
+  return out;
+}
+
+const IOS_SOURCES = [
+  ...listFiles(join(ROOT, 'app', '(tabs)')),
+  join(ROOT, 'app', 'project-detail.tsx'),
+  ...listFiles(join(ROOT, 'components', 'summary')),
+  ...listFiles(join(ROOT, 'components', 'home')),
+  join(ROOT, 'components', 'CreateMenu.tsx'),
+].filter(existsSync);
+assert(IOS_SOURCES.length >= 20, `found the iOS navigation sources (${IOS_SOURCES.length})`);
+const iosSrc = IOS_SOURCES.map(f => readFileSync(f, 'utf8')).join('\n');
+
+const IOS_EXEMPT: Record<string, string> = {
+  '/(tabs)/discover/hire': 'HIRE_ENABLED is false for launch (same as SIDEBAR_EXEMPT)',
+  '/messages': 'HIRE_ENABLED is false for launch (same as SIDEBAR_EXEMPT)',
+  '/(tabs)/summary': 'tab-bar destination — app/(tabs)/_layout.tsx <Tabs.Screen name="summary">',
+  '/(tabs)/settings': 'tab-bar destination — app/(tabs)/_layout.tsx <Tabs.Screen name="settings">',
+  '/(tabs)/mage-id-bids': 'tab-bar destination — app/(tabs)/_layout.tsx <Tabs.Screen name="mage-id-bids">',
+  '/my-rfps': 'client-persona destination (CLIENT_NAV_ITEMS). On iOS it is reached from the post-RFP success alert ("See my RFPs" → router.replace(\'/my-rfps\'), app/post-rfp.tsx handleSubmit), which is outside the phone sources this guard scans; components/ClientHome.tsx (the client (home) tab) does NOT link it — it renders the homeowner\'s RFPs inline and opens each via /rfp-responses-review (handleOpenRfp)',
+};
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function referencedOnPhone(route: string): boolean {
+  // '/(tabs)/subs' may be written as '/subs' (Expo Router groups are optional).
+  const variants = [route, route.replace(/^\/\(tabs\)/, '')].filter(v => v.length > 1);
+  return variants.some(v => new RegExp(`['"\`]${escapeRe(v)}(?:[?'"\`]|\\$\\{)`).test(iosSrc));
+}
+
+for (const r of new Set(sidebarRoutes)) {
+  if (IOS_EXEMPT[r]) continue;
+  assert(referencedOnPhone(r),
+    `sidebar route '${r}' is reachable on iOS — reference it from app/(tabs)/** (e.g. discover/tools.tsx), app/project-detail.tsx, components/summary/**, components/home/** or components/CreateMenu.tsx, or add it to IOS_EXEMPT with a reason (PRODUCT-F4)`);
+}
+for (const r of Object.keys(IOS_EXEMPT)) {
+  assert(sidebarRoutes.includes(r), `IOS_EXEMPT entry '${r}' is stale — it is no longer a sidebar route`);
+}
+
 // ── 3. Popular shortlist ────────────────────────────────────────────────────
 
 assert(POPULAR_FEATURE_IDS.length >= 4, 'popular shortlist has at least 4 entries');
@@ -98,7 +153,8 @@ assert(searchFeatures('zzzqqq', 'free').length === 0, 'garbage query returns not
 
 // Synonym routing — the queries a contractor actually types.
 assert(top('gantt')[0] === 'schedule-pro', `'gantt' lands on Pro Scheduler (got ${top('gantt')[0]})`);
-assert(top('quickbooks')[0] === 'integrations', `'quickbooks' lands on integrations`);
+assert(top('quickbooks')[0] === 'quickbooks', `'quickbooks' lands on QuickBooks Online (/qbo-setup), not the preview Integrations screen (PRODUCT-F2)`);
+assert(!registryRoutes.has('/integrations'), 'the preview-only /integrations screen is not searchable (PRODUCT-F2)');
 assert(top('g702')[0] === 'aia-pay-app', `'g702' lands on AIA Pay Apps`);
 assert(top('osha')[0] === 'safety-osha', `'osha' lands on OSHA Logs`);
 assert(top('retainage')[0] === 'retention', `'retainage' lands on Retention`);
@@ -163,7 +219,7 @@ assert(searchFeatures('s', 'business', { maxResults: 3 }).length <= 3, 'maxResul
 // ── Report ──────────────────────────────────────────────────────────────────
 
 if (failed === 0) {
-  console.log(`  PASS  ${FEATURE_REGISTRY.length} destinations, sidebar parity, ranking, tier locks, personas`);
+  console.log(`  PASS  ${FEATURE_REGISTRY.length} destinations, sidebar parity, iOS reachability, ranking, tier locks, personas`);
   process.exit(0);
 }
 console.error(`\n${failed} feature-search check(s) failed`);
