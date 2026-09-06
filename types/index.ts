@@ -223,6 +223,40 @@ export interface Project {
   estimateVersions?: EstimateRevision[];
   status: 'draft' | 'estimated' | 'in_progress' | 'completed' | 'closed';
   collaborators?: ProjectCollaborator[];
+  /**
+   * `projects.user_id` as loaded from the server — who the row belongs to.
+   * Stamped by the ProjectContext loader and persisted with the local copy so
+   * the write path can tell "my project" from "a project I collaborate on"
+   * even on an offline launch. Every creation path (addProject, importData,
+   * lead conversion) stamps the creator's id too (A-1), so the field is absent
+   * ONLY on a cache written before it existed — and such a row is written back
+   * base-columns-only until the next successful load stamps it.
+   */
+  ownerUserId?: string;
+  /**
+   * This account's ACCEPTED role on the project, from its own row in the
+   * server's `project_collaborators` table (`pc_invitee_read`) — the table the
+   * invite flow actually writes. The display list in `collaborators` is a
+   * legacy Team roster that the invite flow never touches, so it cannot say
+   * whether THIS caller is a field foreman (money-blinded) or an editor.
+   * Stamped by the ProjectContext loader; kept from the cache when that read
+   * fails; absent on an owned project and on caches predating the field.
+   */
+  myRole?: ProjectCollaborator['role'];
+  /**
+   * Whether this device positively holds the project's money (estimate /
+   * linkedEstimate / estimateVersions / targetBudget). Always true for an
+   * owned project. For a SHARED project it is true only when the loader read
+   * this project's `project_financials` row — or, for a known non-field role,
+   * read the table successfully, found none, AND the legacy `projects.*` money
+   * columns are empty too (B-3: legacy money with no row means the fin table
+   * is behind the owner's pre-split device, not that no estimate exists).
+   * `false` after a transient financials read failure: the cached money stays
+   * for display, but a write must not carry it (an editor's PATCH would
+   * otherwise NULL the owner's estimate on both tables). Absent (pre-field
+   * cache) reads as "loaded".
+   */
+  financialsLoaded?: boolean;
   clientPortal?: ClientPortalSettings;
   closedAt?: string;
   /**
@@ -1465,7 +1499,12 @@ export interface RetentionRelease {
   id: string;
   date: string;
   amount: number;
-  method: PaymentMethod;
+  /**
+   * MONEY-F7: a release means "now collectible", not "paid" — the cash arrives
+   * as an InvoicePayment. Optional because the release modal no longer asks
+   * for a payment method; legacy rows may still carry one.
+   */
+  method?: PaymentMethod;
   note?: string;
 }
 
@@ -1496,6 +1535,13 @@ export interface Invoice {
   // client. Null / absent means no Stripe link has been generated.
   payLinkUrl?: string;
   payLinkId?: string;
+  /**
+   * MONEY-F2: the dollar amount the Stripe Payment Link was minted for
+   * (server column `pay_link_amount`; stamped locally at mint time too). A
+   * link charges this fixed figure every time it is opened, so the portal
+   * shows Pay only while it equals what the client still owes.
+   */
+  payLinkAmount?: number;
   createdAt: string;
   updatedAt: string;
   // QuickBooks 2-way sync — Phase 1.
@@ -1601,6 +1647,16 @@ export interface SavedAIAPayApp {
   // pay app while regular invoices got Pay buttons. Asymmetric.
   payLinkUrl?: string;
   payLinkId?: string;
+  /** Amount the pay link was minted for. Server-owned (create-payment-link);
+   *  hydrated from aia_pay_apps.pay_link_amount once migration 20260904100100
+   *  is applied — the app never writes it. */
+  payLinkAmount?: number;
+  /** Set by the Stripe webhook when the pay app is paid (aia_pay_apps.paid_at). */
+  paidAt?: string;
+  /** Server timestamps, hydrated by the loader (aia_pay_apps.created_at /
+   *  updated_at); `savedAt` remains the app-side save moment. */
+  createdAt?: string;
+  updatedAt?: string;
 
   savedAt: string;
   // Client portal send/recall lifecycle — Phase 1.

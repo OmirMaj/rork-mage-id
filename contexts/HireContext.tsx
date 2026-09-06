@@ -70,8 +70,13 @@ export const [HireProvider, useHire] = createContextHook(() => {
           const { data, error } = await supabase
             .from('job_listings')
             .select('*')
-            .order('fetched_at', { ascending: false });
-          if (!error && data && data.length > 0) {
+            // CONTRACT-F3: `fetched_at` does not exist on job_listings
+            // (schema.sql: posted_date + created_at). Same silent-400 shape
+            // as companies; fixed while the feature is still gated off.
+            .order('created_at', { ascending: false });
+          if (error) {
+            console.log('[HireContext] job_listings read rejected:', error.code, error.message);
+          } else if (data) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, companyId: (r.company_id as string) ?? '',
               companyName: (r.company_name as string) ?? '', title: r.title as string,
@@ -110,8 +115,12 @@ export const [HireProvider, useHire] = createContextHook(() => {
           const { data, error } = await supabase
             .from('worker_profiles')
             .select('*')
-            .order('fetched_at', { ascending: false });
-          if (!error && data && data.length > 0) {
+            // CONTRACT-F3: `fetched_at` does not exist on worker_profiles
+            // (schema.sql: created_at only). See job_listings above.
+            .order('created_at', { ascending: false });
+          if (error) {
+            console.log('[HireContext] worker_profiles read rejected:', error.code, error.message);
+          } else if (data) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, name: r.name as string,
               tradeCategory: r.trade_category as TradeCategory,
