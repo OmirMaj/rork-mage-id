@@ -39,6 +39,28 @@ qbo-reconciler   401 {"success":false,"error":"cron auth required"}
 portal-ask-home  400 {"success":false,"error":"Missing portalId, accessToken, or question"}
 ```
 
+### The cron fix, observed in `net._http_response`
+
+Not inferred — the rows either side of the function deploy (~17:47 UTC):
+
+```
+17:00  401  {"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization header"}
+17:05  401  {"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization header"}
+17:30  401  {"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization header"}
+--- deploy ---
+18:00  200  {"success":true,"message":"Data fetch cycle complete"}          fetch-external-data
+18:00  200  {"success":true,"pushed":0,"pulled":0,"costStaged":0,"errors":2} qbo-reconciler
+18:05  200  {"ok":true,"fired":0,"results":[]}                              morning-digest
+```
+
+The 401s were the GATEWAY refusing the request before any code ran — the
+`verify_jwt: true` that had been wrong since July. Every response after the
+deploy is the function's own answer.
+
+`qbo-reconciler`'s `errors: 2` is expected and not a regression: the preflight
+found its only QBO grant is a sandbox token with `access_expires_at`
+2026-05-26. It is now running and reporting, where before it never ran at all.
+
 `schedule-ical` still returns `401 Bad token` for a token minted from the old
 public fallback literal. `sync-bids` and `fetch-material-price` return 404.
 
