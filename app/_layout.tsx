@@ -371,7 +371,16 @@ function OfflineSyncManager() {
     };
 
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+      // Compared, not `.match`ed. `AppState.currentState` is seeded from a
+      // native constant and is NOT guaranteed to be a string — it is null on
+      // Android before the first event, and it is a non-string under the jest
+      // harness. `appState.current.match(...)` then throws inside this
+      // listener, which is the ONE place the app learns it was foregrounded:
+      // the offline queue would never drain on resume and the throw would
+      // escape into RN's event emitter. Reproduced by
+      // __tests__/smoke/foreground-permission.test.tsx.
+      const previous = appState.current;
+      if ((previous === 'inactive' || previous === 'background') && nextState === 'active') {
         console.log('[OfflineSync] App foregrounded, processing queue');
         drain(true);
       } else if (nextState === 'background' || nextState === 'inactive') {

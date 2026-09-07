@@ -119,26 +119,44 @@ export default function MaterialsScreen() {
     });
   }, [priceAlerts, updatePriceAlert, locationMultiplier]);
 
+  // refreshPrices writes `priceAlerts` (updatePriceAlert) and `priceAlerts` is
+  // one of its own useCallback deps, so it gets a FRESH IDENTITY after every
+  // run. Anything that lists it in a dep array therefore re-runs after every
+  // run — which is exactly the shape that produced "Maximum update depth
+  // exceeded" on the Estimator (commit 8f33e6fd, fixed there with this same
+  // ref). The three effects below reach the latest refreshPrices through the
+  // ref instead, so none of them keys on an identity that churns: the 5-minute
+  // interval is no longer silently restarted on every re-price, and the
+  // AppState listener is registered once instead of being torn down and
+  // re-added on every foreground.
+  const refreshPricesRef = useRef(refreshPrices);
+  useEffect(() => { refreshPricesRef.current = refreshPrices; }, [refreshPrices]);
+
   useEffect(() => {
-    const interval = setInterval(() => refreshPrices(false), 5 * 60 * 1000);
+    const interval = setInterval(() => refreshPricesRef.current(false), 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [refreshPrices]);
+  }, []);
 
   // Re-price whenever the selected location changes so the picker is no longer
   // decorative. Keyed only on the multiplier — refreshPrices mutates price
   // alerts, so keying this on its identity would loop.
   useEffect(() => {
-    refreshPrices(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    refreshPricesRef.current(false);
   }, [locationMultiplier]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextState => {
-      if (appState.current.match(/inactive|background/) && nextState === 'active') refreshPrices(false);
+      // Compared, not `.match`ed — AppState.currentState is not guaranteed to
+      // be a string (null on Android before the first event), and a throw here
+      // escapes into RN's event emitter. Same fix as app/_layout.tsx.
+      const previous = appState.current;
+      if ((previous === 'inactive' || previous === 'background') && nextState === 'active') {
+        refreshPricesRef.current(false);
+      }
       appState.current = nextState;
     });
     return () => sub.remove();
-  }, [refreshPrices]);
+  }, []);
 
   useEffect(() => {
     Animated.loop(
