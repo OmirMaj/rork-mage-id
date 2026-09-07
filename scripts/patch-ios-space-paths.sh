@@ -25,7 +25,19 @@
 #
 # THE REAL FIX is to check out to a path with no spaces. Do that and this
 # script becomes dead weight — delete it, and the postinstall hook with it.
-set -e
+# PORTABILITY, and why there is no `set -e` here.
+#
+# This runs from `postinstall`, so it runs on EVERY `bun install` — including
+# Linux CI and the Netlify build image, which have GNU sed, not BSD sed. The
+# first version used `sed -i ''`, which is BSD syntax: GNU sed reads the empty
+# string as its script argument and exits non-zero. Under `set -e` that killed
+# the whole install, and Netlify failed in the "Install dependencies" stage
+# before the build command ever ran — every app.mageid.app deploy from
+# 2026-09-06 onward. A patch for a macOS-only build detail must never be able
+# to fail an install on a machine that will never run an iOS build.
+#
+# So: write through a temp file instead of `sed -i` (portable everywhere), and
+# make every failure a no-op. The script always exits 0.
 patched=0
 for f in \
   node_modules/expo-updates/scripts/create-updates-resources-ios.sh \
@@ -33,9 +45,17 @@ for f in \
 do
   [ -f "$f" ] || continue
   grep -q 'basename \$PROJECT_DIR' "$f" 2>/dev/null || continue
-  sed -i '' 's|basename \$PROJECT_DIR|basename "$PROJECT_DIR"|g' "$f"
-  echo "  quoted \$PROJECT_DIR in $f"
-  patched=$((patched + 1))
+  tmp="$f.mageid-tmp.$$"
+  if sed 's|basename \$PROJECT_DIR|basename "$PROJECT_DIR"|g' "$f" > "$tmp" 2>/dev/null &&
+     [ -s "$tmp" ] &&
+     mv "$tmp" "$f" 2>/dev/null
+  then
+    echo "  quoted \$PROJECT_DIR in $f"
+    patched=$((patched + 1))
+  else
+    rm -f "$tmp" 2>/dev/null || true
+    echo "  skipped $f (could not patch; not fatal)"
+  fi
 done
 [ "$patched" -gt 0 ] && echo "patch-ios-space-paths: fixed $patched script(s)" || true
 exit 0

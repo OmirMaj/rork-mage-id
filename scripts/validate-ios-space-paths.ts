@@ -88,6 +88,29 @@ for (const rel of [
     'unquoted here means: build succeeds, no app.manifest, app crashes at launch');
 }
 
+// ── the postinstall script must be PORTABLE ─────────────────────────────────
+// It runs on every `bun install`, including Linux CI and the Netlify build
+// image. The first version used `sed -i ''` (BSD-only) under `set -e`: GNU sed
+// exits non-zero, `set -e` propagated it, and Netlify's "Install dependencies"
+// stage failed before the build command ran — every app.mageid.app deploy from
+// 2026-09-06 on. A macOS-only convenience must never fail an install on a
+// machine that will never build iOS.
+{
+  const shPath = join(ROOT, 'scripts/patch-ios-space-paths.sh');
+  const sh = existsSync(shPath) ? readFileSync(shPath, 'utf8') : '';
+  const code = sh.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+
+  ok('patch script does not use BSD-only `sed -i`',
+    !/\bsed\s+-i\b/.test(code),
+    "`sed -i ''` is BSD syntax; GNU sed exits non-zero and fails the install");
+  ok('patch script does not use `set -e`',
+    !/^\s*set\s+-e\s*$/m.test(code),
+    'any failure inside a postinstall must be a no-op, never a failed install');
+  ok('patch script ends with an explicit exit 0',
+    /\bexit 0\s*$/.test(code.trimEnd()),
+    'postinstall must always succeed');
+}
+
 if (failed > 0) {
   console.error(`\n✗ validate-ios-space-paths: ${failed} failure(s)`);
   console.error('  A space in the checkout path must not produce a green build that crashes.\n');

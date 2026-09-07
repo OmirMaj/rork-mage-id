@@ -17,20 +17,22 @@
   # Expo CLI pick its own Metro version from the lockfile.
   NODE_VERSION = "20"
   # Netlify picks its dependency-install command from whichever lockfile it
-  # finds. While package-lock.json was committed it chose npm, and the
-  # NPM_FLAGS trick below reduced that install to a harmless `npm --version`
-  # so the build command's own `bun install` stayed authoritative.
+  # finds. While package-lock.json was committed it chose npm, and NPM_FLAGS
+  # below reduced that install to a harmless `npm --version`, leaving the build
+  # command's own `bun install` authoritative. Deleting package-lock.json
+  # flipped Netlify to bun, which NPM_FLAGS does not affect — so Netlify now
+  # runs a real `bun install` in its own "Install dependencies" stage.
   #
-  # `chore: purge dead code and stop reanimated reaching the bundle` deleted
-  # package-lock.json, so Netlify now detects bun.lock and runs ITS OWN
-  # `bun install` — which NPM_FLAGS cannot neutralise. Every deploy of this
-  # branch since has failed in the "Install dependencies" stage, before the
-  # build command ever ran. bun.lock is the TEXT format (Bun >= 1.2); an older
-  # bun in the build image cannot parse it.
+  # That stage is where every app.mageid.app deploy failed from 2026-09-06 on.
+  # The cause was NOT the bun version: `postinstall` runs
+  # scripts/patch-ios-space-paths.sh, which used BSD-only `sed -i ''` under
+  # `set -e`. GNU sed on the build image exits non-zero, `set -e` propagated it,
+  # and the install died. That script is now portable and always exits 0, and
+  # validate-ios-space-paths pins both properties.
   #
-  # Pin the version so Netlify's install stage runs a bun that understands the
-  # lockfile we actually commit. `bun install --frozen-lockfile` is clean
-  # locally on 1.3.14, so the lockfile itself is consistent.
+  # BUN_VERSION is pinned regardless, so the install stage and the build command
+  # use the same bun rather than whatever the image ships. bun.lock is the text
+  # format (Bun >= 1.2); `bun install --frozen-lockfile` is clean on 1.3.14.
   BUN_VERSION = "1.3.14"
   NETLIFY_USE_PNPM = "false"
   NPM_FLAGS = "--version"
