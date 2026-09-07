@@ -1,9 +1,27 @@
 // scripts/validate-env-parity.ts — every EXPO_PUBLIC_* the client reads must be
-// declared for the EAS production + preview profiles (value may be empty), or
-// have an explicit, located fallback. Audit 2026-09-03 HEALTH-F8: a laptop
-// `expo export` inlined a live OpenWeather key from the gitignored .env while
-// EAS-built binaries (and the docs) had no key — two behaviours for one
-// runtimeVersion. Parity means every build path agrees on which keys exist.
+// accounted for on the EAS production + preview build paths. Audit 2026-09-03
+// HEALTH-F8: a laptop `expo export` inlined a live OpenWeather key from the
+// gitignored .env while EAS-built binaries (and the docs) had no key — two
+// behaviours for one runtimeVersion. Parity means every build path agrees on
+// which keys exist.
+//
+// THREE ways a key can be accounted for:
+//   1. declared in eas.json for BOTH profiles (value may be empty);
+//   2. FALLBACK_SAFE — the code carries a committed, public-by-design default;
+//   3. EAS_ENV_MANAGED — supplied as an EAS *environment variable* rather than
+//      an eas.json value, because the value is a real credential and this repo
+//      is PUBLIC.
+//
+// (3) was added 2026-09-07. eas.json had declared
+// EXPO_PUBLIC_OPENWEATHER_API_KEY as an EMPTY STRING, which EAS rejects at
+// schema validation ("not allowed to be empty") — so no production build could
+// start at all. Putting the real value in eas.json was not an option: this repo
+// is public. The key moved to `eas env:create --environment production/preview`.
+//
+// An EAS_ENV_MANAGED key must therefore be ABSENT from eas.json (a re-added
+// empty string would break every build again, and a re-added real value would
+// leak the credential). That is checked below, so this is not a loophole —
+// it trades one declaration site for another and pins both.
 //
 // Pure node:fs. No react-native import.
 
@@ -21,6 +39,18 @@ const FALLBACK_SAFE: Record<string, string> = {
   EXPO_PUBLIC_POSTHOG_KEY: 'utils/posthog.ts (write-only project key default)',
   EXPO_PUBLIC_POSTHOG_HOST: 'utils/posthog.ts (default host)',
   EXPO_PUBLIC_PROJECT_ID: 'utils/notifications.ts (falls back to app.json extra.eas.projectId)',
+};
+
+/**
+ * Keys supplied as EAS environment variables (`eas env:list --environment
+ * production`) instead of eas.json values, because the value is a credential
+ * and this repo is public. Verify with:
+ *     eas env:list --environment production
+ *     eas env:list --environment preview
+ */
+const EAS_ENV_MANAGED: Record<string, string> = {
+  EXPO_PUBLIC_OPENWEATHER_API_KEY:
+    'EAS env var on production+preview (set 2026-09-07). eas.json declared it as "" which fails EAS schema validation and blocked every production build.',
 };
 
 let failed = 0;
@@ -62,14 +92,28 @@ for (const [key, files] of [...reads.entries()].sort()) {
   const inProd = prod.has(key);
   const inPrev = prev.has(key);
   const safe = key in FALLBACK_SAFE;
+  const easManaged = key in EAS_ENV_MANAGED;
   ok(
-    `${key} is declared for production+preview or has a located fallback`,
-    (inProd && inPrev) || safe,
-    `read in ${[...files].join(', ')}; production=${inProd} preview=${inPrev}${safe ? ` fallback: ${FALLBACK_SAFE[key]}` : ''}`,
+    `${key} is declared for production+preview, EAS-managed, or has a located fallback`,
+    (inProd && inPrev) || safe || easManaged,
+    `read in ${[...files].join(', ')}; production=${inProd} preview=${inPrev}`
+      + `${safe ? ` fallback: ${FALLBACK_SAFE[key]}` : ''}`
+      + `${easManaged ? ` eas-env: ${EAS_ENV_MANAGED[key]}` : ''}`,
   );
 }
 for (const key of Object.keys(FALLBACK_SAFE)) {
   ok(`FALLBACK_SAFE entry ${key} is still read somewhere (stale allow-list otherwise)`, reads.has(key));
+}
+for (const key of Object.keys(EAS_ENV_MANAGED)) {
+  ok(`EAS_ENV_MANAGED entry ${key} is still read somewhere (stale allow-list otherwise)`, reads.has(key));
+  // The whole point: it must NOT be back in eas.json. An empty string there
+  // fails EAS schema validation and blocks every build; a real value there
+  // leaks a credential into a public repo.
+  ok(
+    `${key} is NOT re-declared in eas.json (empty breaks every build; real leaks the key)`,
+    !prod.has(key) && !prev.has(key),
+    `production=${prod.has(key)} preview=${prev.has(key)} — remove it from eas.json and keep it in EAS env`,
+  );
 }
 // A secret must never be an EXPO_PUBLIC_* value: EXPO_PUBLIC_* is inlined into the bundle.
 const suspicious = [...reads.keys()].filter(k => /SECRET|SERVICE_ROLE|PRIVATE|WEBHOOK/.test(k));
