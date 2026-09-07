@@ -72,7 +72,24 @@
 4. **Edge functions** — deploy from the repo root with the committed
    `supabase/config.toml` (it pins `verify_jwt` per function; deploying from
    inside a function directory breaks `../_shared` imports):
-   - 32 directly modified: `ai analyze-drawings analyze-photos analyze-plan-code
+   - **PRECONDITION, verify before the first deploy:** `supabase/config.toml`
+     must be present in the working tree. It exists ONLY on
+     `claude/final-push-fixes` (commit `74e1fe79`) — `git cat-file -e
+     main:supabase/config.toml` FAILS. Deploying from a main checkout, or any
+     checkout predating the merge, resets all 27 `verify_jwt: false` pins to
+     true and takes out `stripe-webhook`, `notify`, every cron target, `mcp`
+     and the whole portal in one motion. Check with
+     `test -f supabase/config.toml && grep -c '^\[functions\.' supabase/config.toml`
+     (expect 62).
+   - **Deploy from the repo root, not from a function directory** — this is
+     load-bearing, not style. Five functions are live with the wrong entrypoint
+     root today (`schedule-ical`, `schedule-ical-url`, `portal-mark-viewed`,
+     `transcribe-audio` at `source/index.ts`; `construction-answer` at
+     `source/functions/construction-answer/index.ts`), and three of them now
+     carry `../_shared` imports on this branch, so a from-inside deploy fails
+     to resolve.
+   - 33 directly modified (the count said 32 before `portal-mark-viewed` was
+     appended; 33 + 24 = **57** named functions, not 56): `ai analyze-drawings analyze-photos analyze-plan-code
      analyze-spec-book analyze-takeoff compare-drawings connect-onboarding
      connect-status convert-pdf-to-images create-payment-link create-rfp-checkout
      delete-account homeowner-weekly-digest import-schedule invoice-dunning notify
@@ -95,7 +112,10 @@
      today — every cron fire since July has 401'd; post-deploy check: the
      `UNAUTHORIZED_NO_AUTH_HEADER` rows in `net._http_response` stop).
    - Orphans in prod with no repo source: `sync-bids`, `fetch-material-price` —
-     delete.
+     delete. Confirmed 2026-09-07: no directory anywhere in the repo and no
+     caller in any source tree. Deleting them orphans two secrets nothing else
+     reads — `GOVCON_API_KEY` (sync-bids) and `SERPAPI_KEY`
+     (fetch-material-price). Both are paid quotas; revoke them after the delete.
    - Stripe: the webhook endpoint must also listen on connected accounts
      (`create-payment-link` mints on the connected account).
 5. **App** — `git push`, PR, merge; then `eas build --profile production
