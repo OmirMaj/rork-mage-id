@@ -128,10 +128,17 @@ Button  "Discover, tab, 4 of 12"      <- 3 is missing
 Button  "Settings, tab, 5 of 12"
 ```
 
-The hidden routes (`href: null`) are still counted in the tab total and still
-consume indices, so a VoiceOver user is told there are twelve tabs, hears index
-3 skipped entirely, and can reach four. Everything visual is fine; only the
-announcement is wrong.
+Root cause, pinned: `app/(tabs)/_layout.tsx` declares 24 `Tabs.Screen`, 21 of
+them `href: null`. In the branch that renders, `estimate` (line 225) is
+registered hidden BETWEEN `(home)` and `discover`, which is exactly why the
+announced indices run 1, 2, **4**, 5 — React Navigation counts every registered
+screen when it builds the accessibility position, visible or not, and twelve are
+registered in that branch.
+
+Everything visual is correct; only the announcement is wrong. Cheapest fix:
+set an explicit `tabBarAccessibilityLabel` on the four visible tabs (e.g.
+`'Summary, tab, 1 of 4'`). The architectural fix — moving the 21 hidden routes
+out of the tab navigator — is much larger and not worth it for this alone.
 
 ## What is genuinely good
 
