@@ -389,7 +389,14 @@ function EstimateWizardScreenInner() {
     const cacheKey = 'wizard::' + stableHash(prompt);
 
     try {
-      const res = await mageAISmart(prompt, estimateSchema, cacheKey);
+      // Tagged 2026-09-07. This screen bills the user under 'aiEstimateWizard'
+      // (checkAILimit/recordAIUsage) but sent the relay no id, so the server
+      // scored it as `general`. That mismatch was load-bearing: the relay also
+      // carried a Pro floor for this feature, and free onboarding only worked
+      // because the tag was missing. The floor is gone from
+      // supabase/functions/ai/index.ts, so the honest tag is now safe — and the
+      // 2-run free trial stays enforced where it belongs, client-side.
+      const res = await mageAISmart(prompt, estimateSchema, cacheKey, 'aiEstimateWizard');
       // Cancelled or superseded while the model was thinking: a newer run (or
       // none) owns the screen now. Drop this response on the floor.
       if (runRef.current !== runId) return;

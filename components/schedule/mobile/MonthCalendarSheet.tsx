@@ -99,7 +99,7 @@ export function MonthCalendarSheet({ visible, selectedDate, tasks, startDateIso,
             const hasWork = activeDayKeys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
             return (
               <TouchableOpacity key={i} style={styles.cell} activeOpacity={0.7} onPress={() => pick(d)} testID={`cal-day-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`}>
-                <View style={[styles.dayWrap, isSel && { backgroundColor: colors.accent }]}>
+                <View style={[styles.dayWrap, isSel && { backgroundColor: colors.accentFill }]}>
                   <Text style={[styles.day, !inMonth && styles.dayDim, isSel && { color: '#FFFFFF' }, !isSel && isToday && { color: colors.accent, fontWeight: '800' }]}>{d.getDate()}</Text>
                 </View>
                 <View style={[styles.dot, hasWork && !isSel ? { backgroundColor: colors.accent } : null]} />

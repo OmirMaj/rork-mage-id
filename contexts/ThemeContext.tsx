@@ -6,8 +6,12 @@
 // or `Theme.dark` directly from constants/colors, because that would
 // bypass the toggle.
 //
-// Default for new installs: 'light'. Deliberate, opinionated default;
-// matches the marketing site's primary appearance.
+// Default for new installs: 'system'. It used to be 'light' to match the
+// marketing site, which meant a contractor whose phone is in dark mode got a
+// bright cream app and had to find Settings → Appearance to undo it (hands-on
+// UI pass 2026-09-07, finding 6). The dark palette is a real ink/amber theme,
+// not an inversion — defaulting away from it threw away the better half of the
+// work. Honour the OS until the user says otherwise.
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Appearance } from 'react-native';
@@ -29,8 +33,10 @@ function resolve(pref: ThemePref): ResolvedTheme {
 }
 
 export const [ThemeProvider, useTheme] = createContextHook(() => {
-  const [pref, setPrefState] = useState<ThemePref>('light');
-  const [resolved, setResolved] = useState<ResolvedTheme>('light');
+  const [pref, setPrefState] = useState<ThemePref>('system');
+  // Resolve the OS scheme on the very first render, not in the effect below,
+  // so a dark-mode phone never flashes the light palette before hydration.
+  const [resolved, setResolved] = useState<ResolvedTheme>(() => resolve('system'));
 
   // Hydrate stored preference on mount.
   useEffect(() => {

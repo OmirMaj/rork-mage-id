@@ -8,8 +8,9 @@ import * as Haptics from 'expo-haptics';
 import { X, CheckCircle2, Settings } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { saveCompanyProfile, type CompanyAIProfile } from '@/utils/aiService';
@@ -61,6 +62,11 @@ interface ProfileSetupProps {
 export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: ProfileSetupProps) {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
+  // Built per theme rather than at module load: this sheet's StyleSheet used to
+  // be module-scope, so `Colors.text` / `Colors.surface` baked their LIGHT
+  // values once at import and dark mode painted near-black ink on the dark
+  // container this component already themed inline (audit 2026-09-07).
+  const setupStyles = useThemedStyles(makeSetupStyles);
   const [specialties, setSpecialties] = useState<string[]>(initialProfile?.specialties ?? []);
   const [trades, setTrades] = useState<string[]>(initialProfile?.trades ?? []);
   const [preferredSize, setPreferredSize] = useState(initialProfile?.preferredSize ?? '$100K-$500K');
@@ -83,7 +89,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
       <View style={[setupStyles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <View style={setupStyles.header}>
           <Text style={setupStyles.title}>Company AI Profile</Text>
-          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={setupStyles.content}>
           <Text style={setupStyles.sectionTitle}>Specialties</Text>
@@ -147,29 +153,33 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
   );
 }
 
-const setupStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeSetupStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight, backgroundColor: Colors.surface,
+    borderBottomColor: t.line, backgroundColor: t.surface,
   },
-  title: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  title: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
   content: { padding: 20, gap: 16, paddingBottom: 40 },
-  sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: Colors.fillSecondary, borderWidth: 1, borderColor: Colors.borderLight,
+    backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
-  chipTextActive: { color: Colors.surface },
+  // accentFill, not the brand hue: white on #FF6A1A is 2.87:1 and fails AA —
+  // #BC440C clears it at 5.29:1 (founder decision #1, constants/colors.ts).
+  chipActive: { backgroundColor: t.accentFill, borderColor: t.accentFill },
+  chipText: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '500' as const },
+  // textOnAccent, not the themed `surface` — a dark-theme surface here would
+  // put near-black text on the orange chip.
+  chipTextActive: { color: Colors.textOnAccent, fontWeight: '600' as const },
   saveBtn: {
-    backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.card,
     alignItems: 'center', marginTop: 8,
   },
-  saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
 });
 
 // NOTE: an uncalled getBidScore(bidId, bid) helper used to live here. It

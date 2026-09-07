@@ -69,6 +69,19 @@ function collectFiles(dirs: string[]): string[] {
   return dirs.flatMap((d) => walk(join(ROOT, d)));
 }
 
+/**
+ * Roots for the COLOUR passes (checks 1, 1b, 1c, 3).
+ *
+ * They walked ['app','components'] until the 2026-09-07 audit: a palette does
+ * not stop being a palette because it lives in a helper, and utils/ ships
+ * several (scheduleEngine's PHASE_COLORS, summaryBriefing's project colours,
+ * scheduleReportHtml's inline CSS) straight into rendered screens and PDFs.
+ * The SHAPE passes below (BrandBackdrop coupling, the FAB corner, header
+ * titles, identity tiles) stay on app/components on purpose — they are about
+ * rendered screens, and a util has none.
+ */
+const COLOR_ROOTS = ['app', 'components', 'utils', 'hooks', 'contexts', 'lib'];
+
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 /**
@@ -170,7 +183,7 @@ function isInert(v: string): boolean {
 type Hit = { file: string; line: number; expr: string; key: string };
 const sameTokenHits: Hit[] = [];
 
-for (const file of collectFiles(['app', 'components'])) {
+for (const file of collectFiles(COLOR_ROOTS)) {
   const src = readFileSync(file, 'utf8');
   for (let i = 0; i < src.length; i++) {
     if (src[i] !== '{') continue;
@@ -234,14 +247,21 @@ ok(
 const LABEL_SUFFIX = /^(Text|Label|Title|Value|Name|Txt|Sub|Caption)$/;
 const pairHits: string[] = [];
 
-for (const file of collectFiles(['app', 'components'])) {
-  const src = readFileSync(file, 'utf8');
-  const entries = [...src.matchAll(/^\s{2}(\w+):\s*\{/gm)];
+/**
+ * The two-space-indented `name: { … }` entries of a file's StyleSheet(s), split
+ * into fills, label colours and line numbers.
+ *
+ * Checks 1b and 1c(a)/(b) each built this inline; pass 1c(c) did not have it at
+ * all, which is the whole reason six white-on-accent buttons shipped past this
+ * guard (audit 2026-09-07): their fill is inline JSX and their label is a
+ * StyleSheet entry, so neither half could see the other. One table, three
+ * callers.
+ */
+function styleTable(src: string) {
   const bgOf = new Map<string, string>();
   const fgOf = new Map<string, string>();
   const lineOf = new Map<string, number>();
-
-  for (const e of entries) {
+  for (const e of src.matchAll(/^\s{2}(\w+):\s*\{/gm)) {
     const name = e[1];
     const bodyStart = e.index! + e[0].length;
     let depth = 1;
@@ -257,6 +277,12 @@ for (const file of collectFiles(['app', 'components'])) {
     const mfg = /(?<!background)(?<![A-Za-z])color\s*:\s*/.exec(body);
     if (mfg) fgOf.set(name, readValue(body, mfg.index + mfg[0].length));
   }
+  return { bgOf, fgOf, lineOf };
+}
+
+for (const file of collectFiles(COLOR_ROOTS)) {
+  const src = readFileSync(file, 'utf8');
+  const { bgOf, fgOf, lineOf } = styleTable(src);
 
   for (const [container, bgv] of bgOf) {
     if (isInert(bgv)) continue;
@@ -310,10 +336,53 @@ function isRawAccentFill(v: string): boolean {
 /** Does `v` resolve to white / near-white / the cream bg used as a label colour? */
 function isWhiteish(v: string): boolean {
   const s = v.trim().replace(/;$/, '');
-  if (/^'#(FFF|FFFFFF|FEFEFE|FEFFFE|FFFFFE|FDFDFD)'$/i.test(s)) return true;
+  // Both quote styles: app/punch-list.tsx:1070 writes `color: "#FFFFFF"` and
+  // escaped this check for years on the quote character alone (audit 2026-09-07).
+  if (/^["']#(FFF|FFFFFF|FEFEFE|FEFFFE|FFFFFE|FDFDFD)["']$/i.test(s)) return true;
   if (/\.textOnAccent$/.test(s)) return true;            // token = #FFFFFF
   if (/^(t|themeColors|colors|c|Colors|C|theme|colours)\.bg$/.test(s)) return true; // cream, 2.70:1 — worse
   return false;
+}
+
+/**
+ * The source range of the JSX element whose OPEN TAG contains `at` — its own
+ * subtree, and nothing after it.
+ *
+ * Pass (c) used a 400-character window ending at the first `</`, which is both
+ * too loose (it can run into the next sibling) and too tight (it stops before a
+ * label that sits behind a self-closing icon). Returns null when `at` is not
+ * inside a JSX open tag at all, e.g. a plain object literal in a util.
+ */
+function jsxElementRange(src: string, at: number): { start: number; end: number } | null {
+  let start = -1;
+  for (let i = at; i >= 0; i--) {
+    if (src[i] === '<' && /[A-Za-z]/.test(src[i + 1] ?? '')) { start = i; break; }
+  }
+  if (start < 0) return null;
+  const tag = /^<([A-Za-z][\w.]*)/.exec(src.slice(start, start + 60))?.[1];
+  if (!tag) return null;
+  // End of the open tag = the first `>` at brace depth 0, so the `>` inside an
+  // arrow function in a prop expression (`onPress={() => …}`) does not end it.
+  let depth = 0;
+  let openEnd = -1;
+  for (let i = start + 1; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') depth--;
+    else if (ch === '>' && depth === 0) { openEnd = i; break; }
+  }
+  if (openEnd < 0 || openEnd < at) return null;
+  if (src[openEnd - 1] === '/') return { start, end: openEnd };
+  // Balanced close, counting nested same-name tags.
+  const re = new RegExp(`<(/?)${tag.replace(/\./g, '\\.')}\\b`, 'g');
+  re.lastIndex = openEnd;
+  let nest = 1;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) {
+    nest += m[1] === '/' ? -1 : 1;
+    if (nest === 0) return { start, end: m.index };
+  }
+  return { start, end: src.length };
 }
 
 const whiteOnAccentHits: string[] = [];
@@ -321,30 +390,10 @@ const whiteOnAccentHits: string[] = [];
 // (a) StyleSheet pairs — a `fooBtn` fill on raw accent + its `fooBtnText` label
 //     coloured white. Reuse the same container/label pairing as check 1b, but
 //     match ACROSS tokens (fill=accent, label=white) rather than fill===label.
-for (const file of collectFiles(['app', 'components'])) {
+for (const file of collectFiles(COLOR_ROOTS)) {
   const rel = relative(ROOT, file);
   const src = readFileSync(file, 'utf8');
-  const entries = [...src.matchAll(/^\s{2}(\w+):\s*\{/gm)];
-  const bgOf = new Map<string, string>();
-  const fgOf = new Map<string, string>();
-  const lineOf = new Map<string, number>();
-
-  for (const e of entries) {
-    const name = e[1];
-    const bodyStart = e.index! + e[0].length;
-    let depth = 1;
-    let bodyEnd = bodyStart;
-    for (let j = bodyStart; j < src.length; j++) {
-      if (src[j] === '{') depth++;
-      else if (src[j] === '}') { depth--; if (depth === 0) { bodyEnd = j; break; } }
-    }
-    const body = src.slice(bodyStart, bodyEnd);
-    lineOf.set(name, src.slice(0, e.index!).split('\n').length);
-    const mbg = /backgroundColor\s*:\s*/.exec(body);
-    if (mbg) bgOf.set(name, readValue(body, mbg.index + mbg[0].length));
-    const mfg = /(?<!background)(?<![A-Za-z])color\s*:\s*/.exec(body);
-    if (mfg) fgOf.set(name, readValue(body, mfg.index + mfg[0].length));
-  }
+  const { bgOf, fgOf, lineOf } = styleTable(src);
 
   for (const [container, bgv] of bgOf) {
     if (!isRawAccentFill(bgv)) continue;
@@ -361,8 +410,7 @@ for (const file of collectFiles(['app', 'components'])) {
   // (b) A single style entry that BOTH fills on raw accent AND colours its own
   //     text white (e.g. `permTitle: { backgroundColor: t.accent, color: '#FFF' }`
   //     — rare, but the fg===bg check would miss it since the tokens differ).
-  for (const e of entries) {
-    const name = e[1];
+  for (const name of lineOf.keys()) {
     const bg = bgOf.get(name);
     const fg = fgOf.get(name);
     if (bg && fg && isRawAccentFill(bg) && isWhiteish(fg)) {
@@ -374,16 +422,31 @@ for (const file of collectFiles(['app', 'components'])) {
 }
 
 // (c) Inline JSX — `<Foo style={[.., { backgroundColor: t.accent }]}>` whose
-//     child <Text>/<Icon> carries an inline white `color:`. This pass scans ONLY
-//     the JSX regions (everything OUTSIDE the file's `StyleSheet.create({...})`
-//     blocks — those are handled precisely by (a)/(b), so scanning them here
-//     would double-report and mis-pair unrelated style entries). For each inline
-//     raw-accent fill, look for a white foreground inline within the SAME JSX
-//     element (bounded by the element's own open-tag/children, not a downstream
-//     sibling).
-for (const file of collectFiles(['app', 'components'])) {
+//     label is white. This pass scans ONLY the JSX regions (everything OUTSIDE
+//     the file's `StyleSheet.create({...})` blocks — those are handled precisely
+//     by (a)/(b), so scanning them here would double-report and mis-pair
+//     unrelated style entries).
+//
+//     TWO GAPS CLOSED 2026-09-07, both found by hand while this check printed
+//     PASS on six shipping buttons:
+//
+//     • The label may live in the StyleSheet while the fill is inline —
+//       `style={[styles.btn, { backgroundColor: t.accent }]}` with
+//       `<Text style={styles.btnText}>` and `btnText: { color: '#FFF' }`. That
+//       split falls between (a) (needs a StyleSheet fill) and (c) (used to need
+//       an inline label), which is exactly where app/accept-invite.tsx's two
+//       buttons — the first screen an invited collaborator ever sees — sat.
+//       The style table is now resolved for this pass too.
+//
+//     • The window was "from the fill to the next `</`, max 400 chars", which
+//       cannot tell a child from a downstream sibling and stops short of a
+//       label sitting behind a self-closing icon (app/bid-detail.tsx's "Apply"
+//       renders <ExternalLink /> before its <Text>). It is now the element's
+//       own subtree, resolved by tag.
+for (const file of collectFiles(COLOR_ROOTS)) {
   const rel = relative(ROOT, file);
   const raw = stripComments(readFileSync(file, 'utf8'));
+  const { bgOf, fgOf } = styleTable(raw);
 
   // Blank out every `StyleSheet.create( … )` body so the inline scan can't see
   // StyleSheet properties (preserve offsets/line count by overwriting with spaces).
@@ -402,56 +465,82 @@ for (const file of collectFiles(['app', 'components'])) {
   }
   const src = chars.join('');
 
-  const bgRe = /backgroundColor\s*:\s*([A-Za-z_][\w.]*)/g;
+  // Read the WHOLE value, not just the leading token: `t.accent + '20'` is an
+  // 8% tint, not a solid brand-hue field, and a regex that stopped at the token
+  // read it as one (app/(tabs)/materials/index.tsx:289 false-failed on exactly
+  // that while this check was being repaired).
+  const bgRe = /backgroundColor\s*:\s*/g;
   let m: RegExpExecArray | null;
   while ((m = bgRe.exec(src))) {
-    if (!isRawAccentFill(m[1])) continue;
-    // Bound the search window to this JSX element: from the fill to the next
-    // element close `</` (or 400 chars, whichever is sooner) — tight enough that
-    // a white colour on an unrelated sibling element is not swept in.
-    const close = src.indexOf('</', m.index);
-    const windowEnd = close < 0 ? Math.min(src.length, m.index + 400) : Math.min(close, m.index + 400);
-    const win = src.slice(m.index, windowEnd);
-    // Require a `color:` (style-object property, colon) — a TEXT label. A bare
-    // `color=` JSX attribute is an ICON prop (lucide `<Check color={...}/>`), which
-    // is non-text chrome governed by the 3:1 rule, not this text check — excluding
+    const fill = readValue(src, m.index + m[0].length);
+    if (!isRawAccentFill(fill)) continue;
+    const range = jsxElementRange(src, m.index);
+    // No resolvable element (a plain object literal outside JSX) keeps the old
+    // conservative 400-char window rather than scanning to end of file.
+    const win = src.slice(m.index, range ? range.end : Math.min(src.length, m.index + 400));
+
+    // A `color:` STYLE PROPERTY (colon) is a TEXT label. A bare `color=` JSX
+    // attribute is an ICON prop (lucide `<Check color={...}/>`), which is
+    // non-text chrome governed by the 3:1 rule, not this text check — excluding
     // it is what keeps active-state checkbox/icon toggles from false-failing.
-    const fgInline = /(?<!background)(?<![A-Za-z])color\s*:\s*('#(?:FFF|FFFFFF|FEFEFE)'|[A-Za-z_][\w.]*\.textOnAccent|(?:t|themeColors|colors|c|Colors)\.bg)\b/i.exec(win);
-    if (fgInline) {
+    let label: string | null = null;
+    for (const f of win.matchAll(/(?<!background)(?<![A-Za-z])color\s*:\s*([^,\n}]+)/g)) {
+      if (isWhiteish(f[1])) { label = f[1].trim(); break; }
+    }
+    // …or the label is a StyleSheet entry referenced somewhere in this element.
+    if (!label) {
+      for (const sm of win.matchAll(/styles\.(\w+)/g)) {
+        const fg = fgOf.get(sm[1]);
+        if (fg && isWhiteish(fg)) { label = `styles.${sm[1]} (${fg})`; break; }
+      }
+    }
+    if (label) {
       const line = src.slice(0, m.index).split('\n').length;
       whiteOnAccentHits.push(
-        `${rel}:${line}  inline backgroundColor: ${m[1]} with white foreground ${fgInline[1]} — 2.87:1; use accentFill`,
+        `${rel}:${line}  inline backgroundColor: ${fill} with white foreground ${label} — 2.87:1; use accentFill`,
       );
     }
+  }
+
+  // (d) The MIRROR IMAGE of (c): the fill is a StyleSheet entry and the label is
+  //     written inline — `<View style={styles.badge}><Text style={{ color:'#FFF' }}>`
+  //     with `badge: { backgroundColor: t.accent }`. Pass (a) pairs a StyleSheet
+  //     fill only with a StyleSheet label named `<container><Suffix>`, and (c)
+  //     needs the fill inline, so this split fell between all three — the same
+  //     shape as the split that let app/accept-invite.tsx ship two illegible
+  //     CTAs, just the other way round (found reviewing that repair 2026-09-07).
+  //     Scoped to the element's own subtree, so a white label on an unrelated
+  //     sibling is not swept in.
+  for (const sm of src.matchAll(/styles\.(\w+)/g)) {
+    const fill = bgOf.get(sm[1]);
+    if (!fill || !isRawAccentFill(fill)) continue;
+    const range = jsxElementRange(src, sm.index!);
+    if (!range) continue;   // not a JSX usage — a bare reference in code
+    const win = src.slice(sm.index!, range.end);
+    let label: string | null = null;
+    for (const f of win.matchAll(/(?<!background)(?<![A-Za-z])color\s*:\s*([^,\n}]+)/g)) {
+      if (isWhiteish(f[1])) { label = f[1].trim(); break; }
+    }
+    if (!label) continue;
+    const line = src.slice(0, sm.index!).split('\n').length;
+    whiteOnAccentHits.push(
+      `${rel}:${line}  styles.${sm[1]} fills on ${fill} with inline white foreground ${label} — 2.87:1; use accentFill`,
+    );
   }
 }
 
 const uniqWhiteAccent = [...new Map(whiteOnAccentHits.map((h) => [h, h])).values()];
 
-// Two files carry this defect but are OWNED BY A DIFFERENT BRANCH's integrator
-// and are contractually off-limits to the brand-orange work
-// (app/coi-vault.tsx and app/(tabs)/settings/**). The defect is REAL and is
-// still surfaced below as a WARNING so it is never silently lost — but this
-// guard does not FAIL the build for a file this branch may not edit. Any NEW
-// white-on-accent introduced anywhere else DOES fail. Trim this list to []
-// the moment those files are fixed and the warning becomes a hard failure again.
-const QUARANTINED = [/^app\/coi-vault\.tsx:/, /^app\/\(tabs\)\/settings\//];
-const isQuarantined = (h: string) => QUARANTINED.some((re) => re.test(h));
-const actionable = uniqWhiteAccent.filter((h) => !isQuarantined(h));
-const quarantined = uniqWhiteAccent.filter(isQuarantined);
-
+// There is no quarantine list any more. app/coi-vault.tsx and app/(tabs)/
+// settings/** were carved out while another branch's integrator owned them, and
+// the carve-out outlived the ownership: both are clean, so the exemption was
+// doing nothing except standing ready to swallow the next defect in those two
+// paths. Every hit fails, everywhere (audit 2026-09-07).
 ok(
   'no white/near-white TEXT sits on the raw accent fill (use accentFill, AA 4.5:1)',
-  actionable.length === 0,
-  actionable.join('\n        '),
+  uniqWhiteAccent.length === 0,
+  uniqWhiteAccent.join('\n        '),
 );
-if (quarantined.length > 0) {
-  console.log(
-    '  WARN  ' + quarantined.length + ' pre-existing white-on-accent defect(s) in integrator-owned, ' +
-    'off-limits file(s) — NOT fixed here, surfaced for the owner:\n        ' +
-    quarantined.join('\n        '),
-  );
-}
 
 // ── Check 2: the on-ink hero palette stays bound to BrandBackdrop ───────────
 //
@@ -529,7 +618,9 @@ ok(
 // slab, and where same-token text sits on it, invisible. Five sites shipped
 // this; all now use the real rgba token `neutralSoft` directly. This check
 // pins that: it fails if either rgba foreground token is alpha-suffixed
-// anywhere in app/ or components/.
+// anywhere the app draws from — the same COLOR_ROOTS as checks 1/1b/1c. It was
+// left on ['app','components'] when they were widened on 2026-09-07, which is
+// the identical blind spot one check over (review, same day).
 //
 // PRECISE by construction: only textSecondary and textMuted are rgba foreground
 // tokens. Every other suffixable token (accent, danger, success, info, …) is a
@@ -544,7 +635,7 @@ const RGBA_FG_SUFFIX = [
   /\$\{[^}]*\b(?:textSecondary|textMuted)\b[^}]*\}[0-9A-Fa-f]{2}/,
 ];
 const suffixHits: string[] = [];
-for (const file of collectFiles(['app', 'components'])) {
+for (const file of collectFiles(COLOR_ROOTS)) {
   const src = stripComments(readFileSync(file, 'utf8'));
   src.split('\n').forEach((line, i) => {
     if (RGBA_FG_SUFFIX.some((re) => re.test(line))) {
@@ -985,8 +1076,9 @@ ok(
 // UniversalMicButton.tsx does exactly that at `insets.bottom + 70 + 52 + 12`
 // (y[134,180], 8pt above the Brain FAB's top) and must not be flagged. So the
 // check resolves each candidate's inline `bottom` offset and fails only on an
-// actual overlap. An offset it cannot resolve statically (a prop, a variable)
-// is reported as a WARN naming the reason, never as a silent pass.
+// actual overlap. An offset it cannot resolve statically is its own FAILURE
+// below — it was a WARN until 2026-09-07, and the one circle it could not
+// measure is precisely the one that went a release unmeasured.
 
 const BRAIN_BOTTOM = 70;   // BrainFab.tsx fabWrap: insets.bottom + 70 + lift
 const BRAIN_HEIGHT = 56;
@@ -995,18 +1087,78 @@ const BRAIN_TOP = BRAIN_BOTTOM + BRAIN_HEIGHT;
 type Corner = { where: string; style: string; height: number; offset: number | null; raw: string };
 
 /**
- * Sum a `bottom:` expression of the form `insets.bottom + 70 + 52 + 12`
- * (Platform ternaries and other non-numeric terms make it unresolvable).
+ * Every static value a bare identifier term can hold: its `= N` default in the
+ * component's own props destructuring, plus every `name={N}` passed by a caller.
+ * Null when any of them is not a literal number — then the geometry genuinely
+ * is not computable from source and the check must say so.
  */
-function resolveBottomOffset(expr: string): number | null {
+function identifierValues(name: string, src: string, callers: string[]): number[] | null {
+  const vals: number[] = [];
+  const def = new RegExp(`[{,]\\s*${name}\\s*=\\s*([^,}]+)`).exec(src);
+  if (def) {
+    if (!/^\d+$/.test(def[1].trim())) return null;
+    vals.push(Number(def[1].trim()));
+  }
+  // Only props passed to a component THIS file exports count. `bottomOffset` is
+  // also a VoiceFieldButton prop, and app/(tabs)/schedule/index.tsx passes it a
+  // non-literal there — a name-only scan folded that in and declared HelpFab's
+  // geometry uncomputable.
+  const tags = [...src.matchAll(/export\s+(?:default\s+)?(?:const|function|class)\s+([A-Z]\w*)/g)].map((m) => m[1]);
+  if (tags.length === 0) return vals.length > 0 ? vals : null;
+  for (const f of callers) {
+    const s = readFileSync(f, 'utf8');
+    for (const tag of tags) {
+      const tagRe = new RegExp(`<${tag}\\b`, 'g');
+      let t: RegExpExecArray | null;
+      while ((t = tagRe.exec(s))) {
+        // The open tag ends at the first `>` at brace depth 0 (an arrow in a
+        // prop expression must not close it early).
+        let depth = 0;
+        let end = -1;
+        for (let i = t.index + t[0].length; i < s.length; i++) {
+          if (s[i] === '{') depth++;
+          else if (s[i] === '}') depth--;
+          else if (s[i] === '>' && depth === 0) { end = i; break; }
+        }
+        if (end < 0) continue;
+        const prop = new RegExp(`\\b${name}=\\{([^}]*)\\}`).exec(s.slice(t.index, end));
+        if (!prop) continue;
+        const v = prop[1].trim();
+        if (!/^\d+$/.test(v)) return null;
+        vals.push(Number(v));
+      }
+    }
+  }
+  return vals.length > 0 ? vals : null;
+}
+
+/**
+ * Sum a `bottom:` expression of the form `insets.bottom + 70 + 52 + 12`.
+ *
+ * A bare identifier term is resolved through `identifierValues` and folded in
+ * at its SMALLEST value, because the smallest offset is the worst case for an
+ * overlap. That is not a nicety: components/HelpFab.tsx writes
+ * `insets.bottom + bottomOffset + 16`, which this could not sum, and the check
+ * reported it as an unresolved WARN and passed the build — so the one floating
+ * circle it could not measure was the one it never measured (audit 2026-09-07).
+ */
+const MAX_BOTTOM_INSET = 34;   // iPhone home-indicator portrait inset
+
+function resolveBottomOffset(expr: string, src: string, callers: string[]): number | null {
   const e = expr.trim().replace(/\s+/g, ' ');
-  if (!/^[\w.]*insets\.bottom/.test(e) && !/insets\.bottom/.test(e)) return null;
-  const rest = e.slice(e.indexOf('insets.bottom') + 'insets.bottom'.length);
-  if (rest.trim() === '') return 0;
-  let total = 0;
+  // A sum with no `insets.bottom` is measured from the SCREEN edge while this
+  // check's band is measured from the safe-area origin, so it converts by
+  // subtracting the biggest inset in the fleet — the worst case, the one that
+  // can collide. Returning null for it made the hard failure below reject
+  // `bottom: 200` as "not a static sum", which is the most static sum there is
+  // (review 2026-09-07).
+  const hasInset = /insets\.bottom/.test(e);
+  const rest = hasInset ? e.slice(e.indexOf('insets.bottom') + 'insets.bottom'.length) : e;
+  if (rest.trim() === '') return hasInset ? 0 : null;
+  let total = hasInset ? 0 : -MAX_BOTTOM_INSET;
   const terms = rest.split('+');
-  if (terms[0].trim() !== '') return null;
-  for (const t of terms.slice(1)) {
+  if (hasInset && terms[0].trim() !== '') return null;
+  for (const t of hasInset ? terms.slice(1) : terms) {
     const v = t.trim().replace(/[,\]}]+$/, '');
     if (/^\d+$/.test(v)) { total += Number(v); continue; }
     // A platform/branch bump such as `(Platform.OS === 'web' ? 48 : 0)` only
@@ -1014,12 +1166,18 @@ function resolveBottomOffset(expr: string): number | null {
     // branch: the worst case for an overlap is the one we must clear.
     const tern = /^\(.*\?\s*(\d+)\s*:\s*(\d+)\s*\)$/.exec(v);
     if (tern) { total += Math.min(Number(tern[1]), Number(tern[2])); continue; }
+    if (/^[A-Za-z_]\w*$/.test(v)) {
+      const vals = identifierValues(v, src, callers);
+      if (!vals) return null;
+      total += Math.min(...vals);
+      continue;
+    }
     return null;
   }
-  return total;
+  return Math.max(0, total);
 }
 
-function floatingCorner(files: string[]): Corner[] {
+function floatingCorner(files: string[], callers: string[]): Corner[] {
   const found: Corner[] = [];
   for (const file of files) {
     const src = readFileSync(file, 'utf8');
@@ -1050,13 +1208,13 @@ function floatingCorner(files: string[]): Corner[] {
       let offset: number | null = null;
       let raw = '(no inline bottom — style carries none either)';
       const inStyle = /(?:^|[{,\s])bottom:\s*([^,\n}]+)/.exec(body);
-      if (inStyle) { raw = inStyle[1].trim(); offset = resolveBottomOffset(raw); }
+      if (inStyle) { raw = inStyle[1].trim(); offset = resolveBottomOffset(raw, src, callers); }
       let u: RegExpExecArray | null;
       while ((u = useRe.exec(src))) {
         const b = /(?:^|[{,\s])bottom:\s*([^,\n}]+)/.exec(u[1]);
         if (!b) continue;
         raw = b[1].trim();
-        offset = resolveBottomOffset(raw);
+        offset = resolveBottomOffset(raw, src, callers);
         break;
       }
       found.push({
@@ -1071,10 +1229,9 @@ function floatingCorner(files: string[]): Corner[] {
   return found;
 }
 
-const allCorners = [
-  ...floatingCorner(collectFiles(['app'])),
-  ...floatingCorner(collectFiles(['components'])),
-].filter((c) => !c.where.startsWith('components/brain/BrainFab.tsx'));
+const screenFiles = collectFiles(['app', 'components']);
+const allCorners = floatingCorner(screenFiles, screenFiles)
+  .filter((c) => !c.where.startsWith('components/brain/BrainFab.tsx'));
 
 const collides = (c: Corner) =>
   c.offset !== null && c.offset < BRAIN_TOP && c.offset + c.height > BRAIN_BOTTOM;
@@ -1091,14 +1248,19 @@ ok(
   cornerHits.join('\n        '),
 );
 
+// An offset this guard cannot resolve used to print as a WARN and pass. A check
+// that cannot check is not a check: the one circle it could not measure sat
+// uncomputed through a release. Unresolvable is now a FAILURE — either express
+// the offset as a sum this can add (numbers, a Platform ternary, or a prop with
+// a numeric default) or the geometry has to be verified some other way.
 const unresolved = allCorners.filter((c) => c.offset === null);
-if (unresolved.length > 0) {
-  console.log(
-    '  WARN  ' + unresolved.length + ' floating circle(s) in that corner whose bottom offset is not a ' +
-    'static number, so the overlap cannot be computed here — check them by hand:\n        ' +
-    unresolved.map((c) => `${c.where}  styles.${c.style}  bottom: ${c.raw}`).join('\n        '),
-  );
-}
+ok(
+  'every floating circle in that corner has a computable bottom offset',
+  unresolved.length === 0,
+  unresolved
+    .map((c) => `${c.where}  styles.${c.style}  bottom: ${c.raw}  — not a sum this can add, so the overlap with the Brain FAB cannot be computed. It takes a literal number, \`insets.bottom + N\`, a Platform ternary of two numbers, or a prop whose default and every caller are numeric.`)
+    .join('\n        '),
+);
 
 // ── Check 9: a screen must not print its own native header title again ──────
 //

@@ -82,6 +82,19 @@ let failures = 0;
 // ── Check 1: no emoji-as-icons ──────────────────────────────────────────────
 // Narrow range: pictographic emoji + dingbats + variation selector. Does NOT
 // match plain ASCII arrows, check marks, ×, or • punctuation.
+//
+// STILL app/components/constants only, unlike check 2 below, and there IS a
+// live violation behind that: utils/weatherService.ts:46 CONDITION_ICONS maps
+// each condition to an emoji and getConditionIcon() renders it into a real RN
+// <Text> at app/(tabs)/schedule/index.tsx:3399 and components/schedule/
+// WeatherReschedulePrompt.tsx:203 — emoji-as-icons, declared one directory out
+// of sight (review 2026-09-07). Widening the root is not a one-liner because
+// utils/ and contexts/ also hold emoji that are CONTENT, not icons, in sinks
+// lucide cannot reach: utils/portalLanguages.ts (a language picker's endonyms),
+// utils/emailService.ts + utils/pdfGenerator.ts (HTML email / PDF markup) and
+// contexts/ProjectContext.tsx:4052 (a push-notification body). Retint
+// weatherService to lucide icons FIRST, then widen — do not add an exclusion
+// list to get green, which is the failure mode this file just came out of.
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
 failures += report(
   'no emoji-as-icons (app/ components/ constants/)',
@@ -91,14 +104,34 @@ failures += report(
 // ── Check 2: no purple/pink/violet hex ──────────────────────────────────────
 // constants/ is excluded — constants/colors.ts intentionally defines Apple
 // system purple (#5856D6) and a `purple` token.
+//
+// The roots were ['app','components'] until 2026-09-07, and that is how this
+// check printed PASS while utils/scheduleEngine.ts shipped '#A855F7' (Framing)
+// and '#EC4899' (Interior) — two VERBATIM entries of the list below — into the
+// schedule wizard, the daily report and the predecessor picker. A palette does
+// not stop being a palette because it lives in a helper, so every root that can
+// hold one is walked. docs/START-HERE.md names this failure mode: "A guard that
+// names files goes blind. Enumerate, do not list."
+//
+// The emoji and "Inter" checks were NOT widened with it, and that is a debt,
+// not a clean decision — see check 1.
 const PURPLE_HEXES = [
   '#8B5CF6', '#7C3AED', '#A78BFA', '#9333EA', '#A855F7', '#6366F1',
   '#6D28D9', '#4F46E5', '#818CF8', '#EC4899', '#F472B6', '#C026D3', '#7E22CE',
+  // Added 2026-09-07: widening the roots alone would still have missed this
+  // one — it ships from utils/summaryBriefing.ts and utils/scheduleReportHtml.ts
+  // and was never on the list.
+  '#7A5AF8',
 ];
 const PURPLE_RE = new RegExp('(' + PURPLE_HEXES.join('|') + ')', 'i');
+// A `//` tail is documentation, not a shipped colour: utils/scheduleEngine.ts:34
+// records WHY the old indigo (#6366F1) was retired, and failing on that would
+// pressure someone to delete the reason. (`:` guard so a `https://` URL keeps
+// its line intact.)
+const codeOf = (l: string) => l.replace(/(^|[^:])\/\/.*$/, '$1');
 failures += report(
-  'no purple/pink/violet hex (app/ components/)',
-  scan(collectFiles(['app', 'components']), (l) => PURPLE_RE.test(l)),
+  'no purple/pink/violet hex (app/ components/ utils/ hooks/ contexts/ lib/)',
+  scan(collectFiles(['app', 'components', 'utils', 'hooks', 'contexts', 'lib']), (l) => PURPLE_RE.test(codeOf(l))),
 );
 
 // ── Check 3: no "Inter" font reference ───────────────────────────────────────

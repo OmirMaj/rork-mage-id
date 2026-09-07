@@ -491,7 +491,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                       <View style={[styles.crewBtn, { borderColor: t.line }]}><Text style={[styles.crewBtnText, { color: t.textMuted }]}>Assign a sub</Text></View>
                     ) : (
                       <TouchableOpacity
-                        style={[styles.crewBtn, sentAt ? { borderColor: t.success } : { borderColor: t.accent, backgroundColor: t.accent }]}
+                        style={[styles.crewBtn, sentAt ? { borderColor: t.success } : { borderColor: t.accentFill, backgroundColor: t.accentFill }]}
                         onPress={() => handleSend(g)}
                         disabled={sending === g.key}
                         activeOpacity={0.85}

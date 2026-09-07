@@ -266,26 +266,28 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   } as unknown as Project;
   // The whole $400,000 cost budget is committed, so EAC = budget and
   // actual ÷ EAC is the plain cost percent.
-  const commitment = {
+  // MONEY-DEF-1 (audit 2026-09-07): cost complete is driven by what has been
+  // paid OUT (commitment.paidToDate), never by what the client has paid IN.
+  const commitmentPaid = (paidToDate: number): Commitment => ({
     id: 'c1', projectId: 'p1', number: 'SC-1', type: 'subcontract', description: 'Build',
-    amount: 400_000, signedDate: '2026-01-01', phase: 'Materials', status: 'active',
+    amount: 400_000, paidToDate, signedDate: '2026-01-01', phase: 'Materials', status: 'active',
     createdAt: '2026-01-01', updatedAt: '2026-01-01',
-  } as unknown as Commitment;
-  const billed = (actualPaid: number): Invoice => ({
+  } as unknown as Commitment);
+  const billed = (clientPaid: number): Invoice => ({
     id: 'inv1', number: 1, projectId: 'p1', type: 'progress', progressPercent: 40,
     issueDate: '2026-03-01', dueDate: '2026-03-31', paymentTerms: 'net_30', notes: '',
     lineItems: [{ id: 'l1', name: 'Progress', description: '', quantity: 1, unit: 'ls', unitPrice: 220_000, total: 220_000, sourceEstimateItemId: 'm1' }],
-    subtotal: 220_000, taxRate: 0, taxAmount: 0, totalDue: 220_000, amountPaid: actualPaid,
+    subtotal: 220_000, taxRate: 0, taxAmount: 0, totalDue: 220_000, amountPaid: clientPaid,
     status: 'sent', payments: [], createdAt: '2026-03-01', updatedAt: '2026-03-01',
   } as unknown as Invoice);
 
-  const at40 = computeWIPReport([project], [billed(160_000)], [], [commitment]).rows[0];
+  const at40 = computeWIPReport([project], [billed(160_000)], [], [commitmentPaid(160_000)]).rows[0];
   close('revised contract is $550,000', at40.revisedContract, 550_000);
   close('billed to date is $220,000', at40.billedToDate, 220_000);
   close('40% cost-complete → percentComplete 40', at40.percentComplete, 40, 0.01);
   close('40% cost-complete → earned $220,000, unbilled $0', at40.unbilled, 0, 0.01);
 
-  const at50 = computeWIPReport([project], [billed(200_000)], [], [commitment]).rows[0];
+  const at50 = computeWIPReport([project], [billed(200_000)], [], [commitmentPaid(200_000)]).rows[0];
   close('50% cost-complete → percentComplete 50', at50.percentComplete, 50, 0.01);
   close('50% cost-complete → earned $275,000, unbilled $55,000', at50.unbilled, 55_000, 0.01);
 

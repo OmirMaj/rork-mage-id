@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { FolderOpen, ChevronRight, Briefcase, CalendarOff } from 'lucide-react-native';
+import { FolderOpen, ChevronRight, Briefcase, CalendarOff, CloudOff } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -44,7 +44,12 @@ export default function SummaryScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projects, isLoading } = useCoreData();
+  // RT-R1: `sourceFailed` is the reason this screen is allowed to say "no
+  // projects" or "nothing scheduled" at all. Every read behind it swallows a
+  // failure and serves the local cache, so on a cold cache a dead session
+  // renders as a calm, empty, all-clear briefing — the foreman plans his
+  // morning off a day that actually has open tasks (audit 2026-09-07 #1).
+  const { projects, isLoading, sourceFailed, retryRemoteReads } = useCoreData();
   const { invoices } = useFinancialsData();
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
@@ -76,6 +81,10 @@ export default function SummaryScreen() {
   // #15). The old rollups (high-priority punch, pending COs) are now part
   // of the canonical set itself.
   const { items: watchItems } = useBrainWatch();
+  // Same sentence the home Brain Watch card and the desktop rail use, so an
+  // unreachable backend reads as one recognisable state across the app.
+  const unreachableLine =
+    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
   const attention = useMemo<AttentionItem[]>(
     () => watchItems.map((it) => ({
       id: it.id,
@@ -175,6 +184,31 @@ export default function SummaryScreen() {
     );
   }
 
+  // An empty book with a failed read is NOT an empty book. Day-one onboarding
+  // copy here told a GC who reinstalled — or signed in on a second device with
+  // a cold cache — that his entire book of work was gone, and handed him no way
+  // to try again. Say what actually happened instead.
+  if (projects.length === 0 && sourceFailed) {
+    return (
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
+        <Text style={styles.heading}>Summary</Text>
+        <EmptyState
+          icon={<CloudOff size={36} color={themeColors.warningLabel} strokeWidth={1.75} />}
+          accent={themeColors.warningLabel}
+          title="Couldn't reach MAGE"
+          message="Your briefing needs a live read of your projects, and the last one didn't come back. Nothing here is missing — this device just has nothing cached to show yet."
+          steps={[
+            'Check that you have signal or Wi-Fi.',
+            'Tap Try again below.',
+            "If it keeps failing, sign out and back in — the session may have expired.",
+          ]}
+          actionLabel="Try again"
+          onAction={retryRemoteReads}
+        />
+      </View>
+    );
+  }
+
   if (projects.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
@@ -205,6 +239,24 @@ export default function SummaryScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Cached projects, failing reads. The briefing below is composed from
+            whatever this device last stored — "Nothing scheduled on site
+            today" is then a statement about the cache, not about the day, so
+            it gets said above the hero rather than left implied. */}
+        {sourceFailed && (
+          <TouchableOpacity
+            style={styles.unreachableRow}
+            activeOpacity={0.75}
+            onPress={retryRemoteReads}
+            accessibilityRole="button"
+            accessibilityLabel={`${unreachableLine}. Tap to try again.`}
+            testID="summary-unreachable"
+          >
+            <CloudOff size={14} color={themeColors.warningLabel} strokeWidth={2} />
+            <Text style={styles.unreachableText}>{unreachableLine}</Text>
+            <Text style={styles.unreachableRetry}>Try again</Text>
+          </TouchableOpacity>
+        )}
         <BriefingHero
           greetingName={greetingName}
           attentionCount={attention.length}
@@ -305,6 +357,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     flex: 1,
   },
+  // RT-R1 disclosure. Same warning tint as the undated-schedule card below:
+  // nothing is broken, the app just cannot vouch for what it is showing.
+  unreachableRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: t.warningSoft,
+  },
+  unreachableText: { ...Type.caption1, color: t.warningLabel, flex: 1 },
+  unreachableRetry: { ...Type.caption1, color: t.warningLabel, fontWeight: '700' as const, textDecorationLine: 'underline' as const },
   // Undated-schedule disclosure. Warning-tinted, not danger: nothing is
   // broken, a field is missing and the user can fill it in one tap.
   undatedCard: {

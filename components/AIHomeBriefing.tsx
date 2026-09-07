@@ -4,7 +4,7 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { AlertTriangle, CheckCircle2, ChevronRight, TrendingDown } from 'lucide-react-native';
+import { AlertTriangle, CheckCircle2, ChevronRight, RefreshCw, TrendingDown } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -15,6 +15,8 @@ import {
   type HomeBriefingResult,
 } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage, getAIUsageStats } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useRouter } from 'expo-router';
 import type { Project, Invoice } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
@@ -39,9 +41,14 @@ const STATUS_ICONS = {
 export default React.memo(function AIHomeBriefing({ projects, invoices, subscriptionTier, onViewFull }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   const [result, setResult] = useState<HomeBriefingResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [usageText, setUsageText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  // True once the cache has been read, so the "Tap to run" card doesn't flash
+  // over a briefing that is already on disk.
+  const [checkedCache, setCheckedCache] = useState(false);
   const shimmerAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -66,7 +73,16 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
     void loadUsage();
   }, [loadUsage]);
 
-  const fetchBriefing = useCallback(async () => {
+  /**
+   * `cacheOnly` reads today's briefing off disk and spends nothing. Anything
+   * else is a user gesture.
+   *
+   * This card used to fetch from a bare mount effect, so every Home open on a
+   * cold cache spent a metered AI call the GC never asked for — and then, on a
+   * block or a throw, rendered nothing at all, so the spend and the failure
+   * were both invisible (audit 2026-09-07, ai-features).
+   */
+  const fetchBriefing = useCallback(async (cacheOnly = false) => {
     if (projects.length === 0 || isLoading) return;
 
     const today = new Date().toISOString().split('T')[0];
@@ -74,12 +90,20 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
     const cached = await getCachedResult<HomeBriefingResult>(cacheKey, FOUR_HOURS);
     if (cached) {
       setResult(cached);
+      setCheckedCache(true);
+      return;
+    }
+    setCheckedCache(true);
+    if (cacheOnly) return;
+
+    const limit = await checkAILimit(subscriptionTier, 'fast', 'homeBriefing');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      setError(limit.message ?? "You've used today's AI allowance — the briefing resets at midnight.");
       return;
     }
 
-    const limit = await checkAILimit(subscriptionTier, 'fast', 'homeBriefing');
-    if (!limit.allowed) return;
-
+    setError(null);
     setIsLoading(true);
     try {
       const data = await generateHomeBriefing(projects, invoices);
@@ -89,16 +113,24 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void loadUsage();
     } catch (err) {
+      // Say what failed, in the card. A briefing that silently doesn't appear
+      // is indistinguishable from "nothing needs your attention".
       console.log('[AI Briefing] Failed:', err);
+      setError(`Couldn't build today's briefing. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
     } finally {
       setIsLoading(false);
     }
-  }, [projects, invoices, subscriptionTier, isLoading, loadUsage]);
+  }, [projects, invoices, subscriptionTier, isLoading, loadUsage, router]);
 
+  // Mount reads the cache and nothing else — no AI call without a tap.
   useEffect(() => {
     if (projects.length > 0) {
-      void fetchBriefing();
+      void fetchBriefing(true);
     }
+    // fetchBriefing is deliberately absent: it changes identity on every
+    // projects/invoices edit, and re-running the cache read on each of those
+    // would fight the tap-to-run state below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects.length]);
 
   if (projects.length === 0) return null;
@@ -123,7 +155,37 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
     );
   }
 
-  if (!result) return null;
+  // No briefing yet — the card IS the run button. It never runs itself.
+  if (!result) {
+    if (!checkedCache) return null;
+    return (
+      <TouchableOpacity
+        style={styles.container}
+        onPress={() => void fetchBriefing()}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Run today's AI daily briefing"
+        testID="home-briefing-run"
+      >
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <MageAIMark size={14} color={themeColors.accent} />
+            <Text style={styles.headerTitle}>MAGE Brain · Daily Briefing</Text>
+          </View>
+          <Text style={styles.usageText}>{usageText}</Text>
+        </View>
+        {error ? (
+          <View style={styles.errorRow}>
+            <AlertTriangle size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.runPrompt}>
+          {error ? 'Tap to try again.' : 'Tap to read today across all your jobs. Uses one AI call.'}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -134,6 +196,20 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         </View>
         <Text style={styles.aiLabel}>AI-generated</Text>
       </View>
+
+      {error ? (
+        <TouchableOpacity
+          style={styles.errorRow}
+          onPress={() => void fetchBriefing()}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Retry the daily briefing"
+        >
+          <AlertTriangle size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
+          <Text style={styles.errorText}>{error}</Text>
+          <RefreshCw size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
+        </TouchableOpacity>
+      ) : null}
 
       <Text style={styles.briefingText}>{result.briefing}</Text>
 
@@ -304,6 +380,31 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: t.textMuted,
     fontWeight: '500' as const,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    // dangerSoft, not the static `Colors.errorLight`: that tint is a baked
+    // LIGHT value while `dangerLabel` themes, so inside this factory dark mode
+    // put #FF5A51 ink on pale pink at 2.78:1. The themed pair measures 4.77:1
+    // light / 4.79:1 dark (constants/colors.ts).
+    backgroundColor: t.dangerSoft,
+    borderRadius: Tokens.radius.md,
+    padding: 10,
+    marginBottom: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    color: t.dangerLabel,
+    fontWeight: '500' as const,
+    lineHeight: 18,
+  },
+  runPrompt: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textSecondary,
+    lineHeight: 18,
   },
   skeletonLine: {
     height: 12,

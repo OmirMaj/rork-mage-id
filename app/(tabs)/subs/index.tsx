@@ -16,6 +16,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AISubEvaluator from '@/components/AISubEvaluator';
+import { computeSubScorecards, type SubGrade } from '@/utils/subScorecard';
 import type { Subcontractor, SubTrade } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
@@ -43,6 +44,26 @@ import {
 function createId(_prefix: string): string {
   return generateUUID();
 }
+
+// Grade band → an AA-safe FOREGROUND token. app/sub-scorecard.tsx paints its
+// grade chip with t.accent / t.accentHot, which are the brand hues: #FF6A1A as
+// text is 2.87:1 and fails AA, so it is not copied here. The *Label* tokens
+// are the ones constants/colors.ts engineers to clear 4.5:1 in both themes.
+// A and B share green, C and D share amber — the LETTER carries the grade, the
+// colour carries the band.
+function gradeLabelColor(grade: SubGrade): string {
+  if (grade === 'A' || grade === 'B') return Colors.successLabel;
+  if (grade === 'C' || grade === 'D') return Colors.warningLabel;
+  return Colors.dangerLabel;
+}
+
+/** Mirrors app/sub-scorecard.tsx's CONFIDENCE_LABEL so the two surfaces word
+ *  the same number the same way. */
+const CONFIDENCE_LABEL: Record<'low' | 'medium' | 'high', string> = {
+  low: 'Low confidence',
+  medium: 'Medium confidence',
+  high: 'High confidence',
+};
 
 function getStatusColor(status: ComplianceState): string {
   if (status === 'compliant') return Colors.successLabel;
@@ -190,13 +211,40 @@ export default function SubsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, projects, prequalPackets } = useProjects();
+  // commitments / changeOrders / punchItems / rfis are read only by the
+  // scorecard memo below — the same six inputs app/sub-scorecard.tsx passes,
+  // so the grade shown here is the grade shown there and cannot drift.
+  const {
+    subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, projects, prequalPackets,
+    commitments, changeOrders, punchItems, rfis,
+  } = useProjects();
   const { tier } = useSubscription();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTrade, setFilterTrade] = useState<SubTrade | 'All'>('All');
   const [showForm, setShowForm] = useState(false);
   const [editingSub, setEditingSub] = useState<Subcontractor | null>(null);
   const [showDetail, setShowDetail] = useState<Subcontractor | null>(null);
+
+  // The deterministic 0–100 grade, computed on THIS screen. It used to live
+  // two navigation levels away (Discover ▸ Tools ▸ Sub Scorecard) while the
+  // ungrounded AISubEvaluator sat inline on the sub detail — so on the screen
+  // where the award is actually decided, the only intelligence on offer was
+  // the LLM panel (app-experience audit 2026-09-07, network #11). Pure
+  // function, no network, no AI: it reads signed commitments, CO growth,
+  // compliance dates, punch rework, schedule reliability and RFI turnaround.
+  //
+  // Scoped to the open sub, and only while its sheet is open. buildCard is
+  // strictly per-sub (the only cross-sub output is `bestByTrade`, which this
+  // screen does not use), so a one-element input returns the identical card
+  // app/sub-scorecard.tsx renders — without running the punch-item filter and
+  // the schedule walk once per sub on every render of the LIST.
+  const openScorecard = useMemo(() => {
+    if (!showDetail) return null;
+    return computeSubScorecards({
+      subcontractors: [showDetail], commitments, changeOrders, punchItems, projects, rfis,
+    }).cards[0] ?? null;
+  }, [showDetail, commitments, changeOrders, punchItems, projects, rfis]);
 
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
@@ -845,6 +893,61 @@ export default function SubsScreen() {
                     </View>
                   ) : null}
 
+                  {/* Above the AI panel on purpose: this is the graded answer
+                      built from the GC's own records, so it gets read first
+                      and the model's opinion reads as commentary on it. */}
+                  {(() => {
+                    const card = openScorecard;
+                    if (!card) return null;
+                    const gradeColor = gradeLabelColor(card.grade);
+                    return (
+                      <View style={styles.detailSection}>
+                        <Text style={styles.detailSectionTitle}>SCORECARD</Text>
+                        <TouchableOpacity
+                          style={styles.scorecardRow}
+                          onPress={() => {
+                            // Close the sheet FIRST. This row lives inside a
+                            // transparent <Modal>, which iOS presents over the
+                            // whole app — pushing from under it leaves the
+                            // scorecard rendering behind the sheet and the tap
+                            // reads as dead. Same 350ms pageSheet-dismiss wait
+                            // components/UniversalSearch.tsx uses.
+                            const subId = sub.id;
+                            setShowDetail(null);
+                            setTimeout(
+                              () => router.push({ pathname: '/sub-scorecard', params: { subId } }),
+                              Platform.OS === 'ios' ? 350 : 0,
+                            );
+                          }}
+                          activeOpacity={0.8}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Grade ${card.grade}, ${card.score} out of 100. ${card.topDriver}. Open the full scorecard.`}
+                          testID="sub-detail-scorecard"
+                        >
+                          <View style={[styles.scorecardGrade, { backgroundColor: gradeColor + '1F' }]}>
+                            <Text style={[styles.scorecardGradeText, { color: gradeColor }]}>{card.grade}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.scorecardScore}>
+                              {card.score}/100 · {CONFIDENCE_LABEL[card.confidence]}
+                            </Text>
+                            {/* Say what the number is made of. `noHistory` means
+                                no signed commitment has ever been attributed to
+                                this sub, so the score is paperwork only — which
+                                is exactly the case where a bare grade would
+                                mislead a GC into treating it as a verdict. */}
+                            <Text style={styles.scorecardDriver} numberOfLines={3}>
+                              {card.noHistory
+                                ? 'No signed commitments yet — this grades compliance paperwork only. Award work through Buyout and the score gets real.'
+                                : card.topDriver}
+                            </Text>
+                          </View>
+                          <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })()}
+
                   <AISubEvaluator
                     sub={sub}
                     projectContext={`Active projects: ${projects.length}. Trades needed: ${[...new Set(projects.flatMap(p => p.schedule?.tasks?.map(t => t.crew) ?? []).filter(Boolean))].join(', ') || 'Various'}`}
@@ -959,6 +1062,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, letterSpacing: 0.5 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   detailRowText: { fontSize: Type.subhead.fontSize, color: themeColors.text },
+  scorecardRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 12, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line,
+  },
+  scorecardGrade: { width: 38, height: 38, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
+  scorecardGradeText: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, letterSpacing: -0.5 },
+  scorecardScore: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text, fontVariant: ['tabular-nums'] },
+  scorecardDriver: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2, lineHeight: 16 },
   bidRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: themeColors.line },
   bidProject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   bidDate: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },

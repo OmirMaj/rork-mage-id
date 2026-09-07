@@ -594,7 +594,7 @@ export default function BidDetailScreen() {
                   </TouchableOpacity>
                 ) : null}
                 {applyUrl ? (
-                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.accent }]} onPress={() => void Linking.openURL(applyUrl)}>
+                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.accentFill }]} onPress={() => void Linking.openURL(applyUrl)}>
                     <ExternalLink size={16} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.contactBtnText}>Apply</Text>
                   </TouchableOpacity>

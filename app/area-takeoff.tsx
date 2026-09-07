@@ -588,7 +588,7 @@ function AreaTakeoffInner() {
                         return (
                           <TouchableOpacity
                             key={e.key}
-                            style={[styles.chip, sel && { backgroundColor: t.accent, borderColor: t.accent }]}
+                            style={[styles.chip, sel && { backgroundColor: t.accentFill, borderColor: t.accentFill }]}
                             onPress={() => { setSelectedTrade(sel ? null : e.trade); setManualRate(''); setManualRateSource(null); }}
                             activeOpacity={0.8}
                             testID={`takeoff-trade-${e.key}`}
@@ -634,7 +634,7 @@ function AreaTakeoffInner() {
                             return (
                               <TouchableOpacity
                                 key={opt.category}
-                                style={[styles.chip, sel && { backgroundColor: t.accent, borderColor: t.accent }]}
+                                style={[styles.chip, sel && { backgroundColor: t.accentFill, borderColor: t.accentFill }]}
                                 onPress={() => { setManualRate(opt.rate.toFixed(2)); setManualRateSource(opt.label); setSelectedTrade(null); }}
                                 activeOpacity={0.8}
                                 testID={`takeoff-engine-${opt.category}`}

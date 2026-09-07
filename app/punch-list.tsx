@@ -1066,7 +1066,7 @@ function PunchListScreenInner() {
               <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: themeColors.line }]} onPress={clearAllFilters}>
                 <Text style={[styles.filterDrawerBtnText, { color: themeColors.text }]}>Clear all</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: themeColors.accent, flex: 1.4 }]} onPress={() => setShowFilterDrawer(false)}>
+              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: themeColors.accentFill, flex: 1.4 }]} onPress={() => setShowFilterDrawer(false)}>
                 <Text style={[styles.filterDrawerBtnText, { color: "#FFFFFF" }]}>
                   Show {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
                 </Text>

@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { CalendarDays, DollarSign, ArrowRight, HelpCircle, BookOpen } from 'lucide-react-native';
+import { CalendarDays, DollarSign, ArrowRight, HelpCircle, BookOpen, AlertTriangle } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -64,6 +64,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
   const [result, setResult] = useState<ChangeOrderImpactResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   // Holds the user's answer to a clarifying question so they can re-analyze.
   const [clarifyAnswer, setClarifyAnswer] = useState('');
 
@@ -77,6 +78,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
       return;
     }
 
+    setError(null);
     setIsLoading(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -89,7 +91,11 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
       // than rendered and discarded.
       onResult?.(data);
     } catch (err) {
+      // Name the failure. Console-only meant a GC pricing a change on site
+      // watched "Analyzing Impact..." return to the unpressed button with no
+      // analysis and no reason (audit 2026-09-07, ai-features).
       console.error('[AI CO Impact] Failed:', err);
+      setError(`Couldn't analyze this change. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
     } finally {
       setIsLoading(false);
     }
@@ -97,20 +103,33 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
 
   if (!result) {
     return (
-      <TouchableOpacity
-        style={[styles.triggerBtn, !changeDescription.trim() && styles.triggerDisabled]}
-        onPress={() => void handleAnalyze()}
-        disabled={isLoading || !changeDescription.trim()}
-      >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={themeColors.accent} />
-        ) : (
-          <MageAIMark size={16} color={changeDescription.trim() ? themeColors.accent : themeColors.textMuted} />
-        )}
-        <Text style={[styles.triggerText, !changeDescription.trim() && { color: themeColors.textMuted }]}>
-          {isLoading ? 'Analyzing Impact...' : 'Analyze Impact with AI'}
-        </Text>
-      </TouchableOpacity>
+      <View>
+        <TouchableOpacity
+          style={[styles.triggerBtn, !changeDescription.trim() && styles.triggerDisabled]}
+          onPress={() => void handleAnalyze()}
+          disabled={isLoading || !changeDescription.trim()}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color={themeColors.accent} />
+          ) : (
+            <MageAIMark size={16} color={changeDescription.trim() ? themeColors.accent : themeColors.textMuted} />
+          )}
+          <Text style={[styles.triggerText, !changeDescription.trim() && { color: themeColors.textMuted }]}>
+            {isLoading ? 'Analyzing Impact...' : error ? 'Try analyzing again' : 'Analyze Impact with AI'}
+          </Text>
+        </TouchableOpacity>
+        {/* The button is disabled until there is something to analyze — say so
+            rather than leaving a greyed control with no explanation. */}
+        {!changeDescription.trim() && !isLoading ? (
+          <Text style={styles.triggerHint}>Describe the change above and this turns on.</Text>
+        ) : null}
+        {error ? (
+          <View style={styles.errorRow}>
+            <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -134,6 +153,12 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
           multiline
           textAlignVertical="top"
         />
+        {error ? (
+          <View style={styles.errorRow}>
+            <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity
           style={[styles.triggerBtn, !clarifyAnswer.trim() && styles.triggerDisabled]}
           onPress={() => {
@@ -164,6 +189,12 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
         </View>
         <Text style={styles.aiTag}>AI</Text>
       </TouchableOpacity>
+      {error ? (
+        <View style={styles.errorRow}>
+          <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
       {groundedOn.length > 0 && (
         <View style={styles.groundingRow}>
           <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -278,6 +309,33 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: t.accent,
+  },
+  triggerHint: {
+    fontSize: Type.caption1.fontSize,
+    color: t.textMuted,
+    textAlign: 'center',
+    marginTop: -4,
+    marginBottom: 8,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    // dangerSoft, not the static `Colors.errorLight`: that tint is a baked
+    // LIGHT value while `dangerLabel` themes, so inside this factory dark mode
+    // put #FF5A51 ink on pale pink at 2.78:1. The themed pair measures 4.77:1
+    // light / 4.79:1 dark (constants/colors.ts).
+    backgroundColor: t.dangerSoft,
+    borderRadius: Tokens.radius.card,
+    padding: 12,
+    marginBottom: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    color: t.dangerLabel,
+    fontWeight: '500' as const,
+    lineHeight: 18,
   },
   card: {
     backgroundColor: t.surface,

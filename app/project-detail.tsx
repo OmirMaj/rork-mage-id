@@ -38,7 +38,6 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
-import UniversalMicButton from '@/components/UniversalMicButton';
 import { generateUUID } from '@/utils/generateId';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import AIProjectReport from '@/components/AIProjectReport';
@@ -1646,6 +1645,10 @@ export default function ProjectDetailScreen() {
                       !isActive && isPast && styles.stageChipTextPast,
                     ]}
                     numberOfLines={1}
+                    // Shrink before ellipsizing. A stage label read at 10pt is
+                    // still a stage label; "Constru…" is not.
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
                   >
                     {stage.label}
                   </Text>
@@ -4587,10 +4590,16 @@ export default function ProjectDetailScreen() {
         />
       )}
 
-      {/* Always-rendered FAB; UniversalMicButton hides itself internally
-          when there's no project to scope to. Keeps the parent hook tree
-          stable across project-loading transitions. */}
-      <UniversalMicButton projectId={project?.id} />
+      {/* No local mic FAB here — hands-on UI pass 2026-09-07, finding 8.
+          BrainSurface already mounts the global orange Brain FAB on every
+          screen, and this was the only screen in the app that ALSO drew
+          UniversalMicButton's own floating dark mic, stacking two circles over
+          the Cash Flow tile and giving the screen a GC lives in three
+          concurrent ways to talk to the AI. The project-scoped door is the
+          inline "Ask MAGE to do anything" card above, which carries the
+          projectId into /copilot-hub. Mounting UniversalMicButton with
+          `hideFab` would have left an unopenable modal plus three context
+          subscriptions behind, so the mount is gone rather than muted. */}
     </View>
   );
 }
@@ -5057,7 +5066,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   stageHeaderCount: { fontSize: 11, fontWeight: '700' as const, color: themeColors.accent, letterSpacing: 0.6 },
   stageChipsRow: { flexDirection: 'row', gap: 6 },
   stageChip: {
-    flex: 1,
+    // flexBasis 'auto', not flex:1. Equal quarters gave every chip ~67pt of
+    // inner width and "Construction" needs ~79 at 12pt bold, so the stepper
+    // rendered the CURRENT stage as "Constru…" — the one label a GC opens this
+    // card to read (hands-on UI pass 2026-09-07, finding 9). Sized to content
+    // the four labels total ~296pt and fit a 390pt phone with room to spare;
+    // flexGrow still spreads the slack so the strip fills the card edge to edge.
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
     paddingVertical: 8,
     paddingHorizontal: 6,
     borderRadius: Tokens.radius.md,
@@ -5068,6 +5085,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   stageChipActive: {
+    // On a 320pt phone the row still overflows; flexShrink 0 makes the other
+    // three give the width up first, so the current stage is the last thing
+    // that would ever be trimmed rather than the first.
+    flexShrink: 0,
     backgroundColor: themeColors.accentFill,
     borderColor: themeColors.accent,
   },

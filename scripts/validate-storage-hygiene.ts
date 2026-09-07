@@ -97,6 +97,12 @@ const NOT_STORAGE_KEYS = new Map<string, string>([
   ['shift-alert:', 'hooks/useTimeEntries.ts — prefix of a local-notification identifier'],
   ['Pre-CO', 'utils/coScheduleReflowCore.ts — a schedule baseline NAME'],
   ['standalone', 'utils/takeoffStorage.ts — project-id placeholder INSIDE the composite mageid_takeoff:: key'],
+  // CO_BILL_KEY_PREFIX. Namespaces an approved change order's INVOICE LINE
+  // ITEM id so a bare co.id cannot collide with a LinkedEstimateItem.materialId
+  // (both are UUIDs off the same generator). It never reaches AsyncStorage —
+  // utils/changeOrderBilling.ts imports no storage API at all — but the
+  // _KEY_PREFIX const name is what KEY_CONST_RE looks for. Added 2026-09-07.
+  ['co:', 'utils/changeOrderBilling.ts — an invoice LINE-ITEM id prefix, never a storage key'],
 ]);
 
 const discovered = new Map<string, string>(); // key -> first file that writes it

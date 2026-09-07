@@ -207,7 +207,7 @@ function SafetyCertificationsInner() {
             return (
               <TouchableOpacity
                 key={chip.key}
-                style={[styles.filterChip, active && { backgroundColor: themeColors.accent }]}
+                style={[styles.filterChip, active && { backgroundColor: themeColors.accentFill }]}
                 onPress={() => setFilter(chip.key)}
               >
                 <Text style={[styles.filterChipText, active && { color: '#fff' }]}>{chip.label}</Text>

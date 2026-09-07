@@ -316,7 +316,7 @@ export function PlanZoneEditor({
               <TouchableOpacity style={styles.promptCancel} onPress={() => setPendingRect(null)}>
                 <Text style={styles.promptCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.promptConfirm, { backgroundColor: colors.accent }]} onPress={confirmNewZone}>
+              <TouchableOpacity style={[styles.promptConfirm, { backgroundColor: colors.accentFill }]} onPress={confirmNewZone}>
                 <Text style={styles.promptConfirmText}>Add Zone</Text>
               </TouchableOpacity>
             </View>

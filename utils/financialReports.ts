@@ -17,7 +17,7 @@
 // memoize them and the PDF builders can serialize them as-is.
 
 import type { Project, Invoice, ChangeOrder, Commitment } from '@/types';
-import { computeJobCost } from './jobCostEngine';
+import { computeJobCost, type JobCostActualSources } from './jobCostEngine';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
@@ -56,11 +56,21 @@ export interface WIPReport {
   };
 }
 
+// MONEY-DEF-1 (audit 2026-09-07): both reports below call the job-cost engine,
+// and both used to call it with NO receipts and NO time entries — so their
+// cost-to-date was subs-and-POs only, missing every dollar of materials and
+// self-perform labor. On the WIP tab that lands in front of a bank; on the
+// Profit report it prints a margin the job does not have. The screen already
+// holds these (app/job-costing.tsx wires useMaterialReceipts / time entries /
+// useLaborRates), so they are forwarded here rather than re-derived. Default
+// `{}` keeps a caller that has not been wired yet compiling — and honest: it
+// gets the same lower bound it got before, not a silently different number.
 export function computeWIPReport(
   projects: Project[],
   invoices: Invoice[],
   changeOrders: ChangeOrder[],
   commitments: Commitment[],
+  costSources: JobCostActualSources = {},
 ): WIPReport {
   const rows: WIPRow[] = [];
   for (const project of projects) {
@@ -95,7 +105,7 @@ export function computeWIPReport(
       0,
     );
 
-    const job = computeJobCost({ project, commitments, invoices, changeOrders });
+    const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
     const estimatedFinalCost = job.projectedFinal;
 
     // MONEY-F13 (audit 2026-09-03): percent complete on a COST basis —
@@ -187,6 +197,7 @@ export function computeProfitReport(
   invoices: Invoice[],
   changeOrders: ChangeOrder[],
   commitments: Commitment[],
+  costSources: JobCostActualSources = {},
 ): { rows: ProfitRow[]; totalRevenue: number; totalProfit: number; weightedMargin: number } {
   const rows: ProfitRow[] = [];
   for (const project of projects) {
@@ -196,7 +207,7 @@ export function computeProfitReport(
       .reduce((s, co) => s + co.changeAmount, 0);
     const revenue = contractValue + approvedCOs;
 
-    const job = computeJobCost({ project, commitments, invoices, changeOrders });
+    const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
     const estimatedFinalCost = job.projectedFinal;
     const projectedProfit = revenue - estimatedFinalCost;
     const projectedMargin = revenue > 0 ? (projectedProfit / revenue) * 100 : 0;

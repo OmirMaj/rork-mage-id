@@ -1075,8 +1075,12 @@ export default function DailyReportScreen() {
     return manpower.reduce((sum, m) => sum + (m.headcount * m.hoursWorked), 0);
   }, [manpower]);
 
-  const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string) => {
+  // `silent` writes the record and nothing else — no haptic, no toast, no
+  // navigation. handleConfirmSend uses it to get the day on disk BEFORE it
+  // tries to deliver anything, and owns the outcome message itself.
+  const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string, opts?: { silent?: boolean }) => {
     if (!projectId) return;
+    const silent = opts?.silent === true;
 
     const now = new Date().toISOString();
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
@@ -1127,8 +1131,10 @@ export default function DailyReportScreen() {
           createdAt: p.timestamp,
         });
       }
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
+      if (!silent) {
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showAlert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
+      }
     } else {
       const report: DailyFieldReport = {
         id: stableReportId,  // stable id — also used as the PDF filename
@@ -1166,12 +1172,51 @@ export default function DailyReportScreen() {
           createdAt: p.timestamp,
         });
       }
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // The hammer-strike toast confirms without blocking the back nav.
-      nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
+      if (!silent) {
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // The hammer-strike toast confirms without blocking the back nav.
+        nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
+      }
     }
-    router.back();
+    if (!silent) router.back();
   }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId]);
+
+  // ─── The record lands before anything is delivered ───────────────────────
+  //
+  // handleSave used to run LAST in handleConfirmSend, after the email. A
+  // cancelled iOS Mail composer returned silently and a Resend failure alerted
+  // "Report saved but email could not be sent" — while nothing had been
+  // written at all. A super who spent twenty minutes on a DFR in a basement,
+  // hit the failure and backed out lost the whole day and read the word
+  // "saved" doing it (audit 2026-09-07 "Do now" #2). The day's work is now on
+  // disk before a single delivery is attempted.
+  //
+  // It lands as a DRAFT and only becomes 'sent' once something actually went
+  // out, and that second write cannot ride the send handler's own closure:
+  // updateDailyReport captures the report list of the render that built it, so
+  // calling it there — after addDailyReport has already added a row — would
+  // write back a list that predates the row and delete the report we just
+  // saved. The flip is queued in state here and applied by the effect below,
+  // which runs on a later commit with a fresh callback and a list that
+  // contains the row.
+  const [sentFlip, setSentFlip] = useState<{ reportId: string; toast: string } | null>(null);
+  useEffect(() => {
+    if (!sentFlip) return;
+    setSentFlip(null);
+    // Belt and braces on the ordering argument above (adversarial review):
+    // updateDailyReport MAPS over the list it captured and writes the whole
+    // thing back, so if this commit's list somehow does not carry the row
+    // yet, the stamp would persist a list without it and delete the report
+    // outright. `existingReports` comes off the same render's dailyReports,
+    // so it answers exactly that question. A report left labelled "Saved"
+    // instead of "Sent" costs nothing next to losing the day.
+    if (existingReports.some(r => r.id === sentFlip.reportId)) {
+      updateDailyReport(sentFlip.reportId, { status: 'sent' });
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    nailIt(sentFlip.toast);
+    router.back();
+  }, [sentFlip, existingReports, updateDailyReport, router]);
 
   // ─── "Nothing happened today" — one tap, no invented content ───────────
   //
@@ -1245,6 +1290,14 @@ export default function DailyReportScreen() {
     }
     setShowSendRecipient(false);
 
+    // Persist FIRST — see "The record lands before anything is delivered"
+    // above. Everything below this line can fail without costing the super
+    // his day.
+    handleSave('draft', sendRecipientName, sendRecipientEmail, { silent: true });
+    const recipientInfo = sendRecipientName
+      ? ` to ${sendRecipientName}${sendRecipientEmail.trim() ? ` (${sendRecipientEmail.trim()})` : ''}`
+      : '';
+
     if (wantsEmail) {
       const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
       const weatherForEmail = {
@@ -1277,16 +1330,33 @@ export default function DailyReportScreen() {
       });
 
       if (!result.success) {
+        // Both exits below are honest now: the report IS saved, as a draft,
+        // and the screen says where to find it and how to try again.
         if (result.error === 'cancelled') {
+          showAlert(
+            'Saved as a draft',
+            'You backed out of the mail composer, so nothing was emailed. The report is saved on this project — open it from Daily Reports to send it again.',
+          );
+          router.back();
           return;
         }
         console.warn('[DailyReport] Email send failed:', result.error);
-        showAlert('Email Notice', `Report saved but email could not be sent: ${result.error}`);
+        showAlert(
+          'Saved — the email did not send',
+          `The report is saved on this project as a draft. The email failed: ${result.error}`,
+        );
+        router.back();
         return;
       } else {
         console.log('[DailyReport] Email sent successfully');
       }
     }
+
+    // `true` once something has actually left this device. With no email
+    // requested, the shared-drive copy IS the delivery — so if it throws, the
+    // report stays the draft it already is instead of being stamped "sent" on
+    // the strength of a write that failed.
+    let delivered = wantsEmail;
 
     // Save the rendered report to the project's shared-drive folder
     // when the toggle is on. Pre-fix the only persistence beyond the
@@ -1324,18 +1394,29 @@ export default function DailyReportScreen() {
           html,
           fileName: `Daily Report — ${dateLabel}.pdf`,
         });
+        delivered = true;
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (err) {
-        // Log but don't block — the structured DFR record still saves
-        // below. The user gets a non-fatal toast so they know the
-        // shared-drive copy didn't land and can retry.
+        // Log but don't block — the structured DFR record is already saved
+        // (above, before any delivery ran). The user gets a non-fatal alert so
+        // they know the shared-drive copy didn't land and can retry.
         console.warn('[DailyReport] Save to project files failed:', err);
-        showAlert('Project files notice', `Sent, but the project-files copy didn't land: ${(err as Error).message}`);
+        showAlert(
+          'Project files notice',
+          `${wantsEmail ? 'Emailed' : 'Saved'}, but the project-files copy didn't land: ${(err as Error).message}`,
+        );
       }
     }
 
-    handleSave('sent', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, existingReport, isFree]);
+    if (!delivered) {
+      // Nothing left the device: the record stays the draft it already is.
+      router.back();
+      return;
+    }
+    setSentFlip({ reportId: stableReportId, toast: `Daily report sent${recipientInfo}` });
+  // `existingReport` is not listed: this handler never reads it (handleSave,
+  // which does, is the dep that carries it).
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, isFree, router, stableReportId]);
 
   if (!project) {
     return (

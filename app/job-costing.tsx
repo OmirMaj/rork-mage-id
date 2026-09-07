@@ -6,7 +6,7 @@
 //   3. How much worse will it get?
 //   4. What's actually signed vs. still open?
 //
-// Data flow: pulls commitments/invoices/changeOrders from ProjectContext,
+// Data flow: pulls commitments/changeOrders/receipts/time entries from ProjectContext,
 // feeds them into `computeJobCost` (utils/jobCostEngine.ts), and renders
 // the result. No network calls here — everything's in-memory from existing
 // state. Adding a commitment from this screen triggers a recompute on the
@@ -88,7 +88,7 @@ function JobCostingInner() {
   const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const {
-    getProject, commitments, invoices, changeOrders,
+    getProject, commitments, changeOrders,
     addCommitment, updateCommitment, deleteCommitment, subcontractors, projects,
   } = useProjects();
 
@@ -121,8 +121,9 @@ function JobCostingInner() {
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
-    return computeJobCost({ project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier });
-  }, [project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier]);
+    // No `invoices`: client payments are revenue, not job cost (MONEY-DEF-1).
+    return computeJobCost({ project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier });
+  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
@@ -158,7 +159,7 @@ function JobCostingInner() {
         <ToolHeader eyebrow="JOB COSTING · MAGE ID" title="Job Costing" />
         <ToolProjectPicker
           toolName="Job Costing"
-          message="Job costing rolls up commitments, invoices, and change orders for one project at a time."
+          message="Job costing rolls up commitments, receipts, crew hours and change orders for one project at a time."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
@@ -460,8 +461,10 @@ function JobCostingInner() {
         </View>
 
         <Text style={styles.footerNote}>
-          Budget includes approved change orders. Actual is sum of invoice payments. EAC assumes
-          remaining committed work lands at signed price; uncommitted budget is a floor.
+          Budget includes approved change orders. Actual is money you have paid OUT — subcontract
+          and PO payments, snapped supplier receipts, and priced crew hours. Payments your client
+          makes to you are revenue and are counted nowhere on this screen. EAC assumes remaining
+          committed work lands at signed price; uncommitted budget is a floor.
         </Text>
       </ScrollView>
 
@@ -853,7 +856,6 @@ function PhaseDetailModal({ line, summary, onClose }: {
             />
             <View style={styles.detailDivider} />
             <DetailRow label="Commitments" value={`${line.sources.commitments}`} />
-            <DetailRow label="Invoices contributed" value={`${line.sources.invoices}`} />
             <DetailRow label="COs contributed" value={`${line.sources.changeOrders}`} />
             {line.sources.receipts > 0 && <DetailRow label="Material receipts" value={`${line.sources.receipts}`} />}
             {line.sources.timeEntries > 0 && <DetailRow label="Crew shifts (self-perform)" value={`${line.sources.timeEntries}`} />}

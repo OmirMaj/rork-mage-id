@@ -8,6 +8,7 @@ import { getLanguageMeta } from '@/utils/portalLanguages';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { resolveScheduleAnchor, scheduleDayNumberFor } from '@/utils/scheduleOps';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -106,76 +107,14 @@ export async function saveCopilotHistory(projectId: string, messages: CopilotMes
   await AsyncStorage.setItem(COPILOT_HISTORY_PREFIX + projectId, JSON.stringify(trimmed));
 }
 
-const copilotResponseSchema = z.object({
-  answer: z.string().default(''),
-  confidence: z.enum(['high', 'medium', 'low']).default('medium'),
-  actionItems: z.array(z.object({
-    text: z.string(),
-    priority: z.enum(['urgent', 'important', 'suggestion']),
-  })).default([]),
-  dataPoints: z.array(z.object({
-    label: z.string(),
-    value: z.string(),
-  })).default([]),
-});
-
-export type CopilotResponse = z.infer<typeof copilotResponseSchema>;
-
-export function buildProjectContext(project: Project | null, schedule: ProjectSchedule | null): string {
-  if (!project) return 'No project selected.';
-  const estimate = project.linkedEstimate ?? project.estimate;
-  const tasks = schedule?.tasks ?? [];
-  const done = tasks.filter(t => t.status === 'done').length;
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
-  const overdue = tasks.filter(t => t.status !== 'done' && t.progress < 100).length;
-
-  return `Project: ${project.name}
-Status: ${project.status}
-Type: ${project.type}
-Location: ${project.location}
-Square Footage: ${project.squareFootage || 'N/A'}
-
-Schedule:
-- Total tasks: ${tasks.length}
-- Completed: ${done}
-- In progress: ${inProgress}
-- Overdue: ${overdue}
-- Health score: ${schedule?.healthScore ?? 'N/A'}
-- Total duration: ${schedule?.totalDurationDays ?? 0} days
-- Critical path: ${schedule?.criticalPathDays ?? 0} days
-
-Estimate:
-- Grand total: $${estimate && 'grandTotal' in estimate ? estimate.grandTotal : 0}
-- Items: ${estimate && 'items' in estimate ? (estimate as any).items?.length ?? 0 : 0}
-
-Risk items: ${schedule?.riskItems?.map(r => r.title).join('; ') || 'None'}
-
-Tasks (top 25):
-${tasks.slice(0, 25).map(t =>
-    `- ${t.title} (${t.phase}): ${t.progress}% | ${t.status} | Day ${t.startDay}-${t.startDay + t.durationDays}${t.crew ? ` | Crew: ${t.crew}` : ''}`
-  ).join('\n') || 'No tasks'}`;
-}
-
-export async function askCopilot(userMessage: string, projectContext: string): Promise<CopilotResponse> {
-  console.log('[AI Copilot] Sending message:', userMessage.substring(0, 50));
-  const aiResult = await mageAI({
-    prompt: `You are MAGE AI, a senior construction project management advisor built into the MAGE ID app. You have access to the user's project data below. Answer their question with specific, actionable advice based on their actual data. Be concise (2-4 sentences max for the main answer). If there are action items, list them. Use construction industry terminology.
-
-PROJECT DATA:
-${projectContext}
-
-USER QUESTION: ${userMessage}
-
-Respond with a helpful, specific answer based on the project data above. Include relevant numbers and task names from the data. If you identify risks or issues, flag them clearly.`,
-    schema: copilotResponseSchema,
-    tier: 'fast',
-  });
-  if (!aiResult.success) {
-    throw new Error(aiResult.error || 'AI unavailable');
-  }
-  console.log('[AI Copilot] Response received');
-  return aiResult.data;
-}
+// NOTE: `copilotResponseSchema`, `CopilotResponse`, `buildProjectContext` and
+// `askCopilot` used to live here with ZERO callers (re-grepped app/ components/
+// hooks/ utils/ scripts/ __tests__ on 2026-09-07 — scripts/stress-test-ai.ts
+// carries its own copy). Deleted rather than left sitting: buildProjectContext
+// carried the same fabricated-overdue defect fixed in generateHomeBriefing
+// below (`tasks.filter(t => t.status !== 'done' && t.progress < 100)` reported
+// every unfinished task as overdue), and dead code with a live-looking bug in
+// it is one import away from shipping.
 
 export const scheduleRiskSchema = z.object({
   overallConfidence: z.number().default(0),
@@ -911,23 +850,65 @@ export const homeBriefingSchema = z.object({
 
 export type HomeBriefingResult = z.infer<typeof homeBriefingSchema>;
 
+/**
+ * How many tasks are PAST THEIR PLANNED FINISH as of `now` — or null when the
+ * schedule cannot honestly answer that.
+ *
+ * The briefing used to compute this as
+ *   `t.startDay + t.durationDays < (schedule?.totalDurationDays ?? 999)`
+ * — a task's finish DAY NUMBER compared against the schedule's TOTAL duration,
+ * so on a perfectly healthy job every incomplete task except the last one
+ * counted as overdue and the model was handed "17 potentially overdue" to be
+ * "specific with names and numbers" about. Today's date never entered it. On
+ * Home that fabricated count renders ~150px above MorningBriefCard, the
+ * deterministic brief that correctly says nothing needs attention (audit
+ * 2026-09-07, ai-features).
+ *
+ * An UNDATED schedule has real working-day numbers and no calendar position at
+ * all (utils/scheduleOps, "THE RULE"), so nothing on it can be overdue — it
+ * returns null and the caller emits no overdue line rather than a number the
+ * schedule cannot support. The anchor is checked BEFORE the task list: a dated
+ * schedule with no tasks yet honestly has zero overdue, and returning null for
+ * it made the caller tell the model "this schedule has no start date" about a
+ * schedule that has one.
+ */
+function overdueTaskCount(schedule: ProjectSchedule | null | undefined, now: Date): number | null {
+  const anchor = resolveScheduleAnchor(schedule ?? null, now);
+  if (!anchor.date) return null;
+  const tasks = schedule?.tasks ?? [];
+  if (tasks.length === 0) return 0;
+  const today = scheduleDayNumberFor(
+    anchor.date, now, schedule?.workingDaysPerWeek ?? 5, schedule?.nonWorkingDates,
+  );
+  return tasks.filter(t => {
+    if (t.status === 'done' || (t.progress ?? 0) >= 100) return false;
+    // Inclusive last day, matching scheduleEngine.getTaskDateRange. A 0-day
+    // milestone finishes on its own start day.
+    const finish = Math.max(1, t.startDay ?? 1) + Math.max(1, t.durationDays ?? 0) - 1;
+    return finish < today;
+  }).length;
+}
+
 export async function generateHomeBriefing(
   projects: Project[],
   invoices: Invoice[],
+  now: Date = new Date(),
 ): Promise<HomeBriefingResult> {
   console.log('[AI Briefing] Generating for', projects.length, 'projects');
   const projectSummaries = projects.map(p => {
     const schedule = p.schedule;
     const tasks = schedule?.tasks ?? [];
     const done = tasks.filter(t => t.status === 'done').length;
-    const overdue = tasks.filter(t => t.status !== 'done' && t.progress < 100 && t.startDay + t.durationDays < (schedule?.totalDurationDays ?? 999)).length;
+    const overdue = overdueTaskCount(schedule, now);
     const est = p.linkedEstimate ?? p.estimate;
     const projectInvoices = invoices.filter(inv => inv.projectId === p.id);
     const pendingInvoices = projectInvoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft');
     return `Project: ${p.name}
   Type: ${p.type} | Status: ${p.status}
   Schedule health: ${schedule?.healthScore ?? 'N/A'}/100
-  Tasks: ${tasks.length} total, ${done} done, ${overdue} potentially overdue
+  Tasks: ${tasks.length} total, ${done} done${overdue === null
+    ? ' (this schedule has no start date — its day numbers carry no calendar position, so NOTHING on it is overdue and you must not say anything is)'
+    : `, ${overdue} past their planned finish date`}
   Estimate: ${est && 'grandTotal' in est ? est.grandTotal.toLocaleString() : '0'}
   Pending invoices: ${pendingInvoices.length} totaling ${pendingInvoices.reduce((s, i) => s + invoiceOutstanding(i), 0).toLocaleString()} (net of held retention)`;
   }).join('\n---\n');
@@ -938,7 +919,7 @@ export async function generateHomeBriefing(
 PROJECTS:
 ${projectSummaries}
 
-DATE: ${new Date().toLocaleDateString()}`,
+DATE: ${now.toLocaleDateString()}`,
     schema: homeBriefingSchema,
     schemaHint: {
       briefing: "2-3 sentence portfolio overview highlighting what needs attention today",
@@ -998,13 +979,16 @@ Predict the actual payment date, confidence level, and give a tip for getting pa
   return aiResult.data;
 }
 
+// NOTE: `typicalRates: {journeyman, master, apprentice}` used to live here and
+// AISubEvaluator rendered it as a 3-up "Typical Rates" grid a GC anchored on
+// before negotiating. The payload below carries company, contact, trade,
+// license/COI dates and bid counts — no zip, no city, no market feed — and the
+// relay has no browsing tool, so every one of those dollar figures was recall
+// with no geography and no source (audit 2026-09-07, ai-features). Removed at
+// the schema so the model cannot emit them at all; the panel now shows the
+// GC's OWN loaded rate for the trade from hooks/useLaborRates.
 export const subEvaluationSchema = z.object({
   questionsToAsk: z.array(z.string()).default([]),
-  typicalRates: z.object({
-    journeyman: z.string().default(''),
-    master: z.string().default(''),
-    apprentice: z.string().default(''),
-  }).default({ journeyman: '', master: '', apprentice: '' }),
   redFlags: z.array(z.string()).default([]),
   recommendation: z.string().default(''),
   trackRecord: z.string().optional(),
@@ -1035,7 +1019,9 @@ Notes: ${sub.notes || 'None'}
 CONTEXT:
 ${projectContext}
 
-Provide: questions to ask before hiring, typical rates for their trade, red flags to watch for, and overall recommendation. If they have bid history, summarize their track record.`,
+Provide: questions to ask before hiring, red flags to watch for, and overall recommendation. If they have bid history, summarize their track record.
+
+Do NOT state wage rates, unit prices or any other dollar figure — you have no rate data for this trade or this market, and the app shows the contractor their own measured rate instead.`,
     schema: subEvaluationSchema,
     tier: 'fast',
   });

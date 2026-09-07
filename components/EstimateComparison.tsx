@@ -104,8 +104,6 @@ const EstimateComparison = React.memo(function EstimateComparison({
       showAlert('Nothing to Save', 'Add items to your estimate first.');
       return;
     }
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
     const items = currentCart.map(i => ({
       id: i.material.id,
       name: i.material.name,
@@ -129,24 +127,38 @@ const EstimateComparison = React.memo(function EstimateComparison({
     };
 
     const updated = [version, ...savedVersions].slice(0, 10);
-    setSavedVersions(updated);
+    // The success alert and the success haptic used to fire unconditionally,
+    // outside the try — so a failed write announced "Saved" and the version
+    // was gone the next time this sheet opened, with nothing said (audit
+    // 2026-09-07, the honesty gap). Only the branch that actually wrote is
+    // allowed to claim it — and the in-memory list is only updated after the
+    // write lands, so a failed save leaves no row sitting there looking saved.
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (err) {
       console.error('[EstimateComparison] Failed to save version:', err);
+      showAlert('Couldn’t save', `This device would not store the version: ${err instanceof Error ? err.message : 'unknown error'}. Your estimate itself is untouched — try again.`);
+      return;
     }
+    setSavedVersions(updated);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Saved', `Estimate saved as "${version.name}"`);
   }, [currentCart, currentLaborCart, currentAssemblyCart, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, savedVersions]);
 
   const handleDeleteVersion = useCallback(async (id: string) => {
     const updated = savedVersions.filter(v => v.id !== id);
-    setSavedVersions(updated);
-    if (selectedVersion?.id === id) setSelectedVersion(null);
+    // Same rule as the save above: the row leaves the list only if the write
+    // that removes it landed. It used to vanish on screen and come back on
+    // the next open.
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (err) {
       console.error('[EstimateComparison] Failed to delete version:', err);
+      showAlert('Couldn’t delete', `This device would not update the saved versions: ${err instanceof Error ? err.message : 'unknown error'}. The version is still there — try again.`);
+      return;
     }
+    setSavedVersions(updated);
+    if (selectedVersion?.id === id) setSelectedVersion(null);
   }, [savedVersions, selectedVersion]);
 
   const comparison = useMemo(() => {

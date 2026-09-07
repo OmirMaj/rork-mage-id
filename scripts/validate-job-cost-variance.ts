@@ -130,12 +130,25 @@ function project(items: { category: string; lineTotal: number }[]): Project {
   } as unknown as Project;
 }
 
-/** A fully paid invoice whose lines trace to no estimate item. */
+/** A fully paid invoice whose lines trace to no estimate item. Client money
+ *  IN — kept as a fixture precisely because it must move nothing (MONEY-DEF-1,
+ *  audit 2026-09-07); the actual-cost definition itself is pinned in
+ *  scripts/validate-money-definitions.ts. */
 function paidInvoice(amount: number, sourceEstimateItemId?: string): Invoice {
   return {
     id: 'inv1', projectId: 'p1', amountPaid: amount,
     lineItems: [{ id: 'l1', description: 'Progress billing', total: amount, sourceEstimateItemId }],
   } as unknown as Invoice;
+}
+
+/** A sub paid in full on a phase the estimate never priced — the Henderson
+ *  $49K, told with the correct money definition: cost paid OUT, not client
+ *  cash in. No phase, so it lands in '(Uncategorized)' exactly as before. */
+function paidCommitment(amount: number, phase?: string): Commitment {
+  return {
+    id: 'c-paid', projectId: 'p1', status: 'active', type: 'subcontract',
+    amount, paidToDate: amount, phase,
+  } as unknown as Commitment;
 }
 
 function commitment(amount: number, phase?: string): Commitment {
@@ -147,8 +160,8 @@ function commitment(amount: number, phase?: string): Commitment {
 
 const HENDERSON = computeJobCost({
   project: project([{ category: 'Framing', lineTotal: 30_000 }, { category: 'Electrical', lineTotal: 18_000 }]),
-  commitments: [],
-  invoices: [paidInvoice(49_000)],
+  commitments: [paidCommitment(49_000)],
+  invoices: [paidInvoice(49_000)],   // revenue — must not move a single number
   changeOrders: [],
 });
 

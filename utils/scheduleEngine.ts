@@ -1,4 +1,5 @@
 import type { ScheduleTask, DependencyLink, ProjectSchedule, ScheduleRiskItem, ScheduleBaseline } from '@/types';
+import { PHASE_PALETTE, PHASE_FALLBACK } from '@/constants/colors';
 import { generateUUID } from '@/utils/generateId';
 
 export const PHASE_OPTIONS = [
@@ -13,29 +14,14 @@ export const PHASE_OPTIONS = [
 // uses the same color, and dimmed/baseline ghosts use the color at low
 // alpha. Pick colors with enough hue separation that two adjacent phases
 // don't blur together at small bar widths.
-export const PHASE_COLORS: Record<string, string> = {
-  'Site Work':    '#3B82F6', // blue
-  'Demo':         '#EF4444', // red
-  'Foundation':   '#10B981', // emerald
-  'Framing':      '#A855F7', // purple
-  'Roofing':      '#06B6D4', // cyan
-  'MEP':          '#F59E0B', // amber
-  'Plumbing':     '#0EA5E9', // sky
-  'Electrical':   '#EAB308', // yellow
-  'HVAC':         '#14B8A6', // teal
-  'Insulation':   '#F97316', // orange
-  'Drywall':      '#94A3B8', // slate
-  'Interior':     '#EC4899', // pink
-  'Finishes':     '#22C55E', // green
-  'Landscaping':  '#84CC16', // lime
-  'Inspections':  '#F59E0B', // amber (matches MEP — they share the inspection cadence)
-  // 'General' is the DEFAULT phase every quick-added task lands in, so its
-  // color is effectively the app's "default task" color. The old indigo
-  // (#6366F1) made the whole schedule read as a second accent family next
-  // to the ink+amber system (sim-audit slop #5). Warm stone keeps it
-  // neutral — real trades keep their categorical hues.
-  'General':      '#7A7266', // warm stone (neutral — uncategorized work)
-};
+// Re-exported from constants/colors.ts (2026-09-07). The table itself moved
+// there because scripts/validate-app-slop.ts bans purple/pink hexes outside
+// constants/ as generic-AI slop — but these are a CATEGORICAL DATA PALETTE
+// whose whole job is hue separation between adjacent Gantt bars, and the
+// guard's own rule is "theme via constants/colors.ts only". Recolouring the
+// chart to satisfy a brand rule would have cost the separation it depends on.
+// The name is kept so the four call sites do not churn.
+export const PHASE_COLORS = PHASE_PALETTE;
 
 export function createId(_prefix: string): string {
   return generateUUID();
@@ -478,7 +464,7 @@ export function getBaselineVariance(task: ScheduleTask, baseline: ScheduleBaseli
 export function getPhaseColor(phase: string): string {
   // Unknown phases fall back to the same neutral as 'General' — an unmapped
   // phase is uncategorized work, not a new accent color.
-  return PHASE_COLORS[phase] || '#7A7266';
+  return PHASE_COLORS[phase] || PHASE_FALLBACK;
 }
 
 export function generateWbsCodes(tasks: ScheduleTask[]): ScheduleTask[] {

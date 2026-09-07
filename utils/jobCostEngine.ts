@@ -1,12 +1,24 @@
 // jobCostEngine.ts — derive per-phase and project-level job cost lines from
-// the existing Estimate / Commitment / Invoice / ChangeOrder data.
+// the existing Estimate / Commitment / MaterialReceipt / TimeEntry data.
 //
 // The four numbers every GC needs:
 //
 //   BUDGET    — what you said it would cost (estimate + approved COs)
 //   COMMITTED — signed subs + POs against that budget
-//   ACTUAL    — what's actually been paid out (invoice payments)
+//   ACTUAL    — what the GC has actually paid OUT: commitment.paidToDate
+//               (subs + POs) + snapped material receipts + priced crew hours
 //   EAC       — projected final cost at completion
+//
+// ACTUAL IS COST, NEVER REVENUE. Money the CLIENT pays the GC is revenue and
+// is not a job cost — it belongs to the WIP billings column, not here. Until
+// MONEY-DEF-1 (audit 2026-09-07) this engine's only actual-cost signal was
+// `Invoice.amountPaid`, so a homeowner's deposit looked like budget burn while
+// a GC who had performed $300K and billed nothing showed Actual $0 and "on
+// track to finish under budget" — and that definition fed the CPI, the margin
+// alerts, the bank-facing WIP tab and the AI. utils/wip.suggestCostToDate and
+// utils/estimateActuals already used the correct definition; this engine now
+// agrees with them, and scripts/validate-money-definitions.ts pins the two
+// together so they cannot drift apart again.
 //
 // EAC (estimate at completion) method — MAGE opinionated default:
 //
@@ -42,7 +54,6 @@ import type {
   Commitment,
   Invoice,
   ChangeOrder,
-  LinkedEstimate,
   MaterialReceipt,
   TimeEntry,
 } from '@/types';
@@ -58,7 +69,8 @@ export interface JobCostLine {
   budget: number;
   /** Signed subs + POs. */
   committed: number;
-  /** Paid invoice amount attributable to this phase. */
+  /** Cost paid out on this phase — commitment payments, material receipts and
+   *  priced crew hours. Never client money in (see header). */
   actual: number;
   /** Projected final cost using the MAGE EAC method (see header). */
   projectedFinal: number;
@@ -70,9 +82,10 @@ export interface JobCostLine {
    *  landed on a phase carrying no budget, so there is nothing to be on
    *  track against. */
   status: 'on_track' | 'warning' | 'over' | 'unbudgeted';
-  /** How many commitments, invoices, change orders, material receipts, and
-   *  crew time entries contributed. */
-  sources: { commitments: number; invoices: number; changeOrders: number; receipts: number; timeEntries: number };
+  /** How many commitments, change orders, material receipts, and crew time
+   *  entries contributed. There is no `invoices` counter: client invoices are
+   *  revenue and contribute nothing here (MONEY-DEF-1). */
+  sources: { commitments: number; changeOrders: number; receipts: number; timeEntries: number };
 }
 
 export interface JobCostSummary {
@@ -81,7 +94,8 @@ export interface JobCostSummary {
   budget: number;
   /** Sum of all committed sub/PO amounts (incl. CO revisions). */
   committed: number;
-  /** Sum of all invoice payments. */
+  /** Sum of cost paid out — commitment payments + material receipts +
+   *  priced crew hours. NOT client payments (see header). */
   actual: number;
   /** Sum of projected finals. */
   projectedFinal: number;
@@ -115,21 +129,6 @@ function commitmentPhase(c: Commitment): string {
 }
 
 /**
- * Attribute an invoice line to a phase. Invoices don't carry a phase, so
- * we trace via `sourceEstimateItemId` → estimate item → category. If no
- * link, fall back to the invoice's top-level notes bucket (uncategorized).
- */
-function estimateItemPhase(
-  estimate: LinkedEstimate | null | undefined,
-  estimateItemId: string | undefined,
-): string {
-  if (!estimate || !estimateItemId) return PHASE_UNCATEGORIZED;
-  const item = estimate.items.find(it => it.materialId === estimateItemId);
-  if (!item) return PHASE_UNCATEGORIZED;
-  return item.category?.trim() || PHASE_UNCATEGORIZED;
-}
-
-/**
  * Classify a phase by how its actual + projected stack up.
  * - over:       projectedFinal exceeds a real budget by more than 2%
  * - warning:    actual is 90% of budget but the phase isn't visibly done
@@ -150,9 +149,9 @@ function classify(line: Omit<JobCostLine, 'status'>): JobCostLine['status'] {
   //
   // Deliberately NOT 'over': this money isn't necessarily an overrun, it's
   // money the estimate never accounted for, which is a different and often
-  // fixable thing (an invoice line that lost its estimate-item link, a
-  // commitment tagged with a phase name the estimate spells differently,
-  // self-perform labor that was never estimated as its own scope). Naming
+  // fixable thing (a commitment tagged with a phase name the estimate
+  // spells differently, a material receipt whose category the estimate never
+  // used, self-perform labor that was never estimated as its own scope). Naming
   // that honestly beats both a false green and a false red.
   if (line.projectedFinal > 0) return 'unbudgeted';
   return 'on_track';
@@ -161,7 +160,14 @@ function classify(line: Omit<JobCostLine, 'status'>): JobCostLine['status'] {
 export interface JobCostInput {
   project: Project;
   commitments: Commitment[];
-  invoices: Invoice[];
+  /** ACCEPTED AND DELIBERATELY UNREAD. Client invoices are REVENUE — see the
+   *  ACTUAL definition in the header. The engine summed `Invoice.amountPaid`
+   *  into `actual` until MONEY-DEF-1 (audit 2026-09-07); the field stays on the
+   *  input only so the existing call sites keep compiling, and passing it can
+   *  never move a number. Do not reintroduce a reader — scripts/
+   *  validate-money-definitions.ts fails the build if an invoice payment moves
+   *  `summary.actual`. */
+  invoices?: Invoice[];
   changeOrders: ChangeOrder[];
   /** Snapped supplier invoices. Their line totals count as ACTUAL material
    *  spend, attributed to the phase of their linked PO commitment (or, when
@@ -183,6 +189,16 @@ export interface JobCostInput {
 }
 
 /**
+ * The cost-side inputs a caller must FORWARD for `actual` to be the whole cost
+ * picture rather than subs-and-POs only. Reports that omit them (utils/
+ * financialReports did, on both the bank-facing WIP tab and the Profit report)
+ * report a cost-to-date missing every dollar of materials and self-perform
+ * labor, which reads as a fatter margin than the job has (MONEY-DEF-1).
+ */
+export type JobCostActualSources =
+  Pick<JobCostInput, 'receipts' | 'timeEntries' | 'laborRates' | 'overtimeMultiplier'>;
+
+/**
  * Run the cost-to-complete engine on one project's numbers.
  *
  * Pure function — all data is passed in, no storage side effects. Callers
@@ -190,11 +206,10 @@ export interface JobCostInput {
  * cheap to recompute because the input arrays are already in memory.
  */
 export function computeJobCost({
-  project, commitments, invoices, changeOrders, receipts = [], timeEntries = [], laborRates = {},
+  project, commitments, changeOrders, receipts = [], timeEntries = [], laborRates = {},
   overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER,
 }: JobCostInput): JobCostSummary {
   const projectCommitments = commitments.filter(c => c.projectId === project.id && c.status !== 'draft');
-  const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
   const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
   const projectReceipts = receipts.filter(r => r.projectId === project.id);
 
@@ -254,30 +269,24 @@ export function computeJobCost({
     phases.set(match, existing);
   }
 
-  // Commitments — signed subs/POs push into their phase.
+  // Commitments — signed subs/POs push into their phase, and what has been
+  // PAID against them is the primary actual-cost signal.
+  //
+  // MONEY-DEF-1 (audit 2026-09-07): `paidToDate` is the server rollup of sub
+  // and PO payments, hydrated at contexts/ProjectContext.tsx:918 and already
+  // the cost basis utils/wip.suggestCostToDate and utils/estimateActuals use.
+  // This engine never read it — its only actual-cost signal was the CLIENT's
+  // invoice payments, i.e. revenue — so a homeowner's deposit read as budget
+  // burn and a GC who had performed $300K and billed nothing showed Actual $0
+  // and "on track to finish under budget". Two screens in one app answered
+  // "what has this job cost me" with incompatible arithmetic.
   for (const c of projectCommitments) {
     const phase = commitmentPhase(c);
     const existing = phases.get(phase) ?? emptyLine(phase);
     existing.committed += c.amount + (c.changeAmount ?? 0);
+    existing.actual += Math.max(0, c.paidToDate ?? 0);
     existing.sources.commitments += 1;
     phases.set(phase, existing);
-  }
-
-  // Actuals — sum payments per invoice and attribute by line-item → phase.
-  for (const inv of projectInvoices) {
-    const paid = Math.max(0, inv.amountPaid || 0);
-    if (paid <= 0) continue;
-
-    const lineTotal = inv.lineItems.reduce((s, l) => s + (l.total || 0), 0);
-    const ratio = lineTotal > 0 ? paid / lineTotal : 0;
-
-    for (const line of inv.lineItems) {
-      const phase = estimateItemPhase(estimate, line.sourceEstimateItemId);
-      const existing = phases.get(phase) ?? emptyLine(phase);
-      existing.actual += (line.total || 0) * ratio;
-      existing.sources.invoices += 1;
-      phases.set(phase, existing);
-    }
   }
 
   // Material receipts — snapped supplier invoices count as ACTUAL material
@@ -419,7 +428,7 @@ function emptyLine(phase: string): JobCostLine {
     variance: 0,
     burnRatio: 0,
     status: 'on_track',
-    sources: { commitments: 0, invoices: 0, changeOrders: 0, receipts: 0, timeEntries: 0 },
+    sources: { commitments: 0, changeOrders: 0, receipts: 0, timeEntries: 0 },
   };
 }
 

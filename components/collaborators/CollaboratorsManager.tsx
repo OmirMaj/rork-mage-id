@@ -167,7 +167,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
           <TouchableOpacity
             onPress={onInvite}
             disabled={!validEmail || invite.isPending}
-            style={[styles.inviteBtn, { backgroundColor: t.accent }, (!validEmail || invite.isPending) && { opacity: 0.5 }]}
+            style={[styles.inviteBtn, { backgroundColor: t.accentFill }, (!validEmail || invite.isPending) && { opacity: 0.5 }]}
             accessibilityRole="button"
             testID="collab-invite"
           >

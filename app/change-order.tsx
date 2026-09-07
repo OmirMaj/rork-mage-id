@@ -39,6 +39,7 @@ import { SendToClientButton } from '@/components/SendToClientButton';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
 import { resolveAiAffectedTaskIds } from '@/utils/coScheduleReflowCore';
 import { formatMoney } from '@/utils/formatters';
+import { changeOrderBillingState } from '@/utils/changeOrderBilling';
 
 // Pipeline stages — happy path through the CO lifecycle. Side branches
 // (rejected, revised, void) live outside this visual; the user can still
@@ -108,7 +109,7 @@ function ChangeOrderInner() {
     prefillScheduleDays?: string;
   }>();
   const {
-    getProject, getChangeOrdersForProject, addChangeOrder, updateChangeOrder, contacts,
+    getProject, getChangeOrdersForProject, getInvoicesForProject, addChangeOrder, updateChangeOrder, contacts,
   } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -520,10 +521,67 @@ function ChangeOrderInner() {
     handleSave('submitted', sendRecipientName, sendRecipientEmail);
   }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, changeAmount, newContractTotal]);
 
-  // A locked CO hides the action bar, so it must not keep lifting the FAB.
+  // A locked CO hides the EDIT action bar — an approved one gets the billing
+  // bar below instead, which lifts the FAB the same way.
   // Derived above the early return below so the hook order never changes.
   const isLocked = existingCO?.status === 'approved' || existingCO?.status === 'rejected' || existingCO?.status === 'void';
-  useBrainFabLift(!isLocked ? bottomBarH : 0);
+
+  // MONEY-DEF-2 (audit 2026-09-07): an approved CO moved the contract total on
+  // six read-only surfaces and had no path to a billable line anywhere, so the
+  // GC retyped it by hand — losing the CO number, the approval trail and the
+  // double-bill guard the milestone flow has — or ate it. Billing runs through
+  // /bill-from-estimate (which writes the key onto the invoice line) rather
+  // than /invoice, whose prefillLines parser drops `sourceEstimateItemId` and
+  // would leave the guard below nothing to read. The decision itself is
+  // utils/changeOrderBilling.changeOrderBillingState — one implementation,
+  // shared with the billing screen and executed by the guard.
+  type COBilling =
+    | { canBill: false; reason: string }
+    | { canBill: true; remaining: number; label: string; note?: string };
+  const coBilling = useMemo((): COBilling | null => {
+    if (!existingCO || existingCO.status !== 'approved') return null;
+    const state = changeOrderBillingState(
+      existingCO.id, existingCO.changeAmount, getInvoicesForProject(existingCO.projectId),
+    );
+    switch (state.kind) {
+      case 'credit':
+        // Do NOT tell him to add a negative line in the invoice editor: that
+        // editor has no add-a-line control at all (app/invoice.tsx:1549 renders
+        // lineItems and can only delete or voice-append). Say what is true —
+        // the credit is already inside the New Contract Total shown above.
+        return {
+          canBill: false,
+          reason: `This change order is a ${formatMoney(Math.abs(state.amount), 2)} credit, not a charge. It is already off the New Contract Total above, so there is no invoice line to raise for it.`,
+        };
+      case 'no_value':
+        return { canBill: false, reason: 'This change order carries no dollar value, so there is nothing to bill.' };
+      case 'fully_billed':
+        return {
+          canBill: false,
+          reason: state.invoiceNumber != null
+            ? `Already billed in full on invoice #${state.invoiceNumber} (${formatMoney(state.already, 2)}).`
+            : `Already billed in full (${formatMoney(state.already, 2)}).`,
+        };
+      case 'billable':
+        return {
+          canBill: true,
+          remaining: state.remaining,
+          label: state.already > 0.009
+            ? `Bill remaining ${formatMoney(state.remaining, 2)}`
+            : `Bill this change order — ${formatMoney(state.remaining, 2)}`,
+          // A draft is deliberately not counted as billed (it may never be
+          // sent), which is the one way this button bills the same CO twice.
+          // Name the draft rather than let him make a second one blind.
+          note: state.pendingDraftNumber != null
+            ? `Draft invoice #${state.pendingDraftNumber} already has this change order on it. Billing again makes a second invoice.`
+            : state.already > 0.009
+              ? `${formatMoney(state.already, 2)} of this change order is already on an invoice.`
+              : undefined,
+        };
+    }
+  }, [existingCO, getInvoicesForProject]);
+
+  useBrainFabLift(!isLocked || coBilling ? bottomBarH : 0);
 
   if (!project) {
     return (
@@ -556,7 +614,9 @@ function ChangeOrderInner() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           {...fabScroll}
-          contentContainerStyle={[{ paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}
+          // The approved-CO billing bar is taller than the edit bar it replaces
+          // (it carries an explanatory line), so clear the measured height.
+          contentContainerStyle={[{ paddingBottom: Math.max(insets.bottom + 100, bottomBarH + 24) }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -958,6 +1018,37 @@ function ChangeOrderInner() {
             />
           </View>
         )}
+
+        {/* Approved CO → the one action that was missing: turn it into money.
+            When it cannot be billed the control still renders and SAYS WHY,
+            rather than vanishing and leaving the GC to guess. */}
+        {coBilling && existingCO && (
+          <View style={[styles.coBillBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
+            {coBilling.canBill ? (
+              <>
+                <Button
+                  label={coBilling.label}
+                  onPress={() => {
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    router.push({
+                      pathname: '/bill-from-estimate' as any,
+                      params: { projectId: existingCO.projectId, focusChangeOrderId: existingCO.id, type: 'progress' },
+                    });
+                  }}
+                  iconLeft={<Percent size={16} color="#FFFFFF" strokeWidth={1.75} />}
+                  fullWidth
+                  testID="bill-change-order-btn"
+                />
+                {!!coBilling.note && <Text style={styles.coBillNote}>{coBilling.note}</Text>}
+              </>
+            ) : (
+              <>
+                <Button label="Bill this change order" onPress={() => {}} disabled fullWidth testID="bill-change-order-btn" />
+                <Text style={styles.coBillNote}>{coBilling.reason}</Text>
+              </>
+            )}
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
@@ -1334,6 +1425,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '500' as const,
     lineHeight: 16,
   },
+  coBillBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, gap: 8 },
+  coBillNote: { fontSize: Type.caption1.fontSize, lineHeight: 16, color: themeColors.textSecondary, textAlign: 'center' as const },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },

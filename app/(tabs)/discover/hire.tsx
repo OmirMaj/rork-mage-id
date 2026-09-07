@@ -167,7 +167,13 @@ export default function CachedHireScreen() {
   const [selectedRadius, setSelectedRadius] = useState<number>(50);
   const [selectedTrade, setSelectedTrade] = useState<string | undefined>();
 
-  const { data: jobs, isLoading, refetch, isRefetching, error: _jobsQueryError } = useQuery({
+  // The query error is KEPT (it used to be underscore-prefixed and thrown
+  // away, with the queryFn returning [] on failure). A GC browsing during a
+  // backend hiccup was told no jobs were posted near him and invited to post
+  // his own — a claim this screen had no way to be right about. The ladder
+  // below is the one the sibling tab already ships
+  // (app/(tabs)/discover/bids.tsx) — audit 2026-09-07 "Do now" #9.
+  const { data: jobs, isLoading, refetch, isRefetching, error: jobsQueryError } = useQuery({
     queryKey: ['cached_jobs'],
     queryFn: async () => {
       console.log('[CachedJobs] === START FETCH ===');
@@ -184,13 +190,15 @@ export default function CachedHireScreen() {
           console.log('[CachedJobs] First row sample:', JSON.stringify(data[0]).substring(0, 200));
         }
         if (error) {
-          console.log('[CachedJobs] Supabase error, returning empty:', error.message);
-          return [];
+          console.log('[CachedJobs] Supabase error:', error.message);
+          throw new Error(error.message || 'Could not load jobs.');
         }
         return (data ?? []) as CachedJob[];
       } catch (err: any) {
-        console.log('[CachedJobs] Network/fetch error:', err?.message);
-        return [];
+        // Covers both the throw above and a genuine network/parse failure —
+        // either way the screen must not render this as an empty marketplace.
+        console.log('[CachedJobs] read failed:', err?.message);
+        throw err instanceof Error ? err : new Error('Could not load jobs.');
       }
     },
     retry: 1,
@@ -336,7 +344,20 @@ export default function CachedHireScreen() {
         </ScrollView>
       </View>
 
-      {loading ? (
+      {jobsQueryError ? (
+        <View style={styles.emptyContainer}>
+          <AlertCircle size={40} color={themeColors.warningLabel} strokeWidth={1.75} />
+          <Text style={styles.emptyTitle}>Couldn&apos;t load jobs</Text>
+          <Text style={styles.emptySubtitle}>
+            {jobsQueryError instanceof Error && jobsQueryError.message
+              ? jobsQueryError.message
+              : 'The request did not come back.'}
+          </Text>
+          <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View>
           {[0, 1, 2, 3, 4].map(i => <SkeletonRow key={i} />)}
         </View>
@@ -412,6 +433,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
   emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  // accentFill, not accent: this button carries white text, and #FF6A1A is
+  // 2.87:1 behind white. Same pair the sibling bids tab uses.
+  retryButton: { marginTop: 14, backgroundColor: t.accentFill, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
+  retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
   emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
 });

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView,
   type LayoutChangeEvent,
@@ -15,7 +15,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { Invoice, InvoiceLineItem, LinkedEstimateItem, MaterialLineItem } from '@/types';
+import type { ChangeOrder, Invoice, InvoiceLineItem, LinkedEstimateItem, MaterialLineItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -39,6 +39,9 @@ import { Tokens } from '@/constants/designTokens';
 
 import { generateUUID } from '@/utils/generateId';
 import { billedAmountForLine } from '@/utils/invoiceBilling';
+import {
+  billedAgainstChangeOrder, changeOrderBillKey, isChangeOrderBillKey,
+} from '@/utils/changeOrderBilling';
 import { billFromEstimateLine, billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { showAlert } from '@/utils/alert';
 import { formatMoney } from '@/utils/formatters';
@@ -60,7 +63,14 @@ function clampPct(v: number): number {
 
 type EstimateRowSource =
   | { kind: 'linked'; item: LinkedEstimateItem }
-  | { kind: 'legacy'; item: MaterialLineItem };
+  | { kind: 'legacy'; item: MaterialLineItem }
+  | { kind: 'changeOrder'; co: ChangeOrder };
+
+// Approved change orders are billable here (MONEY-DEF-2, audit 2026-09-07).
+// The key and the billed-through math live in utils/changeOrderBilling.ts, not
+// on this screen: the "Bill this change order" action on app/change-order.tsx
+// reads the same two functions, and a guard can only execute them from a .ts
+// (see that file's header).
 
 interface Row {
   key: string;                 // stable match key (materialId or name)
@@ -90,8 +100,13 @@ export default function BillFromEstimateScreen() {
   }, []);
   useBrainFabLift(bottomBarH);
   const router = useRouter();
-  const { projectId, type } = useLocalSearchParams<{ projectId: string; type?: string }>();
-  const { getProject, getInvoicesForProject, addInvoice, settings } = useProjects();
+  // focusChangeOrderId arrives from the "Bill this change order" action on
+  // app/change-order.tsx — it preselects that CO's row and nothing else, so the
+  // GC lands on a bill for exactly the CO he tapped.
+  const { projectId, type, focusChangeOrderId } = useLocalSearchParams<{
+    projectId: string; type?: string; focusChangeOrderId?: string;
+  }>();
+  const { getProject, getInvoicesForProject, getChangeOrdersForProject, addInvoice, settings } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
@@ -105,14 +120,29 @@ export default function BillFromEstimateScreen() {
   // linked-estimate model.
   const sources: EstimateRowSource[] = useMemo(() => {
     if (!project) return [];
-    if (project.linkedEstimate && project.linkedEstimate.items.length > 0) {
-      return project.linkedEstimate.items.map(item => ({ kind: 'linked' as const, item }));
-    }
-    if (project.estimate && project.estimate.materials.length > 0) {
-      return project.estimate.materials.map(item => ({ kind: 'legacy' as const, item }));
-    }
-    return [];
-  }, [project]);
+    const base: EstimateRowSource[] =
+      project.linkedEstimate && project.linkedEstimate.items.length > 0
+        ? project.linkedEstimate.items.map(item => ({ kind: 'linked' as const, item }))
+        : project.estimate && project.estimate.materials.length > 0
+          ? project.estimate.materials.map(item => ({ kind: 'legacy' as const, item }))
+          : [];
+    // MONEY-DEF-2: approved COs are contract dollars, so they bill here beside
+    // the estimate. Credits (a negative changeAmount) are deliberately not rows
+    // — this screen bills a PERCENT OF REMAINING, and a percent of a negative
+    // remainder is not a thing a GC can reason about. The banner below names
+    // any credit so it is not silently dropped.
+    const cos = getChangeOrdersForProject(project.id)
+      .filter(co => co.status === 'approved' && co.changeAmount > 0)
+      .sort((a, b) => a.number - b.number)
+      .map(co => ({ kind: 'changeOrder' as const, co }));
+    return [...base, ...cos];
+  }, [project, getChangeOrdersForProject]);
+
+  /** Approved credits, which have no billable row above. Named, never hidden. */
+  const approvedCredits = useMemo(() => {
+    if (!project) return [];
+    return getChangeOrdersForProject(project.id).filter(co => co.status === 'approved' && co.changeAmount < 0);
+  }, [project, getChangeOrdersForProject]);
 
   // For each estimate row, compute how much has ALREADY been billed across
   // existing invoices. Prefer `sourceEstimateItemId` for a clean match;
@@ -120,6 +150,30 @@ export default function BillFromEstimateScreen() {
   // existed are still accounted for.
   const rows: Row[] = useMemo(() => {
     return sources.map(src => {
+      if (src.kind === 'changeOrder') {
+        // MONEY-DEF-2: a CO is one lump-sum contract line. Its billed-through
+        // comes from the same helper the "Bill this change order" button reads,
+        // so a CO billed from either entry point shows as billed on both.
+        const co = src.co;
+        const key = changeOrderBillKey(co.id);
+        const full = co.changeAmount;
+        const already = billedAgainstChangeOrder(co.id, existingInvoices);
+        const remaining = Math.max(0, full - already);
+        return {
+          key,
+          name: `CO #${co.number}${co.description ? ` — ${co.description}` : ''}`,
+          category: 'Change order',
+          unit: 'lump',
+          quantity: 1,
+          unitPrice: full,
+          lineTotal: full,
+          alreadyBilled: already,
+          remaining,
+          // A CO is approved work already performed or committed — bill it in
+          // full by default rather than at the estimate's 30% progress default.
+          billPercent: remaining > 0 ? 100 : 0,
+        };
+      }
       if (src.kind === 'linked') {
         const item = src.item;
         const key = item.materialId || item.name;
@@ -195,6 +249,47 @@ export default function BillFromEstimateScreen() {
     () => Object.fromEntries(rows.map(r => [r.key, r.remaining > 0])),
   );
   const [billingHint, setBillingHint] = useState<string | null>(null);
+
+  // Rows can arrive AFTER first render — the project hydrates from storage, so
+  // the lazy initial state above can be seeded from an empty list, and a key
+  // with no entry reads as unselected. Seed any key we have not seen yet.
+  // Separately, focusChangeOrderId (from the "Bill this change order" action on
+  // app/change-order.tsx) narrows the selection to that one CO the first time
+  // its row exists, so the GC lands on a bill for exactly what he tapped.
+  const focusApplied = useRef(false);
+  useEffect(() => {
+    if (rows.length === 0) return;
+    const focusKey = focusChangeOrderId ? changeOrderBillKey(focusChangeOrderId) : null;
+    const applyingFocus = !!focusKey && !focusApplied.current && rows.some(r => r.key === focusKey);
+    if (applyingFocus) focusApplied.current = true;
+
+    setBillPercents(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const r of rows) {
+        if (applyingFocus) {
+          const want = r.key === focusKey ? (r.remaining > 0 ? 100 : 0) : 0;
+          if (next[r.key] !== want) { next[r.key] = want; changed = true; }
+        } else if (next[r.key] === undefined) {
+          next[r.key] = r.billPercent; changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setSelected(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const r of rows) {
+        if (applyingFocus) {
+          const want = r.key === focusKey && r.remaining > 0;
+          if (next[r.key] !== want) { next[r.key] = want; changed = true; }
+        } else if (next[r.key] === undefined) {
+          next[r.key] = r.remaining > 0; changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [rows, focusChangeOrderId]);
 
   const amountsByKey = useMemo(() => {
     const map: Record<string, number> = {};
@@ -343,6 +438,7 @@ export default function BillFromEstimateScreen() {
   }
 
   const contractTotal = rows.reduce((s, r) => s + r.lineTotal, 0);
+  const hasChangeOrderRows = rows.some(r => isChangeOrderBillKey(r.key));
   const totalAlreadyBilled = rows.reduce((s, r) => s + r.alreadyBilled, 0);
   const totalRemaining = rows.reduce((s, r) => s + r.remaining, 0);
 
@@ -404,7 +500,11 @@ export default function BillFromEstimateScreen() {
             </Text>
             <View style={styles.heroRow}>
               <View style={styles.heroMetric}>
-                <Text style={styles.heroMetricLabel}>Contract</Text>
+                {/* Say which contract this is. Once approved COs bill here the
+                    figure is the REVISED contract, and calling it "Contract"
+                    beside a number the estimate alone cannot produce is the
+                    same mislabel the progress-percent field carries. */}
+                <Text style={styles.heroMetricLabel}>{hasChangeOrderRows ? 'Contract + COs' : 'Contract'}</Text>
                 <Text style={styles.heroMetricValue}>{money(contractTotal)}</Text>
               </View>
               <View style={styles.heroMetric}>
@@ -449,8 +549,27 @@ export default function BillFromEstimateScreen() {
             <Text style={styles.helpBannerText}>
               Tap a row to include or exclude it. Enter a percent of the remaining balance you want
               to bill this round — the totals below update live.
+              {hasChangeOrderRows ? ' Approved change orders bill here too, and each one tracks its own billed-through.' : ''}
             </Text>
           </View>
+
+          {/* An approved credit has no billable row (you cannot bill a percent
+              of a negative remainder). Name it rather than drop it, so the GC
+              knows the total below is gross of a deduction he owes back — and
+              say where it HAS landed, not "add a negative line in the invoice
+              editor", which that editor cannot do (app/invoice.tsx renders
+              lineItems with delete-only controls and no add-a-line form). */}
+          {approvedCredits.length > 0 && (
+            <View style={styles.helpBanner}>
+              <Info size={14} color={themeColors.info} strokeWidth={1.75} />
+              <Text style={styles.helpBannerText}>
+                {approvedCredits.length === 1
+                  ? `CO #${approvedCredits[0].number} is a ${money(Math.abs(approvedCredits[0].changeAmount))} credit`
+                  : `${approvedCredits.length} approved credits totalling ${money(Math.abs(approvedCredits.reduce((s2, c) => s2 + c.changeAmount, 0)))}`}
+                {' '}— not a billable row, and not in the figure above. It is already off the revised contract total on your reports.
+              </Text>
+            </View>
+          )}
 
           {/* Line items */}
           {rows.map(r => {

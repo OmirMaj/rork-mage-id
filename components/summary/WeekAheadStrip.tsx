@@ -47,7 +47,7 @@ export function WeekAheadStrip({ week, onPress }: WeekAheadStripProps) {
                   <View style={[styles.bar, { height: barPx, backgroundColor: barColor }]} />
                 </View>
                 {d.isToday ? (
-                  <View style={[styles.todayTag, { backgroundColor: colors.accent }]}>
+                  <View style={[styles.todayTag, { backgroundColor: colors.accentFill }]}>
                     <Text style={styles.todayTagText}>TODAY</Text>
                   </View>
                 ) : (

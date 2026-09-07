@@ -133,7 +133,7 @@ export default function PropertyManagerHome() {
 
         <FadeRise delay={80}>
           <TouchableOpacity onPress={() => setAddOpen(true)} activeOpacity={0.9} testID="pm-home-add-property">
-            <View style={[styles.heroCta, { backgroundColor: themeColors.accent }]}>
+            <View style={[styles.heroCta, { backgroundColor: themeColors.accentFill }]}>
               <View style={styles.heroCtaBg} pointerEvents="none">
                 <Building2 size={140} color="rgba(255,255,255,0.12)" strokeWidth={1.2} />
               </View>

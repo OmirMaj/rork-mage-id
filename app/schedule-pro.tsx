@@ -45,6 +45,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectRole } from '@/hooks/useProjectRole';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSchedulePresence } from '@/hooks/useSchedulePresence';
 import { useLiveSchedule } from '@/hooks/useLiveSchedule';
 import { mergeScheduleTasks } from '@/utils/scheduleMerge';
@@ -142,7 +143,7 @@ const SPLIT_BREAKPOINT = 1600;
 export default function ScheduleProScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const router = useRouter();
+  const goBack = useSafeBack();
   const { canAccess } = useTierAccess();
   if (!canAccess('schedule_gantt_pdf')) {
     return (
@@ -150,7 +151,7 @@ export default function ScheduleProScreen() {
         visible={true}
         feature="Schedule Pro (Gantt + PDF Export)"
         requiredTier="pro"
-        onClose={() => router.back()}
+        onClose={goBack}
       />
     );
   }
@@ -162,6 +163,12 @@ function ScheduleProScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Not router.back(): schedule-pro is deep-linkable (`mageid://schedule-pro`,
+  // and app.mageid.app/schedule-pro in a fresh tab, which is exactly where the
+  // narrow gate below fires). On a first route expo-router's back is an
+  // unhandled GO_BACK and the control silently does nothing — see
+  // hooks/useSafeBack.ts (audit UX-F18).
+  const goBack = useSafeBack();
   const { width } = useWindowDimensions();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   // Re-read tier access inside the inner so the PDF handler can guard
@@ -1648,23 +1655,52 @@ function ScheduleProScreenInner() {
   // nowhere. Narrow ⇒ hand them the classic schedule immediately; only on a
   // surface that can actually render the grid do we ask which job to open.
 
+  // No insets.top in this branch: unlike the two below it, this one keeps the
+  // native header (title 'Schedule Pro'), which already sits under the status
+  // bar. Adding insets.top on top of it pushed the message a further ~59pt down
+  // an otherwise blank screen.
   if (width < GRID_BREAKPOINT) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.container, styles.narrowGate, { paddingTop: 28 }]}>
         <Stack.Screen options={{ title: 'Schedule Pro' }} />
         <MageAIMark size={28} color={themeColors.accent} />
         <Text style={styles.emptyTitle}>Best on a bigger screen</Text>
+        {/* This used to say "built for laptops and iPad" — hands-on UI pass
+            2026-09-07, finding 5. app.json sets ios.supportsTablet:false, so
+            there is no iPad build: a contractor who followed that advice got
+            iPhone compatibility mode, hit this same width gate, and read the
+            same sentence again. Name the two surfaces that actually exist, and
+            say what the classic schedule still does so the redirect reads as a
+            route rather than a refusal. */}
         <Text style={styles.emptyBody}>
-          Schedule Pro is built for laptops and iPad. On a phone, the
-          spreadsheet view is genuinely unusable — so we send you to the
-          classic mobile-friendly schedule instead.
+          Schedule Pro is a spreadsheet: dependency columns, float, baselines and
+          a Gantt side by side. It needs about {GRID_BREAKPOINT}pt of width to
+          put a task on one row, which means a laptop or a desktop browser at
+          app.mageid.app.
+        </Text>
+        <Text style={styles.emptyBody}>
+          On this phone the classic schedule runs the same project — tasks,
+          dates, drag to reschedule, weather days — in a layout built for it.
         </Text>
         <TouchableOpacity
           style={styles.primaryBtn}
           onPress={() => router.replace('/(tabs)/schedule' as any)}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Open classic schedule"
+          testID="schedule-pro-open-classic"
         >
           <Text style={styles.primaryBtnText}>Open classic schedule</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={goBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          testID="schedule-pro-narrow-back"
+        >
+          <Text style={styles.secondaryBtnText}>Go back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1697,7 +1733,7 @@ function ScheduleProScreenInner() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={goBack} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <ChevronLeft size={20} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>Back</Text>
           </TouchableOpacity>
@@ -1761,7 +1797,7 @@ function ScheduleProScreenInner() {
 
       {/* Custom header — the RN stack header is too cramped for our action row */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity onPress={goBack} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <ChevronLeft size={20} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.headerBackText}>Back</Text>
         </TouchableOpacity>
@@ -2276,7 +2312,11 @@ function HeaderBtn({
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
 
-  centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
+  // Top-aligned, not vertically centred: centring four lines on a 900pt-tall
+  // phone left the top half of the screen blank, which reads as a screen that
+  // failed to load rather than one that is redirecting you (hands-on UI pass
+  // 2026-09-07, finding 5).
+  narrowGate: { alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 32, gap: 12 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 8 },
   emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
   primaryBtn: {
@@ -2284,6 +2324,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   primaryBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.bodyCompact.fontSize },
+  secondaryBtnText: { color: t.textSecondary, fontWeight: '600', fontSize: Type.bodyCompact.fontSize },
 
   // v2.4 — cleanup banner for stale linkedEstimateItems refs.
   // Uses accent-soft palette (attention without alarm) to match the

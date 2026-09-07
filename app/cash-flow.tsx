@@ -948,7 +948,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.aiButton, { backgroundColor: themeColors.accent, marginTop: 10 }]}
+            style={[styles.aiButton, { backgroundColor: themeColors.accentFill, marginTop: 10 }]}
             onPress={() => router.push({ pathname: '/payment-predictions' as any, params: projectId ? { projectId } : {} })}
             activeOpacity={0.85}
             testID="payment-forecast-btn"

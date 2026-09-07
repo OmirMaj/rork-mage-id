@@ -109,6 +109,19 @@ export default function TabLayout() {
     ? (attentionCount > 99 ? '99+' : String(attentionCount))
     : undefined;
 
+  // VoiceOver position labels, stated explicitly.
+  //
+  // WHY — hands-on UI pass 2026-09-07, finding 7. BottomTabBar builds its
+  // default iOS label as `${label}, tab, ${index+1} of ${routes.length}` over
+  // state.routes, which counts EVERY registered screen, `href: null` included.
+  // Twelve are registered here for four visible tabs, and `estimate` sits
+  // between (home) and discover, so the bar announced "1, 2, 4, 5 of 12".
+  // Moving the 21 hidden routes out of the tab navigator is the architectural
+  // fix and is far too large for this; naming the four positions is exact.
+  const visibleTabCount = isMinimalPersona ? 2 : 4;
+  const tabA11yLabel = (label: string, position: number) =>
+    `${label}, tab, ${position} of ${visibleTabCount}`;
+
   // Right-rail "Action Required" column shows on wide desktops (>= 1280px
   // viewport). Below that we don't have horizontal room for a clean three-
   // column layout — the inline SmartInbox in the home tab takes over.
@@ -200,6 +213,7 @@ export default function TabLayout() {
         name="summary"
         options={isMinimalPersona ? { href: null } : {
           title: 'Summary',
+          tabBarAccessibilityLabel: tabA11yLabel('Summary', 1),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={MageSummary} color={color} focused={focused} />
           ),
@@ -212,6 +226,9 @@ export default function TabLayout() {
           // property-owner hub (post a project, active RFPs, in-progress).
           // Contractors keep the original "Your Projects" label.
           title: isMinimalPersona ? 'Home' : 'Your Projects',
+          tabBarAccessibilityLabel: isMinimalPersona
+            ? tabA11yLabel('Home', 1)
+            : tabA11yLabel('Your Projects', 2),
           tabBarBadge: attentionBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
@@ -230,6 +247,7 @@ export default function TabLayout() {
         name="discover"
         options={isMinimalPersona ? { href: null } : {
           title: 'Discover',
+          tabBarAccessibilityLabel: tabA11yLabel('Discover', 3),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={MageDiscover} color={color} focused={focused} />
           ),
@@ -239,6 +257,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Settings',
+          tabBarAccessibilityLabel: tabA11yLabel('Settings', isMinimalPersona ? 2 : 4),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Settings} color={color} focused={focused} />
           ),

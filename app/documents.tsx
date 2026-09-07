@@ -14,6 +14,7 @@ import {
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import EmptyState from '@/components/EmptyState';
 import { documentTypeInfo } from '@/mocks/documents';
 import type { ProjectDocument, DocumentStatus } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -351,10 +352,39 @@ export default function DocumentsScreen() {
 
         <View style={styles.listSection}>
           {filtered.length === 0 ? (
-            <View style={styles.emptyState}>
-              <FileText size={32} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No documents found</Text>
-            </View>
+            // This used to be an icon and the words "No documents found" —
+            // no body copy, no CTA, on a hub whose hero has just promised
+            // every contract, COI, permit, submittal and pay-app in one feed.
+            // The likeliest read was that the feature is broken, and universal
+            // search routes people here on "files" / "docs" / "folders"
+            // (utils/featureRegistry.ts). The screen is a read-only
+            // aggregator, so the honest CTA is a pointer to the four create
+            // homes it aggregates FROM — audit 2026-09-07 "Do now" list.
+            //
+            // Two different states share the block: nothing filed anywhere,
+            // and nothing matching the chip that is currently selected. The
+            // second one is the user's own filter, not an empty account.
+            <EmptyState
+              icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.75} />}
+              title={documents.length === 0 ? 'Nothing filed yet' : 'Nothing under this filter'}
+              message={
+                documents.length === 0
+                  ? 'This screen collects documents — it does not create them. Each kind is filed on its own screen and shows up here automatically.'
+                  : `You have ${documents.length} document${documents.length === 1 ? '' : 's'}, but none are filed under "${filters.find(f => f.id === selectedFilter)?.label ?? selectedFilter}". Nothing is missing — this is the filter, not the feed.`
+              }
+              steps={documents.length === 0 ? [
+                'COIs: add a subcontractor certificate in the COI Vault.',
+                'Permits: log an application on the Permits screen.',
+                'Submittals and pay apps: open a project — both are filed inside one.',
+              ] : undefined}
+              actionLabel={documents.length === 0 ? 'Open COI Vault' : 'Show all'}
+              onAction={() => {
+                if (documents.length === 0) router.push('/coi-vault' as never);
+                else setSelectedFilter('all');
+              }}
+              secondaryLabel={documents.length === 0 ? 'Open Permits' : undefined}
+              onSecondaryAction={() => router.push('/permits' as never)}
+            />
           ) : (
             filtered.map(doc => (
               <DocumentCard key={doc.id} doc={doc} onPress={() => handleDocPress(doc)} />
@@ -473,6 +503,4 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   docStatusText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
   docDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
-  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
 });

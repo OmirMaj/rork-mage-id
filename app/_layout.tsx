@@ -6,6 +6,7 @@ import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandSplash from "@/components/BrandSplash";
 import CraneLoader from "@/components/CraneLoader";
 import DesktopSidebar from "@/components/DesktopSidebar";
@@ -26,6 +27,8 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BrainSurface } from "@/components/brain/BrainSurface";
+import { useBrainFabPresentation } from "@/components/brain/brainFabState";
+import OfflineSyncPill from "@/components/OfflineSyncPill";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
 import { useQuickActionRouting } from "expo-quick-actions/router";
@@ -272,6 +275,79 @@ function AnalyticsManager() {
   }, [isAuthenticated, user?.id]);
 
   return null;
+}
+
+// Roots where the queue depth is not ours to show: tokenized viewers a CLIENT
+// or a SUB is holding the phone for, and the pre-auth flow. Same list
+// components/brain/BrainFab.tsx hides on, minus 'ask' — the Brain's own
+// destination is still the GC's screen.
+const SYNC_PILL_HIDDEN_ROOTS: ReadonlySet<string> = new Set([
+  'shared-estimate', 'shared-photos', 'shared-schedule', 'shared-plan', 'client-view',
+  'prequal-form', 'claim-crew',
+  'login', 'signup', 'reset-password', 'onboarding', 'persona-select', 'onboarding-paywall',
+]);
+
+// The only surface in the app that can say "you have unsynced changes".
+// It shipped mounted on exactly one screen — the home tab's header — while
+// every field write (daily-report, punch-list, punch-walk, time-tracking,
+// field-ticket) says "Saved." unconditionally the moment the mutation lands in
+// the offline queue. A super who dictates a report in a basement is told it
+// saved and finds out otherwise when the owner asks where it is
+// (app-experience audit 2026-09-07, "built but unreachable" #2).
+//
+// Mounted globally here rather than in a shared header because there is no
+// shared header: PageHeader is used by 3 screens, FeatureHeader by 11, and
+// daily-report rolls its own with headerShown:false. Bottom-LEFT, in the same
+// band as the Brain FAB and raised by the same `lift`, because that band is
+// the one strip of every screen that already reserves space for a floating
+// control (BRAIN_FAB_CLEARANCE). A top strip would land on the native header
+// title and on NailItToast, which owns top: 64 app-wide.
+//
+// The pill renders null at queue depth 0, so the happy path costs nothing but
+// one AsyncStorage read every 4s (hooks/useOfflineQueueDepth).
+
+function GlobalOfflineSyncPill() {
+  const insets = useSafeAreaInsets();
+  const { isAuthenticated } = useAuth();
+  // Deliberately reads the FAB's presentation store: `lift` is the height of
+  // whatever fixed bottom bar the focused screen registered, so the pill
+  // clears a sticky footer for exactly the screens the FAB already clears one
+  // for. We do NOT honour `hidden` — the FAB slides away while you read, but a
+  // "your work has not left this phone" signal must not.
+  const { lift } = useBrainFabPresentation();
+  const layout = useResponsiveLayout();
+  const segments = useSegments();
+  const pathname = usePathname();
+
+  const topSegment = (segments[0] as string) ?? '';
+  // The Brain FAB lives at right:20 and nothing occupies the right edge, so it
+  // can position off the window. The LEFT 240pt is the DesktopSidebar's rail,
+  // and this pill is touchable — unshifted it paints over and swallows taps on
+  // the nav rows underneath. Mirrors RootLayoutNav's `showDesktopShell`
+  // predicate (breakpoint + auth + shell-exempt route) so the two never
+  // disagree about whether the rail is on screen.
+  const railShowing =
+    layout.showSidebar
+    && isAuthenticated
+    && !DESKTOP_SHELL_EXEMPT.has(topSegment)
+    && !pathname.startsWith('/integrations/');
+
+  if (!isAuthenticated) return null;
+  if (SYNC_PILL_HIDDEN_ROOTS.has(topSegment)) return null;
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        left: 20 + (railShowing ? layout.sidebarWidth : 0),
+        bottom: insets.bottom + 70 + lift + (Platform.OS === 'web' ? 48 : 0),
+        zIndex: 40,
+      }}
+    >
+      <OfflineSyncPill variant="full" floating />
+    </View>
+  );
 }
 
 function OfflineSyncManager() {
@@ -1508,6 +1584,7 @@ export default Sentry.wrap(function RootLayout() {
                               <MarginAlertManager />
                               <RootLayoutNav />
                               <BrainSurface />
+                              <GlobalOfflineSyncPill />
                               <SearchHotkeyListener />
                               {/* Renders alerts on web, where RN's Alert is a
                                   no-op. Must stay mounted app-wide. */}

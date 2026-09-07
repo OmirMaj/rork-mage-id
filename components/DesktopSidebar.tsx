@@ -12,7 +12,7 @@ import {
   Presentation,
   PieChart, LineChart, Coins, BellRing,
   Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap, Upload,
-  CalendarClock, Truck,
+  CalendarClock, Truck, Megaphone,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -77,6 +77,13 @@ const NAV_ITEMS: NavItem[] = [
   // ── FIND WORK — marketplace / bids / suppliers
   { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK' },
   { key: 'bids',              label: 'Public Bids',      icon: ScrollText,      route: '/(tabs)/discover/bids',            section: 'FIND WORK' },
+  // Publish a solicitation of your own. Its only inbound link was a card on
+  // app/(tabs)/discover/index.tsx, and the Discover TAB does not exist on
+  // desktop (the sidebar replaces the tab bar at ≥1024pt, and
+  // HiddenTabBackLink returns null there) — so on a laptop this screen had no
+  // click path at all, and ⌘K could not find it either because the registry
+  // indexed it as "Post-Bid Analysis". Audit 2026-09-07, navigation-ia #1.
+  { key: 'post-bid',          label: 'Post a Bid',       icon: Megaphone,       route: '/post-bid',                         section: 'FIND WORK' },
   { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK' },
   // JUDGES bid scoring — screen self-titles "Bid Advisor" (app/judges.tsx).
   { key: 'judges',            label: 'Bid Advisor',      icon: Scale,           route: '/judges',                           section: 'FIND WORK', requires: 'bid_scoring' },
@@ -142,6 +149,11 @@ const NAV_ITEMS: NavItem[] = [
   // ── PROJECT · CLIENT
   { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT' },
   { key: 'contract',          label: 'Contracts',        icon: MageContract,    route: '/contract',                         section: 'CLIENT' },
+  // Good/better/best proposals. Same story as Post a Bid above: its only
+  // inbound link was a tile in app/(tabs)/discover/tools.tsx, which is
+  // phone-only, so a paid feature was click-unreachable on the laptop where
+  // proposals actually get written. `requires` mirrors the screen's own gate.
+  { key: 'smart-proposal',    label: 'Smart Proposal',   icon: FileSignature,   route: '/smart-proposal',                   section: 'CLIENT', requires: 'job_costing' },
   { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT' },
   { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT' },
   // Shipped fully built with ZERO inbound navigation — reachable only by typing
@@ -286,7 +298,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         key={item.key}
         style={[
           styles.navItem,
-          active && [styles.navItemActive, { backgroundColor: colors.accent }],
+          active && [styles.navItemActive, { backgroundColor: colors.accentFill }],
           hovered && !active && styles.navItemHovered,
         ]}
         onPress={() => handleNav(item.route)}
@@ -320,7 +332,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         )}
       </TouchableOpacity>
     );
-  }, [pathname, hoveredKey, canAccess, colors.accent, handleNav]);
+  }, [pathname, hoveredKey, canAccess, colors.accentFill, handleNav]);
 
   return (
     <View
@@ -536,7 +548,8 @@ const styles = StyleSheet.create({
     position: 'relative' as const,
   },
   navItemActive: {
-    // backgroundColor set inline via theme colors.accent
+    // backgroundColor set inline via theme colors.accentFill — the raw accent
+    // is 2.87:1 behind this item's white label (audit 2026-09-07).
   },
   navItemHovered: {
     backgroundColor: 'rgba(255,255,255,0.06)',

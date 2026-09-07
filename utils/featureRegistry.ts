@@ -153,7 +153,21 @@ export const FEATURE_REGISTRY: readonly FeatureEntry[] = [
   { id: 'nearby-rfps', title: 'Nearby RFPs', synonyms: ['find work', 'near me', 'local jobs'], route: '/nearby-rfps', icon: 'MapPin', group: 'find-work' },
   { id: 'judges', title: 'Bid Advisor', synonyms: ['bid', 'judges', 'bid scoring', 'should i bid', 'go no go'], route: '/judges', requires: 'bid_scoring', icon: 'Scale', group: 'find-work' },
   { id: 'bid-leveling', title: 'Bid Leveling', synonyms: ['bid', 'level bids', 'compare bids', 'scope gaps', 'apples to apples'], route: '/bid-leveling', icon: 'Layers', group: 'find-work' },
-  { id: 'post-bid', title: 'Post-Bid Analysis', synonyms: ['bid', 'win loss', 'debrief', 'why lost'], route: '/post-bid', icon: 'BarChart3', group: 'find-work' },
+  // Titled "Post-Bid Analysis" with win/loss synonyms until 2026-09-07, which
+  // was a different feature entirely: app/post-bid.tsx:186 self-titles "Post a
+  // Bid" and is a publish-a-solicitation form with a monthly post quota. It
+  // broke ⌘K in both directions — "post a bid" matched no title, and "why
+  // lost" routed a GC into a form that publishes a public bid opportunity. No
+  // screen does a win/loss debrief today; the closest real answer is
+  // /estimate-accuracy ("Bid vs Actual"), so the old synonyms are dropped
+  // rather than re-pointed.
+  // Icon: 'ScrollText' rather than a megaphone, because FeatureIcon is a
+  // CLOSED union whose exhaustive Record lives in components/UniversalSearch —
+  // adding a key here without adding it there is a compile error. ScrollText
+  // is Public Bids' icon and this is the same object seen from the other side
+  // (post the solicitation vs. read the board), so it is a pairing rather than
+  // a collision. The sidebar row uses a Megaphone; it owns its own icons.
+  { id: 'post-bid', title: 'Post a Bid', synonyms: ['publish bid', 'solicitation', 'bid board', 'post opportunity', 'invite subs to bid'], route: '/post-bid', icon: 'ScrollText', group: 'find-work' },
   { id: 'win-optimizer', title: 'Win Optimizer', synonyms: ['bid price', 'win rate', 'markup', 'pricing strategy'], route: '/win-optimizer', icon: 'Target', group: 'find-work' },
   { id: 'auto-bids', title: 'Pre-priced Bids', synonyms: ['mage bids for you', 'auto bid', 'priced bids', 'bids ready', 'autonomous bidding'], route: '/auto-bids', requires: 'bid_scoring', icon: 'Zap', group: 'find-work' },
   { id: 'quick-quote', title: 'Quick Quote', synonyms: ['quote', 'fast estimate', 'ballpark'], route: '/quick-quote', icon: 'Zap', group: 'find-work' },

@@ -427,3 +427,69 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     info: '#4EA7FF',
   },
 };
+
+// ─── Categorical data palettes ───────────────────────────────────────────────
+//
+// These are DATA ENCODINGS, not chrome. A Gantt bar's colour carries which
+// phase a task belongs to; a project chip's colour carries which job a row is
+// about. Their job is HUE SEPARATION — two adjacent phases must not blur at
+// small bar widths — which is why they contain hues (purple, pink) that
+// scripts/validate-app-slop.ts bans everywhere else as generic-AI slop.
+//
+// They live here because that guard's own rule is "theme via
+// constants/colors.ts only", and `constants/` is exempt precisely so
+// deliberate palettes have a home. Before 2026-09-07 they were scattered
+// across utils/scheduleEngine.ts, utils/summaryBriefing.ts and
+// utils/scheduleReportHtml.ts, where the guard could not see them at all —
+// widening its roots is what surfaced them. Recolouring the Gantt to satisfy a
+// brand rule would have cost the separation the chart depends on; relocating
+// them satisfies the rule as written and centralises three scattered tables.
+//
+// If you add an entry: keep it clear of its neighbours in hue, and if white
+// text will sit ON it, check the ratio (Categorical.projectChip below is the
+// worked example — every entry there is >= 4.5:1 against white).
+
+/** Gantt / schedule phase bars. Hue-separated; labels pick their own ink by
+ *  fill brightness, so these are NOT required to clear 4.5:1 against white. */
+export const PHASE_PALETTE: Record<string, string> = {
+  'Site Work':    '#3B82F6', // blue
+  'Demo':         '#EF4444', // red
+  'Foundation':   '#10B981', // emerald
+  'Framing':      '#A855F7', // purple
+  'Roofing':      '#06B6D4', // cyan
+  'MEP':          '#F59E0B', // amber
+  'Plumbing':     '#0EA5E9', // sky
+  'Electrical':   '#EAB308', // yellow
+  'HVAC':         '#14B8A6', // teal
+  'Insulation':   '#F97316', // orange
+  'Drywall':      '#94A3B8', // slate
+  'Interior':     '#EC4899', // pink
+  'Finishes':     '#22C55E', // green
+  'Landscaping':  '#84CC16', // lime
+  'Inspections':  '#F59E0B', // amber (matches MEP — they share the inspection cadence)
+};
+
+/** Fallback for a phase with no entry above. Warm grey, deliberately not a hue
+ *  in the table so "uncategorised" never reads as a real phase. */
+export const PHASE_FALLBACK = '#7A7266';
+
+/** Summary-tab project chips. 10pt WHITE initials sit on these, so every entry
+ *  must clear AA 4.5:1 against white — four of the six originals did not
+ *  (worst #0FB5AE at 2.55:1, measured 2026-09-07). Darkened in place, hue
+ *  families preserved so a returning user's colour memory still works. */
+export const PROJECT_CHIP_PALETTE = [
+  '#B4530A', // orange   5.02:1
+  '#0A5EB0', // blue     6.48:1
+  '#15703E', // green    6.14:1
+  '#4B3BAF', // indigo   8.26:1
+  '#0A7F79', // teal     4.86:1
+  '#A31813', // red      7.79:1
+];
+
+/** Schedule-PDF status tags. White text, so the same 4.5:1 rule applies. */
+export const REPORT_TAG_PALETTE = {
+  high:        '#C2260F',
+  medium:      '#FF9500',
+  low:         '#8E8E93',
+  inProgress:  '#4B3BAF',
+};

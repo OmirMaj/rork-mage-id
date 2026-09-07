@@ -17,12 +17,13 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { TimeEntry } from '@/types';
-import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
+import { useTimeEntries, buildTimeEntriesCSV, computeShiftHours } from '@/hooks/useTimeEntries';
 import { useLaborRates } from '@/hooks/useLaborRates';
 import { shareText } from '@/utils/shareText';
 import { computeLaborStats, normalizeTradeKey } from '@/utils/laborSamples';
 import { looksLikeBareWage, burdenPercentLabel } from '@/utils/laborBurdenModel';
 import { parseLenientNumber } from '@/utils/formatters';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCrew } from '@/contexts/CrewContext';
 import { Type } from '@/constants/typography';
@@ -216,6 +217,7 @@ function TimeTrackingScreenInner() {
   const {
     entries, liveEntries, historyEntries,
     clockIn: doClockIn, startBreak, resumeFromBreak, clockOut: doClockOut,
+    updateEntry, deleteEntry,
     shiftAlertHours, setShiftAlertHours,
   } = useTimeEntries();
   const [showAlertPicker, setShowAlertPicker] = useState(false);
@@ -360,12 +362,106 @@ function TimeTrackingScreenInner() {
       // Hook reads breakStartedAt from the row to compute elapsed minutes.
       resumeFromBreak(entry.id);
     } else if (action === 'clock_out') {
-      doClockOut(entry.id);
-      // Brief confirmation. The hook computes totalHours/overtimeHours
-      // server-side-compatible and updates the row.
-      showAlert('Clocked Out', `${entry.workerName} clocked out.`);
+      // Confirm BEFORE the write. This used to end the shift on the first tap
+      // and announce it afterwards, from a button sitting in a two-up row
+      // beside Break in the same styles.actionBtn — a foreman clocking in a
+      // six-man crew with a gloved thumb could end someone's day at 9:40am.
+      // Those hours feed the payroll CSV and the labor samples that seed the
+      // cost book, so the error propagates into pay and into future bids.
+      // Same shape as handleRemoveManpower in app/daily-report.tsx: name the
+      // person and what is about to be recorded.
+      showAlert(
+        'Clock out?',
+        `${entry.workerName} has been on the clock ${getElapsedHours(entry.clockIn)}. This ends the shift and records the hours.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clock Out',
+            style: 'destructive',
+            onPress: () => {
+              // The hook computes totalHours/overtimeHours and updates the row.
+              doClockOut(entry.id);
+            },
+          },
+        ],
+      );
     }
   }, [startBreak, resumeFromBreak, doClockOut]);
+
+  // ── Correcting a finished entry ───────────────────────────────────────
+  // hooks/useTimeEntries has exported updateEntry and deleteEntry since it was
+  // written and had ZERO consumers, so a mis-punched shift was permanently
+  // uncorrectable in a product that had already built the correction
+  // (app-experience audit 2026-09-07, field-ergonomics).
+  //
+  // The sheet edits HOURS and BREAK, not the clock stamps. That is a
+  // deliberate limit, not an oversight: useTimeEntries.updateEntry maps only
+  // notes / break_minutes / total_hours / overtime_hours / status into its
+  // Supabase patch, and the hook's read-sync is "server wins on conflict" — a
+  // locally-edited clockOut would silently revert on the next sign-in. Hours
+  // are also the field that actually matters downstream: the payroll CSV, and
+  // computeLaborStats' cost-book samples, both read totalHours.
+  const [correcting, setCorrecting] = useState<TimeEntry | null>(null);
+  const [correctHours, setCorrectHours] = useState('');
+  const [correctBreak, setCorrectBreak] = useState('');
+  const [correctNote, setCorrectNote] = useState('');
+
+  const openCorrection = useCallback((entry: TimeEntry) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setCorrecting(entry);
+    setCorrectHours(entry.totalHours.toFixed(2).replace(/\.?0+$/, ''));
+    setCorrectBreak(entry.breakMinutes > 0 ? String(entry.breakMinutes) : '');
+    setCorrectNote(entry.notes ?? '');
+  }, []);
+
+  const handleSaveCorrection = useCallback(() => {
+    if (!correcting) return;
+    const hours = parseLenientNumber(correctHours);
+    if (hours === null || hours < 0 || hours > 24) {
+      showAlert('Check the hours', 'Enter hours worked as a number between 0 and 24 (e.g. 7.5).');
+      return;
+    }
+    const breakRaw = correctBreak.trim() === '' ? 0 : parseLenientNumber(correctBreak);
+    if (breakRaw === null || breakRaw < 0 || breakRaw >= 24 * 60) {
+      showAlert('Check the break', 'Enter break time in whole minutes, or leave it blank for none.');
+      return;
+    }
+    const breakMinutes = Math.round(breakRaw);
+    // Derive the totals through the hook's OWN computeShiftHours rather than
+    // re-implementing ">8h in a day is overtime" here — one definition of the
+    // OT rule, whether the shift was clocked or corrected. Feeding it a
+    // synthetic clock-out of clockIn + hours + break returns exactly `hours`
+    // net of the break, with overtime split off the same way.
+    const syntheticOut = new Date(
+      new Date(correcting.clockIn).getTime() + hours * 3_600_000 + breakMinutes * 60_000,
+    ).toISOString();
+    const { totalHours, overtimeHours } = computeShiftHours(correcting.clockIn, syntheticOut, breakMinutes);
+    // notes as '' rather than undefined: updateEntry skips any patch field that
+    // is undefined, so clearing a note would never reach Supabase.
+    updateEntry(correcting.id, { totalHours, overtimeHours, breakMinutes, notes: correctNote.trim() });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setCorrecting(null);
+  }, [correcting, correctHours, correctBreak, correctNote, updateEntry]);
+
+  const handleDeleteCorrection = useCallback(() => {
+    if (!correcting) return;
+    const entry = correcting;
+    showAlert(
+      'Delete this entry?',
+      `${entry.workerName} · ${entry.totalHours.toFixed(1)}h on ${new Date(entry.date).toLocaleDateString()}. It comes out of the payroll export and out of the labor samples feeding your cost book. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteEntry(entry.id);
+            setCorrecting(null);
+          },
+        },
+      ],
+    );
+  }, [correcting, deleteEntry]);
 
   const handleClockIn = useCallback((memberId: string) => {
     const member = roster.find(m => m.id === memberId);
@@ -572,7 +668,15 @@ function TimeTrackingScreenInner() {
         ) : (
           <View style={styles.listSection}>
             {historyEntries.map(entry => (
-              <View key={entry.id} style={styles.historyCard}>
+              <TouchableOpacity
+                key={entry.id}
+                style={styles.historyCard}
+                onPress={() => openCorrection(entry)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`${entry.workerName}, ${entry.totalHours.toFixed(1)} hours on ${new Date(entry.date).toLocaleDateString()}. Tap to correct or delete.`}
+                testID={`time-entry-${entry.id}`}
+              >
                 <View style={styles.historyHeader}>
                   <Text style={styles.historyName}>{entry.workerName}</Text>
                   <Text style={styles.historyHours}>{entry.totalHours.toFixed(1)}h</Text>
@@ -592,8 +696,14 @@ function TimeTrackingScreenInner() {
                     </View>
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
+            {historyEntries.length > 0 && (
+              // The row is a plain card; nothing about it says it is editable,
+              // and a foreman is not going to speculatively tap a payroll
+              // record. Say so once, under the list.
+              <Text style={styles.historyHint}>Tap an entry to correct its hours or delete it.</Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -804,6 +914,105 @@ function TimeTrackingScreenInner() {
                 <Text style={styles.allClockedIn}>Clock in crew (or add trades to your roster) and their trades appear here.</Text>
               ) : null}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Correct a finished entry. See the openCorrection block above for why
+          this edits hours rather than the clock stamps. */}
+      <Modal visible={correcting !== null} transparent animationType="slide" onRequestClose={() => setCorrecting(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Correct entry</Text>
+              <TouchableOpacity onPress={() => setCorrecting(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            {correcting ? (
+              <>
+                <Text style={styles.modalSubtitle}>
+                  {/* formatCalendarDay, not new Date(): TimeEntry.date is a bare
+                      'YYYY-MM-DD', and new Date() reads that as UTC midnight —
+                      west of Greenwich the sheet would name the day before the
+                      one being corrected. The history rows above still carry
+                      that defect; it is on file in scripts/validate-calendar-date
+                      UNRESOLVED and belongs to the hook that writes the day. */}
+                  {correcting.workerName} · {correcting.trade || 'Crew'} · {formatCalendarDay(correcting.date, { weekday: 'short', month: 'short', day: 'numeric' })}
+                </Text>
+
+                <View style={styles.rateRow}>
+                  <Text style={styles.rateTradeLabel}>Hours worked</Text>
+                  <View style={styles.rateInputWrap}>
+                    <TextInput
+                      style={styles.rateInput}
+                      value={correctHours}
+                      onChangeText={setCorrectHours}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor={themeColors.textMuted}
+                      testID="correct-entry-hours"
+                    />
+                    <Text style={styles.rateInputSuffix}>h</Text>
+                  </View>
+                </View>
+
+                <View style={styles.rateRow}>
+                  <Text style={styles.rateTradeLabel}>Break</Text>
+                  <View style={styles.rateInputWrap}>
+                    <TextInput
+                      style={styles.rateInput}
+                      value={correctBreak}
+                      onChangeText={setCorrectBreak}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={themeColors.textMuted}
+                      testID="correct-entry-break"
+                    />
+                    <Text style={styles.rateInputSuffix}>min</Text>
+                  </View>
+                </View>
+
+                <TextInput
+                  style={styles.correctNoteInput}
+                  value={correctNote}
+                  onChangeText={setCorrectNote}
+                  placeholder="Note (why it changed)"
+                  placeholderTextColor={themeColors.textMuted}
+                  multiline
+                  testID="correct-entry-note"
+                />
+
+                {/* Honesty: name exactly what this does and does not change.
+                    The punch stamps stay as recorded because the hook cannot
+                    persist an edited one (see openCorrection). */}
+                <Text style={styles.correctNoteHint}>
+                  Clock-in and clock-out stay as they were punched. Hours are what payroll
+                  and your cost book read — overtime is recalculated over 8h.
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.correctSaveBtn}
+                  onPress={handleSaveCorrection}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  testID="correct-entry-save"
+                >
+                  <Check size={16} color="#fff" strokeWidth={2} />
+                  <Text style={styles.correctSaveBtnText}>Save correction</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.correctDeleteBtn}
+                  onPress={handleDeleteCorrection}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  testID="correct-entry-delete"
+                >
+                  <Text style={styles.correctDeleteBtnText}>Delete entry</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -1027,6 +1236,29 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   historyDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   otBadge: { backgroundColor: t.warningSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.warningLabel },
+  historyHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center' as const, marginTop: 4, marginBottom: 8 },
+  correctNoteInput: {
+    marginTop: 12,
+    minHeight: 64,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.line,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: Type.subhead.fontSize,
+    color: t.text,
+    textAlignVertical: 'top' as const,
+  },
+  correctNoteHint: { marginTop: 10, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
+  // accentFill, not accent: white on the raw brand hue is 2.87:1 and fails AA.
+  correctSaveBtn: {
+    marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill,
+  },
+  correctSaveBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+  correctDeleteBtn: { marginTop: 10, paddingVertical: 12, alignItems: 'center' as const },
+  correctDeleteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.dangerLabel },
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32, gap: 8 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 320 },

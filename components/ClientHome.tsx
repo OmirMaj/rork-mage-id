@@ -287,7 +287,7 @@ export default function ClientHome() {
             activeOpacity={0.9}
             testID="client-home-post-cta"
           >
-            <View style={[styles.heroCta, { backgroundColor: themeColors.accent }]}>
+            <View style={[styles.heroCta, { backgroundColor: themeColors.accentFill }]}>
               {/* Decorative bg — a stylised multi-unit building, signals
                   real-estate without being a literal home icon. */}
               <View style={styles.heroCtaBg} pointerEvents="none">

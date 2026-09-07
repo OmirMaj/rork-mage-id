@@ -132,10 +132,20 @@ serve(async (req) => {
     const FEATURE_MIN_RANK: Record<string, number> = {
       bidLeveling: 1,         // pro
       weeklyAnalysis: 1,      // pro
-      aiEstimateWizard: 1,    // pro
       cashFlowForecaster: 1,  // pro
       fullBudgetDashboard: 2, // business
     };
+    // aiEstimateWizard was here with a Pro floor until 2026-09-07, and it
+    // contradicted the client: utils/aiRateLimiterCore.ts:92 grants it
+    // `freeLifetimeCap: 2` in the FREE block, and app/onboarding.tsx:233 routes
+    // EVERY new user into /estimate-wizard?onboarding=1 as the last step of
+    // first run. The floor never fired only because the wizard sent no feature
+    // tag, so this function scored it as `general` — the accident that made
+    // free onboarding work. Adding the tag without removing the floor first
+    // would have 403'd the final tap of onboarding for every new account.
+    // The comment at :95 warns about exactly this class in the other
+    // direction ("a freeLifetimeCap here would have the client promise a trial
+    // the server rejects"); this is the same mismatch, server-side.
     const TIER_RANK: Record<string, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
     // Audit EDGE-F7 / AI-F7: every request carries a REGISTERED feature id.
     // KNOWN_FEATURES mirrors the AIFeature union in utils/aiRateLimiterCore.ts
@@ -154,6 +164,13 @@ serve(async (req) => {
       "voiceIntake", "leadScoring", "copilot", "homeBriefing", "invoicePrediction", "subEvaluation",
       "equipmentAdvice", "homeownerSummary", "changeOrderImpact", "dailyReport", "projectReport",
       "profitLeak", "delayScan", "askMage", "projectMemory", "quickEstimate", "scheduleBuilder",
+      // aiEstimateWizard is listed EXPLICITLY, not inherited from
+      // FEATURE_MIN_RANK. It used to reach this Set only via the spread above;
+      // dropping its Pro floor on 2026-09-07 therefore also unregistered it,
+      // and a non-empty unregistered id is a 400 — which would have failed
+      // every AI estimate, including the last tap of onboarding. Removing a
+      // floor must never remove a registration.
+      "aiEstimateWizard",
       "scheduleCopilot", "estimateValidation", "voiceCapture", "aiTakeoff", "photoAnalysis",
       "drawingAnalysis", "specBookExtract", "scanCredential", "planAsk", "bid_scoring",
     ]);

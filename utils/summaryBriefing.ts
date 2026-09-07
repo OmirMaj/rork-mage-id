@@ -20,6 +20,7 @@
 // is counted by the other — the validator reconciles them day by day across a
 // whole week.
 import type { Project, Invoice, PunchItem, ChangeOrder } from '@/types';
+import { PROJECT_CHIP_PALETTE } from '@/constants/colors';
 import { toCalendarDayString } from '@/utils/calendarDate';
 import {
   isMilestoneOnScheduleDay,
@@ -78,7 +79,10 @@ export interface AttentionItem {
   params?: Record<string, string>;
 }
 
-const SUMMARY_PROJECT_COLORS = ['#F2700A', '#0A84FF', '#1F9D57', '#7A5AF8', '#0FB5AE', '#D0211A'];
+// Moved to constants/colors.ts and DARKENED 2026-09-07: 10pt white initials
+// sit on these chips and four of the six originals failed AA against white
+// (worst #0FB5AE at 2.55:1). Hue families preserved so colour memory holds.
+const SUMMARY_PROJECT_COLORS = PROJECT_CHIP_PALETTE;
 
 export function projectColor(projectId: string): string {
   let h = 0;

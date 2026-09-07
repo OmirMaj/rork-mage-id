@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { RefreshCw, AlertTriangle, CheckCircle2, TrendingDown } from 'lucide-react-native';
+import { RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -44,10 +44,21 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
   const [isLoading, setIsLoading] = useState(false);
   const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const cacheKey = `risk_${projectId}`;
 
-  const loadOrAnalyze = useCallback(async (forceRefresh = false, showAlertOnBlock = false) => {
+  /**
+   * `cacheOnly` reads the 2h cache and stops there. Only a tap analyses.
+   *
+   * The mount effect below used to fall straight through a cache miss into
+   * checkAILimit + analyzeScheduleRisk, so merely OPENING the Schedule tab
+   * spent a 'smart' call per project, several times a day — and the "Tap to
+   * run AI Risk Analysis" card was dead UI nobody could reach. A Pro GC with
+   * three jobs burned his allowance browsing and then hit a paywall on the AI
+   * Schedule Builder he actually wanted (audit 2026-09-07, ai-features).
+   */
+  const loadOrAnalyze = useCallback(async (forceRefresh = false, cacheOnly = false) => {
     if (isLoading) return;
 
     if (!forceRefresh && !hasLoaded) {
@@ -59,13 +70,16 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
         return;
       }
     }
+    if (cacheOnly) return;
 
     const limit = await checkAILimit(tier, 'smart', 'scheduleBuilder');
     if (!limit.allowed) {
-      if (showAlertOnBlock) showAILimitAlert({ limit, router });
+      showAILimitAlert({ limit, router });
+      setError(limit.message ?? "You've used today's AI allowance for this.");
       return;
     }
 
+    setError(null);
     setIsLoading(true);
     try {
       const data = await analyzeScheduleRisk(schedule, weatherData);
@@ -77,7 +91,10 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       setHasLoaded(true);
       await setCachedResult(cacheKey, { ...data, analyzedAt: now });
     } catch (err) {
+      // Say what broke on the card. A spinner that returns to a dashed "Tap to
+      // run" box reads as "the feature does nothing".
       console.error('[AI Risk] Failed:', err);
+      setError(`Couldn't run the risk forecast. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
     } finally {
       setIsLoading(false);
     }
@@ -85,15 +102,24 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
 
   React.useEffect(() => {
     if (!hasLoaded && schedule.tasks.length > 0) {
-      loadOrAnalyze();
+      void loadOrAnalyze(false, true);
     }
   }, [hasLoaded, schedule.tasks.length, loadOrAnalyze]);
 
   if (!hasLoaded && !isLoading) {
     return (
-      <TouchableOpacity style={styles.initCard} onPress={() => loadOrAnalyze(false, true)}>
+      <TouchableOpacity
+        style={styles.initCard}
+        onPress={() => void loadOrAnalyze()}
+        accessibilityRole="button"
+        accessibilityLabel="Run AI risk analysis"
+        testID="schedule-risk-run"
+      >
         <MageAIMark size={18} color={themeColors.accent} />
-        <Text style={styles.initText}>Tap to run AI Risk Analysis</Text>
+        <View style={styles.initTextCol}>
+          <Text style={styles.initText}>{error ? 'Tap to try the risk analysis again' : 'Tap to run AI Risk Analysis'}</Text>
+          {error ? <Text style={styles.initError}>{error}</Text> : null}
+        </View>
       </TouchableOpacity>
     );
   }
@@ -125,7 +151,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
           <Text style={styles.headerTitle}>AI Risk Forecast</Text>
         </View>
         <TouchableOpacity
-          onPress={() => loadOrAnalyze(true, true)}
+          onPress={() => void loadOrAnalyze(true)}
           disabled={isLoading}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -136,6 +162,13 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
           )}
         </TouchableOpacity>
       </View>
+
+      {error ? (
+        <View style={styles.errorRow}>
+          <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
 
       {highRisks.map((risk, idx) => {
         const sev = SEVERITY_STYLES.high;
@@ -223,10 +256,38 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
   },
+  initTextCol: {
+    flex: 1,
+    gap: 3,
+  },
   initText: {
     fontSize: Type.bodyCompact.fontSize,
     color: t.accent,
     fontWeight: '600' as const,
+  },
+  initError: {
+    fontSize: Type.caption1.fontSize,
+    color: t.dangerLabel,
+    lineHeight: 16,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    // dangerSoft, not the static `Colors.errorLight`: that tint is a baked
+    // LIGHT value while `dangerLabel` themes, so inside this factory dark mode
+    // put #FF5A51 ink on pale pink at 2.78:1. The themed pair measures 4.77:1
+    // light / 4.79:1 dark (constants/colors.ts).
+    backgroundColor: t.dangerSoft,
+    borderRadius: Tokens.radius.md,
+    padding: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    color: t.dangerLabel,
+    fontWeight: '500' as const,
+    lineHeight: 18,
   },
   card: {
     backgroundColor: t.surface,

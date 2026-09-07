@@ -327,6 +327,16 @@ function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () =>
   const providerInfo = providerBadge(payment.provider, themeColors);
   const StatusIcon = statusInfo.icon;
 
+  // VoiceOver reads the row as one sentence instead of walking six unlabelled
+  // fragments. The fee clause carries the same honesty the visible row does:
+  // a hand-keyed card says the fee is unknown rather than reading nothing.
+  const feeSpoken = payment.fee > 0
+    ? `, estimated fee ${formatMoney(payment.fee, 2)}`
+    : payment.provider === 'card' ? ', processor fee unknown' : '';
+  const rowLabel =
+    `${payment.clientName}, ${payment.projectName}, ${formatMoney(payment.amount)}${feeSpoken}, ` +
+    `${statusInfo.label}, ${providerInfo.label}, ${payment.description}`;
+
   return (
     <Animated.View style={[styles.payCard, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
@@ -335,6 +345,13 @@ function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () =>
         onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
         activeOpacity={1}
         style={styles.payCardInner}
+        // Hands-on UI pass 2026-09-07, finding 2: this whole screen exposed ONE
+        // Button to the accessibility tree. Every row was a GenericElement, so
+        // VoiceOver never announced that a payment could be opened at all.
+        accessibilityRole="button"
+        accessibilityLabel={rowLabel}
+        accessibilityHint="Opens the invoice this payment belongs to"
+        testID={`payment-row-${payment.id}`}
       >
         <View style={styles.payCardHeader}>
           <View style={[styles.providerBadge, { backgroundColor: providerInfo.bgColor }]}>
@@ -528,24 +545,47 @@ export default function PaymentsScreen() {
           </Text>
         )}
 
-        <TouchableOpacity style={styles.sendButton} onPress={handleSendInvoice} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.sendButton}
+          onPress={handleSendInvoice}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Collect oldest unpaid"
+          // It opens an invoice; it does not send anything. Say so, because the
+          // hint is the only place a screen-reader user learns that before tapping.
+          accessibilityHint="Opens your oldest outstanding invoice so you can send a pay link or record payment"
+          testID="payments-collect-oldest"
+        >
           <Send size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.sendButtonText}>Collect Oldest Unpaid</Text>
         </TouchableOpacity>
 
+        {/* role "button" + a selected state, not "tab": React Navigation's own
+            bottom bar carries a FIXME saying role 'tab' does not behave as
+            expected on iOS, and this segmented control is the same shape. The
+            spoken label spells the count out — "All (3)" is read back as
+            punctuation. */}
         <View style={styles.tabRow}>
-          {(['all', 'pending', 'completed'] as const).map(tab => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, selectedTab === tab && styles.tabActive]}
-              onPress={() => setSelectedTab(tab)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>
-                {tab === 'all' ? `All (${payments.length})` : tab === 'pending' ? 'Pending' : 'Completed'}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {(['all', 'pending', 'completed'] as const).map(tab => {
+            const label = tab === 'all' ? `All (${payments.length})` : tab === 'pending' ? 'Pending' : 'Completed';
+            const spoken = tab === 'all' ? `All payments, ${payments.length}` : `${label} payments`;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tab, selectedTab === tab && styles.tabActive]}
+                onPress={() => setSelectedTab(tab)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ selected: selectedTab === tab }}
+                accessibilityLabel={spoken}
+                testID={`payments-tab-${tab}`}
+              >
+                <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.listSection}>

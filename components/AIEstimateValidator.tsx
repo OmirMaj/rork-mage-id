@@ -43,6 +43,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
   const [result, setResult] = useState<EstimateValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleValidate = useCallback(async () => {
     if (isLoading) return;
@@ -53,6 +54,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       return;
     }
 
+    setError(null);
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -71,7 +73,12 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       setResult(data);
       setIsExpanded(true);
     } catch (err) {
+      // Name the failure — this catch was console-only, so a GC checking a bid
+      // before sending it saw the button spin and then nothing at all, with no
+      // way to tell a dropped connection from a dead feature (audit
+      // 2026-09-07, ai-features).
       console.error('[AI Estimate] Validation failed:', err);
+      setError(`Couldn't review this estimate. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
     } finally {
       setIsLoading(false);
     }
@@ -79,17 +86,25 @@ export default React.memo(function AIEstimateValidator(props: Props) {
 
   if (!result) {
     return (
-      <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
-        {isLoading ? (
-          <ActivityIndicator size="small" color={"#FF6A1A"} />
-        ) : (
-          <Search size={16} color={"#FF6A1A"} strokeWidth={1.75} />
-        )}
-        <Text style={styles.triggerText}>
-          {isLoading ? 'Validating...' : 'AI Validate Estimate'}
-        </Text>
-        <MageAIMark size={14} color={"#FF6A1A"} />
-      </TouchableOpacity>
+      <View>
+        <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color={"#FF6A1A"} />
+          ) : (
+            <Search size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+          )}
+          <Text style={styles.triggerText}>
+            {isLoading ? 'Validating...' : error ? 'Retry AI Validate Estimate' : 'AI Validate Estimate'}
+          </Text>
+          <MageAIMark size={14} color={"#FF6A1A"} />
+        </TouchableOpacity>
+        {error ? (
+          <View style={styles.errorRow}>
+            <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -143,6 +158,13 @@ export default React.memo(function AIEstimateValidator(props: Props) {
           )}
 
           <Text style={styles.summary}>{result.summary}</Text>
+
+          {error ? (
+            <View style={styles.errorRow}>
+              <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
           <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
             {isLoading ? <ActivityIndicator size="small" color={"#FF6A1A"} /> : null}
@@ -250,6 +272,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     lineHeight: 19,
     fontStyle: 'italic' as const,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    // dangerSoft, not the static `Colors.errorLight`: that tint is a baked
+    // LIGHT value while `dangerLabel` themes, so inside this factory dark mode
+    // put #FF5A51 ink on pale pink at 2.78:1. The themed pair measures 4.77:1
+    // light / 4.79:1 dark (constants/colors.ts).
+    backgroundColor: t.dangerSoft,
+    borderRadius: Tokens.radius.md,
+    padding: 12,
+    marginBottom: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    color: t.dangerLabel,
+    fontWeight: '500' as const,
+    lineHeight: 18,
   },
   revalidateBtn: {
     flexDirection: 'row',

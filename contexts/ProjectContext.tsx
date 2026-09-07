@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus } from '@/types';
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite, getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
@@ -233,6 +234,18 @@ type CoreDataValue = {
   /** True once projects have hydrated from storage/network. Distinguishes
    *  "still loading" from "not found" for deep-linked detail screens. */
   projectsLoaded: boolean;
+  /** RT-R1: MAGE could not be reached as this user on the last probe. Every
+   *  loader in this file swallows a failed read and serves the local cache
+   *  (30 `if (!error && data && data.length > 0)` fallthroughs), which is
+   *  right for offline-first and means an empty array here is EITHER "you
+   *  have nothing" OR "every read 401'd". A surface that makes an absolute
+   *  claim about the user's own book — "No projects yet", "you haven't
+   *  posted anything" — must gate that claim on this being false, or a GC
+   *  who reinstalls sees his entire book of work reported as deleted. */
+  sourceFailed: boolean;
+  /** Re-run every read this provider owns, plus the probe that reported the
+   *  failure. What a Retry button on a `sourceFailed` surface calls. */
+  retryRemoteReads: () => void;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
@@ -506,6 +519,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const userEmail = user?.email ?? null;
+  // RT-R1: the one place that asks "can this device reach MAGE as this user
+  // right now?". It lives HERE, in the context whose loaders swallow the
+  // errors, so any screen reading project data can gate an absolute claim on
+  // it without also mounting the attention hook (audit 2026-09-07 "Do now"
+  // #1 — the signal existed and half its consumers dropped it).
+  const reachability = useMageReachability();
 
   const [projects, setProjects] = useState<Project[]>([]);
   // True once the projects query has settled AND local state has been hydrated
@@ -5825,17 +5844,35 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
+  // RT-R1 retry. Every query this provider owns is keyed `[table, userId]`, so
+  // a predicate catches all of them without a hand-maintained list that goes
+  // stale the next time a table is added here. The probe is refetched too, so
+  // a successful retry clears the "couldn't reach MAGE" row that offered it.
+  // The predicate deliberately also sweeps the handful of sibling per-user
+  // queries in that shape (crew_members, notificationFeed, accountSeats…):
+  // this is a user-tapped "retry everything", not a targeted invalidation,
+  // and those reads failed for the same reason the ones here did.
+  const retryRemoteReads = useCallback(() => {
+    void queryClient.refetchQueries({ queryKey: MAGE_REACHABILITY_QUERY_KEY });
+    if (!userId) return;
+    void queryClient.invalidateQueries({
+      predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.length === 2 && q.queryKey[1] === userId,
+    });
+  }, [queryClient, userId]);
+
   // ── Bucket memos ─────────────────────────────────────────────────────────────
   const coreData = useMemo<CoreDataValue>(() => ({
     projects: sortedProjects, settings, hasSeenOnboarding, userRole,
     isLoading: projectsQuery.isLoading || settingsQuery.isLoading || onboardingQuery.isLoading || userRoleQuery.isLoading,
     projectsLoaded,
+    sourceFailed: reachability.failed,
+    retryRemoteReads,
     addProject, updateProject, deleteProject, getProject, updateSettings,
     addCollaborator, removeCollaborator,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
+  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, reachability.failed, retryRemoteReads, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
     changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject,

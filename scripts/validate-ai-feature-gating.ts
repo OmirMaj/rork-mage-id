@@ -14,7 +14,8 @@
 //     through their own edge functions, not this text relay), and is MISSING
 //     from the relay map.
 //  3. A relay-map key isn't a recognised feature id.
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { FEATURE_CONFIG, type AIFeature } from '../utils/aiRateLimiterCore';
 
 let pass = 0, fail = 0;
@@ -27,10 +28,18 @@ function ok(n: string, cond: boolean, extra = '') {
 const EXPECTED: Record<string, number> = {
   bidLeveling: 1,
   weeklyAnalysis: 1,
-  aiEstimateWizard: 1,
   cashFlowForecaster: 1,
   fullBudgetDashboard: 2,
 };
+// aiEstimateWizard is DELIBERATELY absent (2026-09-07). It carried a Pro floor
+// in the relay while utils/aiRateLimiterCore.ts:92 granted it a 2-run FREE
+// lifetime trial and app/onboarding.tsx:233 routed every new account into it as
+// the last step of first run. The floor never fired only because the wizard
+// sent no feature tag and scored as `general` — the accident that made free
+// onboarding work. The floor is gone from the relay and the call is now tagged
+// honestly; the trial is enforced client-side by the lifetime cap, which is
+// where a free allowance belongs. Do not re-add it here without also deleting
+// that freeLifetimeCap, or first run 403s on its final tap.
 
 // proOnly FEATURE_CONFIG features that DON'T go through the text relay — they
 // each have their own edge function(s) with their own requireTier. They must
@@ -94,7 +103,6 @@ const TAG_MANIFEST: Record<string, string[]> = {
   // relay path and is correctly tagged.
   bidLeveling: ['utils/bidLevelingEngine.ts'],
   weeklyAnalysis: ['utils/weeklyClientUpdate.ts', 'utils/aiService.ts'],
-  aiEstimateWizard: ['app/takeoff-estimate.tsx'],
   cashFlowForecaster: ['app/cash-flow.tsx'],
   fullBudgetDashboard: ['app/budget-dashboard.tsx'],
 };
@@ -105,6 +113,61 @@ for (const [feat, files] of Object.entries(TAG_MANIFEST)) {
     const tagged = src.includes(`feature: '${feat}'`) || src.includes(`feature: "${feat}"`);
     ok(`${f} tags mageAI with feature '${feat}'`, tagged,
       `add feature: '${feat}' to the mageAI() call in ${f} (the relay skips the gate when the tag is absent)`);
+  }
+}
+
+// 5. ENUMERATE the relay call sites instead of listing them.
+//
+// TAG_MANIFEST above is hand-kept, and a hand-kept list goes blind — the exact
+// failure docs/START-HERE.md names ("A guard that names files goes blind.
+// Enumerate, do not list."). It carried ONE file for aiEstimateWizard while
+// app/estimate-wizard.tsx ran a second, untagged relay path: the wizard meters
+// under the real id (checkAILimit/recordAIUsage with 'aiEstimateWizard') but
+// calls `mageAISmart(prompt, schema, cacheKey)` with three arguments, so
+// utils/mageAI.ts sends `feature: 'general'` and the relay's Pro floor never
+// applies. The manifest stays as a belt (it catches a tag someone DELETES from
+// a known path); this is the braces.
+//
+// The signal is deliberately narrow: a file that meters a relay-gated feature id
+// AND makes a mageAI* call of its own. A screen that meters and then delegates
+// the call to a util (app/client-update.tsx → utils/weeklyClientUpdate.ts) has
+// no relay call to tag and is not flagged.
+function walkSrc(dir: string, out: string[] = []): string[] {
+  for (const e of readdirSync(dir)) {
+    if (e === 'node_modules') continue;
+    const p = join(dir, e);
+    if (statSync(p).isDirectory()) walkSrc(p, out);
+    else if (/\.tsx?$/.test(e)) out.push(p);
+  }
+  return out;
+}
+
+for (const file of [...walkSrc('app'), ...walkSrc('components'), ...walkSrc('utils')]) {
+  const src = readFileSync(file, 'utf8');
+  if (!/\bmageAI(?:Fast|Smart)?\s*\(/.test(src)) continue;
+  const metered = new Set<string>();
+  for (const m of src.matchAll(/(?:checkAILimit|recordAIUsage)\s*\(([^)]*)\)/g)) {
+    for (const k of relayKeys) {
+      if (m[1].includes(`'${k}'`) || m[1].includes(`"${k}"`)) metered.add(k);
+    }
+  }
+  for (const feat of metered) {
+    const tagged =
+      src.includes(`feature: '${feat}'`) ||
+      src.includes(`feature: "${feat}"`) ||
+      // mageAIFast/mageAISmart take the id as a 4th POSITIONAL argument.
+      new RegExp(`mageAI(?:Fast|Smart)\\([^;]*?['"]${feat}['"]`).test(src);
+    ok(
+      `${file} meters '${feat}' and tags its own relay call`,
+      tagged,
+      `this file bills the user under '${feat}' but sends the relay no feature tag, so ` +
+      `supabase/functions/ai/index.ts treats it as 'general' and its tier floor never runs.\n   ` +
+      `ORDER MATTERS — do NOT just add the tag. Decide first whether the floor is intended: ` +
+      `if the feature is meant to be reachable on free (utils/aiRateLimiterCore.ts grants ` +
+      `aiEstimateWizard a 2-run lifetime trial and app/onboarding.tsx routes every new user ` +
+      `into it), REMOVE '${feat}' from FEATURE_MIN_RANK in supabase/functions/ai/index.ts and ` +
+      `from EXPECTED above FIRST. Tagging first ships a 403 on the last tap of onboarding.`,
+    );
   }
 }
 
