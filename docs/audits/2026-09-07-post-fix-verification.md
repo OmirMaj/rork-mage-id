@@ -62,3 +62,53 @@ Anything behind a flow that needs typing or a multi-step gesture — recording a
 payment, releasing retention, generating an invoice PDF. The money changes are
 covered by unit fixtures and by read-only checks against the production rows,
 not by a driven end-to-end run.
+
+## Second pass — the money flows, driven (2026-09-07)
+
+The first pass could not reach anything behind a gesture. This one did, and it
+both confirmed the money fixes and caught one the fixes had introduced.
+
+**MISS-04, retainage basis — fixed, on the real invoice.** Houston #1 renders:
+Subtotal $75,595.00 · Tax (7.5%) $5,669.63 · Contract Total $81,264.63 ·
+**Retention Held (5% of work completed) −$3,779.75**, with the basis spelled out
+underneath: *"5% of $75,595.00 completed work · sales tax is not held"*. The
+stored column still holds the old tax-inclusive $4,063.23; the screen no longer
+believes it.
+
+**MONEY-01, the Payments hero — fixed.** Reads **$48,827 Received, "Amount
+paid, before fees"** (it read $47,167), and **$77,485 Pending, "Excludes $3,780
+retention held"**. Fees on MAGE-processed payments show $0.00 with the reason
+stated: *"1 card payment was recorded by hand. MAGE did not process it, so its
+processor fee is unknown and none is deducted above."* The false "Stripe" badge
+is gone from a payment MAGE never touched.
+
+**SCHED-NO-ANCHOR / MISS-01 — fixed, and disclosed.** Summary carries a card
+naming both undated schedules — *"2 schedules have no start date … not counted
+above"* — with a control to set one, instead of silently anchoring them to
+today or to the project's creation date.
+
+**MONEY-04 / VIS-15 — fixed.** The greeting reads "Good morning, Omir" rather
+than clipping to "O…".
+
+**PORTAL-01 — fixed, verified against the stored snapshots.** The Henderson
+snapshot still carries the buggy `pctComplete: 102`, but the page no longer
+reads it: progress is derived from the schedule tasks, duration-weighted and
+clamped. Computed against the live rows — Henderson has 0 of 20 tasks carrying
+progress, so it now reads "not reported yet" instead of 102%; Watermark 9F has
+4 of 19 and reads a genuine 45%; Houston reads not-reported. Legacy snapshots
+are handled explicitly, including the case where an old `progressPct: 0` meant
+"nobody ever updated this" rather than "not started".
+
+### The defect this pass found
+
+Summary's overdue row said **$77,201** while the invoice said **$77,484.88** —
+same invoice, $283.48 apart, because the editor recomputed retainage on work
+value and every shared reader still trusted the stored column. Chasing it
+turned up two worse ones that no screen would have shown: `invoice-dunning`
+would have emailed the client a FINAL NOTICE for $77,201.39 against a pay link
+charging $77,484.88, and `mcp` answered questions with a figure no surface
+displayed. Fixed by moving the rule into one place on both client and server.
+
+Two `validate-portal-owner` fixtures had asserted 10% of the tax-INCLUSIVE
+total — the guards had agreed with the bug. Corrected, with one left holding a
+deliberately stale stored figure so it proves the reader ignores it.
