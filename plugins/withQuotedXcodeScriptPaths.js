@@ -118,7 +118,7 @@ const PODFILE_SNIPPET = `
         next unless phase.shell_script.include?('bash -l -c "$PODS_TARGET_SRCROOT')
         phase.shell_script = phase.shell_script.gsub(
           /bash -l -c "(\\$PODS_TARGET_SRCROOT[^"]*)"/,
-          'bash -l -c "\\\\"\\1\\\\""
+          'bash -l -c "\\\\"\\1\\\\""'
         )
       end
     end

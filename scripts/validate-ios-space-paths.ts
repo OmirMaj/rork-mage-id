@@ -16,7 +16,9 @@
 // plugin + postinstall this guard pins.
 //
 // Run via: bun run test:ios-space-paths
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -86,6 +88,62 @@ for (const rel of [
   ok(`${rel.split('/')[1]}: basename "$PROJECT_DIR" is quoted`,
     !/basename \$PROJECT_DIR/.test(src),
     'unquoted here means: build succeeds, no app.manifest, app crashes at launch');
+}
+
+// ── the Podfile snippet the plugin WRITES must be valid Ruby ────────────────
+// This is the one that actually bit. The plugin injects a Ruby block into the
+// Podfile on every `expo prebuild`, built from a JS template literal — four
+// levels of escaping (JS -> Ruby -> regex -> shell). The first version shipped
+// with an UNTERMINATED Ruby string:
+//
+//     'bash -l -c "\\"\1\\""       <- no closing quote
+//
+// Every local build kept working, because ios/ already existed and was never
+// regenerated. EAS regenerates it, so EAS got a Podfile that would not parse
+// and build #15 died in "Install pods" — a failure mode invisible to every
+// local check. Parse it here, the way CocoaPods will.
+{
+  const pluginSrc = readFileSync(join(ROOT, 'plugins/withQuotedXcodeScriptPaths.js'), 'utf8');
+  const m = pluginSrc.match(/const PODFILE_SNIPPET = `([\s\S]*?)`;/);
+  ok('the plugin still defines PODFILE_SNIPPET', !!m,
+    'if this moved, re-point the parse check below rather than deleting it');
+
+  if (m) {
+    // Resolve the template literal's escapes the same way node would.
+    const snippet = m[1]
+      .replace(/\$\{PODFILE_MARKER\}/g, '# withQuotedXcodeScriptPaths: quote bash -l -c paths')
+      .replace(/\\`/g, '`')
+      .replace(/\\\\/g, '\\');
+
+    let ruby = '';
+    try {
+      ruby = execFileSync('ruby', ['-e', 'print 1'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch { /* ruby absent */ }
+
+    if (ruby === '1') {
+      const dir = mkdtempSync(join(tmpdir(), 'mageid-podfile-'));
+      const rb = join(dir, 'snippet.rb');
+      writeFileSync(rb, `post_install do |installer|\n${snippet}\nend\n`);
+      let parsed = false;
+      let why = '';
+      try {
+        execFileSync('ruby', ['-c', rb], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        parsed = true;
+      } catch (e: unknown) {
+        why = String((e as { stderr?: Buffer }).stderr ?? e).split('\n')[0];
+      }
+      ok('the injected Podfile block parses as Ruby', parsed,
+        why || 'CocoaPods evaluates the Podfile as Ruby; a syntax error fails "Install pods" on EAS only');
+    } else {
+      // No ruby: fall back to the specific defect — a replacement string that
+      // opens a quote and never closes it before the line ends.
+      const bad = snippet
+        .split('\n')
+        .some((l) => /^\s*'bash -l -c/.test(l) && !/'\s*$/.test(l));
+      ok('the injected Podfile replacement string is closed (ruby not installed — textual check)', !bad,
+        "an unterminated Ruby literal fails `pod install` on EAS while every local build keeps working");
+    }
+  }
 }
 
 // ── the postinstall script must be PORTABLE ─────────────────────────────────
