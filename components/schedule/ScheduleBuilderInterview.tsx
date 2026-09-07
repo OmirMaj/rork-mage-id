@@ -330,7 +330,7 @@ function makeStyles(colors: ThemeColors) {
     buildingSub: { ...Type.body, color: colors.textSecondary, textAlign: 'center' },
     thinScopeHint: {
       ...Type.footnote,
-      color: Colors.warning,
+      color: Colors.warningLabel,
       marginTop: Tokens.spacing.xs,
       marginBottom: Tokens.spacing.xs,
     },

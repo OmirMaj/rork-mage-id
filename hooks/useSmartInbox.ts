@@ -327,8 +327,12 @@ export function useSmartInbox(): SmartInboxResult {
     }
 
     for (const sub of store.subcontractors as Subcontractor[]) {
-      const exp = parseISODate(sub.coiExpiry);
-      if (exp === null) continue;
+      // Bound locally so the non-null narrowing survives to sourceDate below:
+      // coiExpiry is optional (a sub can have no COI on file), and the guard
+      // on parseISODate already proves it is present and parseable here.
+      const coiExpiry = sub.coiExpiry;
+      const exp = parseISODate(coiExpiry);
+      if (exp === null || !coiExpiry) continue;
       const daysUntil = Math.floor((exp - today) / MS_PER_DAY);
       if (daysUntil > 30) continue;
       const severity: 1 | 2 | 3 = daysUntil < 0 ? 3 : daysUntil <= 7 ? 3 : daysUntil <= 14 ? 2 : 1;
@@ -341,7 +345,7 @@ export function useSmartInbox(): SmartInboxResult {
           ? `COI expired · ${sub.companyName}`
           : `COI expires in ${daysUntil}d · ${sub.companyName}`,
         subtitle: `${sub.trade}${sub.contactName ? ` · ${sub.contactName}` : ''}`,
-        sourceDate: sub.coiExpiry,
+        sourceDate: coiExpiry,
         ref: { kind: 'contact', id: sub.id },
       });
     }

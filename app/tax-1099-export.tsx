@@ -262,7 +262,7 @@ export default function Tax1099ExportScreen() {
                   </View>
                   {r.required1099 && (
                     <View style={[styles.flag, { backgroundColor: Colors.warning + '20', borderColor: Colors.warning }]}>
-                      <Text style={[styles.flagText, { color: Colors.warning }]}>1099</Text>
+                      <Text style={[styles.flagText, { color: Colors.warningLabel }]}>1099</Text>
                     </View>
                   )}
                   {!r.required1099 && r.totalPaid > 0 && (

@@ -163,7 +163,7 @@ function TaskRow({ task }: { task: ScheduleTask }) {
       <View style={[styles.taskPhaseBar, { backgroundColor: phaseColor }]} />
       <View style={styles.taskContent}>
         <View style={styles.taskTitleRow}>
-          {task.isMilestone && <Flag size={11} color={Colors.warning} strokeWidth={1.75} />}
+          {task.isMilestone && <Flag size={11} color={Colors.warningLabel} strokeWidth={1.75} />}
           {task.isCriticalPath && <GitBranch size={11} color={themeColors.danger} strokeWidth={1.75} />}
           <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
         </View>
@@ -1048,7 +1048,7 @@ export default function ClientViewScreen() {
             </View>
             {ownerDecisions.map(d => {
               const tone = d.urgency === 'overdue' ? themeColors.danger
-                : d.urgency === 'due_soon' ? Colors.warning
+                : d.urgency === 'due_soon' ? Colors.warningLabel
                 : themeColors.textMuted;
               return (
                 <View key={`${d.kind}-${d.id}`} style={styles.decisionRow}>
@@ -1308,7 +1308,7 @@ export default function ClientViewScreen() {
             <SectionHeader
               title="Invoices"
               infoTerm="pay_app"
-              icon={<DollarSign size={18} color={Colors.warning} strokeWidth={1.75} />}
+              icon={<DollarSign size={18} color={Colors.warningLabel} strokeWidth={1.75} />}
               count={invoices.length}
               expanded={expanded.invoices}
               onToggle={() => toggleSection('invoices')}
@@ -1521,7 +1521,7 @@ export default function ClientViewScreen() {
             <SectionHeader
               title="RFIs"
               infoTerm="rfi"
-              icon={<MessageSquare size={18} color={Colors.warning} strokeWidth={1.75} />}
+              icon={<MessageSquare size={18} color={Colors.warningLabel} strokeWidth={1.75} />}
               count={rfis.filter(r => r.status === 'open').length}
               expanded={expanded.rfis}
               onToggle={() => toggleSection('rfis')}

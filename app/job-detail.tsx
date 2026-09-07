@@ -16,6 +16,7 @@ import { getTradeLabel } from '@/constants/trades';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const JOB_TYPE_LABELS: Record<string, string> = {
   full_time: 'Full-Time', part_time: 'Part-Time', contract: 'Contract', per_diem: 'Per Diem',
@@ -91,7 +92,7 @@ export default function JobDetailScreen() {
         title: 'Job Details',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={styles.topCard}>

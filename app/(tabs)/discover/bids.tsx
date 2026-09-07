@@ -49,7 +49,15 @@ import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
-import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import {
+  useUserLocation,
+  getDistanceMiles,
+  locationControlLabel,
+  locationControlAction,
+  locationDistanceNotice,
+  openLocationSettings,
+  LOCATION_PLATFORM,
+} from '@/utils/location';
 import { US_STATES } from '@/constants/states';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -262,7 +270,10 @@ export default function CachedBidsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { location } = useUserLocation();
+  // Nothing asks the OS for a fix on mount. "Near me" and the "Nearest" sort
+  // are the two presses that need one, and they are the only callers of
+  // request() (runtime audit 2026-09-06, NAV-04).
+  const { location, request: requestLocation, status: locStatus } = useUserLocation();
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -384,8 +395,14 @@ export default function CachedBidsScreen() {
       }
     }
 
-    if (locationMode === 'nearby' && location && selectedRadius !== null) {
-      result = result.filter((b) => b.distance !== null && b.distance <= selectedRadius);
+    if (locationMode === 'nearby') {
+      // Without a fix every distance is null. Falling through here used to leave
+      // the full all-US list sitting under an active "Near me" pill — a list
+      // labelled as nearby that was not filtered at all. Show nothing and let
+      // the notice strip explain, rather than imply a radius that never ran.
+      result = location && selectedRadius !== null
+        ? result.filter((b) => b.distance !== null && b.distance <= selectedRadius)
+        : [];
     }
     if (locationMode === 'state' && selectedState) {
       result = result.filter((b) => (b.state ?? '').toUpperCase() === selectedState.toUpperCase());
@@ -422,7 +439,14 @@ export default function CachedBidsScreen() {
         return bt - at;
       });
     } else if (sortBy === 'distance') {
-      sorted.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+      // Every distance is null without a fix, so a "Nearest" sort would be an
+      // arbitrary shuffle presented as an ordering. Fall back to the deadline
+      // order the screen defaults to; the notice strip says which one is live.
+      if (location) {
+        sorted.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+      } else {
+        sorted.sort((a, b) => getDeadlineInfo(a.response_deadline).sortableMs - getDeadlineInfo(b.response_deadline).sortableMs);
+      }
     } else if (sortBy === 'value') {
       sorted.sort((a, b) => (b.estimated_value ?? 0) - (a.estimated_value ?? 0));
     }
@@ -442,7 +466,10 @@ export default function CachedBidsScreen() {
     if (mode === 'nearby' && selectedRadius === null) setSelectedRadius(50);
     if (mode === 'state') setShowStateList(true); else setShowStateList(false);
     if (mode !== 'city') setSelectedCity(null);
-  }, [selectedRadius]);
+    // Tapping "Near me" IS the request for location — the only gesture on this
+    // screen that needs it, and the only place the OS prompt may come from.
+    if (mode === 'nearby' && !location) void requestLocation();
+  }, [selectedRadius, location, requestLocation]);
 
   const handleSetAsideSelect = useCallback((value: string | undefined) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -454,7 +481,9 @@ export default function CachedBidsScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setSortBy(key);
     setShowSortDropdown(false);
-  }, []);
+    // Same rule as "Near me": choosing "Nearest" is the gesture that asks.
+    if (key === 'distance' && !location) void requestLocation();
+  }, [location, requestLocation]);
 
   const clearAllFilters = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -593,6 +622,27 @@ export default function CachedBidsScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+        )}
+
+        {/* Distance disclosure. "Near me" and "Nearest" are the only two controls
+            that need a location, and neither may imply one it does not have. */}
+        {(locationMode === 'nearby' || sortBy === 'distance') && !location && (
+          <View style={styles.locNotice} testID="bids-location-notice">
+            <Text style={styles.locNoticeText}>{locationDistanceNotice(locStatus, false, LOCATION_PLATFORM)}</Text>
+            <TouchableOpacity
+              style={styles.locNoticeBtn}
+              onPress={() => {
+                if (locationControlAction(locStatus, LOCATION_PLATFORM) === 'openSettings') openLocationSettings();
+                else void requestLocation();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={locationControlLabel(locStatus, false, LOCATION_PLATFORM)}
+              testID="bids-use-location"
+            >
+              <Crosshair size={12} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.locNoticeBtnText}>{locationControlLabel(locStatus, false, LOCATION_PLATFORM)}</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {locationMode === 'city' && nearbyCities.length > 0 && (
@@ -742,9 +792,14 @@ export default function CachedBidsScreen() {
               <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No bids match these filters</Text>
               <Text style={styles.emptySubtitle}>
-                {totalCount > 0
-                  ? `${totalCount.toLocaleString()} bids in the cache. Loosen your filters to see more.`
-                  : 'The SAM.gov sync is still warming up. Pull to refresh.'}
+                {locationMode === 'nearby' && !location
+                  // The button above is status-dependent — after a denial it
+                  // reads "Location off — open Settings" — so quote whatever it
+                  // currently says rather than a label it may not be wearing.
+                  ? `Near me needs your location before it can measure anything. Tap ${locationControlLabel(locStatus, false, LOCATION_PLATFORM)} above, or switch to All US, City or State.`
+                  : totalCount > 0
+                    ? `${totalCount.toLocaleString()} bids in the cache. Loosen your filters to see more.`
+                    : 'The SAM.gov sync is still warming up. Pull to refresh.'}
               </Text>
               <TouchableOpacity onPress={clearAllFilters} style={styles.retryButton}>
                 <Text style={styles.retryButtonText}>Clear all filters</Text>
@@ -799,6 +854,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   pillTextActive: { color: '#FFF' },
 
   // ─── Sub-filter row (radius / city / state chips)
+  locNotice: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 9, marginBottom: 8,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md,
+  },
+  locNoticeText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
+  locNoticeBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.full,
+  },
+  locNoticeBtnText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '700' as const },
   subFilterRow: { marginBottom: 4 },
   subFilterRowInner: { paddingRight: 16, gap: 6 },
   subChip: {

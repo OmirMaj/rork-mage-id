@@ -425,7 +425,7 @@ export default function ScheduleImportScreen() {
                 <View style={styles.card}>
                   {result.warnings.map((w, i) => (
                     <View key={`${w.code}-${i}`} style={[styles.warnRow, i === result.warnings.length - 1 && { borderBottomWidth: 0 }]}>
-                      <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+                      <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
                       <Text style={styles.warnText}>{w.message}</Text>
                     </View>
                   ))}

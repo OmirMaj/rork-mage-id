@@ -255,6 +255,39 @@ console.log('\ninvoiceAttention:');
   ok('two overdue → 2 items', items.length === 2);
 }
 
+// MONEY-03 (runtime audit 2026-09-06) — the amount is FORMATTED money.
+//
+// This shipped as `outstanding.toFixed(0)` interpolated into `($${amt})`, so
+// the founder's Summary read "Houston Phone Booth Ad: invoice #1 is 12d overdue
+// ($77201)" — the only unformatted money string on the screen, sitting under a
+// MONEY tile that rendered the same figure as "$77K". These assertions pin the
+// grouping so a future edit cannot quietly drop back to raw digits.
+{
+  const p = mkProject();
+  // The production row, reproduced: total_due 81264.625, retention 4063.23125,
+  // nothing paid → invoiceOutstanding 77201.39375.
+  const inv = mkInvoice({
+    dueDate: '2025-01-08', // 12d overdue from NOW_MS (2025-01-20)
+    totalDue: 81264.625,
+    retentionAmount: 4063.23125,
+    amountPaid: 0,
+  });
+  const msg = invoiceAttention(p, [inv], NOW_MS)[0].message;
+  ok('overdue amount is thousands-separated', msg.includes('$77,201'));
+  ok('overdue amount is NOT raw digits (MONEY-03)', !msg.includes('$77201'));
+  ok('overdue amount carries no stray cents', !/\$77,201\.\d/.test(msg));
+  ok('amount is net of retention, not gross', !msg.includes('$81,264') && !msg.includes('$81265'));
+}
+
+// Small amounts stay readable too — formatMoney rounds, it does not abbreviate,
+// so a $950 balance must not render as "$1K".
+{
+  const p = mkProject();
+  const inv = mkInvoice({ dueDate: '2025-01-08', totalDue: 950, amountPaid: 0 });
+  const msg = invoiceAttention(p, [inv], NOW_MS)[0].message;
+  ok('sub-$1K overdue amount renders exactly', msg.includes('$950'));
+}
+
 // ─── permitAttention ─────────────────────────────────────────────────────────
 
 console.log('\npermitAttention:');
@@ -336,7 +369,29 @@ console.log('\ncertAttention:');
   ok('expired cert → message has worker name', items[0].message.includes('John Smith'));
   ok('expired cert → message has cert type', items[0].message.includes('OSHA 30'));
   ok('expired cert → message has expired', items[0].message.includes('expired'));
-  ok('expired cert → route /crew', items[0].route.pathname === '/crew');
+  // NAV-02 (runtime audit 2026-09-06). The route MUST be the certifications
+  // screen, never /crew. Certifications and crew members are different records
+  // in different tables: production holds 16 certifications and 0 crew rows, so
+  // routing the founder's #1 attention item ("Dana Cole — First Aid / CPR
+  // expired") to /crew landed him on "No crew yet · Add your first crew member"
+  // with no way to renew, re-date or clear the cert — the flag was permanent.
+  ok('expired cert → route /safety-certifications',
+    items[0].route.pathname === '/safety-certifications');
+  ok('expired cert → route is NOT /crew (NAV-02)',
+    (items[0].route.pathname as string) !== '/crew');
+}
+
+// Every cert item, at every severity, routes somewhere that can actually
+// clear the flag. A single stray '/crew' re-opens NAV-02.
+{
+  const mixed = [
+    mkCert({ id: 'c-exp', status: 'expired', expiresDate: '2025-01-10' }),
+    mkCert({ id: 'c-soon', holderName: 'Ana Ruiz', status: 'expiring', expiresDate: '2025-01-30' }),
+    mkCert({ id: 'c-later', holderName: 'Bo Vance', status: 'expiring', expiresDate: '2025-03-01' }),
+  ];
+  const items = certAttention(mixed, NOW_MS);
+  ok('every cert item routes to /safety-certifications',
+    items.length === 3 && items.every(i => i.route.pathname === '/safety-certifications'));
 }
 
 // expiring in 10 days → high (< 14)
@@ -567,7 +622,7 @@ console.log('\nrankAttention:');
   const items: AttentionItem[] = [
     { id: 'a', projectId: '', projectName: '', kind: 'schedule' as const, severity: 'medium' as const, message: 'A', route: { pathname: '/schedule-pro' } },
     { id: 'b', projectId: '', projectName: '', kind: 'invoice' as const, severity: 'critical' as const, message: 'B', route: { pathname: '/invoice' } },
-    { id: 'c', projectId: '', projectName: '', kind: 'cert' as const, severity: 'high' as const, message: 'C', route: { pathname: '/crew' } },
+    { id: 'c', projectId: '', projectName: '', kind: 'cert' as const, severity: 'high' as const, message: 'C', route: { pathname: '/safety-certifications' } },
     { id: 'd', projectId: '', projectName: '', kind: 'permit' as const, severity: 'medium' as const, message: 'D', route: { pathname: '/permits' } },
   ];
   const ranked = rankAttention(items);

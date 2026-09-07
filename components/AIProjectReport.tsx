@@ -147,7 +147,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Issues & Risks</Text>
                   {(result.issuesAndRisks ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <AlertTriangle size={13} color={Colors.warning} strokeWidth={1.75} />
+                      <AlertTriangle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
                       <Text style={styles.listText}>{item}</Text>
                     </View>
                   ))}

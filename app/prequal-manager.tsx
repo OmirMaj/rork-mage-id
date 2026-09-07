@@ -247,7 +247,7 @@ function PrequalManagerInner() {
         <View style={styles.statsRow}>
           <Stat label="Approved" value={counts.approved} color={themeColors.success} />
           <Stat label="Pending" value={counts.pending} color={themeColors.info} />
-          <Stat label="Issues" value={counts.issues} color={Colors.warning} />
+          <Stat label="Issues" value={counts.issues} color={Colors.warningLabel} />
           <Stat label="No packet" value={counts.none} color={themeColors.textSecondary} />
         </View>
 
@@ -263,7 +263,7 @@ function PrequalManagerInner() {
         {rows.filter(r => r.bucket === '7d' || r.bucket === '30d' || r.bucket === 'expired').length > 0 && (
           <View style={styles.renewCard}>
             <View style={styles.renewHeader}>
-              <Clock size={14} color={Colors.warning} strokeWidth={1.75} />
+              <Clock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.renewTitle}>Renewals needed</Text>
             </View>
             {rows.filter(r => r.bucket === '7d' || r.bucket === '30d' || r.bucket === 'expired').map(r => (
@@ -389,7 +389,7 @@ function StatusBadge({ status, bucket }: { status?: PrequalStatus; bucket?: stri
   } else if (status === 'invited' || status === 'draft') {
     Icon = Send; color = themeColors.info; label = 'Invited';
   } else if (status === 'needs_changes') {
-    Icon = AlertTriangle; color = Colors.warning; label = 'Changes';
+    Icon = AlertTriangle; color = Colors.warningLabel; label = 'Changes';
   } else if (status === 'rejected') {
     Icon = ShieldX; color = themeColors.danger; label = 'Rejected';
   }
@@ -638,8 +638,8 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               style={[styles.btnGhost, { flex: 1 }]}
               onPress={() => onNeedsChanges(packet, note || 'Please provide missing fields')}
             >
-              <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
-              <Text style={[styles.btnGhostText, { color: Colors.warning }]}>Needs changes</Text>
+              <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+              <Text style={[styles.btnGhostText, { color: Colors.warningLabel }]}>Needs changes</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => onApprove(packet)}>
               <CheckCircle2 size={14} color={'#FFFFFF'} strokeWidth={1.75} />
@@ -698,7 +698,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: `${Colors.warning}30`,
   },
   renewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  renewTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning, textTransform: 'uppercase', letterSpacing: 0.5 },
+  renewTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warningLabel, textTransform: 'uppercase', letterSpacing: 0.5 },
   renewItem: { fontSize: Type.caption1.fontSize, color: t.text, marginTop: 2 },
 
   listCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, overflow: 'hidden' },
@@ -706,7 +706,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   subRowBorder: { borderTopWidth: 1, borderTopColor: t.line },
   subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   subSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
-  subMissing: { fontSize: 10, color: Colors.warning, marginTop: 2, fontWeight: '600' },
+  subMissing: { fontSize: 10, color: Colors.warningLabel, marginTop: 2, fontWeight: '600' },
 
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7, minWidth: 82 },
   statusBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },

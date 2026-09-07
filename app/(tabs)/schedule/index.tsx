@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import {
   AlertTriangle,
   CalendarDays,
+  CalendarOff,
   Camera,
   Check,
   CheckCircle2,
@@ -76,7 +77,11 @@ import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
 import { getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
-import { parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+import { parseCalendarDay, toCalendarDayString, todayCalendarDay } from '@/utils/calendarDate';
+import {
+  resolveScheduleAnchor,
+  UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_PREVIEW_NOTE, UNDATED_SCHEDULE_TITLE,
+} from '@/utils/scheduleOps';
 import {
   SimulatedWeatherBanner,
   SimulatedDayChip,
@@ -155,6 +160,14 @@ const EMPTY_DRAFT: TaskDraft = {
   status: 'not_started', progress: '0',
   assignedSubId: '', assignedSubName: '',
 };
+
+/**
+ * Quick-add's undated hint. This screen renders quick-add twice (desktop pane
+ * and mobile sheet); one wording, defined once, because the pair of start bars
+ * above it drifted apart within a day of being written.
+ */
+const UNDATED_QUICK_ADD_HINT =
+  'This schedule has no start date, so a custom date can’t be turned into a day number — leave it blank to chain after the last task.';
 
 function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef?: React.MutableRefObject<string | null> } = {}) {
   const insets = useSafeAreaInsets();
@@ -265,17 +278,30 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     return selectedProject?.schedule ?? null;
   }, [selectedProject]);
 
-  // Derive project start date from the schedule; default to today if missing.
-  // Using noon local time avoids timezone rollover surprises for comparisons.
+  // THE anchor rule (utils/scheduleOps.resolveScheduleAnchor). `dated` is
+  // false for 2 of the 3 real schedules in production, and this screen used to
+  // silently substitute today — the same missing field that Summary resolved
+  // against project.createdAt and icsGenerator against today's UTC day, three
+  // different answers for one absent value (runtime audit SCHED-NO-ANCHOR).
+  const scheduleAnchor = useMemo(() => resolveScheduleAnchor(activeSchedule), [activeSchedule]);
+  const isUndated = !!activeSchedule && (activeSchedule.tasks?.length ?? 0) > 0 && !scheduleAnchor.dated;
+
+  // The Gantt grid, the task rows and the summary header all need SOME origin
+  // to draw from. When there is no anchor this is the unanchored PREVIEW
+  // (today) — legal only because the start bar directly above every one of
+  // those surfaces says "Not set — dates below are a preview from today" and
+  // offers the picker. Nothing here treats it as the schedule's start.
+  // Noon local avoids timezone rollover surprises for the comparisons below.
   const projectStartDate = useMemo<Date>(() => {
-    if (activeSchedule?.startDate) {
-      const d = new Date(activeSchedule.startDate + 'T12:00:00');
-      if (!Number.isNaN(d.getTime())) return d;
-    }
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    return today;
-  }, [activeSchedule?.startDate]);
+    // Built from LOCAL components rather than new Date(<that expression>):
+    // both operands are already local-midnight Dates (parseCalendarDay /
+    // resolveScheduleAnchor), so this is a copy at noon, not a parse — but
+    // scripts/validate-calendar-date.ts sweeps textually and cannot tell the
+    // two apart, and an ALLOWED entry that says "trust me" is worth less than
+    // a line that needs no exception.
+    const base = scheduleAnchor.date ?? scheduleAnchor.unanchoredPreviewDate;
+    return new Date(base.getFullYear(), base.getMonth(), base.getDate(), 12, 0, 0, 0);
+  }, [scheduleAnchor]);
 
   /**
    * Convert an ISO datetime string (noon UTC, from DatePickerModal) to a
@@ -285,13 +311,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
    */
   const isoToStartDay = useCallback((iso: string): number | null => {
     if (!iso) return null;
+    // No anchor ⇒ no map from a calendar date to a working-day number. Refuse
+    // rather than measuring the pick against today.
+    if (!scheduleAnchor.dated) return null;
     const picked = new Date(iso);
     if (Number.isNaN(picked.getTime())) return null;
     const ms = picked.getTime() - projectStartDate.getTime();
     const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
     if (dayOffset < 1) return null;
     return dayOffset;
-  }, [projectStartDate]);
+  }, [projectStartDate, scheduleAnchor.dated]);
 
   /**
    * When a What-If scenario is selected, the Gantt reads from that scenario's
@@ -476,7 +505,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       //    raw→calendar flip can ever occur later.
       const startDate = project.schedule
         ? project.schedule.startDate
-        : (schedule.startDate ?? new Date().toISOString().slice(0, 10));
+        // todayCalendarDay(), not toISOString().slice(0, 10): the UTC idiom
+        // names TOMORROW from about 5 pm anywhere west of Greenwich, so an
+        // evening "create schedule" anchored day 1 on the wrong day.
+        : (schedule.startDate ?? todayCalendarDay());
       updateProject(project.id, {
         schedule: { ...schedule, projectId: project.id, startDate, updatedAt: new Date().toISOString() },
         status: project.estimate ? 'estimated' : 'draft',
@@ -608,6 +640,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     let startDayFromDate: number | null = null;
     const rawStartDate = draft.startDateOverride.trim();
     if (rawStartDate) {
+      if (!scheduleAnchor.dated) {
+        showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule start date first — until then a calendar date has no day number on this plan.');
+        return;
+      }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(rawStartDate)) {
         showAlert('Invalid start date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).');
         return;
@@ -1390,8 +1426,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       <View style={styles.summaryContainer}>
         <View style={styles.summaryHeader}>
           <Text style={styles.summaryProjectName}>{selectedProject?.name ?? 'Project'}</Text>
+          {/* An undated schedule has a real DURATION and no real dates, so the
+              header states the duration instead of a range counted off today. */}
           <Text style={styles.summaryDateRange}>
-            {formatShortDate(projectStartDate)} – {formatShortDate(endDate)}
+            {isUndated
+              ? `No start date · ${activeSchedule.totalDurationDays} working days`
+              : `${formatShortDate(projectStartDate)} – ${formatShortDate(endDate)}`}
           </Text>
         </View>
 
@@ -1642,21 +1682,39 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   const hasStartDay = !Number.isNaN(startDayNum) && startDayNum > 0;
                   const wdpw = activeSchedule?.workingDaysPerWeek ?? 7;
                   const startDate = hasStartDay ? addWorkingDays(projectStartDate, startDayNum - 1, wdpw, activeSchedule?.nonWorkingDates) : null;
-                  const startLabel = startDate
-                    ? startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                    : 'Not set';
-                  const startIso = startDate ? startDate.toISOString() : '';
+                  // Undated, `projectStartDate` is the today PREVIEW, so the
+                  // date this row could print is not the task's date — it says
+                  // the working-day number instead, which IS stored data.
+                  const startLabel = isUndated
+                    ? (hasStartDay ? `Day ${startDayNum}` : 'Not set')
+                    : startDate
+                      ? startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                      : 'Not set';
+                  const startIso = !isUndated && startDate ? startDate.toISOString() : '';
                   return (
                     <>
                       <Text style={styles.fieldLabel}>Starts</Text>
                       <TouchableOpacity
                         style={styles.startsFieldRow}
-                        onPress={() => setStartPickerOpen(true)}
+                        /* Undated, isoToStartDay refuses every pick (there is
+                           no map from a calendar date to a day number), so the
+                           picker would open, close and change nothing. Say why
+                           instead — the same refusal the quick-add hint and
+                           MobileScheduleScreen already speak. */
+                        onPress={() => {
+                          if (isUndated) {
+                            showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule start date first — until then a calendar date has no day number on this plan. Type the day number in Advanced to move this task meanwhile.');
+                            return;
+                          }
+                          setStartPickerOpen(true);
+                        }}
                         testID="task-edit-starts"
                         accessibilityRole="button"
-                        accessibilityLabel="Pick task start date"
+                        accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Pick task start date'}
                       >
-                        <CalendarDays size={16} color={themeColors.accent} strokeWidth={1.75} />
+                        {isUndated
+                          ? <CalendarOff size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
+                          : <CalendarDays size={16} color={themeColors.accent} strokeWidth={1.75} />}
                         <Text style={styles.startsFieldValue}>{startLabel}</Text>
                         <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
@@ -1669,15 +1727,25 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                         onChange={(iso) => {
                           setStartPickerOpen(false);
                           const day = isoToStartDay(iso);
-                          if (day !== null) {
-                            setTaskDraft(d => ({
-                              ...d,
-                              startDayOverride: String(day),
-                              startDateOverride: '',
-                              // Clear deps: an explicit date takes control of start day
-                              dependencyLinks: [],
-                            }));
+                          if (day === null) {
+                            // Undated (handled above) or a pick before day 1.
+                            // Either way the modal used to just close and the
+                            // task stayed where it was, with no explanation.
+                            showAlert(
+                              isUndated ? UNDATED_SCHEDULE_TITLE : 'Before the schedule starts',
+                              isUndated
+                                ? 'Set the schedule start date first — until then a calendar date has no day number on this plan.'
+                                : `This plan starts ${projectStartDate.toLocaleDateString()}. Pick that day or later, or move the schedule’s start date back.`,
+                            );
+                            return;
                           }
+                          setTaskDraft(d => ({
+                            ...d,
+                            startDayOverride: String(day),
+                            startDateOverride: '',
+                            // Clear deps: an explicit date takes control of start day
+                            dependencyLinks: [],
+                          }));
                         }}
                       />
                     </>
@@ -2062,12 +2130,27 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </View>
 
         {activeSchedule && (
-          <View style={styles.projectStartBar}>
-            <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.projectStartLabel}>Starts</Text>
-            <Text style={styles.projectStartValue}>{projectStartDate.toLocaleDateString()}</Text>
+          <View
+            /* SCHED-NO-ANCHOR: this row is the disclosure. Undated, it must not
+               print today's date as if it were the plan's start — every date on
+               the grid below is then a preview that moves forward one day per
+               calendar day, and one tap here fixes it for good. */
+            style={[styles.projectStartBar, isUndated ? styles.projectStartBarUndated : null]}
+          >
+            {isUndated
+              ? <CalendarOff size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+              : <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />}
+            <Text style={[styles.projectStartLabel, isUndated ? { color: themeColors.warningLabel } : null]}>Starts</Text>
+            <Text
+              style={[styles.projectStartValue, isUndated ? { color: themeColors.warningLabel } : null]}
+              numberOfLines={2}
+            >
+              {isUndated
+                ? UNDATED_SCHEDULE_PREVIEW_NOTE
+                : projectStartDate.toLocaleDateString()}
+            </Text>
             <TouchableOpacity
-              style={styles.projectStartEdit}
+              style={[styles.projectStartEdit, isUndated ? styles.projectStartEditUndated : null]}
               onPress={() => {
                 const yyyy = projectStartDate.getFullYear();
                 const mm = String(projectStartDate.getMonth() + 1).padStart(2, '0');
@@ -2077,7 +2160,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               }}
               testID="edit-project-start-date-desktop"
             >
-              <Text style={styles.projectStartEditText}>Change</Text>
+              <Text style={[styles.projectStartEditText, isUndated ? { color: themeColors.warningLabel } : null]}>
+                {isUndated ? UNDATED_SCHEDULE_CTA : 'Change'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -2369,7 +2454,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   </View>
                 </View>
                 <Text style={styles.quickAddHint}>
-                  Project starts {projectStartDate.toLocaleDateString()} · leave custom date blank to chain after the last task
+                  {isUndated
+                    ? UNDATED_QUICK_ADD_HINT
+                    : `Project starts ${projectStartDate.toLocaleDateString()} · leave custom date blank to chain after the last task`}
                 </Text>
                 <TouchableOpacity style={styles.addTaskBtn} onPress={handleQuickAdd} activeOpacity={0.85}>
                   <Plus size={16} color="#FFF" strokeWidth={1.75} />
@@ -2618,12 +2705,27 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             </ScrollView>
 
             {activeSchedule && !isFieldMode && (
-              <View style={styles.projectStartBar}>
-                <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.projectStartLabel}>Starts</Text>
-                <Text style={styles.projectStartValue}>{projectStartDate.toLocaleDateString()}</Text>
+              <View
+                /* SCHED-NO-ANCHOR: this row is the disclosure. Undated, it must not
+                   print today's date as if it were the plan's start — every date on
+                   the grid below is then a preview that moves forward one day per
+                   calendar day, and one tap here fixes it for good. */
+                style={[styles.projectStartBar, isUndated ? styles.projectStartBarUndated : null]}
+              >
+                {isUndated
+                  ? <CalendarOff size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+                  : <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />}
+                <Text style={[styles.projectStartLabel, isUndated ? { color: themeColors.warningLabel } : null]}>Starts</Text>
+                <Text
+                  style={[styles.projectStartValue, isUndated ? { color: themeColors.warningLabel } : null]}
+                  numberOfLines={2}
+                >
+                  {isUndated
+                    ? UNDATED_SCHEDULE_PREVIEW_NOTE
+                    : projectStartDate.toLocaleDateString()}
+                </Text>
                 <TouchableOpacity
-                  style={styles.projectStartEdit}
+                  style={[styles.projectStartEdit, isUndated ? styles.projectStartEditUndated : null]}
                   onPress={() => {
                     const yyyy = projectStartDate.getFullYear();
                     const mm = String(projectStartDate.getMonth() + 1).padStart(2, '0');
@@ -2633,7 +2735,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   }}
                   testID="edit-project-start-date-mobile"
                 >
-                  <Text style={styles.projectStartEditText}>Change</Text>
+                  <Text style={[styles.projectStartEditText, isUndated ? { color: themeColors.warningLabel } : null]}>
+                    {isUndated ? UNDATED_SCHEDULE_CTA : 'Change'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -3023,7 +3127,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   testID="quick-add-start-date"
                 />
                 <Text style={styles.quickAddHint}>
-                  Project starts {projectStartDate.toLocaleDateString()} · leave blank to chain after the last task
+                  {isUndated
+                    ? UNDATED_QUICK_ADD_HINT
+                    : `Project starts ${projectStartDate.toLocaleDateString()} · leave blank to chain after the last task`}
                 </Text>
               </View>
 
@@ -3705,6 +3811,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   projectStartValue: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   projectStartEdit: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '15' },
   projectStartEditText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  // Undated variant of the start bar — warning-tinted, not danger: a field is
+  // missing and one tap fills it in.
+  projectStartBarUndated: { backgroundColor: themeColors.warningSoft },
+  projectStartEditUndated: { backgroundColor: themeColors.warningSoft },
   phaseScroller: { marginBottom: 4 },
   phaseChipRow: { flexDirection: 'row', gap: 6 },
   phaseChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: themeColors.line },

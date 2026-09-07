@@ -211,7 +211,7 @@ export default function RfpResponsesReviewScreen() {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <AlertTriangle size={28} color={Colors.warning} strokeWidth={1.75} />
+        <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.emptyTitle}>Not your project</Text>
         <Text style={styles.emptyBody}>Only the homeowner who posted this RFP can review bids.</Text>
         <TouchableOpacity style={styles.backCta} onPress={() => router.back()}>
@@ -315,7 +315,7 @@ export default function RfpResponsesReviewScreen() {
                 )}
                 {isShortlist && (
                   <View style={styles.shortlistPill}>
-                    <Star size={10} color={Colors.warning} strokeWidth={1.75} />
+                    <Star size={10} color={Colors.warningLabel} strokeWidth={1.75} />
                     <Text style={styles.shortlistPillText}>SHORTLIST</Text>
                   </View>
                 )}
@@ -328,7 +328,7 @@ export default function RfpResponsesReviewScreen() {
 
               {r.view_site_requested ? (
                 <View style={styles.siteVisitRow}>
-                  <Eye size={12} color={Colors.warning} strokeWidth={1.75} />
+                  <Eye size={12} color={Colors.warningLabel} strokeWidth={1.75} />
                   <Text style={styles.siteVisitText}>Wants a site visit before quoting</Text>
                 </View>
               ) : (
@@ -370,8 +370,8 @@ export default function RfpResponsesReviewScreen() {
                       onPress={() => updateStatus(r.id, 'shortlisted')}
                       disabled={isBusy}
                     >
-                      {isBusy ? <ActivityIndicator size="small" color={Colors.warning} />
-                        : (<><Star size={13} color={Colors.warning} strokeWidth={1.75} /><Text style={[styles.actionBtnText, { color: Colors.warning }]}>Shortlist</Text></>)}
+                      {isBusy ? <ActivityIndicator size="small" color={Colors.warningLabel} />
+                        : (<><Star size={13} color={Colors.warningLabel} strokeWidth={1.75} /><Text style={[styles.actionBtnText, { color: Colors.warningLabel }]}>Shortlist</Text></>)}
                     </TouchableOpacity>
                   )}
                   {isShortlist && (
@@ -466,12 +466,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: t.success + '20' },
   awardedPillText:{ fontSize: 9, fontWeight: '800', color: t.success, letterSpacing: 0.6 },
   shortlistPill:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
-  shortlistPillText:{ fontSize: 9, fontWeight: '800', color: Colors.warning, letterSpacing: 0.6 },
+  shortlistPillText:{ fontSize: 9, fontWeight: '800', color: Colors.warningLabel, letterSpacing: 0.6 },
   declinedPill:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: t.danger + '15' },
   declinedPillText:{ fontSize: 9, fontWeight: '800', color: t.danger, letterSpacing: 0.6 },
 
   siteVisitRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30' },
-  siteVisitText: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '700' },
+  siteVisitText: { fontSize: Type.caption1.fontSize, color: Colors.warningLabel, fontWeight: '700' },
 
   amountWrap: { paddingVertical: 4 },
   amountValue: { fontSize: 26, fontWeight: '800', color: t.text, letterSpacing: -0.6 },

@@ -295,7 +295,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
       </View>
       {waiting && (
         <View style={[styles.waitingPill, overdue && styles.waitingPillOverdue]}>
-          <Clock size={11} color={overdue ? '#FFF' : Colors.warning} strokeWidth={1.75} />
+          <Clock size={11} color={overdue ? '#FFF' : Colors.warningLabel} strokeWidth={1.75} />
           <Text style={[styles.waitingText, overdue && styles.waitingTextOverdue]}>
             {ageHours < 1 ? 'just now' : `waiting ${ageHours}h`}
           </Text>
@@ -327,7 +327,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   kpiBlock: { flex: 1, alignItems: 'center' },
   kpiNum: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text },
-  kpiNumWarn: { color: Colors.warning },
+  kpiNumWarn: { color: Colors.warningLabel },
   kpiLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, fontWeight: '500' as const },
   kpiDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: t.line },
   columnsRow: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 100, gap: 12 },
@@ -410,7 +410,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: 2,
   },
   waitingPillOverdue: { backgroundColor: t.danger },
-  waitingText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warning },
+  waitingText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warningLabel },
   waitingTextOverdue: { color: '#FFF' },
   cardContactRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   cardContactText: { fontSize: Type.caption1.fontSize, color: t.textMuted },

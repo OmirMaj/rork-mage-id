@@ -28,6 +28,7 @@ import {
   seedAIAPayApplicationFromInvoice,
   computeAIATotals,
   generateAIAPayAppPDF,
+  retainagePercentForInvoice,
 } from '@/utils/aiaBilling';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -139,10 +140,17 @@ function AIAPayAppScreenInner() {
   }, [project, invoice, getAIAPayAppsForProject]);
 
   const [carriedFromAppNumber, setCarriedFromAppNumber] = useState<number | null>(null);
+  // MISS-05: the retainage rate on this certificate is now CARRIED from the
+  // source invoice (including a real 0%) instead of falling back to an invented
+  // 10%. Track whether the GC has since overridden it, so the screen can say
+  // where the number on the G702 actually came from.
+  const [retainageEdited, setRetainageEdited] = useState(false);
+  const invoiceRetainagePct = invoice ? retainagePercentForInvoice(invoice) : 0;
 
   useEffect(() => {
     if (!invoice || !project || !settings?.branding) return;
     const seeded = seedAIAPayApplicationFromInvoice(invoice, project, approvedCOs, settings.branding);
+    setRetainageEdited(false);
     // Carry-forward: when there's a prior saved pay app, pre-fill each line's
     // fromPreviousApp with what was billed through the end of the prior
     // period (prior.fromPreviousApp + prior.thisPeriod), and pre-fill the
@@ -245,6 +253,7 @@ function AIAPayAppScreenInner() {
 
   const updateRetainagePctAll = useCallback((pct: number) => {
     if (isLocked) return;
+    setRetainageEdited(true);
     setApp(prev => prev ? {
       ...prev,
       retainagePercent: pct,
@@ -676,6 +685,19 @@ function AIAPayAppScreenInner() {
               />
             </View>
           </View>
+          {/* MISS-05: say where this rate came from. It used to default to a
+              fabricated 10% whenever the invoice carried no percentage, so a GC
+              who bills without retainage certified 10% held to his lender. */}
+          <Text style={styles.retainageSourceNote} testID="aia-retainage-source">
+            {retainageEdited
+              ? `Set here — the source invoice bills ${invoiceRetainagePct}% retainage.`
+              : invoiceRetainagePct > 0
+                ? `Carried from invoice #${invoice.number} (${invoiceRetainagePct}%). Change it if this contract holds a different rate.`
+                : `Invoice #${invoice.number} withheld no retainage, so this certificate holds none. Set the contract's rate if it holds any.`}
+          </Text>
+          <Text style={styles.retainageSourceNote}>
+            Withheld on completed work and stored materials (G702 line 5) — never on sales tax.
+          </Text>
         </View>
 
         {/* Schedule of Values */}
@@ -776,7 +798,17 @@ function AIAPayAppScreenInner() {
             <Row label="Contract Sum to Date" value={formatMoney(app.contractSumToDate)} bold />
             <Divider />
             <Row label="Total Completed & Stored" value={formatMoney(totals.totalCompletedAndStored)} />
-            <Row label={`Retainage (${app.retainagePercent}%)`} value={`-${formatMoney(totals.totalRetainage)}`} dim />
+            {/* A deductive change-order line carries NEGATIVE retainage, which
+                can make the certificate's total retainage a net add-back. The
+                hardcoded "-" prefix printed "--$250.00" on that certificate,
+                so the sign is chosen from the number. */}
+            <Row
+              label={`Retainage (${app.retainagePercent}% of work in place)`}
+              value={totals.totalRetainage < 0
+                ? `+${formatMoney(Math.abs(totals.totalRetainage))}`
+                : `-${formatMoney(totals.totalRetainage)}`}
+              dim
+            />
             <Row label="Total Earned Less Retainage" value={formatMoney(totals.totalEarnedLessRetainage)} />
             <Row label="Less Previous Certificates" value={`-${formatMoney(app.lessPreviousCertificates)}`} dim />
             <Divider />
@@ -1052,6 +1084,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
 
   retainageChips: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  retainageSourceNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16, marginTop: 6 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
     backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,

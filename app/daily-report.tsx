@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -40,7 +40,7 @@ import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, LeakScanRecord, ScheduleTask } from '@/types';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
-import { parseCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, calendarDayOf, daysUntilCalendarDay, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
@@ -78,6 +78,90 @@ function createId(_prefix: string): string {
 /** One confirm row of the delay scan: the AI's quote + proposal, the user's
  *  confirmed task + days. taskId null = unmatched, user must pick. */
 type DelayRow = { quote: string; deltaDays: number; taskId: string | null };
+
+// --- BEGIN carrySourceDayLabel ---
+// scripts/validate-calendar-date.ts extracts everything between these
+// sentinels, transpiles it and runs the REAL functions under three timezones.
+// This file is an Expo Router route and cannot be imported outside Metro, so
+// the sentinels are the guard's only handle on the shipped code — moving or
+// renaming them fails that guard loudly rather than silently unpinning the
+// day arithmetic. Same pattern as app/sub-portal-setup.tsx.
+/** The absolute label for a DFR's day in the CURRENT year — 'Mon, Sep 1'. */
+const CARRY_DATE_OPTS: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+/** The same label for a day in any OTHER year — 'Mon, Sep 8, 2025'. */
+const CARRY_DATE_OPTS_WITH_YEAR: Intl.DateTimeFormatOptions = { ...CARRY_DATE_OPTS, year: 'numeric' };
+/** What the button says when the source report's date is unreadable. Naming no
+ *  day at all is honest; naming the wrong one is not. */
+const CARRY_UNKNOWN_DAY = 'the last report';
+
+/**
+ * Which of the two option sets names `day` unambiguously, given `now`.
+ *
+ * The bare 'Mon, Sep 8' reads as THIS year, always. A job stalls, the last DFR
+ * on it is 2025-09-08, the super reopens the screen on 2026-09-07: without a
+ * year the button says "Copy from Mon, Sep 8" for a report that is a year old,
+ * and the toast confirms the same wrong day after the copy lands. That is the
+ * same defect as DFR-CARRY-LABEL itself — the label naming a day that is not
+ * the day — reached by a rarer input. (It predates the fix rather than coming
+ * from it: the code this replaced dropped the year too.)
+ *
+ * The test is the calendar YEAR, not a distance in days. A ">180 days ago"
+ * threshold still lets "Fri, Dec 12" mean last December when read in early
+ * June, which is the whole failure this is here to prevent; comparing years is
+ * exact, and it keeps the short form for every label a working GC actually
+ * sees, since a carry-forward source is nearly always days old. Both sides are
+ * LOCAL calendar days, so neither can drift into a neighbouring year by
+ * timezone.
+ */
+function carryDateOpts(day: string, now: Date): Intl.DateTimeFormatOptions {
+  return day.slice(0, 4) === todayCalendarDay(now).slice(0, 4)
+    ? CARRY_DATE_OPTS
+    : CARRY_DATE_OPTS_WITH_YEAR;
+}
+
+/**
+ * DFR-CARRY-LABEL — name the day "Copy from …" actually copies from, in
+ * CALENDAR days.
+ *
+ * This used to be `Math.round((today.getTime() - d.getTime()) / 86400000)`,
+ * which measures the gap between two INSTANTS and then calls the answer a
+ * number of days. Two ways that lies:
+ *   • a report filed at 9 pm and opened at 8 am the next morning is 11 hours
+ *     old, rounds to 0, and the button read "Copy from earlier today" — for
+ *     yesterday's crew counts and work-performed text;
+ *   • a report filed at 8 am reads "yesterday" until 8 am the following day
+ *     and "2 days ago" after it, so the same record is named two different
+ *     days depending on the hour the super opens the screen.
+ * Crossing a DST boundary adds an hour of error on top of that.
+ *
+ * daysUntilCalendarDay counts whole days on the calendar grid, so the label
+ * changes at midnight and only at midnight. DFR.date is a full ISO instant
+ * from this screen and a noon-UTC instant from DatePickerModal, but arrives
+ * bare 'YYYY-MM-DD' from other writers — calendarDayOf resolves either shape
+ * to the local day the report is FOR. A future-dated report (the GC filed
+ * tomorrow's) gets its absolute date rather than "-1 days ago".
+ */
+export function carrySourceDayLabel(dateValue: string | null | undefined, now: Date = new Date()): string {
+  const day = calendarDayOf(dateValue);
+  if (!day) return CARRY_UNKNOWN_DAY;
+  const until = daysUntilCalendarDay(day, now);
+  if (until === null) return CARRY_UNKNOWN_DAY;
+  const daysAgo = -until;
+  if (daysAgo === 0) return 'earlier today';
+  if (daysAgo === 1) return 'yesterday';
+  if (daysAgo > 1 && daysAgo < 7) return `${daysAgo} days ago`;
+  return formatCalendarDay(day, carryDateOpts(day, now)) || CARRY_UNKNOWN_DAY;
+}
+
+/** The absolute day a carry-forward came from, for the confirmation toast —
+ *  'Mon, Sep 1', or 'Mon, Sep 8, 2025' when that day is not in this year;
+ *  never the UTC-shifted `new Date(bareDay)` reading. */
+export function carrySourceDayAbsolute(dateValue: string | null | undefined, now: Date = new Date()): string {
+  const day = calendarDayOf(dateValue);
+  if (!day) return CARRY_UNKNOWN_DAY;
+  return formatCalendarDay(day, carryDateOpts(day, now)) || CARRY_UNKNOWN_DAY;
+}
+// --- END carrySourceDayLabel ---
 
 export default function DailyReportScreen() {
   const insets = useSafeAreaInsets();
@@ -309,20 +393,26 @@ export default function DailyReportScreen() {
     if (lastReport.issuesAndDelays) setIssuesAndDelays(lastReport.issuesAndDelays);
     setCarryFormFromId(lastReport.id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    const dateLabel = new Date(lastReport.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    nailIt(`Copied from ${dateLabel}. Edit anything that's different.`);
+    nailIt(`Copied from ${carrySourceDayAbsolute(lastReport.date)}. Edit anything that's different.`);
   }, [lastReport]);
+
+  // "earlier today" / "yesterday" are relative to a `now` that has to be read
+  // again when it changes, or the button keeps naming the day it was mounted
+  // on. A super leaves this screen open on a truck dash overnight and comes
+  // back to it: the memo below never re-ran, so it still says "Copy from
+  // earlier today" for what is now yesterday's report — DFR-CARRY-LABEL again,
+  // from staleness rather than from arithmetic. Re-reading the day on focus
+  // covers the real path (backgrounding the app and returning blurs and
+  // re-focuses the screen). Held as the 'YYYY-MM-DD' string, not a Date, so
+  // the common re-focus sets identical state and React bails out of the
+  // re-render; only an actual midnight crossing costs anything.
+  const [carryLabelDay, setCarryLabelDay] = useState(() => todayCalendarDay());
+  useFocusEffect(useCallback(() => { setCarryLabelDay(todayCalendarDay()); }, []));
 
   const lastReportLabel = useMemo(() => {
     if (!lastReport) return '';
-    const d = new Date(lastReport.date);
-    const today = new Date();
-    const diffDays = Math.round((today.getTime() - d.getTime()) / 86400000);
-    if (diffDays === 1) return 'yesterday';
-    if (diffDays === 0) return 'earlier today';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  }, [lastReport]);
+    return carrySourceDayLabel(lastReport.date, parseCalendarDay(carryLabelDay) ?? new Date());
+  }, [lastReport, carryLabelDay]);
 
   // Progress meter — "X of 5 sections filled". Five tracked items because
   // five is what a contractor can hold in their head: weather, crew, work
@@ -2847,7 +2937,7 @@ const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({
   badgeFlags: { backgroundColor: 'rgba(233,168,38,0.16)' },
   badgeText: { fontSize: 9, fontWeight: '800' as const, letterSpacing: 0.6 },
   badgeTextClean: { color: themeColors.success },
-  badgeTextFlags: { color: Colors.warning },
+  badgeTextFlags: { color: Colors.warningLabel },
   scanBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
     paddingHorizontal: 12, paddingVertical: 11, borderRadius: 11,

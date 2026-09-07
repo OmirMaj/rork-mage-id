@@ -16,6 +16,7 @@
 
 import {
   composeWeekClose, projectIsActive, QUIET_CLOSE_LINE,
+  homeownerDigestLine, nextHomeownerDigestSend,
   type ComposeWeekCloseInput, type WeekCloseWipRow,
 } from '../utils/weekClose/composeWeekClose';
 import { computeWipRow } from '../utils/wip';
@@ -231,6 +232,65 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
     'CO item mentions CO number',
   );
 
+  // NAV-11 — HAND-DRAFTED change orders count too.
+  //
+  // The bill leg used to look only at `autoDraftedCOs` (COs carrying the
+  // auto_drafted_from_leak audit marker). Both of the founder's real drafts
+  // were written by hand — $36.89 + $250.26 = $287.15 — so the leg saw
+  // neither, the close called itself clean, and the home card two inches away
+  // said "$287 in change orders ready to send". The predicate is now
+  // buildReadyToBill (utils/draftedRevenue), the same one the home card reads.
+  const handCo = changeOrder({ id: 'co-hand', projectId: 'p1', number: 7, changeAmount: 250.26 });
+  const resultHandCO = composeWeekClose(baseInput({
+    projects: [p1], dailyReports: [report], wipRows: [],
+    changeOrders: [handCo], autoDraftedCOs: [], // nothing auto-drafted
+  }));
+  const billHand = resultHandCO.legs.find(l => l.id === 'bill')!;
+  assert(
+    billHand.items.some(item => item.id === 'draft-co-co-hand'),
+    'hand-drafted change order appears in bill leg (NAV-11)',
+  );
+  assert(
+    billHand.items.some(item => item.text.includes('CO #7') && item.text.includes('not sent yet')),
+    'hand-drafted CO item names the CO and says it is unsent',
+  );
+  assert(
+    !resultHandCO.allQuiet,
+    'unsent change orders can never produce a "clean close" (NAV-11)',
+  );
+
+  // A quiet project does not hide an unsent CO either — a draft is a record,
+  // not an estimate.
+  const pQuietCo = project({ id: 'p-qco', name: 'Quiet CO Job' });
+  const quietCo = changeOrder({ id: 'co-quiet', projectId: 'p-qco', number: 2, changeAmount: 36.89 });
+  const resultQuietCO = composeWeekClose(baseInput({
+    projects: [pQuietCo], dailyReports: [], changeOrders: [quietCo],
+  }));
+  assert(
+    resultQuietCO.legs.find(l => l.id === 'bill')!.items.some(i => i.id === 'draft-co-co-quiet'),
+    'drafted CO on a quiet project still appears in bill leg (NAV-11)',
+  );
+
+  // Sent / approved COs are not drafts and must stay out.
+  const sentCo = changeOrder({ id: 'co-sent', projectId: 'p1', number: 8, status: 'approved' });
+  const resultSentCO = composeWeekClose(baseInput({
+    projects: [p1], dailyReports: [report], changeOrders: [sentCo],
+  }));
+  assert(
+    !resultSentCO.legs.find(l => l.id === 'bill')!.items.some(i => i.id.endsWith('co-sent')),
+    'non-draft change order excluded from bill leg',
+  );
+
+  // A zero/negative-amount draft is not money left on the table.
+  const zeroCo = changeOrder({ id: 'co-zero', projectId: 'p1', number: 9, changeAmount: 0 });
+  const resultZeroCO = composeWeekClose(baseInput({
+    projects: [p1], dailyReports: [report], changeOrders: [zeroCo],
+  }));
+  assert(
+    !resultZeroCO.legs.find(l => l.id === 'bill')!.items.some(i => i.id.endsWith('co-zero')),
+    'zero-amount draft CO excluded from bill leg',
+  );
+
   // QBO pending count
   const resultWithQBO = composeWeekClose(baseInput({
     projects: [p1],
@@ -304,16 +364,111 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
     'payment prediction landing date shown in chase item',
   );
 
-  // Inactive project invoice excluded
-  const p2 = project({ id: 'p2', name: 'Inactive' });
-  const overdueInv2 = invoice({ id: 'i3', projectId: 'p2', dueDate: dateOnlyDaysAgo(5) });
+  // NAV-11 (runtime audit 2026-09-06) — THE INVERSION OF THE OLD RULE.
+  //
+  // This case used to assert the opposite: an overdue invoice on a project with
+  // no activity in 14 days was excluded from the chase leg. In production that
+  // silenced the founder's Houston Phone Booth Ad — an 11-day-overdue
+  // $81,264.63 invoice on an in_progress job that had simply gone quiet — and
+  // with the leg empty allQuiet went true, so the home card printed "Clean
+  // close — nothing left on the table" directly above the attention row naming
+  // that same invoice. A quiet job with an ageing receivable is the case the
+  // Friday close exists for. Cadence may gate DERIVED estimates (WIP), never
+  // RECORDS (an invoice with a due date and a balance).
+  const p2 = project({ id: 'p2', name: 'Gone Quiet' });
+  const overdueInv2 = invoice({ id: 'i3', projectId: 'p2', dueDate: dateOnlyDaysAgo(11) });
   const resultInactive = composeWeekClose(baseInput({
-    projects: [p2], dailyReports: [],
+    projects: [p2], dailyReports: [], // no activity at all in the window
     invoices: [overdueInv2], wipRows: [],
   }));
   assert(
-    !resultInactive.legs.find(l => l.id === 'chase')!.items.some(i => i.id === 'overdue-i3'),
-    'overdue invoice on inactive project excluded from chase',
+    !projectIsActive(p2, [overdueInv2], [], NOW),
+    'fixture really is outside the 14-day activity window',
+  );
+  assert(
+    resultInactive.legs.find(l => l.id === 'chase')!.items.some(i => i.id === 'overdue-i3'),
+    'overdue invoice on a QUIET project still appears in chase (NAV-11)',
+  );
+  assert(
+    !resultInactive.allQuiet,
+    'an overdue invoice on a quiet project can never produce a "clean close" (NAV-11)',
+  );
+
+  // The WIP half of the rule still holds: a derived estimate on a quiet job
+  // stays suppressed, because its cost/progress inputs are stale.
+  const resultQuietWip = composeWeekClose(baseInput({
+    projects: [p2], dailyReports: [],
+    wipRows: [wipRow({ projectId: 'p2', projectName: 'Gone Quiet', unbilled: 50_000 })],
+  }));
+  assert(
+    !resultQuietWip.legs.find(l => l.id === 'bill')!.items.some(i => i.id === 'unbilled-p2'),
+    'derived WIP estimate on a quiet project stays behind the cadence gate',
+  );
+
+  // ─── Where the ungated chase leg STOPS ─────────────────────────────────────
+  //
+  // Removing the cadence gate removed the project filter entirely, which is a
+  // broader change than NAV-11 strictly required. These cases pin the boundary
+  // that was intended, so nobody has to guess it from the diff later.
+
+  // A finished job keeps its unpaid final draw. Closeout is exactly when a
+  // release or a final invoice goes unchased; "done" is not "paid".
+  for (const st of ['completed', 'closed'] as const) {
+    const pDone = project({ id: `p-${st}`, name: `Done ${st}`, status: st });
+    const invDone = invoice({ id: `i-${st}`, projectId: `p-${st}`, dueDate: dateOnlyDaysAgo(40) });
+    const res = composeWeekClose(baseInput({
+      projects: [pDone], dailyReports: [], invoices: [invDone], wipRows: [],
+    }));
+    assert(
+      res.legs.find(l => l.id === 'chase')!.items.some(i => i.id === `overdue-i-${st}`),
+      `overdue invoice on a ${st} project still chases (money owed outlives the job)`,
+    );
+  }
+
+  // A settled invoice leaves the leg no matter how old — that is the ONLY exit
+  // besides status 'paid'.
+  const pSettled = project({ id: 'p-settled', name: 'Settled Job' });
+  const invSettled = invoice({
+    id: 'i-settled', projectId: 'p-settled',
+    dueDate: dateOnlyDaysAgo(90), totalDue: 1000, amountPaid: 1000,
+  });
+  const resSettled = composeWeekClose(baseInput({
+    projects: [pSettled], dailyReports: [], invoices: [invSettled], wipRows: [],
+  }));
+  assert(
+    !resSettled.legs.find(l => l.id === 'chase')!.items.some(i => i.id === 'overdue-i-settled'),
+    'fully-paid invoice never chases, however old',
+  );
+
+  // Retention-only balance is not overdue (MONEY-F5) — held retention is not
+  // money the client is refusing to pay.
+  const invRetentionOnly = invoice({
+    id: 'i-ret', projectId: 'p-settled',
+    dueDate: dateOnlyDaysAgo(40), totalDue: 10_000, retentionAmount: 500, amountPaid: 9_500,
+  });
+  const resRet = composeWeekClose(baseInput({
+    projects: [pSettled], dailyReports: [], invoices: [invRetentionOnly], wipRows: [],
+  }));
+  assert(
+    !resRet.legs.find(l => l.id === 'chase')!.items.some(i => i.id === 'overdue-i-ret'),
+    'invoice paid down to held retention does not chase (MONEY-F5)',
+  );
+
+  // An invoice whose project row is gone must not invent a job name. The old
+  // fallback printed the literal word "Project" in the name slot.
+  const invOrphan = invoice({ id: 'i-orphan', projectId: 'p-vanished', number: 9, dueDate: dateOnlyDaysAgo(20) });
+  const resOrphan = composeWeekClose(baseInput({
+    projects: [], dailyReports: [], invoices: [invOrphan], wipRows: [],
+  }));
+  const orphanItem = resOrphan.legs.find(l => l.id === 'chase')!.items.find(i => i.id === 'overdue-i-orphan');
+  assert(orphanItem != null, 'invoice with no matching project still chases');
+  assert(
+    orphanItem != null && !orphanItem.text.includes('(Project)'),
+    `unknown project is omitted, not named "Project" (got "${orphanItem?.text}")`,
+  );
+  assert(
+    orphanItem != null && orphanItem.text.startsWith('Invoice #9:'),
+    `orphan item reads cleanly without a name (got "${orphanItem?.text}")`,
   );
 }
 
@@ -454,6 +609,102 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
   assert(
     clientsPortal.items.some(i => i.id === 'portal-digest-notice' && i.informational === true),
     'active portal project → portal digest notice present and informational',
+  );
+}
+
+// ─── CLOSE-DIGEST-TODAY: the digest line may only claim a send on a send day ──
+
+{
+  console.log('\n── clients leg: homeowner digest line ──');
+
+  // The pg_cron job `homeowner-weekly-digest-friday` runs '0 21 * * 5' — 21:00
+  // UTC on Fridays only. The line used to be the constant string "Portal
+  // homeowner digest goes out automatically today", pushed on any day the modal
+  // could be opened. components/home/WeekCloseCard.tsx's isFridayWindow spans
+  // Friday through Sunday, so the app told the founder his homeowner had
+  // already been updated today on two of the three days it could be read.
+  //
+  // These cases run against the real cron constants via homeownerDigestLine, so
+  // a change to the schedule that is not mirrored in the copy fails here.
+
+  // Sunday 2026-09-06 09:00 local — the exact screenshot in the audit.
+  const sunday = new Date(2026, 8, 6, 9, 0, 0);
+  const sundayLine = homeownerDigestLine(sunday);
+  assert(
+    !sundayLine.includes('today\'s went out') && !sundayLine.includes('today\'s goes out'),
+    `Sunday must not claim a send today (got "${sundayLine}")`,
+  );
+  assert(
+    sundayLine.includes('nothing goes out today'),
+    `Sunday says nothing goes out today (got "${sundayLine}")`,
+  );
+
+  // Saturday — the other false day.
+  const saturdayLine = homeownerDigestLine(new Date(2026, 8, 5, 9, 0, 0));
+  assert(
+    saturdayLine.includes('nothing goes out today'),
+    `Saturday says nothing goes out today (got "${saturdayLine}")`,
+  );
+
+  // Friday BEFORE the send instant → future tense.
+  const fridayEarly = new Date(2026, 8, 4, 6, 0, 0);
+  const fridayEarlyLine = homeownerDigestLine(fridayEarly);
+  assert(
+    fridayEarlyLine.includes("today's goes out at"),
+    `Friday morning uses future tense (got "${fridayEarlyLine}")`,
+  );
+
+  // Friday AFTER the send instant → past tense, still "today".
+  const fridayLate = new Date(2026, 8, 4, 23, 30, 0);
+  const fridayLateLine = homeownerDigestLine(fridayLate);
+  assert(
+    fridayLateLine.includes("today's went out at") || fridayLateLine.includes("today's goes out at"),
+    `Friday evening still reports today's send (got "${fridayLateLine}")`,
+  );
+
+  // Mid-week — no claim of a send, and it names a real upcoming day.
+  const wednesdayLine = homeownerDigestLine(new Date(2026, 8, 2, 12, 0, 0));
+  assert(
+    wednesdayLine.includes('nothing goes out today') && wednesdayLine.includes('next one'),
+    `Wednesday points at the next send instead (got "${wednesdayLine}")`,
+  );
+
+  // The weekday named is derived from the cron instant, never hardcoded — it
+  // must match the local weekday of nextHomeownerDigestSend.
+  const wedNow = new Date(2026, 8, 2, 12, 0, 0);
+  const wedNext = nextHomeownerDigestSend(wedNow);
+  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  assert(
+    wednesdayLine.includes(names[wedNext.getDay()]),
+    `named weekday matches the real next cron instant (${names[wedNext.getDay()]}; got "${wednesdayLine}")`,
+  );
+
+  // The cron instant itself: always a Friday 21:00 UTC, always in the future.
+  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+    const probe = new Date(Date.UTC(2026, 8, 1 + dayOffset, 13, 17, 0));
+    const send = nextHomeownerDigestSend(probe);
+    assert(
+      send.getUTCDay() === 5 && send.getUTCHours() === 21 && send.getUTCMinutes() === 0,
+      `next send is Friday 21:00 UTC (offset ${dayOffset}, got ${send.toISOString()})`,
+    );
+    assert(send.getTime() > probe.getTime(), `next send is in the future (offset ${dayOffset})`);
+  }
+
+  // And end to end through the composer, on the audit's own Sunday.
+  const pPortalSun = project({
+    id: 'p-portal-sun', name: 'Portal Job',
+    clientPortal: { enabled: true, portalId: 'pp2' },
+  } as unknown as Partial<Project> & { id: string; name: string });
+  const repPortalSun = dailyReport({ id: 'r-p-sun', projectId: 'p-portal-sun', date: '2026-09-04' });
+  const sundayClose = composeWeekClose(baseInput({
+    now: sunday, projects: [pPortalSun], dailyReports: [repPortalSun],
+  }));
+  const sundayNotice = sundayClose.legs
+    .find(l => l.id === 'clients')!.items
+    .find(i => i.id === 'portal-digest-notice');
+  assert(
+    sundayNotice != null && sundayNotice.text === sundayLine,
+    'composer emits the schedule-aware line, not a constant string',
   );
 }
 

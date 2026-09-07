@@ -15,6 +15,12 @@ import {
   type GcLedger,
 } from '../utils/subNetwork';
 import type { Commitment, Project, PunchItem, Subcontractor } from '../types';
+// NAV-05: the sub compliance rule, pinned below. Pure (types-only imports).
+import {
+  getComplianceStatus,
+  complianceLabel,
+  type ComplianceState,
+} from '../utils/subCompliance';
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -295,6 +301,92 @@ expect('referral says free for subs', sam.referral.message.includes("free for su
 expect('short message fits an SMS', sam.referral.shortMessage.length < 200, true);
 expect('email subject is branded to the sub', sam.referral.emailSubject, 'Volt Edge Electric - running our jobs through MAGE ID');
 expect('referral copy carries no money', findSubDataLeaks(sam.referral), []);
+
+// ── Sub COMPLIANCE state (utils/subCompliance) ──────────────────────────────
+//
+// NAV-05 (runtime audit 2026-09-06). Lives in this file because it is the one
+// wired sub-domain validator in the ship-check chain; the logic itself is
+// utils/subCompliance.ts. It used to be module-private inside
+// app/(tabs)/subs/index.tsx, unreachable by any script, and what it shipped was
+// `return 'compliant'` for a sub with NO licence date and NO COI date — a green
+// chip and a +1 on the green Compliant tile for paperwork nobody has ever seen,
+// on the screen that advertises a COI vault.
+//
+// The rule these pin: 'compliant' is reachable ONLY when both documents carry a
+// real, parseable, future date. Anything else is expired, expiring, or unknown.
+console.log('\nsub compliance state (NAV-05):');
+
+const CNOW = Date.parse('2026-09-07T12:00:00Z');
+// Reuses the fixture above; its defaults already carry the production shape —
+// licenseExpiry '' and coiExpiry '' (EMPTY STRINGS, not NULL), which is exactly
+// what the founder's 'Trail' row holds and what the old `sub.x ? ... : null`
+// read as falsy and skipped.
+const cSub = (o: Partial<Subcontractor> = {}): Subcontractor =>
+  mkSub({ id: 's-c', companyName: 'Trail', ...o });
+
+// The production row. Both fields are EMPTY STRINGS, not NULL — which the old
+// `sub.licenseExpiry ? ... : null` treated as falsy and skipped entirely.
+expect('empty-string dates are NOT compliant',
+  getComplianceStatus(cSub(), CNOW), 'unknown' as ComplianceState);
+expect('empty-string dates label the gap',
+  complianceLabel(getComplianceStatus(cSub(), CNOW), cSub()), 'No docs');
+
+// Absent (undefined) behaves identically to empty string. The type says these
+// are required strings, but AsyncStorage rows written before the fields existed
+// come back without them, which is why parseExpiry takes `string | undefined`
+// — hence the cast through unknown rather than a type error hiding the case.
+expect('undefined dates are NOT compliant',
+  getComplianceStatus(
+    { ...cSub(), licenseExpiry: undefined, coiExpiry: undefined } as unknown as Subcontractor,
+    CNOW,
+  ),
+  'unknown' as ComplianceState);
+
+// Garbage in a free-text field is not evidence either.
+expect('unparseable date is NOT compliant',
+  getComplianceStatus({ ...cSub(), licenseExpiry: 'next year', coiExpiry: 'next year' } as Subcontractor, CNOW),
+  'unknown' as ComplianceState);
+
+// One document on file is still not two.
+const licenseOnly = { ...cSub(), licenseExpiry: '2027-06-01', coiExpiry: '' } as Subcontractor;
+expect('licence on file but no COI is unknown, not compliant',
+  getComplianceStatus(licenseOnly, CNOW), 'unknown' as ComplianceState);
+expect('and the chip names the missing document',
+  complianceLabel(getComplianceStatus(licenseOnly, CNOW), licenseOnly), 'No COI');
+
+const coiOnly = { ...cSub(), licenseExpiry: '', coiExpiry: '2027-06-01' } as Subcontractor;
+expect('COI on file but no licence names that gap',
+  complianceLabel(getComplianceStatus(coiOnly, CNOW), coiOnly), 'No license');
+
+// Evidence of a problem outranks missing evidence.
+expect('expired COI + no licence date is EXPIRED, not unknown',
+  getComplianceStatus({ ...cSub(), licenseExpiry: '', coiExpiry: '2026-01-01' } as Subcontractor, CNOW),
+  'expired' as ComplianceState);
+
+// The two real states still work.
+expect('both dates far in the future → compliant',
+  getComplianceStatus({ ...cSub(), licenseExpiry: '2027-06-01', coiExpiry: '2027-06-01' } as Subcontractor, CNOW),
+  'compliant' as ComplianceState);
+expect('a date inside 30 days → expiring_soon',
+  getComplianceStatus({ ...cSub(), licenseExpiry: '2027-06-01', coiExpiry: '2026-09-20' } as Subcontractor, CNOW),
+  'expiring_soon' as ComplianceState);
+expect('a date in the past → expired',
+  getComplianceStatus({ ...cSub(), licenseExpiry: '2027-06-01', coiExpiry: '2026-08-01' } as Subcontractor, CNOW),
+  'expired' as ComplianceState);
+
+// The Compliant TILE counts the same predicate the chips use, so a green count
+// can never include a sub whose chip is not green.
+{
+  const roster: Subcontractor[] = [
+    { ...cSub(), id: 'a', licenseExpiry: '2027-06-01', coiExpiry: '2027-06-01' } as Subcontractor,
+    { ...cSub(), id: 'b' } as Subcontractor,                                    // no docs
+    { ...cSub(), id: 'c', licenseExpiry: '2027-06-01', coiExpiry: '' } as Subcontractor, // half
+  ];
+  expect('Compliant tile counts only fully-documented subs',
+    roster.filter(x => getComplianceStatus(x, CNOW) === 'compliant').length, 1);
+  expect('the other two are counted as unknown, not green',
+    roster.filter(x => getComplianceStatus(x, CNOW) === 'unknown').length, 2);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

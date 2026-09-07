@@ -83,9 +83,9 @@ const HistoryItem = React.memo(function HistoryItem({
       activeOpacity={0.7}
     >
       {item.success ? (
-        <CheckCircle2 size={13} color={Colors.success} strokeWidth={1.75} />
+        <CheckCircle2 size={13} color={Colors.successLabel} strokeWidth={1.75} />
       ) : (
-        <X size={13} color={Colors.error} strokeWidth={1.75} />
+        <X size={13} color={Colors.dangerLabel} strokeWidth={1.75} />
       )}
       <Text style={histStyles.historyText} numberOfLines={1}>{item.spokenText}</Text>
       <Text style={histStyles.historyTime}>{timeAgo}</Text>
@@ -355,7 +355,7 @@ export default function VoiceCommandModal({
   const renderSuccess = () => (
     <View style={s.stateContainer}>
       <View style={s.successIcon}>
-        <CheckCircle2 size={36} color={Colors.success} strokeWidth={1.75} />
+        <CheckCircle2 size={36} color={Colors.successLabel} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>Done!</Text>
       <Text style={s.stateMessage}>{resultMessage}</Text>
@@ -377,18 +377,18 @@ export default function VoiceCommandModal({
   const renderBatchSuccess = () => (
     <View style={s.stateContainer}>
       <View style={s.successIcon}>
-        <CheckCircle2 size={36} color={Colors.success} strokeWidth={1.75} />
+        <CheckCircle2 size={36} color={Colors.successLabel} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>{batchResults.filter(r => r.success).length} updates applied</Text>
       <View style={s.batchList}>
         {batchResults.map((r, i) => (
           <View key={i} style={s.batchItem}>
             {r.success ? (
-              <CheckCircle2 size={14} color={Colors.success} strokeWidth={1.75} />
+              <CheckCircle2 size={14} color={Colors.successLabel} strokeWidth={1.75} />
             ) : (
-              <AlertTriangle size={14} color={Colors.error} strokeWidth={1.75} />
+              <AlertTriangle size={14} color={Colors.dangerLabel} strokeWidth={1.75} />
             )}
-            <Text style={[s.batchItemText, !r.success && { color: Colors.error }]}>{r.message}</Text>
+            <Text style={[s.batchItemText, !r.success && { color: Colors.dangerLabel }]}>{r.message}</Text>
           </View>
         ))}
       </View>
@@ -409,7 +409,7 @@ export default function VoiceCommandModal({
   const renderError = () => (
     <View style={s.stateContainer}>
       <View style={s.errorIcon}>
-        <HelpCircle size={36} color={Colors.warning} strokeWidth={1.75} />
+        <HelpCircle size={36} color={Colors.warningLabel} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>Didn't catch that</Text>
       <Text style={s.stateMessage}>{resultMessage}</Text>
@@ -430,7 +430,7 @@ export default function VoiceCommandModal({
   const renderClarification = () => (
     <View style={s.stateContainer}>
       <View style={s.clarifyIcon}>
-        <HelpCircle size={36} color={Colors.info} strokeWidth={1.75} />
+        <HelpCircle size={36} color={Colors.infoLabel} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>Which task?</Text>
       <Text style={s.stateMessage}>

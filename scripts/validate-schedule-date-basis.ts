@@ -38,10 +38,16 @@
 
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { exportTasksToCsv, scheduleDayNumberFor, startDayNumberFor, taskCalendarRange } from '../utils/scheduleOps';
+import {
+  exportTasksToCsv, isMilestoneOnScheduleDay, isTaskActiveOnScheduleDay,
+  isUndatedSchedule, resolveScheduleAnchor, scheduleDayNumberFor, scheduleDayOnCalendar,
+  startDayNumberFor, taskCalendarRange, taskWorkingDayLabel,
+  UNDATED_SCHEDULE_PREVIEW_NOTE,
+} from '../utils/scheduleOps';
 import { addWorkingDays, getTaskDateRange, buildScheduleFromTasks } from '../utils/scheduleEngine';
-import { parseCalendarDay } from '../utils/calendarDate';
-import type { ScheduleTask } from '../types';
+import { parseCalendarDay, toCalendarDayString } from '../utils/calendarDate';
+import { computeTodayTasks, computeWeekLoad } from '../utils/summaryBriefing';
+import type { Project, ScheduleTask } from '../types';
 
 const ROOT = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -254,8 +260,13 @@ console.log('\nthe schedule surfaces route their anchor through calendarDate:');
   const sheet = stripComments(read('components/schedule/mobile/TaskDetailSheet.tsx'));
   ok('TaskDetailSheet imports parseCalendarDay',
     /import \{ parseCalendarDay \} from '@\/utils\/calendarDate'/.test(sheet));
-  ok('TaskDetailSheet baseMs uses parseCalendarDay',
-    /parseCalendarDay\(startDate\) \?\? new Date\(\)/.test(sheet));
+  // Was `parseCalendarDay(startDate) ?? new Date()`. That `?? new Date()` IS
+  // the invented anchor (SCHED-NO-ANCHOR) — the sheet now keeps null and
+  // prints day numbers, so the requirement is parseCalendarDay WITHOUT a
+  // today fallback. Section 9 pins what it prints instead.
+  ok('TaskDetailSheet baseMs uses parseCalendarDay and does NOT fall back to today',
+    /const d = parseCalendarDay\(startDate\);\s*\n\s*if \(!d\) return null;/.test(sheet),
+    (sheet.match(/.*parseCalendarDay\(startDate\).*/g) ?? []).join('\n       '));
   ok('TaskDetailSheet no longer bare-parses the anchor',
     !/new Date\(startDate\)/.test(sheet),
     (sheet.match(/.*new Date\(startDate\).*/g) ?? []).join('\n       '));
@@ -404,7 +415,12 @@ console.log('\nHome, Summary and the daily report share scheduleDayNumberFor:');
   ok('no private todayScheduleDayNumber definition survives', copies.length === 0, copies.join('\n       '));
   for (const [file, re] of [
     ['app/(tabs)/(home)/index.tsx', /scheduleDayNumberFor\(base, now, sched\.workingDaysPerWeek, sched\.nonWorkingDates\)/],
-    ['app/(tabs)/summary/index.tsx', /scheduleDayNumberFor\(base, now, p\.schedule\?\.workingDaysPerWeek, p\.schedule\?\.nonWorkingDates\)/],
+    // Summary is NOT in this list. It asks a different question — "is this
+    // task on site on THIS calendar day", a membership test — and
+    // scheduleDayNumberFor answers the "what day is the job on" question with
+    // two clamps that invent work when used for membership. It calls
+    // scheduleDayOnCalendar instead; section 8b pins that and the clamp
+    // difference between the two.
     ['app/daily-report.tsx', /scheduleDayNumberFor\(base, reportDay, project\.schedule\.workingDaysPerWeek, project\.schedule\.nonWorkingDates\)/],
     ['app/daily-report.tsx', /scheduleDayNumberFor\(startDay, reportDay, sched\.workingDaysPerWeek, sched\.nonWorkingDates\)/],
   ] as const) {
@@ -416,6 +432,491 @@ console.log('\nHome, Summary and the daily report share scheduleDayNumberFor:');
     scheduleDayNumberFor(new Date(2026, 2, 7), new Date(2026, 2, 9), 7), 3);
   eq('a closure is skipped on Home/Summary too: Wed 4 closed → Thu Mar 5 is day 3',
     scheduleDayNumberFor(new Date(2026, 2, 2), new Date(2026, 2, 5), 5, ['2026-03-04']), 3);
+}
+
+// ── 8b. MEMBERSHIP is not the same question (the briefing over-report) ─────
+// scheduleDayNumberFor CLAMPS twice, by design: every date at or before the
+// anchor is day 1, and a closed day folds back onto the working day before it.
+// That is right for "what working day is this job on today" and wrong as
+// "is this task on site on THIS calendar day" — under those clamps the morning
+// briefing INVENTED work: a job breaking ground in 25 days listed its day-1
+// task as on site today, the week strip put a crew on the three days before a
+// Thursday start, and ONE 0-day milestone was counted four times because Mon,
+// Tue, Wed and Thu all clamp to day 1. Same class as MISS-01, aimed the other
+// way. scheduleDayOnCalendar is the membership answer: the exact inverse of
+// addWorkingDays, null when the schedule does not land on that day.
+console.log('\nmembership asks scheduleDayOnCalendar, which does not clamp:');
+{
+  const MON = new Date(2026, 8, 7); // Mon 2026-09-07
+  eq('the anchor itself is day 1', scheduleDayOnCalendar(MON, MON, 5), 1);
+  eq('the next working day is day 2', scheduleDayOnCalendar(MON, new Date(2026, 8, 8), 5), 2);
+  eq('Fri is day 5', scheduleDayOnCalendar(MON, new Date(2026, 8, 11), 5), 5);
+  eq('Sat is NOT a day of a 5-day schedule', scheduleDayOnCalendar(MON, new Date(2026, 8, 12), 5), null);
+  eq('Sun is not either', scheduleDayOnCalendar(MON, new Date(2026, 8, 13), 5), null);
+  eq('… but Sat IS day 6 on a 7-day week', scheduleDayOnCalendar(MON, new Date(2026, 8, 12), 7), 6);
+  eq('the day BEFORE the anchor is no day at all', scheduleDayOnCalendar(MON, new Date(2026, 8, 4), 5), null);
+  eq('nor is a month before it', scheduleDayOnCalendar(MON, new Date(2026, 7, 7), 5), null);
+  eq('a site closure is not a day of the schedule', scheduleDayOnCalendar(MON, new Date(2026, 8, 9), 5, ['2026-09-09']), null);
+  eq('… and the day after it takes that day number', scheduleDayOnCalendar(MON, new Date(2026, 8, 10), 5, ['2026-09-09']), 3);
+  // A user CAN anchor on a Saturday, and addWorkingDays(start, 0) is `start`,
+  // so day 1 is that Saturday. Membership must agree with the drawing.
+  const SAT = new Date(2026, 8, 12);
+  eq('an anchor that falls on a Saturday is still its own day 1', scheduleDayOnCalendar(SAT, SAT, 5), 1);
+  eq('… the Sunday after it is not a working day', scheduleDayOnCalendar(SAT, new Date(2026, 8, 13), 5), null);
+  eq('… and the Monday is day 2', scheduleDayOnCalendar(SAT, new Date(2026, 8, 14), 5), 2);
+
+  // The contrast that caused the regression, stated as a test so nobody
+  // "simplifies" one into the other again.
+  eq('scheduleDayNumberFor clamps a pre-start date to day 1 (right for its own question)',
+    scheduleDayNumberFor(MON, new Date(2026, 8, 4), 5), 1);
+  eq('scheduleDayOnCalendar refuses it (right for membership)',
+    scheduleDayOnCalendar(MON, new Date(2026, 8, 4), 5), null);
+
+  // Round-trip: for every day of a month, a non-null answer must be the day
+  // addWorkingDays actually places, and a null must be a day it never places.
+  const placed = new Set<string>();
+  for (let n = 1; n <= 30; n++) placed.add(toCalendarDayString(addWorkingDays(MON, n - 1, 5, ['2026-09-23'])));
+  let roundTrip = true;
+  const bad: string[] = [];
+  for (let i = -10; i < 45; i++) {
+    const d = new Date(2026, 8, 7 + i);
+    const n = scheduleDayOnCalendar(MON, d, 5, ['2026-09-23']);
+    const iso = toCalendarDayString(d);
+    if (n === null) { if (placed.has(iso)) { roundTrip = false; bad.push(`${iso} is placed but reported null`); } continue; }
+    const back = toCalendarDayString(addWorkingDays(MON, n - 1, 5, ['2026-09-23']));
+    if (back !== iso) { roundTrip = false; bad.push(`${iso} → day ${n} → ${back}`); }
+  }
+  ok('scheduleDayOnCalendar is the exact inverse of addWorkingDays over 55 days', roundTrip, bad.join('; '));
+}
+
+console.log('\nthe morning briefing never invents work the schedule does not have:');
+{
+  const mk = (id: string, startDate: string | undefined, tasks: ScheduleTask[]): Project => ({
+    id, name: id, status: 'in_progress', createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    schedule: { tasks, workingDaysPerWeek: 5, startDate } as never,
+  } as unknown as Project);
+
+  // (A) A job that breaks ground in 25 days has nobody on site today.
+  const future = mk('future', '2026-10-01', [T('t1', 1, 5), T('t2', 6, 5)]);
+  eq('a job starting 2026-10-01 lists nothing on site on 2026-09-06',
+    computeTodayTasks([future], new Date(2026, 8, 6)).length, 0);
+  eq('… and lists its day-1 task on 2026-10-01 itself',
+    computeTodayTasks([future], new Date(2026, 9, 1)).map(t => t.taskTitle).join(','), 'T1');
+
+  // (B) The production row shape: Houston Phone Booth Ad, Thu 2026-08-06.
+  const thu = mk('houston', '2026-08-06', [T('t1', 1, 10)]);
+  eq('the week strip reports no crew on the three days before a Thursday start',
+    computeWeekLoad([thu], new Date(2026, 7, 5)).days.slice(0, 3).map(d => d.count).join(''), '000');
+  eq('… and does report it from the start day on',
+    computeWeekLoad([thu], new Date(2026, 7, 5)).days.slice(3, 5).map(d => d.count).join(''), '11');
+
+  // (C) One milestone is one milestone. WeekAheadStrip prints this number
+  // verbatim, and composeBrief repeats it as "N milestones landing".
+  const ms = mk('milestone', '2026-09-10', [T('m', 1, 0, { isMilestone: true })]);
+  const msWeek = computeWeekLoad([ms], new Date(2026, 8, 9));
+  eq('one 0-day milestone on a Thursday start counts ONCE, not once per clamped day',
+    msWeek.milestoneCount, 1);
+  eq('… on the Thursday', msWeek.days.filter(d => d.hasMilestone).map(d => d.date).join(','), '2026-09-10');
+}
+
+// ── 9. ONE anchor rule: an undated schedule has NO date, not today's ──────
+// The 2026-09-06 runtime audit (SCHED-NO-ANCHOR + MISS-01) found FIVE
+// surfaces inventing five different anchors for the same absent
+// `schedule.startDate` — and 2 of the 3 real schedules in production have
+// never had one (Henderson 20 tasks, Watermark 9F 19, both in_progress):
+//
+//   mobile Schedule   today          → every task date moved forward one day,
+//                                      every day, with nothing saying so
+//   desktop Schedule  today          → same drift, and "Starts <today>"
+//   icsGenerator      today (UTC)    → drifting dates written into the GC's
+//                                      real Apple/Google calendar
+//   summaryBriefing   createdAt      → "Nothing scheduled on site today" and
+//                                      "No scheduled work this week" on jobs
+//                                      with 20 and 15 OPEN tasks, above a card
+//                                      calling those same schedules at risk
+//   construction-ai   the UTC day    → a fifth answer
+//
+// resolveScheduleAnchor is the single rule and it has NO fallback: undated
+// means `date === null`, and the surface must say so.
+
+console.log('\nthe anchor resolves once, and an absent one stays absent:');
+{
+  const a = resolveScheduleAnchor({ startDate: '2026-03-02' });
+  ok('a bare YYYY-MM-DD resolves to LOCAL midnight of that day',
+    a.dated && a.date !== null && isoLocal(a.date) === '2026-03-02' && a.date.getDay() === 1,
+    `TZ=${Intl.DateTimeFormat().resolvedOptions().timeZone} got ${a.date?.toString()}`);
+  eq('and its iso round-trips', a.iso, '2026-03-02');
+  ok('a Supabase full-ISO round-trip resolves to the same day',
+    resolveScheduleAnchor({ startDate: '2026-03-02T00:00:00.000Z' }).iso === '2026-03-02');
+
+  for (const [label, value] of [
+    ['absent', undefined],
+    ['null', null],
+    ['empty string', ''],
+    ['not a date', 'sometime in May'],
+    ['rolled-over components', '2026-13-45'],
+  ] as const) {
+    const r = resolveScheduleAnchor({ startDate: value as string | null | undefined });
+    ok(`${label} ⇒ UNDATED (date null, iso null, dated false)`,
+      r.date === null && r.iso === null && r.dated === false,
+      JSON.stringify({ iso: r.iso, dated: r.dated }));
+  }
+  ok('a missing schedule object is undated too', !resolveScheduleAnchor(null).dated);
+  ok('isUndatedSchedule is false for no schedule at all (nothing to disclose)',
+    !isUndatedSchedule(null) && !isUndatedSchedule(undefined));
+  ok('isUndatedSchedule is true for a schedule with no startDate',
+    isUndatedSchedule({ startDate: undefined }) && !isUndatedSchedule({ startDate: '2026-03-02' }));
+
+  // The preview origin is TODAY and it is NOT the anchor. Both facts matter:
+  // it exists (relative drawings need an origin) and it never leaks into
+  // `date`, which is what made the dates drift.
+  const now = new Date(2026, 8, 6, 22, 30);
+  const r = resolveScheduleAnchor({}, now);
+  eq('unanchoredPreviewIso is TODAY from LOCAL components, not toISOString',
+    r.unanchoredPreviewIso, '2026-09-06');
+  eq('unanchoredPreviewDate is local midnight', r.unanchoredPreviewDate.getHours(), 0);
+  ok('the preview never becomes the anchor', r.date === null && r.iso === null);
+
+  // The drift itself, pinned: the OLD rule moved every task a day per day.
+  const day1 = resolveScheduleAnchor({}, new Date(2026, 8, 6)).unanchoredPreviewIso;
+  const day2 = resolveScheduleAnchor({}, new Date(2026, 8, 7)).unanchoredPreviewIso;
+  ok('the today-fallback really did move a day per day (that is the bug)', day1 !== day2);
+  ok('the anchor rule does NOT move a day per day',
+    resolveScheduleAnchor({}, new Date(2026, 8, 6)).iso === resolveScheduleAnchor({}, new Date(2026, 8, 7)).iso);
+}
+
+console.log('\nan undated schedule says day numbers, which are real:');
+{
+  eq('a 5-day task starting day 6', taskWorkingDayLabel(T('a', 6, 5)), 'Day 6 – 10');
+  eq('a 1-day task', taskWorkingDayLabel(T('b', 6, 1)), 'Day 6');
+  eq('a milestone (0 days)', taskWorkingDayLabel(T('m', 6, 0, { isMilestone: true })), 'Day 6');
+  eq('day 1 of the plan', taskWorkingDayLabel(T('c', 1, 1)), 'Day 1');
+}
+
+// ── 10. TODAY ON SITE and THIS WEEK are the same rule (MISS-01) ───────────
+// Summary drew TODAY with the 1-indexed WORKING-day model and THIS WEEK with a
+// 0-indexed RAW CALENDAR index whose inclusive end was one day too long. Two
+// cards on one screen, disagreeing about the same task on the same day.
+
+console.log('\nTODAY ON SITE and THIS WEEK share one membership rule:');
+{
+  eq('a 5-day task starting day 6 is not on site on day 5', isTaskActiveOnScheduleDay(T('a', 6, 5), 5), false);
+  eq('… is on site on day 6', isTaskActiveOnScheduleDay(T('a', 6, 5), 6), true);
+  eq('… is on site on day 10 (inclusive last day = start + dur - 1)', isTaskActiveOnScheduleDay(T('a', 6, 5), 10), true);
+  eq('… is NOT on site on day 11', isTaskActiveOnScheduleDay(T('a', 6, 5), 11), false);
+  eq('the old THIS WEEK rule (start + dur) counted day 11 — that was the bug',
+    11 >= 6 && 11 <= 6 + 5, true);
+  eq('a done task is never on site', isTaskActiveOnScheduleDay(T('a', 6, 5, { status: 'done' }), 7), false);
+  eq('a 0-day milestone is an event, not work', isTaskActiveOnScheduleDay(T('m', 6, 0, { isMilestone: true }), 6), false);
+  eq('… and is reported as a milestone on its own day', isMilestoneOnScheduleDay(T('m', 6, 0, { isMilestone: true }), 6), true);
+  eq('… but not on the next', isMilestoneOnScheduleDay(T('m', 6, 0, { isMilestone: true }), 7), false);
+}
+
+const proj = (over: Partial<Project> & { id: string }, sched: Record<string, unknown> | null): Project => ({
+  name: over.id, status: 'in_progress', createdAt: '2026-03-20T00:00:00.000Z',
+  updatedAt: '2026-05-01T00:00:00.000Z', ...over,
+  schedule: sched as never,
+} as unknown as Project);
+
+console.log('\nthe morning briefing never reports an empty day it cannot see:');
+{
+  // The exact production shape: a 30-working-day plan, created in March, with
+  // NO startDate. Anchored at createdAt (the old rule) "today" is working day
+  // ~122 and every card comes back empty.
+  const undatedTasks = [T('t1', 1, 10), T('t2', 11, 10), T('t3', 21, 10)];
+  const dated = proj({ id: 'dated' }, { tasks: undatedTasks, workingDaysPerWeek: 5, startDate: '2026-09-07' });
+  const undated = proj({ id: 'henderson' }, { tasks: undatedTasks, workingDaysPerWeek: 5 });
+  const NOW = new Date(2026, 8, 9); // Wed of the anchor week
+
+  const weekBoth = computeWeekLoad([dated, undated], NOW);
+  ok('an undated schedule is NAMED, not silently dropped',
+    weekBoth.undated.length === 1 && weekBoth.undated[0].projectId === 'henderson',
+    JSON.stringify(weekBoth.undated));
+  eq('… with its open-task count, so "0 tasks" can never read as "no work"',
+    weekBoth.undated[0].openTasks, 3);
+  ok('a dated schedule is NOT in the undated list', !weekBoth.undated.some(u => u.projectId === 'dated'));
+  ok('the undated project contributes no phantom work to the week',
+    weekBoth.totalTasks === computeWeekLoad([dated], NOW).totalTasks,
+    `${weekBoth.totalTasks} vs ${computeWeekLoad([dated], NOW).totalTasks}`);
+  ok('and none to today', computeTodayTasks([dated, undated], NOW).length === computeTodayTasks([dated], NOW).length);
+  ok('the createdAt anchor is gone: nothing is placed from project.createdAt',
+    !/createdAt/.test(stripComments(read('utils/summaryBriefing.ts'))),
+    (stripComments(read('utils/summaryBriefing.ts')).match(/.*createdAt.*/g) ?? []).join('\n       '));
+
+  // THE reconciliation: for every day of the week, THIS WEEK's count is
+  // exactly the number of tasks TODAY ON SITE would list on that day.
+  let agree = true;
+  const detail: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(2026, 8, 7 + i);
+    const weekCount = computeWeekLoad([dated], d).days.find(x => x.date === toCalendarDayString(d))?.count ?? -1;
+    const todayCount = computeTodayTasks([dated], d).length;
+    if (weekCount !== todayCount) { agree = false; detail.push(`${toCalendarDayString(d)}: week ${weekCount} vs today ${todayCount}`); }
+  }
+  ok('every day of THIS WEEK counts exactly what TODAY ON SITE would list', agree, detail.join('; '));
+
+  const wk = computeWeekLoad([dated], NOW);
+  eq('the week strip days are LOCAL calendar days, not a UTC re-projection',
+    wk.days[0].date, '2026-09-07');
+  // Weekend days are NOT working days on a 5-day week, so the strip shows zero
+  // there. The comment here used to claim this and the assertion underneath
+  // checked the ISO label instead — with the old rule Sat and Sun BOTH counted
+  // Friday's tasks, because scheduleDayNumberFor folds a closed day back onto
+  // the working day before it.
+  eq('Sat and Sun of a 5-day-week schedule count zero tasks',
+    `${wk.days[5].count}/${wk.days[6].count}`, '0/0');
+  eq('… while Mon–Fri of the same 30-day plan each count one',
+    wk.days.slice(0, 5).map(d => d.count).join(''), '11111');
+}
+
+// utils/icsGenerator.ts cannot be imported here — it pulls in react-native,
+// expo-file-system and expo-sharing at module scope and this validator runs in
+// bare bun. Its two guarantees are pinned instead: (a) no task event without
+// an anchor, (b) the dates it does write are WORKING-day dates from
+// taskCalendarRange — the same resolver exercised numerically above. The
+// arithmetic the .ics now produces is therefore already covered by section 7.
+console.log('\nan .ics never carries a date the schedule does not have:');
+{
+  const ics = stripComments(read('utils/icsGenerator.ts'));
+  ok('buildProjectEvents emits task events only when the anchor resolved',
+    /if \(schedule && schedule\.tasks\.length > 0 && anchor\.date\)/.test(ics));
+  ok('the skip is reported so the caller can disclose an empty schedule section',
+    /export function projectIcsScheduleSkip/.test(ics) && /scheduleSkip: IcsScheduleSkip/.test(ics));
+  ok('the export result carries it', /return \{ icsText, fileUri, eventCount: events\.length, scheduleSkip \};/.test(ics));
+  ok('no todayIso\(\) fallback survives anywhere in the module',
+    !/todayIso/.test(ics), (ics.match(/.*todayIso.*/g) ?? []).join('\n       '));
+  ok('task dates are walked with taskCalendarRange, not raw addDays',
+    /taskCalendarRange\(t, anchor, schedule\.workingDaysPerWeek, schedule\.nonWorkingDates\)/.test(ics)
+    && !/addDays\(scheduleStartIso/.test(ics));
+
+  // The working-day answer the .ics now writes, computed here from the shared
+  // resolver so a regression in taskCalendarRange fails as an ICS failure too.
+  const anchorDate = parseCalendarDay('2026-09-07')!;
+  eq('day 1 dur 5 on Mon Sep 7 ends Fri Sep 11',
+    isoLocal(taskCalendarRange(T('t1', 1, 5), anchorDate, 5).end), '2026-09-11');
+  eq('a milestone on day 6 is the NEXT Monday, not the Saturday',
+    isoLocal(taskCalendarRange(T('m', 6, 0, { isMilestone: true }), anchorDate, 5).start), '2026-09-14');
+}
+
+// ── 11. No surface may re-invent an anchor ───────────────────────────────
+// A textual sweep, because the invention is one `??` and it reappears the
+// moment someone writes a new screen. Two idioms are banned:
+//   `startDate ?? today / createdAt`        — the resolution itself
+//   `parseCalendarDay(startDate) ?? new Date()` — the same thing, one call in
+// A file is either migrated to resolveScheduleAnchor, or it is named below.
+
+console.log('\nno surface re-invents the anchor:');
+{
+  // Legitimate: CREATING a schedule right now — today is a date the user is
+  // choosing by the act, not a substitute for one they never gave.
+  const CREATION_ANCHORS = new Set([
+    'app/(tabs)/schedule/index.tsx',
+    'components/schedule/mobile/MobileScheduleScreen.tsx',
+  ]);
+  // Not a schedule at all — a warranty's own start date.
+  const NOT_A_SCHEDULE_ANCHOR = new Set([
+    'utils/copilot/warranty/warrantyCapability.ts',
+  ]);
+  // DEBT, from the 2026-09-06 audit fix. Each still resolves an absent anchor
+  // to today or to project.createdAt. Delete the entry when it migrates to
+  // resolveScheduleAnchor — do NOT add to this list.
+  const KNOWN_UNMIGRATED = new Set([
+    'app/(tabs)/(home)/index.tsx',                          // TODAY ON SITE strip: `sched.startDate || p.createdAt`
+    'app/(tabs)/construction-ai/index.tsx',                 // roadmap: the UTC day
+    'app/daily-report.tsx',                                 // report day number: createdAt
+    'components/schedule/mobile/MobileGantt.tsx',           // needs `string | null` + an undated column model
+    'components/schedule/mobile/MonthCalendarSheet.tsx',    // ditto
+    'components/schedule/mobile/ProgressTab.tsx',           // milestone column should print taskWorkingDayLabel
+    'components/schedule/mobile/ExportCenterSheet.tsx',     // CSV/PDF/share all print dates
+    'components/schedule/mobile/LivingFloorPlan.tsx',       // 4D "today index" from an invented anchor
+  ]);
+
+  const INVENTED = /(?:schedule\??\.)?startDate\w*\s*(?:\?\?|\|\|)\s*(?:todayCalendarDay\(\)|todayIso\(\)|new Date\(\)|[A-Za-z_$][\w$.?]*createdAt)/;
+  const PARSE_FALLBACK = /parseCalendarDay\(\s*\w+\s*\)\s*\?\?\s*(?:new Date\(\)|startOfDay\(new Date\(\)\))/;
+
+  const walk = (d: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const p = join(d, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.tsx?$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+
+  const hits = new Map<string, string[]>();
+  for (const root of ['app', 'components', 'utils', 'hooks', 'contexts']) {
+    for (const f of walk(join(ROOT, root))) {
+      const rel = f.slice(ROOT.length + 1);
+      const code = stripComments(readFileSync(f, 'utf8'));
+      code.split('\n').forEach((line, i) => {
+        if (!INVENTED.test(line) && !PARSE_FALLBACK.test(line)) return;
+        if (!hits.has(rel)) hits.set(rel, []);
+        hits.get(rel)!.push(`${rel}:${i + 1}: ${line.trim()}`);
+      });
+    }
+  }
+  const unexpected = [...hits.keys()].filter(
+    f => !CREATION_ANCHORS.has(f) && !NOT_A_SCHEDULE_ANCHOR.has(f) && !KNOWN_UNMIGRATED.has(f),
+  );
+  ok('the sweep still finds the known call sites (the regex has not rotted)',
+    hits.size >= 8, `only ${hits.size} files matched`);
+  ok('no NEW surface invents a schedule anchor', unexpected.length === 0,
+    unexpected.flatMap(f => hits.get(f)!).join('\n       ') +
+    '\n\n      There is no fallback anchor. Call resolveScheduleAnchor(schedule)' +
+    '\n      from @/utils/scheduleOps and render the undated case (say it, and' +
+    '\n      offer a start date) — a date drawn from today moves forward one day' +
+    '\n      every day and nothing on screen says so.');
+  // The debt list must shrink, never silently go stale.
+  const stale = [...KNOWN_UNMIGRATED].filter(f => !hits.has(f));
+  ok('every KNOWN_UNMIGRATED entry still has a violation (delete the fixed ones)',
+    stale.length === 0, stale.join('\n       '));
+}
+
+console.log('\nthe migrated surfaces call the one rule:');
+{
+  for (const [file, re, why] of [
+    ['components/schedule/mobile/MobileScheduleScreen.tsx',
+      /const anchor = useMemo\(\(\) => resolveScheduleAnchor\(activeSchedule\), \[activeSchedule\]\)/,
+      'resolves the anchor once'],
+    ['components/schedule/mobile/MobileScheduleScreen.tsx',
+      /const isUndated = !!activeSchedule && tasks\.length > 0 && !anchor\.dated/,
+      'knows when it is undated'],
+    ['components/schedule/mobile/MobileScheduleScreen.tsx',
+      /scheduleStartDate: anchor\.iso \?\? undefined/,
+      'keeps CPM in raw-day mode without an anchor (the finish-jump bug)'],
+    ['components/schedule/mobile/MobileScheduleScreen.tsx',
+      /testID="schedule-undated-banner"/,
+      'SAYS the schedule is undated'],
+    ['components/schedule/mobile/MobileScheduleScreen.tsx',
+      /<DatePickerModal[\s\S]{0,400}?onChange=\{\(iso\) => applyStartDate\(iso\.slice\(0, 10\)\)\}/,
+      'OFFERS to set the start date'],
+    ['components/schedule/mobile/MobileScheduleScreen.tsx',
+      /rebaseRawToCalendar\(activeSchedule\.tasks, iso, activeSchedule\.workingDaysPerWeek, activeSchedule\.nonWorkingDates\)/,
+      're-maps raw working-day ordinals when the first anchor is set'],
+    ['components/schedule/mobile/MobileScheduleList.tsx',
+      /startDate: string \| null;/, 'accepts a null anchor'],
+    ['components/schedule/mobile/MobileScheduleList.tsx',
+      /range = taskWorkingDayLabel\(t\)/, 'prints day numbers when undated'],
+    ['components/schedule/mobile/TaskDetailSheet.tsx',
+      /startDate: string \| null;/, 'accepts a null anchor'],
+    ['components/schedule/mobile/TaskDetailSheet.tsx',
+      /const startLabel = range \? fmt\(range\.start\) : `Day \$\{startDayNumber\}`/,
+      'never steps a real startDay against an invented date'],
+    ['app/(tabs)/schedule/index.tsx',
+      /const scheduleAnchor = useMemo\(\(\) => resolveScheduleAnchor\(activeSchedule\), \[activeSchedule\]\)/,
+      'resolves the anchor once'],
+    ['app/(tabs)/schedule/index.tsx',
+      /\?\s*UNDATED_SCHEDULE_PREVIEW_NOTE/,
+      'never prints today as the plan’s start'],
+    ['app/(tabs)/summary/index.tsx',
+      /const today = useMemo\(\(\) => computeTodayTasks\(active\), \[active\]\)/,
+      'uses the shared rollup instead of a private copy'],
+    ['app/(tabs)/summary/index.tsx',
+      /testID="summary-undated-schedules"/,
+      'names the schedules it could not place'],
+    ['utils/summaryBriefing.ts',
+      /undated: undatedSchedules\(projects\)/, 'reports what it could not place'],
+    ['utils/icsGenerator.ts',
+      /if \(schedule && schedule\.tasks\.length > 0 && anchor\.date\)/,
+      'writes no task event without an anchor'],
+    ['utils/icsGenerator.ts',
+      /taskCalendarRange\(t, anchor, schedule\.workingDaysPerWeek, schedule\.nonWorkingDates\)/,
+      'walks WORKING days like every other surface'],
+    ['app/last-planner.tsx',
+      /const startDate = resolveScheduleAnchor\(project\?\.schedule\)\.iso/,
+      'resolves the anchor through the one rule'],
+    ['app/last-planner.tsx',
+      /if \(tasks\.length > 0 && !startDate\)/,
+      'tells an undated 20-task plan apart from an empty one'],
+  ] as const) {
+    ok(`${file} ${why}`, re.test(stripComments(read(file))));
+  }
+  ok('MobileScheduleScreen no longer falls back to todayCalendarDay() for the anchor',
+    !/startDate = activeSchedule\?\.startDate \?\? todayCalendarDay\(\)/.test(stripComments(read('components/schedule/mobile/MobileScheduleScreen.tsx'))));
+  ok('icsGenerator has no todayIso() left to fall back to',
+    !/function todayIso/.test(stripComments(read('utils/icsGenerator.ts'))));
+}
+
+// ── 11. The preview must disclose itself ──────────────────────────────────
+// utils/scheduleOps.ts states, above `unanchoredPreviewDate`, that anything
+// reading it must render UNDATED_SCHEDULE_TITLE or
+// UNDATED_SCHEDULE_PREVIEW_NOTE beside it and that this validator fails the
+// build otherwise. That claim was false for a day — no such check existed and
+// PREVIEW_NOTE was exported and used by nothing, while the desktop start bar
+// carried its own copy of the wording. A comment promising enforcement that
+// isn't there is the same failure this file exists to stop, aimed at the next
+// engineer. Here is the enforcement.
+console.log('\nevery surface that draws from the today-preview says so:');
+{
+  const walkAll = (d: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const p = join(d, e.name);
+      if (e.isDirectory()) walkAll(p, out);
+      else if (/\.tsx?$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+  const silent: string[] = [];
+  let readers = 0;
+  for (const root of ['app', 'components', 'hooks', 'contexts']) {
+    for (const f of walkAll(join(ROOT, root))) {
+      const code = stripComments(readFileSync(f, 'utf8'));
+      if (!/\bunanchoredPreview(?:Date|Iso)\b/.test(code)) continue;
+      readers++;
+      if (!/UNDATED_SCHEDULE_(?:TITLE|PREVIEW_NOTE)/.test(code)) silent.push(f.slice(ROOT.length + 1));
+    }
+  }
+  ok('the sweep still finds the preview readers (the regex has not rotted)', readers >= 2, `${readers} found`);
+  ok('no surface draws preview dates without naming the undated case', silent.length === 0,
+    silent.join('\n       '));
+  ok('UNDATED_SCHEDULE_PREVIEW_NOTE is the wording those surfaces use, not a dead export',
+    /UNDATED_SCHEDULE_PREVIEW_NOTE/.test(stripComments(read('app/(tabs)/schedule/index.tsx'))));
+  ok('… and it replaces a DATE, so it must not itself contain one',
+    !/\d{4}|\d{1,2}\/\d{1,2}/.test(UNDATED_SCHEDULE_PREVIEW_NOTE), UNDATED_SCHEDULE_PREVIEW_NOTE);
+  // The desktop start bar is rendered twice (wide pane + narrow pane). Both
+  // copies must be the constant — that pair is what drifted.
+  eq('both desktop start bars use the shared constant (not one, not an inline copy)',
+    (stripComments(read('app/(tabs)/schedule/index.tsx')).match(/\?\s*UNDATED_SCHEDULE_PREVIEW_NOTE/g) ?? []).length, 2);
+}
+
+// ── 12. An empty .ics says WHY it is empty ────────────────────────────────
+// buildProjectEvents now emits no task event without an anchor, which is
+// right — but it made both callers state something false: "This schedule has
+// no tasks yet" / "No schedule tasks … found for this project yet" on The
+// Henderson Residence, which has 20. Trading an invented date for a false
+// sentence is not a fix, so the skip is reported and both callers disclose it.
+console.log('\nan empty calendar export says WHY it is empty:');
+{
+  const ics = stripComments(read('utils/icsGenerator.ts'));
+  ok('the skip counts the tasks it left out', /skippedTaskCount: undated \? count : 0/.test(ics));
+  ok('an eventless .ics is never pushed into the share sheet',
+    /const canShare = events\.length > 0 && await Sharing\.isAvailableAsync\(\)/.test(ics));
+  for (const [file, re, why] of [
+    ['utils/scheduleExportIcal.ts', /result\.scheduleSkip/, 'reads the skip'],
+    ['utils/scheduleExportIcal.ts', /if \(undatedSchedule\) \{[\s\S]{0,320}?UNDATED_SCHEDULE_TITLE/,
+      'names the undated schedule instead of claiming it has no tasks'],
+    ['app/project-detail.tsx', /const \{ undatedSchedule, skippedTaskCount \} = result\.scheduleSkip/,
+      'reads the skip'],
+    ['app/project-detail.tsx', /skipNote/, 'appends the disclosure to the success message too'],
+    ['app/schedule-pro.tsx', /if \(result\.scheduleSkip\.undatedSchedule\)/,
+      'says why a 20-task plan exported nothing, on web AND native'],
+  ] as const) {
+    ok(`${file} ${why}`, re.test(stripComments(read(file))));
+  }
+  // Order matters: the "no tasks yet" branch still exists (it is true for a
+  // genuinely empty schedule) and must be UNREACHABLE for an undated one, so
+  // the undated check has to come first and return.
+  {
+    const src = stripComments(read('utils/scheduleExportIcal.ts'));
+    const undatedAt = src.indexOf('if (undatedSchedule)');
+    const emptyAt = src.indexOf("'Nothing to export'");
+    ok('the undated branch returns BEFORE the "no tasks yet" branch can fire',
+      undatedAt >= 0 && emptyAt >= 0 && undatedAt < emptyAt,
+      `undated@${undatedAt} empty@${emptyAt}`);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

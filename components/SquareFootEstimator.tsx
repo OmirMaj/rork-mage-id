@@ -202,7 +202,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
             )}
             <View style={s.resultRow}>
               <View style={s.resultCol}>
-                <TrendingDown size={14} color={Colors.success} strokeWidth={1.75} />
+                <TrendingDown size={14} color={Colors.successLabel} strokeWidth={1.75} />
                 <Text style={s.resultLabel}>Low</Text>
                 <Text style={s.resultValueLow}>{formatCurrency(costResult.low)}</Text>
                 <Text style={s.resultPerSf}>${costResult.perSfLow}/SF</Text>
@@ -214,7 +214,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
                 <Text style={s.resultPerSf}>${costResult.perSfMid}/SF</Text>
               </View>
               <View style={s.resultCol}>
-                <TrendingUp size={14} color={Colors.error} strokeWidth={1.75} />
+                <TrendingUp size={14} color={Colors.dangerLabel} strokeWidth={1.75} />
                 <Text style={s.resultLabel}>High</Text>
                 <Text style={s.resultValueHigh}>{formatCurrency(costResult.high)}</Text>
                 <Text style={s.resultPerSf}>${costResult.perSfHigh}/SF</Text>
@@ -290,7 +290,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingTop: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
   },
-  modelRange: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.success },
+  modelRange: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.successLabel },
   modelSize: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   backBtn: { marginBottom: 8 },
   backBtnText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' as const },
@@ -334,7 +334,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.sm, paddingHorizontal: 10, paddingVertical: 4,
     alignSelf: 'flex-start',
   },
-  locationText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.info },
+  locationText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.infoLabel },
   resultRow: { flexDirection: 'row', gap: 8 },
   resultCol: {
     flex: 1, backgroundColor: Colors.background, borderRadius: Tokens.radius.card, padding: 12,
@@ -342,9 +342,9 @@ const s = StyleSheet.create({
   },
   resultColMid: { backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '25' },
   resultLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
-  resultValueLow: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.success },
+  resultValueLow: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.successLabel },
   resultValueMid: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  resultValueHigh: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.error },
+  resultValueHigh: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.dangerLabel },
   resultPerSf: { fontSize: 10, color: Colors.textMuted },
   resultNotes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
 });

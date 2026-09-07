@@ -595,7 +595,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
-            <AlertTriangle size={18} color={Colors.warning} strokeWidth={1.75} />
+            <AlertTriangle size={18} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.emptyText}>No projects on file. Create one first, then come back to walk punch items.</Text>
           </View>
         ) : (

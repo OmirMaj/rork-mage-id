@@ -114,6 +114,8 @@ import {
   buildSharePayload,
   ShareTokenTooLargeError,
   tryEncodeShareToken,
+  UNDATED_SCHEDULE_BODY,
+  UNDATED_SCHEDULE_TITLE,
   type NamedBaseline,
 } from '@/utils/scheduleOps';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
@@ -1336,6 +1338,18 @@ function ScheduleProScreenInner() {
         invoices: [],
         warranties: [],
       });
+      // An undated schedule contributes NO events (icsGenerator refuses to
+      // date tasks off today — SCHED-NO-ANCHOR), so "0 event(s)" on web and
+      // total silence on native would be the only signal that a 20-task plan
+      // exported nothing. Say why, on both platforms.
+      if (result.scheduleSkip.undatedSchedule) {
+        const n = result.scheduleSkip.skippedTaskCount;
+        showAlert(
+          UNDATED_SCHEDULE_TITLE,
+          `${n} task${n === 1 ? '' : 's'} could not be exported. ${UNDATED_SCHEDULE_BODY}`,
+        );
+        return;
+      }
       if (Platform.OS === 'web') {
         showAlert('Calendar ready', `Downloaded a .ics file with ${result.eventCount} event(s). Open it to import into Apple/Google/Outlook Calendar.`);
       }

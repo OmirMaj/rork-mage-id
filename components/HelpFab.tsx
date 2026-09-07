@@ -144,7 +144,7 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial, hideFab = false, open
           {onReplayTutorial ? (
             <TouchableOpacity style={styles.row} onPress={handleReplayTutorial} activeOpacity={0.85} testID="help-fab-tutorial">
               <View style={[styles.rowIcon, { backgroundColor: Colors.warning + '14' }]}>
-                <BookOpen size={16} color={Colors.warning} strokeWidth={1.75} />
+                <BookOpen size={16} color={Colors.warningLabel} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>Replay the tutorial</Text>

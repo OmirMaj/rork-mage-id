@@ -45,6 +45,7 @@ import { pathToDocumentTitle } from '@/utils/routeTitle';
 import { AutonomyProvider } from '@/hooks/useAutonomy';
 import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
 import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
 // goes through utils/alert.ts showAlert/showPrompt, which renders a real
@@ -75,25 +76,19 @@ if (__DEV__) {
 
 
 /**
- * Title style for the NATIVE stack header, shared by every route that uses one.
+ * Title style for the NATIVE stack header — the shared typeface plus a colour.
  *
- * 40 routes previously repeated `{ fontWeight: '700', color: Colors.text }`
- * inline, so the ~40 screens that rely on the native header stayed in system
- * sans while the hand-rolled headers moved to Fraunces — the same "165
- * separately-built screens" inconsistency the type pass exists to remove.
+ * The typeface itself now lives in constants/navigation.ts so the ~27 screens
+ * that declare their OWN headerTitleStyle can spread it without importing this
+ * route module. See that file for why they each need it (React Navigation
+ * merges screen options shallowly, so an override replaces this wholesale).
  *
- * Written out longhand rather than spreading Type.serifHeadline because
- * @react-navigation/native-stack only honours fontFamily / fontSize /
- * fontWeight / color here; lineHeight and letterSpacing are silently dropped,
- * so spreading the token would imply precision the platform ignores.
- *
- * 17pt is the native header size — serifHeadline's 22 is for in-page headers
- * that own the whole row. No fontWeight: Fraunces_700Bold already carries it,
- * and doubling up makes the platform synthesise a fake bold over a real one.
+ * `Colors.text` is read at module-load and therefore frozen to the light
+ * theme; that is pre-existing on the 41 routes that pass this object, and it is
+ * why the Stack DEFAULT below uses the colourless face instead.
  */
 const NATIVE_HEADER_TITLE = {
-  fontFamily: 'Fraunces_700Bold',
-  fontSize: 17,
+  ...NATIVE_HEADER_TITLE_FACE,
   color: Colors.text,
 } as const;
 
@@ -617,7 +612,7 @@ function RootLayoutNav() {
         </View>
       )}
       <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerBackTitle: "Back" }}>
+        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />

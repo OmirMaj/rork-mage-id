@@ -25,7 +25,7 @@ import { Tokens } from '@/constants/designTokens';
 
 const TONE_COLOR: Record<'good' | 'warn' | 'bad', string> = {
   good: "#2E7D44",
-  warn: Colors.warning,
+  warn: Colors.warningLabel,
   bad: "#C84038",
 };
 

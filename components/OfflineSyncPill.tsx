@@ -53,7 +53,7 @@ export default function OfflineSyncPill({ variant = 'compact' }: Props) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityLabel={`${depth} changes queued for sync`}>
       <View style={styles.pill}>
-        <CloudOff size={12} color={Colors.warning} strokeWidth={1.75} />
+        <CloudOff size={12} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.text}>
           {variant === 'full' ? `${depth} queued` : depth}
         </Text>
@@ -70,7 +70,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255, 159, 27, 0.35)',
   },
   text: {
-    color: Colors.warning,
+    color: Colors.warningLabel,
     fontSize: Type.caption2.fontSize, fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },

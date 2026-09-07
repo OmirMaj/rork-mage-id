@@ -37,7 +37,7 @@ type KnownRisk = NonNullable<InvoicePrediction['riskLevel']>;
 
 const RISK_COLOR: Record<KnownRisk, string> = {
   low: '#2E7D44',
-  medium: Colors.warning,
+  medium: Colors.warningLabel,
   high: '#C84038',
 };
 
@@ -187,7 +187,7 @@ function PaymentPredictionsScreenInner() {
           </Text>
           <View style={styles.featureRow}>
             <View style={styles.featureChip}><Clock size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Per-invoice pay date</Text></View>
-            <View style={styles.featureChip}><AlertTriangle size={12} color={Colors.warning} strokeWidth={1.75} /><Text style={styles.featureText}>Risk scoring</Text></View>
+            <View style={styles.featureChip}><AlertTriangle size={12} color={Colors.warningLabel} strokeWidth={1.75} /><Text style={styles.featureText}>Risk scoring</Text></View>
             <View style={styles.featureChip}><Phone size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Action suggestions</Text></View>
           </View>
           <TouchableOpacity

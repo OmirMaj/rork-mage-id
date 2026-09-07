@@ -50,7 +50,7 @@ export default function ProjectFilesScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.center}>
-          <AlertTriangle size={28} color={Colors.warning} strokeWidth={1.75} />
+          <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.notFoundTitle}>Project not found</Text>
           <Text style={styles.notFoundBody}>
             This project link may be expired or you may not have access. Open the

@@ -1325,7 +1325,7 @@ export default function DevFlagshipSeederScreen() {
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         <View style={styles.warningCard}>
-          <AlertTriangle size={18} color={Colors.warning} strokeWidth={1.75} />
+          <AlertTriangle size={18} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.warningText}>
             Owner-only screen. Only emails in OWNER_EMAILS (utils/owner.ts) reach here.
             Regular users get redirected home.

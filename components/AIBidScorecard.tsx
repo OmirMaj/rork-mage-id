@@ -46,7 +46,7 @@ interface AIBidScorecardProps {
 function scoreColor(score: number): string {
   if (score >= 80) return "#2E7D44";
   if (score >= 60) return "#FF6A1A";
-  if (score >= 40) return Colors.warning;
+  if (score >= 40) return Colors.warningLabel;
   return "#C84038";
 }
 
@@ -325,12 +325,12 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
         backgroundColor: decision === 'go' ? "#2E7D44" + '18' : decision === 'review' ? Colors.warning + '18' : "#C84038" + '18',
       }]}>
         {(() => {
-          const dc = decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warning : "#C84038";
+          const dc = decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warningLabel : "#C84038";
           const DIcon = decision === 'go' ? CheckCircle2 : decision === 'review' ? AlertTriangle : XCircle;
           return <DIcon size={14} color={dc} strokeWidth={2} />;
         })()}
         <Text style={[styles.decisionPillText, {
-          color: decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warning : "#C84038",
+          color: decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warningLabel : "#C84038",
         }]}>
           {decision === 'go' ? 'Recommend pursuing' : decision === 'review' ? 'Worth reviewing' : 'Recommend passing'}
         </Text>
@@ -356,7 +356,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       {score.concerns && score.concerns.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+            <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Concerns</Text>
           </View>
           {score.concerns.map((concern, i) => (

@@ -240,7 +240,7 @@ export default function RfpDetailScreen() {
   if (!bidId) {
     return renderShell('Project not found', (
       <>
-        <AlertTriangle size={22} color={Colors.warning} strokeWidth={1.75} />
+        <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>We could not open that link</Text>
         <Text style={styles.stateText}>
           It is missing a project reference. Open the project again from your MAGE ID Bids tab.
@@ -264,7 +264,7 @@ export default function RfpDetailScreen() {
   if (loadFailed) {
     return renderShell('Could not load', (
       <>
-        <AlertTriangle size={22} color={Colors.warning} strokeWidth={1.75} />
+        <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>We could not load this project</Text>
         <Text style={styles.stateText}>
           You may be offline or on a weak connection. Nothing was lost.
@@ -370,8 +370,8 @@ export default function RfpDetailScreen() {
             )}
             {!rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: Colors.warning + '15' }]}>
-                <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: Colors.warning }]}>UNVERIFIED ADDRESS</Text>
+                <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />
+                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>UNVERIFIED ADDRESS</Text>
               </View>
             )}
           </View>

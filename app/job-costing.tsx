@@ -966,7 +966,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   warningSectionAmber: { backgroundColor: t.warningSoft, borderWidth: 1, borderColor: `${Colors.warning}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.danger },
-  warningTitleAmber: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.warning },
+  warningTitleAmber: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.warningLabel },
   warningItem: { fontSize: Type.caption1.fontSize, color: t.text, marginLeft: 6, marginTop: 2 },
 
   // Variance rows

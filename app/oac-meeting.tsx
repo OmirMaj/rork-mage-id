@@ -118,7 +118,7 @@ export function groupAgendaBySection(items: OACAgendaItem[]): AgendaBucket[] {
 // Module-level — hardcoded hex (theme-agnostic).
 const STATUS_COLOR = {
   info: '#9AA3AD',
-  warn: Colors.warning,
+  warn: Colors.warningLabel,
   urgent: '#C84038',
   done: '#2E7D44',
 } as const;
@@ -856,7 +856,7 @@ function OACMeetingInner() {
                 {m.status === 'distributed'
                   ? <CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />
                   : m.status === 'concluded'
-                    ? <Clock size={18} color={Colors.warning} strokeWidth={1.75} />
+                    ? <Clock size={18} color={Colors.warningLabel} strokeWidth={1.75} />
                     : <Circle size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
               </TouchableOpacity>
             ))
@@ -1114,7 +1114,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.warning + '15',
   },
   actionStatusDone: { backgroundColor: t.success + '15' },
-  actionStatusText: { fontSize: 10, fontWeight: '700' as const, color: Colors.warning, letterSpacing: 0.3, textTransform: 'uppercase' as const },
+  actionStatusText: { fontSize: 10, fontWeight: '700' as const, color: Colors.warningLabel, letterSpacing: 0.3, textTransform: 'uppercase' as const },
   actionStatusTextDone: { color: t.success },
 
   uploadAudioBtn: {

@@ -67,7 +67,14 @@ import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { safeJsonParse } from '@/utils/safeJson';
-import { progressSubtotal, netBalanceDue, invoiceIsSettled } from '@/utils/invoiceBilling';
+import {
+  progressSubtotal,
+  netBalanceDue,
+  invoiceIsSettled,
+  roundCents,
+  retainageOnWorkValue,
+  taxBasisRetentionOverhold,
+} from '@/utils/invoiceBilling';
 import { billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { formatMoney } from '@/utils/formatters';
 import { markMilestoneInvoiced } from '@/utils/contractEngine';
@@ -77,6 +84,7 @@ import {
 import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -320,8 +328,11 @@ function InvoiceInner() {
   // inoperative for this invoice, so we also hide the Billing Percentage field.
   const anyPreScaledLine = useMemo(() => lineItems.some(li => li.billedPercent != null), [lineItems]);
 
+  // MISS-04: money is whole cents at the point it is COMPUTED, not just where
+  // it is formatted. Production carried subtotal-derived tax of 5669.625 and a
+  // total_due of 81264.625 because these three lines never rounded.
   const subtotal = useMemo(
-    () => progressSubtotal(lineItems, isProgressType, pctValue),
+    () => roundCents(progressSubtotal(lineItems, isProgressType, pctValue)),
     [lineItems, isProgressType, pctValue],
   );
 
@@ -334,18 +345,63 @@ function InvoiceInner() {
   // rate); the invented client-side fallback that taxed every account at a
   // Florida-ish figure is gone.
   const taxRate = existingInvoice?.taxRate ?? settings.taxRate ?? 0;
-  const taxAmount = subtotal * (taxRate / 100);
-  const totalDue = subtotal + taxAmount;
+  const taxAmount = roundCents(subtotal * (taxRate / 100));
+  const totalDue = roundCents(subtotal + taxAmount);
 
   const amountPaid = existingInvoice?.amountPaid ?? 0;
-  const retentionAmount = useMemo(() => totalDue * (retentionPctValue / 100), [totalDue, retentionPctValue]);
+  // MISS-04: retainage is withheld on the VALUE OF THE WORK, never on sales
+  // tax. `retainageOnWorkValue` (utils/invoiceBilling) is the same function the
+  // G702/G703 pay application uses, so the invoice and the certificate for
+  // the same job can no longer disagree. This screen used to apply the
+  // percentage to `subtotal + taxAmount` — on the founder's live Houston
+  // invoice that held $4,063.23 instead of $3,779.75, i.e. $283.48 of retainage
+  // against sales tax the GC remits to the state regardless.
+  // Floored at zero HERE, not inside retainageOnWorkValue: a G703 schedule of
+  // values may legitimately carry a deductive change-order line whose retainage
+  // is negative, and clamping the shared helper made the certificate
+  // over-withhold on every credit line. An invoice subtotal that came out
+  // negative is a credit memo, which withholds nothing.
+  const retentionBasis = Math.max(0, subtotal);
+  const retentionAmount = useMemo(
+    () => retainageOnWorkValue(retentionBasis, retentionPctValue),
+    [retentionBasis, retentionPctValue],
+  );
   const retentionReleased = existingInvoice?.retentionReleased ?? 0;
-  const retentionPending = Math.max(0, retentionAmount - retentionReleased);
+  const retentionPending = roundCents(Math.max(0, retentionAmount - retentionReleased));
   // MONEY-F5: ONE formula for what the client owes (utils/invoiceBilling).
   // netPayable = retention-net total before payments; balanceDue = collectible
   // today, never negative (an overpayment reads as $0 due, not −$X).
-  const netPayable = netBalanceDue({ totalDue, retentionAmount, retentionReleased });
-  const balanceDue = netBalanceDue({ totalDue, amountPaid, retentionAmount, retentionReleased });
+  // Rounded here because `amountPaid` / `retentionReleased` arrive from the
+  // server and pre-fix rows carry sub-cent values (MISS-04).
+  const netPayable = roundCents(netBalanceDue({ totalDue, retentionAmount, retentionReleased }));
+  const balanceDue = roundCents(netBalanceDue({ totalDue, amountPaid, retentionAmount, retentionReleased }));
+
+  // MISS-04: an invoice saved before the basis fix stored retainage computed on
+  // the tax-INCLUSIVE total. The Retention screen, Payments, the portal and the
+  // A/R aging all read that STORED column, so they keep showing the old figure
+  // until the row itself is repaired — and every invoice past draft is locked
+  // (isLocked below), which hides the save bar, so "save it again" is not a
+  // remedy the GC can actually reach. Detect it, say so, and offer the repair.
+  //
+  // The test is computed from STORED columns only and only fires when the
+  // stored amount IS the taxed-total figure to the cent (see
+  // taxBasisRetentionOverhold). An earlier version compared the stored amount
+  // against the LIVE recomputed retention, which diverges the moment anyone
+  // edits a line item or the percentage — and then accused zero-tax invoices of
+  // holding retainage on sales tax. See utils/invoiceBilling.
+  //
+  // FLEET REPAIR (deploy runbook 2026-09-04, step 7) — the same correction for
+  // rows nobody opens, run once through the Supabase MCP before the OTA:
+  //   update invoices set retention_amount = round((subtotal * retention_percent / 100)::numeric, 2)
+  //    where retention_percent > 0 and retention_amount is not null
+  //      and abs(retention_amount::numeric
+  //              - round((total_due * retention_percent / 100)::numeric, 2)) <= 0.01
+  //      and abs(round((total_due * retention_percent / 100)::numeric, 2)
+  //              - round((subtotal * retention_percent / 100)::numeric, 2)) > 0.01;
+  const legacyTaxBasisRetention = useMemo(
+    () => (existingInvoice ? taxBasisRetentionOverhold(existingInvoice) : null),
+    [existingInvoice],
+  );
 
   // MONEY-F2 (review 2026-09-05): a Stripe Payment Link charges the ONE amount
   // it was minted for. pay_link_* are SERVER-owned — the client never writes
@@ -434,7 +490,12 @@ function InvoiceInner() {
       amountPaid: 0,
       status,
       payments: [],
-      retentionPercent: retentionPctValue || undefined,
+      // MISS-05: persist a deliberate 0% AS 0 rather than erasing it with
+      // `|| undefined`, so the row records that this invoice withheld nothing
+      // instead of leaving it unknown. Nothing branches on the difference
+      // today — retainagePercentForInvoice reads both as 0 — the invented
+      // 10% was removed from the AIA seeder itself, not from this write.
+      retentionPercent: retentionPctValue,
       retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
       retentionReleased: 0,
       retentionReleases: [],
@@ -506,7 +567,12 @@ function InvoiceInner() {
         dueDate,
         status,
         progressPercent: isProgressType ? pctValue : undefined,
-        retentionPercent: retentionPctValue || undefined,
+        // MISS-05: persist a deliberate 0% AS 0 rather than erasing it with
+        // `|| undefined`, so the row records that this invoice withheld nothing
+        // instead of leaving it unknown. Nothing branches on the difference
+        // today — retainagePercentForInvoice reads both as 0 — the invented
+        // 10% was removed from the AIA seeder itself, not from this write.
+        retentionPercent: retentionPctValue,
         retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
         // All three together: a surviving payLinkAmount would still describe a
         // link that no longer exists, and payLinkMatchesBalance reads it.
@@ -691,7 +757,12 @@ function InvoiceInner() {
         dueDate,
         status: 'sent',
         progressPercent: isProgressType ? pctValue : undefined,
-        retentionPercent: retentionPctValue || undefined,
+        // MISS-05: persist a deliberate 0% AS 0 rather than erasing it with
+        // `|| undefined`, so the row records that this invoice withheld nothing
+        // instead of leaving it unknown. Nothing branches on the difference
+        // today — retainagePercentForInvoice reads both as 0 — the invented
+        // 10% was removed from the AIA seeder itself, not from this write.
+        retentionPercent: retentionPctValue,
         retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
       });
     }
@@ -1119,6 +1190,35 @@ function InvoiceInner() {
     }
   }, [existingInvoice, sendingReminder, updateInvoice, reminderState?.lastMs]);
 
+  // MISS-04 repair, GC-initiated. Rewrites this row's money columns from its
+  // OWN stored figures: retention onto the work basis, and the three totals at
+  // cent precision (production stored subtotal 75,595 / tax 5,669.625 /
+  // total_due 81,264.625). Nothing is taken from the editor's live state, so
+  // this is safe on a locked invoice — which is the only kind the banner can
+  // realistically appear on, since every invoice past draft hides the save bar.
+  //
+  // Without this the correction is compute-only: the Retention screen would keep
+  // summing the STORED $4,063.23 while this screen capped a release at the live
+  // $3,779.75, stranding $283.48 as "pending" with no way to release it.
+  const handleCorrectRetentionBasis = useCallback(() => {
+    if (!existingInvoice || !legacyTaxBasisRetention) return;
+    const { corrected, overheld } = legacyTaxBasisRetention;
+    const storedPct = existingInvoice.retentionPercent ?? 0;
+    updateInvoice(existingInvoice.id, {
+      retentionAmount: corrected,
+      subtotal: roundCents(existingInvoice.subtotal),
+      taxAmount: roundCents(existingInvoice.taxAmount),
+      totalDue: roundCents(existingInvoice.totalDue),
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showAlert(
+      'Retention Corrected',
+      `Now holding ${formatCurrency(corrected)} — ${storedPct}% of the work completed. `
+      + `${formatCurrency(overheld)} was held against sales tax; it is collectible now, `
+      + `on this invoice, the Retention screen and Payments.`,
+    );
+  }, [existingInvoice, legacyTaxBasisRetention, updateInvoice]);
+
   const handleReleaseRetention = useCallback(() => {
     if (!existingInvoice) return;
     const amt = parseFloat(retentionReleaseAmount) || 0;
@@ -1252,7 +1352,7 @@ function InvoiceInner() {
         title: existingInvoice ? `Invoice #${existingInvoice.number}` : 'New Invoice',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
@@ -1460,10 +1560,44 @@ function InvoiceInner() {
             {retentionPctValue > 0 && (
               <>
                 <View style={styles.divider} />
+                {/* The row states the amount WITHHELD, not what is still
+                    pending, so the note under it stays true after a partial
+                    release and the column actually foots:
+                    total − held + released = net payable. It used to render
+                    retentionPending, which double-counted the release against
+                    the "Retention Released" row below. */}
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: themeColors.accent }]}>Retention Held ({retentionPctValue}%)</Text>
-                  <Text style={[styles.totalValue, { color: themeColors.accent }]}>-{formatCurrency(retentionPending)}</Text>
+                  <Text style={[styles.totalLabel, { color: themeColors.accent }]}>Retention Held ({retentionPctValue}% of work completed)</Text>
+                  <Text style={[styles.totalValue, { color: themeColors.accent }]}>-{formatCurrency(retentionAmount)}</Text>
                 </View>
+                {/* MISS-04: state the basis. Sitting directly under "Contract
+                    Total", an undisclosed percentage reads as a percentage of
+                    that total — which is how the tax-inclusive basis went
+                    unnoticed on a live invoice. */}
+                <Text style={styles.retentionBasisNote} testID="retention-basis-note">
+                  {retentionPctValue}% of {formatCurrency(retentionBasis)} completed work
+                  {taxAmount > 0 ? ' · sales tax is not retained' : ''}
+                </Text>
+                {legacyTaxBasisRetention && (
+                  <View style={styles.retentionLegacyCard} testID="retention-basis-legacy">
+                    <Text style={styles.retentionBasisWarn}>
+                      This invoice is stored holding {formatCurrency(legacyTaxBasisRetention.stored)} —
+                      {' '}{existingInvoice?.retentionPercent ?? 0}% of the tax-inclusive total, which took
+                      {' '}{formatCurrency(legacyTaxBasisRetention.overheld)} out of sales tax you remit either way.
+                      The Retention screen, Payments and the client portal read that stored figure.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.retentionFixBtn}
+                      onPress={handleCorrectRetentionBasis}
+                      activeOpacity={0.85}
+                      testID="retention-basis-fix-btn"
+                    >
+                      <Text style={styles.retentionFixBtnText}>
+                        Correct it to {formatCurrency(legacyTaxBasisRetention.corrected)}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 {retentionReleased > 0 && (
                   <View style={styles.totalRow}>
                     <Text style={[styles.totalLabel, { color: themeColors.success }]}>Retention Released</Text>
@@ -2202,6 +2336,18 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   releaseRetentionBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   releaseRetentionBtnMeta: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   retentionModalMeta: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginBottom: 12 },
+  retentionBasisNote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: -4, marginBottom: 6 },
+  retentionLegacyCard: {
+    marginBottom: 8, padding: 12, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line, gap: 10,
+  },
+  retentionBasisWarn: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  retentionFixBtn: {
+    alignSelf: 'flex-start' as const, paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '20',
+    borderWidth: 1, borderColor: themeColors.accent + '40',
+  },
+  retentionFixBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   fullReleaseBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '20', borderWidth: 1, borderColor: themeColors.accent + '40' },
   fullReleaseBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   payLinkCard: {

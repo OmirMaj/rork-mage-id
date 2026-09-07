@@ -76,7 +76,7 @@ const ACTION_CHIPS: { key: ClarifierAction; label: string; Icon: typeof Percent;
   { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: "#2E7D44" },
   { key: 'start_task',      label: 'Start',        Icon: Play,         color: "#1565C0" },
   { key: 'add_note',        label: 'Note',         Icon: StickyNote,   color: "#9AA3AD" },
-  { key: 'log_issue',       label: 'Issue',        Icon: AlertTriangle,color: Colors.warning },
+  { key: 'log_issue',       label: 'Issue',        Icon: AlertTriangle,color: Colors.warningLabel },
 ];
 
 export default function QuickUpdateClarifier({

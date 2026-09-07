@@ -34,6 +34,23 @@
  * app foregrounds. A render loop trips the root ErrorBoundary, which is what we
  * assert against — the same detector mountRouteChecked uses.
  *
+ * WHAT CHANGED ON 2026-09-06, AND WHY THIS FILE HAD TO CHANGE WITH IT.
+ * The fix for AI-2/NAV-04/VIS-11 removed the mount effect: utils/location.ts no
+ * longer touches the OS at all until `request()` is called from a press. This
+ * file used to pin the OLD behaviour as correct — its mock re-implemented the
+ * hook WITH `useEffect(() => { void requestLocation(); }, [requestLocation])`,
+ * returned the retired `{ location, loading, error, refresh }` shape, and
+ * asserted `requestForegroundPermissionsAsync` had been called five times with
+ * the comment "Every one of the five hooks is waiting on the same unanswered
+ * alert." It would have passed just as happily after a complete revert of the
+ * fix — a test that documents the bug as the spec.
+ *
+ * It now asserts the opposite, which is the actual contract: visiting all six
+ * screens raises ZERO prompts, and the alert only goes up when the user presses
+ * the control. The crash coverage is unchanged — the permission is still left
+ * pending across an inactive → active cycle, it is just raised the way the app
+ * raises it now.
+ *
  * It also pins the non-string `AppState.currentState` case: the root
  * OfflineSyncManager used to call `appState.current.match(...)`, which throws
  * when the native constant is not a string (null on Android before the first
@@ -42,6 +59,7 @@
  */
 
 import { AppState, type AppStateStatus } from 'react-native';
+import { fireEvent } from '@testing-library/react-native';
 import { act } from 'expo-router/testing-library';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
@@ -60,42 +78,58 @@ jest.mock('@/utils/location', () => {
     ...actual,
     useUserLocation() {
       const [location, setLocation] = React.useState(null);
-      const [loading, setLoading] = React.useState(true);
+      const [status, setStatus] = React.useState('idle');
       const [error, setError] = React.useState(null);
-      const requestLocation = React.useCallback(async () => {
-        setLoading(true);
+      const inFlight = React.useRef(false);
+      const request = React.useCallback(async () => {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        setStatus('requesting');
         setError(null);
         try {
-          const { status } = await Loc.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
+          const { status: perm } = await Loc.requestForegroundPermissionsAsync();
+          if (perm !== 'granted') {
+            setStatus('denied');
             setError('Location permission denied');
-            setLoading(false);
             return;
           }
           const loc = await Loc.getCurrentPositionAsync({ accuracy: Loc.Accuracy.Balanced });
           setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+          setStatus('granted');
         } catch (err: any) {
+          setStatus('unavailable');
           setError(err?.message ?? 'Failed to get location');
         } finally {
-          setLoading(false);
+          inFlight.current = false;
         }
       }, []);
-      React.useEffect(() => { void requestLocation(); }, [requestLocation]);
-      return { location, loading, error, refresh: requestLocation };
+      // DELIBERATELY NO EFFECT. Its absence is the thing under test — see the
+      // note in the header. scripts/validate-location-consent.ts pins the same
+      // property statically; this file pins what it does at runtime.
+      return { location, status, loading: status === 'requesting', error, request };
     },
   };
 });
 
-/** Every screen that asks for the permission, plus the one the crash landed on. */
-const LOCATION_SCREENS = [
-  '/discover/hire',
-  '/discover/bids',
-  '/discover/companies',
-  '/mage-id-bids',
-  '/nearby-rfps',
+/**
+ * Every screen that consumes the hook, plus the one the crash landed on, with
+ * the testID of the control that is the ONLY way each can reach the OS.
+ *
+ * Four of the five render no control in this build, and that is correct, not an
+ * oversight: discover/hire is behind HIRE_ENABLED, mage-id-bids' Browse mode
+ * and nearby-rfps' whole distance strip are behind RFP_BROWSE_ENABLED, and
+ * discover/bids only shows its control once you pick "Near me" or "Nearest".
+ * A feature that cannot run does not get to ask for a permission.
+ */
+const LOCATION_SCREENS: { href: string; control: string | null }[] = [
+  { href: '/discover/hire', control: null },
+  { href: '/discover/bids', control: null },
+  { href: '/discover/companies', control: 'companies-use-location' },
+  { href: '/mage-id-bids', control: null },
+  { href: '/nearby-rfps', control: null },
   // Not a location consumer, but the screen that was on top when the alert was
   // answered — and the one the error boundary replaced.
-  '/construction-ai',
+  { href: '/construction-ai', control: null },
 ];
 
 type Handler = (state: AppStateStatus) => void;
@@ -159,12 +193,12 @@ describe('granting the location permission', () => {
 
   afterEach(removeAppStateTee);
 
-  it.each(LOCATION_SCREENS)(
+  it.each(LOCATION_SCREENS.map((s) => [s.href, s.control] as const))(
     'does not send %s into a render loop when the permission is answered',
-    async (href) => {
+    async (href, control) => {
       // The alert sat up for three minutes in the live run while the app was
-      // 'inactive'. Keep the promise pending so the screens mount in exactly
-      // that state, then answer it at the moment the app comes back.
+      // 'inactive'. Keep the promise pending so the screen sits in exactly that
+      // state, then answer it at the moment the app comes back.
       let grant: (value: unknown) => void = () => undefined;
       const pending = new Promise((resolve) => { grant = resolve; });
       (Location.requestForegroundPermissionsAsync as jest.Mock).mockImplementation(() => pending);
@@ -172,6 +206,17 @@ describe('granting the location permission', () => {
       await primeWorld('populated');
       const tree = mountRoute(`${href}?projectId=${PROJECT_ID}&id=${PROJECT_ID}`);
       await settle();
+
+      // Opening a screen is not consent. This is the regression the runtime
+      // audit found: the alert went up on a job list at 9:20 and stood, modal
+      // over the whole app, for the next eleven routes.
+      expect((Location.requestForegroundPermissionsAsync as jest.Mock).mock.calls.length).toBe(0);
+
+      if (control) {
+        // The press IS the request — the only thing in the app that raises it.
+        await act(async () => { fireEvent.press(tree.getByTestId(control)); await Promise.resolve(); });
+        expect((Location.requestForegroundPermissionsAsync as jest.Mock).mock.calls.length).toBe(1);
+      }
 
       (Sentry.captureException as jest.Mock).mockClear();
 
@@ -186,8 +231,8 @@ describe('granting the location permission', () => {
   );
 
   it('survives the foreground cycle with every location screen mounted at once', async () => {
-    // On device the tabs stay mounted after a visit, so one tap resolves the
-    // permission for all five hooks simultaneously. The Estimator's 2026-07-09
+    // On device the tabs stay mounted after a visit, so the answer lands on a
+    // screen the user has long since left. The Estimator's 2026-07-09
     // loop (commit 8f33e6fd) is the precedent for why that matters: a looping
     // tab "bled onto every screen visited afterward", because the boundary is
     // at the root.
@@ -199,12 +244,22 @@ describe('granting the location permission', () => {
     const tree = mountRoute('/');
     await settle();
 
-    for (const href of [...LOCATION_SCREENS, '/materials', '/schedule', '/summary']) {
+    for (const { href, control } of LOCATION_SCREENS) {
+      await act(async () => { router.navigate(href as never); await Promise.resolve(); });
+      await settle();
+      if (control) {
+        // Raise the alert the way a person does, then walk away from the screen
+        // with it still up — which is what the founder did.
+        await act(async () => { fireEvent.press(tree.getByTestId(control)); await Promise.resolve(); });
+      }
+    }
+    for (const href of ['/materials', '/schedule', '/summary']) {
       await act(async () => { router.navigate(href as never); await Promise.resolve(); });
       await settle();
     }
-    // Every one of the five hooks is waiting on the same unanswered alert.
-    expect((Location.requestForegroundPermissionsAsync as jest.Mock).mock.calls.length).toBe(5);
+    // ONE prompt, from the one press. It used to be five, one per screen
+    // visited, none of them asked for — see the header.
+    expect((Location.requestForegroundPermissionsAsync as jest.Mock).mock.calls.length).toBe(1);
 
     (Sentry.captureException as jest.Mock).mockClear();
 

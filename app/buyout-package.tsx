@@ -470,7 +470,7 @@ export default function BuyoutPackageScreen() {
               )}
               {lowCoverage && (
                 <View style={styles.warningCard}>
-                  <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+                  <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.warningTitle}>Coverage risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
                     <Text style={styles.warningBody}>Industry best practice is 3+ qualified bids per package. Send the RFQ to more subs before awarding.</Text>
@@ -479,7 +479,7 @@ export default function BuyoutPackageScreen() {
               )}
               {stale && (
                 <View style={styles.warningCard}>
-                  <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+                  <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.warningTitle}>Stale package · {daysSinceOpened} days open</Text>
                     <Text style={styles.warningBody}>Material pricing windows are typically 30 days. Award soon or re-bid to avoid expired numbers.</Text>
@@ -600,7 +600,7 @@ export default function BuyoutPackageScreen() {
                         </View>
                         {outlier && (
                           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-                            <AlertTriangle size={Type.caption2.fontSize} color={Colors.warning} strokeWidth={2} style={{ marginTop: 1 }} />
+                            <AlertTriangle size={Type.caption2.fontSize} color={Colors.warningLabel} strokeWidth={2} style={{ marginTop: 1 }} />
                             <Text style={[styles.outlierHint, { flex: 1 }]}>
                               {outlier.kind === 'low'
                                 ? 'Significantly below the median — review for missing scope before awarding.'
@@ -859,7 +859,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bidCardOutlier: { borderColor: Colors.warning + '80', borderWidth: 1.5 },
   outlierBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   outlierBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
-  outlierHint: { fontSize: Type.caption2.fontSize, color: Colors.warning, marginTop: 4, lineHeight: 15, fontWeight: '600' as const },
+  outlierHint: { fontSize: Type.caption2.fontSize, color: Colors.warningLabel, marginTop: 4, lineHeight: 15, fontWeight: '600' as const },
   warningCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.warning + '12', borderLeftWidth: 4, borderLeftColor: Colors.warning, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 8 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
   warningBody: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 17 },

@@ -542,7 +542,7 @@ export default function QuickFieldUpdate() {
           {feedback.kind === 'success' ? (
             <Check size={12} color={themeColors.success} strokeWidth={1.75} />
           ) : (
-            <AlertCircle size={12} color={Colors.warning} strokeWidth={1.75} />
+            <AlertCircle size={12} color={Colors.warningLabel} strokeWidth={1.75} />
           )}
           <Text
             style={[

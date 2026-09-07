@@ -640,7 +640,7 @@ function SubPortalSetupScreenInner() {
                 const statusColor = inv.status === 'paid' ? themeColors.success
                   : inv.status === 'approved' ? themeColors.accent
                   : inv.status === 'rejected' ? themeColors.danger
-                  : Colors.warning;
+                  : Colors.warningLabel;
                 return (
                   <View key={inv.id} style={styles.invoiceCard}>
                     <View style={styles.invoiceHead}>

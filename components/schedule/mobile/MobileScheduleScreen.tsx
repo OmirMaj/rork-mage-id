@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Bell, Check, ChevronDown, FolderOpen, CalendarDays, Download, FileInput, Mic, X } from 'lucide-react-native';
+import { Bell, Check, ChevronDown, FolderOpen, CalendarDays, CalendarOff, Download, FileInput, Mic, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -30,11 +30,32 @@ import { LivingFloorPlan } from './LivingFloorPlan';
 import { PlanZoneEditor } from './PlanZoneEditor';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
-import { parseCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
-import { startDayNumberFor } from '@/utils/scheduleOps';
+import DatePickerModal from '@/components/DatePickerModal';
+import { parseCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
+import {
+  resolveScheduleAnchor, startDayNumberFor,
+  UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
+} from '@/utils/scheduleOps';
 
+// MISS-08 (runtime audit 2026-09-06): the second sub-tab was labelled
+// "4D Model". There is no 3D model behind it and no 3D dependency anywhere in
+// the app — no three, expo-gl, expo-three, IFC or glTF in package.json. What
+// the tab renders is LivingFloorPlan: a 2D floor-plan image whose drawn zones
+// tint by planned schedule status along a date scrubber. In the industry "4D"
+// means a BIM model linked to the programme (Navisworks, Synchro, Procore BIM),
+// so a GC comparing MAGE tapped it expecting model-linked scheduling — the kind
+// of label that gets caught live in a demo.
+//
+// "Living Plan" is what Schedule Pro on web already calls the identical
+// component (components/schedule/tabs/GanttTab.tsx:38), so the two surfaces now
+// agree, and the name describes what the screen actually does.
+//
+// The SubTab KEY stays '4d': it is persisted in component state and referenced
+// by TaskDetailSheet's jump-to-plan action. Renaming the key would be a
+// behaviour change dressed up as a copy fix.
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
-const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', '4D Model'], ['progress', 'Progress'], ['team', 'Team']];
+const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living Plan'], ['progress', 'Progress'], ['team', 'Team']];
 
 // Mobile-native "Schedule Pro" — touch-first gantt + task-detail sheet +
 // sub-tabs, rendered on phones (web/tablet keep the desktop schedule screen).
@@ -95,14 +116,30 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // entries on it so estimate-less projects only see the manual path.
   const hasEstimate = !!selectedProject?.linkedEstimate;
   const tasks = useMemo(() => activeSchedule?.tasks ?? [], [activeSchedule]);
-  // UX-F2 (appendix): the fallback anchor is a LOCAL calendar day — the
-  // toISOString().slice(0, 10) idiom named tomorrow after ~6 pm Denver time.
-  const startDate = activeSchedule?.startDate ?? todayCalendarDay();
+  // THE anchor rule (utils/scheduleOps.resolveScheduleAnchor). This used to be
+  // `activeSchedule?.startDate ?? todayCalendarDay()`, and 2 of the 3 real
+  // schedules have no startDate — so every task on them was drawn from TODAY
+  // and moved forward one day, every day: Henderson's 'Layout & Design Review'
+  // read Sep 8–12 on Sunday and Sep 9–13 on Monday, with nothing on screen
+  // saying the anchor was invented (runtime audit SCHED-NO-ANCHOR).
+  // `anchor.iso` is null when undated; the surfaces below either print the
+  // WORKING-DAY numbers instead or are replaced by the "set a start date"
+  // banner. Nothing here substitutes a date the user did not choose.
+  const anchor = useMemo(() => resolveScheduleAnchor(activeSchedule), [activeSchedule]);
+  const isUndated = !!activeSchedule && tasks.length > 0 && !anchor.dated;
+  // Only for the two RELATIVE surfaces that cannot render without an origin
+  // (Progress' milestone column, the Living Plan's "today" index) — always
+  // under the banner. See the report note: both should take `string | null`.
+  const previewStartDate = anchor.iso ?? anchor.unanchoredPreviewIso;
 
   const [showExport, setShowExport] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const reportCpm = useMemo(
-    () => runCpm(tasks, { scheduleStartDate: startDate, workingDaysPerWeek: activeSchedule?.workingDaysPerWeek, nonWorkingDates: activeSchedule?.nonWorkingDates }),
-    [tasks, startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates],
+    // No anchor ⇒ NO scheduleStartDate: runCpm then stays in raw-day mode.
+    // Passing today here flipped an undated schedule into calendar mode, which
+    // is the finish-jump bug (a 33-day plan reporting 43).
+    () => runCpm(tasks, { scheduleStartDate: anchor.iso ?? undefined, workingDaysPerWeek: activeSchedule?.workingDaysPerWeek, nonWorkingDates: activeSchedule?.nonWorkingDates }),
+    [tasks, anchor.iso, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates],
   );
 
   const saveTasks = useCallback((nextTasks: ScheduleTask[]) => {
@@ -129,9 +166,11 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     // anchor exactly — including "no anchor" (retro-stamping today flips CPM
     // raw-day → calendar mode and the finish jumps). Only schedule CREATION
     // (first task on a project with no schedule yet) anchors at today.
-    const anchor = activeSchedule ? activeSchedule.startDate : startDate;
+    // Creating a schedule NOW is a real user act, so day 1 is today. An
+    // existing schedule keeps its own anchor — including "none".
+    const creationAnchor = activeSchedule ? activeSchedule.startDate : todayCalendarDay();
     const next = buildScheduleFromTasks(name, selectedProject.id, flagged, activeSchedule?.baseline ?? null, {
-      ...(anchor ? { startDate: anchor } : {}),
+      ...(creationAnchor ? { startDate: creationAnchor } : {}),
       criticalPathDays: cpm.projectFinish,
     });
     // Merge the freshly-derived scalars onto the EXISTING schedule so every
@@ -148,7 +187,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       ? mergeEditedSchedule(activeSchedule, next, { projectId: selectedProject.id })
       : { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() };
     updateProject(selectedProject.id, { schedule: merged });
-  }, [selectedProject, activeSchedule, startDate, updateProject]);
+  }, [selectedProject, activeSchedule, updateProject]);
 
   const onUpdateTask = useCallback((next: ScheduleTask) => {
     // Pace flywheel: this is a full-object sink — `next` spreads the previous
@@ -179,14 +218,19 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // midnight and floors to the PREVIOUS local day at negative offsets, so every
   // date here rendered a day early. Same fix as MobileGantt / TaskDetailSheet /
   // SchedulerHeader / MobileScheduleList.
-    const base = parseCalendarDay(startDate) ?? new Date();
-    base.setHours(0, 0, 0, 0);
+    const base = anchor.date ?? null;
     let startDay: number;
     // UX-F2: AddTaskModal hands back a bare 'YYYY-MM-DD'; new Date() of that
     // is UTC midnight and lands on the previous local day west of Greenwich,
     // so a task picked for Monday used to get Sunday's day number.
+    // With NO anchor there is no map from a calendar date to a day number at
+    // all, so the pick is refused out loud rather than silently resolved
+    // against today (SCHED-NO-ANCHOR).
     const target = values.startIso ? parseCalendarDay(values.startIso) : null;
-    if (target) {
+    if (target && !base) {
+      showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule\u2019s start date first \u2014 without it a calendar date has no day number. The task will be added after the last one.');
+    }
+    if (target && base) {
       // B4 review A9: startDay is a WORKING-day number (the CPM engine,
       // getTaskDateRange and the desktop grid all walk addWorkingDays from
       // the anchor), so the picked date is converted with the inverse walk —
@@ -213,7 +257,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     saveTasks([...tasks, newTask]);
     setShowAdd(false);
     setAddPrefillDate(undefined);
-  }, [tasks, saveTasks, startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
+  }, [tasks, saveTasks, anchor.date, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
 
   const onDeleteTask = useCallback((id: string) => {
     saveTasks(tasks.filter((t) => t.id !== id));
@@ -224,6 +268,46 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     setAddPrefillDate(iso);
     setShowAdd(true);
   }, []);
+
+  /**
+   * Give an undated schedule a real anchor — the fix the banner offers.
+   *
+   * Mirrors app/(tabs)/schedule/index.tsx setProjectStartDate exactly: a
+   * schedule with no startDate ran CPM in RAW-day mode, so its stored
+   * `startDay` values are working-day ORDINALS. Assigning an anchor flips the
+   * engine into calendar mode, where the same integers mean calendar days —
+   * every multi-day chain inflates (the finish-jump bug, 33 → 43 live on a
+   * 20-task schedule). rebaseRawToCalendar re-maps them first so the plan's
+   * shape survives; the scalars are then refreshed against the new anchor so
+   * the header does not read a stale finish until the next edit.
+   */
+  const applyStartDate = useCallback((pickedIso: string) => {
+    if (!selectedProject || !activeSchedule) return;
+    const day = parseCalendarDay(pickedIso);
+    if (!day) { showAlert('Invalid date', 'Pick a day from the calendar.'); return; }
+    const iso = toCalendarDayString(day);
+    const nextTasks = activeSchedule.startDate
+      ? activeSchedule.tasks
+      : rebaseRawToCalendar(activeSchedule.tasks, iso, activeSchedule.workingDaysPerWeek, activeSchedule.nonWorkingDates);
+    const cpm = runCpm(nextTasks, {
+      scheduleStartDate: iso,
+      workingDaysPerWeek: activeSchedule.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule.nonWorkingDates,
+    });
+    updateProject(selectedProject.id, {
+      schedule: {
+        ...activeSchedule,
+        projectId: selectedProject.id,
+        tasks: nextTasks,
+        startDate: iso,
+        totalDurationDays: cpm.projectFinish,
+        criticalPathDays: cpm.projectFinish,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    setShowStartDatePicker(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [selectedProject, activeSchedule, updateProject]);
 
   // Explicit project picker (sim-audit #11): tapping the title used to
   // silently CYCLE through projects — zero affordance, and with several
@@ -272,8 +356,17 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
             <Mic size={19} color={colors.accent} strokeWidth={2} />
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.iconBtn} onPress={() => setShowCalendar(true)} accessibilityLabel="Jump to date" testID="open-calendar">
-          <CalendarDays size={19} color={colors.text} strokeWidth={1.75} />
+        {/* Jump-to-date and Export both PRINT calendar days. With no anchor
+            there are none, so the affordance becomes the fix: it opens the
+            start-date picker rather than a month grid drawn from today or an
+            .ics that writes drifting dates into the GC's real calendar. */}
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => (isUndated ? setShowStartDatePicker(true) : setShowCalendar(true))}
+          accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Jump to date'}
+          testID="open-calendar"
+        >
+          <CalendarDays size={19} color={isUndated ? colors.warningLabel : colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         {/* Import Excel / MS Project schedule. This is the ONLY phone entry to
             the Schedule Import feature — Schedule Pro (its desktop home) shows a
@@ -282,8 +375,14 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/schedule-import?projectId=${selectedProject.id}`)} accessibilityLabel="Import schedule" testID="open-schedule-import">
           <FileInput size={19} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => setShowExport(true)} accessibilityLabel="Export schedule" testID="open-export" disabled={tasks.length === 0}>
-          <Download size={19} color={tasks.length === 0 ? colors.textMuted : colors.text} strokeWidth={1.75} />
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => (isUndated ? setShowStartDatePicker(true) : setShowExport(true))}
+          accessibilityLabel={isUndated ? UNDATED_SCHEDULE_CTA : 'Export schedule'}
+          testID="open-export"
+          disabled={tasks.length === 0}
+        >
+          <Download size={19} color={tasks.length === 0 ? colors.textMuted : isUndated ? colors.warningLabel : colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications-inbox' as never)} accessibilityLabel="Notifications">
           <Bell size={19} color={colors.text} strokeWidth={1.75} />
@@ -300,6 +399,27 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* SCHED-NO-ANCHOR: say it, don't invent it. Rendered above the sub-tab
+          content so it is present on Schedule, Living Plan, Progress and Team — the
+          undated-ness is a property of the schedule, not of one tab. */}
+      {isUndated && (
+        <TouchableOpacity
+          style={styles.undatedBanner}
+          activeOpacity={0.8}
+          onPress={() => setShowStartDatePicker(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`${UNDATED_SCHEDULE_TITLE}. ${UNDATED_SCHEDULE_CTA}.`}
+          testID="schedule-undated-banner"
+        >
+          <CalendarOff size={16} color={colors.warningLabel} strokeWidth={1.9} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.undatedTitle}>{UNDATED_SCHEDULE_TITLE}</Text>
+            <Text style={styles.undatedBody}>{UNDATED_SCHEDULE_BODY}</Text>
+          </View>
+          <Text style={styles.undatedCta}>{UNDATED_SCHEDULE_CTA}</Text>
+        </TouchableOpacity>
+      )}
 
       {tab === 'schedule' ? (
         tasks.length === 0 ? (
@@ -324,24 +444,30 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           )
         ) : (
           <>
-            <View style={styles.viewToggle}>
-              {(['list', 'timeline'] as const).map((v) => (
-                <TouchableOpacity
-                  key={v}
-                  style={[styles.viewSeg, scheduleView === v ? styles.viewSegOn : null]}
-                  activeOpacity={0.8}
-                  onPress={() => setScheduleView(v)}
-                >
-                  <Text style={[styles.viewSegText, scheduleView === v ? { color: colors.accent } : null]}>
-                    {v === 'list' ? 'List' : 'Timeline'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {scheduleView === 'list' ? (
+            {/* The timeline is a CALENDAR drawing — its columns are dates and
+                its today-line is a date. With no anchor every column would be
+                counted off from today, so the toggle is withheld and the list
+                (which can honestly print 'Day 6 – 10') is the only view. */}
+            {!isUndated && (
+              <View style={styles.viewToggle}>
+                {(['list', 'timeline'] as const).map((v) => (
+                  <TouchableOpacity
+                    key={v}
+                    style={[styles.viewSeg, scheduleView === v ? styles.viewSegOn : null]}
+                    activeOpacity={0.8}
+                    onPress={() => setScheduleView(v)}
+                  >
+                    <Text style={[styles.viewSegText, scheduleView === v ? { color: colors.accent } : null]}>
+                      {v === 'list' ? 'List' : 'Timeline'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {isUndated || scheduleView === 'list' ? (
               <MobileScheduleList
                 tasks={tasks}
-                startDate={startDate}
+                startDate={anchor.iso}
                 workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
                 nonWorkingDates={activeSchedule?.nonWorkingDates}
                 collapsedPhases={collapsed}
@@ -354,7 +480,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
             ) : (
               <MobileGantt
                 tasks={tasks}
-                startDate={startDate}
+                startDate={anchor.iso ?? anchor.unanchoredPreviewIso}
                 workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
                 nonWorkingDates={activeSchedule?.nonWorkingDates}
                 selectedDate={selectedDate}
@@ -369,7 +495,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           </>
         )
       ) : tab === 'progress' ? (
-        <ProgressTab tasks={tasks} startDate={startDate} workingDaysPerWeek={activeSchedule?.workingDaysPerWeek} nonWorkingDates={activeSchedule?.nonWorkingDates} />
+        // previewStartDate + the banner above: ProgressTab's milestone column
+        // still prints a calendar day. It should take `string | null` and
+        // print `taskWorkingDayLabel` when undated — see the wave report.
+        <ProgressTab tasks={tasks} startDate={previewStartDate} workingDaysPerWeek={activeSchedule?.workingDaysPerWeek} nonWorkingDates={activeSchedule?.nonWorkingDates} />
       ) : tab === 'team' ? (
         <TeamTab tasks={tasks} onPressTask={setDetailTask} />
       ) : (
@@ -380,7 +509,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         visible={!!detailTask}
         task={detailTask}
         allTasks={tasks}
-        startDate={startDate}
+        startDate={anchor.iso}
         workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
         nonWorkingDates={activeSchedule?.nonWorkingDates}
         onClose={() => setDetailTask(null)}
@@ -398,10 +527,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       />
 
       <MonthCalendarSheet
-        visible={showCalendar}
+        visible={showCalendar && !isUndated}
         selectedDate={selectedDate}
         tasks={tasks}
-        startDateIso={startDate}
+        startDateIso={anchor.iso ?? anchor.unanchoredPreviewIso}
         workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
         nonWorkingDates={activeSchedule?.nonWorkingDates}
         onSelect={setSelectedDate}
@@ -409,15 +538,27 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       />
 
       <ExportCenterSheet
-        visible={showExport}
+        visible={showExport && !isUndated}
         onClose={() => setShowExport(false)}
         project={selectedProject}
         tasks={tasks}
-        startDateIso={startDate}
+        startDateIso={anchor.iso ?? anchor.unanchoredPreviewIso}
         cpm={reportCpm}
         baseline={activeSchedule?.baseline ?? null}
         nonWorkingDates={activeSchedule?.nonWorkingDates}
         onExportIcal={() => { void exportScheduleIcal({ project: selectedProject }); }}
+      />
+
+      {/* The one place an anchor is chosen on the phone. allowFuture: a
+          schedule almost always starts on a future or past real day, and the
+          picker blocks the future by default. */}
+      <DatePickerModal
+        visible={showStartDatePicker}
+        value={anchor.iso ?? ''}
+        title="Schedule start date"
+        allowFuture
+        onClose={() => setShowStartDatePicker(false)}
+        onChange={(iso) => applyStartDate(iso.slice(0, 10))}
       />
 
       {/* Living Floor Plan zone editor (full-screen modal) */}
@@ -619,6 +760,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   viewSeg: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 7 },
   viewSegOn: { backgroundColor: t.surface },
   viewSegText: { fontSize: 13, fontWeight: '700' as const, color: t.textMuted },
+  // Undated-schedule disclosure. Warning-tinted, not danger: nothing is
+  // broken, a field is missing and one tap fills it in.
+  undatedBanner: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+    marginHorizontal: 16, marginTop: 10, paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: Tokens.radius.md, backgroundColor: t.warningSoft,
+  },
+  undatedTitle: { fontSize: 13.5, fontWeight: '800' as const, color: t.warningLabel },
+  undatedBody: { fontSize: 12, fontWeight: '600' as const, color: t.textSecondary, marginTop: 2 },
+  undatedCta: { fontSize: 12.5, fontWeight: '800' as const, color: t.warningLabel },
   // Project picker sheet (idiom shared with MonthCalendarSheet)
   pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   pickerSheet: { position: 'absolute' as const, left: 0, right: 0, bottom: 0, backgroundColor: t.bg, borderTopLeftRadius: Tokens.radius.xl, borderTopRightRadius: Tokens.radius.xl, padding: 16 },

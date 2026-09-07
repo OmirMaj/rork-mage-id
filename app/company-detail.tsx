@@ -18,6 +18,7 @@ import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import type { BidCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const BID_CATEGORY_LABELS: Record<BidCategory, string> = {
   construction: 'Construction', it_services: 'IT Services', environmental: 'Environmental',
@@ -71,7 +72,7 @@ export default function CompanyDetailScreen() {
         title: company.companyName,
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>

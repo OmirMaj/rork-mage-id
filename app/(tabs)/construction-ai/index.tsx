@@ -62,7 +62,11 @@ import { resolveZoning, confirmZoning, isZoningConfirmed } from '@/utils/automat
 import {
   resolveCodeJurisdiction,
   groundingFactsFor,
-  splitLocationText,
+  issuingAuthorityForAddress,
+  jobsiteAddressForProject,
+  sameJobsiteAddress,
+  EMPTY_JOBSITE_ADDRESS,
+  type JobsiteAddress,
   type JurisdictionGrounding,
 } from '@/utils/codeJurisdiction';
 import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/utils/automation/inspectionResultToScheduleWork';
@@ -335,11 +339,29 @@ function ConstructionAIScreenInner() {
   // (and sometimes county), so those are what the resolver reads; the street is
   // what makes this feel like a real jobsite address and is what a future
   // parcel lookup will need. The street is NEVER required to submit.
-  const [street, setStreet] = useState<string>('');
-  const [city, setCity] = useState<string>('');
-  const [stateCode, setStateCode] = useState<string>('');
-  const [zip, setZip] = useState<string>('');
-  const [county, setCounty] = useState<string>('');
+  // ONE value, not five useStates. A project switch has to replace the whole
+  // address at once — the old field-by-field prefill left project A's city
+  // sitting under project B's name (runtime audit AI-1).
+  const [address, setAddress] = useState<JobsiteAddress>(EMPTY_JOBSITE_ADDRESS);
+  const { street, city, state: stateCode, zip, county } = address;
+  const setField = useCallback(
+    (key: keyof JobsiteAddress) => (value: string) =>
+      setAddress((prev) => ({ ...prev, [key]: value })),
+    [],
+  );
+  const setStreet = useMemo(() => setField('street'), [setField]);
+  const setCity = useMemo(() => setField('city'), [setField]);
+  const setStateCode = useMemo(() => setField('state'), [setField]);
+  const setZip = useMemo(() => setField('zip'), [setField]);
+  // The address the contractor had typed BEFORE they linked a project, so
+  // going back to "No project" gives it back instead of stranding them with
+  // the last project's address under no project's name.
+  const manualAddressRef = useRef<JobsiteAddress | null>(null);
+  // EXACTLY what the linked project last put in the box. It is the only way to
+  // tell an untouched prefill (safe to replace or to throw away) from one the
+  // contractor has since corrected (never clobber that — a typed address is
+  // the most expensive thing on this screen).
+  const appliedProjectAddressRef = useRef<JobsiteAddress | null>(null);
   const [category, setCategory] = useState<CategoryKey>('residential');
   const [scenario, setScenario] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -369,26 +391,57 @@ function ConstructionAIScreenInner() {
   } = useProjects();
   const { addHazard, hazards } = useSafety();
 
-  // When the user picks a code-check project, auto-fill the address if blank.
-  // Prefer the project's structuredAddress (it carries county, which some AHJs
-  // are keyed on); fall back to splitting the legacy free-text location.
   const codeCheckProject = codeCheckProjectId ? projects.find((p) => p.id === codeCheckProjectId) ?? null : null;
-  useEffect(() => {
-    if (!codeCheckProject) return;
-    const sa = codeCheckProject.structuredAddress;
-    if (sa && (sa.city?.trim() || sa.state?.trim())) {
-      if (!street && sa.street?.trim()) setStreet(sa.street);
-      if (!city && sa.city?.trim()) setCity(sa.city);
-      if (!stateCode && sa.state?.trim()) setStateCode(sa.state);
-      if (!zip && sa.zip?.trim()) setZip(sa.zip);
-      if (!county && sa.county?.trim()) setCounty(sa.county);
-      return;
+
+  // Linking a project REPLACES the address — every field, blanks included.
+  //
+  // This used to be a useEffect keyed on [codeCheckProjectId] that assigned
+  // each field only when it was still empty. Tapping project B after project A
+  // therefore kept A's city and state while the note said "Using B's location",
+  // the grounding chip named A's building department, and the prompt carried
+  // B's name next to A's address (runtime audit AI-1). Doing it as one
+  // replacement in the tap handler makes the note, the chip and the prompt
+  // physically incapable of describing different places: they all read this
+  // one value.
+  const selectCodeCheckProject = useCallback((id: string | null) => {
+    if (id === codeCheckProjectId) return;
+    if (id === null) {
+      // Back to "No project". Hand back whatever they had typed themselves
+      // before the first link — but ONLY if the box still holds the project's
+      // address untouched. An address the contractor typed or corrected while
+      // a project was linked is theirs, and unlinking must not delete it.
+      const applied = appliedProjectAddressRef.current;
+      const untouched = applied !== null && sameJobsiteAddress(address, applied);
+      if (untouched) setAddress(manualAddressRef.current ?? { ...EMPTY_JOBSITE_ADDRESS });
+      manualAddressRef.current = null;
+      appliedProjectAddressRef.current = null;
+    } else {
+      if (codeCheckProjectId === null) manualAddressRef.current = address;
+      const next = jobsiteAddressForProject(projects.find((p) => p.id === id) ?? null);
+      appliedProjectAddressRef.current = next;
+      setAddress(next);
     }
-    const parsed = splitLocationText(codeCheckProject.location ?? '');
-    if (!city && parsed.city) setCity(parsed.city);
-    if (!stateCode && parsed.state) setStateCode(parsed.state);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codeCheckProjectId]);
+    setCodeCheckProjectId(id);
+  }, [codeCheckProjectId, projects, address]);
+
+  // Keep a LINKED project's address current. `codeCheckProject` re-derives from
+  // `projects` on every render, but `address` is state — so editing the linked
+  // project's address on another screen (or a sync landing) used to leave this
+  // screen saying "Using X's location" over the address X had an hour ago: the
+  // same class of lie as AI-1, just arriving from the other direction. Adopt
+  // the change only when the box still holds exactly what the project last put
+  // there; a contractor's own correction always wins.
+  const linkedProjectAddress = useMemo(
+    () => (codeCheckProject ? jobsiteAddressForProject(codeCheckProject) : null),
+    [codeCheckProject],
+  );
+  useEffect(() => {
+    const applied = appliedProjectAddressRef.current;
+    if (!linkedProjectAddress || !applied) return;
+    if (sameJobsiteAddress(applied, linkedProjectAddress)) return;
+    appliedProjectAddressRef.current = linkedProjectAddress;
+    setAddress((prev) => (sameJobsiteAddress(prev, applied) ? linkedProjectAddress : prev));
+  }, [linkedProjectAddress]);
 
   // The address as one line — the loader subject and the result modal's
   // context still want a human string.
@@ -412,6 +465,24 @@ function ConstructionAIScreenInner() {
   const roadmapDailyCap = useMemo(() => FEATURE_LIMITS.ai_permit_roadmap_daily[tier], [tier]);
 
   const roadmapProject = projects.find((p) => p.id === roadmapProjectId) ?? null;
+
+  // WHO issues the permits on this job. `Permit.jurisdiction` means the issuing
+  // authority — the manual add-permit form refuses to save without one and
+  // spells out the shape ("City of Phoenix, AZ") — but this screen used to
+  // write `roadmapProject.location`, so every AI-generated permit recorded the
+  // jobsite STREET ADDRESS as its issuing jurisdiction, and that string then
+  // propagated to the permit export and the homeowner's closeout passport
+  // (runtime audit MISS-06). `null` when MAGE has no verified record: a blank
+  // the contractor fills in beats a building department that does not exist.
+  const roadmapJobsite = useMemo(() => jobsiteAddressForProject(roadmapProject), [roadmapProject]);
+  const roadmapAuthority = useMemo(
+    () => issuingAuthorityForAddress({
+      city: roadmapJobsite.city,
+      county: roadmapJobsite.county,
+      state: roadmapJobsite.state,
+    }),
+    [roadmapJobsite],
+  );
   const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;
   const roadmapTasks = roadmapProject?.schedule?.tasks ?? [];
   const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
@@ -527,12 +598,14 @@ function ConstructionAIScreenInner() {
           createdBy: user?.id ?? 'unknown',
           now: new Date().toISOString(),
           hazardId: generateUUID(),
-          jurisdiction: roadmapProject.location || undefined,
+          // A lead-time lookup key, so it wants the AHJ — not the street
+          // address, which could never match an override (MISS-06).
+          jurisdiction: roadmapAuthority ?? undefined,
         },
       );
       setPendingResult({ inspection, result, work });
     },
-    [roadmapProject, user],
+    [roadmapProject, roadmapAuthority, user],
   );
 
   // COMMIT — runs ONLY on an explicit confirm from the result sheet. Commits all
@@ -673,7 +746,10 @@ function ConstructionAIScreenInner() {
       projectId: roadmapProject.id,
       projectName: roadmapProject.name,
       type: toPermitType(p.type),
-      jurisdiction: roadmapProject.location || '',
+      // The issuing authority, never the jobsite address (MISS-06). Empty when
+      // MAGE has no verified building-department record — the note under the
+      // Permits heading tells the contractor that before they tap Add.
+      jurisdiction: roadmapAuthority ?? '',
       status: 'applied',
       // B4 review A3: Permit.appliedDate is a CALENDAR DAY (permits.applied_date
       // is a `date` column and app/permits.tsx writes todayCalendarDay()). The
@@ -692,7 +768,7 @@ function ConstructionAIScreenInner() {
       ),
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [roadmapProject, roadmap, addPermit, updatePermitRoadmap]);
+  }, [roadmapProject, roadmap, roadmapAuthority, addPermit, updatePermitRoadmap]);
 
   // City + state are what pick the authority, so they are what the form needs.
   // A missing street NEVER blocks the check — plenty of code questions are
@@ -852,7 +928,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             testID="mode-toggle-code"
           >
             <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]}>Code Check</Text>
+            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code Check</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, mode === 'roadmap' && styles.modeToggleBtnActive]}
@@ -861,7 +937,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             testID="mode-toggle-roadmap"
           >
             <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]}>Project Roadmap</Text>
+            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project Roadmap</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, mode === 'plan' && styles.modeToggleBtnActive]}
@@ -870,7 +946,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             testID="mode-toggle-plan"
           >
             <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]}>Plan Review</Text>
+            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan Review</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, mode === 'ask' && styles.modeToggleBtnActive]}
@@ -879,7 +955,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             testID="mode-toggle-ask"
           >
             <MessageCircleQuestion size={14} color={mode === 'ask' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'ask' && styles.modeToggleTextActive]}>Ask</Text>
+            <Text style={[styles.modeToggleText, mode === 'ask' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Ask</Text>
           </TouchableOpacity>
         </View>
 
@@ -930,7 +1006,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                   <View style={{ flexDirection: 'row' as const, gap: 8 }}>
                     <TouchableOpacity
                       style={[styles.chip, codeCheckProjectId === null && styles.chipActive]}
-                      onPress={() => setCodeCheckProjectId(null)}
+                      onPress={() => selectCodeCheckProject(null)}
                       activeOpacity={0.8}
                       testID="code-check-project-none"
                     >
@@ -941,7 +1017,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                       return (
                         <TouchableOpacity
                           key={p.id}
-                          onPress={() => setCodeCheckProjectId(p.id)}
+                          onPress={() => selectCodeCheckProject(p.id)}
                           activeOpacity={0.8}
                           style={[styles.chip, active && styles.chipActive]}
                           testID={`code-check-project-${p.id}`}
@@ -954,7 +1030,9 @@ Never invent a section number you are unsure of — leave section empty and desc
                 </ScrollView>
                 {codeCheckProject && (
                   <Text style={styles.projectPrefillNote} testID="code-check-project-prefill">
-                    Using {codeCheckProject.name}&apos;s location and scope — edit below to adjust
+                    {city.trim() || stateCode.trim()
+                      ? `Using ${codeCheckProject.name}'s location and scope — edit below to adjust`
+                      : `Using ${codeCheckProject.name}'s scope. It has no jobsite address on file — enter one below.`}
                   </Text>
                 )}
               </>
@@ -1197,7 +1275,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                 {/* Flags banner */}
                 {flags.length > 0 ? (
                   <View style={styles.flagsBanner}>
-                    <Flag size={14} color={Colors.error} strokeWidth={1.75} />
+                    <Flag size={14} color={Colors.dangerLabel} strokeWidth={1.75} />
                     <View style={{ flex: 1, gap: 4 }}>
                       {flags.map((f) => (
                         <Text
@@ -1246,6 +1324,14 @@ Never invent a section number you are unsure of — leave section empty and desc
                   <>
                     {/* Permits section */}
                     <Text style={styles.roadmapSectionTitle}>Permits</Text>
+                    {/* What "Add to Permits" will record as the issuing
+                        jurisdiction — said BEFORE the tap, so a blank field is
+                        never a surprise (MISS-06). */}
+                    <Text style={styles.permitAuthorityNote} testID="roadmap-permit-authority">
+                      {roadmapAuthority
+                        ? `Permits added here record ${roadmapAuthority} as the issuing jurisdiction.`
+                        : `MAGE has no verified building-department record for this jobsite, so permits added here are saved with a blank issuing jurisdiction — fill it in on the Permits screen.`}
+                    </Text>
                     {roadmap.permits.length === 0 ? (
                       <Text style={styles.roadmapEmptyNote}>No permits inferred — add an estimate scope, then Regenerate.</Text>
                     ) : roadmap.permits.map((p) => (
@@ -1546,9 +1632,9 @@ Never invent a section number you are unsure of — leave section empty and desc
 // ── Roadmap row components ─────────────────────────────────────────────
 
 const PERMIT_STATUS_COLORS: Record<RoadmapPermit['status'], string> = {
-  needed: Colors.warning,
-  applied: Colors.info,
-  approved: Colors.success,
+  needed: Colors.warningLabel,
+  applied: Colors.infoLabel,
+  approved: Colors.successLabel,
 };
 
 function RoadmapPermitRow({
@@ -1604,7 +1690,7 @@ function RoadmapPermitRow({
           style={styles.linkedBadge}
           testID={`open-permit-${permit.id}`}
         >
-          <CheckCircle size={12} color={Colors.success} strokeWidth={1.75} />
+          <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
           <Text style={styles.linkedBadgeText}>Added to Permits</Text>
           <Text style={styles.linkedBadgeLink}>View</Text>
           <ChevronRight size={11} color={Colors.primary} strokeWidth={1.75} />
@@ -2037,7 +2123,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               title="Inspections"
               count={result.inspections.length}
               Icon={CheckCircle}
-              iconColor={Colors.success}
+              iconColor={Colors.successLabel}
               expanded={expanded === 'inspections'}
               onToggle={toggle}
             >
@@ -2053,7 +2139,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               title="Common Violations"
               count={result.commonViolations.length}
               Icon={AlertTriangle}
-              iconColor={Colors.warning}
+              iconColor={Colors.warningLabel}
               expanded={expanded === 'violations'}
               onToggle={toggle}
             >
@@ -2448,25 +2534,57 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     padding: 3,
     gap: 3,
   },
+  // Icon ABOVE the label, not beside it. Four segments share ~89pt on a 402pt
+  // iPhone; a 14pt icon plus a 6pt gap plus "Code Check" at 13pt needs ~98pt,
+  // so the old row layout overflowed its pill and the next segment's icon
+  // painted over the active label (runtime audit AI-3 / VIS-01). Stacking buys
+  // the label the whole segment width, and minWidth 0 + flexShrink + a two-line
+  // cap + overflow hidden mean nothing can spill across the boundary again —
+  // which also stops taps landing on the wrong mode.
   modeToggleBtn: {
     flex: 1,
-    flexDirection: 'row' as const,
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: 'column' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 6,
-    paddingVertical: 9,
+    gap: 3,
+    paddingVertical: 7,
+    paddingHorizontal: 2,
     borderRadius: Tokens.radius.card,
+    overflow: 'hidden' as const,
   },
   modeToggleBtnActive: {
     backgroundColor: Colors.primary,
   },
+  // minHeight is two lines' worth, so a one-line label ("Ask") reserves the
+  // same box as the one that wraps ("Project Roadmap"). Without it the wrapping
+  // segment is taller, justifyContent centres it, and its icon rides ~7pt above
+  // the other three — the audit's "nothing in the bar shares a baseline", in
+  // milder form. lineHeight 15 (not 14) so the descender in "Project" is not
+  // clipped at 12pt.
   modeToggleText: {
-    fontSize: Type.footnote.fontSize,
+    fontSize: Type.caption1.fontSize,
+    lineHeight: 15,
+    minHeight: 30,
     fontWeight: '600' as const,
     color: themeColors.textSecondary,
+    textAlign: 'center' as const,
+    flexShrink: 1,
   },
   modeToggleTextActive: {
     color: '#FFF',
+  },
+
+  // Says which authority a generated permit will be filed under — or that MAGE
+  // does not know one, in which case the field is saved blank rather than
+  // stuffed with the street address (MISS-06).
+  permitAuthorityNote: {
+    fontSize: Type.caption1.fontSize,
+    lineHeight: 17,
+    color: themeColors.textSecondary,
+    marginTop: -4,
+    marginBottom: 10,
   },
 
   // ── Project Roadmap ─────────────────────────────────────────────────
@@ -2483,11 +2601,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   flagText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.warning,
+    color: Colors.warningLabel,
     lineHeight: 18,
   },
   flagTextHigh: {
-    color: Colors.error,
+    color: Colors.dangerLabel,
     fontWeight: '600' as const,
   },
   regenBtn: {

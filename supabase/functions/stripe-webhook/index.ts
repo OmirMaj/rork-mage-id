@@ -60,6 +60,7 @@ import {
   applyLedgerEntry,
   ledgerFrom,
   netPayable,
+  retentionPending,
   settlementStatus,
   toCents2,
   type LedgerEntry,
@@ -436,7 +437,20 @@ interface InvoiceRow {
 type HandlerResult = { ok: true; reason?: string } | { ok: false; reason: string };
 
 type CreditResult =
-  | { ok: true; duplicate: boolean; amountReceived: number; newAmountPaid: number; totalDue: number; newStatus: string }
+  | {
+    ok: true;
+    duplicate: boolean;
+    amountReceived: number;
+    newAmountPaid: number;
+    totalDue: number;
+    newStatus: string;
+    // MONEY-02: the receipt has to state a balance under the SAME net rule
+    // settlementStatus used one line earlier, so the two retention columns
+    // INVOICE_COLS already reads travel with the result instead of being
+    // dropped on the floor.
+    retentionAmount: number;
+    retentionReleased: number;
+  }
   | { ok: false; reason: "invoice not found" | "db fetch failed" | "db update failed" };
 
 /** PGRST116 = zero rows; 22P02 = the id is not a uuid (a legacy text AIA invoice_id). Both terminal. */
@@ -483,6 +497,10 @@ async function creditInvoice(
   const now = new Date().toISOString();
   const amountReceived = toCents2(Number(session.amount_total ?? 0) / 100);
   const totalDue = Number(inv.total_due ?? 0);
+  // Carried through to the receipt (MONEY-02). PostgREST hands NUMERIC back as
+  // a string, so coerce once here rather than in the email builder.
+  const retentionAmount = Number(inv.retention_amount ?? 0) || 0;
+  const retentionReleased = Number(inv.retention_released ?? 0) || 0;
   const entry: LedgerEntry = {
     id: `stripe-${session.id}`,
     amount: amountReceived,
@@ -505,6 +523,7 @@ async function creditInvoice(
     return {
       ok: true, duplicate: true, amountReceived,
       newAmountPaid: Number(inv.amount_paid ?? 0), totalDue, newStatus: inv.status ?? "",
+      retentionAmount, retentionReleased,
     };
   }
 
@@ -543,7 +562,10 @@ async function creditInvoice(
     await deactivatePaymentLink(inv.pay_link_id, eventAccount);
   }
 
-  return { ok: true, duplicate: false, amountReceived, newAmountPaid, totalDue, newStatus };
+  return {
+    ok: true, duplicate: false, amountReceived, newAmountPaid, totalDue, newStatus,
+    retentionAmount, retentionReleased,
+  };
 }
 
 async function handleCheckoutCompleted(
@@ -571,6 +593,8 @@ async function handleCheckoutCompleted(
     amountReceived: credit.amountReceived,
     newAmountPaid: credit.newAmountPaid,
     totalDue: credit.totalDue,
+    retentionAmount: credit.retentionAmount,
+    retentionReleased: credit.retentionReleased,
     newStatus: credit.newStatus,
     sessionId: session.id,
     customerEmail: (session as unknown as { customer_email?: string; customer_details?: { email?: string } })
@@ -777,10 +801,50 @@ interface ReceiptOpts {
   amountReceived: number;
   newAmountPaid: number;
   totalDue: number;
+  /** Retention columns as read by INVOICE_COLS — dollars, already coerced. */
+  retentionAmount: number;
+  retentionReleased: number;
   newStatus: string; // "paid" | "partially_paid" after a credit (settlementStatus)
   sessionId: string;
   customerEmail?: string;
 }
+
+// MONEY-02 (runtime audit 2026-09-06). The receipt used to say
+// `total_due - amount_paid` — GROSS of the retention the contract lets the
+// client hold — while settlementStatus, three lines earlier in this same
+// function, decided paid / partially_paid on the NET balance. The two halves of
+// one email disagreed by exactly the held retention: on the founder's live
+// Houston invoice #1 ($81,264.63 total, $4,063.23 retention at 5%) a client who
+// part-paid through the Stripe link was told "Balance remaining: $41,264.63"
+// while the app, the portal and the A/R aging all said $37,201.39 — an invoice
+// for retention that is not due until closeout.
+//
+// The rule is the one utils/invoiceBilling.invoiceOutstanding and
+// paymentMath.settlementStatus already use: collectible today = total due less
+// retention still held, less what has been paid. Retention that IS held is
+// stated separately rather than silently folded in or silently dropped —
+// "$0 remaining" on an invoice that still holds $4,063.23 would be its own lie.
+//
+// --- BEGIN receiptBalance (pure; executed by scripts/validate-stripe-webhook-math.ts — keep the sentinels) ---
+interface ReceiptBalanceInput {
+  totalDue: number;
+  newAmountPaid: number;
+  retentionAmount: number;
+  retentionReleased: number;
+}
+
+function receiptBalance(o: ReceiptBalanceInput): { remaining: number; retentionHeld: number } {
+  const row = {
+    total_due: o.totalDue,
+    retention_amount: o.retentionAmount,
+    retention_released: o.retentionReleased,
+  };
+  return {
+    remaining: toCents2(Math.max(0, netPayable(row) - o.newAmountPaid)),
+    retentionHeld: toCents2(retentionPending(row)),
+  };
+}
+// --- END receiptBalance ---
 
 async function sendReceiptEmail(
   supabase: ReturnType<typeof createClient<any, "public", any>>,
@@ -816,10 +880,18 @@ async function sendReceiptEmail(
       || "MAGE ID";
     const projectName = (project?.name as string | null) ?? "your project";
     const invoiceNumber = (invoice.number as number | null) ?? "—";
-    const remaining = Math.max(0, opts.totalDue - opts.newAmountPaid);
+    const { remaining, retentionHeld } = receiptBalance({
+      totalDue: opts.totalDue,
+      newAmountPaid: opts.newAmountPaid,
+      retentionAmount: opts.retentionAmount,
+      retentionReleased: opts.retentionReleased,
+    });
+    const retentionNote = retentionHeld > 0
+      ? ` ${escapeHtml(formatMoney(retentionHeld))} of retention is held until closeout and is not included above.`
+      : "";
     const balanceLine = opts.newStatus === "paid"
-      ? "Paid in full — no balance remaining."
-      : `Balance remaining: <strong>${escapeHtml(formatMoney(remaining))}</strong>`;
+      ? `Paid in full — nothing further is due today.${retentionNote}`
+      : `Balance remaining: <strong>${escapeHtml(formatMoney(remaining))}</strong>${retentionNote}`;
 
     const bodyHtml = `
       <p style="margin:0 0 14px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:22px;color:#4A5159;">

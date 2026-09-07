@@ -26,14 +26,18 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
+  EMPTY_JOBSITE_ADDRESS,
   LOCAL_ADOPTIONS,
   STATE_ADOPTIONS,
   codeLine,
   codesSummary,
   groundingFactsFor,
+  issuingAuthorityForAddress,
+  jobsiteAddressForProject,
   normalizePlace,
   normalizeState,
   resolveCodeJurisdiction,
+  sameJobsiteAddress,
   splitLocationText,
   type LocalAdoption,
   type StateAdoption,
@@ -283,6 +287,100 @@ ok('a street address keeps the city and the state', (() => {
 })());
 ok('an unrecognisable string never invents a state', splitLocationText('somewhere out past the ridge').state === '' && splitLocationText('').state === '');
 ok('a foreign location never invents a US state', splitLocationText('Toronto, Ontario').state === '');
+// The founder's real projects are stored as "124 Park Slope, Brooklyn NY 11215".
+// A trailing ZIP left attached made that come back as the STREET with no state,
+// which resolved to no jurisdiction at all (runtime audit MISS-06).
+ok('a trailing ZIP is peeled off rather than swallowing the state', (() => {
+  const r = splitLocationText('124 Park Slope, Brooklyn NY 11215');
+  return r.city === 'Brooklyn' && r.state === 'NY';
+})());
+ok('a ZIP+4 is peeled too', splitLocationText('12 Elm St, Springfield IL 62701-1234').state === 'IL');
+ok('a comma-separated city/state/ZIP still splits', (() => {
+  const r = splitLocationText('Houston, TX 77002');
+  return r.city === 'Houston' && r.state === 'TX';
+})());
+ok('a bare city with no state is left alone rather than guessed', (() => {
+  const r = splitLocationText('Portland');
+  return r.city === 'Portland' && r.state === '';
+})());
+
+// ─────────────────────────────────────────────────────────────────────
+console.log('\njobsiteAddressForProject — ONE complete value, never a merge:');
+// ─────────────────────────────────────────────────────────────────────
+{
+  // AI-1 was a field-by-field prefill that only wrote a field when it was
+  // still blank, so switching projects left the previous job's city under the
+  // new job's name. The contract that replaces it: a project ALWAYS yields all
+  // five fields, blanks included, so the caller can assign the whole value.
+  const houston = jobsiteAddressForProject({
+    structuredAddress: { street: '1 Main St', city: 'Houston', state: 'TX', zip: '77002', county: 'Harris' },
+    location: 'ignored because structuredAddress wins',
+  });
+  ok('structuredAddress wins over the legacy free-text location', (() => (
+    houston.street === '1 Main St' && houston.city === 'Houston' &&
+    houston.state === 'TX' && houston.zip === '77002' && houston.county === 'Harris'
+  ))());
+
+  const brooklyn = jobsiteAddressForProject({ location: '124 Park Slope, Brooklyn NY 11215' });
+  ok('the legacy location is the fallback and yields city + state', brooklyn.city === 'Brooklyn' && brooklyn.state === 'NY');
+  ok('THE AI-1 PROPERTY: switching jobs blanks what the new job does not have',
+    brooklyn.county === '' && brooklyn.zip === '' && brooklyn.street === '');
+
+  ok('a project with no address at all returns every field blank, not undefined',
+    sameJobsiteAddress(jobsiteAddressForProject({ location: '' }), EMPTY_JOBSITE_ADDRESS));
+  ok('a null/undefined project returns the empty address rather than throwing',
+    sameJobsiteAddress(jobsiteAddressForProject(null), EMPTY_JOBSITE_ADDRESS) &&
+    sameJobsiteAddress(jobsiteAddressForProject(undefined), EMPTY_JOBSITE_ADDRESS));
+  ok('an empty structuredAddress falls through to the legacy location',
+    jobsiteAddressForProject({ structuredAddress: { street: '9 Oak' }, location: 'Austin TX' }).state === 'TX');
+  ok('every field comes back trimmed', (() => {
+    const a = jobsiteAddressForProject({ structuredAddress: { city: '  Seattle ', state: ' WA ' } });
+    return a.city === 'Seattle' && a.state === 'WA';
+  })());
+  ok('the frozen EMPTY_JOBSITE_ADDRESS is never handed out as a shared mutable',
+    jobsiteAddressForProject(null) !== EMPTY_JOBSITE_ADDRESS);
+}
+{
+  ok('sameJobsiteAddress: identical values compare equal', sameJobsiteAddress(
+    { street: 'a', city: 'b', state: 'CA', zip: '1', county: 'c' },
+    { street: 'a', city: 'b', state: 'CA', zip: '1', county: 'c' }));
+  ok('sameJobsiteAddress: a single edited field compares unequal', !sameJobsiteAddress(
+    { street: 'a', city: 'b', state: 'CA', zip: '1', county: 'c' },
+    { street: 'a', city: 'b', state: 'CA', zip: '1', county: 'd' }));
+  ok('sameJobsiteAddress: a blanked field compares unequal (that is an edit too)', !sameJobsiteAddress(
+    { street: 'a', city: 'b', state: 'CA', zip: '1', county: 'c' }, EMPTY_JOBSITE_ADDRESS));
+}
+
+// ─────────────────────────────────────────────────────────────────────
+console.log('\nissuingAuthorityForAddress — the office that ISSUES the permit:');
+// ─────────────────────────────────────────────────────────────────────
+{
+  // MISS-06: the roadmap wrote the jobsite STREET ADDRESS into
+  // Permit.jurisdiction. This function is the replacement, and its `null` is a
+  // real answer callers must pass through as a blank.
+  ok('a city row answers with the permitting office', (() => {
+    const a = issuingAuthorityForAddress({ city: 'Brooklyn', state: 'NY' });
+    return a === 'New York City Department of Buildings';
+  })());
+  ok('a county-keyed row answers too', /Miami-Dade/i.test(issuingAuthorityForAddress({ county: 'Miami-Dade', state: 'FL' }) ?? ''));
+  ok('a STATE-only match returns null — the Florida Building Commission does not issue permits in Orlando',
+    issuingAuthorityForAddress({ city: 'Orlando', state: 'FL' }) === null);
+  ok('an unknown jurisdiction returns null', issuingAuthorityForAddress({ city: 'Fargo', state: 'ND' }) === null);
+  ok('no state returns null rather than a guess', issuingAuthorityForAddress({ city: 'Springfield' }) === null);
+  ok('it NEVER returns an address — only a name from the table', (() => {
+    const names = new Set(LOCAL_ADOPTIONS.map((e) => e.authorityName));
+    return LOCAL_ADOPTIONS.every((e) => {
+      const m = e.matchCity?.[0] ?? e.matchCounty?.[0] ?? '';
+      const a = issuingAuthorityForAddress(e.matchCity?.length ? { city: m, state: e.state } : { county: m, state: e.state });
+      return a !== null && names.has(a);
+    });
+  })());
+  ok('MISS-06 end to end: the founder\'s stored location shape yields an AHJ', (() => {
+    const addr = jobsiteAddressForProject({ location: '124 Park Slope, Brooklyn NY 11215' });
+    return issuingAuthorityForAddress({ city: addr.city, county: addr.county, state: addr.state })
+      === 'New York City Department of Buildings';
+  })());
+}
 
 // ─────────────────────────────────────────────────────────────────────
 console.log('\nsource assertions (the screen the pure functions cannot reach):');
@@ -315,8 +413,55 @@ console.log('\nsource assertions (the screen the pure functions cannot reach):')
   ok('screen: street / city / state / ZIP inputs all exist with testIDs',
     ['code-check-street', 'code-check-city', 'code-check-state', 'code-check-zip'].every((t) => code.includes(`testID="${t}"`)));
   ok('screen: submitting needs city + state — never the street', /city\.trim\(\)\.length > 0 && stateCode\.trim\(\)\.length > 0/.test(code) && !/street\.trim\(\)\.length > 0 &&/.test(code));
-  ok('screen: the project prefill reads structuredAddress (incl. county) before the legacy text', /codeCheckProject\.structuredAddress/.test(code) && /setCounty\(sa\.county\)/.test(code) && /splitLocationText\(codeCheckProject\.location/.test(code));
+  // THE AI-1 PINS. This slot used to pin the BUG: it required the
+  // field-by-field prefill (`setCounty(sa.county)`, `splitLocationText(
+  // codeCheckProject.location…)`) that reading each field only when it was
+  // blank is exactly what left project A's city under project B's name. The
+  // old predicate was true of the broken screen and false of the fixed one —
+  // a guard that passes on the bug and fails on the fix is worse than no
+  // guard, because reverting the fix turns the suite green. What replaces it
+  // pins the CONTRACT: the address is one value, it is replaced whole, and it
+  // is replaced in exactly one place.
+  ok('screen: the address is ONE value, not five independent useStates',
+    /useState<JobsiteAddress>\(EMPTY_JOBSITE_ADDRESS\)/.test(code) &&
+    /const \{ street, city, state: stateCode, zip, county \} = address;/.test(code));
+  ok('screen: the project link goes through selectCodeCheckProject and nothing else calls setCodeCheckProjectId',
+    /const selectCodeCheckProject = useCallback/.test(code) &&
+    (code.match(/setCodeCheckProjectId\(/g) ?? []).length === 1);
+  ok('screen: every project chip (including "No project") dispatches through it',
+    (code.match(/selectCodeCheckProject\(/g) ?? []).length === 2 &&
+    /onPress=\{\(\) => selectCodeCheckProject\(null\)\}/.test(code) &&
+    /onPress=\{\(\) => selectCodeCheckProject\(p\.id\)\}/.test(code));
+  ok('screen: linking a project REPLACES the whole address via jobsiteAddressForProject',
+    /setAddress\(jobsiteAddressForProject\(/.test(code) || /jobsiteAddressForProject\(projects\.find/.test(code));
+  ok('screen: the old field-by-field, only-if-blank prefill is gone for good',
+    !/if \(!city && /.test(code) && !/if \(!stateCode && /.test(code) && !/setCounty\(sa\.county\)/.test(code));
+  ok('screen: an edited address is never clobbered — both branches gate on sameJobsiteAddress',
+    (code.match(/sameJobsiteAddress\(/g) ?? []).length >= 3);
+  ok('screen: a linked project whose address changes elsewhere is reconciled, not left stale',
+    /const linkedProjectAddress = useMemo/.test(code) && /appliedProjectAddressRef/.test(code));
   ok('screen: the prefill note still tells the contractor the fields were filled in', /code-check-project-prefill/.test(code));
+  ok('screen: a project with NO address says so instead of claiming a location',
+    /no jobsite address on file/.test(code));
+
+  // MISS-06 — the permit's issuing authority.
+  ok('screen: an AI-generated permit records the resolved AHJ, never the jobsite address',
+    /issuingAuthorityForAddress\(/.test(code) &&
+    !/jurisdiction: roadmapProject\.location/.test(code) &&
+    /jurisdiction: roadmapAuthority/.test(code));
+  ok('screen: a null AHJ is passed through as a blank, not papered over',
+    /roadmapAuthority \?\? ''/.test(code) && /roadmapAuthority \?\? undefined/.test(code));
+  ok('screen: the contractor is told BEFORE tapping Add which jurisdiction gets recorded',
+    /testID="roadmap-permit-authority"/.test(code) && /no verified building-department record/.test(code));
+
+  // AI-3 / VIS-01 — four mode segments in one bar.
+  ok('screen: mode-toggle segments stack the icon above the label and cannot spill across the boundary',
+    /flexDirection: 'column' as const,\n\s*alignItems: 'center' as const,/.test(code) &&
+    /minWidth: 0,/.test(code) && /overflow: 'hidden' as const,/.test(code));
+  ok('screen: every mode label is wrap-capped so a long one cannot overrun its segment',
+    (code.match(/numberOfLines=\{2\} ellipsizeMode="tail"/g) ?? []).length === 4);
+  ok('screen: all four segments reserve the same label height, so the icons share a baseline',
+    /minHeight: 30,/.test(code));
 
   // The honest-chip family the screen already ships stays intact.
   ok('screen: the model-recall chip above the code list is untouched', /From model recall — verify with your AHJ/.test(code));

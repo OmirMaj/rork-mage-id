@@ -281,7 +281,7 @@ export default function WeeklySnapshotScreen() {
         <View style={styles.row}>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <FileText size={16} color={Colors.warning} strokeWidth={1.75} />
+              <FileText size={16} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>RFIs</Text>
             </View>
             <Text style={styles.cardBigValue}>{rfiStats.opened} <Text style={styles.cardArrow}>→</Text> {rfiStats.closed}</Text>
@@ -327,7 +327,7 @@ export default function WeeklySnapshotScreen() {
           </View>
           <View style={[styles.card, styles.cardThird]}>
             <View style={styles.cardHeader}>
-              <ClipboardList size={14} color={Colors.warning} strokeWidth={1.75} />
+              <ClipboardList size={14} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Punch</Text>
             </View>
             <Text style={styles.cardBigValueSmall}>{punchOpenedCount}<Text style={styles.cardArrow}>/</Text>{punchClosedCount}</Text>
@@ -338,7 +338,7 @@ export default function WeeklySnapshotScreen() {
         {budgetCap > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} /> : <TrendingDown size={16} color={Colors.warning} strokeWidth={1.75} />}
+              {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} /> : <TrendingDown size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
               <Text style={styles.cardLabel}>Budget Burn</Text>
               <Text style={styles.burnPct}>{Math.round(burnPct * 100)}%</Text>
             </View>

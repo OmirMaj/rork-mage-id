@@ -192,9 +192,94 @@
    by a few hundred ms (server-stamped `projects.updated_at` vs the client
    timestamp the app sends to fin) — the copy is a no-op there, both tables
    already agree.
-7. **OTA** — `eas update --branch production` (the channel is baked into the
+7. **Repair the money columns that were stored at sub-cent precision and the
+   one retention row withheld on sales tax (runtime audit 2026-09-06,
+   MISS-04) — before the OTA.** One-off data repair through the Supabase MCP
+   `execute_sql`; re-runnable, belongs to no schema version.
+
+   WHY: the code fix is compute-time only. `app/invoice.tsx` now rounds
+   subtotal/tax/total to cents and takes retainage off the WORK value, but the
+   rows already written keep their old numbers, and the Retention screen,
+   Payments, the A/R aging, the portal and the Stripe receipt all read the
+   STORED columns. The invoice screen shows a banner with a "Correct it"
+   button on any row it can prove was stored on the tax-inclusive basis
+   (`taxBasisRetentionOverhold`), so a GC who opens the invoice can repair it
+   himself — this step is for the rows nobody opens.
+
+   **Measured 2026-09-06 (read-only, production `nteoqhcswappxxjlpvap`):** 5
+   invoice rows carry sub-cent money. Four are tax/total only
+   (`4506919f` / `e032562f` / `cef340f4` tax_amount 6142.400000000001,
+   `da41d79a` total_due 48698.04825). One —
+   `d8f3e7a8-1e28-4038-8b09-a65d114dbf87`, Houston Phone Booth Ad #1 — also
+   holds retention on the taxed total: subtotal 75,595, retention_percent 5,
+   retention_amount 4,063.2312500000003 where the work basis is 3,779.75.
+   That row is status `sent` with due_date 2026-08-26, i.e. effectively
+   overdue, i.e. **locked** — which is why the banner needed a button and not
+   a "save it again" instruction. `aia_pay_apps` has 0 rows, so no sealed G702
+   disagrees with the corrected figures.
+
+   ```sql
+   -- Dry run 1 — sub-cent money. Expect the 5 rows named above.
+   select id, number, status, subtotal, tax_amount, total_due, retention_percent, retention_amount
+     from public.invoices
+    where subtotal::numeric        <> round(subtotal::numeric, 2)
+       or tax_amount::numeric      <> round(tax_amount::numeric, 2)
+       or total_due::numeric       <> round(total_due::numeric, 2)
+       or coalesce(retention_amount, 0)::numeric <> round(coalesce(retention_amount, 0)::numeric, 2);
+
+   -- Dry run 2 — retention on the taxed total. Expect exactly the one row
+   -- d8f3e7a8…, with would_become = 3779.75. (Verified read-only 2026-09-06.)
+   select id, number, retention_percent, retention_amount,
+          round((subtotal * retention_percent / 100)::numeric, 2) as would_become
+     from public.invoices
+    where retention_percent > 0
+      and retention_amount is not null
+      and abs(retention_amount::numeric
+              - round((total_due * retention_percent / 100)::numeric, 2)) <= 0.01
+      and abs(round((total_due * retention_percent / 100)::numeric, 2)
+              - round((subtotal * retention_percent / 100)::numeric, 2)) > 0.01;
+
+   -- (a) Retention withheld on the TAX-INCLUSIVE total → move it to the work
+   -- value. Deliberately narrow: only rows whose stored amount IS the taxed
+   -- figure to the cent, and only where the two bases actually differ. An
+   -- amount matching neither basis is left alone — unexplained is not the same
+   -- as tax-based, and this is the same predicate the screen uses.
+   update public.invoices
+      set retention_amount = round((subtotal * retention_percent / 100)::numeric, 2)
+    where retention_percent > 0
+      and retention_amount is not null
+      and abs(retention_amount::numeric
+              - round((total_due * retention_percent / 100)::numeric, 2)) <= 0.01
+      and abs(round((total_due * retention_percent / 100)::numeric, 2)
+              - round((subtotal * retention_percent / 100)::numeric, 2)) > 0.01;
+
+   -- (b) Whole cents on the three totals (and any retention not covered by (a)).
+   update public.invoices
+      set subtotal         = round(subtotal::numeric, 2),
+          tax_amount       = round(tax_amount::numeric, 2),
+          total_due        = round(total_due::numeric, 2),
+          retention_amount = round(retention_amount::numeric, 2)
+    where subtotal::numeric   <> round(subtotal::numeric, 2)
+       or tax_amount::numeric <> round(tax_amount::numeric, 2)
+       or total_due::numeric  <> round(total_due::numeric, 2)
+       or coalesce(retention_amount, 0)::numeric <> round(coalesce(retention_amount, 0)::numeric, 2);
+
+   -- Verify: both dry runs return 0 rows.
+   ```
+
+   ORDER: run (a) before (b). For the one affected row today either order
+   lands on 3,779.75 — checked read-only: after (b) the row reads
+   retention_amount 4,063.23 against a taxed basis of 4,063.23, so (a)'s
+   `<= 0.01` test still matches — but (a)'s predicate is written against the
+   stored columns as they stand and (b) rewrites two of them, so do not rely
+   on that holding for a row this runbook has not measured. Run both, in this
+   order, then re-run the dry run. Devices still on the old build keep writing
+   the tax-inclusive basis until they take the OTA, so re-run the pair once
+   every device is on the new build.
+
+8. **OTA** — `eas update --branch production` (the channel is baked into the
    production build profile; see CLAUDE.md).
-8. **Verify** — regenerate `supabase/schema.sql` from production, re-run
+9. **Verify** — regenerate `supabase/schema.sql` from production, re-run
    `bun run ship-check`, correct `DEPLOY-VERIFIED-2026-09-02.md` (the
    `field` role and `can_access_project` rows).
 

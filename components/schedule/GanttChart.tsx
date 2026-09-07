@@ -115,8 +115,8 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
       >
         <View style={s.ganttLabel}>
           <View style={s.ganttLabelIcons}>
-            {task.isMilestone && <Flag size={9} color={Colors.warning} strokeWidth={1.75} />}
-            {task.isCriticalPath && <GitBranch size={9} color={Colors.error} strokeWidth={1.75} />}
+            {task.isMilestone && <Flag size={9} color={Colors.warningLabel} strokeWidth={1.75} />}
+            {task.isCriticalPath && <GitBranch size={9} color={Colors.dangerLabel} strokeWidth={1.75} />}
             {weatherRisk && <CloudRain size={9} color="#F5A623" strokeWidth={1.75} />}
           </View>
           <Text style={s.ganttLabelText} numberOfLines={1}>{task.title}</Text>

@@ -22,7 +22,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, ChevronLeft as ChevLeft, Plus, X, Check,
   AlertTriangle, CircleCheck, Clock, Target, ListChecks, TrendingUp, TrendingDown,
-  Mail, Share2, Users,
+  Mail, Share2, Users, CalendarOff,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -51,6 +51,10 @@ import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import {
+  resolveScheduleAnchor,
+  UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
+} from '@/utils/scheduleOps';
 
 const haptic = () => { if (Platform.OS !== 'web') void Haptics.selectionAsync(); };
 
@@ -83,7 +87,11 @@ function LastPlannerInner() {
   const [projectId, setProjectId] = useState<string | null>(paramProjectId ?? null);
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
   const tasks: ScheduleTask[] = project?.schedule?.tasks ?? [];
-  const startDate = project?.schedule?.startDate ?? null;
+  // THE anchor rule (utils/scheduleOps): null when the schedule has none, and
+  // this screen refuses to plan rather than counting three lookahead weeks off
+  // today. It already passed null — what it did NOT do was say WHY, so an
+  // undated schedule with 20 tasks read as "Build a schedule first".
+  const startDate = resolveScheduleAnchor(project?.schedule).iso;
   // The lookahead's task windows must use the SAME working calendar as the
   // CPM engine, or a task's finish here disagrees with the Gantt's. Durations
   // are working-day counts; without this they were spanned as calendar days.
@@ -143,6 +151,28 @@ function LastPlannerInner() {
               ))}
             </ScrollView>
           )}
+        </View>
+      </View>
+    );
+  }
+
+  // Two DIFFERENT blockers, and they need different sentences: no tasks at all
+  // vs. a real 20-task plan that has never been given a start date. The second
+  // one is fixable in one tap and used to be reported as the first.
+  if (tasks.length > 0 && !startDate) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        {Header}
+        <View style={[styles.centered, { maxWidth: contentWidth }]}>
+          <EmptyState
+            icon={<CalendarOff size={36} color={t.warningLabel} strokeWidth={1.6} />}
+            accent={t.warningLabel}
+            title={UNDATED_SCHEDULE_TITLE}
+            message={`${UNDATED_SCHEDULE_BODY} Last Planner plans real calendar weeks, so it needs one before it can build a lookahead.`}
+            actionLabel={UNDATED_SCHEDULE_CTA}
+            onAction={() => router.push({ pathname: '/(tabs)/schedule', params: { projectId: project.id, focus: String(Date.now()) } } as never)}
+          />
         </View>
       </View>
     );

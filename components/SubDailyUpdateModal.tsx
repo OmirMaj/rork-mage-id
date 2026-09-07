@@ -286,7 +286,7 @@ function SubDailyUpdateModalImpl({
             {/* Blocker */}
             <View style={styles.section}>
               <View style={styles.labelRow}>
-                <AlertTriangle size={11} color={Colors.warning} strokeWidth={1.75} />
+                <AlertTriangle size={11} color={Colors.warningLabel} strokeWidth={1.75} />
                 <Text style={styles.label}>Blocker (optional)</Text>
               </View>
               <TextInput
@@ -438,7 +438,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: Colors.warning + '60',
     backgroundColor: Colors.warning + '08',
   },
-  blockerHint: { fontSize: Type.caption2.fontSize, color: Colors.warning, fontStyle: 'italic', marginTop: 4 },
+  blockerHint: { fontSize: Type.caption2.fontSize, color: Colors.warningLabel, fontStyle: 'italic', marginTop: 4 },
 
   // Photos
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

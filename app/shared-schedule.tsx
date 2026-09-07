@@ -280,7 +280,7 @@ export default function SharedScheduleScreen() {
       {isSubMode ? (
         subTasks.length === 0 ? (
           <View style={[styles.body, styles.centered]}>
-            <AlertCircle size={28} color={Colors.warning} strokeWidth={1.75} />
+            <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.title}>No tasks assigned to {subName}</Text>
             <Text style={styles.body}>
               The schedule was shared with you but no tasks are tagged for {subName}. Reach out to the GC if you think this is wrong.
@@ -329,8 +329,8 @@ export default function SharedScheduleScreen() {
                       activeOpacity={0.85}
                       testID={`sub-reschedule-${task.id}`}
                     >
-                      <CalendarClock size={14} color={Colors.warning} strokeWidth={1.75} />
-                      <Text style={[styles.subBtnText, { color: Colors.warning }]}>Reschedule</Text>
+                      <CalendarClock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+                      <Text style={[styles.subBtnText, { color: Colors.warningLabel }]}>Reschedule</Text>
                     </TouchableOpacity>
                   </View>
 

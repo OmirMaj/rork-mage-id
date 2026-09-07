@@ -19,6 +19,7 @@ import type { Invoice, Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatMoney } from '@/utils/formatters';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // HEALTH-F5: sign-correct money via the one formatter — no local Math.abs copies.
 const formatCurrency = (n: number): string => formatMoney(n);
@@ -100,7 +101,7 @@ export default function RetentionScreen() {
           title: scopedProject ? `${scopedProject.name} · Retention` : 'Retention',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
-          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }}
       />
 
@@ -112,7 +113,7 @@ export default function RetentionScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <Lock size={28} color={Colors.warning} strokeWidth={1.75} />
+            <Lock size={28} color={Colors.warningLabel} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroAmount}>{formatCurrencyPrecise(totals.totalPending)}</Text>
           <Text style={styles.heroLabel}>Retention Pending Release</Text>
@@ -127,7 +128,7 @@ export default function RetentionScreen() {
         {/* Metrics */}
         <View style={styles.metricsRow}>
           <View style={[styles.metricCard, { borderColor: Colors.warning + '40' }]}>
-            <Lock size={14} color={Colors.warning} strokeWidth={1.75} />
+            <Lock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalHeld)}</Text>
             <Text style={styles.metricLabel}>Total Held</Text>
           </View>
@@ -212,8 +213,8 @@ export default function RetentionScreen() {
                     <Text style={styles.detailValue}>{formatCurrencyPrecise(pr.totalContract)}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={[styles.detailLabel, { color: Colors.warning }]}>Retention Held</Text>
-                    <Text style={[styles.detailValue, { color: Colors.warning }]}>{formatCurrencyPrecise(pr.retentionHeld)}</Text>
+                    <Text style={[styles.detailLabel, { color: Colors.warningLabel }]}>Retention Held</Text>
+                    <Text style={[styles.detailValue, { color: Colors.warningLabel }]}>{formatCurrencyPrecise(pr.retentionHeld)}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={[styles.detailLabel, { color: themeColors.success }]}>Released</Text>
@@ -306,7 +307,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   projectName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   projectMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   projectAmountWrap: { alignItems: 'flex-end' as const },
-  projectAmount: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.warning },
+  projectAmount: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.warningLabel },
   projectAmountLabel: { fontSize: 10, color: t.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
 
   progressBarWrap: { paddingHorizontal: 14, paddingBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },

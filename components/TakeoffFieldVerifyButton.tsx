@@ -133,7 +133,7 @@ function TakeoffFieldVerifyButtonImpl({
       ? existing.measuredQuantity - aiQuantity : undefined;
     const tone = delta == null ? themeColors.textMuted
       : Math.abs(delta) / Math.max(1, aiQuantity) < 0.05 ? themeColors.success
-      : Colors.warning;
+      : Colors.warningLabel;
     return (
       <>
         <TouchableOpacity

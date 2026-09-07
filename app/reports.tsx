@@ -291,7 +291,7 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
 
       <View style={styles.bandRow}>
         <Band color={themeColors.success} label=" ≥ 12% (good)" />
-        <Band color={Colors.warning} label=" 5–11% (watch)" />
+        <Band color={Colors.warningLabel} label=" 5–11% (watch)" />
         <Band color={themeColors.danger}   label=" < 5% (risk)" />
       </View>
 
@@ -452,7 +452,7 @@ function marginTone(pct: number, t: ThemeColors) {
 }
 function marginTextTone(pct: number, t: ThemeColors) {
   if (pct >= 12) return { color: t.success };
-  if (pct >=  5) return { color: Colors.warning };
+  if (pct >=  5) return { color: Colors.warningLabel };
   return                 { color: t.danger };
 }
 function healthTone(h: 'green' | 'yellow' | 'red', t: ThemeColors) {

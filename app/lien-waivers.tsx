@@ -324,7 +324,7 @@ function LienWaiversScreenInner() {
         )}
 
         <View style={styles.disclaimer}>
-          <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+          <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.disclaimerText}>
             Generic 4-type waivers cover ~38 states. CA, TX, FL, GA, AZ require state-specific
             statutory forms — consult an attorney for those.
@@ -441,7 +441,7 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
         )}
         {(waiver.status === 'requested' || waiver.status === 'signed') && (
           <TouchableOpacity style={styles.actionGhost} onPress={onMarkVoid}>
-            <XCircle size={13} color={Colors.warning} strokeWidth={1.75} />
+            <XCircle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.actionGhostText}>Void</Text>
           </TouchableOpacity>
         )}
@@ -640,7 +640,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
   actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   actionGhost: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
-  actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning },
+  actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warningLabel },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },

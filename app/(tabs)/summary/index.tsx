@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { FolderOpen, ChevronRight, Briefcase } from 'lucide-react-native';
+import { FolderOpen, ChevronRight, Briefcase, CalendarOff } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -16,14 +16,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton, SkeletonCard } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { parseCalendarDay } from '@/utils/calendarDate';
-import { scheduleDayNumberFor } from '@/utils/scheduleOps';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { generateForecast } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import {
-  computeWeekLoad, projectColor,
-  type AttentionItem, type TodayTask,
+  computeTodayTasks, computeWeekLoad,
+  type AttentionItem,
 } from '@/utils/summaryBriefing';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { BriefingHero } from '@/components/summary/BriefingHero';
@@ -59,45 +57,17 @@ export default function SummaryScreen() {
     [projects],
   );
 
-  // "Today on site" — computed inline (not via summaryBriefing.computeTodayTasks)
-  // so membership matches the Projects/Home tab's "TODAY ON SITE" strip EXACTLY.
-  // Both use the canonical 1-indexed working-day model (scheduleDayNumberFor
-  // + inclusive last day = startDay + durationDays - 1). Previously Summary used
-  // a 0-indexed rounded calendar index with an off-by-one-long inclusive end,
-  // so the same project/day could appear on one tab and not the other.
-  const today = useMemo<TodayTask[]>(() => {
-    const now = new Date();
-    const out: TodayTask[] = [];
-    for (const p of active) {
-      const tasks = p.schedule?.tasks;
-      if (!tasks || tasks.length === 0) continue;
-      const baseIso = p.schedule?.startDate || p.createdAt;
-      // UX-F1: same fix as app/(tabs)/(home)/index.tsx — a bare startDate
-      // must resolve to LOCAL midnight, not Date.parse's UTC midnight.
-      const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
-      if (!Number.isFinite(base.getTime())) continue;
-      // B4 review item 3: same basis as Home and the daily report —
-      // scheduleDayNumberFor with the schedule's site closures (see the note
-      // in app/(tabs)/(home)/index.tsx).
-      const todayDayNumber = scheduleDayNumberFor(base, now, p.schedule?.workingDaysPerWeek, p.schedule?.nonWorkingDates);
-      for (const t of tasks) {
-        if (t.status === 'done') continue;
-        const start = Math.max(1, t.startDay ?? 1);
-        const dur = Math.max(0, t.durationDays ?? 0);
-        if (todayDayNumber >= start && todayDayNumber <= start + dur - 1) {
-          out.push({
-            projectId: p.id,
-            projectName: p.name,
-            projectColor: projectColor(p.id),
-            taskTitle: t.title,
-            isCritical: !!t.isCriticalPath,
-            context: (t.crew || t.assignedSubName || '').trim(),
-          });
-        }
-      }
-    }
-    return out.sort((a, b) => Number(b.isCritical) - Number(a.isCritical));
-  }, [active]);
+  // "Today on site" and "This week" run the SAME rule, from the SAME module
+  // (utils/summaryBriefing, which resolves the anchor through
+  // utils/scheduleOps.resolveScheduleAnchor). This used to be a private inline
+  // copy here — kept inline "so membership matches Home EXACTLY" — while THIS
+  // WEEK below ran a raw-calendar-day rule and BOTH anchored an undated
+  // schedule at project.createdAt. On 2026-09-06 that reported an empty day and
+  // an empty week for The Henderson Residence (20 open tasks) and Watermark 9F
+  // (15), with "schedule at risk" two cards below (runtime audit MISS-01).
+  // An undated schedule is now absent from both AND named in `week.undated`,
+  // so a zero here means "no work", never "we could not tell".
+  const today = useMemo(() => computeTodayTasks(active), [active]);
   const week = useMemo(() => computeWeekLoad(active), [active]);
   // THE canonical needs-attention set (useBrainWatch) — the same items +
   // count the home Brain Watch card and the tab badge show, mapped to this
@@ -169,6 +139,18 @@ export default function SummaryScreen() {
     router.push({ pathname: '/project-detail', params: { id: projectId } } as any);
   }, [router]);
 
+  // "Set start date" — the fix for an undated schedule lives on the schedule
+  // screen (its banner opens the picker). `focus` is the nonce
+  // MobileScheduleScreen uses to tell a fresh navigation from sticky tab
+  // params, so arriving here always selects the project the row names.
+  const openSchedule = useCallback((projectId: string) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: '/(tabs)/schedule',
+      params: { projectId, focus: String(Date.now()) },
+    } as any);
+  }, [router]);
+
   const onAttention = useCallback((item: AttentionItem) => {
     if (!item.route) return; // guard: never push an empty route into a dead-end
     if (item.params) router.push({ pathname: item.route, params: item.params } as any);
@@ -231,6 +213,41 @@ export default function SummaryScreen() {
         />
         <TodayOnSite tasks={today} jobCount={jobCount} onPressTask={openProject} />
         <WeekAheadStrip week={week} />
+        {/* An undated schedule has real day numbers and no calendar position,
+            so it cannot appear in TODAY or THIS WEEK above. Saying that
+            plainly is the whole point: without this row, "Nothing scheduled
+            on site today" reads as "no work" on a job with 20 open tasks
+            (runtime audit MISS-01). One tap goes to the schedule, whose
+            banner opens the start-date picker. */}
+        {week.undated.length > 0 && (
+          <View style={styles.undatedCard} testID="summary-undated-schedules">
+            <View style={styles.undatedHead}>
+              <CalendarOff size={15} color={themeColors.warningLabel} strokeWidth={1.9} />
+              <Text style={styles.undatedTitle}>
+                {week.undated.length === 1
+                  ? '1 schedule has no start date'
+                  : `${week.undated.length} schedules have no start date`}
+              </Text>
+            </View>
+            <Text style={styles.undatedBody}>
+              Their tasks have day numbers but no calendar days, so they are not counted above. Set a start date to place them.
+            </Text>
+            {week.undated.map((u) => (
+              <TouchableOpacity
+                key={u.projectId}
+                style={styles.undatedRow}
+                activeOpacity={0.75}
+                onPress={() => openSchedule(u.projectId)}
+                accessibilityRole="button"
+                accessibilityLabel={`Set a start date for ${u.projectName}`}
+              >
+                <Text style={styles.undatedName} numberOfLines={1}>{u.projectName}</Text>
+                <Text style={styles.undatedCount}>{u.openTasks} open</Text>
+                <ChevronRight size={14} color={themeColors.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
         <MoneyStrip
           budget={budget}
           outstanding={outstanding}
@@ -288,4 +305,31 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     flex: 1,
   },
+  // Undated-schedule disclosure. Warning-tinted, not danger: nothing is
+  // broken, a field is missing and the user can fill it in one tap.
+  undatedCard: {
+    backgroundColor: t.warningSoft,
+    borderWidth: 1,
+    borderColor: t.warningSoft,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: Tokens.radius.md,
+    paddingVertical: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.sm,
+  },
+  undatedHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  undatedTitle: { ...Type.bodyCompactEmphasized, color: t.warningLabel, flex: 1 },
+  undatedBody: { ...Type.caption1, color: t.textSecondary, marginTop: 4 },
+  undatedRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: t.surface,
+  },
+  undatedName: { ...Type.bodyCompactEmphasized, color: t.text, flex: 1 },
+  undatedCount: { ...Type.caption1, color: t.textSecondary },
 });

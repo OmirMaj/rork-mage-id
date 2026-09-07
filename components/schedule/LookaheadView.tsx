@@ -162,7 +162,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
               <Text style={s.taskCardTitle} numberOfLines={1}>{task.title}</Text>
               {isBlocked && (
                 <View style={s.blockedTag}>
-                  <AlertTriangle size={9} color={Colors.error} strokeWidth={1.75} />
+                  <AlertTriangle size={9} color={Colors.dangerLabel} strokeWidth={1.75} />
                   <Text style={s.blockedTagText}>BLOCKED</Text>
                 </View>
               )}
@@ -298,7 +298,7 @@ function LookaheadView({
                   {/* Per-day provenance chip — says WHICH days are invented, so
                       a part-live / part-padded week can't be read as all-real. */}
                   <SimulatedDayChip source={f.source} />
-                  {isRisky && <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />}
+                  {isRisky && <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />}
                 </View>
               );
             })}
@@ -545,7 +545,7 @@ const s = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: Tokens.radius.xs,
   },
-  blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: Colors.error },
+  blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: Colors.dangerLabel },
   taskCardMeta: { flexDirection: 'row', gap: 10 },
   taskCardCrewText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   taskCardDayText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },

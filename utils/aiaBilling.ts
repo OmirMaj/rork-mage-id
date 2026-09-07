@@ -1,14 +1,48 @@
-import { Platform } from 'react-native';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
+// react-native / expo-print / expo-sharing are imported LAZILY inside
+// generateAIAPayAppPDF (the same pattern as utils/wipExport.ts). Keeping them
+// off the module's top level is what lets computeAIATotals and
+// seedAIAPayApplicationFromInvoice be imported and unit-tested by
+// scripts/validate-invoice-billing.ts under bun — a top-level
+// `import { Platform } from 'react-native'` makes the whole module unloadable
+// outside Metro, and money math this app depends on must be testable.
 import type { CompanyBranding, Project, Invoice, ChangeOrder } from '@/types';
+// roundCents / retainageOnWorkValue are the app's shared money math and live
+// in utils/invoiceBilling beside netBalanceDue — see MISS-04 there for why
+// retainage is withheld on the work value and why the basis is not clamped.
+import { roundCents, retainageOnWorkValue } from '@/utils/invoiceBilling';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+
+// Re-exported so the pay-app module keeps offering the retainage rule it is the
+// reference implementation of, and existing importers (utils/portalSnapshot)
+// need no change. New callers should import from utils/invoiceBilling, which
+// costs them nothing beyond the arithmetic.
+export { roundCents, retainageOnWorkValue };
 
 // ──────────────────────────────────────────────────────────────────────────────
 // AIA G702/G703 progress pay application generator
 // G702 = cover summary (totals, retention, amount due this period)
 // G703 = continuation sheet (schedule of values line-by-line with % complete)
 // ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The retainage rate a pay application seeded from `invoice` must start at.
+ *
+ * MISS-05: this used to fall back to a hardcoded 10% whenever the invoice
+ * carried no percentage — and app/invoice.tsx persisted a deliberate 0% as
+ * `undefined`, so *every* no-retainage invoice seeded a G702 withholding 10%
+ * and understating "current payment due" by roughly that much.
+ *
+ * A missing percentage and a stored 0 are treated the SAME here, and both mean
+ * 0: an invoice the app has no retainage figure for is not evidence that the
+ * contract holds any, and inventing a rate is what MISS-05 was. The screen's
+ * chips are there for the GC to enter the contract's actual rate, and
+ * app/aia-pay-app.tsx says on the certificate where the rate came from.
+ */
+export function retainagePercentForInvoice(invoice: Pick<Invoice, 'retentionPercent'>): number {
+  const pct = invoice.retentionPercent;
+  if (pct == null || !Number.isFinite(pct)) return 0;
+  return Math.max(0, Math.min(100, pct));
+}
 
 export interface AIASOVLine {
   id: string;
@@ -78,23 +112,27 @@ function fmtDate(iso?: string): string {
  * Compute the derived totals for a G702 cover from the SOV lines.
  */
 export function computeAIATotals(app: AIAPayApplication) {
-  const totalCompletedAndStored = app.lines.reduce(
+  const totalCompletedAndStored = roundCents(app.lines.reduce(
     (s, l) => s + l.fromPreviousApp + l.thisPeriod + l.materialsPresentlyStored,
     0,
-  );
-  const totalScheduledValue = app.lines.reduce((s, l) => s + l.scheduledValue, 0);
-  const retainageOnCompleted = app.lines.reduce(
-    (s, l) => s + (l.fromPreviousApp + l.thisPeriod) * (l.retainagePercent / 100),
+  ));
+  const totalScheduledValue = roundCents(app.lines.reduce((s, l) => s + l.scheduledValue, 0));
+  // Sum retainage PER LINE at cent precision, not once over an unrounded sum:
+  // the G703 continuation sheet prints a per-line retainage column, and the
+  // G702 cover has to equal the column it says it came from. Rounding the sum
+  // instead of the lines leaves the two sheets a cent apart.
+  const retainageOnCompleted = roundCents(app.lines.reduce(
+    (s, l) => s + retainageOnWorkValue(l.fromPreviousApp + l.thisPeriod, l.retainagePercent),
     0,
-  );
-  const retainageOnStored = app.lines.reduce(
-    (s, l) => s + l.materialsPresentlyStored * (l.retainagePercent / 100),
+  ));
+  const retainageOnStored = roundCents(app.lines.reduce(
+    (s, l) => s + retainageOnWorkValue(l.materialsPresentlyStored, l.retainagePercent),
     0,
-  );
-  const totalRetainage = retainageOnCompleted + retainageOnStored;
-  const totalEarnedLessRetainage = totalCompletedAndStored - totalRetainage;
-  const currentPaymentDue = totalEarnedLessRetainage - app.lessPreviousCertificates;
-  const balanceToFinish = app.contractSumToDate - totalEarnedLessRetainage;
+  ));
+  const totalRetainage = roundCents(retainageOnCompleted + retainageOnStored);
+  const totalEarnedLessRetainage = roundCents(totalCompletedAndStored - totalRetainage);
+  const currentPaymentDue = roundCents(totalEarnedLessRetainage - app.lessPreviousCertificates);
+  const balanceToFinish = roundCents(app.contractSumToDate - totalEarnedLessRetainage);
   const percentComplete = totalScheduledValue > 0
     ? (totalCompletedAndStored / totalScheduledValue) * 100
     : 0;
@@ -130,18 +168,21 @@ export function seedAIAPayApplicationFromInvoice(
     ownerName?: string;
   },
 ): AIAPayApplication {
-  const retainagePercent = opts?.retainagePercent ?? invoice.retentionPercent ?? 10;
-  const originalContractSum = effectiveEstimateTotal(project);
-  const netChangeByCO = approvedCOs.reduce((s, co) => s + co.changeAmount, 0);
-  const contractSumToDate = originalContractSum + netChangeByCO;
+  // MISS-05: carry the invoice's ACTUAL retainage rate — including a
+  // deliberate 0%. See retainagePercentForInvoice for why there is no 10%
+  // fallback any more.
+  const retainagePercent = opts?.retainagePercent ?? retainagePercentForInvoice(invoice);
+  const originalContractSum = roundCents(effectiveEstimateTotal(project));
+  const netChangeByCO = roundCents(approvedCOs.reduce((s, co) => s + co.changeAmount, 0));
+  const contractSumToDate = roundCents(originalContractSum + netChangeByCO);
 
   const lines: AIASOVLine[] = invoice.lineItems.map((li, i) => ({
     id: li.id,
     itemNo: String(i + 1),
     description: [li.name, li.description].filter(Boolean).join(' — '),
-    scheduledValue: li.total,
+    scheduledValue: roundCents(li.total),
     fromPreviousApp: 0,
-    thisPeriod: li.total,
+    thisPeriod: roundCents(li.total),
     materialsPresentlyStored: 0,
     retainagePercent,
   }));
@@ -161,7 +202,7 @@ export function seedAIAPayApplicationFromInvoice(
     netChangeByCO,
     contractSumToDate,
     retainagePercent,
-    lessPreviousCertificates: opts?.lessPreviousCertificates ?? 0,
+    lessPreviousCertificates: roundCents(opts?.lessPreviousCertificates ?? 0),
     lines,
     notes: invoice.notes,
   };
@@ -186,8 +227,13 @@ export function buildAIAPayAppHtml(
     const pct = l.scheduledValue > 0
       ? (totalCompletedAndStored / l.scheduledValue) * 100
       : 0;
-    const balanceToFinish = l.scheduledValue - totalCompletedAndStored;
-    const retainage = totalCompletedAndStored * (l.retainagePercent / 100);
+    const balanceToFinish = roundCents(l.scheduledValue - totalCompletedAndStored);
+    // Split the same way computeAIATotals does (completed work + stored
+    // material, each rounded) so this column foots to G702 line 5 exactly.
+    const retainage = roundCents(
+      retainageOnWorkValue(totalCompleted, l.retainagePercent)
+      + retainageOnWorkValue(l.materialsPresentlyStored, l.retainagePercent),
+    );
     return `
       <tr class="${i % 2 === 0 ? 'alt' : ''}">
         <td class="ctr">${escapeHtml(l.itemNo)}</td>
@@ -206,17 +252,16 @@ export function buildAIAPayAppHtml(
 
   // G703 footer totals row
   const sumCol = (key: 'scheduledValue' | 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored') =>
-    app.lines.reduce((s, l) => s + (l[key] as number), 0);
+    roundCents(app.lines.reduce((s, l) => s + (l[key] as number), 0));
 
   const g703TotalScheduled = sumCol('scheduledValue');
   const g703TotalFromPrev = sumCol('fromPreviousApp');
   const g703TotalThisPeriod = sumCol('thisPeriod');
   const g703TotalStored = sumCol('materialsPresentlyStored');
-  const g703TotalCompletedStored = g703TotalFromPrev + g703TotalThisPeriod + g703TotalStored;
-  const g703TotalRetainage = app.lines.reduce(
-    (s, l) => s + (l.fromPreviousApp + l.thisPeriod + l.materialsPresentlyStored) * (l.retainagePercent / 100),
-    0,
-  );
+  const g703TotalCompletedStored = roundCents(g703TotalFromPrev + g703TotalThisPeriod + g703TotalStored);
+  // Same per-line, cent-rounded split as computeAIATotals, so the continuation
+  // sheet's retainage column total IS G702 line 5's "Total Retainage".
+  const g703TotalRetainage = totals.totalRetainage;
 
   return `<!DOCTYPE html>
 <html>
@@ -568,7 +613,7 @@ export function buildAIAPayAppHtml(
         <td class="num">${fmt(g703TotalStored)}</td>
         <td class="num">${fmt(g703TotalCompletedStored)}</td>
         <td class="num">${totals.percentComplete.toFixed(1)}%</td>
-        <td class="num">${fmt(g703TotalScheduled - g703TotalCompletedStored)}</td>
+        <td class="num">${fmt(roundCents(g703TotalScheduled - g703TotalCompletedStored))}</td>
         <td class="num">${fmt(g703TotalRetainage)}</td>
       </tr>
     </tfoot>
@@ -595,6 +640,7 @@ export async function generateAIAPayAppPDF(
   const html = buildAIAPayAppHtml(app, branding);
   const title = `${app.projectName} · Pay App #${app.applicationNumber}`;
 
+  const { Platform } = await import('react-native');
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') {
       const newWindow = window.open('', '_blank');
@@ -608,6 +654,8 @@ export async function generateAIAPayAppPDF(
   }
 
   try {
+    const Print = await import('expo-print');
+    const Sharing = await import('expo-sharing');
     const { uri } = await Print.printToFileAsync({ html, base64: false });
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {

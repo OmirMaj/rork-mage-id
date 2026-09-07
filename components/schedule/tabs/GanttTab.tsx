@@ -136,7 +136,18 @@ export function GanttTab({
         />
         <Pressable
           onPress={onAddTask}
-          style={[styles.fab, { bottom: insets.bottom + 70 }]}
+          // Runtime audit 2026-09-06, VIS-02. This sat at `insets.bottom + 70`
+          // — byte-for-byte the global Brain FAB's own offset
+          // (components/brain/BrainFab.tsx). schedule-pro is a ROOT stack
+          // route, so both read the same raw home-indicator inset: the Brain
+          // FAB's 56pt circle spans x[20,76] y[70,126] and this 44pt one spans
+          // x[16,60] y[70,114], i.e. entirely inside it. The Brain FAB is
+          // mounted above the router, so it painted over the "+" and ate every
+          // tap meant for "add task" on the Pro scheduler's phone view.
+          // Stacked clear of it instead: 70 (its base) + 56 (its height) + 12
+          // gap = 138, the same convention components/UniversalMicButton.tsx
+          // already uses on project-detail.
+          style={[styles.fab, { bottom: insets.bottom + 70 + 56 + 12 }]}
           testID="gantt-phone-fab"
           accessibilityLabel="Add task"
           accessibilityRole="button"

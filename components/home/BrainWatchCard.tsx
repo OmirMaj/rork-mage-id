@@ -53,7 +53,7 @@ const MAX_VISIBLE = 6;
 // Critical → danger, High → warning (amber), Medium → textSecondary (neutral).
 function severityColor(severity: AttnSeverity, t: ThemeColors): string {
   if (severity === 'critical') return t.danger;
-  if (severity === 'high') return Colors.warning; // theme-aware orange from Colors
+  if (severity === 'high') return Colors.warningLabel; // theme-aware orange from Colors
   return t.textSecondary;
 }
 

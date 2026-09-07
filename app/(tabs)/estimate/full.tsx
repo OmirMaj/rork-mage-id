@@ -23,7 +23,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
+import { CATEGORY_META, getLivePrices, resolvePricingMarket, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useMaterialCart, type MaterialCartItem, type LaborCartItem, type AssemblyCartItem } from '@/contexts/MaterialCartContext';
@@ -178,13 +178,22 @@ export default function EstimateScreen() {
     setAssemblyCart,
   } = useMaterialCart();
 
-  const locationMultiplier = useMemo(() => getRegionMultiplier(settings.location), [settings.location]);
-  const regionLabel = useMemo(() => {
-    // Pick the region whose multiplier matches. Ties (both ~1.00) are rare and
-    // fall through to "National Avg" which is fine.
-    const match = REGIONAL_FACTORS.find(r => Math.abs(r.multiplier - locationMultiplier) < 0.001);
-    return match?.label ?? 'National Avg';
-  }, [locationMultiplier]);
+  // ONE resolver, shared with the Materials tab. Both screens price the same
+  // cart, so a contractor who added a row at "Chicago ×1.12" on Materials must
+  // not find it re-priced here — which is what happened while getRegionMultiplier
+  // owned a second, disagreeing location table (see its note in
+  // constants/materials.ts).
+  //
+  // The label comes OUT of the resolver rather than being reverse-engineered
+  // from the multiplier. The old code searched REGIONAL_FACTORS for a factor
+  // numerically equal to the multiplier and fell back to "National Avg" when
+  // nothing matched — so any market whose factor is not one of those twelve
+  // (every metro: Chicago 1.12, Houston 0.95, Boston 1.20 …) would have
+  // printed "National Avg ×1.12": a stated market the user is not in, next to
+  // the uplift proving he is.
+  const market = useMemo(() => resolvePricingMarket(settings.location), [settings.location]);
+  const locationMultiplier = market.multiplier;
+  const regionLabel = market.label;
 
   const { receipts } = useMaterialReceipts();
   // Self-perform labor (D6): crew hours × configured loaded rates ground
@@ -1264,7 +1273,7 @@ export default function EstimateScreen() {
                 </View>
                 {item.pricingModel === 'regional_adjusted' && (
                   <View style={styles.rsMeansBadge}>
-                    <Database size={10} color={Colors.info} strokeWidth={1.75} />
+                    <Database size={10} color={Colors.infoLabel} strokeWidth={1.75} />
                     <Text style={styles.rsMeansBadgeText}>Regional</Text>
                   </View>
                 )}
@@ -1305,7 +1314,7 @@ export default function EstimateScreen() {
             <View style={styles.materialSignalGroup}>
               {item.region && (
                 <View style={styles.materialSignalChip}>
-                  <MapPin size={10} color={Colors.info} strokeWidth={1.75} />
+                  <MapPin size={10} color={Colors.infoLabel} strokeWidth={1.75} />
                   <Text style={styles.materialSignalText}>{item.region}</Text>
                 </View>
               )}
@@ -1567,7 +1576,17 @@ export default function EstimateScreen() {
             <Text style={styles.headerTitle}>Estimator</Text>
             <View style={styles.liveRow}>
               <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />
-              <Text style={styles.liveLabel}>{formatNumber(totalMaterialCount)} materials · live</Text>
+              {/* Was "{n} materials · live". Nothing about this catalog is
+                  live: it is the same dated book the Materials tab now labels
+                  with its compile date, priced through getCatalogPrices, with
+                  no feed and no network call behind it. The desktop header
+                  above already reads "{n} materials"; this is the phone one
+                  saying the same true thing. (The pulsing dot beside it, and
+                  the AI supplier-search copy further down — "Search Live",
+                  "real-time pricing", sourceLabel 'AI Live Price' — are the
+                  Estimate screen's own to answer for; they make a claim about
+                  an AI call, not about this catalog.) */}
+              <Text style={styles.liveLabel}>{formatNumber(totalMaterialCount)} materials</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
@@ -1906,7 +1925,7 @@ export default function EstimateScreen() {
           })}
           {aiSearchResults.length > 0 && aiSearchResults[0].relatedItems.length > 0 && (
             <View style={aiStyles.aiRelatedRow}>
-              <MageAIMark size={12} color={Colors.info} />
+              <MageAIMark size={12} color={Colors.infoLabel} />
               <Text style={aiStyles.aiRelatedText}>Related: {aiSearchResults[0].relatedItems.slice(0, 4).join(', ')}</Text>
             </View>
           )}
@@ -1925,7 +1944,7 @@ export default function EstimateScreen() {
         <View style={styles.opportunityPanel} testID="opportunity-panel">
           <View style={styles.opportunityHeader}>
             <View style={styles.opportunityTitleWrap}>
-              <Clock3 size={14} color={Colors.info} strokeWidth={1.75} />
+              <Clock3 size={14} color={Colors.infoLabel} strokeWidth={1.75} />
               <Text style={styles.opportunityTitle}>Blindspot Radar</Text>
             </View>
             <Text style={styles.opportunitySubtitle}>Live basket</Text>
@@ -1983,7 +2002,7 @@ export default function EstimateScreen() {
             <View style={styles.priceBlock}>
               <Text style={styles.priceLabel}>Source</Text>
               <View style={styles.rsMeansBadge}>
-                <Database size={10} color={Colors.info} strokeWidth={1.75} />
+                <Database size={10} color={Colors.infoLabel} strokeWidth={1.75} />
                 <Text style={styles.rsMeansBadgeText}>BLS Data</Text>
               </View>
             </View>
@@ -1995,7 +2014,7 @@ export default function EstimateScreen() {
                 <Text style={styles.materialSignalText}>{item.crew}</Text>
               </View>
               <View style={styles.materialSignalChip}>
-                <Clock3 size={10} color={Colors.info} strokeWidth={1.75} />
+                <Clock3 size={10} color={Colors.infoLabel} strokeWidth={1.75} />
                 <Text style={styles.materialSignalText}>{item.dailyOutput}</Text>
               </View>
               {item.wageType !== 'open_shop' && (
@@ -2145,7 +2164,7 @@ export default function EstimateScreen() {
           <View style={styles.materialFooterRow}>
             <View style={styles.materialSignalGroup}>
               <View style={[styles.categoryBadge, { backgroundColor: Colors.info + '15' }]}>
-                <Text style={[styles.categoryBadgeText, { color: Colors.info }]}>{item.category}</Text>
+                <Text style={[styles.categoryBadgeText, { color: Colors.infoLabel }]}>{item.category}</Text>
               </View>
               {item.defaultSqft > 0 && (
                 <View style={styles.materialSignalChip}>
@@ -2716,8 +2735,8 @@ export default function EstimateScreen() {
                 <Text style={[dStyles.summaryActionText, { color: Colors.primary }]}>Export PDF</Text>
               </TouchableOpacity>
               <TouchableOpacity accessibilityRole="button" style={[dStyles.summaryActionBtn, { backgroundColor: Colors.info + '12' }]} onPress={() => setShowComparison(true)} activeOpacity={0.85}>
-                <GitCompare size={14} color={Colors.info} strokeWidth={1.75} />
-                <Text style={[dStyles.summaryActionText, { color: Colors.info }]}>Compare</Text>
+                <GitCompare size={14} color={Colors.infoLabel} strokeWidth={1.75} />
+                <Text style={[dStyles.summaryActionText, { color: Colors.infoLabel }]}>Compare</Text>
               </TouchableOpacity>
             </View>
 
@@ -3607,7 +3626,7 @@ export default function EstimateScreen() {
                       onPress={() => handleConfirmLink('merge')}
                       activeOpacity={0.85}
                     >
-                      <Layers size={16} color={Colors.info} strokeWidth={1.75} />
+                      <Layers size={16} color={Colors.infoLabel} strokeWidth={1.75} />
                       <Text style={styles.confirmMergeBtnText}>Merge Items</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -3757,8 +3776,8 @@ export default function EstimateScreen() {
                 })()}
                 {selectedAssembly.notes ? (
                   <View style={styles.popupBulkBanner}>
-                    <Info size={14} color={Colors.info} strokeWidth={1.75} />
-                    <Text style={[styles.popupBulkText, { color: Colors.info }]}>{selectedAssembly.notes}</Text>
+                    <Info size={14} color={Colors.infoLabel} strokeWidth={1.75} />
+                    <Text style={[styles.popupBulkText, { color: Colors.infoLabel }]}>{selectedAssembly.notes}</Text>
                   </View>
                 ) : null}
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddAssembly} activeOpacity={0.85}>
@@ -4348,7 +4367,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   resultsMicroCopy: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.info,
+    color: Colors.infoLabel,
     fontWeight: '600' as const,
   },
   listContent: {
@@ -4460,7 +4479,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   rsMeansBadgeText: {
     fontSize: 10,
     fontWeight: '700' as const,
-    color: Colors.info,
+    color: Colors.infoLabel,
   },
   supplierRow: {
     flexDirection: 'row',
@@ -4670,7 +4689,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   markupBannerText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.info,
+    color: Colors.infoLabel,
     lineHeight: 18,
   },
   cartList: {
@@ -5403,7 +5422,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   confirmMergeBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.info,
+    color: Colors.infoLabel,
   },
   confirmReplaceBtn: {
     flex: 1,
@@ -5942,7 +5961,7 @@ const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   aiRelatedText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.info,
+    color: Colors.infoLabel,
     fontWeight: '500' as const,
     flex: 1,
   },

@@ -63,7 +63,7 @@ export default function BriefScreen() {
 
 function severityColor(severity: BriefSeverity | undefined, t: ThemeColors): string {
   if (severity === 'critical') return t.danger;
-  if (severity === 'high') return Colors.warning;
+  if (severity === 'high') return Colors.warningLabel;
   return t.textSecondary;
 }
 

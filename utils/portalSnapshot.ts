@@ -14,7 +14,11 @@ import type {
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
-import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+import { roundCents } from '@/utils/aiaBilling';
+import {
+  getEffectiveInvoiceStatus, getOutstandingBalance, getInvoicedToDate,
+  getRetentionHeld, getPaidToDate,
+} from '@/utils/projectFinancials';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { computeProjectProgress } from '@/utils/projectProgress';
 import { addWorkingDays } from '@/utils/scheduleEngine';
@@ -101,7 +105,33 @@ function renderSerialized<T>(item: T & { portalState?: PortalState }, serialize:
 //   court (unsigned contract, pending COs, overdue selections, unpaid
 //   invoices), so the portal shows what they're holding up instead of a
 //   single hard-coded banner priority.
-export const PORTAL_SNAPSHOT_VERSION = 10;
+// v11 (PORTAL-01, runtime audit 2026-09-06) changes what two numbers in
+// `sections.budget` MEAN — which is why it is a version bump and not a patch
+// — and adds two more so the portal's money bar can be drawn without mixing
+// a pre-tax contract into tax-inclusive cash:
+// - budget.workComplete REPLACES budget.pctComplete. pctComplete was
+//   `round(paidToDate / contractValue * 100)` — percent PAID, unclamped, and
+//   across two different bases (tax-inclusive cash over a pre-tax contract) —
+//   rendered to the homeowner under the label "Project complete". The
+//   founder's live Henderson portal read "Project complete: 102%".
+//   workComplete is duration-weighted schedule progress, clamped 0-100, and
+//   `null` when no task has any progress recorded, so the portal can say "—"
+//   instead of inventing a 0%.
+// - budget.outstanding is now billed-and-unpaid (net of unreleased retention)
+//   rather than `contractValue - paidToDate`, so it is on ONE basis — and it
+//   is summed over exactly the invoices the client can SEE (the same
+//   isShared() + not-draft population as sections.invoices), so a document
+//   the GC has not issued, or has recalled, is neither charged for nor
+//   disclosed by the headline.
+// - budget.invoicedToDate + budget.retentionHeld are NEW, and they exist so
+//   the money bar on that card can be drawn on ONE basis. Every one of them
+//   is tax-inclusive invoice dollars over that same population;
+//   contractValue is a PRE-TAX contract and is deliberately not mixed into
+//   any of them.
+// Portals rendering an older snapshot (a `#d=` hash link, or a snapshot row
+// not yet re-pushed) re-derive work-complete from sections.schedule.tasks and
+// ignore pctComplete entirely — they never show the old figure again.
+export const PORTAL_SNAPSHOT_VERSION = 11;
 
 export interface PortalSnapshot {
   v: number;
@@ -322,8 +352,45 @@ export interface PortalSnapshot {
       }[];
     };
     budget?: {
-      contractValue: number; paidToDate: number; outstanding: number;
-      pctComplete: number; nextMilestone?: string;
+      // The revised contract: base estimate + approved COs. PRE-TAX, because
+      // an estimate total is. Never add a tax-inclusive invoice figure to it
+      // and never subtract one from it.
+      contractValue: number;
+      // Cash received, tax included — the sum of invoice `amountPaid`.
+      paidToDate: number;
+      // PORTAL-01: what the client still OWES — billed and not yet paid, net
+      // of unreleased retention (utils/invoiceBilling.invoiceOutstanding),
+      // summed over the invoices the client can see. This used to be
+      // `contractValue - paidToDate`, which subtracted tax-inclusive cash
+      // from a pre-tax contract AND forced the portal's "Remaining" (un-billed)
+      // bar segment to zero for every project.
+      outstanding: number;
+      // PORTAL-01: total billed to the client, tax included, over the same
+      // population as `outstanding` and as `sections.invoices`. The money bar
+      // on the portal's budget card is drawn from this + paidToDate +
+      // retentionHeld, so that every segment of it is the same kind of dollar.
+      // Absent on snapshots authored before 2026-09-06.
+      invoicedToDate?: number;
+      // PORTAL-01: retention the contract lets the client hold back on those
+      // same invoices, less anything already released. Billed, but NOT due
+      // today — which is why it is excluded from `outstanding` and reported
+      // on its own rather than folded into either figure.
+      // Absent on snapshots authored before 2026-09-06.
+      retentionHeld?: number;
+      // PORTAL-01: percent of the WORK that is complete, duration-weighted
+      // from the project schedule. `null` when the GC has recorded no progress
+      // on any task — the app does not know, and the portal renders "—".
+      // Absent on snapshots authored before 2026-09-06.
+      workComplete?: number | null;
+      /** @deprecated PORTAL-01 (runtime audit 2026-09-06). This was percent
+       *  PAID rendered under a "Project complete" label: unclamped, and
+       *  dividing tax-inclusive cash by a pre-tax contract, so the founder's
+       *  own Henderson portal read "Project complete: 102%". No longer emitted
+       *  and no longer read by marketing/portal/index.html. Kept on the type
+       *  only so snapshots written before the fix still parse. Use
+       *  `workComplete`. */
+      pctComplete?: number;
+      nextMilestone?: string;
     };
     invoices?: {
       id: string; number: number | string; total: number; status: string;
@@ -504,6 +571,35 @@ interface BuildOpts {
   homePassport?: import('./passport/types').BakedHomePassport | null;
 }
 
+/**
+ * PORTAL-01 — duration-weighted percent of the schedule's work that is
+ * complete, or `null` when the GC has recorded no progress at all.
+ *
+ * `computeProjectProgress` returns 0 for two different situations the portal
+ * must not conflate: "the job genuinely has not started" and "nobody has ever
+ * touched this schedule". The client portal is read by a homeowner who cannot
+ * tell them apart, so the snapshot reports `null` unless at least one
+ * non-milestone task carries a real signal — progress above zero, or a status
+ * of in_progress / done. Verified against production on 2026-09-06: the
+ * founder's Henderson portal has 20 tasks, every one `not_started` with
+ * progress 0, on a job that is fully billed and fully paid. "0% complete" on
+ * that page would be an invented fact; "—" is the absent one.
+ *
+ * Exported so scripts/validate-portal-owner.ts can hold the static portal's
+ * hand-written copy of this rollup head-to-head against it (the portal HTML
+ * has no build step and cannot import TypeScript).
+ */
+export function scheduleWorkComplete(project: Project): number | null {
+  const tasks = (project.schedule?.tasks ?? []).filter(t => !t.isMilestone);
+  const started = tasks.some(
+    t => (t.progress ?? 0) > 0 || t.status === 'in_progress' || t.status === 'done',
+  );
+  if (!started) return null;
+  const p = computeProjectProgress(project);
+  if (!p.hasSchedule) return null;
+  return Math.max(0, Math.min(100, p.pct));
+}
+
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   const {
     project, portal, settings, invoices = [], changeOrders = [],
@@ -550,20 +646,52 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     const coTotal = changeOrders
       .filter(c => c.status === 'approved')
       .reduce((sum, c) => sum + (c.changeAmount ?? 0), 0);
-    const contractValue = baseContract + coTotal;
-    const paidToDate = invoices.reduce(
-      (sum, i) => sum + (i.amountPaid ?? 0),
-      0,
+    const contractValue = roundCents(baseContract + coTotal);
+    // Cash actually received, tax included. Deliberately summed over EVERY
+    // invoice rather than the visible subset below: money the client has sent
+    // is money they have sent, and dropping a payment from this total because
+    // the GC later recalled the document it paid would understate the
+    // homeowner's own credit. Matches utils/projectFinancials.getPaidToDate.
+    const paidToDate = roundCents(getPaidToDate(invoices));
+
+    // ONE population for every "what is owed" figure. `sections.invoices`
+    // below renders `invoices.filter(i => isShared(i.portalState))`, so the
+    // headline must not reach past it:
+    //  - a DRAFT invoice was never issued. This app's own definition of the
+    //    word excludes them everywhere else (getOutstandingBalance,
+    //    getInvoicedToDate, ProjectContext.getTotalOutstandingBalance), and
+    //    billing a homeowner for a draft is a number the contractor's own
+    //    project screen would contradict.
+    //  - a RECALLED invoice is one the GC deliberately pulled back; the
+    //    portal tells the client it was removed. Summing it here would both
+    //    charge for a withdrawn document and disclose its dollar amount.
+    const billedInvoices = invoices.filter(
+      i => isShared(i.portalState) && i.status !== 'draft',
     );
-    const outstanding = Math.max(0, contractValue - paidToDate);
-    const pctComplete = contractValue > 0
-      ? Math.round((paidToDate / contractValue) * 100)
-      : 0;
+
+    // PORTAL-01 (runtime audit 2026-09-06). `outstanding` was
+    // `contractValue - paidToDate`: tax-INCLUSIVE cash subtracted from a
+    // PRE-TAX contract. On the founder's live Henderson portal that showed
+    // $0 outstanding on a contract with $2.4K of work still un-billed, and
+    // because `paid + outstanding` then collapsed to exactly `contractValue`,
+    // the portal's money bar could never draw anything but a full bar.
+    // Outstanding is now the one figure a homeowner can act on, on one basis:
+    // billed and not yet paid, net of the retention the contract lets them
+    // hold (MONEY-F5) — via the house helper, so it cannot drift from the
+    // figure the GC sees on the same job.
+    const outstanding = roundCents(getOutstandingBalance(billedInvoices));
+    // The other two legs of that same bar, on that same basis.
+    const invoicedToDate = roundCents(getInvoicedToDate(billedInvoices));
+    const retentionHeld = roundCents(getRetentionHeld(billedInvoices));
     sections.budget = {
       contractValue,
       paidToDate,
       outstanding,
-      pctComplete,
+      invoicedToDate,
+      retentionHeld,
+      // PORTAL-01: the headline stat means what its label says. See
+      // scheduleWorkComplete — `null` when the app has no progress to report.
+      workComplete: scheduleWorkComplete(project),
     };
   }
 
@@ -1174,7 +1302,10 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       startDate,
       targetDate,
       targetBudget: projectTargetBudget,
-      progressPct: (() => { const p = computeProjectProgress(project); return p.hasSchedule ? p.pct : undefined; })(),
+      // PORTAL-01: `undefined` — not 0 — when no task carries any progress.
+      // The hero's live-progress bar is gated on this field, so an untouched
+      // schedule now shows no bar instead of asserting "Project progress 0%".
+      progressPct: scheduleWorkComplete(project) ?? undefined,
     },
     sections,
   };
@@ -1228,6 +1359,32 @@ export function buildShortPortalUrl(
   if (accessToken) params.set('t', accessToken);
   const q = params.toString();
   return q ? `${base}?${q}` : base;
+}
+
+/**
+ * PORTAL-07 — the share link, safe to PRINT on a screen.
+ *
+ * Two requirements pull against each other on the Portal Link card. The
+ * displayed string must be unmistakably the link Copy and Share hand out:
+ * printing the bare `mageid.app/portal/<id>` is what let a GC read a
+ * token-less URL to a client on the phone, or retype it into a CRM, and hand
+ * over a portal that opens but silently cannot approve a change order. But
+ * `?t=` is a capability secret — it is the whole of the homeowner's authority
+ * to e-sign a change order — and that card has no max width, so on a desktop
+ * browser the full 64 characters render on one line, into every screenshot
+ * and screen-share of the screen (the runtime audit's own capture included).
+ *
+ * Eliding the middle of the token satisfies both: the query parameter is
+ * visible, so nobody mistakes the bare URL for the link, and the ellipsis
+ * makes the string self-evidently un-transcribable, which is exactly the
+ * behaviour we want — Copy carries it in full. Never send this string.
+ */
+export function maskPortalLinkToken(link: string): string {
+  return link.replace(
+    /([?&]t=)([^&#]+)/,
+    (_m, prefix: string, token: string) =>
+      token.length <= 12 ? `${prefix}${token}` : `${prefix}${token.slice(0, 4)}\u2026${token.slice(-4)}`,
+  );
 }
 
 // Rough sanity check — URL fragments over ~8KB start to make SMS clients unhappy.

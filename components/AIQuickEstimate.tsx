@@ -432,7 +432,7 @@ export default React.memo(function AIQuickEstimate({
 
       {error && (
         <View style={s.errorBanner}>
-          <AlertTriangle size={16} color={Colors.error} strokeWidth={1.75} />
+          <AlertTriangle size={16} color={Colors.dangerLabel} strokeWidth={1.75} />
           <Text style={s.errorText}>{error}</Text>
         </View>
       )}
@@ -549,7 +549,7 @@ export default React.memo(function AIQuickEstimate({
                 <Text style={s.totalBreakdownValue}>${estimatedTotals.labor.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
               <View style={s.totalBreakdownItem}>
-                <Shield size={14} color={Colors.info} strokeWidth={1.75} />
+                <Shield size={14} color={Colors.infoLabel} strokeWidth={1.75} />
                 <Text style={s.totalBreakdownLabel}>Other</Text>
                 <Text style={s.totalBreakdownValue}>${estimatedTotals.additional.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
@@ -655,7 +655,7 @@ export default React.memo(function AIQuickEstimate({
           {(result.warnings ?? []).length > 0 && (
             <View style={s.warningsCard}>
               <View style={s.warningsHeader}>
-                <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+                <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
                 <Text style={s.warningsTitle}>Watch Out</Text>
               </View>
               {(result.warnings ?? []).map((w, i) => (
@@ -667,7 +667,7 @@ export default React.memo(function AIQuickEstimate({
           {(result.savingsTips ?? []).length > 0 && (
             <View style={s.tipsCard}>
               <View style={s.tipsHeader}>
-                <TrendingDown size={14} color={Colors.success} strokeWidth={1.75} />
+                <TrendingDown size={14} color={Colors.successLabel} strokeWidth={1.75} />
                 <Text style={s.tipsTitle}>Savings Tips</Text>
               </View>
               {(result.savingsTips ?? []).map((t, i) => (
@@ -991,7 +991,7 @@ const s = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.error,
+    color: Colors.dangerLabel,
     fontWeight: '500' as const,
   },
   generateBtn: {
@@ -1300,7 +1300,7 @@ const s = StyleSheet.create({
   warningsTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.warning,
+    color: Colors.warningLabel,
   },
   warningItem: {
     fontSize: Type.footnote.fontSize,
@@ -1323,7 +1323,7 @@ const s = StyleSheet.create({
   tipsTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
   },
   tipItem: {
     fontSize: Type.footnote.fontSize,
@@ -1373,7 +1373,7 @@ const s = StyleSheet.create({
   },
   groundingChipText: {
     fontSize: 12,
-    color: Colors.success,
+    color: Colors.successLabel,
     fontWeight: '500' as const,
     textAlign: 'center',
   },

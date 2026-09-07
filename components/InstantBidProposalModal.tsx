@@ -392,7 +392,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   shareBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
   note: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic', marginTop: 10, textAlign: 'center' },
   noteGrounded: { fontSize: Type.caption2.fontSize, color: t.success, fontStyle: 'italic', marginTop: 10, textAlign: 'center' },
-  noteWarning: { fontSize: Type.caption2.fontSize, color: Colors.warning, fontStyle: 'italic', marginTop: 10, textAlign: 'center' },
+  noteWarning: { fontSize: Type.caption2.fontSize, color: Colors.warningLabel, fontStyle: 'italic', marginTop: 10, textAlign: 'center' },
 
   // Ballpark refine question — shown before generating when no budget hint exists.
   ballparkWrap: { gap: 10, paddingVertical: 4 },

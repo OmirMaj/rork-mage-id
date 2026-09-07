@@ -20,6 +20,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // Themed per-status chip styling — a FUNCTION of the palette (not a module
 // static) so the chip fills flip with the theme instead of staying bright
@@ -267,7 +268,7 @@ export default function DocumentsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
+      <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {/* Centered icon-circle hero — same look as Construction AI,
             AI Punch, Reports. Replaces the small explainer note that

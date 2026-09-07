@@ -19,6 +19,7 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const JOB_TYPES: { id: JobType; label: string }[] = [
   { id: 'full_time', label: 'Full-Time' }, { id: 'part_time', label: 'Part-Time' },
@@ -93,7 +94,7 @@ export default function PostJobScreen() {
           title: 'Post a Job',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
-          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }} />
         <View style={styles.unavailable}>
           <Text style={styles.unavailableTitle}>Direct Hire is coming soon</Text>
@@ -109,7 +110,7 @@ export default function PostJobScreen() {
         title: 'Post a Job',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>

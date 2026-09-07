@@ -159,7 +159,7 @@ export function NailItToastHost() {
                 },
               ]}
             >
-              <Hammer size={20} color={Colors.warning} strokeWidth={1.75} />
+              <Hammer size={20} color={Colors.warningLabel} strokeWidth={1.75} />
             </Animated.View>
             <Animated.View
               pointerEvents="none"

@@ -34,7 +34,7 @@ import {
   ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION, DUE_SOON_DAYS,
   type OwnerDecision,
 } from '../utils/portalOwnerCore';
-import { buildPortalSnapshot, PORTAL_SNAPSHOT_VERSION } from '../utils/portalSnapshot';
+import { buildPortalSnapshot, scheduleWorkComplete, maskPortalLinkToken, PORTAL_SNAPSHOT_VERSION } from '../utils/portalSnapshot';
 import type { Project, ClientPortalSettings, SavedAIAPayApp, SelectionCategory, ChangeOrder, DailyFieldReport, ProjectPhoto, Invoice } from '../types';
 
 let pass = 0, fail = 0;
@@ -716,6 +716,307 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
     /!esignConsent/.test(cv) && /Consent Required/.test(cv));
   ok('client-view persists the sealed record columns',
     /consent_record:/.test(cv) && /document_hash:/.test(cv));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. PORTAL-01 / PORTAL-07 — the two numbers and the one string the homeowner
+//    reads first (runtime audit 2026-09-06)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nportal owner — headline stat + share link:');
+
+// The exact shape that produced "Project complete: 102%" in production:
+// contract 44,325 + a 3,400 approved CO = 47,725 (PRE-tax), against one
+// invoice of 45,300.51 + 3,397.54 tax, paid 48,826.93 (tax-INCLUSIVE cash).
+const HENDERSON_TASKS = Array.from({ length: 20 }, (_, i) => ({
+  id: `h${i}`, title: `Task ${i}`, phase: 'Build', durationDays: 3, startDay: i * 3,
+  progress: 0, status: 'not_started', crew: '', dependencies: [], notes: '',
+}));
+const henderson = {
+  id: 'hen', name: 'The Henderson Residence', type: 'renovation', status: 'in_progress',
+  linkedEstimate: { grandTotal: 44_325, baseTotal: 44_325, items: [] },
+  contractMode: 'fixed',
+  schedule: { startDate: '2026-05-04', workingDaysPerWeek: 5, totalDurationDays: 60, tasks: HENDERSON_TASKS },
+  updatedAt: '2026-09-01T00:00:00.000Z',
+} as unknown as Project;
+
+const hendersonSnap = buildPortalSnapshot({
+  project: henderson,
+  portal: portalSettings,
+  changeOrders: [
+    { id: 'hco', projectId: 'hen', number: 1, description: 'Extra tile', reason: '', date: '2026-06-01', status: 'approved', changeAmount: 3_400, newContractTotal: 47_725, lineItems: [] },
+  ] as unknown as ChangeOrder[],
+  invoices: [
+    {
+      id: 'hinv', number: 1, projectId: 'hen', type: 'progress', issueDate: '2026-06-10', dueDate: '2026-07-10',
+      paymentTerms: 'net_30', notes: '', lineItems: [], subtotal: 45_300.51, taxRate: 7.5, taxAmount: 3_397.53825,
+      totalDue: 48_698.04825, amountPaid: 48_826.93, status: 'paid', payments: [],
+      createdAt: '2026-06-10', updatedAt: '2026-07-01',
+    },
+  ] as unknown as Invoice[],
+});
+const hbudget = hendersonSnap.sections.budget!;
+
+// The regression itself. The old formula is reproduced here so the test fails
+// loudly if anyone reinstates it rather than quietly agreeing with it.
+expect('the old percent-PAID formula really did produce 102 on this data',
+  Math.round((48_826.93 / 47_725) * 100), 102);
+ok('the snapshot no longer emits pctComplete at all',
+  !Object.prototype.hasOwnProperty.call(hbudget, 'pctComplete'), JSON.stringify(hbudget));
+expect('a schedule nobody has updated reports work-complete as null, not 0%',
+  hbudget.workComplete, null);
+expect('…and the hero progress figure is absent rather than an invented 0',
+  hendersonSnap.project.progressPct, undefined);
+expect('contract value stays the pre-tax contract + approved COs', hbudget.contractValue, 47_725);
+expect('paid-to-date stays the cash actually received', hbudget.paidToDate, 48_826.93);
+expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed cash',
+  hbudget.outstanding, 0);
+
+// Basis check: outstanding must track the INVOICES, not the contract. Half the
+// contract billed and a quarter of that paid.
+{
+  const partial = buildPortalSnapshot({
+    project: henderson,
+    portal: portalSettings,
+    invoices: [
+      {
+        id: 'p1', number: 1, projectId: 'hen', type: 'progress', issueDate: '2026-06-10', dueDate: '2026-07-10',
+        paymentTerms: 'net_30', notes: '', lineItems: [], subtotal: 20_000, taxRate: 7.5, taxAmount: 1_500,
+        totalDue: 21_500, amountPaid: 5_000, status: 'sent', payments: [],
+        retentionPercent: 10, retentionAmount: 2_150, retentionReleased: 0,
+        createdAt: '2026-06-10', updatedAt: '2026-06-10',
+      },
+    ] as unknown as Invoice[],
+  });
+  const b = partial.sections.budget!;
+  // 21,500 billed − 2,150 retention still held − 5,000 paid = 14,350.
+  expect('outstanding nets the retention the contract lets the client hold', b.outstanding, 14_350);
+  ok('outstanding is NOT contract-minus-cash', b.outstanding !== b.contractValue - b.paidToDate,
+    `${b.outstanding} vs ${b.contractValue - b.paidToDate}`);
+  ok('paid + outstanding no longer collapses onto contractValue (it tracks billing, not the contract)',
+    b.paidToDate + b.outstanding < b.contractValue,
+    `${b.paidToDate} + ${b.outstanding} vs ${b.contractValue}`);
+  ok('every budget figure is whole cents',
+    [b.contractValue, b.paidToDate, b.outstanding, b.invoicedToDate!, b.retentionHeld!]
+      .every(v => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6),
+    JSON.stringify(b));
+  // The three legs of the portal's money bar must add up to what was billed,
+  // or the bar is asserting a total its own legend contradicts.
+  expect('paid + due-now + retention-held === invoiced',
+    b.paidToDate + b.outstanding + b.retentionHeld!, b.invoicedToDate!);
+}
+
+// ── The population `outstanding` is summed over ─────────────────────────────
+// It must be the SAME set of invoices the client's list renders. Anything
+// wider bills the homeowner for a document that is not on their page.
+{
+  const inv = (over: Record<string, unknown>) => ({
+    id: 'i', number: 1, projectId: 'hen', type: 'progress', issueDate: '2026-06-10',
+    dueDate: '2026-07-10', paymentTerms: 'net_30', notes: '', lineItems: [],
+    subtotal: 10_000, taxRate: 8, taxAmount: 800, totalDue: 10_800, amountPaid: 0,
+    status: 'sent', payments: [], createdAt: '2026-06-10', updatedAt: '2026-06-10',
+    ...over,
+  }) as unknown as Invoice;
+
+  const withDraft = buildPortalSnapshot({
+    project: henderson, portal: portalSettings,
+    invoices: [inv({ id: 'sent1' }), inv({ id: 'draft1', status: 'draft', subtotal: 27_000, taxAmount: 0, totalDue: 27_000 })],
+  });
+  expect('a DRAFT invoice the GC has never issued is not billed to the client',
+    withDraft.sections.budget!.outstanding, 10_800);
+  expect('…nor counted as invoiced', withDraft.sections.budget!.invoicedToDate, 10_800);
+
+  const withRecalled = buildPortalSnapshot({
+    project: henderson, portal: portalSettings,
+    invoices: [
+      inv({ id: 'sent1' }),
+      inv({ id: 'rec1', subtotal: 27_000, taxAmount: 0, totalDue: 27_000, portalState: { status: 'recalled' } }),
+    ],
+  });
+  const rb = withRecalled.sections.budget!;
+  const rows = withRecalled.sections.invoices ?? [];
+  expect('an invoice the GC RECALLED is not billed to the client, and its amount is not disclosed',
+    rb.outstanding, 10_800);
+  expect('the client sees exactly one invoice row', rows.length, 1);
+  expect('the headline equals the sum of the rows the client can see',
+    rb.outstanding, rows.reduce((sum, r) => sum + (r.balance ?? 0), 0));
+  ok('no withheld dollar amount leaks anywhere in the payload',
+    !JSON.stringify(withRecalled).includes('27000'), JSON.stringify(rb));
+
+  // Retention is billed but not due today, so it belongs to neither
+  // "paid" nor "outstanding" — it is reported on its own.
+  const withRet = buildPortalSnapshot({
+    project: henderson, portal: portalSettings,
+    invoices: [inv({ id: 'r1', retentionPercent: 10, retentionAmount: 1_080, retentionReleased: 0, amountPaid: 2_000 })],
+  });
+  const wb = withRet.sections.budget!;
+  expect('retention held is reported separately', wb.retentionHeld, 1_080);
+  expect('…and excluded from what is due now', wb.outstanding, 10_800 - 1_080 - 2_000);
+  expect('…while the invoiced total still carries it', wb.invoicedToDate, 10_800);
+}
+
+// Work-complete: the rollup itself, at the boundaries that matter.
+{
+  const t = (over: Record<string, unknown>) => ({
+    id: 'x', title: 'x', phase: 'p', durationDays: 10, startDay: 0, progress: 0,
+    status: 'not_started', crew: '', dependencies: [], notes: '', ...over,
+  });
+  const withTasks = (tasks: unknown[]) => ({
+    ...henderson, schedule: { ...(henderson as any).schedule, tasks },
+  } as unknown as Project);
+  expect('no schedule at all → null', scheduleWorkComplete({ ...henderson, schedule: undefined } as unknown as Project), null);
+  expect('milestones alone are not progress → null',
+    scheduleWorkComplete(withTasks([t({ isMilestone: true, progress: 100, status: 'done' })])), null);
+  expect('a task marked done with no percent still counts as a real signal',
+    scheduleWorkComplete(withTasks([t({ status: 'done' }), t({})])), 0);
+  expect('duration-weighted, not a flat average',
+    scheduleWorkComplete(withTasks([t({ durationDays: 30, progress: 100 }), t({ durationDays: 10, progress: 0 })])), 75);
+  expect('out-of-range task progress is clamped, so the stat cannot exceed 100',
+    scheduleWorkComplete(withTasks([t({ progress: 400 })])), 100);
+}
+
+// ── Cross-runtime equivalence: the static portal's copy of the rollup ───────
+// The portal HTML has no build step and cannot import TypeScript, so it ships
+// a hand-written deriveWorkProgress. If the two ever disagree, the homeowner's
+// headline stat stops matching the app's — the exact class of drift the 102%
+// bug lived in. Lift the portal's copy out of the file and run it head-to-head.
+{
+  const start = portalHtml.indexOf('  function deriveWorkProgress(data) {');
+  const stop = portalHtml.indexOf('  // ───────── Stats bar ─────────', start);
+  ok('portal work-progress rollup is extractable for a head-to-head check', start >= 0 && stop > start);
+  if (start >= 0 && stop > start) {
+    // eslint-disable-next-line no-new-func
+    const portalDerive = new Function(`${portalHtml.slice(start, stop)}\nreturn deriveWorkProgress;`)() as
+      (d: unknown) => { known: boolean; pct: number };
+    const cases: { name: string; project: Project }[] = [
+      { name: 'an untouched 20-task schedule', project: henderson },
+      { name: 'the Maple St fixture (milestones only)', project },
+      {
+        name: 'a part-built schedule',
+        project: {
+          ...henderson,
+          schedule: {
+            ...(henderson as any).schedule,
+            tasks: [
+              { id: 'a', title: 'a', phase: 'p', durationDays: 30, startDay: 0, progress: 100, status: 'done', crew: '', dependencies: [], notes: '' },
+              { id: 'b', title: 'b', phase: 'p', durationDays: 10, startDay: 30, progress: 40, status: 'in_progress', crew: '', dependencies: [], notes: '' },
+              { id: 'c', title: 'c', phase: 'p', durationDays: 20, startDay: 40, progress: 0, status: 'not_started', crew: '', dependencies: [], notes: '' },
+              { id: 'm', title: 'm', phase: 'p', durationDays: 0, startDay: 60, progress: 0, status: 'not_started', isMilestone: true, crew: '', dependencies: [], notes: '' },
+            ],
+          },
+        } as unknown as Project,
+      },
+    ];
+    for (const c of cases) {
+      const snap = buildPortalSnapshot({ project: c.project, portal: portalSettings });
+      const ts = scheduleWorkComplete(c.project);
+      const html = portalDerive(snap);
+      expect(`app and portal agree on work-complete — ${c.name}`,
+        [html.known, html.known ? html.pct : null], [ts != null, ts]);
+    }
+    // And the honesty rule itself, stated on the portal side.
+    expect('the portal reports "unknown" (not 0%) for an untouched schedule',
+      portalDerive(buildPortalSnapshot({ project: henderson, portal: portalSettings })).known, false);
+    // When the GC hides the schedule, the portal falls back to the rollup the
+    // app already computed. `null` is the app saying it does not know; a
+    // numeric 0 is the app saying zero. Reading a real 0 as "unknown" makes
+    // the two surfaces disagree about a value the app actually has.
+    expect('a hidden schedule with a real 0% renders 0%, not "Not reported yet"',
+      portalDerive({ sections: { budget: { workComplete: 0 } } }), { known: true, pct: 0 });
+    expect('a hidden schedule with no progress recorded still renders unknown',
+      portalDerive({ sections: { budget: { workComplete: null } } }), { known: false, pct: 0 });
+    expect('a pre-2026-09-06 snapshot\'s ambiguous progressPct: 0 stays unknown',
+      portalDerive({ sections: {}, project: { progressPct: 0 } }), { known: false, pct: 0 });
+  }
+}
+
+// ── The portal HTML must not read the retired figure, anywhere ─────────────
+ok('portal no longer renders budget.pctComplete', !/pctComplete/.test(portalHtml));
+ok('portal labels the stat "Work complete", not "Project complete"',
+  portalHtml.includes("label: 'Work complete'") && !portalHtml.includes("label: 'Project complete'"));
+ok('portal says "Not reported yet" instead of a fabricated 0%',
+  portalHtml.includes("sub: 'Not reported yet'"));
+ok('the hero progress bar is gated on a real progress signal',
+  /if \(work\.known\) \{/.test(portalHtml) && !/if \(typeof project\.progressPct === 'number'\) \{/.test(portalHtml));
+ok('the signed-contract reconcile no longer recomputes outstanding as contract − cash',
+  !/outstanding: Math\.max\(0, truth - paidSoFar\)/.test(portalHtml));
+
+// ── The money bar under the stat tiles must stay on ONE basis ──────────────
+// `Math.max(paid + outstanding, budget.contractValue)` added tax-INCLUSIVE
+// cash to a tax-INCLUSIVE balance and printed the result as a PRE-TAX
+// contract: on a taxed job with a balance the bar read "$50,000 of $108,000"
+// directly under a "Contract value $100,000" tile. The contract value is not
+// allowed anywhere near this bar.
+// Scanned over CODE lines only: the comment that explains the defect quotes
+// the old expression verbatim on purpose, and a tripwire that fires on its own
+// documentation teaches people to delete the documentation.
+const portalHtmlCode = portalHtml.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+ok('the money bar no longer maxes cash-plus-balance against the pre-tax contract',
+  !/Math\.max\(paid \+ outstanding, budget\.contractValue\)/.test(portalHtmlCode));
+{
+  const barStart = portalHtml.indexOf('    var spendBarHtml = \'\';');
+  const barStop = portalHtml.indexOf('grid.innerHTML = statsHtml + spendBarHtml;', barStart);
+  ok('money bar block is extractable', barStart >= 0 && barStop > barStart);
+  const bar = portalHtml.slice(barStart, barStop);
+  ok('no contract figure is mixed into the money bar',
+    !/contractValue/.test(bar), bar.slice(0, 400));
+  ok('the money bar is drawn from invoice dollars only',
+    /budget\.paidToDate/.test(bar) && /budget\.outstanding/.test(bar) && /budget\.retentionHeld/.test(bar));
+  ok('its denominator is the sum of its own segments, so the legend always reconciles',
+    /var billed = paid \+ outstanding \+ retHeld;/.test(bar));
+  // A pre-fix snapshot's `outstanding` still means contract − cash. Labelling
+  // that "Due now" would put a new false statement on an old frozen link, so
+  // the bar and the new sub-label only render on the new basis.
+  ok('the bar and its labels are gated on a snapshot that carries the new basis',
+    /if \(budget && typeof budget\.invoicedToDate === 'number'\) \{/.test(portalHtmlCode)
+    && /var hasBillingBasis = typeof budget\.invoicedToDate === 'number';/.test(portalHtmlCode)
+    && /sub: !hasBillingBasis \? '' :/.test(portalHtmlCode));
+}
+
+// ── PORTAL-07 — displayed link === shared link ──────────────────────────────
+// The token is the homeowner's authority to e-sign a change order, and the
+// card it is printed on has no max width, so on desktop the whole 64
+// characters render into any screenshot. Show the query parameter (so the
+// bare URL is never mistaken for the link) with the secret's middle elided.
+{
+  const TOKEN = 'a'.repeat(32) + 'b'.repeat(32);
+  const full = `https://mageid.app/portal/portal-abc?t=${TOKEN}`;
+  const masked = maskPortalLinkToken(full);
+  ok('the masked link still shows it carries a key', masked.includes('?t='), masked);
+  ok('…but not the key itself', !masked.includes(TOKEN), masked);
+  ok('…and is visibly incomplete, so nobody transcribes it', masked.includes('\u2026'), masked);
+  expect('exactly four characters at each end survive', masked, `https://mageid.app/portal/portal-abc?t=aaaa\u2026bbbb`);
+  expect('a link with no token is left alone',
+    maskPortalLinkToken('https://mageid.app/portal/portal-abc'), 'https://mageid.app/portal/portal-abc');
+  expect('an inviteId ahead of the token is preserved',
+    maskPortalLinkToken(`https://mageid.app/portal/portal-abc?inviteId=inv1&t=${TOKEN}`),
+    'https://mageid.app/portal/portal-abc?inviteId=inv1&t=aaaa\u2026bbbb');
+  ok('the masked string is never what gets shared', masked !== full);
+}
+
+{
+  const setup = read('app/client-portal-setup.tsx');
+  ok('client-portal-setup.tsx loaded', setup.length > 0);
+  ok('the Portal Link card renders the link Copy/Share send, not a hand-built base URL',
+    /\{linkPending \? `\$\{PORTAL_BASE_URL\}\/\$\{portal\.portalId\}` : maskPortalLinkToken\(portalLink\)\}/.test(setup),
+    'the card must print `portalLink` (which carries ?t=<accessToken>), not a hand-built base URL');
+  ok('Copy still puts the FULL link on the clipboard — masking is display-only',
+    /copyToClipboard\(portalLink\)/.test(setup));
+  ok('…and the only hand-built base URL left on screen is the explicit pending state',
+    (setup.match(/\$\{PORTAL_BASE_URL\}\/\$\{portal\.portalId\}/g) ?? []).length <= 3);
+  ok('the card explains that the tail is a security key, so it is not retyped',
+    /security key that lets your client sign change orders/.test(setup));
+  // All three doors the link goes out of guard on the same pending token.
+  ok('Copy, Share and Email all guard on the same pending-token check',
+    (setup.match(/if \(warnIfLinkPending\(\)\) return;/g) ?? []).length >= 3);
+  // A portal that has never been saved is not "syncing" — the heal effect is
+  // keyed on the PERSISTED portal and returns early — so the pending copy has
+  // to name the step that actually produces the key.
+  ok('the never-saved state tells the GC to Save instead of promising a sync',
+    /const linkNeedsSave = linkPending && !project\?\.clientPortal\?\.enabled;/.test(setup)
+    && /Tap Save to finish securing this link/.test(setup)
+    && /'Save this portal first'/.test(setup));
+  ok('the share link builder still appends the access token',
+    /buildShortPortalUrl\(PORTAL_BASE_URL, portal\.portalId, undefined, portal\.accessToken\)/.test(setup));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

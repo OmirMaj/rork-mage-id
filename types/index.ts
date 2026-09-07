@@ -2203,8 +2203,12 @@ export interface Subcontractor {
    *  When present, the app deep-links the verifier to the right state
    *  contractor board. Defaults to the GC's company state if unset. */
   licenseState?: string;
-  licenseExpiry: string;
-  coiExpiry: string;
+  /** Optional on purpose: a sub can genuinely have no licence or COI on file,
+   *  and that is the case NAV-05 was about — absent must not render as
+   *  "Compliant". Every reader already handles the gap; declaring these
+   *  required only hid it from the type checker. */
+  licenseExpiry?: string;
+  coiExpiry?: string;
   w9OnFile: boolean;
   /**
    * Last 4 of the EIN/SSN. Captured for 1099-NEC year-end export.

@@ -24,6 +24,7 @@ import { showAlert } from '@/utils/alert';
 import { parseCalendarDay, formatCalendarDay, toCalendarDayString, todayCalendarDay, addCalendarMonths } from '@/utils/calendarDate';
 import { warrantyStatus } from '@/utils/workflowPipelines';
 import type { DerivedStatus } from '@/utils/workflowPipelines';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'general', label: 'General' },
@@ -194,7 +195,14 @@ export default function WarrantiesScreen() {
     setCategory('general');
     setProvider('');
     setDescription('');
-    setStartDate(new Date().toISOString().slice(0, 10));
+    // WARR-FORM-UTC-PREFILL: todayCalendarDay(), never
+    // `new Date().toISOString().slice(0, 10)`. That idiom re-projects the
+    // instant into UTC, so from ~18:00 MDT / 20:00 EDT it prefills TOMORROW.
+    // The useState initializer at :186 was already correct; this line —
+    // the one that actually runs, on every openNew() — overwrote it, and
+    // handleSave derives endDate = addCalendarMonths(startDay, months) from
+    // it, so the whole coverage window was stored a day late.
+    setStartDate(todayCalendarDay());
     setDurationMonths('12');
     setCoverage('');
   }, [project, projects]);
@@ -272,7 +280,7 @@ export default function WarrantiesScreen() {
         title: title_label,
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: "#FF6A1A",
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView
         {...fabScroll}

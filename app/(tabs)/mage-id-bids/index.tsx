@@ -28,11 +28,21 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import {
+  useUserLocation,
+  getDistanceMiles,
+  locationControlLabel,
+  locationControlAction,
+  openLocationSettings,
+  LOCATION_PLATFORM,
+} from '@/utils/location';
 import BidHitScoreboard from '@/components/BidHitScoreboard';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
+import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
 
 interface BrowseRow {
   id: string;
@@ -72,31 +82,10 @@ interface BrowseWithDistance extends BrowseRow { distance: number | null; }
 const RADIUS_OPTIONS = [10, 25, 50, 100, 250] as const;
 type Mode = 'browse' | 'mine';
 
-// APP STORE GUIDELINE 1.2 — user-generated content.
-//
-// Browsing shows OTHER users' free-text scope_description, uploaded photos and
-// GPS coordinates (the query below selects all of them, and the RLS policy
-// public_bids_select is `FOR SELECT TO authenticated USING (true)`). That makes
-// this a UGC feed, and 1.2 requires four things before it can ship: a content
-// filtering method, a mechanism to report objectionable content, a mechanism to
-// block abusive users, and published developer contact info.
-//
-// A repo-wide search for report/block/flag functionality returns nothing, and
-// there is no content_reports or blocked_users table. Shipping the feed as-is
-// is one of the most reliably cited rejection reasons for marketplace apps.
-//
-// This flag disables BROWSING STRANGERS' POSTS ONLY. Posting an RFP and the
-// "My RFPs" list are untouched, so the homeowner and contractor journeys both
-// still work end to end — what goes away for 1.0 is reading other people's.
-//
-// To turn it on, ship the 1.2 kit (plan is in
-// docs/audits/2026-09-02-launch-readiness.md #3): content_reports and
-// blocked_users tables with insert-own RLS, a Report action on the browse card
-// and app/rfp-detail.tsx, a Block action, `.not('user_id','in',...)` filtering
-// on this query and on app/nearby-rfps.tsx:72, and a support contact in
-// Settings. Mirrors the RFP_PAID_POST_ENABLED precedent in
-// components/ClientPaywall.tsx.
-export const RFP_BROWSE_ENABLED = false;
+// Moved to constants/featureFlags.ts (two other route modules read it and
+// were importing THIS route module to get it). Re-exported here so the
+// existing `from '@/app/(tabs)/mage-id-bids'` spelling keeps working.
+export { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
 
 export default function MageIdBidsTabScreen() {
   const insets = useSafeAreaInsets();
@@ -107,7 +96,12 @@ export default function MageIdBidsTabScreen() {
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { location, refresh: requestLocation, loading: locLoading } = useUserLocation();
+  const { isDesktop } = useResponsiveLayout();
+  // Nothing here asks the OS for location on mount — `request` is wired to the
+  // "Use my location" button below and nowhere else. Opening this tab used to
+  // raise the iOS alert for a distance sort inside Browse, which
+  // RFP_BROWSE_ENABLED keeps switched off (runtime audit 2026-09-06, NAV-04).
+  const { location, request: requestLocation, status: locStatus } = useUserLocation();
   const [radius, setRadius] = useState<number>(25);
   const [mode, setMode] = useState<Mode>(RFP_BROWSE_ENABLED ? 'browse' : 'mine');
 
@@ -232,10 +226,10 @@ export default function MageIdBidsTabScreen() {
           <View style={styles.rfpHead}>
             <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
             {r.address_verified ? (
-              <View style={styles.verifyDot}><ShieldCheck size={10} color={Colors.success} strokeWidth={1.75} /></View>
+              <View style={styles.verifyDot}><ShieldCheck size={10} color={Colors.successLabel} strokeWidth={1.75} /></View>
             ) : (
               <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
-                <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
+                <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />
               </View>
             )}
           </View>
@@ -258,8 +252,8 @@ export default function MageIdBidsTabScreen() {
               </View>
             ) : <View />}
             <View style={[styles.footChip, daysLeft < 3 ? { backgroundColor: Colors.error + '15' } : null]}>
-              <Clock size={11} color={daysLeft < 3 ? Colors.error : Colors.textMuted} strokeWidth={1.75} />
-              <Text style={[styles.footChipText, daysLeft < 3 ? { color: Colors.error } : null]}>
+              <Clock size={11} color={daysLeft < 3 ? Colors.dangerLabel : Colors.textMuted} strokeWidth={1.75} />
+              <Text style={[styles.footChipText, daysLeft < 3 ? { color: Colors.dangerLabel } : null]}>
                 {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
               </Text>
             </View>
@@ -290,10 +284,27 @@ export default function MageIdBidsTabScreen() {
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.brandIcon}><Hammer size={18} color={Colors.primary} strokeWidth={1.75} /></View>
+          {/* NAV-07 (runtime audit 2026-09-06): on phones this route is
+              registered with href:null (app/(tabs)/_layout.tsx), so arriving
+              here from Discover is a TAB SWITCH — no back button is created and
+              no tab lights up. The 38pt brand square was pure decoration in
+              that corner; it becomes the way out.
+              The destination is Discover's Overview, because that is the only
+              surface that links here (app/(tabs)/discover/index.tsx, the MAGE
+              ID MARKETPLACE card) — Tools does not. HiddenTabBackLink renders
+              the word "Discover" beside the chevron and hides itself on
+              desktop, where the sidebar is the nav and the brand mark stays. */}
+          {isDesktop
+            ? <View style={styles.brandIcon}><Hammer size={18} color={Colors.primary} strokeWidth={1.75} /></View>
+            : <HiddenTabBackLink label="Discover" href="/(tabs)/discover" testID="mageid-bids-back" />}
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>MAGE ID Bids</Text>
-            <Text style={styles.title} numberOfLines={1}>
+            {/* NAV-13: one line truncated the screen's own name mid-word
+                ("Your posted pro…") on a stock iPhone at default text size —
+                22pt Fraunces does not fit beside a 38pt icon and the "Post
+                project" CTA. Two lines, so it never truncates at any dynamic
+                type size. Type stays Type.serifHeadline (test:type-identity). */}
+            <Text style={styles.title} numberOfLines={2}>
               {mode === 'browse' ? 'Projects near you' : 'Your posted projects'}
             </Text>
           </View>
@@ -304,17 +315,43 @@ export default function MageIdBidsTabScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Mode segmented control */}
+      {/* Mode segmented control.
+
+          NAV-03 (runtime audit 2026-09-06): RFP_BROWSE_ENABLED is false, so the
+          browse query never runs — but the Browse segment was still a live
+          control, and the only thing behind it was "No projects within 25 miles
+          yet · Allow location access or expand your radius to see what's near
+          you." Neither the radius nor the GPS had anything to do with it:
+          nothing is ever fetched. app/nearby-rfps.tsx already replaced that
+          exact sentence, its comment calling it "a permanent lie"; the same
+          honesty belongs on the control itself. While browsing is off the
+          segment is rendered as an explicitly-unavailable chip — not tappable,
+          not styled as a tab you failed to select — and the note below says
+          what does work today. */}
       <View style={styles.segmentRow}>
-        <TouchableOpacity
-          style={[styles.segment, mode === 'browse' && styles.segmentActive]}
-          onPress={() => setMode('browse')}
-        >
-          <Compass size={13} color={mode === 'browse' ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />
-          <Text style={[styles.segmentText, mode === 'browse' && styles.segmentTextActive]}>
-            Browse{filteredBrowse.length > 0 ? ` · ${filteredBrowse.length}` : ''}
-          </Text>
-        </TouchableOpacity>
+        {RFP_BROWSE_ENABLED ? (
+          <TouchableOpacity
+            style={[styles.segment, mode === 'browse' && styles.segmentActive]}
+            onPress={() => setMode('browse')}
+            testID="mageid-bids-browse-segment"
+          >
+            <Compass size={13} color={mode === 'browse' ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />
+            <Text style={[styles.segmentText, mode === 'browse' && styles.segmentTextActive]}>
+              Browse{filteredBrowse.length > 0 ? ` · ${filteredBrowse.length}` : ''}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View
+            style={[styles.segment, styles.segmentUnavailable]}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel="Browse nearby projects — not open yet"
+            testID="mageid-bids-browse-unavailable"
+          >
+            <Compass size={13} color={Colors.textMuted} strokeWidth={1.75} />
+            <Text style={[styles.segmentText, styles.segmentTextUnavailable]}>Browse · not open yet</Text>
+          </View>
+        )}
         <TouchableOpacity
           style={[styles.segment, mode === 'mine' && styles.segmentActive]}
           onPress={() => setMode('mine')}
@@ -331,12 +368,36 @@ export default function MageIdBidsTabScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Says what IS available instead of leaving a greyed-out chip to be
+          read as a bug or as an empty radius. */}
+      {!RFP_BROWSE_ENABLED && (
+        <Text style={styles.browseNote} testID="mageid-bids-browse-note">
+          Browsing other people&apos;s projects isn&apos;t open yet — nothing is being
+          searched, so this is not about your location or radius. Posting a project
+          and reviewing the bids it collects both work now.
+        </Text>
+      )}
+
       {mode === 'browse' && (
         <View style={styles.controls}>
-          <TouchableOpacity style={styles.locBtn} onPress={() => { void requestLocation(); }}>
-            <Crosshair size={13} color={location ? Colors.success : Colors.primary} strokeWidth={1.75} />
+          {/* Reachable only while RFP_BROWSE_ENABLED is true: `mode` starts at
+              'mine' and the only setMode('browse') lives in the gated segment
+              above, so with browsing off this control — and the prompt behind
+              it — cannot render at all. Copy comes from the shared helper so
+              the label the Info.plist quotes has exactly one definition. */}
+          <TouchableOpacity
+            style={styles.locBtn}
+            onPress={() => {
+              if (locationControlAction(locStatus, LOCATION_PLATFORM) === 'openSettings') openLocationSettings();
+              else void requestLocation();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={locationControlLabel(locStatus, !!location, LOCATION_PLATFORM)}
+            testID="mageid-bids-use-location"
+          >
+            <Crosshair size={13} color={location ? Colors.successLabel : Colors.primary} strokeWidth={1.75} />
             <Text style={styles.locBtnText}>
-              {location ? 'Location set' : locLoading ? 'Getting location…' : 'Use my location'}
+              {locationControlLabel(locStatus, !!location, LOCATION_PLATFORM)}
             </Text>
           </TouchableOpacity>
           <View style={styles.radiusRow}>
@@ -482,8 +543,8 @@ export default function MageIdBidsTabScreen() {
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
                   {isAwarded && (
                     <View style={[styles.statusPill, { backgroundColor: Colors.success + '20' }]}>
-                      <Trophy size={10} color={Colors.success} strokeWidth={1.75} />
-                      <Text style={[styles.statusPillText, { color: Colors.success }]}>AWARDED</Text>
+                      <Trophy size={10} color={Colors.successLabel} strokeWidth={1.75} />
+                      <Text style={[styles.statusPillText, { color: Colors.successLabel }]}>AWARDED</Text>
                     </View>
                   )}
                   {isOpen && (
@@ -581,8 +642,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
   },
   segmentActive: { backgroundColor: t.accent + '12', borderColor: t.accent },
+  // Not "a tab you happen not to be on" — a control that is not there yet.
+  // Dashed edge + no fill so it never reads as selectable (NAV-03).
+  segmentUnavailable: { backgroundColor: 'transparent', borderStyle: 'dashed' as const, borderColor: t.line },
   segmentText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textMuted },
   segmentTextActive: { color: t.accent },
+  segmentTextUnavailable: { color: t.textMuted, fontWeight: '600' as const },
+  browseNote: {
+    fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16,
+    paddingHorizontal: 16, paddingTop: 8,
+  },
   unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accentFill, minWidth: 18, alignItems: 'center' },
   unreadDotText: { fontSize: 10, fontWeight: '800' as const, color: '#FFF' },
 

@@ -53,7 +53,7 @@ function dayToDate(startDate: Date, day: number): string {
 const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: string; color: string }[] = [
   { value: 'not_started', label: 'Not started', color: "#9AA3AD" },
   { value: 'in_progress', label: 'In progress', color: "#FF6A1A" },
-  { value: 'on_hold', label: 'On hold', color: Colors.warning },
+  { value: 'on_hold', label: 'On hold', color: Colors.warningLabel },
   { value: 'done', label: 'Done', color: "#2E7D44" },
 ];
 

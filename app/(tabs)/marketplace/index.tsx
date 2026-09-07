@@ -678,7 +678,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   previewLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.warning,
+    color: Colors.warningLabel,
     letterSpacing: 0.5,
   },
   previewBody: {
@@ -917,7 +917,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   stockText: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
   },
   listingPriceRow: {
     flexDirection: 'row',
@@ -949,7 +949,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   listingBulk: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
     letterSpacing: -0.3,
   },
   listingUnit: {
@@ -967,7 +967,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   listingSaveText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
   },
   listingMinText: {
     fontSize: 10,
@@ -995,7 +995,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   listingLeadText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.info,
+    color: Colors.infoLabel,
     fontWeight: '500' as const,
   },
   emptyState: {
@@ -1182,7 +1182,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   detailSaveText: {
     fontSize: 10,
     fontWeight: '700' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
   },
   detailListingDivider: {
     height: 0.5,
@@ -1250,7 +1250,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   popupStockText: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
   },
   popupPriceRow: {
     flexDirection: 'row',
@@ -1281,7 +1281,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   popupBulk: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
   },
   popupPriceUnit: {
     fontSize: Type.caption2.fontSize,
@@ -1333,7 +1333,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   popupBulkText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.success,
+    color: Colors.successLabel,
   },
   popupTotalRow: {
     flexDirection: 'row',
@@ -1360,7 +1360,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   popupLeadText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.info,
+    color: Colors.infoLabel,
     fontWeight: '500' as const,
   },
   popupRequestBtn: {

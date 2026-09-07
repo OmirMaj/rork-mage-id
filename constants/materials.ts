@@ -1,3 +1,7 @@
+import { formatCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
+import { CITY_ADJUSTMENTS, REGIONS, US_STATES, getRegionForState } from '@/constants/regions';
+import type { PricingRegion } from '@/types';
+
 export interface MaterialItem {
   id: string;
   name: string;
@@ -23,7 +27,14 @@ export interface MaterialItem {
 
 export const BASE_MATERIALS: MaterialItem[] = [
   // ─── LUMBER & FRAMING ───────────────────────────────────────────────
-  { id: 'l1', name: '2x4x8 Stud (Douglas Fir)', category: 'lumber', unit: 'each', baseRetailPrice: 5.98, baseBulkPrice: 4.75, bulkMinQty: 100, supplier: 'Home Depot', sku: '161640' },
+  // `sku` deliberately unset. This row carried the only SKU in the table —
+  // '161640', against 'Home Depot' — and nobody has ever checked it against
+  // that retailer's catalog. A part number is the most checkable claim on the
+  // screen and the most expensive one to get wrong: it is what a contractor
+  // reads out at a trade desk. One unverified SKU on 1 of 274 rows is a
+  // copy-paste leftover, not a data set. Absent beats invented. If SKUs are
+  // wanted, they arrive as a checked column with a source, not one at a time.
+  { id: 'l1', name: '2x4x8 Stud (Douglas Fir)', category: 'lumber', unit: 'each', baseRetailPrice: 5.98, baseBulkPrice: 4.75, bulkMinQty: 100, supplier: 'Home Depot' },
   { id: 'l2', name: '2x6x8 Framing Lumber', category: 'lumber', unit: 'each', baseRetailPrice: 9.47, baseBulkPrice: 7.80, bulkMinQty: 50, supplier: "Lowe's" },
   { id: 'l3', name: '2x8x16 Framing Lumber', category: 'lumber', unit: 'each', baseRetailPrice: 18.97, baseBulkPrice: 15.80, bulkMinQty: 25, supplier: 'Home Depot' },
   { id: 'l4', name: '2x10x16 Floor Joist', category: 'lumber', unit: 'each', baseRetailPrice: 24.98, baseBulkPrice: 20.50, bulkMinQty: 25, supplier: 'BMC Supply' },
@@ -382,31 +393,6 @@ export const CATEGORY_META: Record<string, { color: string; iconName: string; la
   landscape:  { color: '#15803D', iconName: 'Leaf',             label: 'Landscape' },
 };
 
-export const PRICE_VOLATILITY: Record<string, number> = {
-  lumber:     0.06,
-  concrete:   0.03,
-  roofing:    0.04,
-  insulation: 0.03,
-  siding:     0.03,
-  windows:    0.02,
-  flooring:   0.03,
-  plumbing:   0.04,
-  electrical: 0.05,
-  hvac:       0.03,
-  drywall:    0.04,
-  paint:      0.02,
-  decking:    0.05,
-  fencing:    0.03,
-  steel:      0.07,
-  hardware:   0.03,
-  landscape:  0.03,
-};
-
-export function applyPriceVariance(base: number, volatility: number, seed: number): number {
-  const variation = (Math.sin(seed) * volatility);
-  return parseFloat((base * (1 + variation)).toFixed(2));
-}
-
 export const REGIONAL_FACTORS = [
   { id: 'national', label: 'National Avg', multiplier: 1 },
   { id: 'northeast', label: 'Northeast', multiplier: 1.11 },
@@ -434,7 +420,8 @@ const PRICING_TIERS = [
   { id: 'premium', label: 'Premium', retailMultiplier: 1.08, bulkMultiplier: 1.06, wasteFactor: 0.08 },
 ] as const;
 
-function formatMoney(value: number): number {
+/** Whole cents. Every price this module hands out passes through here. */
+function roundToCents(value: number): number {
   return Number(value.toFixed(2));
 }
 
@@ -459,8 +446,8 @@ function buildExpandedMaterials(): MaterialItem[] {
           id: `${base.id}-${region.id}-${tier.id}`,
           name: `${base.name} · ${region.label} ${tier.label}`,
           supplier: `${base.supplier} · ${region.label}`,
-          baseRetailPrice: formatMoney(base.baseRetailPrice * region.multiplier * tier.retailMultiplier),
-          baseBulkPrice: formatMoney(base.baseBulkPrice * region.multiplier * tier.bulkMultiplier),
+          baseRetailPrice: roundToCents(base.baseRetailPrice * region.multiplier * tier.retailMultiplier),
+          baseBulkPrice: roundToCents(base.baseBulkPrice * region.multiplier * tier.bulkMultiplier),
           pricingModel: 'regional_adjusted',
           sourceLabel: 'Regional city factor adjusted',
           region: region.label,
@@ -477,8 +464,8 @@ function buildExpandedMaterials(): MaterialItem[] {
           id: `${base.id}-${region.id}-${assembly.id}-assembly`,
           name: `${base.name} · ${region.label} ${assembly.label}`,
           supplier: `${base.supplier} · ${assembly.label}`,
-          baseRetailPrice: formatMoney(base.baseRetailPrice * region.multiplier * assembly.multiplier),
-          baseBulkPrice: formatMoney(base.baseBulkPrice * region.multiplier * (assembly.multiplier - 0.015)),
+          baseRetailPrice: roundToCents(base.baseRetailPrice * region.multiplier * assembly.multiplier),
+          baseBulkPrice: roundToCents(base.baseBulkPrice * region.multiplier * (assembly.multiplier - 0.015)),
           pricingModel: 'regional_adjusted',
           sourceLabel: 'Regional assembly adjustment',
           region: region.label,
@@ -503,42 +490,356 @@ export const MATERIAL_CATALOG_STATS = {
   regionCount: REGIONAL_FACTORS.length,
 };
 
+/**
+ * @deprecated Call `resolvePricingMarket(location)` instead — it returns the
+ * LABEL alongside the multiplier, and a screen that adjusts a price by 12% has
+ * to be able to say which market it adjusted for.
+ *
+ * WHY THIS IS NOW A ONE-LINE DELEGATION.
+ *
+ * It used to own a second, private location→multiplier table, matched by
+ * unbounded `String.includes` over `Object.entries` order — first key wins.
+ * Its keys included the two-letter codes 'ca', 'or', 'in', 'al' and 'ma', so
+ * any city name CONTAINING those letters matched a state it has nothing to do
+ * with, and 'ca' was iterated first. Measured by calling the shipped function
+ * on 2026-09-06, before this change:
+ *
+ *     getRegionMultiplier('Chicago, IL')     → 1.18  ('chiCAgo' → California)
+ *     getRegionMultiplier('Cary, NC')        → 1.18  ('CAry')
+ *     getRegionMultiplier('Ocala, FL')       → 1.18  ('oCAla')
+ *     getRegionMultiplier('Decatur, GA')     → 1.18  ('deCAtur')
+ *     getRegionMultiplier('Scarborough, ME') → 1.18  ('sCArborough')
+ *     getRegionMultiplier('Portland, ME')    → 1.08  (Oregon's factor)
+ *
+ * A Chicago GC was pricing every material in every bid 25.5% over the midwest
+ * factor the table meant to give him, and Portland, Maine was priced as
+ * Portland, Oregon — the exact confusion `resolvePricingMarket` was written to
+ * prevent. That is a larger error than the ±6% sine wave the 2026-09-06 NAV-01
+ * fix removed, and it fed the same bids: app/(tabs)/estimate/full.tsx,
+ * app/change-order.tsx, app/takeoff-estimate.tsx, app/area-takeoff.tsx.
+ *
+ * Two resolvers that disagree about one contractor's market is how this comes
+ * back. There is now one. It is `resolvePricingMarket`, it is state-aware, and
+ * it is pinned by __tests__/smoke/materials-price-provenance.test.tsx.
+ */
 export function getRegionMultiplier(location: string): number {
-  const loc = location.toLowerCase().trim();
-  const regionMap: Record<string, string> = {
-    'california': 'california', 'ca': 'california', 'los angeles': 'california', 'san francisco': 'california', 'san diego': 'california', 'sacramento': 'california',
-    'florida': 'florida', 'fl': 'florida', 'miami': 'florida', 'orlando': 'florida', 'tampa': 'florida', 'jacksonville': 'florida',
-    'texas': 'texas', 'tx': 'texas', 'houston': 'texas', 'dallas': 'texas', 'austin': 'texas', 'san antonio': 'texas',
-    'new york': 'northeast', 'ny': 'northeast', 'nyc': 'northeast', 'boston': 'northeast', 'ma': 'northeast', 'ct': 'northeast', 'connecticut': 'northeast', 'massachusetts': 'northeast',
-    'new jersey': 'midatlantic', 'nj': 'midatlantic', 'pennsylvania': 'midatlantic', 'pa': 'midatlantic', 'philadelphia': 'midatlantic', 'maryland': 'midatlantic', 'md': 'midatlantic', 'dc': 'midatlantic', 'washington dc': 'midatlantic', 'virginia': 'midatlantic', 'va': 'midatlantic',
-    'georgia': 'southeast', 'ga': 'southeast', 'atlanta': 'southeast', 'north carolina': 'southeast', 'nc': 'southeast', 'south carolina': 'southeast', 'sc': 'southeast', 'tennessee': 'southeast', 'tn': 'southeast', 'alabama': 'southeast', 'al': 'southeast',
-    'illinois': 'midwest', 'il': 'midwest', 'chicago': 'midwest', 'ohio': 'midwest', 'oh': 'midwest', 'michigan': 'midwest', 'mi': 'midwest', 'indiana': 'midwest', 'in': 'midwest', 'wisconsin': 'midwest', 'wi': 'midwest', 'minnesota': 'midwest', 'mn': 'midwest',
-    'colorado': 'mountain', 'co': 'mountain', 'denver': 'mountain', 'utah': 'mountain', 'ut': 'mountain', 'montana': 'mountain', 'mt': 'mountain', 'idaho': 'mountain', 'id': 'mountain', 'wyoming': 'mountain', 'wy': 'mountain',
-    'arizona': 'southwest', 'az': 'southwest', 'phoenix': 'southwest', 'new mexico': 'southwest', 'nm': 'southwest', 'nevada': 'southwest', 'nv': 'southwest', 'las vegas': 'southwest',
-    'oregon': 'northwest', 'or': 'northwest', 'portland': 'northwest', 'washington': 'northwest', 'wa': 'northwest', 'seattle': 'northwest',
-  };
-
-  for (const [key, regionId] of Object.entries(regionMap)) {
-    if (loc.includes(key)) {
-      const factor = REGIONAL_FACTORS.find(r => r.id === regionId);
-      if (factor) {
-        console.log('[Materials] Location "' + location + '" matched region:', factor.label, 'multiplier:', factor.multiplier);
-        return factor.multiplier;
-      }
-    }
-  }
-  return 1;
+  return resolvePricingMarket(location).multiplier;
 }
 
-export function getLivePrices(seed: number, locationMultiplier?: number): MaterialItem[] {
-  const mult = locationMultiplier ?? 1;
-  return EXPANDED_MATERIALS.map(m => {
-    const vol = PRICE_VOLATILITY[m.category] ?? 0.03;
-    const itemSeed = seed + m.id.charCodeAt(0) + m.id.charCodeAt(1);
+// ─── PRICE PROVENANCE ───────────────────────────────────────────────────────
+//
+// These are LIST PRICES TYPED INTO THIS FILE. There is no supplier feed, no
+// market API and no network call anywhere in this module.
+//
+// Until 2026-09-06 the only exported pricing function was `getLivePrices`, and
+// it multiplied every price by (1 + sin(Date.now() / 10000) * volatility). The
+// Materials tab re-rolled that sine every five minutes, on pull-to-refresh and
+// on every foreground, then presented the result under a pulsing green dot
+// reading "LIVE PRICING · Prices updated 9:20 PM · New York City rates". The
+// same invented movements were compared against the user's price alerts and
+// fired "X is now $Y, below your $Z target" for moves that never happened.
+//
+// Those numbers are not decorative. The Materials cart feeds
+// MaterialCartContext, which feeds the Full Estimator and Review Estimate,
+// which feed bids sent to clients. A contractor was defending a lumber number
+// that was a sine function of what time he opened the app.
+//
+// The wobble is gone. What is left is a dated book price the contractor can
+// defend — and every surface that shows one has to say where it came from and
+// how old it is. An absent fact beats an invented one.
+
+/**
+ * Calendar day the BASE_MATERIALS list prices were compiled.
+ *
+ * Measured, not guessed. All 274 BASE_MATERIALS rows were written in 770ca270
+ * (2026-04-16) and NO commit since has changed a list price — every later
+ * commit that touched this file moved category metadata or the derivation
+ * code. Re-check with:
+ *
+ *     git log -p -- constants/materials.ts | grep -E '^[-+].*baseRetailPrice:'
+ *
+ * (An earlier draft of this comment credited a second commit, ad6efa08, with
+ * moving one price line. It did not: that commit changes exactly one hunk of
+ * this file, CATEGORY_META, and zero price lines. It was an invented detail
+ * inside the block that argues against invented details, which is the whole
+ * reason it is called out here rather than quietly deleted.)
+ *
+ * BUMP THIS IN THE SAME COMMIT that re-prices the table — a stale date here is
+ * the same lie in a smaller font. Two assertions in
+ * __tests__/smoke/materials-price-provenance.test.tsx name the compile month
+ * ('April 2026') and WILL fail when you bump it; that is deliberate. Update
+ * them in the same commit, after re-reading what they pin.
+ */
+export const CATALOG_COMPILED_ON = '2026-04-16';
+
+/** What the numbers are. Not quotes, not your supplier's account pricing. */
+export const CATALOG_SOURCE_LABEL = 'US retail and contractor-yard list prices';
+
+/** The one sentence that must accompany a catalog price anywhere it is shown. */
+export const CATALOG_NOT_A_FEED =
+  'Not a live feed — confirm with your supplier before you bid.';
+
+/** Past this age the screen stops being polite about it. */
+export const CATALOG_STALE_AFTER_MONTHS = 6;
+
+/** 'April 2026'. */
+export function catalogCompiledLabel(): string {
+  return formatCalendarDay(CATALOG_COMPILED_ON, { month: 'long', year: 'numeric' });
+}
+
+/** Whole months between the compile day and `now`, floored at 0. */
+export function catalogAgeMonths(now: Date = new Date()): number {
+  const compiled = parseCalendarDay(CATALOG_COMPILED_ON);
+  if (!compiled) return 0;
+  let months =
+    (now.getFullYear() - compiled.getFullYear()) * 12 +
+    (now.getMonth() - compiled.getMonth());
+  // Not a full month until the day-of-month has come round again.
+  if (now.getDate() < compiled.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+export function catalogIsStale(now: Date = new Date()): boolean {
+  return catalogAgeMonths(now) >= CATALOG_STALE_AFTER_MONTHS;
+}
+
+/**
+ * The line that replaces "Prices updated 9:20 PM · New York City rates".
+ * States the compile date, the age, and which market factor is applied —
+ * nothing about when the app last re-rendered.
+ */
+export function catalogProvenanceLine(
+  marketLabel: string | null,
+  now: Date = new Date(),
+): string {
+  const months = catalogAgeMonths(now);
+  const age = months <= 0 ? 'compiled this month' : months === 1 ? '1 month old' : `${months} months old`;
+  const market = marketLabel ? `adjusted for ${marketLabel}` : 'US average — no market set';
+  return `List prices · ${catalogCompiledLabel()} · ${age} · ${market}`;
+}
+
+// ─── MARKET RESOLUTION ──────────────────────────────────────────────────────
+
+/**
+ * Which state each metro in CITY_ADJUSTMENTS sits in.
+ *
+ * Lived inline in app/(tabs)/materials/index.tsx, where it could not be tested
+ * and could not disambiguate a match. It is here because `resolvePricingMarket`
+ * needs it: "Portland, ME" contains the CITY_ADJUSTMENTS key "Portland", which
+ * is the Oregon metro at +10%. Maine is not Oregon.
+ */
+export const METRO_STATE: Record<string, string> = {
+  'New York City': 'NY', 'San Francisco': 'CA', 'Los Angeles': 'CA',
+  'Chicago': 'IL', 'Boston': 'MA', 'Seattle': 'WA', 'Miami': 'FL',
+  'Houston': 'TX', 'Dallas': 'TX', 'Atlanta': 'GA', 'Denver': 'CO',
+  'Phoenix': 'AZ', 'Philadelphia': 'PA', 'Washington DC': 'DC',
+  'Detroit': 'MI', 'Minneapolis': 'MN', 'Portland': 'OR',
+  'Las Vegas': 'NV', 'Nashville': 'TN', 'Charlotte': 'NC',
+};
+
+export interface PricingMarket {
+  /** A CITY_ADJUSTMENTS key, or null when the location named no metro we price. */
+  city: string | null;
+  regionId: PricingRegion | null;
+  /** What to show the user. 'US average' when nothing resolved. */
+  label: string;
+  /** 1 when nothing resolved — the national list price, un-adjusted. */
+  multiplier: number;
+  /** False ⇒ the app does not know this contractor's market and must say so. */
+  resolved: boolean;
+}
+
+export const US_AVERAGE_MARKET: PricingMarket = {
+  city: null, regionId: null, label: 'US average', multiplier: 1, resolved: false,
+};
+
+/** The two-letter state in a free-text location, or null. */
+function stateCodeIn(location: string): string | null {
+  const upper = ` ${location.toUpperCase().replace(/[^A-Z ]/g, ' ')} `;
+  for (const st of US_STATES) {
+    if (upper.includes(` ${st.code} `)) return st.code;
+  }
+  const lower = location.toLowerCase();
+  for (const st of US_STATES) {
+    if (lower.includes(st.name.toLowerCase())) return st.code;
+  }
+  return null;
+}
+
+/**
+ * Resolve `settings.location` ("Houston, TX", "United States", "") to the
+ * pricing market the catalog should be adjusted for.
+ *
+ * Returns US_AVERAGE_MARKET — multiplier 1, `resolved: false` — when the text
+ * names no market we price. The screen defaulted to New York City (+35%)
+ * before this existed, which put Manhattan rates in a Houston GC's browser
+ * with nothing on screen saying he had not chosen them.
+ */
+export function resolvePricingMarket(location: string | null | undefined): PricingMarket {
+  const text = (location ?? '').trim();
+  if (!text) return US_AVERAGE_MARKET;
+
+  // Punctuation collapsed to single spaces on BOTH sides of the comparison.
+  // A contractor types "Washington, DC"; the metro key is "Washington DC"
+  // (no comma), so a raw substring test missed it and fell through to the
+  // DC *region* factor — a quieter, smaller adjustment than the metro he
+  // actually works in. Normalising both sides is what makes them meet.
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const lower = norm(text);
+  const state = stateCodeIn(text);
+
+  // Longest metro name first so "New York City" is tried before "New York"
+  // would ever be a prefix of something shorter.
+  const metros = Object.keys(CITY_ADJUSTMENTS).sort((a, b) => b.length - a.length);
+  for (const metro of metros) {
+    if (!lower.includes(norm(metro))) continue;
+    const metroState = METRO_STATE[metro];
+    // A stated state that disagrees with the metro wins — see METRO_STATE.
+    if (state && metroState && state !== metroState) continue;
+    const region = getRegionForState(metroState ?? state ?? '');
     return {
-      ...m,
-      baseRetailPrice: applyPriceVariance(m.baseRetailPrice * mult, vol, itemSeed),
-      baseBulkPrice: applyPriceVariance(m.baseBulkPrice * mult, vol * 0.8, itemSeed + 1),
+      city: metro,
+      regionId: region?.id ?? null,
+      label: metro,
+      multiplier: CITY_ADJUSTMENTS[metro],
+      resolved: true,
+    };
+  }
+
+  if (state) {
+    const region = getRegionForState(state);
+    if (region) {
+      return {
+        city: null, regionId: region.id, label: region.label,
+        multiplier: region.costIndex, resolved: true,
+      };
+    }
+  }
+
+  return US_AVERAGE_MARKET;
+}
+
+/** The market for a region/city selection made in the UI. */
+export function marketForSelection(
+  regionId: PricingRegion | null,
+  city: string | null,
+): PricingMarket {
+  if (city && CITY_ADJUSTMENTS[city] !== undefined) {
+    const region = getRegionForState(METRO_STATE[city] ?? '');
+    return {
+      city, regionId: region?.id ?? regionId, label: city,
+      multiplier: CITY_ADJUSTMENTS[city], resolved: true,
+    };
+  }
+  const region = REGIONS.find(r => r.id === regionId);
+  if (region) {
+    return {
+      city: null, regionId: region.id, label: region.label,
+      multiplier: region.costIndex, resolved: true,
+    };
+  }
+  return US_AVERAGE_MARKET;
+}
+
+// ─── PRICING ────────────────────────────────────────────────────────────────
+
+/**
+ * The catalog, adjusted by one regional cost factor. Deterministic: the same
+ * multiplier always returns the same prices, on any device, at any hour.
+ *
+ * There is deliberately no `seed`, no Date, and no randomness. If a real
+ * supplier feed ever lands, it belongs behind a function that can say WHEN it
+ * fetched and FROM WHOM — not behind this one.
+ */
+export function getCatalogPrices(locationMultiplier?: number): MaterialItem[] {
+  const raw = locationMultiplier ?? 1;
+  const mult = Number.isFinite(raw) && raw > 0 ? raw : 1;
+  return EXPANDED_MATERIALS.map(m => ({
+    ...m,
+    baseRetailPrice: roundToCents(m.baseRetailPrice * mult),
+    baseBulkPrice: roundToCents(m.baseBulkPrice * mult),
+  }));
+}
+
+/**
+ * @deprecated Renamed to `getCatalogPrices`. `seed` is IGNORED — there is no
+ * live pricing to seed.
+ *
+ * Kept only so the call sites outside the 2026-09-06 NAV-01 fix keep
+ * compiling. Four remain, verified by grep on 2026-09-07:
+ *
+ *   app/(tabs)/estimate/full.tsx:257,560   PRICE_SEED (a constant 1)
+ *   app/takeoff-estimate.tsx:195           ENGINE_PRICE_SEED
+ *   app/area-takeoff.tsx:107               ENGINE_PRICE_SEED
+ *   app/change-order.tsx:201               Date.now() / 10000  ← still the clock
+ *
+ * Only change-order.tsx still passes a wall clock. It changes nothing — the
+ * seed is ignored — but a `Date.now()` argument on a pricing call is how the
+ * next reader concludes there is a feed, which is the defect NAV-01 was about.
+ * Migrate all four to `getCatalogPrices(multiplier)` and delete this shim.
+ * (app/(tabs)/materials/[category].tsx was on this list and has been migrated.)
+ */
+export function getLivePrices(_seed?: number, locationMultiplier?: number): MaterialItem[] {
+  return getCatalogPrices(locationMultiplier);
+}
+
+/** Mean bulk-vs-retail discount across `items`, as a percentage (0-100). */
+export function averageBulkDiscountPct(items: MaterialItem[]): number {
+  const usable = items.filter(i => i.baseRetailPrice > 0);
+  if (usable.length === 0) return 0;
+  const total = usable.reduce(
+    (sum, i) => sum + (i.baseRetailPrice - i.baseBulkPrice) / i.baseRetailPrice,
+    0,
+  );
+  return Math.round((total / usable.length) * 100);
+}
+
+// ─── PRICE TARGETS (formerly "price alerts") ────────────────────────────────
+//
+// A stored PriceAlert row carries `currentPrice` and `isTriggered`, and both
+// were written by the synthetic feed: the Materials tab re-rolled the sine
+// every five minutes and pushed the result into every alert (a Supabase write
+// per alert per re-roll), firing a dialog whenever the invented number crossed
+// the target. Those two fields are therefore POISONED on any device that ran
+// the old build, and nothing on the wire distinguishes a poisoned value from a
+// real one.
+//
+// So they are not read any more. Status is derived here, from the catalog, at
+// render — a row left saying "Triggered" by the old feed simply stops claiming
+// it, with no migration and no cleanup write. The stored fields stay put for
+// the row's own history.
+
+export interface PriceTargetInput {
+  id: string;
+  materialId: string;
+  targetPrice: number;
+  direction: 'below' | 'above';
+  isPaused?: boolean;
+}
+
+export interface PriceTargetStatus {
+  id: string;
+  /** The catalog price in the selected market — null when the material is no
+   *  longer in the catalog, which is stated rather than papered over. */
+  catalogPrice: number | null;
+  /** null when there is no catalog price to compare against. */
+  meetsTarget: boolean | null;
+}
+
+export function evaluatePriceTargets(
+  targets: PriceTargetInput[],
+  catalog: MaterialItem[],
+): PriceTargetStatus[] {
+  const byId = new Map(catalog.map(m => [m.id, m]));
+  return targets.map(t => {
+    const match = byId.get(t.materialId);
+    if (!match) return { id: t.id, catalogPrice: null, meetsTarget: null };
+    const price = match.baseRetailPrice;
+    if (t.isPaused) return { id: t.id, catalogPrice: price, meetsTarget: null };
+    return {
+      id: t.id,
+      catalogPrice: price,
+      meetsTarget: t.direction === 'below' ? price <= t.targetPrice : price >= t.targetPrice,
     };
   });
 }

@@ -262,7 +262,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             {result && result.overallRecommendations.length > 0 && (
               <View style={styles.recBlock}>
                 <View style={styles.recHeader}>
-                  <MageAIMark size={14} color={Colors.warning} />
+                  <MageAIMark size={14} color={Colors.warningLabel} />
                   <Text style={styles.recHeaderText}>Overall recommendations</Text>
                 </View>
                 {result.overallRecommendations.map((r, idx) => (
@@ -332,8 +332,8 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                         >
                           {qtyApplied ? (
                             <>
-                              <CheckCircle size={13} color={Colors.success} strokeWidth={1.75} />
-                              <Text style={[styles.applyBtnText, { color: Colors.success }]}>Applied</Text>
+                              <CheckCircle size={13} color={Colors.successLabel} strokeWidth={1.75} />
+                              <Text style={[styles.applyBtnText, { color: Colors.successLabel }]}>Applied</Text>
                             </>
                           ) : (
                             <Text style={styles.applyBtnText}>Apply qty</Text>
@@ -366,8 +366,8 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                         >
                           {markupApplied ? (
                             <>
-                              <CheckCircle size={13} color={Colors.success} strokeWidth={1.75} />
-                              <Text style={[styles.applyBtnText, { color: Colors.success }]}>Applied</Text>
+                              <CheckCircle size={13} color={Colors.successLabel} strokeWidth={1.75} />
+                              <Text style={[styles.applyBtnText, { color: Colors.successLabel }]}>Applied</Text>
                             </>
                           ) : (
                             <Text style={styles.applyBtnText}>Apply markup</Text>

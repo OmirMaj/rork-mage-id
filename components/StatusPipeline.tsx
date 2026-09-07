@@ -187,7 +187,7 @@ export function StatusPipeline<S extends string>({
               <Text style={[
                 styles.metaPillText,
                 isOverdue && { color: themeColors.danger },
-                isUrgent && !isOverdue && { color: Colors.warning },
+                isUrgent && !isOverdue && { color: Colors.warningLabel },
               ]}>
                 {isOverdue
                   ? `${Math.abs(dueDays)}d overdue`

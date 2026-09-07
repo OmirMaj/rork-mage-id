@@ -7,6 +7,111 @@
 // NONE of these functions round to currency beyond what's noted — callers own
 // display formatting. All return non-negative dollars.
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cents and the retainage basis (runtime audit 2026-09-06, MISS-04).
+//
+// These two live HERE, beside netBalanceDue, because they are generic money
+// math that both the invoice editor and the G702/G703 pay application need.
+// They used to sit in utils/aiaBilling, which carries the ~400-line pay-app
+// HTML printer — app/invoice.tsx should not have to import a printer to round
+// a dollar. utils/aiaBilling imports them from this file.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Money is whole cents at the point it is COMPUTED, not just where it is
+ * formatted. Production carried `tax_amount` 5669.625, `total_due` 81264.625
+ * and `retention_amount` 4063.2312500000003 because the screens rounded only
+ * on display.
+ */
+export function roundCents(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * THE retainage rule for this app — one definition, shared by the invoice
+ * editor (app/invoice.tsx) and the G702/G703 pay application (utils/aiaBilling).
+ *
+ * Retainage is withheld on the VALUE OF THE WORK: completed work plus stored
+ * materials. It is NOT withheld on sales tax. Two reasons, and they agree:
+ *
+ *  1. AIA G702 line 5 is labelled "% of Completed Work" / "% of Stored
+ *     Material" and its basis is the schedule of values, which carries no tax.
+ *     `computeAIATotals` has always done it this way.
+ *  2. The GC remits sales tax to the state on the invoice date regardless of
+ *     whether the owner holds retainage. Withholding a slice of the tax makes
+ *     the GC finance the state out of pocket until closeout.
+ *
+ * Before this (MISS-04) app/invoice.tsx applied the percentage to
+ * `subtotal + taxAmount`, so the founder's live Houston invoice held $4,063.23
+ * where $3,779.75 is the defensible figure — $283.48 of retainage against tax —
+ * and the invoice and the pay application for the same job disagreed.
+ *
+ * `workValue` is deliberately NOT floored at zero. A G703 schedule of values
+ * may carry a deductive change-order line (a credit), whose retainage is a
+ * negative number that reduces the certificate's total withholding; clamping it
+ * to 0 makes the certificate over-withhold by `pct × |credit|` and prints
+ * $0.00 in the G703 retainage column on that line. Callers whose basis cannot
+ * legitimately be negative (the invoice editor's subtotal) clamp their own
+ * input.
+ */
+export function retainageOnWorkValue(workValue: number, retainagePercent: number): number {
+  const pct = Number.isFinite(retainagePercent) ? Math.max(0, Math.min(100, retainagePercent)) : 0;
+  const base = Number.isFinite(workValue) ? workValue : 0;
+  return roundCents(base * (pct / 100));
+}
+
+/** The stored money columns needed to judge an invoice row's retention basis. */
+export interface StoredRetentionRow {
+  subtotal: number;
+  totalDue: number;
+  retentionPercent?: number;
+  retentionAmount?: number;
+}
+
+export interface TaxBasisOverhold {
+  /** What the row actually stores, to the cent. */
+  stored: number;
+  /** What the same percentage of the work value comes to. */
+  corrected: number;
+  /** stored − corrected: retainage withheld against sales tax. */
+  overheld: number;
+}
+
+/**
+ * Identify an invoice row whose STORED `retentionAmount` was computed on the
+ * tax-inclusive total (MISS-04), so a screen can say so and offer to repair it.
+ *
+ * Deliberately narrow, and deliberately computed from STORED columns only. An
+ * earlier version of this check compared the stored amount against the LIVE,
+ * recomputed retention, which diverges the instant anyone edits a line item or
+ * the retention percentage — and then told the GC his retainage "included sales
+ * tax" on invoices that carry no sales tax at all. A specific accusation has to
+ * be earned:
+ *
+ *  - the row must state a percentage above zero and an amount;
+ *  - the two bases must actually differ (no tax ⇒ nothing to accuse);
+ *  - the stored amount must BE the taxed-total figure, to the cent. Anything
+ *    else (a hand-typed amount, a partial edit, a figure already on the work
+ *    basis) returns null — unexplained is not the same as tax-based.
+ */
+export function taxBasisRetentionOverhold(inv: StoredRetentionRow): TaxBasisOverhold | null {
+  const pct = inv.retentionPercent;
+  const stored = inv.retentionAmount;
+  if (pct == null || !Number.isFinite(pct) || pct <= 0) return null;
+  if (stored == null || !Number.isFinite(stored)) return null;
+  if (!Number.isFinite(inv.subtotal) || !Number.isFinite(inv.totalDue)) return null;
+
+  const onWork = retainageOnWorkValue(inv.subtotal, pct);
+  const onTaxed = retainageOnWorkValue(inv.totalDue, pct);
+  if (Math.abs(onTaxed - onWork) <= 0.01) return null;
+
+  const storedCents = roundCents(stored);
+  if (Math.abs(storedCents - onTaxed) > 0.01) return null;
+
+  return { stored: storedCents, corrected: onWork, overheld: roundCents(storedCents - onWork) };
+}
+
 export interface BillingLine {
   total: number;
   // Present only on Bill-from-Estimate lines, whose `total` is ALREADY scaled

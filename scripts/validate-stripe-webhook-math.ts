@@ -7,10 +7,21 @@
 // link again), the double-credit on a Stripe retry, and the refund / lost-
 // dispute ledger that did not exist.
 //
+// Runtime audit 2026-09-06 MONEY-02 added the receipt-balance section at the
+// bottom: the customer receipt stated a GROSS "Balance remaining" while
+// settlementStatus, in the same function, decided paid/partially_paid on the
+// NET one. That half of the webhook is not in paymentMath.ts, so the guard
+// EXTRACTS the shipped receiptBalance() out of stripe-webhook/index.ts between
+// its sentinels and executes it — the same technique
+// scripts/validate-sub-overpayment.ts uses on an Expo Router screen.
+//
 // paymentMath.ts has no Deno imports precisely so bun can run this file; the
 // webhook (Deno) imports the same module, so what passes here is what runs.
 //
 // Run via: bun run test:stripe-webhook-math
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   netPayable,
   retentionPending,
@@ -22,6 +33,14 @@ import {
   toCents2,
   type LedgerEntry,
 } from '../supabase/functions/_shared/paymentMath';
+
+// Declared locally rather than pulled from `bun-types`: this repo has no bun
+// type package installed, and without this `npx tsc --noEmit` fails with
+// TS2867 "Cannot find name 'Bun'". Same pattern as
+// scripts/validate-sub-overpayment.ts:50.
+declare const Bun: {
+  Transpiler: new (opts: { loader: 'ts' }) => { transformSync: (code: string) => string };
+};
 
 let pass = 0, fail = 0;
 function eq<T>(n: string, got: T, want: T) {
@@ -136,6 +155,86 @@ const pay = (id: string, amount: number): LedgerEntry => ({ id, amount, method: 
   close('0.1 + 0.2 rounds to 0.3', toCents2(0.1 + 0.2), 0.3);
   eq('negative zero is normalised', Object.is(toCents2(-0), 0), true);
   close('cents from Stripe integer', toCents2(123456 / 100), 1234.56);
+}
+
+// ── receiptBalance — the customer receipt's balance line (MONEY-02) ─────────
+//
+// Loaded from the SHIPPED webhook source so this cannot pass against a copy.
+{
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const WEBHOOK = 'supabase/functions/stripe-webhook/index.ts';
+  const src = readFileSync(join(ROOT, WEBHOOK), 'utf8');
+
+  const BEGIN = '// --- BEGIN receiptBalance';
+  const END = '// --- END receiptBalance ---';
+  const from = src.indexOf(BEGIN);
+  const to = src.indexOf(END);
+  if (from < 0 || to < 0) {
+    console.error(`\n  ✗ could not find the receiptBalance sentinels in ${WEBHOOK}.`);
+    console.error('    Someone moved or renamed the function; the receipt balance would go');
+    console.error('    unpinned and could drift back to the gross rule. Restore the sentinels.');
+    process.exit(1);
+  }
+  const js = new Bun.Transpiler({ loader: 'ts' })
+    .transformSync(src.slice(from, to).replace(/^export /gm, ''));
+  const receiptBalance = new Function(
+    'netPayable', 'retentionPending', 'toCents2',
+    `${js}\nreturn receiptBalance;`,
+  )(netPayable, retentionPending, toCents2) as (o: {
+    totalDue: number; newAmountPaid: number; retentionAmount: number; retentionReleased: number;
+  }) => { remaining: number; retentionHeld: number };
+
+  // The audit's live case: Houston Phone Booth Ad invoice #1 — $81,264.63 due,
+  // $4,063.23 (5%) retention, client part-pays $40,000 through the Stripe link.
+  // The receipt used to say $41,264.63 (gross) while the app, the portal and
+  // the A/R aging all said $37,201.39.
+  const houston = { totalDue: 81264.63, retentionAmount: 4063.23, retentionReleased: 0 };
+  eq('part-paid retention invoice: receipt matches the app, not the gross total',
+    receiptBalance({ ...houston, newAmountPaid: 40000 }),
+    { remaining: 37201.4, retentionHeld: 4063.23 });
+  eq('held retention is reported separately, never folded into the balance',
+    receiptBalance({ ...houston, newAmountPaid: 0 }).retentionHeld, 4063.23);
+  eq('no retention → the plain gross balance is unchanged',
+    receiptBalance({ totalDue: 4300, newAmountPaid: 1000, retentionAmount: 0, retentionReleased: 0 }),
+    { remaining: 3300, retentionHeld: 0 });
+  eq('a released retention becomes collectible again',
+    receiptBalance({ ...houston, retentionReleased: 4063.23, newAmountPaid: 77201.4 }),
+    { remaining: 4063.23, retentionHeld: 0 });
+  eq('overpayment never renders a negative balance',
+    receiptBalance({ ...houston, newAmountPaid: 90000 }).remaining, 0);
+  eq('float noise is rounded to whole cents',
+    receiptBalance({ totalDue: 0.3, newAmountPaid: 0.1 + 0.2 - 0.1, retentionAmount: 0, retentionReleased: 0 }).remaining,
+    0.1);
+
+  // THE INVARIANT the bug broke: the two halves of one email must agree. When
+  // settlementStatus says "paid", the balance line must be zero — and when it
+  // says partially_paid, the balance must be positive.
+  const cases: { totalDue: number; retentionAmount: number; retentionReleased: number; paid: number }[] = [
+    { totalDue: 81264.63, retentionAmount: 4063.23, retentionReleased: 0, paid: 77201.4 },
+    { totalDue: 81264.63, retentionAmount: 4063.23, retentionReleased: 0, paid: 40000 },
+    { totalDue: 100000, retentionAmount: 10000, retentionReleased: 4000, paid: 94000 },
+    { totalDue: 100000, retentionAmount: 10000, retentionReleased: 4000, paid: 50000 },
+    { totalDue: 4300, retentionAmount: 0, retentionReleased: 0, paid: 4300 },
+    { totalDue: 4300, retentionAmount: 0, retentionReleased: 0, paid: 1 },
+  ];
+  const disagreements = cases.filter((c) => {
+    const status = settlementStatus('sent', c.paid, {
+      total_due: c.totalDue, retention_amount: c.retentionAmount, retention_released: c.retentionReleased,
+    });
+    const { remaining } = receiptBalance({
+      totalDue: c.totalDue, newAmountPaid: c.paid,
+      retentionAmount: c.retentionAmount, retentionReleased: c.retentionReleased,
+    });
+    return status === 'paid' ? remaining > 0.01 : remaining <= 0.01;
+  });
+  eq('status and balance never contradict each other in the same email', disagreements, []);
+
+  // And the shape that caused it may not come back.
+  const grossReceipt = /opts\.totalDue\s*-\s*opts\.newAmountPaid/.test(src);
+  eq('the receipt no longer subtracts amount_paid from the GROSS total_due', grossReceipt, false);
+  eq('ReceiptOpts carries the retention columns INVOICE_COLS already reads',
+    /interface ReceiptOpts[\s\S]{0,600}?retentionAmount:\s*number;[\s\S]{0,120}?retentionReleased:\s*number;/.test(src),
+    true);
 }
 
 console.log(`\nvalidate-stripe-webhook-math: ${pass} passed, ${fail} failed`);

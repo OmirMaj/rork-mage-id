@@ -1,9 +1,14 @@
-// LivingFloorPlan — the "4D" view: a floor plan whose drawn zones tint by
-// planned schedule status across a timeline scrubber, with the site photos
-// that existed as of the scrubbed date.
+// LivingFloorPlan — a floor plan whose drawn zones tint by planned schedule
+// status across a timeline scrubber, with the site photos that existed as of
+// the scrubbed date.
+//
+// NOT a 4D view, and no longer described as one (MISS-08, runtime audit
+// 2026-09-06). "4D" in construction means a 3D BIM model linked to the
+// programme; this is a 2D plan image with drawn zones, and the app carries no
+// 3D dependency of any kind. Both surfaces now call it the Living Plan.
 //
 // Rendered on THREE surfaces from this one file:
-//   1. the mobile Schedule screen's "4D Model" sub-tab (GC, editable),
+//   1. the mobile Schedule screen's "Living Plan" sub-tab (GC, editable),
 //   2. Schedule Pro's "Living Plan" view on web (GC, editable),
 //   3. /shared-plan — the unauthenticated homeowner link (`clientMode`).
 //

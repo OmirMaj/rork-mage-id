@@ -22,6 +22,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -246,7 +247,7 @@ export default function ContactsScreen() {
         title: 'Contacts',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         headerRight: () => (
           <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn} accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
         ),

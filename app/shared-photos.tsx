@@ -63,7 +63,7 @@ export default function SharedPhotosScreen() {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-photos-no-token">
         <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
-        <AlertCircle size={28} color={Colors.warning} strokeWidth={1.75} />
+        <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.errorTitle}>No share token</Text>
         <Text style={styles.errorBody}>This link is missing the data it needs. Ask the contractor for a fresh share link.</Text>
       </View>

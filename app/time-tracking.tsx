@@ -28,6 +28,7 @@ import { useCrew } from '@/contexts/CrewContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function getElapsedHours(clockIn: string): string {
   const diff = Date.now() - new Date(clockIn).getTime();
@@ -418,7 +419,7 @@ function TimeTrackingScreenInner() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
+      <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         <View style={styles.statsRow}>
           <View style={styles.statCard}>

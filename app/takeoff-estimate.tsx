@@ -608,7 +608,7 @@ function TakeoffEstimateInner() {
           <View style={{ width: 28 }} />
         </View>
         <View style={styles.center}>
-          <AlertTriangle size={36} color={Colors.warning} strokeWidth={1.75} />
+          <AlertTriangle size={36} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>No takeoff to price</Text>
           <Text style={styles.emptyBody}>
             Run an AI Takeoff first — upload your plan PDFs and let the AI count walls, doors, and finishes. Then come back here and we&apos;ll turn those quantities into a priced estimate.

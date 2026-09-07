@@ -195,13 +195,13 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
           <Text style={s.metricValue}>${totals.markupAmount.toFixed(0)}</Text>
         </View>
         <View style={s.metricCard}>
-          <Clock size={14} color={Colors.info} strokeWidth={1.75} />
+          <Clock size={14} color={Colors.infoLabel} strokeWidth={1.75} />
           <Text style={s.metricLabel}>Labor Hrs</Text>
           <Text style={s.metricValue}>{totals.laborHours.toFixed(0)}</Text>
         </View>
         {locationFactor !== 1 && (
           <View style={s.metricCard}>
-            <MapPin size={14} color={Colors.warning} strokeWidth={1.75} />
+            <MapPin size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={s.metricLabel}>Location</Text>
             <Text style={s.metricValue}>{locationFactor.toFixed(2)}x</Text>
           </View>

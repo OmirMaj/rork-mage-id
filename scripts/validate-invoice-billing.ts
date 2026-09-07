@@ -9,7 +9,16 @@ import {
   netBalanceDue,
   billedAmountForLine,
   invoiceIsSettled,
+  roundCents,
+  retainageOnWorkValue,
+  taxBasisRetentionOverhold,
 } from '../utils/invoiceBilling';
+import {
+  retainagePercentForInvoice,
+  computeAIATotals,
+  seedAIAPayApplicationFromInvoice,
+  type AIAPayApplication,
+} from '../utils/aiaBilling';
 import { billFromEstimateUnitPrice } from '../utils/billFromEstimateCore';
 import { getEffectiveStartingBalance, generateForecast, calculateSummary } from '../utils/cashFlowEngine';
 import { computeWIPReport } from '../utils/financialReports';
@@ -282,6 +291,259 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   const scheduled = { ...project, schedule: { tasks: [{ progress: 30 }, { progress: 70 }] } } as unknown as Project;
   const noCost = computeWIPReport([scheduled], [billed(0)], [], []).rows[0];
   close('with no actuals, percent complete falls back to schedule progress (50)', noCost.percentComplete, 50, 0.01);
+}
+
+// ── MISS-04 — retainage basis is the WORK VALUE, never the taxed total ─────
+// Runtime audit 2026-09-06. app/invoice.tsx applied the retention % to
+// `subtotal + taxAmount`, so the founder's live Houston Phone Booth Ad invoice
+// #1 held $4,063.23 against a $75,595 subtotal + $5,669.63 of sales tax. The
+// GC remits that tax to the state whether or not the owner holds retainage, so
+// $283.48 of the withholding was against money already owed out. The G702 in
+// the same repo has always used the work value, and now both call the SAME
+// function.
+{
+  const HOUSTON_SUBTOTAL = 75_595;
+  const HOUSTON_TAX = roundCents(HOUSTON_SUBTOTAL * 0.075);   // 5,669.63
+  const HOUSTON_TOTAL = roundCents(HOUSTON_SUBTOTAL + HOUSTON_TAX); // 81,264.63
+
+  close('the live Houston invoice retains 5% of work, not of the taxed total',
+    retainageOnWorkValue(HOUSTON_SUBTOTAL, 5), 3_779.75);
+  eq('…and that is NOT the shipped figure the audit found',
+    retainageOnWorkValue(HOUSTON_SUBTOTAL, 5) === roundCents(HOUSTON_TOTAL * 0.05), false);
+  close('the difference is exactly the retainage that was held against sales tax',
+    roundCents(roundCents(HOUSTON_TOTAL * 0.05) - retainageOnWorkValue(HOUSTON_SUBTOTAL, 5)), 283.48);
+  close('a zero tax rate leaves the retainage unchanged (basis was never the tax)',
+    retainageOnWorkValue(HOUSTON_SUBTOTAL, 5), retainageOnWorkValue(HOUSTON_SUBTOTAL, 5));
+
+  // Whole cents, both directions, and no NaN/negative leakage.
+  close('retainage is whole cents (rounds down)', retainageOnWorkValue(333.33, 10), 33.33);
+  close('retainage is whole cents (rounds up)', retainageOnWorkValue(366.67, 10), 36.67);
+  close('the exact sub-cent value production stored is rounded, not carried',
+    retainageOnWorkValue(81_264.625, 5), 4_063.23);
+  close('retainage of 0% is 0', retainageOnWorkValue(50_000, 0), 0);
+  // NOT clamped at zero: a deductive change-order line on a G703 is a real,
+  // enterable credit whose retainage reduces the certificate's withholding.
+  // Flooring it here made the G702 over-withhold by pct x |credit| and printed
+  // $0.00 in the continuation sheet's retainage column on that line. Callers
+  // whose basis cannot be negative (the invoice editor) clamp their own input —
+  // asserted against app/invoice.tsx source below.
+  close('a deductive credit line carries negative retainage, not zero',
+    retainageOnWorkValue(-5_000, 10), -500);
+  close('NaN work value → 0, not NaN', retainageOnWorkValue(NaN, 10), 0);
+  close('a percentage above 100 is clamped', retainageOnWorkValue(1_000, 250), 1_000);
+
+  // roundCents itself — the sub-cent values production actually stored.
+  close('roundCents(4063.2312500000003) → 4063.23', roundCents(4_063.2312500000003), 4_063.23);
+  close('roundCents(81264.625) → 81264.63', roundCents(81_264.625), 81_264.63);
+  close('roundCents(48698.04825) → 48698.05', roundCents(48_698.04825), 48_698.05);
+  close('roundCents(6142.400000000001) → 6142.40', roundCents(6_142.400000000001), 6_142.4);
+  close('roundCents(NaN) → 0', roundCents(NaN), 0);
+
+  // The screen must compute the three totals at cent precision AND take the
+  // retainage basis from the work value. Source assertions, because the
+  // arithmetic lives in a React component.
+  {
+    const invoiceScreen = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'app', 'invoice.tsx'), 'utf8');
+    const code = invoiceScreen
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+    eq('app/invoice.tsx computes retention through the shared retainageOnWorkValue',
+      /retainageOnWorkValue\(retentionBasis, retentionPctValue\)/.test(code), true);
+    eq('…whose basis is the subtotal (work value), not totalDue',
+      /const retentionBasis = Math\.max\(0, subtotal\);/.test(code), true);
+    eq('the tax-inclusive basis is gone',
+      /totalDue \* \(retentionPctValue \/ 100\)/.test(code), false);
+    eq('subtotal, tax and total are rounded to cents where they are computed',
+      /const subtotal = useMemo\(\s*\(\) => roundCents\(progressSubtotal\(/.test(code)
+      && /const taxAmount = roundCents\(subtotal \* \(taxRate \/ 100\)\);/.test(code)
+      && /const totalDue = roundCents\(subtotal \+ taxAmount\);/.test(code), true);
+    eq('the totals card discloses the retainage basis',
+      /Retention Held \(\{retentionPctValue\}% of work completed\)/.test(code)
+      && /testID="retention-basis-note"/.test(code), true);
+    // The row under that note must show the amount WITHHELD, or the note stops
+    // being true the moment any retention is released.
+    eq('…and the row it labels renders retentionAmount, not retentionPending',
+      /Retention Held \(\{retentionPctValue\}% of work completed\)<\/Text>\s*\n\s*<Text [^>]*>-\{formatCurrency\(retentionAmount\)\}/.test(code), true);
+    eq('a row stored on the old tax-inclusive basis is called out from STORED columns only',
+      /testID="retention-basis-legacy"/.test(code)
+      && /taxBasisRetentionOverhold\(existingInvoice\)/.test(code), true);
+    // MISS-04's stored half: the banner has to be actionable. Every invoice past
+    // draft is locked and hides the save bar, so "save it again" repairs nothing.
+    eq('…and offers a repair the GC can actually reach on a locked invoice',
+      /testID="retention-basis-fix-btn"/.test(code)
+      && /onPress=\{handleCorrectRetentionBasis\}/.test(code), true);
+    eq('the repair rewrites the STORED row, not the editor\'s live state',
+      /retentionAmount: corrected,/.test(code)
+      && /subtotal: roundCents\(existingInvoice\.subtotal\),/.test(code)
+      && /taxAmount: roundCents\(existingInvoice\.taxAmount\),/.test(code)
+      && /totalDue: roundCents\(existingInvoice\.totalDue\),/.test(code), true);
+    // MISS-05 at the writer: a deliberate 0% must persist AS 0.
+    eq('a 0% retention is persisted as 0, never erased to undefined',
+      /retentionPercent: retentionPctValue \|\| undefined/.test(code), false);
+    eq('…at all three write sites',
+      (code.match(/retentionPercent: retentionPctValue,/g) ?? []).length, 3);
+  }
+}
+
+// ── MISS-05 — a pay app carries the invoice's retainage, never invents 10% ──
+{
+  const inv = (retentionPercent?: number): Invoice => ({
+    id: 'inv-a', number: 1, projectId: 'p1', type: 'progress',
+    issueDate: '2026-03-01', dueDate: '2026-03-31', paymentTerms: 'net_30', notes: '',
+    lineItems: [{ id: 'l1', name: 'Work', description: '', quantity: 1, unit: 'ls', unitPrice: 45_300.51, total: 45_300.51 }],
+    subtotal: 45_300.51, taxRate: 7.5, taxAmount: 3_397.54, totalDue: 48_698.05, amountPaid: 0,
+    status: 'sent', payments: [], retentionPercent,
+    createdAt: '2026-03-01', updatedAt: '2026-03-01',
+  } as unknown as Invoice);
+
+  close('an invoice that stored no retainage percent seeds 0%, not 10%',
+    retainagePercentForInvoice(inv(undefined)), 0);
+  close('a deliberate 0% stays 0%', retainagePercentForInvoice(inv(0)), 0);
+  close('a real 5% is carried', retainagePercentForInvoice(inv(5)), 5);
+  close('a nonsense stored percent is clamped, not trusted', retainagePercentForInvoice(inv(999)), 100);
+
+  const project = { id: 'p1', name: 'Henderson', status: 'in_progress' } as unknown as Project;
+  const seededNone = seedAIAPayApplicationFromInvoice(inv(undefined), project, [], { companyName: 'MAGE' } as never);
+  close('the seeded G702 withholds nothing when the invoice withheld nothing',
+    seededNone.retainagePercent, 0);
+  close('…and every SOV line agrees', seededNone.lines[0].retainagePercent, 0);
+  close('…so nothing is retained on the certificate',
+    computeAIATotals(seededNone).totalRetainage, 0);
+  close('…and current payment due is the full billed work, not 90% of it',
+    computeAIATotals(seededNone).currentPaymentDue, 45_300.51);
+
+  const seededFive = seedAIAPayApplicationFromInvoice(inv(5), project, [], { companyName: 'MAGE' } as never);
+  close('a 5% invoice seeds a 5% certificate', seededFive.retainagePercent, 5);
+  close('…retaining 5% of the WORK value on the SOV (no tax on a G703)',
+    computeAIATotals(seededFive).totalRetainage, roundCents(45_300.51 * 0.05));
+
+  // An explicit override still wins — the GC can enter the contract's rate.
+  close('an explicit opts.retainagePercent still overrides the invoice',
+    seedAIAPayApplicationFromInvoice(inv(0), project, [], { companyName: 'MAGE' } as never, { retainagePercent: 10 }).retainagePercent, 10);
+}
+
+// ── AIA totals foot to the cent (G703 column total === G702 line 5) ────────
+{
+  // Three lines whose unrounded retainage each lands on a half-cent: summing
+  // once over the raw total and rounding at the end drifts from the printed
+  // per-line column. computeAIATotals rounds PER LINE for exactly this reason.
+  const app: AIAPayApplication = {
+    applicationNumber: 1, applicationDate: '2026-03-01', periodTo: '2026-03-01',
+    ownerName: 'Owner', contractorName: 'GC', projectName: 'P',
+    originalContractSum: 100_000, netChangeByCO: 0, contractSumToDate: 100_000,
+    retainagePercent: 7.5, lessPreviousCertificates: 0,
+    lines: [
+      { id: 'a', itemNo: '1', description: 'A', scheduledValue: 1_000.10, fromPreviousApp: 0, thisPeriod: 1_000.10, materialsPresentlyStored: 0, retainagePercent: 7.5 },
+      { id: 'b', itemNo: '2', description: 'B', scheduledValue: 2_000.10, fromPreviousApp: 0, thisPeriod: 2_000.10, materialsPresentlyStored: 0, retainagePercent: 7.5 },
+      { id: 'c', itemNo: '3', description: 'C', scheduledValue: 3_000.10, fromPreviousApp: 0, thisPeriod: 3_000.10, materialsPresentlyStored: 0, retainagePercent: 7.5 },
+    ],
+  };
+  const t = computeAIATotals(app);
+  const perLineColumn = roundCents(app.lines.reduce(
+    (s, l) => s + retainageOnWorkValue(l.fromPreviousApp + l.thisPeriod, l.retainagePercent)
+      + retainageOnWorkValue(l.materialsPresentlyStored, l.retainagePercent), 0));
+  close('G702 line 5 equals the G703 retainage column, to the cent', t.totalRetainage, perLineColumn);
+  eq('every G702 money total is whole cents',
+    [t.totalCompletedAndStored, t.totalScheduledValue, t.retainageOnCompleted, t.retainageOnStored,
+      t.totalRetainage, t.totalEarnedLessRetainage, t.currentPaymentDue, t.balanceToFinish]
+      .every(v => Math.abs(v * 100 - Math.round(v * 100)) < 1e-9), true);
+  close('line 6 = line 4 − line 5', t.totalEarnedLessRetainage, roundCents(t.totalCompletedAndStored - t.totalRetainage));
+  close('line 9 = line 3 − line 6', t.balanceToFinish, roundCents(app.contractSumToDate - t.totalEarnedLessRetainage));
+
+  // Stored material is retained at the same rate and reported on its own line.
+  const withStored: AIAPayApplication = {
+    ...app,
+    lines: [{ ...app.lines[0], materialsPresentlyStored: 500 }],
+  };
+  const ts = computeAIATotals(withStored);
+  close('stored material retainage is split out', ts.retainageOnStored, roundCents(500 * 0.075));
+  close('…and included in the total', ts.totalRetainage, roundCents(ts.retainageOnCompleted + ts.retainageOnStored));
+}
+
+// ── MISS-04 — a deductive change-order line must not be over-withheld ──────
+// A G703 schedule of values legitimately carries credit lines (a deleted scope,
+// a negotiated deduct), and app/aia-pay-app.tsx sanitises "This Period" with
+// /[^0-9.-]/ — the minus is deliberately kept — and applies no floor. Flooring
+// the shared retainage basis at zero made the certificate withhold 5% of the
+// framing line while withholding NOTHING against the credit, over-withholding
+// by pct x |credit| and under-certifying the payment due by the same amount.
+{
+  const withCredit: AIAPayApplication = {
+    applicationNumber: 1, applicationDate: '2026-03-01', periodTo: '2026-03-01',
+    ownerName: 'Owner', contractorName: 'GC', projectName: 'P',
+    originalContractSum: 200_000, netChangeByCO: -5_000, contractSumToDate: 195_000,
+    retainagePercent: 5, lessPreviousCertificates: 0,
+    lines: [
+      { id: 'a', itemNo: '1', description: 'Framing', scheduledValue: 200_000, fromPreviousApp: 0, thisPeriod: 195_000, materialsPresentlyStored: 0, retainagePercent: 5 },
+      { id: 'b', itemNo: '2', description: 'CO-2 credit — stone deleted', scheduledValue: -5_000, fromPreviousApp: 0, thisPeriod: -5_000, materialsPresentlyStored: 0, retainagePercent: 5 },
+    ],
+  };
+  const tc = computeAIATotals(withCredit);
+  close('the credit line reduces the withholding (5% of 190,000, not of 195,000)',
+    tc.totalRetainage, 9_500);
+  close('…so the certificate does not over-withhold $250', tc.currentPaymentDue, 180_500);
+  close('…and the G703 retainage column on the credit line is -250, not 0',
+    retainageOnWorkValue(withCredit.lines[1].fromPreviousApp + withCredit.lines[1].thisPeriod, 5), -250);
+
+  // A credit that swings the whole application negative still foots.
+  const allCredit: AIAPayApplication = {
+    ...withCredit,
+    lines: [{ ...withCredit.lines[1] }],
+  };
+  const ta = computeAIATotals(allCredit);
+  close('a credit-only application retains a negative amount', ta.totalRetainage, -250);
+  close('…and line 6 still equals line 4 − line 5', ta.totalEarnedLessRetainage, -4_750);
+}
+
+// ── MISS-04 — naming the tax basis is an accusation, so it must be earned ───
+// The first attempt at this banner compared the STORED retention against the
+// LIVE one recomputed from editable screen state, so any ordinary edit printed
+// "which included sales tax" — including on invoices carrying no sales tax at
+// all. taxBasisRetentionOverhold reads STORED columns only and fires only when
+// the stored figure IS the taxed-total figure.
+{
+  const row = (o: Partial<{ subtotal: number; totalDue: number; retentionPercent: number; retentionAmount: number }>) => ({
+    subtotal: 75_595, totalDue: 81_264.625, retentionPercent: 5, retentionAmount: 4_063.2312500000003, ...o,
+  });
+
+  const houston = taxBasisRetentionOverhold(row({}));
+  eq('the live Houston row is identified', houston !== null, true);
+  close('…stored, to the cent', houston?.stored ?? -1, 4_063.23);
+  close('…corrected onto the work basis', houston?.corrected ?? -1, 3_779.75);
+  close('…and the overhold is the retainage taken out of sales tax', houston?.overheld ?? -1, 283.48);
+
+  // The zero-tax case the first predicate got wrong: subtotal 10,000, no tax,
+  // stored 500 that was ALWAYS on the work basis. The GC edits the percentage
+  // to 10 → the live figure becomes 1,000, but the ROW is still honest.
+  eq('a zero-tax invoice is never accused, whatever the GC types',
+    taxBasisRetentionOverhold({ subtotal: 10_000, totalDue: 10_000, retentionPercent: 5, retentionAmount: 500 }), null);
+  // Adding a $2,000 line item, or moving a progress invoice 30% → 40%, moved
+  // the LIVE figure and used to trip the banner. Neither touches the row.
+  eq('a taxed invoice already on the work basis is not accused',
+    taxBasisRetentionOverhold({ subtotal: 10_000, totalDue: 10_750, retentionPercent: 5, retentionAmount: 500 }), null);
+  // An amount that matches neither basis is unexplained — which is not the same
+  // as tax-based, and the app must not say it is.
+  eq('an unexplained amount is left alone, not blamed on tax',
+    taxBasisRetentionOverhold({ subtotal: 10_000, totalDue: 10_750, retentionPercent: 5, retentionAmount: 612.34 }), null);
+  eq('no stored amount → nothing to say',
+    taxBasisRetentionOverhold({ subtotal: 10_000, totalDue: 10_750, retentionPercent: 5 }), null);
+  eq('no retention percent → nothing to say',
+    taxBasisRetentionOverhold({ subtotal: 10_000, totalDue: 10_750, retentionAmount: 500 }), null);
+  eq('0% retention → nothing to say',
+    taxBasisRetentionOverhold({ subtotal: 10_000, totalDue: 10_750, retentionPercent: 0, retentionAmount: 0 }), null);
+  eq('a NaN column is not an accusation',
+    taxBasisRetentionOverhold({ subtotal: NaN, totalDue: 10_750, retentionPercent: 5, retentionAmount: 537.5 }), null);
+
+  // Applying the repair makes the row stop reporting.
+  const fixed = row({ retentionAmount: houston?.corrected ?? 0 });
+  eq('after the repair the row no longer reports a tax basis',
+    taxBasisRetentionOverhold(fixed), null);
+  // And the repaired row can be released to zero — the defect the compute-only
+  // fix left behind was $283.48 of retention the Retention screen showed as
+  // pending forever while the invoice screen hid the release button.
+  close('…and the repaired stored amount is exactly what a full release can clear',
+    roundCents((houston?.corrected ?? 0) - retainageOnWorkValue(75_595, 5)), 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

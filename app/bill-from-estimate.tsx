@@ -42,6 +42,7 @@ import { billedAmountForLine } from '@/utils/invoiceBilling';
 import { billFromEstimateLine, billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { showAlert } from '@/utils/alert';
 import { formatMoney } from '@/utils/formatters';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -354,7 +355,7 @@ export default function BillFromEstimateScreen() {
           title: 'Bill from Estimate',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
-          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }} />
         <ScrollView {...fabScroll} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, gap: 16 }}>
           <View style={styles.emptyCard}>
@@ -386,7 +387,7 @@ export default function BillFromEstimateScreen() {
         title: 'Bill from Estimate',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView

@@ -18,8 +18,10 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
+import { toCalendarDayString } from '@/utils/calendarDate';
+import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
 import type {
-  Project, ScheduleTask, Invoice, Warranty,
+  Project, ProjectSchedule, ScheduleTask, Invoice, Warranty,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -50,16 +52,39 @@ export interface BuildProjectEventsInput {
   warranties: Warranty[];
 }
 
+/** How many schedule tasks a build left out, and why. */
+export interface IcsScheduleSkip {
+  /** The schedule has tasks but no start date, so none of them are in the file. */
+  undatedSchedule: boolean;
+  /** Task + milestone events omitted for that reason. */
+  skippedTaskCount: number;
+}
+
+/** The schedule tasks `buildProjectEvents` could not place, for the caller to
+ *  disclose. An .ics is written into the GC's real calendar — an invented date
+ *  there is the most expensive kind. */
+export function projectIcsScheduleSkip(project: Project): IcsScheduleSkip {
+  const schedule = project.schedule;
+  const count = schedule?.tasks.length ?? 0;
+  const undated = !!schedule && count > 0 && !resolveScheduleAnchor(schedule).dated;
+  return { undatedSchedule: undated, skippedTaskCount: undated ? count : 0 };
+}
+
 export function buildProjectEvents(input: BuildProjectEventsInput): IcsEvent[] {
   const { project, invoices, warranties } = input;
   const events: IcsEvent[] = [];
 
   // --- schedule tasks / milestones -----------------------------------------
+  // No anchor ⇒ NO task events. This used to fall back to `todayIso()`, which
+  // wrote a 30-task plan into the user's Apple/Google calendar starting today —
+  // dates that shift a day every time the file is re-exported, on 2 of the 3
+  // real schedules in production (runtime audit SCHED-NO-ANCHOR). The count is
+  // reported through projectIcsScheduleSkip so the caller can say so.
   const schedule = project.schedule;
-  if (schedule && schedule.tasks.length > 0) {
-    const scheduleStart = schedule.startDate ?? todayIso();
+  const anchor = resolveScheduleAnchor(schedule);
+  if (schedule && schedule.tasks.length > 0 && anchor.date) {
     for (const t of schedule.tasks) {
-      const ev = scheduleTaskToEvent(project, scheduleStart, t);
+      const ev = scheduleTaskToEvent(project, anchor.date, schedule, t);
       if (ev) events.push(ev);
     }
   }
@@ -123,14 +148,18 @@ export function buildProjectEvents(input: BuildProjectEventsInput): IcsEvent[] {
 
 function scheduleTaskToEvent(
   project: Project,
-  scheduleStartIso: string,
+  anchor: Date,
+  schedule: ProjectSchedule,
   t: ScheduleTask,
 ): IcsEvent | null {
-  const startIso = addDays(scheduleStartIso, Math.max(0, t.startDay - 1));
-  if (!startIso) return null;
-  const duration = Math.max(1, t.durationDays);
-  const endIso = addDays(startIso, Math.max(0, duration - 1));
-  if (!endIso) return null;
+  // startDay and durationDays are WORKING-day quantities on the schedule's own
+  // calendar, so they are walked with taskCalendarRange — the same resolver the
+  // grid, the CSV export and the mobile list use. Advancing raw calendar days
+  // (the old addDays walk) put every task a day later per weekend crossed, and
+  // the error compounded down the file.
+  const { start, end } = taskCalendarRange(t, anchor, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
+  const startIso = toCalendarDayString(start);
+  const endIso = toCalendarDayString(end);
 
   const isMilestone = !!t.isMilestone;
   const kind: IcsEventKind = isMilestone ? 'milestone' : 'task';
@@ -222,6 +251,12 @@ export interface IcsExportResult {
   fileUri: string;
   /** Event count for confirmation UI. */
   eventCount: number;
+  /**
+   * Set when the project's schedule has tasks but no start date: the file
+   * carries NO task or milestone events. Confirmation UI must say so —
+   * "12 events exported" alone reads as a complete calendar.
+   */
+  scheduleSkip: IcsScheduleSkip;
 }
 
 export async function exportProjectIcs(input: BuildProjectEventsInput): Promise<IcsExportResult> {
@@ -232,10 +267,12 @@ export async function exportProjectIcs(input: BuildProjectEventsInput): Promise<
   const safeName = slugify(input.project.name) || 'project';
   const fileName = `mage-id-${safeName}.ics`;
 
+  const scheduleSkip = projectIcsScheduleSkip(input.project);
+
   if (Platform.OS === 'web') {
     // On web, trigger a browser download via Blob + anchor. No file written.
     downloadOnWeb(fileName, icsText);
-    return { icsText, fileUri: '', eventCount: events.length };
+    return { icsText, fileUri: '', eventCount: events.length, scheduleSkip };
   }
 
   const dir = FileSystem.cacheDirectory;
@@ -243,7 +280,14 @@ export async function exportProjectIcs(input: BuildProjectEventsInput): Promise<
   const fileUri = `${dir}${fileName}`;
   await FileSystem.writeAsStringAsync(fileUri, icsText, { encoding: 'utf8' });
 
-  const canShare = await Sharing.isAvailableAsync();
+  // Nothing to share when the file carries no events. Before the anchor rule
+  // landed, an undated schedule still produced 20 events (dated off today), so
+  // this only ever happened on a genuinely empty project; now it is exactly
+  // what a real 20-task plan with no start date produces, and pushing an empty
+  // .ics into the share sheet — to a client, by email — teaches the GC that
+  // the export works. The callers alert instead; `scheduleSkip` tells them
+  // which of "empty" and "undated" to say.
+  const canShare = events.length > 0 && await Sharing.isAvailableAsync();
   if (canShare) {
     await Sharing.shareAsync(fileUri, {
       mimeType: 'text/calendar',
@@ -252,16 +296,12 @@ export async function exportProjectIcs(input: BuildProjectEventsInput): Promise<
     });
   }
 
-  return { icsText, fileUri, eventCount: events.length };
+  return { icsText, fileUri, eventCount: events.length, scheduleSkip };
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function toIsoDate(input: string): string | null {
   // Accept "YYYY-MM-DD" or ISO datetime; normalize to "YYYY-MM-DD".

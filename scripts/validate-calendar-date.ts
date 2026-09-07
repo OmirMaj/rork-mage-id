@@ -63,6 +63,64 @@ function eq(label: string, got: unknown, want: unknown) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// The SHIPPED "Copy from …" day label, loaded out of the screen it lives in.
+//
+// DFR-CARRY-LABEL (runtime audit 2026-09-06): the daily report's carry-forward
+// button named the source day from `Math.round((now - then) / 86400000)` —
+// elapsed HOURS between two instants, relabelled as days. A report filed at
+// 9 pm and opened at 8 am the next morning is 11 hours old, rounds to 0, and
+// the button read "Copy from earlier today" while copying yesterday's crew
+// counts and work-performed text into a record that gets signed and sent to
+// the owner.
+//
+// app/daily-report.tsx is an Expo Router route and cannot be imported outside
+// Metro, so the two label functions are extracted from between their sentinel
+// comments, transpiled, and executed here for real — under all three
+// timezones, like everything else in this file. Same technique as
+// scripts/validate-sub-overpayment.ts. A textual pin would only prove the
+// helper is called; this proves what it answers.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Declared locally rather than pulled from `bun-types`: this repo has no bun
+// type package installed, and without this `npx tsc --noEmit` fails with
+// TS2867 "Cannot find name 'Bun'". Same pattern as validate-sub-overpayment.ts.
+declare const Bun: {
+  Transpiler: new (opts: { loader: 'ts' }) => { transformSync: (code: string) => string };
+};
+
+type DayLabeller = (value: string | null | undefined, now?: Date) => string;
+
+const DFR_SCREEN = 'app/daily-report.tsx';
+const DFR_BEGIN = '// --- BEGIN carrySourceDayLabel ---';
+const DFR_END = '// --- END carrySourceDayLabel ---';
+
+function loadCarryLabellers(): { label: DayLabeller; absolute: DayLabeller } {
+  const src = read(DFR_SCREEN);
+  const from = src.indexOf(DFR_BEGIN);
+  const to = src.indexOf(DFR_END);
+  if (from < 0 || to < 0 || to <= from) {
+    console.error(`\n  FAIL could not find the carrySourceDayLabel sentinels in ${DFR_SCREEN}.`);
+    console.error('       Someone moved or renamed them, and the "Copy from yesterday" label');
+    console.error('       would go unpinned. Restore the sentinels rather than deleting this.');
+    process.exit(1);
+  }
+  const js = new Bun.Transpiler({ loader: 'ts' })
+    .transformSync(src.slice(from, to))
+    .replace(/\bexport\s+function\b/g, 'function');
+  const built = new Function(
+    'calendarDayOf', 'daysUntilCalendarDay', 'formatCalendarDay', 'todayCalendarDay',
+    `${js}\nreturn { label: carrySourceDayLabel, absolute: carrySourceDayAbsolute };`,
+  )(calendarDayOf, daysUntilCalendarDay, formatCalendarDay, todayCalendarDay) as { label: DayLabeller; absolute: DayLabeller };
+  if (typeof built.label !== 'function' || typeof built.absolute !== 'function') {
+    console.error(`\n  FAIL the carrySourceDayLabel region of ${DFR_SCREEN} did not yield both functions.`);
+    process.exit(1);
+  }
+  return built;
+}
+
+const carry = loadCarryLabellers();
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Runtime checks — executed once per timezone in a child process.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -123,6 +181,82 @@ function runtimeChecks() {
     eq('a noon-UTC DatePickerModal instant names its day', calendarDayOf('2026-09-04T12:00:00.000Z'), '2026-09-04');
     eq('garbage is null', calendarDayOf('later'), null);
     eq('empty is null', calendarDayOf(''), null);
+  }
+
+  console.log(`[TZ=${tz}] the DFR "Copy from …" button names a CALENDAR day (DFR-CARRY-LABEL):`);
+  {
+    // Sep 6 2026 is a Sunday (the day of the runtime audit), so Sep 5 is a
+    // Saturday, Sep 4 a Friday and Sep 1 a Tuesday. Every `now` below is built
+    // from LOCAL components, so the wall clock is the same in all three zones
+    // and only the arithmetic under test can differ.
+    const morningSep5 = new Date(2026, 8, 5, 8, 0);
+    const nightSep5 = new Date(2026, 8, 5, 23, 0);
+
+    // The audited failure, both directions. A DFR is stored as a full ISO
+    // instant, so "how long ago was it written" and "which day is it FOR" are
+    // different questions and only the second one belongs on the button.
+    const filed9pmSep4 = new Date(2026, 8, 4, 21, 0).toISOString();
+    eq('a 9 pm report opened at 8 am the next morning is "yesterday"',
+      carry.label(filed9pmSep4, morningSep5), 'yesterday');
+    ok('… and the elapsed-hours arithmetic really did answer "earlier today"',
+      Math.round((morningSep5.getTime() - new Date(filed9pmSep4).getTime()) / 86400000) === 0,
+      'the old idiom no longer reproduces the bug — re-derive this case before deleting it');
+
+    const filed7amSep5 = new Date(2026, 8, 5, 7, 0).toISOString();
+    eq('a 7 am report read the same night is "earlier today"',
+      carry.label(filed7amSep5, nightSep5), 'earlier today');
+    ok('… and the elapsed-hours arithmetic really did answer "yesterday"',
+      Math.round((nightSep5.getTime() - new Date(filed7amSep5).getTime()) / 86400000) === 1);
+
+    // A bare 'YYYY-MM-DD' — the shape some writers and Postgres `date` columns
+    // hand back — must name the same day, not the UTC-midnight reading of it.
+    eq('a bare day equal to today is "earlier today"', carry.label('2026-09-05', morningSep5), 'earlier today');
+    eq('a bare day one back is "yesterday"', carry.label('2026-09-04', morningSep5), 'yesterday');
+    eq('three days back counts days', carry.label('2026-09-02', morningSep5), '3 days ago');
+    eq('six days back is still counted', carry.label('2026-08-30', morningSep5), '6 days ago');
+    eq('a week or more gets the date itself', carry.label('2026-08-29', morningSep5), 'Sat, Aug 29');
+    // A DFR filed for tomorrow used to render "-1 days ago" (diffDays < 7).
+    eq('a future-dated report names its date, not a negative count',
+      carry.label('2026-09-06', morningSep5), 'Sun, Sep 6');
+    eq('an unreadable date names no day at all', carry.label('sometime last week', morningSep5), 'the last report');
+    eq('a missing date names no day at all', carry.label(undefined, morningSep5), 'the last report');
+
+    // US DST ends 2026-11-01. An evening report read the next morning spans
+    // 10-11 wall-clock hours (a 25-hour day in Denver), which the millisecond
+    // walk rounds to zero.
+    const halloweenEvening = new Date(2026, 9, 31, 21, 0).toISOString();
+    eq('a report filed the evening before the fall-back is "yesterday" the next morning',
+      carry.label(halloweenEvening, new Date(2026, 10, 1, 7, 0)), 'yesterday');
+
+    // ── A day outside the current year must SAY its year ──────────────────
+    // 'Mon, Sep 8' reads as this year, always. A job stalls, its last DFR is
+    // 2025-09-08, the super reopens the screen on 2026-09-07: the short label
+    // names a day twelve months off. Same defect as the one above — the label
+    // naming a day that is not the day — from a rarer input.
+    eq('a report from last year carries its year',
+      carry.label('2025-09-08', new Date(2026, 8, 7, 8, 0)), 'Mon, Sep 8, 2025');
+    eq('… and so does the toast that confirms the copy',
+      carry.absolute('2025-09-08', new Date(2026, 8, 7, 8, 0)), 'Mon, Sep 8, 2025');
+    // …while a day in THIS year stays short, however far back it is. This is
+    // why the rule is the calendar year and not a distance in days.
+    eq('a distant day in the current year stays short',
+      carry.label('2026-01-05', morningSep5), 'Mon, Jan 5');
+    // The case that rules out the "> 180 days ago" threshold outright: 171
+    // days back, so a distance rule keeps the short form, yet it is last
+    // December and 'Fri, Dec 12' read in June names this coming December.
+    eq('a day 171 days back but in the previous year still carries its year',
+      carry.label('2025-12-12', new Date(2026, 5, 1, 8, 0)), 'Fri, Dec 12, 2025');
+    // The relative branch is unaffected: it cannot be ambiguous, so it never
+    // grows a year even across New Year.
+    eq('New Year\'s Day still says "yesterday", not a dated label',
+      carry.label('2025-12-31', new Date(2026, 0, 1, 8, 0)), 'yesterday');
+
+    // The toast that fires after the copy names the day absolutely.
+    eq('the toast names an instant\'s LOCAL day', carry.absolute(filed9pmSep4, morningSep5), 'Fri, Sep 4');
+    eq('the toast names a bare day unchanged', carry.absolute('2026-09-01', morningSep5), 'Tue, Sep 1');
+    eq('the toast refuses to invent a day', carry.absolute('whenever', morningSep5), 'the last report');
+    ok('in America/Denver the naive `new Date(bareDay)` toast really did name Aug 31',
+      tz !== 'America/Denver' || new Date('2026-09-01').getDate() === 31);
   }
 
   console.log(`[TZ=${tz}] a mixed-shape field's day STARTS at local midnight of that day (B4 review A2 — overdueCalendarDays, client-view formatDate, the RFI log/email):`);
@@ -247,8 +381,10 @@ const ALLOWED: Allowed[] = [
   // ── Full ISO instants (written with toISOString()), never a bare day ──
   { file: 'app/daily-report.tsx', line: 'new Date(reportDate)', added: '2026-09-04',
     reason: 'reportDate is an instant — useState(new Date().toISOString()) / DatePickerModal.onChange(picked.toISOString()); daily_reports.date is a text column that round-trips it unchanged' },
-  { file: 'app/daily-report.tsx', line: 'new Date(lastReport.date)', added: '2026-09-04',
-    reason: 'DailyFieldReport.date is the same instant as reportDate (saved as `date: reportDate`)' },
+  // `new Date(lastReport.date)` used to sit here. It is gone: DFR-CARRY-LABEL
+  // replaced both readers with carrySourceDayLabel / carrySourceDayAbsolute,
+  // which resolve the day through calendarDayOf and are executed for real in
+  // the runtime section above.
   { file: 'app/daily-report.tsx', line: 'Date.parse(b.date)', added: '2026-09-04',
     reason: 'sort key over DailyFieldReport.date instants; ordering is unaffected by the UTC/local question' },
   { file: 'app/daily-report.tsx', line: 'Date.parse(a.date)', added: '2026-09-04',
@@ -482,6 +618,86 @@ console.log('\nevery date-ish parse in app/ and components/ is resolved or allow
     staleKnown.map(a => `${a.file}: ${a.line}`).join('\n       '));
   const defects = UNRESOLVED.filter(u => u.status === 'defect').length;
   console.log(`       ${defects} known defect(s) and ${UNRESOLVED.length - defects} unverified site(s) remain listed in UNRESOLVED — outside the 2026-09-04 fix set`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The WRITER half — a form that PREFILLS a day must prefill the local one.
+//
+// The enumerator above only sees date-ish PARSES. It is blind to
+// `new Date().toISOString().slice(0, 10)`, which takes no argument at all —
+// and that idiom is the writer-side twin of the same bug: from about 6 pm
+// local it stamps TOMORROW.
+//
+// WARR-FORM-UTC-PREFILL (runtime audit 2026-09-06) is exactly that. The
+// warranty form's useState initializer already used todayCalendarDay(), but
+// resetForm — the code that actually runs, on every "New Warranty" — reset it
+// to the UTC day, and handleSave derives endDate = addCalendarMonths(startDay,
+// months) from the value it finds, so an evening entry stored a 12-month
+// warranty that began and expired a day late.
+//
+// Scope: app/warranties.tsx only, deliberately. The same idiom is live at 26
+// other call sites across 18 other files under app/ + components/ — measured
+// 2026-09-06, not estimated, with the same regex this guard uses:
+//
+//   grep -rnE 'new Date\(\)\s*\.toISOString\(\)\s*\.(slice|split|substring)\(' app components
+//
+// which reports 27 hits in 19 files; the 19th file is this one's subject,
+// app/warranties.tsx, whose single remaining hit is the prose in the comment
+// that explains the fix. The heaviest are app/safety-{incidents,inspections,
+// jha,toolbox}.tsx, app/field-ticket.tsx, app/job-costing.tsx,
+// app/wip-report.tsx and app/schedule-pro.tsx at two apiece. Each is a
+// separate judgement — some of those values never leave the device, some are
+// keys rather than dates — and widening this guard before those calls are made
+// would only produce a failing gate nobody can act on. Widen it as they are
+// audited; do not widen it by deleting the ones that fail. If the count above
+// no longer matches, re-run the grep rather than adjusting the prose to taste.
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\nthe warranty form prefills the LOCAL calendar day:');
+{
+  const warr = read('app/warranties.tsx');
+  const utcDayWrite = /new Date\(\)\s*\.toISOString\(\)\s*\.(?:slice|split|substring)\(/;
+  const offenders = warr.split('\n')
+    .map((line, i) => ({ text: line.trim(), no: i + 1 }))
+    // Prose about the bug is not the bug. Comment lines are excluded so the
+    // fix can explain itself.
+    .filter(x => !x.text.startsWith('//') && !x.text.startsWith('*') && !x.text.startsWith('/*'))
+    .filter(x => utcDayWrite.test(x.text));
+  ok('app/warranties.tsx never stamps a date from the UTC day', offenders.length === 0,
+    offenders.map(o => `app/warranties.tsx:${o.no}: ${o.text}`).join('\n       '));
+  ok('the New Warranty form prefills Start Date with todayCalendarDay()',
+    /setStartDate\(todayCalendarDay\(\)\)/.test(warr),
+    'resetForm must call setStartDate(todayCalendarDay()) — it is the path openNew() takes');
+  ok('the stored expiry is still derived from the prefilled start day',
+    /const endDay = addMonths\(startDay, months\)/.test(warr));
+}
+
+// ── The DFR carry-forward label is the one this file executes ─────────────
+// The runtime section proves carrySourceDayLabel is right. These three lines
+// prove the screen actually renders it — a correct helper nobody calls is not
+// a fix.
+
+console.log('\nthe daily report renders the guarded carry-forward label:');
+{
+  const dfr = read(DFR_SCREEN);
+  ok('the "Copy from …" button label comes from carrySourceDayLabel',
+    /return carrySourceDayLabel\(lastReport\.date,/.test(dfr));
+  // A correct helper handed a `now` captured at mount is stale the moment the
+  // screen survives midnight — the button would keep saying "earlier today"
+  // for yesterday's report. The day is re-read on focus and is a memo dep, so
+  // the label cannot outlive the day it was computed for.
+  ok('the label re-reads the current day on focus rather than capturing it at mount',
+    /useFocusEffect\(useCallback\(\(\) => \{ setCarryLabelDay\(todayCalendarDay\(\)\); \}, \[\]\)\)/.test(dfr) &&
+    /\}, \[lastReport, carryLabelDay\]\)/.test(dfr),
+    'carryLabelDay must be set from a useFocusEffect and be a dependency of the lastReportLabel memo');
+  ok('the post-copy toast comes from carrySourceDayAbsolute',
+    /carrySourceDayAbsolute\(lastReport\.date\)/.test(dfr));
+  const code = dfr.split('\n')
+    .map(l => l.trim())
+    .filter(l => !l.startsWith('//') && !l.startsWith('*') && !l.startsWith('/*'));
+  ok('no elapsed-millisecond "day" arithmetic is left in the screen',
+    !code.some(l => /86_?400_?000/.test(l)),
+    code.filter(l => /86_?400_?000/.test(l)).join('\n       '));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

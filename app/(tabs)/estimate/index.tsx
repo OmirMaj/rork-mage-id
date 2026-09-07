@@ -17,6 +17,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { entriesForGroup, type HubEntry } from '@/utils/estimateHubEntries';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 
 // iconKey → lucide component. Lives in the SCREEN so the entry list stays RN-free.
 const ICONS: Record<string, LucideIcon> = {
@@ -62,8 +63,24 @@ export default function EstimateHubScreen() {
   return (
     <View style={styles.root}>
       {/* Branded hero band — BrandBackdrop is always ink+amber regardless of theme. */}
-      <View style={[styles.hero, { paddingTop: insets.top + 20 }]}>
+      <View style={[styles.hero, { paddingTop: insets.top + 12 }]}>
         <BrandBackdrop />
+        {/* NAV-07 (runtime audit 2026-09-06). The hub renders at
+            /(tabs)/estimate — a tab registered href:null, so a jump here is a
+            tab switch with no back button and no tab highlighted — and at
+            /(tabs)/discover/estimate, a push inside the Discover stack whose
+            navigator sets headerShown:false. Neither route drew a way out.
+            Discover is where both come from (its "Estimator" card and its
+            sub-tab strip), so that is the label and the destination.
+            OnInk.title, not the brand primary: this sits ON the opaque ink
+            field BrandBackdrop paints, where #FF6A1A is under 3:1. */}
+        <HiddenTabBackLink
+          label="Discover"
+          href="/(tabs)/discover"
+          color={OnInk.title}
+          style={styles.heroBack}
+          testID="estimate-back-to-discover"
+        />
         <Text style={styles.heroEyebrow}>ESTIMATING</Text>
         <Text style={styles.heroTitle}>Estimate</Text>
         <Text style={styles.heroSubtitle}>Price the job, then learn from every bid.</Text>
@@ -99,6 +116,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingBottom: 22,
     overflow: 'hidden',
   },
+  // Pulled left so the chevron lines up with the hero's 20pt text edge
+  // (HiddenTabBackLink carries 6pt of its own horizontal padding).
+  heroBack: { marginLeft: -6, marginBottom: 6 },
   // Type.eyebrow is the house uppercase micro-label (11 / 700 / 1.4 tracking).
   // These were hand-rolled at weight '800', which is off the four-weight
   // ladder in constants/typography.ts ('400' | '500' | '600' | '700').

@@ -13,11 +13,20 @@ import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
-import { taskCalendarRange } from '@/utils/scheduleOps';
+import { taskCalendarRange, taskWorkingDayLabel } from '@/utils/scheduleOps';
 
 interface MobileScheduleListProps {
   tasks: ScheduleTask[];
-  startDate: string; // ISO yyyy-mm-dd
+  /**
+   * The schedule's own anchor as 'YYYY-MM-DD', or NULL when it has none.
+   *
+   * Null is the honest value and it is handled, not defaulted: an undated
+   * schedule's rows print their WORKING-DAY window ('Day 6 – 10'), which is
+   * stored data, instead of a calendar range counted off from today that
+   * moves forward a day every day (runtime audit SCHED-NO-ANCHOR). The caller
+   * shows the "set a start date" banner above the list.
+   */
+  startDate: string | null;
   /** Schedule calendar — startDay is a WORKING-day number, so the row dates
    *  depend on which days are worked (ProjectSchedule.workingDaysPerWeek /
    *  nonWorkingDates). Defaults to the app-wide 5-day week. */
@@ -130,8 +139,10 @@ export function MobileScheduleList({
   // scripts/validate-schedule-date-basis.ts named those three explicitly and
   // had never heard of the primary iOS list surface. That scope hole is now
   // closed in the guard as well.
+  // NO `?? new Date()` fallback: null means undated, and the rows say so.
   const base = useMemo(() => {
-    const d = parseCalendarDay(startDate) ?? new Date();
+    const d = parseCalendarDay(startDate);
+    if (!d) return null;
     d.setHours(0, 0, 0, 0);
     return d;
   }, [startDate]);
@@ -216,11 +227,16 @@ export function MobileScheduleList({
     // (B4 review A9 / item 2): a startDay-6 task on a Monday anchor printed
     // the Saturday, and after the 2026-11-01 fall-back every label sat a
     // day early because the 25-hour day floors to 23:00 the day before.
-    const { start, end } = taskCalendarRange(t, base, workingDaysPerWeek, nonWorkingDates);
     const done = t.status === 'done';
     const crit = !!t.isCriticalPath && !done;
     const pct = Math.min(100, t.progress ?? 0);
-    const range = fmt(start) === fmt(end) ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+    let range: string;
+    if (base) {
+      const { start, end } = taskCalendarRange(t, base, workingDaysPerWeek, nonWorkingDates);
+      range = fmt(start) === fmt(end) ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+    } else {
+      range = taskWorkingDayLabel(t);
+    }
     const crew = (t.crew || t.assignedSubName || '').trim();
     return (
       <View style={[styles.card, item.isFirstInPhase ? styles.cardTop : null, item.isLastInPhase ? styles.cardBottom : null]}>

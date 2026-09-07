@@ -244,7 +244,7 @@ function DrawingAnalyzerInner() {
             </View>
             {!isBusinessTier && (
               <View style={styles.upsell}>
-                <Crown size={12} color={Colors.warning} strokeWidth={1.75} />
+                <Crown size={12} color={Colors.warningLabel} strokeWidth={1.75} />
                 <Text style={styles.upsellText}>
                   Pro Estimator is included with the Business tier — deeper reasoning, larger output budget, more conservative on incomplete drawings.
                 </Text>
@@ -492,7 +492,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
         <TouchableOpacity style={styles.teaserCard} onPress={onUpgrade} activeOpacity={0.85}>
           <View style={styles.teaserHead}>
             <View style={styles.teaserIcon}>
-              <Crown size={16} color={Colors.warning} strokeWidth={1.75} />
+              <Crown size={16} color={Colors.warningLabel} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.teaserEyebrow}>Business tier · Pro Estimator</Text>
@@ -541,7 +541,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
           const page = pages.find(p => p.pageNumber === d.page);
           const readabilityColor =
             d.readability === 'clear' ? themeColors.success
-            : d.readability === 'partial' ? Colors.warning
+            : d.readability === 'partial' ? Colors.warningLabel
             : themeColors.danger;
           return (
             <View key={idx} style={styles.drawingCard}>
@@ -576,7 +576,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
       {result.concerns && result.concerns.length > 0 && (
         <>
           <SectionHeader
-            icon={<ShieldAlert size={16} color={Colors.warning} strokeWidth={1.75} />}
+            icon={<ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
             title="Areas of concern"
           />
           <Text style={styles.sectionHelper}>
@@ -630,7 +630,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
       {result.missingScopes && result.missingScopes.length > 0 && (
         <>
           <SectionHeader
-            icon={<AlertTriangle size={16} color={Colors.warning} strokeWidth={1.75} />}
+            icon={<AlertTriangle size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
             title="Scopes not included in these drawings"
           />
           <View style={styles.checklistCard}>
@@ -659,7 +659,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
             {items.map((li, idx) => {
               const confColor =
                 li.confidence === 'high' ? themeColors.success
-                : li.confidence === 'medium' ? Colors.warning
+                : li.confidence === 'medium' ? Colors.warningLabel
                 : themeColors.danger;
               return (
                 <View key={idx} style={styles.lineItem}>
@@ -945,7 +945,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.warning + '20',
     alignItems: 'center', justifyContent: 'center',
   },
-  teaserEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.warning, letterSpacing: 0.8, textTransform: 'uppercase' },
+  teaserEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.warningLabel, letterSpacing: 0.8, textTransform: 'uppercase' },
   teaserTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 2, letterSpacing: -0.2 },
   teaserBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
   teaserStatRow: {

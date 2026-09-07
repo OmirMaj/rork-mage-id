@@ -5512,8 +5512,76 @@
     throw new Error('Supabase ' + resp.status + ': ' + text);
   }
 
+  // ───────── Work complete ─────────
+  // PORTAL-01 (runtime audit 2026-09-06). The headline stat on this page used
+  // to be the snapshot's retired percent-complete field, which the app computed as
+  // paidToDate / contractValue — percent PAID, unclamped, and dividing
+  // tax-inclusive cash by a pre-tax contract — under the label "Project
+  // complete". A fully-billed taxed job therefore always read over 100%; the
+  // founder's own portal showed "Project complete: 102%".
+  //
+  // The stat now means what it says: how much of the WORK is done, rolled up
+  // from the schedule this snapshot already carries. Two rules matter more
+  // than the arithmetic:
+  //   1. Weighted by task duration, milestones excluded — a byte-for-byte
+  //      mirror of utils/projectProgress.computeProjectProgress. The head-to-
+  //      head check in scripts/validate-portal-owner.ts fails the build if the
+  //      two ever drift.
+  //   2. If NOT ONE task carries progress, the contractor has never updated
+  //      the schedule and this page does not know how much is built. It says
+  //      so ("—", "Not reported yet") instead of asserting 0% on a house that
+  //      may be framed. An invented fact is worse than an absent one.
+  // Deriving it from the tasks (rather than trusting budget.workComplete)
+  // means portals opened from an older link — a `#d=` hash, or a snapshot row
+  // the GC has not re-pushed — get the honest number too, and never the 102%.
+  function deriveWorkProgress(data) {
+    var sections = (data && data.sections) || {};
+    var all = (sections.schedule && sections.schedule.tasks) || [];
+    var tasks = [];
+    for (var i = 0; i < all.length; i++) if (!all[i].isMilestone) tasks.push(all[i]);
+    if (tasks.length) {
+      var started = false;
+      for (var j = 0; j < tasks.length; j++) {
+        var st = tasks[j].status;
+        if ((Number(tasks[j].progress) || 0) > 0 || st === 'in_progress' || st === 'done') { started = true; break; }
+      }
+      if (!started) return { known: false, pct: 0 };
+      var weighted = 0, weight = 0;
+      for (var k = 0; k < tasks.length; k++) {
+        var w = Math.max(0, Number(tasks[k].durationDays) || 0) || 1;
+        var pr = Math.max(0, Math.min(100, Number(tasks[k].progress) || 0));
+        weighted += pr * w; weight += w;
+      }
+      return { known: true, pct: weight > 0 ? Math.round(weighted / weight) : 0 };
+    }
+    // No schedule section (the GC hid it, or there is none). The app still
+    // ships the rollup it computed.
+    //
+    // budget.workComplete already distinguishes the two cases this page must
+    // never conflate: it is `null` when no task carries any progress signal,
+    // and a NUMBER — including a real 0 — when the schedule has been touched
+    // and the work genuinely has not started yet. So a numeric 0 is trusted
+    // here; reading it as "unknown" would print "Not reported yet" on a job
+    // the app knows is at 0%, i.e. the two surfaces disagreeing about a real
+    // value. `typeof null === 'object'`, so the null case falls through.
+    var budget = sections.budget || {};
+    var fromBudget = budget.workComplete;
+    if (typeof fromBudget === 'number' && fromBudget >= 0) {
+      return { known: true, pct: Math.max(0, Math.min(100, Math.round(fromBudget))) };
+    }
+    // project.progressPct is the LEGACY field. On snapshots written before
+    // 2026-09-06 it was 0 both for "not started" and for "nobody has ever
+    // updated this schedule", so only a positive value is a real signal
+    // there. Newer snapshots omit it entirely when unknown.
+    var pp = (data && data.project && data.project.progressPct);
+    if (typeof pp === 'number' && pp > 0) {
+      return { known: true, pct: Math.max(0, Math.min(100, Math.round(pp))) };
+    }
+    return { known: false, pct: 0 };
+  }
+
   // ───────── Stats bar ─────────
-  function renderStats(budget, invoices, aia) {
+  function renderStats(budget, invoices, aia, work) {
     var grid = document.getElementById('stats-grid');
     if (!grid) return;
     var stats = [];
@@ -5524,8 +5592,27 @@
     if (budget) {
       stats.push({ label: 'Contract value', value: fmtMoney(budget.contractValue), numericValue: budget.contractValue || 0, money: true, sub: '' });
       stats.push({ label: 'Paid to date',  value: fmtMoney(budget.paidToDate),    numericValue: budget.paidToDate || 0,    money: true, sub: '' });
-      stats.push({ label: 'Outstanding',   value: fmtMoney(budget.outstanding),   numericValue: budget.outstanding || 0,   money: true, amber: budget.outstanding > 0, sub: '' });
-      stats.push({ label: 'Project complete', value: (budget.pctComplete != null ? budget.pctComplete + '%' : '—'), numericValue: budget.pctComplete, percent: true, sub: '', progress: budget.pctComplete });
+      // PORTAL-01: `outstanding` is now billed-and-unpaid, not
+      // contract-minus-cash, and it is summed over exactly the invoices
+      // listed below — nothing in draft, nothing the contractor recalled — so
+      // the sub-label can state its basis. It is also NET of retention still
+      // held (money billed but not due until closeout), so when there is any,
+      // say so rather than let the two figures look like they disagree.
+      // …but only a snapshot written after that fix carries the new meaning.
+      // On an older one (a frozen `#d=` link, or a row the GC has not
+      // re-pushed) `outstanding` is still contract-minus-cash, so the number
+      // is shown without a sub-label rather than described as something it
+      // is not. `invoicedToDate` is the marker: it ships only with the new
+      // basis. Same gate gates the money bar below.
+      var retentionHeld = Number(budget.retentionHeld) || 0;
+      var hasBillingBasis = typeof budget.invoicedToDate === 'number';
+      stats.push({ label: 'Outstanding',   value: fmtMoney(budget.outstanding),   numericValue: budget.outstanding || 0,   money: true, amber: budget.outstanding > 0, sub: !hasBillingBasis ? '' : (retentionHeld > 0 ? 'Invoiced and due now — retention excluded' : 'Invoiced and not yet paid') });
+      // PORTAL-01: work complete, not percent paid — and "—" when the
+      // schedule carries no progress to report. See deriveWorkProgress.
+      var wp = work || { known: false, pct: 0 };
+      stats.push(wp.known
+        ? { label: 'Work complete', value: wp.pct + '%', numericValue: wp.pct, percent: true, sub: '', progress: wp.pct }
+        : { label: 'Work complete', value: '—', numericValue: null, sub: 'Not reported yet' });
     } else {
       var totalInv = (invoices || []).reduce(function (s, i) { return s + (i.total || 0); }, 0);
       var paidInv = (invoices || []).reduce(function (s, i) { return s + ((i.amountPaid != null ? i.amountPaid : (i.status === 'paid' ? i.total : 0))); }, 0);
@@ -5555,48 +5642,83 @@
       );
     }).join('');
 
-    // Spend-vs-Contract horizontal bar — premium "where does the
-    // money stand right now" visual. Renders only when budget is
-    // shared (the main case). Stacks PAID + OUTSTANDING + REMAINING
-    // segments into a single bar that animates in.
+    // Billing position bar — the "where does the money stand right now"
+    // visual under the stat tiles.
+    //
+    // PORTAL-01 (review fix). This used to be
+    //   contract = Math.max(paid + outstanding, budget.contractValue)
+    // which added tax-INCLUSIVE cash to a tax-INCLUSIVE balance and then
+    // compared the sum to a PRE-TAX contract. It survived only because the
+    // old `outstanding` was itself `contract − paid`, so the sum collapsed
+    // back onto contractValue exactly; the moment outstanding became a real
+    // billed-and-unpaid figure, a taxed job with a balance printed
+    // "$50,000 of $108,000" directly beneath a "Contract value $100,000"
+    // tile, with a $0 Remaining legend. That is the same two-bases-in-one-
+    // number defect this finding set out to delete, one card lower.
+    //
+    // Every number in the bar is now the same kind of dollar: tax-inclusive
+    // invoice money, over the invoices the client can see. Paid + Due now +
+    // Retention held is exactly what has been billed, so the segments always
+    // fill the bar and the legend always reconciles. The pre-tax contract
+    // value stays in its own tile above and is never divided into, subtracted
+    // from, or compared against any of this. (Which is why there is no
+    // "Remaining on contract" segment any more: un-billed contract is pre-tax
+    // and cannot share an axis with the rest without inventing a tax rate for
+    // work nobody has invoiced.)
+    //
+    // Older snapshots (pre-2026-09-06) carry no invoicedToDate, and their
+    // `outstanding` is still the legacy contract-minus-cash figure — calling
+    // that "Due now" would be a new false label on a stale link, so those
+    // portals get the stat tiles and no bar at all.
     var spendBarHtml = '';
-    if (budget && budget.contractValue > 0) {
-      var paid = Math.max(0, budget.paidToDate || 0);
-      var outstanding = Math.max(0, budget.outstanding || 0);
-      var contract = Math.max(paid + outstanding, budget.contractValue);
-      var paidPct = (paid / contract) * 100;
-      var outPct  = (outstanding / contract) * 100;
-      var remPct  = Math.max(0, 100 - paidPct - outPct);
-      spendBarHtml =
-        '<div class="spend-card">' +
-          '<div class="spend-card-head">' +
-            '<div class="spend-eyebrow">CONTRACT POSITION</div>' +
-            '<div class="spend-headline num">' + fmtMoney(paid) + ' <span class="spend-of">of</span> ' + fmtMoney(contract) + '</div>' +
-          '</div>' +
-          '<div class="spend-bar">' +
-            '<div class="spend-seg spend-seg-paid" style="width:0"      data-spend="paid"        data-target="'+paidPct.toFixed(2)+'">' +
-              '<span class="spend-seg-label">Paid</span>' +
+    if (budget && typeof budget.invoicedToDate === 'number') {
+      var paid = Math.max(0, Number(budget.paidToDate) || 0);
+      var outstanding = Math.max(0, Number(budget.outstanding) || 0);
+      var retHeld = Math.max(0, Number(budget.retentionHeld) || 0);
+      // The denominator is the sum of the segments, so the bar can never
+      // assert a total its own legend does not print.
+      var billed = paid + outstanding + retHeld;
+      if (billed > 0) {
+        var paidPct = (paid / billed) * 100;
+        var outPct  = (outstanding / billed) * 100;
+        var retPct  = Math.max(0, 100 - paidPct - outPct);
+        var retSeg = retHeld > 0
+          ? '<div class="spend-seg spend-seg-rem" style="width:0" data-spend="rem" data-target="'+retPct.toFixed(2)+'">' +
+              '<span class="spend-seg-label">Retention</span>' +
+            '</div>'
+          : '';
+        var retLegend = retHeld > 0
+          ? '<span class="spend-legend-item"><span class="spend-dot spend-dot-rem"></span>Retention held <strong>' + fmtMoney(retHeld) + '</strong></span>'
+          : '';
+        spendBarHtml =
+          '<div class="spend-card">' +
+            '<div class="spend-card-head">' +
+              '<div class="spend-eyebrow">BILLED TO DATE</div>' +
+              '<div class="spend-headline num">' + fmtMoney(paid) + ' <span class="spend-of">of</span> ' + fmtMoney(billed) + ' paid</div>' +
             '</div>' +
-            '<div class="spend-seg spend-seg-out"  style="width:0"      data-spend="out"         data-target="'+outPct.toFixed(2)+'">' +
-              '<span class="spend-seg-label">Outstanding</span>' +
+            '<div class="spend-bar">' +
+              '<div class="spend-seg spend-seg-paid" style="width:0"      data-spend="paid"        data-target="'+paidPct.toFixed(2)+'">' +
+                '<span class="spend-seg-label">Paid</span>' +
+              '</div>' +
+              '<div class="spend-seg spend-seg-out"  style="width:0"      data-spend="out"         data-target="'+outPct.toFixed(2)+'">' +
+                '<span class="spend-seg-label">Due now</span>' +
+              '</div>' +
+              retSeg +
             '</div>' +
-            '<div class="spend-seg spend-seg-rem"  style="width:0"      data-spend="rem"         data-target="'+remPct.toFixed(2)+'">' +
-              '<span class="spend-seg-label">Remaining</span>' +
+            '<div class="spend-legend">' +
+              '<span class="spend-legend-item"><span class="spend-dot spend-dot-paid"></span>Paid <strong>' + fmtMoney(paid) + '</strong></span>' +
+              '<span class="spend-legend-item"><span class="spend-dot spend-dot-out"></span>Due now <strong>' + fmtMoney(outstanding) + '</strong></span>' +
+              retLegend +
             '</div>' +
-          '</div>' +
-          '<div class="spend-legend">' +
-            '<span class="spend-legend-item"><span class="spend-dot spend-dot-paid"></span>Paid <strong>' + fmtMoney(paid) + '</strong></span>' +
-            '<span class="spend-legend-item"><span class="spend-dot spend-dot-out"></span>Outstanding <strong>' + fmtMoney(outstanding) + '</strong></span>' +
-            '<span class="spend-legend-item"><span class="spend-dot spend-dot-rem"></span>Remaining <strong>' + fmtMoney(Math.max(0, contract - paid - outstanding)) + '</strong></span>' +
-          '</div>' +
-        '</div>';
+          '</div>';
+      }
     }
 
     grid.innerHTML = statsHtml + spendBarHtml;
 
     // Animate the progress bars + the spend-vs-contract segments after
     // a tick so the CSS transition kicks in.
-    if (budget && budget.pctComplete != null) {
+    if (work && work.known) {
       setTimeout(function () {
         var fills = grid.querySelectorAll('.stat-progress-fill');
         fills.forEach(function (f) {
@@ -5729,6 +5851,9 @@
       }
     }
     var project = data.project || {};
+    // PORTAL-01: one work-complete figure for the whole page, so the hero bar
+    // and the stat tile can never disagree with each other.
+    var work = deriveWorkProgress(data);
 
     // Brand
     var companyName = company.name || 'MAGE ID';
@@ -5767,10 +5892,14 @@
         (i < metaItems.length - 1 ? '<span class="hero-meta-dot"></span>' : '');
     }).join('');
 
-    // v8: live progress bar — the "glass box" trust signal. Only shows when the
-    // GC's snapshot carries a rolled-up percent (i.e. there's a schedule).
-    if (typeof project.progressPct === 'number') {
-      var pp = Math.max(0, Math.min(100, Math.round(project.progressPct)));
+    // v8: live progress bar — the "glass box" trust signal. PORTAL-01: shown
+    // only when the schedule actually reports progress. It used to render off
+    // `project.progressPct`, which is 0 both for "not started" and for "the
+    // schedule has never been updated" — so the founder's portal drew a 0%
+    // bar under a stat claiming the project was 102% complete. No bar is a
+    // truer statement than a 0% bar.
+    if (work.known) {
+      var pp = work.pct;
       meta.insertAdjacentHTML('afterend',
         '<div style="margin-top:16px;max-width:340px">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
@@ -5804,20 +5933,22 @@
     // once it's binding. Without this, we'd show the older estimate
     // grandTotal that was captured into budget at snapshot time, which
     // can be stale by the time a CO has been signed off and the contract
-    // value has moved up. Outstanding gets recomputed against the same
-    // basis so the position bar + the stat card agree.
+    // value has moved up.
+    //
+    // PORTAL-01: this used to also recompute `outstanding` as
+    // `contractValue - paidToDate` — the same mixed basis (pre-tax contract
+    // minus tax-inclusive cash) the app itself was fixed for, re-introduced
+    // client-side for every project with a signed contract. Outstanding is
+    // billed-and-unpaid; it does not move when the contract value does, so it
+    // is carried through untouched.
     if (sections.budget && data.contract && data.contract.contractValue && data.contract.status !== 'draft') {
       var truth = Number(data.contract.contractValue) || 0;
       if (truth > 0 && truth !== sections.budget.contractValue) {
-        var paidSoFar = Number(sections.budget.paidToDate) || 0;
-        sections.budget = Object.assign({}, sections.budget, {
-          contractValue: truth,
-          outstanding: Math.max(0, truth - paidSoFar),
-        });
+        sections.budget = Object.assign({}, sections.budget, { contractValue: truth });
       }
     }
     if (sections.budget || sections.invoices || sections.aiaPayApps) {
-      renderStats(sections.budget, sections.invoices, sections.aiaPayApps);
+      renderStats(sections.budget, sections.invoices, sections.aiaPayApps, work);
     } else {
       var sb = document.querySelector('.stats-bar');
       if (sb) sb.style.display = 'none';

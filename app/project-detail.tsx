@@ -961,17 +961,28 @@ export default function ProjectDetailScreen() {
         invoices: projectInvoices,
         warranties: projectWarranties,
       });
+      // SCHED-NO-ANCHOR: an undated schedule contributes NO task events (the
+      // generator refuses to date them off today). The count alone would read
+      // as a complete calendar — and "no schedule tasks found" would be flatly
+      // false on a 20-task plan — so the skip is stated either way.
+      const { undatedSchedule, skippedTaskCount } = result.scheduleSkip;
+      const skipNote = undatedSchedule
+        ? ` ${skippedTaskCount} schedule task${skippedTaskCount === 1 ? '' : 's'} ${skippedTaskCount === 1 ? 'was' : 'were'} left out: this schedule has no start date, so its tasks have day numbers but no calendar days yet.`
+        : '';
       if (result.eventCount === 0) {
         showAlert(
           'Calendar Feed',
-          'No schedule tasks, invoice due dates, or warranty expirations found for this project yet. Add items to the schedule to populate the feed.',
+          undatedSchedule
+            ? `Nothing could be written to a calendar file.${skipNote} Set the start date on the Schedule tab and export again.`
+            : 'No schedule tasks, invoice due dates, or warranty expirations found for this project yet. Add items to the schedule to populate the feed.',
         );
         return;
       }
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (undatedSchedule) showAlert('Calendar Feed', `Exported ${result.eventCount} event${result.eventCount === 1 ? '' : 's'}.${skipNote}`);
       } else {
-        showAlert('Calendar Feed', `Downloaded ${result.eventCount} event${result.eventCount === 1 ? '' : 's'} to your calendar file. Open it to import.`);
+        showAlert('Calendar Feed', `Downloaded ${result.eventCount} event${result.eventCount === 1 ? '' : 's'} to your calendar file. Open it to import.${skipNote}`);
       }
     } catch (err) {
       console.error('[ProjectDetail] Calendar export error:', err);

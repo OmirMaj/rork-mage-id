@@ -220,7 +220,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
           {(result.downstreamEffects ?? []).length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <MageAIMark size={14} color={Colors.warning} />
+                <MageAIMark size={14} color={Colors.warningLabel} />
                 <Text style={styles.sectionTitle}>Downstream Effects</Text>
               </View>
               {(result.downstreamEffects ?? []).map((effect, idx) => (

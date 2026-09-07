@@ -558,5 +558,646 @@ ok(
   suffixHits.join('\n        '),
 );
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Runtime audit 2026-09-06 — the visual defects a Release build on the
+// founder's real account exposed. Everything above is a SOURCE-SHAPE check;
+// checks 4 and 5 below are the first REAL contrast maths in this repo: they
+// parse the token tables out of constants/colors.ts, composite the rgba()
+// foregrounds onto each of that theme's own grounds, and compute the WCAG
+// 2.x relative-luminance ratio. A token that drops below AA fails the build
+// with the measured number, so nobody has to sample pixels off a screenshot
+// again (which is how VIS-04 / VIS-06 / VIS-17 were actually found).
+// ═══════════════════════════════════════════════════════════════════════════
+
+type RGB = readonly [number, number, number];
+type RGBA = { rgb: RGB; a: number };
+
+/** '#RGB' | '#RRGGBB' | '#RRGGBBAA' | 'rgba(r,g,b,a)' | 'rgb(r,g,b)' → RGBA. */
+function parseColor(v: string): RGBA | null {
+  const s = v.trim();
+  const rgba = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(s);
+  if (rgba) {
+    return {
+      rgb: [Number(rgba[1]), Number(rgba[2]), Number(rgba[3])] as const,
+      a: rgba[4] === undefined ? 1 : Number(rgba[4]),
+    };
+  }
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(s);
+  if (!hex) return null;
+  let h = hex[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = (i: number) => parseInt(h.slice(i, i + 2), 16);
+  return { rgb: [n(0), n(2), n(4)] as const, a: h.length === 8 ? n(6) / 255 : 1 };
+}
+
+/** Source-over composite of `fg` (with alpha) onto an opaque `bg`. */
+function composite(fg: RGBA, bg: RGB): RGB {
+  return [0, 1, 2].map((i) => fg.rgb[i] * fg.a + bg[i] * (1 - fg.a)) as unknown as RGB;
+}
+
+/** WCAG 2.x relative luminance. */
+function luminance(c: RGB): number {
+  const ch = (x: number) => {
+    const v = x / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2]);
+}
+
+function contrast(a: RGB, b: RGB): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** Ratio of a possibly-translucent foreground rendered on an opaque ground. */
+function ratioOn(fg: string, ground: string): number | null {
+  const f = parseColor(fg);
+  const g = parseColor(ground);
+  if (!f || !g || g.a < 1) return null;
+  return contrast(composite(f, g.rgb), g.rgb);
+}
+
+const AA = 4.5;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// ── token tables, read out of the real source ───────────────────────────────
+
+const colorsSrc = read('constants/colors.ts');
+
+/** `Theme.light` / `Theme.dark` string properties. */
+function themeTable(which: 'light' | 'dark'): Record<string, string> {
+  const themeAt = colorsSrc.indexOf('export const Theme');
+  const start = colorsSrc.indexOf(`${which}: {`, themeAt);
+  if (themeAt < 0 || start < 0) return {};
+  let depth = 0;
+  let end = start;
+  for (let i = colorsSrc.indexOf('{', start); i < colorsSrc.length; i++) {
+    if (colorsSrc[i] === '{') depth++;
+    else if (colorsSrc[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  const body = stripComments(colorsSrc.slice(start, end));
+  const out: Record<string, string> = {};
+  for (const m of body.matchAll(/(\w+):\s*'([^']+)'/g)) out[m[1]] = m[2];
+  return out;
+}
+
+/**
+ * The theme-aware getters on the static `Colors` module:
+ *   get textMuted() { return _currentTheme === 'dark' ? 'A' : 'B'; }
+ * Returns { dark, light } per token name.
+ */
+function colorsGetters(): Record<string, { light: string; dark: string }> {
+  const out: Record<string, { light: string; dark: string }> = {};
+  const re = /get\s+(\w+)\s*\(\)\s*\{\s*return\s+_currentTheme === 'dark'\s*\?\s*'([^']+)'\s*:\s*'([^']+)'/g;
+  for (const m of stripComments(colorsSrc).matchAll(re)) out[m[1]] = { dark: m[2], light: m[3] };
+  return out;
+}
+
+/**
+ * The STATIC (non-getter) string properties on the `Colors` object literal —
+ * the signal fills (`success: '#34C759'`) as opposed to the theme-aware label
+ * getters. Read from the object body between `export const Colors = {` and the
+ * `Theme` declaration, so a token moved into or out of a getter is picked up.
+ */
+function colorsStatics(): Record<string, string> {
+  const start = colorsSrc.indexOf('export const Colors = {');
+  const end = colorsSrc.indexOf('export type ThemeColors');
+  if (start < 0) return {};
+  const body = stripComments(colorsSrc.slice(start, end < 0 ? undefined : end));
+  const out: Record<string, string> = {};
+  for (const m of body.matchAll(/(?:^|[{,\n])\s*(\w+):\s*'(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))'/g)) out[m[1]] = m[2];
+  return out;
+}
+
+const THEME = { light: themeTable('light'), dark: themeTable('dark') } as const;
+const GETTERS = colorsGetters();
+const STATIC_FILLS = colorsStatics();
+
+// ── Check 4: body/caption text tokens clear AA on every ground they land on ─
+//
+// VIS-04 / VIS-17. Sampled off the Release build: textMuted rendered at
+// 2.20:1 ("3 active", "CASH · 4WK", "Nothing scheduled on site today.") and
+// textSecondary at 3.82:1 — every explanatory line in the product. Both carry
+// REAL CONTENT here, not decoration, so both are held to AA 4.5:1, not to the
+// 3:1 large-text floor. Checked against the WORST ground in each theme.
+
+const textFailures: string[] = [];
+const GROUNDS = ['bg', 'surface', 'surfaceAlt'] as const;
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const token of ['text', 'textSecondary', 'textMuted'] as const) {
+    const fg = THEME[theme][token];
+    if (!fg) { textFailures.push(`Theme.${theme}.${token} is missing from constants/colors.ts`); continue; }
+    for (const g of GROUNDS) {
+      const bg = THEME[theme][g];
+      const r = bg ? ratioOn(fg, bg) : null;
+      if (r === null) { textFailures.push(`Theme.${theme}.${token} on ${g}: unparseable (${fg} on ${bg})`); continue; }
+      if (r < AA) textFailures.push(`Theme.${theme}.${token} (${fg}) on ${g} ${bg} = ${round2(r)}:1  — needs ${AA}:1`);
+    }
+  }
+}
+
+// The static Colors module carries the same two tokens for screens that have
+// not migrated to useTheme(); its grounds are `background` / `surface`.
+const COLORS_GROUNDS = ['background', 'surface', 'surfaceAlt'] as const;
+for (const theme of ['light', 'dark'] as const) {
+  for (const token of ['text', 'textSecondary', 'textMuted'] as const) {
+    const fg = GETTERS[token]?.[theme];
+    if (!fg) { textFailures.push(`Colors.${token} is not a theme-aware getter in constants/colors.ts`); continue; }
+    for (const g of COLORS_GROUNDS) {
+      const bg = GETTERS[g]?.[theme];
+      const r = bg ? ratioOn(fg, bg) : null;
+      if (r === null) continue;
+      if (r < AA) textFailures.push(`Colors.${token} (${fg}) on ${g} ${bg} [${theme}] = ${round2(r)}:1  — needs ${AA}:1`);
+    }
+  }
+}
+
+ok(
+  'text tokens clear WCAG AA 4.5:1 on every surface of their own theme',
+  textFailures.length === 0,
+  textFailures.join('\n        '),
+);
+
+// ── Check 5: a status-chip LABEL is legible on a tint of ITSELF ────────────
+//
+// VIS-06. The app's chip idiom is `backgroundColor: c + '15'` with
+// `color: c` — the label painted on an 8% wash of the same hue. Measured in
+// the Release build, the Subs compliance badge (#34C759 on its own tint) came
+// out at 2.07:1: the single most load-bearing label on that screen was the
+// least readable text on it. Every token that is used as a chip LABEL is
+// therefore held to AA under exactly that composite.
+//
+// This checks the LABEL INKS only (`successLabel` / `warningLabel` /
+// `dangerLabel` / `infoLabel`), NOT the signal fills they pair with. The first
+// pass at this fix darkened the FILLS instead and made a yellow health dot
+// indistinguishable from a red one — check 5b below exists so that trade can
+// never be made again silently.
+//
+// Deliberately NOT in this set:
+//   • `accent` / `primary` — founder decision #1 keeps the brand hue #FF6A1A
+//     for large non-text chrome under the 3:1 rule; its text companions are
+//     `accentLabel` (checked) and `accentFill` (white-on-fill, check 1c).
+//   • `Theme.*.danger` and `Colors.success/warning/error/info` — the SOLID
+//     signal hues for dots, bars and icons. Their text companions are the
+//     *Label tokens, which ARE checked.
+const CHIP_TINT = 0x15 / 255; // the '15' suffix the chips actually ship
+
+function chipRatio(label: string, ground: string): number | null {
+  const fg = parseColor(label);
+  const g = parseColor(ground);
+  if (!fg || !g || fg.a < 1 || g.a < 1) return null;
+  const tint = composite({ rgb: fg.rgb, a: CHIP_TINT }, g.rgb);
+  return contrast(fg.rgb, tint);
+}
+
+const chipFailures: string[] = [];
+const THEME_CHIP_TOKENS = ['success', 'info', 'accentLabel', 'successLabel', 'warningLabel', 'dangerLabel'] as const;
+for (const theme of ['light', 'dark'] as const) {
+  const surface = THEME[theme].surface;
+  for (const token of THEME_CHIP_TOKENS) {
+    const fg = THEME[theme][token];
+    if (!fg || !surface) continue;
+    const r = chipRatio(fg, surface);
+    if (r !== null && r < AA) {
+      chipFailures.push(`Theme.${theme}.${token} (${fg}) as a label on its own 8% tint over surface = ${round2(r)}:1  — needs ${AA}:1`);
+    }
+  }
+}
+for (const theme of ['light', 'dark'] as const) {
+  const surface = GETTERS.surface?.[theme];
+  for (const token of ['successLabel', 'warningLabel', 'dangerLabel', 'infoLabel'] as const) {
+    const fg = GETTERS[token]?.[theme];
+    if (!fg) {
+      chipFailures.push(`Colors.${token} must be a theme-aware getter — a single literal cannot be legible in both themes`);
+      continue;
+    }
+    if (!surface) continue;
+    const r = chipRatio(fg, surface);
+    if (r !== null && r < AA) {
+      chipFailures.push(`Colors.${token} (${fg}) as a label on its own 8% tint over surface [${theme}] = ${round2(r)}:1  — needs ${AA}:1`);
+    }
+  }
+}
+
+// A chip painted on the SIGNAL's tint but labelled with the INK is the shape
+// app/(tabs)/subs/index.tsx and app/reports.tsx actually ship. Hold that
+// composite to AA too, or the two halves can drift apart.
+const SIGNAL_INK: readonly (readonly [string, string])[] = [
+  ['success', 'successLabel'], ['warning', 'warningLabel'],
+  ['error', 'dangerLabel'], ['info', 'infoLabel'],
+];
+for (const theme of ['light', 'dark'] as const) {
+  const surface = GETTERS.surface?.[theme];
+  for (const [fillTok, inkTok] of SIGNAL_INK) {
+    const fill = STATIC_FILLS[fillTok];
+    const ink = GETTERS[inkTok]?.[theme];
+    if (!fill || !ink || !surface) continue;
+    const f = parseColor(fill);
+    const g = parseColor(surface);
+    const k = parseColor(ink);
+    if (!f || !g || !k || g.a < 1) continue;
+    const tint = composite({ rgb: f.rgb, a: CHIP_TINT }, g.rgb);
+    const r = contrast(k.rgb, tint);
+    if (r < AA) {
+      chipFailures.push(`Colors.${inkTok} (${ink}) on a Colors.${fillTok} 8% tint over surface [${theme}] = ${round2(r)}:1  — needs ${AA}:1`);
+    }
+  }
+}
+
+ok(
+  'status-chip colours stay legible painted on a tint of themselves',
+  chipFailures.length === 0,
+  chipFailures.join('\n        '),
+);
+
+// ── Check 5b: the SIGNAL fills stay distinguishable from one another ───────
+//
+// The counterpart to check 5, and the reason it exists: the FIRST attempt at
+// VIS-06 fixed chip legibility by darkening the fills themselves — re-tinting
+// `Colors.warning` from #FF9500 to #B84A00 for the whole app. That is correct
+// for text and catastrophic for a colour used as a bare SIGNAL, where the
+// requirement is not AA-against-a-ground but being unmistakable from the
+// sibling states beside it. Concretely, with no text anywhere in the row:
+//
+//   app/reports.tsx healthTone()      a 10pt dot: yellow #B84A00 vs red
+//                                     #C84038 = 1.06:1, hue 20.8° apart
+//   app/compare-drawings.tsx changeBg()  Modified and Removed became one colour
+//   ...impactBg()/severityHero()      moderate rgb(245,229,218) vs major
+//                                     rgb(247,227,226) — 1.00:1, one swatch
+//
+// So: for every pair of DIFFERENT semantics in the signal palette, require
+// either a real hue separation or a real luminance separation. Same-semantic
+// pairs (Colors.error vs Theme.light.danger — two spellings of "red") are
+// skipped; they are never siblings in a comparison.
+//
+// Thresholds are set from the palette that actually shipped for years, not
+// fitted to pass: its tightest cross-role pair is warning vs error at
+// 31.9° / 1.61:1, and the regression above scored 20.8° / 1.06:1.
+
+function hueOf(hex: string): number | null {
+  const c = parseColor(hex);
+  if (!c) return null;
+  const [r, g, b] = [c.rgb[0] / 255, c.rgb[1] / 255, c.rgb[2] / 255];
+  const mx = Math.max(r, g, b);
+  const d = mx - Math.min(r, g, b);
+  if (d === 0) return 0;
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h *= 60;
+  return (h + 360) % 360;
+}
+function hueDelta(a: string, b: string): number | null {
+  const ha = hueOf(a);
+  const hb = hueOf(b);
+  if (ha === null || hb === null) return null;
+  const d = Math.abs(ha - hb);
+  return Math.min(d, 360 - d);
+}
+
+const MIN_HUE_SEP = 30;      // degrees
+const MIN_LUM_SEP = 1.6;     // WCAG contrast between the two fills
+
+const signalFailures: string[] = [];
+for (const theme of ['light', 'dark'] as const) {
+  const roles: Record<string, [string, string][]> = {
+    success: [['Colors.success', STATIC_FILLS.success], [`Theme.${theme}.success`, THEME[theme].success]],
+    warning: [['Colors.warning', STATIC_FILLS.warning]],
+    danger: [['Colors.error', STATIC_FILLS.error], [`Theme.${theme}.danger`, THEME[theme].danger]],
+    info: [['Colors.info', STATIC_FILLS.info], [`Theme.${theme}.info`, THEME[theme].info]],
+  };
+  const names = Object.keys(roles);
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      for (const [an, av] of roles[names[i]]) {
+        for (const [bn, bv] of roles[names[j]]) {
+          if (!av || !bv) {
+            signalFailures.push(`${!av ? an : bn} is missing from constants/colors.ts — a signal fill must be a static hex`);
+            continue;
+          }
+          const a = parseColor(av);
+          const b = parseColor(bv);
+          if (!a || !b) continue;
+          const c = contrast(a.rgb, b.rgb);
+          const h = hueDelta(av, bv);
+          if (h === null) continue;
+          if (h < MIN_HUE_SEP && c < MIN_LUM_SEP) {
+            signalFailures.push(
+              `${an} (${av}) and ${bn} (${bv}) are indistinguishable as bare signals: ` +
+              `${round2(h)}° apart at ${round2(c)}:1 — needs ${MIN_HUE_SEP}° or ${MIN_LUM_SEP}:1. ` +
+              `A label-less dot/bar in one state now reads as the other.`,
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+ok(
+  'signal fills for different states stay distinguishable from each other',
+  signalFailures.length === 0,
+  signalFailures.join('\n        '),
+);
+
+// ── Check 6: the Summary greeting is honest and cannot clip the name ────────
+//
+// VIS-07: the hero said "Good morning" at every hour — the capture that
+// caught it was taken at 9:20 PM. MONEY-04 / VIS-15: at 34pt/800 in a row
+// that also reserved a 38pt button, iOS ellipsised the greeting to
+// "Good morning, O…" on a stock iPhone 17 Pro at default text size.
+
+const hero = read('components/summary/BriefingHero.tsx');
+const heroCode = stripComments(hero);
+const heroChecks: string[] = [];
+if (!/export function greetingFor\s*\(/.test(heroCode)) {
+  heroChecks.push('BriefingHero must export greetingFor() so the salutation is one testable ladder');
+}
+if (!/getHours\(\)/.test(heroCode)) {
+  heroChecks.push('BriefingHero never reads the hour — the greeting is wrong for two thirds of the working day');
+}
+if (/['"`]Good morning[,`]/.test(heroCode.replace(/if \(h < 12\) return 'Good morning';/, ''))) {
+  heroChecks.push("BriefingHero interpolates a hardcoded 'Good morning' — route it through greetingFor()");
+}
+// Native: shrink-to-fit. Web: react-native-web implements no
+// adjustsFontSizeToFit at all (zero occurrences in its dist tree), so the
+// greeting needs a second line there or it ellipsises exactly as before.
+if (!/adjustsFontSizeToFit/.test(heroCode)) {
+  heroChecks.push('the greeting can still ellipsise the user\'s name on native — it needs adjustsFontSizeToFit');
+}
+if (!/numberOfLines=\{Platform\.OS === 'web' \? 2 : 1\}/.test(heroCode)) {
+  heroChecks.push('the greeting is capped at one line on WEB, where adjustsFontSizeToFit is a no-op — it needs a two-line fallback there');
+}
+if (/wrap:\s*\{[^}]*flexDirection: 'row'/.test(heroCode)) {
+  heroChecks.push('the hero row squeezes the greeting against the tools button again — give the greeting the full width');
+}
+ok(
+  'the Summary greeting matches the clock and keeps the user\'s name whole',
+  heroChecks.length === 0,
+  heroChecks.join('\n        '),
+);
+
+// ── Check 7: the crash screen shows its whole error and offers a way out ────
+//
+// MISS-03. Three defects on the one screen a customer sees when the app
+// breaks: the message was clipped mid-sentence at maxHeight 80, the single
+// button re-rendered the identical subtree on the identical route (a
+// deterministic update loop just re-crashes), and it was painted in the
+// RETIRED forest-green brand.
+
+const eb = read('components/ErrorBoundary.tsx');
+const ebCode = stripComments(eb);
+const ebChecks: string[] = [];
+const boxHeight = /errorBox:\s*\{[\s\S]*?maxHeight:\s*(\d+)/.exec(ebCode);
+if (!boxHeight || Number(boxHeight[1]) < 160) {
+  ebChecks.push(`errorBox maxHeight is ${boxHeight ? boxHeight[1] : 'unset'} — the captured message needed ~6 lines and was cut mid-sentence`);
+}
+if (!/testID="error-boundary-home"/.test(ebCode)) {
+  ebChecks.push('the crash screen offers only Try Again — a deterministic crash loops straight back; it needs a route out');
+}
+if (/#1A6B3C/i.test(ebCode)) {
+  ebChecks.push('the crash screen still paints the retired forest-green brand (#1A6B3C)');
+}
+// The card is ~552pt with both buttons, and `fallbackMessage` is caller-
+// supplied — on a 667pt device a long message would push "Try Again" off the
+// bottom of a centred View. The exits must always be reachable.
+if (!/<ScrollView[\s\S]{0,200}contentContainerStyle=\{fallbackStyles\.container\}/.test(ebCode)) {
+  ebChecks.push('the crash-screen card does not scroll — a long fallbackMessage pushes the exit buttons off a small screen');
+}
+ok(
+  'the crash screen shows the whole error and offers more than a re-crash',
+  ebChecks.length === 0,
+  ebChecks.join('\n        '),
+);
+
+// ── Check 8: nothing else parks a floating circle in the Brain FAB's corner ─
+//
+// VIS-02. components/brain/BrainFab.tsx mounts ONE 56pt circle at right:20,
+// bottom `insets.bottom + 70` — so it occupies x[20,76] y[70,126] measured
+// from the safe-area origin. It is mounted ABOVE the router, so its inset is
+// the raw home-indicator inset while a TAB screen's also includes the tab bar;
+// the Equipment screen's own "+" therefore landed ~21pt inside it, was painted
+// over, and taps in the overlap opened the AI assistant.
+//
+// This is real geometry, not a name match. A second floating button is
+// LEGITIMATE when it is stacked clear of that band — components/
+// UniversalMicButton.tsx does exactly that at `insets.bottom + 70 + 52 + 12`
+// (y[134,180], 8pt above the Brain FAB's top) and must not be flagged. So the
+// check resolves each candidate's inline `bottom` offset and fails only on an
+// actual overlap. An offset it cannot resolve statically (a prop, a variable)
+// is reported as a WARN naming the reason, never as a silent pass.
+
+const BRAIN_BOTTOM = 70;   // BrainFab.tsx fabWrap: insets.bottom + 70 + lift
+const BRAIN_HEIGHT = 56;
+const BRAIN_TOP = BRAIN_BOTTOM + BRAIN_HEIGHT;
+
+type Corner = { where: string; style: string; height: number; offset: number | null; raw: string };
+
+/**
+ * Sum a `bottom:` expression of the form `insets.bottom + 70 + 52 + 12`
+ * (Platform ternaries and other non-numeric terms make it unresolvable).
+ */
+function resolveBottomOffset(expr: string): number | null {
+  const e = expr.trim().replace(/\s+/g, ' ');
+  if (!/^[\w.]*insets\.bottom/.test(e) && !/insets\.bottom/.test(e)) return null;
+  const rest = e.slice(e.indexOf('insets.bottom') + 'insets.bottom'.length);
+  if (rest.trim() === '') return 0;
+  let total = 0;
+  const terms = rest.split('+');
+  if (terms[0].trim() !== '') return null;
+  for (const t of terms.slice(1)) {
+    const v = t.trim().replace(/[,\]}]+$/, '');
+    if (/^\d+$/.test(v)) { total += Number(v); continue; }
+    // A platform/branch bump such as `(Platform.OS === 'web' ? 48 : 0)` only
+    // ever pushes the button FURTHER from the corner, so take the smaller
+    // branch: the worst case for an overlap is the one we must clear.
+    const tern = /^\(.*\?\s*(\d+)\s*:\s*(\d+)\s*\)$/.exec(v);
+    if (tern) { total += Math.min(Number(tern[1]), Number(tern[2])); continue; }
+    return null;
+  }
+  return total;
+}
+
+function floatingCorner(files: string[]): Corner[] {
+  const found: Corner[] = [];
+  for (const file of files) {
+    const src = readFileSync(file, 'utf8');
+    for (const m of src.matchAll(/^\s{2}(\w+):\s*\{/gm)) {
+      const bodyStart = m.index! + m[0].length;
+      let depth = 1;
+      let bodyEnd = bodyStart;
+      for (let j = bodyStart; j < src.length; j++) {
+        if (src[j] === '{') depth++;
+        else if (src[j] === '}') { depth--; if (depth === 0) { bodyEnd = j; break; } }
+      }
+      const body = src.slice(bodyStart, bodyEnd);
+      if (!/position:\s*'absolute'/.test(body)) continue;
+      const right = /(?:^|[{,\s])right:\s*(\d+)/.exec(body);
+      const width = /(?:^|[{,\s])width:\s*(\d+)/.exec(body);
+      const height = /(?:^|[{,\s])height:\s*(\d+)/.exec(body);
+      const radius = /borderRadius:\s*(\d+)/.exec(body);
+      if (!right || !width || !radius) continue;
+      // x-overlap with the Brain FAB's x[20,76] is implied by right <= 24 on a
+      // 40-72pt circle, so the horizontal test stays a simple bound.
+      if (Number(right[1]) > 24) continue;
+      if (Number(width[1]) < 40 || Number(width[1]) > 72) continue;
+      if (Number(radius[1]) < 20) continue;
+
+      // Find where this style is applied and read the inline `bottom`.
+      const name = m[1];
+      const useRe = new RegExp(`styles\\.${name}\\s*,\\s*\\{([^}]*)\\}`, 'g');
+      let offset: number | null = null;
+      let raw = '(no inline bottom — style carries none either)';
+      const inStyle = /(?:^|[{,\s])bottom:\s*([^,\n}]+)/.exec(body);
+      if (inStyle) { raw = inStyle[1].trim(); offset = resolveBottomOffset(raw); }
+      let u: RegExpExecArray | null;
+      while ((u = useRe.exec(src))) {
+        const b = /(?:^|[{,\s])bottom:\s*([^,\n}]+)/.exec(u[1]);
+        if (!b) continue;
+        raw = b[1].trim();
+        offset = resolveBottomOffset(raw);
+        break;
+      }
+      found.push({
+        where: `${relative(ROOT, file)}:${src.slice(0, m.index!).split('\n').length}`,
+        style: name,
+        height: height ? Number(height[1]) : Number(width[1]),
+        offset,
+        raw,
+      });
+    }
+  }
+  return found;
+}
+
+const allCorners = [
+  ...floatingCorner(collectFiles(['app'])),
+  ...floatingCorner(collectFiles(['components'])),
+].filter((c) => !c.where.startsWith('components/brain/BrainFab.tsx'));
+
+const collides = (c: Corner) =>
+  c.offset !== null && c.offset < BRAIN_TOP && c.offset + c.height > BRAIN_BOTTOM;
+
+const cornerHits = allCorners.filter(collides).map(
+  (c) =>
+    `${c.where}  styles.${c.style} — y[${c.offset},${c.offset! + c.height}] overlaps the Brain FAB's ` +
+    `y[${BRAIN_BOTTOM},${BRAIN_TOP}]; it will be painted over and swallow its own taps. ` +
+    `Move the action into the title row, or stack it at insets.bottom + ${BRAIN_TOP + 12}.`,
+);
+ok(
+  'no floating circle overlaps the global Brain FAB',
+  cornerHits.length === 0,
+  cornerHits.join('\n        '),
+);
+
+const unresolved = allCorners.filter((c) => c.offset === null);
+if (unresolved.length > 0) {
+  console.log(
+    '  WARN  ' + unresolved.length + ' floating circle(s) in that corner whose bottom offset is not a ' +
+    'static number, so the overlap cannot be computed here — check them by hand:\n        ' +
+    unresolved.map((c) => `${c.where}  styles.${c.style}  bottom: ${c.raw}`).join('\n        '),
+  );
+}
+
+// ── Check 9: a screen must not print its own native header title again ──────
+//
+// VIS-19. app/crew.tsx declared `<Stack.Screen options={{ title: 'Crew' }} />`
+// under a native header that already prints it, then drew "Crew" again in an
+// in-page header row — the word twice, stacked, costing ~90pt of the screen.
+// Narrow by construction: only a <Text> whose STYLE NAME says it is a header /
+// screen title counts, so a list row that happens to share a word is safe.
+
+const dupTitles: string[] = [];
+for (const file of collectFiles(['app'])) {
+  const src = stripComments(readFileSync(file, 'utf8'));
+  const titles = new Set<string>();
+  for (const m of src.matchAll(/<Stack\.Screen[\s\S]{0,400}?title:\s*'([^']+)'/g)) titles.add(m[1]);
+  if (titles.size === 0) continue;
+  for (const m of src.matchAll(/<Text\s+style=\{styles\.(\w*(?:[Hh]eaderTitle|[Ss]creenTitle|[Pp]ageTitle)\w*)\}[^>]*>([^<{]+)<\/Text>/g)) {
+    const label = m[2].trim();
+    if (!titles.has(label)) continue;
+    dupTitles.push(
+      `${relative(ROOT, file)}:${src.slice(0, m.index!).split('\n').length}  styles.${m[1]} prints "${label}", which the native header already shows`,
+    );
+  }
+}
+ok(
+  'no screen renders its own native header title a second time in the body',
+  dupTitles.length === 0,
+  dupTitles.join('\n        '),
+);
+
+// ── Check 10: an identity tile does not wear a magnifying glass ────────────
+//
+// VIS-20. Discover's "My Profile" tile shipped a <Search> icon over the
+// label, so it read as a search box: a contractor looking for search tapped
+// it and landed in Settings, one looking for their profile walked past it.
+
+const IDENTITY_LABELS = /^(My Profile|Profile|My Account|Account)$/;
+const iconMismatch: string[] = [];
+for (const file of collectFiles(['app', 'components'])) {
+  const src = stripComments(readFileSync(file, 'utf8'));
+  for (const m of src.matchAll(/>([^<>{}\n]{2,20})<\/Text>/g)) {
+    if (!IDENTITY_LABELS.test(m[1].trim())) continue;
+    const back = src.slice(Math.max(0, m.index! - 400), m.index!);
+    const icon = /<(Search|SearchIcon|MagnifyingGlass)\b/.exec(back);
+    if (!icon) continue;
+    iconMismatch.push(
+      `${relative(ROOT, file)}:${src.slice(0, m.index!).split('\n').length}  "${m[1].trim()}" is labelled with a <${icon[1]}> icon`,
+    );
+  }
+}
+ok(
+  'identity tiles are not labelled with a search icon',
+  iconMismatch.length === 0,
+  iconMismatch.join('\n        '),
+);
+
+// ── Check 11: every native header title carries the app's typeface ─────────
+//
+// VIS-18. app/_layout.tsx declares NATIVE_HEADER_TITLE (Fraunces_700Bold, 17)
+// and applies it on 41 routes — but `<Stack screenOptions>` set no DEFAULT
+// headerTitleStyle, and 27 screens declared their own as
+// `{ fontWeight: '700', color: themeColors.text }`. React Navigation merges
+// screen options shallowly, so each of those REPLACED the shared style and
+// fell back to the system face: moving from a Fraunces-titled financial screen
+// to Payments changed the title typeface mid-flow, one tap apart.
+//
+// Both halves are pinned here: the Stack must carry a default, and no
+// individual override may omit the fontFamily.
+
+const headerFailures: string[] = [];
+
+const layoutSrc = stripComments(read('app/_layout.tsx'));
+if (!/<Stack\s+screenOptions=\{\{[^}]*headerTitleStyle:/.test(layoutSrc)) {
+  headerFailures.push(
+    'app/_layout.tsx  <Stack screenOptions> declares no default headerTitleStyle — ' +
+    'a route with `title` only falls back to the system typeface',
+  );
+}
+
+for (const file of collectFiles(['app'])) {
+  const rel = relative(ROOT, file);
+  const src = stripComments(readFileSync(file, 'utf8'));
+  for (const m of src.matchAll(/headerTitleStyle:\s*/g)) {
+    const val = readValue(src, m.index! + m[0].length);
+    // A named constant, or a spread of one, carries the face already.
+    if (/^[A-Z][A-Z0-9_]*$/.test(val.replace(/,$/, '').trim())) continue;
+    if (/\.\.\.NATIVE_HEADER_TITLE(_FACE)?\b/.test(val)) continue;
+    if (/fontFamily/.test(val)) continue;
+    headerFailures.push(
+      `${rel}:${src.slice(0, m.index!).split('\n').length}  headerTitleStyle without a fontFamily — ` +
+      `this screen's title drops out of Fraunces: ${val.slice(0, 70)}`,
+    );
+  }
+}
+
+ok(
+  'every native header title style carries the app typeface (Fraunces)',
+  headerFailures.length === 0,
+  headerFailures.join('\n        '),
+);
+
 console.log('');
 process.exit(failures === 0 ? 0 : 1);

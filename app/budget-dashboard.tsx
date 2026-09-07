@@ -27,6 +27,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { formatMoneyShort } from '@/utils/formatters';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const CHART_HEIGHT = 200;
 const CHART_PADDING = 40;
@@ -197,7 +198,7 @@ Be specific and actionable. Use construction industry terminology.`;
           title: 'Budget Dashboard',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
-          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }} />
         <ToolProjectPicker
           toolName="the Budget Dashboard"
@@ -299,7 +300,7 @@ Be specific and actionable. Use construction industry terminology.`;
         title: 'Budget Dashboard',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <FeatureHeader

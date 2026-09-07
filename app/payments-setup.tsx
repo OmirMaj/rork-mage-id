@@ -421,7 +421,7 @@ function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refresh
   return (
     <View style={styles.card}>
       <View style={[styles.heroIcon, { backgroundColor: Colors.warning + '15' }]}>
-        <Clock size={28} color={Colors.warning} strokeWidth={1.75} />
+        <Clock size={28} color={Colors.warningLabel} strokeWidth={1.75} />
       </View>
       <Text style={styles.heroTitle}>Stripe is reviewing your info</Text>
       <Text style={styles.heroSub}>

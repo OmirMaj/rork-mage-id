@@ -281,7 +281,7 @@ export function NextStepHero(props: NextStepHeroProps) {
 
   const toneToColor: Record<NextStep['tone'], string> = {
     danger: colors.danger,
-    warn: Colors.warning,
+    warn: Colors.warningLabel,
     info: colors.info,
     accent: colors.accent,
     success: colors.success,

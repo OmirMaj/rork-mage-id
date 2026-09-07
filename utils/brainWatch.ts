@@ -8,6 +8,10 @@ import type { Route } from 'expo-router';
 import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '@/types';
 import { computeProjectProgress } from './projectProgress';
 import { invoiceOutstanding } from './invoiceBilling';
+// MONEY-03 (runtime audit 2026-09-06): every money string in this file goes
+// through the same formatter the rest of the app uses. formatters.ts has zero
+// imports of its own, so it is safe under Bun for the validator.
+import { formatMoney } from './formatters';
 // Reused, not re-derived: classifyDelivery is the single source of truth for
 // late / unconfirmed, pinned by test:delivery-schedule.
 import { classifyDelivery, type Delivery } from './deliverySchedule';
@@ -120,7 +124,14 @@ export function invoiceAttention(
     const severity: AttnSeverity =
       overdueDays > 30 ? 'critical' : overdueDays > 14 ? 'high' : 'medium';
 
-    const amt = outstanding.toFixed(0);
+    // MONEY-03 (runtime audit 2026-09-06): this was `outstanding.toFixed(0)`
+    // interpolated as `($${amt})`, so the one number the app asks the GC to act
+    // on rendered as "$77201" — the only unformatted money string on the
+    // Summary, 300px below a MONEY tile showing the same figure as "$77K". At a
+    // glance $77201 reads as easily as $772.01. formatMoney is the formatter
+    // every other money render in the app uses; grouped digits are what make a
+    // six-figure receivable legible without counting them.
+    const amt = formatMoney(outstanding);
 
     items.push({
       id: `invoice-${inv.id}`,
@@ -128,7 +139,7 @@ export function invoiceAttention(
       projectName: project.name,
       kind: 'invoice',
       severity,
-      message: `${project.name}: invoice #${inv.number} is ${overdueDays}d overdue ($${amt})`,
+      message: `${project.name}: invoice #${inv.number} is ${overdueDays}d overdue (${amt})`,
       route: {
         pathname: '/invoice',
         params: { projectId: project.id, invoiceId: inv.id },
@@ -301,7 +312,17 @@ export function buildingAccessAttention(
  * Produces one AttentionItem per expiring/expired certification.
  * Takes the already-computed list from SafetyContext.expiringCertifications().
  * Severity: expired → critical, expiring < 14 days → high, else medium.
- * Route: /crew (company-scoped, no project anchor).
+ *
+ * Route: /safety-certifications (company-scoped, no project anchor).
+ *
+ * NOT /crew. A certification is not a crew row — the two live in different
+ * tables and neither implies the other. The runtime audit (2026-09-06, NAV-02)
+ * caught the founder's #1 attention item, "Dana Cole — First Aid / CPR
+ * expired", routing to the Crew screen; production holds 16 certifications and
+ * 0 crew_members, so the tap landed on "No crew yet · Add your first crew
+ * member" with Dana nowhere on it. The flag could never be cleared from the
+ * screen the app itself offered. /safety-certifications is the screen that
+ * holds those 16 rows and can renew, re-date or delete one.
  *
  * @param expiring — output of useSafety().expiringCertifications(todayISO)
  * @param nowMs    — Date.now() for day math
@@ -356,7 +377,7 @@ export function certAttention(
       kind: 'cert',
       severity,
       message: `${workerLabel} — ${certLabel} ${dayStr}`,
-      route: { pathname: '/crew' },
+      route: { pathname: '/safety-certifications' },
       _rank: rank,
     });
   }

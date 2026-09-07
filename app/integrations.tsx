@@ -23,6 +23,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (item: Integration) => void }) {
   const { colors: themeColors } = useTheme();
@@ -194,7 +195,7 @@ export default function IntegrationsScreen() {
   if (authLoading) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
+        <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
         <View style={styles.gateWrap} testID="integrations-auth-loading">
           <ActivityIndicator color={themeColors.accent} />
         </View>
@@ -204,7 +205,7 @@ export default function IntegrationsScreen() {
   if (!ownerOk) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
+        <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
         <View style={styles.gateWrap} testID="integrations-owner-gate">
           <Plug size={26} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.gateTitle}>QuickBooks Online lives in Settings</Text>
@@ -221,7 +222,7 @@ export default function IntegrationsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
+      <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView
         {...fabScroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
@@ -236,7 +237,7 @@ export default function IntegrationsScreen() {
           backgroundColor: Colors.warning + '15', borderRadius: 12,
           borderWidth: 1, borderColor: Colors.warning + '40',
         }}>
-          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warning, letterSpacing: 0.5 }}>
+          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warningLabel, letterSpacing: 0.5 }}>
             PREVIEW
           </Text>
           <Text style={{ fontSize: 13, color: themeColors.text, marginTop: 4, lineHeight: 18 }}>
