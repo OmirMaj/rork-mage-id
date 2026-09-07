@@ -140,6 +140,36 @@ set an explicit `tabBarAccessibilityLabel` on the four visible tabs (e.g.
 `'Summary, tab, 1 of 4'`). The architectural fix — moving the 21 hidden routes
 out of the tab navigator — is much larger and not worth it for this alone.
 
+### 8. Project detail stacks two floating buttons over a tile it needs
+`app/project-detail.tsx:4593` renders `<UniversalMicButton projectId={...} />`
+WITHOUT `hideFab`, so it draws its own floating dark mic — and the global orange
+`BrainFab` from `BrainSurface` is already there. It is the only screen in the app
+that does this (checked across app/ and components/).
+
+The result on the screen a GC lives in: **three concurrent ways to talk to the
+AI** — the inline "Ask MAGE to do anything" card with its own mic, the floating
+dark mic, and the orange Brain FAB — with the two floating ones stacked over the
+"Cash Flow" tile.
+
+Fix: pass `hideFab` at :4593 and let the inline card be the project-scoped
+entry point, or drop the inline card and keep the FAB. Not both plus a third.
+
+### 9. The stage stepper truncates the CURRENT stage
+"Construction" renders as "Constru…" in the 4-item Project Stage control. The
+one label a user most needs to read — where the job is right now — is the one
+that does not fit. Shorten the labels ("Pre-Con / Build / Post-Con / Closeout")
+or let the active chip size to its content.
+
+### 10. The hub reports 0% markup without comment
+The Houston project shows `Markup 0% · Base Cost $76,525 · + Markup $0`,
+presented as three neutral stat tiles. The paywall two screens away promises
+"Margin that defends itself — get warned before a job loses money."
+
+A job bid at zero markup loses money by definition once overhead is counted, and
+this is the screen where that should be said. (Caveat: this is the founder's own
+test data, so the number may not be representative — but the *presentation* is
+neutral by design, not by accident.)
+
 ## What is genuinely good
 
 Worth stating plainly, because an audit of only faults gives no baseline.
