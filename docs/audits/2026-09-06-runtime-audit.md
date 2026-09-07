@@ -844,3 +844,95 @@ can be acted on without re-litigating it.
 - Money is stored with **sub-cent precision**: two of five invoices carry a
   `total_due` that is not a whole number of cents, and one retention amount is
   `4063.2312500000003`. Rounding belongs at the point money is computed.
+
+---
+
+## 2026-09-07 — production secrets set, and one new finding
+
+### Closed in production (no deploy required)
+
+**`SCHEDULE_ICAL_SECRET` is set.** It was unset, and the deployed
+`schedule-ical` fell back to the literal `mage-id-ical-fallback-rotate-on-leak`,
+which is in this public repo — anyone who could guess a project id and its
+owner's user id could mint a valid feed token and read that jobsite's schedule.
+
+Measured before rotating, because rotation invalidates every outstanding
+calendar-subscription URL: no ical table exists, no stored feed rows, two
+projects carry a dated schedule. Blast radius was nil.
+
+Proof it is closed — the same forgery, replayed against the live function after
+the secret was set:
+
+```
+token from the public literal → oJpYjRxYdaMwHLom
+GET …/schedule-ical?sid=…&uid=…&t=oJpYjRxYdaMwHLom → 401 Bad token
+```
+
+**`UNSUB_SECRET` is set.** Inert today and deliberately so: the *deployed*
+`_shared/email.ts` is still the pre-rotation FNV version and never reads the
+variable. Setting it now satisfies the runbook's first gate without touching
+live behaviour. Neither secret is shared with any other system — both are
+minted and verified only inside edge functions — so there is nothing to record
+anywhere else, and nothing to copy into `.env`.
+
+> Live vulnerability this measurement confirmed, still open until the deploy:
+> the deployed `unsubscribe` function verifies tokens with that same public FNV
+> literal, so today any address can be globally suppressed by a forged token —
+> silently blocking that person's invoices, dunning and COI warnings. The fix is
+> already in this branch; it ships with the function deploy.
+
+### New finding — UNSUB-C1: the client still mints the public-literal token
+
+`utils/emailLayout.ts:257` keeps the old `UNSUB_SECRET` literal and the FNV
+`buildUnsubscribeToken`, under a comment claiming it "mirrors
+`supabase/functions/_shared/email.ts`". It no longer does — the server moved to
+HMAC-SHA256. `wrapEmailHtml` builds both footer links from it, and two live
+screens send mail through it (`app/client-update.tsx:164` weekly update,
+`app/client-portal-setup.tsx:748,757` portal invite).
+
+Two consequences, one already happening:
+
+1. **"manage email preferences" is broken today.** The server's legacy grace
+   authorises the FNV token for the unsubscribe direction *only* — never
+   re-subscribe — so the preferences link in a portal invite fails
+   `token_invalid` when the homeowner clicks it.
+2. **"Unsubscribe" breaks on 2026-10-04** when the grace path is deleted as its
+   own comment instructs, and stays broken, because the client keeps minting
+   legacy tokens.
+
+The header path is unaffected: `send-email` already builds `List-Unsubscribe`
+with the correct server-minted HMAC, so Gmail/Apple one-click is fine. Only the
+in-body links are wrong.
+
+**Not fixed here, deliberately.** The client cannot mint an HMAC without holding
+`UNSUB_SECRET`, and putting it in the bundle would recreate the original defect.
+The fix is a pipeline change — most likely `send-email` substituting a sentinel
+in the HTML it already receives — and it has to answer for the composer fallback
+path, which never reaches the server. That deserves the same implement-then-
+adversarially-review treatment as the rest of this branch rather than a
+string-rewrite bolted on at the end of a session.
+
+### The crash (AI-2 follow-up) is still unproven
+
+"Maximum update depth exceeded", observed once live after granting location.
+Ruled out since, with evidence:
+
+- `useUserLocation` — its `request` is `useCallback(…, [])`, so the pre-fix
+  `useEffect(() => { void requestLocation(); }, [requestLocation])` ran once. It
+  raised the prompt at the wrong time (the AI-2/NAV-04 finding) but did not loop.
+- All five consumers (discover/hire, discover/bids, discover/companies,
+  mage-id-bids, nearby-rfps) — none has an effect keyed on `location` at all.
+- Construction AI, where the error surfaced, never calls the hook. The iOS alert
+  is modal across routes, so it was raised by a list screen and merely answered
+  while Construction AI happened to be on screen.
+- A static scan of `app/`, `components/`, `hooks/`, `contexts/` found **zero**
+  effects that set state with no dependency array and **zero** keyed on a
+  per-render identity — the two patterns that produce this error most often. The
+  eleven self-feeding candidates it did find all converge on a latch.
+
+So the loop is dynamic. Reproduction needs an authenticated session: the web
+dev build boots clean to the login screen, and Sentry's issues API rejects the
+repo's `sntrys_` token (upload-scoped, HTTP 403). To finish this, either
+generate a Sentry token with `event:read` + `project:read`, or connect the
+Claude in Chrome extension so the already-logged-in `mage-id.sentry.io` session
+can be read.
