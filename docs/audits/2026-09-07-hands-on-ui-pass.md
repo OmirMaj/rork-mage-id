@@ -108,6 +108,31 @@ Either support tablet or stop naming iPad in the copy.
 Also: that screen leaves roughly the top half of the phone empty before the
 centred message. It reads as a broken screen rather than a deliberate redirect.
 
+### 6. The app defaults to Light and ignores the phone's dark setting
+`contexts/ThemeContext.tsx:32` initialises `ThemePref` to `'light'`, not
+`'system'`. The machinery for all three is there and correct — it re-resolves on
+OS appearance change when the pref is `'system'` — but a contractor whose phone
+is in dark mode gets a bright cream app and has to find
+Settings → Appearance to fix it.
+
+That is worth changing precisely BECAUSE the dark theme is good (see below).
+Defaulting to `'system'` costs one word.
+
+### 7. The tab bar announces twelve tabs to VoiceOver; four exist
+From the live accessibility tree on any tab screen:
+
+```
+Button  "Summary, tab, 1 of 12"
+Button  "Your Projects, tab, 2 of 12"
+Button  "Discover, tab, 4 of 12"      <- 3 is missing
+Button  "Settings, tab, 5 of 12"
+```
+
+The hidden routes (`href: null`) are still counted in the tab total and still
+consume indices, so a VoiceOver user is told there are twelve tabs, hears index
+3 skipped entirely, and can reach four. Everything visual is fine; only the
+announcement is wrong.
+
 ## What is genuinely good
 
 Worth stating plainly, because an audit of only faults gives no baseline.
@@ -128,3 +153,9 @@ Worth stating plainly, because an audit of only faults gives no baseline.
 - **The "pick a project" interstitial explains itself** ("Invoices live inside a
   project so they roll up to the right place") instead of just blocking.
 - **Only four bottom tabs.** The restraint is right.
+- **Dark mode is properly built, not inverted.** Settings → Appearance → Dark
+  gives a real ink/amber theme: true dark ground, warm off-white text, cards
+  with their own elevation and borders, and the orange accent used for emphasis
+  and never as a background — which is the house rule. It is one of the
+  best-executed parts of the app, which is exactly why defaulting away from it
+  (finding 6) is a waste.
