@@ -16,8 +16,22 @@
   # Match the local dev setup. Netlify images ship a recent Node; we let
   # Expo CLI pick its own Metro version from the lockfile.
   NODE_VERSION = "20"
-  # Skip Netlify's automatic `npm install` — our build command runs
-  # `bun install` instead so bun.lock stays authoritative.
+  # Netlify picks its dependency-install command from whichever lockfile it
+  # finds. While package-lock.json was committed it chose npm, and the
+  # NPM_FLAGS trick below reduced that install to a harmless `npm --version`
+  # so the build command's own `bun install` stayed authoritative.
+  #
+  # `chore: purge dead code and stop reanimated reaching the bundle` deleted
+  # package-lock.json, so Netlify now detects bun.lock and runs ITS OWN
+  # `bun install` — which NPM_FLAGS cannot neutralise. Every deploy of this
+  # branch since has failed in the "Install dependencies" stage, before the
+  # build command ever ran. bun.lock is the TEXT format (Bun >= 1.2); an older
+  # bun in the build image cannot parse it.
+  #
+  # Pin the version so Netlify's install stage runs a bun that understands the
+  # lockfile we actually commit. `bun install --frozen-lockfile` is clean
+  # locally on 1.3.14, so the lockfile itself is consistent.
+  BUN_VERSION = "1.3.14"
   NETLIFY_USE_PNPM = "false"
   NPM_FLAGS = "--version"
 
