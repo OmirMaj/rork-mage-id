@@ -18,6 +18,10 @@ Production is `nteoqhcswappxxjlpvap`. Everything below is live.
 | 7. Money repair | 5 sub-cent rows + 1 retention row corrected |
 | 8. OTA | published, runtime 1.0.0, group `17bdf656` |
 | 9. Verify | live probes below |
+| Build #15 | **FINISHED** — `a8be02f6`, buildNumber 17, runtime 1.0.0, channel `production`, IPA present |
+
+**NOT submitted to the App Store.** `eas submit` starts Apple review and is a
+release decision, not part of this runbook. The binary is built and waiting.
 
 ## Live verification, after the fact
 
@@ -97,6 +101,38 @@ in the 211-finding audit. All five are fixed, guarded and on `main`.
    preserving ACLs. True against production; on a rebuilt database where
    `100200` runs first it would create the collaborator helpers
    `{owner, service_role}` only and lock every collaborator out of twelve tables.
+
+## Build #15 took three attempts. Two of the failures were introduced by the fixes.
+
+Recording these because they are the argument for reproducing rather than
+theorising — I guessed wrong twice before reproducing locally.
+
+1. **Empty `eas.json` key** (pre-existing). EAS rejects an empty env value at
+   schema validation, so no production build could start at all. Not a build
+   failure — a refusal to begin.
+2. **Unparseable Podfile** (introduced by the space-path plugin). Died in
+   "Install pods". Invisible locally because `ios/` is gitignored and already
+   existed, so no local build ever regenerated the Podfile.
+3. **Lost executable bit** (introduced by the postinstall portability fix, the
+   same morning). Making the script portable replaced `sed -i` with
+   write-temp-then-`mv`; `mv` installs a fresh file at the default umask, so
+   the patched Xcode build-phase scripts became 644. Xcode runs them directly:
+   `Permission denied`, and "Run fastlane" fails.
+
+   Diagnosed by reproducing it: `expo prebuild --clean` + `pod install` +
+   `xcodebuild -configuration Release` failed identically (exit 65, same
+   phase). The file modes were the proof — expo-constants' script, patched on
+   09-06 by the old `sed -i`, was still 755; expo-updates', patched 09-07 by
+   the new code, was 644.
+
+   Fixed by writing back in place with `cat > "$f"` — same inode, so mode,
+   ownership and xattrs survive, and it needs neither `stat` nor `chmod`
+   (which differ between BSD and GNU).
+
+Each now has a guard that fails on the exact defect, all mutation-tested:
+`ruby -c` on the injected Podfile block, `+x` on both patched scripts, no
+`sed -i`, no `set -e`, explicit `exit 0`, and — for (1) — env-parity's new
+"EAS-managed key must NOT be back in eas.json".
 
 ## Known-open, deliberately
 
