@@ -1,3 +1,8 @@
+> **SUPERSEDED.** See `LAUNCH-CHECKLIST.md` (owner items) and
+> `docs/audits/2026-09-03-final-push-audit.md` (fix order). Two claims below are
+> known false: `lib/stripe.ts` does not exist, and PostHog + Sentry session replay
+> are live third-party analytics/diagnostics (audit 2026-09-03).
+
 # MAGE ID — Launch Checklist
 
 Everything you need to take screenshots, test the app, and ship to the App Store.

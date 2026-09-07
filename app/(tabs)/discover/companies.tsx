@@ -17,7 +17,15 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
-import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import {
+  useUserLocation,
+  getDistanceMiles,
+  locationControlLabel,
+  locationControlAction,
+  locationDistanceNotice,
+  openLocationSettings,
+  LOCATION_PLATFORM,
+} from '@/utils/location';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -173,7 +181,11 @@ export default function CachedCompaniesScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { location, loading: locationLoading } = useUserLocation();
+  // Mounting this screen asks the OS for nothing. The RADIUS row's own
+  // "Use my location" button is the only thing that can raise the permission
+  // alert (runtime audit 2026-09-06, NAV-04) — this screen used to raise it
+  // from a mount effect, before it had rendered a single row.
+  const { location, request: requestLocation, status: locStatus } = useUserLocation();
   const [selectedRadius, setSelectedRadius] = useState<number>(50);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | undefined>();
 
@@ -241,7 +253,14 @@ export default function CachedCompaniesScreen() {
     <CompanyCard company={item} onPress={() => handleCompanyPress(item)} />
   ), [handleCompanyPress]);
 
-  const loading = isLoading || locationLoading;
+  // Only the data query drives the skeletons, and it is the ONLY thing allowed
+  // to. This used to read `isLoading || locationLoading`: with the old mount
+  // effect that meant the list sat behind skeletons until the permission alert
+  // was answered, and once "Use my location" became a button it would have been
+  // worse — a populated list replaced by skeletons the moment you pressed it,
+  // for as long as the alert stood (minutes, in the audit capture). Asking for
+  // distance must never take the rows away.
+  const loading = isLoading;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -256,7 +275,22 @@ export default function CachedCompaniesScreen() {
           </View>
         </View>
 
-        <Text style={styles.filterSectionLabel}>RADIUS</Text>
+        <View style={styles.radiusHeaderRow}>
+          <Text style={styles.filterSectionLabel}>RADIUS</Text>
+          <TouchableOpacity
+            style={styles.locBtn}
+            onPress={() => {
+              if (locationControlAction(locStatus, LOCATION_PLATFORM) === 'openSettings') openLocationSettings();
+              else void requestLocation();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={locationControlLabel(locStatus, !!location, LOCATION_PLATFORM)}
+            testID="companies-use-location"
+          >
+            <Navigation size={11} color={location ? Colors.success : themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.locBtnText}>{locationControlLabel(locStatus, !!location, LOCATION_PLATFORM)}</Text>
+          </TouchableOpacity>
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
           {RADIUS_OPTIONS.map(r => (
             <TouchableOpacity
@@ -268,6 +302,11 @@ export default function CachedCompaniesScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        {!location && (
+          <Text style={styles.locNotice} testID="companies-location-notice">
+            {locationDistanceNotice(locStatus, false, LOCATION_PLATFORM)}
+          </Text>
+        )}
 
         <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>SPECIALTY</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
@@ -328,6 +367,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   countPill: { backgroundColor: Colors.successLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card },
   countPillText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.successDark },
   filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  radiusHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  locBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 9, paddingVertical: 5, marginBottom: 6,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.full,
+  },
+  locBtnText: { fontSize: Type.caption2.fontSize, color: t.text, fontWeight: '700' as const },
+  locNotice: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 2 },
   chipRow: { flexDirection: 'row', marginBottom: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: t.bg, marginRight: 6 },
   chipActive: { backgroundColor: t.accentFill },

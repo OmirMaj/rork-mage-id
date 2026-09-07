@@ -32,6 +32,7 @@ import type { PortalMessage } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { oops, nailIt } from '@/components/animations/NailItToast';
 
 // Anything older than this gap from the previous message gets a fresh
 // timestamp pill above it AND breaks the bubble-run grouping.
@@ -277,21 +278,28 @@ export default function ClientMessagesScreen() {
     }).start();
   }, [sendScale]);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (!project || !portal?.portalId) return;
     const body = composeBody.trim();
     if (!body) return;
     const gcName = settings?.branding?.companyName || 'Your General Contractor';
-    // Inserts a row into Supabase `portal_messages`. The realtime
-    // subscription invalidates the messages query and the new bubble
-    // animates in. Also sets project_id so the row is properly tagged.
-    threadQ.sendMessage({
+    // SYNC-F8: the insert goes through the offline queue with a client id
+    // (usePortalThread). The composer keeps the text until the message has
+    // landed or been queued for the next flush, and the success haptic fires
+    // only then — a lost message is said out loud, not buzzed as "sent".
+    const outcome = await threadQ.sendMessage({
       portalId: portal.portalId,
       projectId: project.id,
       body,
       authorName: gcName,
     });
+    if (outcome === 'failed') {
+      oops("Message didn't send — check your connection and try again.");
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
     setComposeBody('');
+    if (outcome === 'queued') nailIt("Saved — it'll send when you're back online.");
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, portal, composeBody, settings, threadQ]);
 
@@ -415,7 +423,7 @@ export default function ClientMessagesScreen() {
           <Pressable
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
-            onPress={handleSend}
+            onPress={() => { void handleSend(); }}
             disabled={!canSend}
             accessibilityRole="button"
             accessibilityLabel="Send"

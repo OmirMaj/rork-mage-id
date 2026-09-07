@@ -149,10 +149,10 @@ function buildTapTarget(targetIdx: number, items: { label: string; Icon: React.C
                 {isTarget && !completed && (
                   <Animated.View style={[demoStyles.tabHighlight, { opacity: pulseOpacity }]} />
                 )}
-                <Icon size={18} color={done ? Colors.success : isTarget ? Colors.primary : Colors.textMuted} />
+                <Icon size={18} color={done ? Colors.successLabel : isTarget ? Colors.primary : Colors.textMuted} />
                 <Text style={[
                   demoStyles.tabLabel,
-                  done && { color: Colors.success },
+                  done && { color: Colors.successLabel },
                   isTarget && !done && { color: Colors.primary, fontWeight: '700' },
                 ]}>
                   {item.label}
@@ -260,12 +260,12 @@ function buildQuizDemo(question: string, options: string[], correctIdx: number):
               >
                 <Text style={[
                   demoStyles.quizOptionText,
-                  isCorrect && { color: Colors.success, fontWeight: '700' },
-                  isWrong && { color: Colors.error },
+                  isCorrect && { color: Colors.successLabel, fontWeight: '700' },
+                  isWrong && { color: Colors.dangerLabel },
                 ]}>
                   {o}
                 </Text>
-                {isCorrect ? <CheckCircle2 size={16} color={Colors.success} strokeWidth={1.75} /> : null}
+                {isCorrect ? <CheckCircle2 size={16} color={Colors.successLabel} strokeWidth={1.75} /> : null}
               </TouchableOpacity>
             );
           })}
@@ -515,7 +515,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
             {currentDone ? (
               <>
                 <CheckCircle2 size={16} color={colors.success} strokeWidth={1.75} />
-                <Text style={[styles.instructionText, { color: Colors.success }]}>Nice work — tap Next to continue</Text>
+                <Text style={[styles.instructionText, { color: Colors.successLabel }]}>Nice work — tap Next to continue</Text>
               </>
             ) : (
               <>

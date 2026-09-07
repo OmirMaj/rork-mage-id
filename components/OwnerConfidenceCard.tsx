@@ -147,7 +147,7 @@ export function OwnerConfidenceCard({
       {/* Needs the owner */}
       {c.awaitingApproval > 0 ? (
         <View style={[styles.awaitRow, { backgroundColor: Colors.warning + '15', borderColor: Colors.warning + '40' }]}>
-          <BellRing size={14} color={Colors.warning} strokeWidth={2} />
+          <BellRing size={14} color={Colors.warningLabel} strokeWidth={2} />
           <Text style={styles.awaitText}>
             {c.awaitingApproval} {c.awaitingApproval === 1 ? 'item needs' : 'items need'} your approval
           </Text>

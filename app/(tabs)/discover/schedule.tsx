@@ -154,7 +154,7 @@ export default function DiscoverScheduleTool() {
                 activeOpacity={0.7}
               >
                 <View style={s.existingIconWrap}>
-                  <CheckCircle2 size={18} color={Colors.success} strokeWidth={1.75} />
+                  <CheckCircle2 size={18} color={Colors.successLabel} strokeWidth={1.75} />
                 </View>
                 <View style={s.templateInfo}>
                   <Text style={s.templateName}>{project.name}</Text>

@@ -50,7 +50,9 @@ interface Props {
 
 export default function CodeCheckLoader({
   eyebrow = 'CODE CHECK',
-  headline = 'Reading the code that governs this job',
+  // AI-F3: the default headline must not imply a code lookup — the Code
+  // Check recalls; nothing is read. (The permit roadmap passes its own.)
+  headline = 'Recalling the code that likely governs this job',
   steps, activeStep, subject, facts, factIntervalMs = 4200, style,
 }: Props) {
   const { colors: t } = useTheme();

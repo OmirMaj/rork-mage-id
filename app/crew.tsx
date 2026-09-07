@@ -81,10 +81,11 @@ function ClaimedWorkerSelfView({ members }: { members: CrewMember[] }) {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
+      {/* Runtime audit 2026-09-06, VIS-19: the native header (declared for
+          this route in app/_layout.tsx) already prints the screen name, so an
+          in-page copy of it rendered the same word twice, stacked. The title
+          belongs to the header; the body starts with content. */}
       <Stack.Screen options={{ title: 'My Profile' }} />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle} numberOfLines={1}>My Profile</Text>
-      </View>
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {members.map(m => (
           <SelfEditCard key={m.id} member={m} onSave={updateCrewMember} styles={styles} themeColors={themeColors} />
@@ -172,8 +173,9 @@ function CrewScreenInner() {
   const fabScroll = useBrainFabScroll();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   const { crewMembers, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, startClaimInvite } = useCrew();
-  const { getCertificationsForWorker } = useSafety();
+  const { getCertificationsForWorker, certifications } = useSafety();
   const { projects } = useProjects();
   const auth = useAuth();
   const subscription = useSubscription();
@@ -361,31 +363,54 @@ function CrewScreenInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: 'Crew' }} />
-
-      <View style={styles.header}>
-        <Text style={styles.headerTitle} numberOfLines={1}>Crew</Text>
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setAddOpen(true)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Add crew member"
-          testID="add-crew-member"
-        >
-          <Plus size={20} color="#FFFFFF" strokeWidth={2} />
-        </TouchableOpacity>
-      </View>
+      {/* VIS-19: "Crew" was printed twice — once by the native header this
+          route declares in app/_layout.tsx, once by an in-page header row
+          directly beneath it, costing ~90pt of the screen to a rendering bug.
+          The row existed only to carry the title and the Add button, so the
+          title goes back to the header and Add goes with it. */}
+      <Stack.Screen
+        options={{
+          title: 'Crew',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => setAddOpen(true)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Add crew member"
+              testID="add-crew-member"
+            >
+              <Plus size={22} color={themeColors.accentLabel} strokeWidth={2.25} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {crewMembers.length === 0 ? (
           <View style={{ minHeight: 420 }}>
+            {/* NAV-02 (runtime audit 2026-09-06): certifications and crew are
+                different records. An account can hold 16 certifications and 0
+                crew members — the founder's does — and anything that sent the
+                user here looking for an expiring cert used to strand them on a
+                roster that does not contain it. Say where the certs actually
+                live, and offer the door. */}
             <EmptyState
               icon={<IdCard size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title="No crew yet"
-              message="Add your first crew member to build a verified roster."
+              message={
+                certifications.length > 0
+                  ? `Add your first crew member to build a verified roster. Looking for a certification? ${certifications.length} ${certifications.length === 1 ? 'is' : 'are'} on file under Safety — certifications are tracked separately from the roster.`
+                  : 'Add your first crew member to build a verified roster.'
+              }
               actionLabel="Add crew member"
               onAction={() => setAddOpen(true)}
+              secondaryLabel={certifications.length > 0 ? 'Open certifications' : undefined}
+              onSecondaryAction={
+                certifications.length > 0
+                  ? () => router.push('/safety-certifications')
+                  : undefined
+              }
             />
           </View>
         ) : (
@@ -801,16 +826,6 @@ const CERT_STATUS_STYLE = (t: ThemeColors): Record<CertExpiryStatus, { color: st
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  header: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const,
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12,
-  },
-  headerTitle: { ...Type.serifHeadline, color: themeColors.text },
-  fab: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: themeColors.accent,
-    alignItems: 'center' as const, justifyContent: 'center' as const,
-  },
   crewCard: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
     marginHorizontal: 20, marginBottom: 10,

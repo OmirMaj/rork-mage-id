@@ -25,8 +25,16 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { RFP_BROWSE_ENABLED } from '@/app/(tabs)/mage-id-bids';
-import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+import {
+  useUserLocation,
+  getDistanceMiles,
+  locationControlLabel,
+  locationControlAction,
+  locationDistanceNotice,
+  openLocationSettings,
+  LOCATION_PLATFORM,
+} from '@/utils/location';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -63,7 +71,9 @@ export default function NearbyRfpsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { location, refresh: requestLocation, loading: locLoading } = useUserLocation();
+  // No location is read until the button below is pressed. This screen used to
+  // raise the iOS permission alert on mount (runtime audit 2026-09-06, NAV-04).
+  const { location, request: requestLocation, status: locStatus } = useUserLocation();
   const [radius, setRadius] = useState<number>(25);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
@@ -129,28 +139,53 @@ export default function NearbyRfpsScreen() {
         </View>
       </View>
 
-      {/* Location + radius controls */}
-      <View style={styles.controls}>
-        <TouchableOpacity style={styles.locBtn} onPress={() => { void requestLocation(); }}>
-          <Crosshair size={14} color={location ? themeColors.success : themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.locBtnText}>
-            {location ? 'Location set' : locLoading ? 'Getting location…' : 'Use my location'}
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.radiusRow}>
-          {RADIUS_OPTIONS.map(r => (
-            <TouchableOpacity
-              key={r}
-              style={[styles.radiusChip, radius === r && styles.radiusChipActive]}
-              onPress={() => setRadius(r)}
-            >
-              <Text style={[styles.radiusChipText, radius === r && styles.radiusChipTextActive]}>
-                {r}mi
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* Location + radius controls, gated by the SAME flag as the query above.
+          NAV-04 (runtime audit 2026-09-06): while RFP_BROWSE_ENABLED is false
+          `data` is never fetched, so `filtered` is permanently empty — and this
+          block was still offering a live GPS button, with a notice above it
+          promising that a location would "sort and filter by how far away
+          things are", thirty lines above an empty state that says browsing is
+          coming soon. Feature search registers this route under "near me"
+          (utils/featureRegistry.ts), so that was a real iOS permission prompt
+          for a feed that is never read. The rule is the one mage-id-bids
+          already follows: while the feature cannot run, it does not ask. When
+          the flag flips, the control and the notice come back together with the
+          feed they belong to. */}
+      {RFP_BROWSE_ENABLED && (
+        <View style={styles.controls}>
+          <TouchableOpacity
+            style={styles.locBtn}
+            onPress={() => {
+              if (locationControlAction(locStatus, LOCATION_PLATFORM) === 'openSettings') openLocationSettings();
+              else void requestLocation();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={locationControlLabel(locStatus, !!location, LOCATION_PLATFORM)}
+            testID="nearby-rfps-use-location"
+          >
+            <Crosshair size={14} color={location ? themeColors.success : themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.locBtnText}>{locationControlLabel(locStatus, !!location, LOCATION_PLATFORM)}</Text>
+          </TouchableOpacity>
+          <View style={styles.radiusRow}>
+            {RADIUS_OPTIONS.map(r => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.radiusChip, radius === r && styles.radiusChipActive]}
+                onPress={() => setRadius(r)}
+              >
+                <Text style={[styles.radiusChipText, radius === r && styles.radiusChipTextActive]}>
+                  {r}mi
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {locationDistanceNotice(locStatus, !!location, LOCATION_PLATFORM) && (
+            <Text style={styles.locNotice} testID="nearby-rfps-location-notice">
+              {locationDistanceNotice(locStatus, !!location, LOCATION_PLATFORM)}
+            </Text>
+          )}
         </View>
-      </View>
+      )}
 
       <ScrollView
         {...fabScroll}
@@ -169,9 +204,25 @@ export default function NearbyRfpsScreen() {
         {!isLoading && filtered.length === 0 && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
+            {/* PRODUCT-F8: while RFP_BROWSE_ENABLED is false the feed is never
+                fetched, so "no projects within N miles yet" was a permanent lie. */}
+            <Text style={styles.emptyTitle}>
+              {!RFP_BROWSE_ENABLED
+                ? 'Browsing nearby projects is coming soon'
+                /* Without a location the radius is not applied, so naming it would
+                   describe a filter that never ran. */
+                : location ? `No projects within ${radius} miles yet` : 'No projects posted yet'}
+            </Text>
             <Text style={styles.emptyBody}>
-              {!location ? 'Allow location access to see projects near you, or expand your radius.' : 'Try expanding the radius — new projects show up here as homeowners post them.'}
+              {!RFP_BROWSE_ENABLED
+                ? 'Homeowner projects near you will show up here once browsing opens. Until then, post your own project from MAGE ID Bids.'
+                : !location
+                  /* Name the control by whatever it currently reads — after a
+                     denial it says "Location off — open Settings", so quoting
+                     "Use my location" here would point at a button that is not
+                     there. */
+                  ? `Tap ${locationControlLabel(locStatus, false, LOCATION_PLATFORM)} above to see projects near you, or expand your radius.`
+                  : 'Try expanding the radius — new projects show up here as homeowners post them.'}
             </Text>
           </View>
         )}
@@ -200,7 +251,7 @@ export default function NearbyRfpsScreen() {
                     </View>
                   ) : (
                     <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
-                      <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
+                      <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />
                     </View>
                   )}
                 </View>
@@ -267,6 +318,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignSelf: 'flex-start',
   },
   locBtnText: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
+  locNotice: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
   radiusRow: { flexDirection: 'row', gap: 6 },
   radiusChip: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm,

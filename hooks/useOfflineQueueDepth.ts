@@ -14,10 +14,15 @@
 //
 // We also re-check on AppState wake (the OfflineSyncManager is about to
 // drain the queue, so the user wants to see the depth tick down in real time).
+//
+// A3 (review 2026-09-05, round 3): the count is THIS session's entries only.
+// The persisted queue can also hold another tenant's leftovers (kept for the
+// tenant switch to drop) — showing those as "3 changes queued" told the wrong
+// person about work that was never theirs and could never sync under them.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
-import { getOfflineQueue } from '@/utils/offlineQueue';
+import { getOwnOfflineQueue } from '@/utils/offlineQueue';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -27,7 +32,7 @@ export function useOfflineQueueDepth(): number {
 
   const refresh = useCallback(async () => {
     try {
-      const q = await getOfflineQueue();
+      const q = await getOwnOfflineQueue();
       if (mountedRef.current) setDepth(q.length);
     } catch {
       // Failing to read the queue is non-fatal — we just keep the last value.

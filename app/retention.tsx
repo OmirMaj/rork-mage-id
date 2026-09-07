@@ -18,14 +18,13 @@ import { useProjects } from '@/contexts/ProjectContext';
 import type { Invoice, Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { formatMoney } from '@/utils/formatters';
+import { effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
-function formatCurrency(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-function formatCurrencyPrecise(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// HEALTH-F5: sign-correct money via the one formatter — no local Math.abs copies.
+const formatCurrency = (n: number): string => formatMoney(n);
+const formatCurrencyPrecise = (n: number): string => formatMoney(n, 2);
 
 interface ProjectRetention {
   project: Project;
@@ -61,7 +60,12 @@ export default function RetentionScreen() {
       if (!project) return;
       if (scopeProjectId && pid !== scopeProjectId) return;
       const totalContract = invs.reduce((s, i) => s + (i.totalDue ?? 0), 0);
-      const retentionHeld = invs.reduce((s, i) => s + (i.retentionAmount ?? 0), 0);
+      // MONEY-05: the withholding is the shared helper's (percentage of work
+      // value), not the stored column — this screen caps how much a GC can
+      // release, so a stale stored figure stranded $283.48 as permanently
+      // "pending" on the founder's Houston invoice while the invoice screen
+      // capped the release at the smaller, correct number.
+      const retentionHeld = invs.reduce((s, i) => s + effectiveRetentionHeld(i), 0);
       const retentionReleased = invs.reduce((s, i) => s + (i.retentionReleased ?? 0), 0);
       const retentionPending = Math.max(0, retentionHeld - retentionReleased);
       list.push({
@@ -103,7 +107,7 @@ export default function RetentionScreen() {
           title: scopedProject ? `${scopedProject.name} · Retention` : 'Retention',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
-          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }}
       />
 
@@ -115,7 +119,7 @@ export default function RetentionScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <Lock size={28} color={Colors.warning} strokeWidth={1.75} />
+            <Lock size={28} color={Colors.warningLabel} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroAmount}>{formatCurrencyPrecise(totals.totalPending)}</Text>
           <Text style={styles.heroLabel}>Retention Pending Release</Text>
@@ -130,7 +134,7 @@ export default function RetentionScreen() {
         {/* Metrics */}
         <View style={styles.metricsRow}>
           <View style={[styles.metricCard, { borderColor: Colors.warning + '40' }]}>
-            <Lock size={14} color={Colors.warning} strokeWidth={1.75} />
+            <Lock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalHeld)}</Text>
             <Text style={styles.metricLabel}>Total Held</Text>
           </View>
@@ -215,8 +219,8 @@ export default function RetentionScreen() {
                     <Text style={styles.detailValue}>{formatCurrencyPrecise(pr.totalContract)}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={[styles.detailLabel, { color: Colors.warning }]}>Retention Held</Text>
-                    <Text style={[styles.detailValue, { color: Colors.warning }]}>{formatCurrencyPrecise(pr.retentionHeld)}</Text>
+                    <Text style={[styles.detailLabel, { color: Colors.warningLabel }]}>Retention Held</Text>
+                    <Text style={[styles.detailValue, { color: Colors.warningLabel }]}>{formatCurrencyPrecise(pr.retentionHeld)}</Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={[styles.detailLabel, { color: themeColors.success }]}>Released</Text>
@@ -231,7 +235,7 @@ export default function RetentionScreen() {
 
                   <Text style={styles.invoicesSectionLabel}>Invoices</Text>
                   {pr.invoicesWithRetention.map(inv => {
-                    const invPending = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+                    const invPending = pendingRetentionHeld(inv);
                     const invDone = invPending < 0.01 && (inv.retentionReleased ?? 0) > 0;
                     return (
                       <TouchableOpacity
@@ -309,7 +313,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   projectName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   projectMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   projectAmountWrap: { alignItems: 'flex-end' as const },
-  projectAmount: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.warning },
+  projectAmount: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.warningLabel },
   projectAmountLabel: { fontSize: 10, color: t.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
 
   progressBarWrap: { paddingHorizontal: 14, paddingBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },

@@ -102,7 +102,7 @@ export default function WidgetSetupScreen() {
           // resolve who the lead belongs to. Say so instead of handing over a
           // snippet that fails silently on their site.
           <View style={styles.warn}>
-            <AlertTriangle size={15} color={Colors.warning} strokeWidth={2} />
+            <AlertTriangle size={15} color={Colors.warningLabel} strokeWidth={2} />
             <View style={{ flex: 1 }}>
               <Text style={styles.warnTitle}>Set your company name first</Text>
               <Text style={styles.warnText}>

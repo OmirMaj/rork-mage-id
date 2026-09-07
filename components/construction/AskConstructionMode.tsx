@@ -241,7 +241,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
 
           {showHonesty ? (
             <View style={styles.honestyBanner} testID="construction-ask-ahj">
-              <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+              <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.honestyText}>
                 {result.disclaimer || 'General guidance — confirm details with your local building department (AHJ).'}
               </Text>

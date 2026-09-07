@@ -9,6 +9,7 @@ import type {
 } from '@/types';
 import { generateCloseoutPacketUri } from '@/utils/closeoutPacketGenerator';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { effectiveRetentionHeld } from '@/utils/invoiceBilling';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // One-click data export — the "kill lock-in" feature
@@ -135,7 +136,14 @@ export function payloadToCsvs(p: DataExportPayload): Record<string, string> {
     p.invoices.map(i => [
       i.id, i.number, i.projectId, i.type, i.issueDate, i.dueDate, i.paymentTerms,
       i.subtotal, i.taxAmount, i.totalDue, i.amountPaid, i.status,
-      i.retentionPercent ?? '', i.retentionAmount ?? '',
+      i.retentionPercent ?? '',
+      // MONEY-05: the withholding the app actually applies (percentage of the
+      // work value), not the stored column. This CSV goes to an accountant or a
+      // migration target, so a row that disagreed with the invoice, the portal
+      // and the Stripe charge for the same job would be the one figure that
+      // outlived the app. Rows with no percentage to recompute from fall back to
+      // the stored amount inside the helper.
+      (i.retentionPercent ?? i.retentionAmount) == null ? '' : effectiveRetentionHeld(i),
     ]),
   );
 

@@ -86,10 +86,29 @@ export default function DailyLogCard() {
 
   const owedToday = rows.filter(r => r.c.todayExpected && !r.c.todayFiled).length;
   const totalMissed = rows.reduce((s, r) => s + r.c.missedDays, 0);
+  const jobsWithGaps = rows.filter(r => r.c.missedDays > 0).length;
+
+  // NAV-10 (runtime audit 2026-09-06): this read
+  //   `${totalMissed} working days in the last 30 have no log.`
+  // but totalMissed is a SUM ACROSS PROJECTS, while "in the last 30" names a
+  // single 30-calendar-day window (utils/dailyLogCompletion.ts:49
+  // DEFAULT_WINDOW_DAYS = 30, with per-project missedDays capped at the ~22
+  // working days inside it). Three active jobs with a fortnight of holes each
+  // printed "42 working days in the last 30 have no log" — a sentence that is
+  // false on its face, on the first number the GC reads on the card. It also
+  // hid the fact that matters, which is that the gaps are spread across three
+  // jobs.
+  //
+  // A sum only belongs in that sentence when there is exactly one job for it
+  // to be a sum of. With more than one, say how many jobs and attribute the
+  // total to them ("between them") instead of to the window.
+  const gapHeadline = jobsWithGaps === 1
+    ? `${totalMissed} working ${totalMissed === 1 ? 'day' : 'days'} in the last 30 ${totalMissed === 1 ? 'has' : 'have'} no log.`
+    : `${jobsWithGaps} jobs have gaps in the last 30 days — ${totalMissed} working days between them.`;
 
   const headline = owedToday > 0
     ? `${owedToday} ${owedToday === 1 ? 'job has' : 'jobs have'} no log for today.`
-    : `${totalMissed} working ${totalMissed === 1 ? 'day' : 'days'} in the last 30 ${totalMissed === 1 ? 'has' : 'have'} no log.`;
+    : gapHeadline;
 
   const visible = rows.slice(0, MAX_VISIBLE);
   const overflow = rows.length - visible.length;

@@ -5,21 +5,23 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 
-const MS_DAY = 86400000;
-
 interface TimelineScrubberProps {
-  baseMs: number;            // schedule start (ms, midnight)
+  /** The calendar day the scrubbed dayIndex lands on — resolved by the owner
+   *  (LivingFloorPlan), which knows the schedule's working calendar. This
+   *  component used to take `baseMs` and add `dayIndex * 86400000`, which
+   *  named the wrong day after the US fall-back (B4 review item 2). */
+  dateAtIndex: Date;
   totalDays: number;         // project span in days
   dayIndex: number;          // current scrubbed day
   todayIndex: number;        // days from base to today
   onChange: (day: number) => void;
 }
 
-function fmt(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function fmt(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function TimelineScrubber({ baseMs, totalDays, dayIndex, todayIndex, onChange }: TimelineScrubberProps) {
+export function TimelineScrubber({ dateAtIndex, totalDays, dayIndex, todayIndex, onChange }: TimelineScrubberProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const widthRef = useRef(0);
@@ -60,7 +62,7 @@ export function TimelineScrubber({ baseMs, totalDays, dayIndex, todayIndex, onCh
   return (
     <View style={styles.wrap}>
       <View style={styles.dateRow}>
-        <Text style={styles.date}>{fmt(baseMs + dayIndex * MS_DAY)}</Text>
+        <Text style={styles.date}>{fmt(dateAtIndex)}</Text>
         <Text style={styles.hint}>drag to see it build</Text>
       </View>
       <View

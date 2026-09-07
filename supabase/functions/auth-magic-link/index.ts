@@ -28,6 +28,7 @@ declare const Deno: {
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { wrapEmailHtml, resendSend } from '../_shared/email.ts';
+import { clientIpFrom } from '../_shared/notifyGuards.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -101,7 +102,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Throttle before doing any work (mint link / send email). Check both the
   // target email and the source IP; trip on either. Generic 429 — don't reveal
   // which limit fired or whether the account exists.
-  const clientIp = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  // EDGE-F15 (review 2026-09-05): clientIpFrom, not the client-supplied FIRST
+  // x-forwarded-for hop — otherwise the per-IP cap is a fresh bucket per request.
+  const clientIp = clientIpFrom(req.headers);
   const [emailCount, ipCount] = await Promise.all([
     rateLimitCount(`magiclink:email:${email}`),
     rateLimitCount(`magiclink:ip:${clientIp}`),

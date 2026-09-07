@@ -32,12 +32,16 @@
 // }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+// B3 (review 2026-09-04): per-user hourly request ceiling + bounded upstream fetch.
+const HOURLY_LIMIT = 30;
+const VISION_TIMEOUT_MS = 120_000;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -345,16 +349,28 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'Could not load any of the supplied photos' }, 400);
   }
 
-  // Monthly cap for this user. Meter AFTER at least one valid photo is in hand
-  // — a missing/oversized/unfetchable input where no Gemini call runs must not
-  // consume a unit. Counts both punch and dfr together (same underlying spend).
+  // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+  // the precheck-then-charge window (N racing requests at cap-1) to at most
+  // HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+  // master accounts included. rateLimitCount returns the POST-increment count,
+  // so `n - 1 >= HOURLY_LIMIT` denies exactly the (HOURLY_LIMIT + 1)th request.
+  const hourly = await rateLimitCount(`analyze-photos:user:${auth.userId}`);
+  if (hourly < 0) return jsonResponse({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
+  if (hourly - 1 >= HOURLY_LIMIT) return jsonResponse({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
+  // Monthly cap PRECHECK (audit AI-F8: the unit is charged after the model
+  // answers, below). Meter only once at least one valid photo is in hand — a
+  // missing/oversized/unfetchable input where no Gemini call runs must not
+  // consume a unit. punch/dfr/rfi/triage/receipt/rooms share one cap (same
+  // spend); conditionRisk (Cost X-Ray) has its own. aiUsageGet fails CLOSED.
+  // Accepted window: N requests racing at cap-1 all pass this read and each
+  // charges after — one user's counter can overshoot by N-1, never more.
   const meterKey = body.task === 'conditionRisk' ? 'cost_xray' : 'analyze_photos';
   if (meterKey === 'cost_xray' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
     return jsonResponse({ success: false, error: 'Cost X-Ray requires the Business plan', code: 'tier_required' }, 403);
   }
-  const used = await aiUsageIncrement(auth.userId, meterKey);
   const cap = MONTHLY_CAPS[auth.tier][meterKey];
-  if (used > cap) {
+  const used = await aiUsageGet(auth.userId, meterKey);
+  if (used >= cap) {
     return jsonResponse({
       success: false,
       error: `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
@@ -409,6 +425,8 @@ Return JSON only — no preamble.`;
     parts.push({ inline_data: { mime_type: p.mimeType, data: p.data } });
   }
 
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), VISION_TIMEOUT_MS);
   let geminiResp: Response;
   try {
     geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
@@ -419,18 +437,34 @@ Return JSON only — no preamble.`;
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.2,
-          maxOutputTokens: 2000,
+          // 8000 (audit AI-F11): 2000 was below what a 12-photo punch walk or a
+          // 20-line receipt produces; truncation surfaced as "non-JSON" after
+          // the unit was charged. Flash allows 65k; this keeps a wide margin.
+          maxOutputTokens: 8000,
         },
       }),
+      signal: ac.signal,
     });
   } catch (e) {
-    return jsonResponse({ success: false, error: `Gemini network error: ${(e as Error).message}` }, 502);
+    if ((e as Error).name === 'AbortError') {
+      return jsonResponse({ success: false, error: 'The AI service timed out — please try again.', code: 'upstream_timeout' }, 504);
+    }
+    console.error('[analyze-photos] Gemini network error:', (e as Error).message);
+    return jsonResponse({ success: false, error: 'The AI service is unreachable — please try again.', code: 'upstream_error' }, 502);
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!geminiResp.ok) {
     const text = await geminiResp.text().catch(() => '');
-    return jsonResponse({ success: false, error: `Gemini ${geminiResp.status}: ${text.slice(0, 200)}` }, 502);
+    // Upstream text stays server-side (audit AI-F16); not charged.
+    console.error(`[analyze-photos] Gemini ${geminiResp.status}: ${text.slice(0, 300)}`);
+    return jsonResponse({ success: false, error: 'The AI service returned an error — please try again.', code: 'upstream_error' }, 502);
   }
+
+  // The model answered — the spend is real; charge now (AI-F8). Everything
+  // after this point (unreadable body, non-JSON) is still a paid call.
+  await aiUsageIncrement(auth.userId, meterKey);
 
   // Guard the .json() itself: a 200 with a truncated/partial body throws here.
   // Return a CORS-carrying 502 rather than a bare, CORS-less 500.
@@ -440,7 +474,12 @@ Return JSON only — no preamble.`;
   const candidates = j?.candidates as { content?: { parts?: { text?: string }[] } }[] | undefined;
   const raw = candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   let parsed: unknown;
-  try { parsed = JSON.parse(raw); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON', raw }, 500); }
+  // Never echo `raw` (audit AI-F11/F16): a receipt scan's model text carries
+  // vendor / invoice detail into client logs. Length-only marker server-side.
+  try { parsed = JSON.parse(raw); } catch {
+    console.log(`[analyze-photos] non-JSON Gemini output (task=${body.task} len=${raw.length})`);
+    return jsonResponse({ success: false, error: 'The AI returned an unreadable answer — please try again.' }, 500);
+  }
 
   // Validate / normalize per-task.
   if (body.task === 'punch') {
@@ -503,7 +542,7 @@ Return JSON only — no preamble.`;
   }
 
   if (body.task === 'conditionRisk') {
-    if (!Array.isArray(parsed)) return jsonResponse({ success: false, error: 'Gemini did not return an array', raw }, 500);
+    if (!Array.isArray(parsed)) return jsonResponse({ success: false, error: 'Gemini did not return an array' }, 500);
     const KEYS = ['panel_fpe_zinsco','wiring_knob_tube','outlets_two_prong','supply_galvanized','waste_cast_iron','supply_polybutylene','structural_cracks','floor_sloped','moisture_efflorescence','moisture_staining'];
     const CATS = ['electrical','plumbing','structural','moisture'];
     const items = (parsed as unknown[]).map((x) => {

@@ -3,13 +3,34 @@
 // Pure five-leg Friday Close composer. No React, no network, no storage.
 // Sibling of composeBrief.ts — same design rules, different cadence.
 //
-// CADENCE (G10): a project contributes items only if status 'in_progress' AND
-// any activity in the trailing 14 days (report, invoice, or task status change).
-// Zero qualifying items → allQuiet=true + honest quiet line. The Friday nudge
-// is not armed when nothing qualifies.
+// CADENCE (G10): a project contributes DERIVED items only if status
+// 'in_progress' AND any activity in the trailing 14 days (report, invoice, or
+// task status change). Zero qualifying items → allQuiet=true + honest quiet
+// line. The Friday nudge is not armed when nothing qualifies.
 //
-// LEG 1 bill  — unbilled WIP rows (> $500 floor, desc) + auto-drafted leak COs
-//               + QBO pending count line
+// WHAT THE CADENCE GATE MAY AND MAY NOT SUPPRESS (runtime audit 2026-09-06,
+// NAV-11). The home card read "Friday close — Clean close, nothing left on the
+// table" directly above an 11-day-overdue invoice (Houston Phone Booth Ad,
+// #1, $77,201.39 outstanding — $81,264.63 gross less $4,063.23 of held
+// retention, and outstanding is the figure this leg reports) and $287.15 of
+// drafted, unsent change orders. Both were real
+// and both were invisible to this composer: the invoice because its project
+// had gone quiet, the COs because leg 1 only ever looked at leak-auto-drafted
+// ones. A job going quiet while its invoice ages past due is not the case to
+// suppress — it is the case the Friday close exists for.
+//
+// The line drawn here:
+//   • DERIVED ESTIMATES (unbilled WIP — earned value off cost-to-date and
+//     percent complete) stay behind the 14-day gate. On a dormant job the
+//     inputs are stale, so the dollar figure would be a guess presented as a
+//     number.
+//   • RECORDS (an overdue invoice, a drafted change order) are never
+//     suppressed by cadence. They are facts with dates on them; silence on the
+//     job does not make the money less owed or the CO less unsent.
+//
+// LEG 1 bill  — unbilled WIP rows (> $500 floor, desc) + every drafted change
+//               order with a positive amount (leak-auto-drafted ones labelled
+//               as such) + QBO pending count line
 // LEG 2 chase — overdue invoices with payment predictions
 // LEG 3 close — WWP PPC for the ending week (recap → informational)
 // LEG 4 commit — lookahead constraint-clear task count (forecast → informational)
@@ -30,6 +51,11 @@ import type {
   Project, Invoice, ChangeOrder, DailyFieldReport,
 } from '@/types';
 import { localDateISO } from '@/utils/brief/composeBrief';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
+// Reused, not re-derived: buildReadyToBill is the single definition of "a
+// change order that is drafted and unsent", shared with the home ReadyToBill
+// card so the two surfaces can never disagree.
+import { buildReadyToBill } from '@/utils/draftedRevenue';
 import type { PaymentPredictionResult } from '@/utils/paymentPrediction';
 import type { WeeklyCommitment } from '@/utils/lastPlanner';
 import { computePpc } from '@/utils/lastPlanner';
@@ -158,22 +184,55 @@ function buildBillLeg(
     });
   }
 
-  // Auto-drafted leak COs (still in 'draft', have auto_drafted_from_leak marker)
+  // Every DRAFTED change order with a positive amount — not just the ones MAGE
+  // auto-drafted from a leak scan (NAV-11). Both of the founder's two drafts
+  // ($36.89 + $250.26 = $287.15) were hand-written, so the old auto-only loop
+  // saw neither and the close called itself clean with them sitting unsent.
+  //
+  // buildReadyToBill is the canonical "$X in change orders ready to send"
+  // predicate (components/home/ReadyToBillCard.tsx reads the same function) —
+  // reused, not re-derived, so the Friday close and the home card can never
+  // disagree about what is unsent. No cadence gate and no age cap: a drafted CO
+  // is a record, not an estimate.
+  //
+  // The cost of no age cap, stated plainly: one stale draft anywhere in the
+  // account keeps allQuiet false, so the close cannot report "clean" while it
+  // exists. That is the intended trade — the inverse (a close that calls itself
+  // clean over unsent money) is the bug this whole change exists to kill, and
+  // the draft is one tap from being sent or deleted. The home ReadyToBillCard
+  // has counted it the same way all along; a cap here and not there would put
+  // the two surfaces back into disagreement.
+  const readyToBill = buildReadyToBill({ changeOrders, projects, nowMs: now.getTime() });
+  const knownProjectIds = new Set(projects.map(p => p.id));
+  for (const row of readyToBill.rows) {
+    // buildReadyToBill fills an unknown project with the literal string
+    // 'Project' for its own card's layout. Prefixing a close line with
+    // "Project: " reads as a job actually named Project, so drop the prefix
+    // when the name is not really known.
+    const prefix = knownProjectIds.has(row.projectId) ? `${row.projectName}: ` : '';
+    items.push({
+      // Auto-drafted rows keep their historical `leak-co-` id so nothing
+      // keyed on it (dedupe, dismissal anchors) shifts under this change.
+      id: row.isAuto ? `leak-co-${row.id}` : `draft-co-${row.id}`,
+      text: row.isAuto
+        ? `CO #${row.coNumber} drafted from scan — ${fmtMoney(row.amount)} — review & send`
+        : `${prefix}CO #${row.coNumber} drafted — ${fmtMoney(row.amount)} — not sent yet`,
+      severity: 'medium',
+      route: { pathname: '/change-order', params: { coId: row.id, projectId: row.projectId } },
+    });
+  }
+  // `autoDraftedCOs` is still accepted on the input for callers that
+  // pre-filter, but it is no longer the source of truth — a CO in it that is
+  // not in `changeOrders` would be invisible, so fold any stragglers in.
   for (const co of autoDraftedCOs) {
-    const proj = projects.find(p => p.id === co.projectId);
-    const projName = proj?.name ?? 'Project';
+    if (readyToBill.rows.some(r => r.id === co.id)) continue;
+    if ((co.changeAmount ?? 0) <= 0 || co.status !== 'draft') continue;
     items.push({
       id: `leak-co-${co.id}`,
       text: `CO #${co.number} drafted from scan — ${fmtMoney(co.changeAmount)} — review & send`,
       severity: 'medium',
       route: { pathname: '/change-order', params: { coId: co.id, projectId: co.projectId } },
     });
-    // Dedupe: skip the WIP unbilled line for this project if the CO draft
-    // would appear twice (the CO amount is included in the project's unbilled).
-    // We allow both since they are distinct actions (invoice vs CO), but the
-    // UI dedupe guard below handles CO appearing as both an unbilled WIP row
-    // item AND an autoDraftedCO item. Keep both — different actions.
-    void projName; // used above for future copy
   }
 
   // QBO pending count
@@ -194,23 +253,38 @@ function buildBillLeg(
 function buildChaseLeg(
   invoices: Invoice[],
   projects: Project[],
-  dailyReports: DailyFieldReport[],
   paymentPredictions: PaymentPredictionResult | null | undefined,
   now: Date,
 ): WeekCloseLeg {
   const items: BriefItem[] = [];
   const todayISO = localDateISO(now);
 
-  const activeProjectIds = new Set(
-    projects
-      .filter(p => projectIsActive(p, invoices, dailyReports, now))
-      .map(p => p.id),
-  );
-
-  // Overdue invoices: dueDate in the past, balance > 0, on active projects
+  // Overdue invoices: dueDate in the past, balance > 0. NO cadence gate.
+  //
+  // NAV-11 (runtime audit 2026-09-06): this used to require the invoice's
+  // project to have had a report, an invoice or task movement in the trailing
+  // 14 days. The founder's Houston Phone Booth Ad had none of those and an
+  // 11-day-overdue invoice — $77,201.39 outstanding, which is the $81,264.63
+  // gross less the $4,063.23 of retention the client is entitled to hold —
+  // so the leg came back empty, allQuiet went true, and the home card said
+  // "Clean close — nothing left on the table" while the attention card two
+  // inches above it named that invoice. A quiet job with an ageing receivable
+  // is the single most important thing a Friday close can tell you;
+  // suppressing it inverted the feature.
+  //
+  // WHAT STAYS UNGATED, DELIBERATELY. There is no project-status filter here
+  // either. `completed` and `closed` jobs keep their overdue invoices in the
+  // leg on purpose: closeout is precisely when a final draw or a released
+  // retention goes unpaid, and a job being finished does not make the money
+  // less owed. The only thing that removes an invoice from this leg is being
+  // settled (balance <= 0) or marked paid. Pinned by the project-status cases
+  // in scripts/validate-compose-week-close.ts so nobody restores a filter here
+  // by reflex.
+  //
+  // MONEY-F5: balance is net of held retention — an invoice paid down to its
+  // retention is not "45d overdue" on the Friday close.
   const overdueInvoices = invoices.filter(inv => {
-    if (!activeProjectIds.has(inv.projectId)) return false;
-    const balance = inv.totalDue - (inv.amountPaid ?? 0);
+    const balance = invoiceOutstanding(inv);
     if (balance <= 0) return false;
     const due = toLocalDay(inv.dueDate);
     if (!due) return false;
@@ -227,14 +301,19 @@ function buildChaseLeg(
 
   for (const inv of overdueInvoices) {
     const proj = projects.find(p => p.id === inv.projectId);
-    const projName = proj?.name ?? 'Project';
-    const balance = inv.totalDue - (inv.amountPaid ?? 0);
+    const balance = invoiceOutstanding(inv);
 
     const daysOverdue = Math.round(
       (now.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000,
     );
 
-    let text = `Invoice #${inv.number} (${projName}): ${fmtMoney(balance)} — ${daysOverdue}d overdue`;
+    // Now that the leg is ungated, an invoice can outlive the project row it
+    // points at (deleted job, a record that has not synced yet). The old
+    // fallback printed the literal word "Project" in the slot where a job name
+    // goes — "Invoice #3 (Project)" reads like a job actually called Project.
+    // If the name is not known, do not put anything in its place.
+    const projSuffix = proj?.name ? ` (${proj.name})` : '';
+    let text = `Invoice #${inv.number}${projSuffix}: ${fmtMoney(balance)} — ${daysOverdue}d overdue`;
     const predicted = predMap.get(inv.id);
     if (predicted) {
       text += ` — predicted landing ${predicted}`;
@@ -332,9 +411,79 @@ function buildCommitLeg(
 
 // ─── LEG 5: tell the clients ──────────────────────────────────────────────────
 
+// The pg_cron job that actually sends the homeowner digest.
+//
+// `homeowner-weekly-digest-friday`, schedule '0 21 * * 5' — 21:00 UTC on
+// Fridays. Defined in supabase/migrations/20260523130000_cron_secret_guard.sql
+// :89 and verified active on production (nteoqhcswappxxjlpvap) on 2026-09-07.
+// If that schedule ever changes, these two constants change with it — the copy
+// below is generated from them, never written by hand.
+const DIGEST_CRON_UTC_DAY = 5;   // Friday, per cron field 5
+const DIGEST_CRON_UTC_HOUR = 21; // 21:00 UTC
+
+/**
+ * The next moment the digest cron fires at or after `now`, as a real instant.
+ *
+ * Returned as an instant rather than a weekday name on purpose: 21:00 UTC is
+ * not Friday everywhere, so the only honest way to name the day is to render
+ * this Date in the reader's own timezone.
+ */
+export function nextHomeownerDigestSend(now: Date): Date {
+  const d = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+    DIGEST_CRON_UTC_HOUR, 0, 0, 0,
+  ));
+  d.setUTCDate(d.getUTCDate() + ((DIGEST_CRON_UTC_DAY - d.getUTCDay() + 7) % 7));
+  if (d.getTime() <= now.getTime()) d.setUTCDate(d.getUTCDate() + 7);
+  return d;
+}
+
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** "4:00pm" in the reader's local zone. Hand-rolled rather than
+ *  toLocaleTimeString so the string is identical under Hermes and under Bun,
+ *  where the validator runs. */
+function fmtLocalTime(d: Date): string {
+  const h24 = d.getHours();
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}${h24 < 12 ? 'am' : 'pm'}`;
+}
+
+/**
+ * The one line the Friday close says about the automatic homeowner digest.
+ *
+ * CLOSE-DIGEST-TODAY (runtime audit 2026-09-06): this used to be the constant
+ * string "Portal homeowner digest goes out automatically today", pushed
+ * whenever any active project had a portal, with no weekday test at all. The
+ * card that opens this modal (components/home/WeekCloseCard.tsx, isFridayWindow)
+ * is readable Friday through Sunday, so on two of its three days the app told
+ * the GC his homeowner had already been updated today when nothing had been
+ * sent — and it said it in a line explicitly framed as an honesty note, which
+ * is exactly the kind of claim a user trusts and does not verify. The comment
+ * guarding it also cited "Fri 16:00 UTC"; the live job runs at 21:00 UTC.
+ *
+ * Exported so scripts/validate-compose-week-close.ts can pin every day of the
+ * week without reconstructing a whole ComposeWeekCloseInput.
+ */
+export function homeownerDigestLine(now: Date): string {
+  const next = nextHomeownerDigestSend(now);
+  const previous = new Date(next.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const today = localDateISO(now);
+
+  if (localDateISO(previous) === today) {
+    return `Portal homeowner digest is sent automatically — today's went out at ${fmtLocalTime(previous)}`;
+  }
+  if (localDateISO(next) === today) {
+    return `Portal homeowner digest is sent automatically — today's goes out at ${fmtLocalTime(next)}`;
+  }
+  return `Portal homeowner digest is sent automatically — next one ${WEEKDAY_NAMES[next.getDay()]} at ${fmtLocalTime(next)}, nothing goes out today`;
+}
+
 function buildClientsLeg(
   unsentClientItemCount: number | undefined,
   activeProjects: Project[],
+  now: Date,
 ): WeekCloseLeg {
   const items: BriefItem[] = [];
 
@@ -360,14 +509,15 @@ function buildClientsLeg(
     });
   }
 
-  // HONESTY: portal digest fires automatically Fri 16:00 UTC for portal
-  // projects — say so, don't re-surface as a to-do. Shown ONLY when an active
-  // project actually has a portal (saying it to a non-portal user is false),
-  // and informational for the same reason as above.
+  // HONESTY: the portal digest is sent by pg_cron, not by the GC — say so,
+  // don't re-surface it as a to-do. Shown ONLY when an active project actually
+  // has a portal (saying it to a non-portal user is false), informational for
+  // the same reason as above, and worded against the real cron schedule so it
+  // cannot claim a send on a day nothing sends (CLOSE-DIGEST-TODAY).
   if (activeProjects.some(p => p.clientPortal?.enabled)) {
     items.push({
       id: 'portal-digest-notice',
-      text: 'Portal homeowner digest goes out automatically today',
+      text: homeownerDigestLine(now),
       severity: undefined,
       route: { pathname: '/client-outbox' },
       informational: true,
@@ -449,13 +599,12 @@ export function composeWeekClose(input: ComposeWeekCloseInput): WeekClose {
     buildChaseLeg(
       input.invoices,
       input.projects,
-      input.dailyReports,
       input.paymentPredictions,
       now,
     ),
     buildCloseLeg(input.wwp, now),
     buildCommitLeg(input.lookaheadReadyCount),
-    buildClientsLeg(input.unsentClientItemCount, activeProjects),
+    buildClientsLeg(input.unsentClientItemCount, activeProjects, now),
   ];
 
   const legs = dedupeItemsById(rawLegs);

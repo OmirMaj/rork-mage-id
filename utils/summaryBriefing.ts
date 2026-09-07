@@ -2,11 +2,31 @@
 // Pure, React-free rollups that power the Summary "Morning Briefing" dashboard.
 // (Distinct from utils/summaryRollup.ts, which is the WBS summary-task rollup.)
 //
-// Day math: each project's schedule lives in a day-index space anchored at
-// schedule.startDate (fallback project.createdAt). A calendar day maps to a
-// per-project index; a task is "active" on that day when
-// startDay <= index <= startDay + durationDays.
+// Day math: ONE rule, shared with every other schedule surface
+// (utils/scheduleOps.ts). A schedule is anchored at its own `startDate` or it
+// is UNDATED — there is no fallback anchor. Both rollups below used to anchor
+// an undated schedule at `project.createdAt`, which put "today" at working day
+// ~122 on a 30-day plan and returned nothing: the morning briefing reported an
+// empty day and an empty week on two jobs with 20 and 15 open tasks, while the
+// Schedule tab drew those same jobs starting today and NEEDS YOU called them
+// "schedule at risk" two cards below (runtime audit MISS-01).
+//
+// THIS WEEK also ran a different membership rule from TODAY ON SITE — a raw
+// CALENDAR index (Math.round over MS_DAY) with a 0-indexed start and an
+// end of `startDay + durationDays`, versus TODAY's 1-indexed WORKING-day
+// count with an inclusive `startDay + durationDays - 1`. Two cards on one
+// screen, disagreeing about the same task. Both now call
+// scheduleDayOnCalendar + isTaskActiveOnScheduleDay, so a task counted by one
+// is counted by the other — the validator reconciles them day by day across a
+// whole week.
 import type { Project, Invoice, PunchItem, ChangeOrder } from '@/types';
+import { toCalendarDayString } from '@/utils/calendarDate';
+import {
+  isMilestoneOnScheduleDay,
+  isTaskActiveOnScheduleDay,
+  resolveScheduleAnchor,
+  scheduleDayOnCalendar,
+} from '@/utils/scheduleOps';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -32,6 +52,19 @@ export interface WeekLoad {
   days: WeekDay[]; // length 7, Monday → Sunday
   totalTasks: number; // sum of per-day counts
   milestoneCount: number; // milestone tasks landing within the week
+  /**
+   * Projects with a populated schedule but NO start date. Their work cannot be
+   * placed on a calendar week at all, so it is absent from `days` — and the
+   * screen must SAY so rather than let "0 tasks" read as "nothing to do".
+   */
+  undated: UndatedSchedule[];
+}
+
+/** A project whose schedule has tasks but no calendar anchor. */
+export interface UndatedSchedule {
+  projectId: string;
+  projectName: string;
+  openTasks: number;
 }
 
 export type AttentionSeverity = 'danger' | 'amber';
@@ -60,43 +93,66 @@ export function chipInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function startOfDayMs(d: Date): number {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x.getTime();
+/**
+ * Which schedule day (1-indexed, WORKING days on the project's own calendar)
+ * `day` is for `p` — or null when `day` is not a day of this schedule at all:
+ * no anchor, before the anchor, or a weekend / site closure.
+ *
+ * MEMBERSHIP, so `scheduleDayOnCalendar` and NOT `scheduleDayNumberFor`. The
+ * latter answers "what working day is this job on today", and to do that it
+ * clamps: every date at or before the anchor is day 1, and a closed day folds
+ * back onto the working day before it. Both cards below ask a different
+ * question — "is this task on site on THIS calendar day" — and under those
+ * clamps the answer is invented work: a job starting 2026-10-01 reported its
+ * day-1 task as on site on 2026-09-06, the week strip put a crew on the three
+ * days before a Thursday start, and one 0-day milestone was counted four times
+ * in `milestoneCount` (Mon–Thu all clamp to day 1). That is MISS-01 pointed
+ * the other way — over-reporting instead of under-reporting — and an invented
+ * fact is worse than an absent one either way.
+ */
+function scheduleDayFor(p: Project, day: Date): number | null {
+  const anchor = resolveScheduleAnchor(p.schedule);
+  if (!anchor.date) return null;
+  return scheduleDayOnCalendar(anchor.date, day, p.schedule?.workingDaysPerWeek, p.schedule?.nonWorkingDates);
 }
 
-function projectStartBaseMs(p: Project): number {
-  const raw = p.schedule?.startDate ? new Date(p.schedule.startDate) : new Date(p.createdAt);
-  raw.setHours(0, 0, 0, 0);
-  return raw.getTime();
-}
-
-function dayIndexFor(p: Project, dayMs: number): number {
-  return Math.round((dayMs - projectStartBaseMs(p)) / MS_DAY);
+/**
+ * Projects carrying a schedule with tasks but no start date. Reported by both
+ * rollups so the UI can name what it could not place, instead of rendering a
+ * silent zero.
+ */
+export function undatedSchedules(projects: Project[]): UndatedSchedule[] {
+  const out: UndatedSchedule[] = [];
+  for (const p of projects) {
+    const tasks = p.schedule?.tasks;
+    if (!tasks || tasks.length === 0) continue;
+    if (resolveScheduleAnchor(p.schedule).dated) continue;
+    out.push({
+      projectId: p.id,
+      projectName: p.name,
+      openTasks: tasks.filter((t) => t.status !== 'done').length,
+    });
+  }
+  return out;
 }
 
 export function computeTodayTasks(projects: Project[], now: Date = new Date()): TodayTask[] {
-  const todayMs = startOfDayMs(now);
   const out: TodayTask[] = [];
   for (const p of projects) {
     const tasks = p.schedule?.tasks;
     if (!tasks || tasks.length === 0) continue;
-    const idx = dayIndexFor(p, todayMs);
+    const dayNumber = scheduleDayFor(p, now);
+    if (dayNumber === null) continue; // undated — reported by undatedSchedules()
     for (const t of tasks) {
-      if (t.status === 'done') continue;
-      const start = t.startDay ?? 0;
-      const end = start + Math.max(0, t.durationDays ?? 0);
-      if (idx >= start && idx <= end) {
-        out.push({
-          projectId: p.id,
-          projectName: p.name,
-          projectColor: projectColor(p.id),
-          taskTitle: t.title,
-          isCritical: !!t.isCriticalPath,
-          context: (t.crew || t.assignedSubName || '').trim(),
-        });
-      }
+      if (!isTaskActiveOnScheduleDay(t, dayNumber)) continue;
+      out.push({
+        projectId: p.id,
+        projectName: p.name,
+        projectColor: projectColor(p.id),
+        taskTitle: t.title,
+        isCritical: !!t.isCriticalPath,
+        context: (t.crew || t.assignedSubName || '').trim(),
+      });
     }
   }
   return out.sort((a, b) => Number(b.isCritical) - Number(a.isCritical));
@@ -123,23 +179,22 @@ export function computeWeekLoad(projects: Project[], now: Date = new Date()): We
     for (const p of projects) {
       const tasks = p.schedule?.tasks;
       if (!tasks) continue;
-      const idx = dayIndexFor(p, dayMs);
+      const dayNumber = scheduleDayFor(p, d);
+      if (dayNumber === null) continue; // undated — reported below, not counted
       for (const t of tasks) {
-        if (t.status === 'done') continue;
-        const start = t.startDay ?? 0;
-        const end = start + Math.max(0, t.durationDays ?? 0);
-        if (idx >= start && idx <= end) {
-          count++;
-          if (t.isMilestone && idx === start) {
-            hasMilestone = true;
-            milestoneCount++;
-          }
+        if (isTaskActiveOnScheduleDay(t, dayNumber)) count++;
+        if (isMilestoneOnScheduleDay(t, dayNumber)) {
+          hasMilestone = true;
+          milestoneCount++;
         }
       }
     }
     totalTasks += count;
     days.push({
-      date: d.toISOString().slice(0, 10),
+      // LOCAL components, not toISOString().slice(0, 10) — that re-projects
+      // local midnight into UTC and names the NEXT day for the whole strip
+      // anywhere east of Greenwich (and the previous one west of it).
+      date: toCalendarDayString(d),
       weekdayLabel: labels[i],
       isToday: dayMs === todayMs,
       isWeekend: i >= 5,
@@ -147,7 +202,7 @@ export function computeWeekLoad(projects: Project[], now: Date = new Date()): We
       hasMilestone,
     });
   }
-  return { days, totalTasks, milestoneCount };
+  return { days, totalTasks, milestoneCount, undated: undatedSchedules(projects) };
 }
 
 export function aggregateAttention(

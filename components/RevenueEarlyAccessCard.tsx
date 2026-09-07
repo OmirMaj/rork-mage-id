@@ -257,7 +257,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   },
   footerError: {
     ...Type.caption2,
-    color: Colors.warning,
+    color: Colors.warningLabel,
     marginTop: 2,
   },
 });

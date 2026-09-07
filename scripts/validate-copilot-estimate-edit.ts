@@ -98,17 +98,28 @@ ok('setQuantity recomputes line + totals', (() => {
 })());
 ok('resolves a line by name', (() => interpretEstimateOps([{ op: 'setUnitPrice', item: 'tile', unitPrice: 10 }], base()).results[0].ok)());
 ok('rejects an unresolved ref', (() => { const r = interpretEstimateOps([{ op: 'setQuantity', item: 'ghost', quantity: 1 }], base()); return !r.results[0].ok && !!r.results[0].reason; })());
-// setGlobalMarkup records the new rate and must never move the cost side.
-// TODO(wiring): interpretEstimateOps.ts's setGlobalMarkup case only reassigns
-// estimate.globalMarkup; it should run its items through
-// applyGlobalMarkupToItems so the rate change actually reprices the material
-// lines (pinned by 'applyGlobalMarkupToItems reprices materials only' above).
-// This assertion holds either way — what it guards is that the base cost and
-// the at-cost lines never move on a markup op.
-ok('setGlobalMarkup records the rate and leaves cost alone', (() => {
+// --- setGlobalMarkup moves money (AI-F5) ---
+// "Set the markup to 20%" used to reassign estimate.globalMarkup and nothing
+// else: money is per line, so the grand total did not move, the diff showed
+// the same number, and the header disagreed with every line it summarised.
+ok('setGlobalMarkup 10% → 20% on a 2-line estimate raises the grand total accordingly', (() => {
+  const { nextEstimate, results } = interpretEstimateOps([{ op: 'setGlobalMarkup', markupPct: 20 }], base());
+  // base 4900 × 1.20 = 5880; markup 980 (was 490).
+  return results[0].ok && nextEstimate.globalMarkup === 20 && nextEstimate.baseTotal === 4900
+    && nextEstimate.markupTotal === 980 && nextEstimate.grandTotal === 5880;
+})());
+ok('setGlobalMarkup stamps every material line with the new markup', (() => {
+  const { nextEstimate } = interpretEstimateOps([{ op: 'setGlobalMarkup', markupPct: 20 }], base());
+  return nextEstimate.items.every(i => i.markup === 20)
+    && nextEstimate.items.find(i => i.materialId === 'm1')!.lineTotal === 2880   // 200 × 12 × 1.2
+    && nextEstimate.items.find(i => i.materialId === 'm2')!.lineTotal === 3000;  // 1 × 2500 × 1.2
+})());
+ok('setGlobalMarkup leaves cost and at-cost labor alone', (() => {
   const { nextEstimate } = interpretEstimateOps([{ op: 'setGlobalMarkup', markupPct: 20 }], mixed());
+  const lab = nextEstimate.items.find(i => i.materialId === 'lab')!;
+  // materials 100000 × 1.2 = 120000 + labor at cost 50000.
   return nextEstimate.globalMarkup === 20 && nextEstimate.baseTotal === 150000
-    && nextEstimate.items.find(i => i.materialId === 'lab')!.lineTotal === 50000;
+    && lab.markup === 0 && lab.lineTotal === 50000 && nextEstimate.grandTotal === 170000;
 })());
 ok('removeLine drops the line + recomputes', (() => {
   const { nextEstimate } = interpretEstimateOps([{ op: 'removeLine', item: 'Demolition' }], base());

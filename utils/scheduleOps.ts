@@ -7,6 +7,272 @@
 import type { ScheduleTask, ScheduleBaseline } from '@/types';
 import { runCpm, type RunCpmOptions } from '@/utils/cpm';
 import { addWorkingDays } from '@/utils/scheduleEngine';
+import { parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+
+// ---------------------------------------------------------------------------
+// 0) Which schedule day is a given calendar date?
+// ---------------------------------------------------------------------------
+// The exact inverse of scheduleEngine.getTaskDateRange (start =
+// addWorkingDays(startDate, startDay - 1)): 1-indexed, day 1 = the schedule's
+// start day, a date on/before the start is day 1, and weekends / site
+// closures are skipped exactly as addWorkingDays skips them. Audit UX-F1: the
+// daily report counted raw elapsed milliseconds instead.
+
+export function scheduleDayNumberFor(
+  start: Date,
+  target: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): number {
+  const base = new Date(start.getTime());
+  base.setHours(0, 0, 0, 0);
+  const tgt = new Date(target.getTime());
+  tgt.setHours(0, 0, 0, 0);
+  if (tgt.getTime() <= base.getTime()) return 1;
+  const blocked = nonWorkingDates && nonWorkingDates.length > 0 ? new Set(nonWorkingDates) : null;
+  let count = 1;
+  const cur = new Date(base.getTime());
+  while (cur < tgt) {
+    cur.setDate(cur.getDate() + 1);
+    const dow = cur.getDay();
+    if (workingDaysPerWeek < 7 && (dow === 0 || dow === 6)) continue;
+    if (blocked && blocked.has(toCalendarDayString(cur))) continue;
+    count++;
+  }
+  return count;
+}
+
+/**
+ * The `startDay` a task PICKED to start on `target` gets. scheduleDayNumberFor
+ * answers "which day is this date" and treats a closed day (weekend, site
+ * closure) as still belonging to the working day before it — right for "today
+ * on site", wrong for a start date: a task the user put on Saturday must start
+ * the next working day, not roll back to Friday (B4 review A9; MS Project does
+ * the same). A target on/before the anchor is day 1.
+ */
+export function startDayNumberFor(
+  start: Date,
+  target: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): number {
+  const n = scheduleDayNumberFor(start, target, workingDaysPerWeek, nonWorkingDates);
+  const onOrBefore = addWorkingDays(start, n - 1, workingDaysPerWeek, nonWorkingDates);
+  const tgt = new Date(target.getTime());
+  tgt.setHours(0, 0, 0, 0);
+  return onOrBefore.getTime() < tgt.getTime() ? n + 1 : n;
+}
+
+/**
+ * MEMBERSHIP: which schedule day IS this calendar day — or null when the day
+ * is not a day of this schedule at all.
+ *
+ * The exact inverse of `addWorkingDays(anchor, n - 1)`: it returns `n` only
+ * when the schedule really does land on `target`, so
+ *   - a date strictly BEFORE the anchor  → null (the job has not started)
+ *   - a weekend / site closure           → null (nobody is on site)
+ *   - the anchor itself                  → 1, even when the user anchored on a
+ *                                          Saturday (addWorkingDays(start, 0)
+ *                                          is `start`, so day 1 is that day)
+ *
+ * NOT interchangeable with `scheduleDayNumberFor`, whose two clamps exist for
+ * a different question ("what working day is the job on today?"): it answers 1
+ * for every date at or before the anchor and folds a closed day back onto the
+ * working day before it. Used as a membership test those clamps INVENT work —
+ * every task starting on day 1 is reported as on site on every calendar day
+ * before the job breaks ground, and a 0-day milestone fires once per day from
+ * Monday through its Thursday anchor. Ask the membership question with this
+ * function and the "which day are we on" question with the other one.
+ */
+export function scheduleDayOnCalendar(
+  start: Date,
+  target: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): number | null {
+  const base = new Date(start.getTime());
+  base.setHours(0, 0, 0, 0);
+  const tgt = new Date(target.getTime());
+  tgt.setHours(0, 0, 0, 0);
+  if (tgt.getTime() < base.getTime()) return null;
+  const n = scheduleDayNumberFor(base, tgt, workingDaysPerWeek, nonWorkingDates);
+  const landsOn = addWorkingDays(base, n - 1, workingDaysPerWeek, nonWorkingDates);
+  landsOn.setHours(0, 0, 0, 0);
+  return landsOn.getTime() === tgt.getTime() ? n : null;
+}
+
+/**
+ * The calendar days a task occupies: scheduleEngine.getTaskDateRange with site
+ * closures honoured (that signature predates `nonWorkingDates`). `start` is
+ * the parsed schedule anchor (parseCalendarDay(schedule.startDate)); startDay
+ * is 1-indexed and in WORKING days — the mobile list/gantt/month sheet used to
+ * multiply it by 86 400 000 instead, drawing a startDay-6 task on the Saturday
+ * five calendar days after a Monday anchor rather than the next Monday (B4
+ * review A9). Milestones (0 days) end on their start day.
+ */
+export function taskCalendarRange(
+  task: Pick<ScheduleTask, 'startDay' | 'durationDays'>,
+  start: Date,
+  workingDaysPerWeek: number = 5,
+  nonWorkingDates?: string[],
+): { start: Date; end: Date } {
+  const s = addWorkingDays(start, Math.max(0, (task.startDay ?? 1) - 1), workingDaysPerWeek, nonWorkingDates);
+  const e = addWorkingDays(s, Math.max(0, (task.durationDays || 1) - 1), workingDaysPerWeek, nonWorkingDates);
+  return { start: s, end: e };
+}
+
+// ---------------------------------------------------------------------------
+// 0b) THE anchor rule — one resolution, called by every surface
+// ---------------------------------------------------------------------------
+// `ProjectSchedule.startDate` is OPTIONAL, and 2 of the 3 real schedules in
+// production have never carried one (The Henderson Residence — 20 tasks, 20
+// open; Watermark 9F — 19 tasks, 15 open; both in_progress, re-verified
+// read-only 2026-09-06). Before this helper existed, five surfaces invented
+// five DIFFERENT anchors for that one missing field:
+//
+//   MobileScheduleScreen    todayCalendarDay()  every task date moved forward
+//                                               one day, every day
+//   app/(tabs)/schedule     new Date()          the same drift on desktop
+//   utils/icsGenerator      todayIso()          wrote the drifting dates into
+//                                               the GC's real calendar
+//   utils/summaryBriefing   project.createdAt   "Nothing scheduled today" and
+//                                               "No scheduled work this week"
+//                                               on a job with 20 open tasks
+//   construction-ai         the UTC day         a fifth answer again
+//
+// Two of them contradicted each other on the same morning: the Schedule tab
+// drew Henderson starting TODAY while the Summary briefing reported an empty
+// day AND an empty week for it, with "schedule at risk (health 55)" two cards
+// below (runtime audit SCHED-NO-ANCHOR + MISS-01).
+//
+// THE RULE: THERE IS NO FALLBACK ANCHOR. An undated schedule has real
+// WORKING-DAY numbers (startDay 1..n, durations in working days) and no
+// calendar position whatsoever. A surface that prints dates must either print
+// the day numbers instead (taskWorkingDayLabel) or say the schedule is undated
+// and offer to set a start date — it must never substitute a date the user did
+// not choose, because a date that silently moves is worse than a missing one.
+//
+// `unanchoredPreviewDate` is the ONE escape hatch, for surfaces that draw a
+// purely RELATIVE picture (a gantt's column grid) and cannot render at all
+// without some origin. Anything that reads it must render
+// UNDATED_SCHEDULE_TITLE or UNDATED_SCHEDULE_PREVIEW_NOTE beside it — the
+// "the preview discloses itself" section of
+// scripts/validate-schedule-date-basis.ts sweeps every source file for
+// `unanchoredPreview` and fails the build on one that names neither.
+
+/** Anything carrying a schedule's optional anchor (ProjectSchedule, a draft). */
+export interface ScheduleAnchorSource {
+  startDate?: string | null;
+}
+
+export interface ResolvedScheduleAnchor {
+  /** The schedule's own calendar day ('YYYY-MM-DD'), or null when undated. */
+  iso: string | null;
+  /** LOCAL midnight of `iso`. Null when undated — never today, never createdAt. */
+  date: Date | null;
+  /** True only when the schedule carries a real, parseable start date. */
+  dated: boolean;
+  /**
+   * LOCAL midnight of today. NOT an anchor: it is the origin a relative
+   * drawing needs, and every date derived from it moves forward one day per
+   * calendar day. Legal only alongside the undated disclosure + a "set a start
+   * date" action.
+   */
+  unanchoredPreviewDate: Date;
+  /** `unanchoredPreviewDate` as a calendar day, for props typed `string`. */
+  unanchoredPreviewIso: string;
+}
+
+/**
+ * The single resolution of "when does this schedule start?".
+ *
+ * Accepts the mixed shapes the field actually holds — a bare 'YYYY-MM-DD' from
+ * the app, a full ISO timestamp from a Supabase round-trip — via
+ * parseCalendarDay, so the answer never shifts with the reader's timezone.
+ * An absent, empty or unparseable value is UNDATED, not today.
+ */
+export function resolveScheduleAnchor(
+  schedule: ScheduleAnchorSource | null | undefined,
+  now: Date = new Date(),
+): ResolvedScheduleAnchor {
+  const preview = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const date = parseCalendarDay(schedule?.startDate ?? null);
+  return {
+    iso: date ? toCalendarDayString(date) : null,
+    date,
+    dated: date !== null,
+    unanchoredPreviewDate: preview,
+    unanchoredPreviewIso: toCalendarDayString(preview),
+  };
+}
+
+/** True when the schedule exists but has no usable calendar anchor. */
+export function isUndatedSchedule(schedule: ScheduleAnchorSource | null | undefined): boolean {
+  return !!schedule && !resolveScheduleAnchor(schedule).dated;
+}
+
+// The one wording for the undated case. Shared so the phone, the desktop tab
+// and the briefing say the same true thing rather than three near-misses.
+export const UNDATED_SCHEDULE_TITLE = 'This schedule has no start date';
+export const UNDATED_SCHEDULE_BODY =
+  'Its day numbers are real — the calendar dates are not. Set the start date and every task lands on a real day.';
+export const UNDATED_SCHEDULE_CTA = 'Set start date';
+/**
+ * What the "Starts" field says on a surface that fell back to
+ * `unanchoredPreviewDate`. It replaces a date — printing today's date in that
+ * slot is the SCHED-NO-ANCHOR bug itself — so it is phrased as a field value,
+ * not a sentence, and it is a shared constant because the desktop tab renders
+ * that bar twice and drifted between the two copies within a day of the fix.
+ */
+export const UNDATED_SCHEDULE_PREVIEW_NOTE =
+  'Not set — dates below are a preview drawn from today';
+
+/**
+ * What an undated schedule CAN honestly say about a task: its working-day
+ * window. 'Day 6 – 10', or 'Day 6' for a one-day task or a milestone. These
+ * numbers are stored data, unlike the calendar dates.
+ */
+export function taskWorkingDayLabel(
+  task: Pick<ScheduleTask, 'startDay' | 'durationDays'>,
+): string {
+  const start = Math.max(1, Math.round(task.startDay ?? 1));
+  const end = start + Math.max(1, Math.round(task.durationDays ?? 0)) - 1;
+  return end <= start ? `Day ${start}` : `Day ${start} – ${end}`;
+}
+
+/**
+ * Is `task` on site on schedule day `dayNumber` (1-indexed WORKING days)?
+ *
+ * The single membership test behind Home's TODAY ON SITE strip, Summary's
+ * TODAY ON SITE card and Summary's THIS WEEK strip. Inclusive last day is
+ * `startDay + durationDays - 1`, matching scheduleEngine.getTaskDateRange.
+ * THIS WEEK used to run a different rule entirely — a 0-indexed raw CALENDAR
+ * index with an end of `startDay + durationDays` — so the same job could be
+ * counted by one card and not the other on the same screen (MISS-01).
+ *
+ * A 0-day milestone has no active window here (it is an event, not work);
+ * `isMilestoneOnScheduleDay` reports those separately, as both strips display
+ * them separately.
+ */
+export function isTaskActiveOnScheduleDay(
+  task: Pick<ScheduleTask, 'startDay' | 'durationDays' | 'status'>,
+  dayNumber: number,
+): boolean {
+  if (task.status === 'done') return false;
+  const start = Math.max(1, task.startDay ?? 1);
+  const dur = Math.max(0, task.durationDays ?? 0);
+  return dayNumber >= start && dayNumber <= start + dur - 1;
+}
+
+/** Does a milestone land exactly on schedule day `dayNumber`? */
+export function isMilestoneOnScheduleDay(
+  task: Pick<ScheduleTask, 'startDay' | 'status' | 'isMilestone'>,
+  dayNumber: number,
+): boolean {
+  if (task.status === 'done') return false;
+  if (!task.isMilestone) return false;
+  return dayNumber === Math.max(1, task.startDay ?? 1);
+}
 
 // ---------------------------------------------------------------------------
 // 1) Reflow from actuals
@@ -387,6 +653,9 @@ export interface SharedSchedulePayload {
    *  v=3 adds projectId for the Sub Schedule Collab daily-update flow. */
   v: 1 | 2 | 3;
   name: string;
+  /** The schedule's start CALENDAR DAY, 'YYYY-MM-DD'. Tokens minted before
+   *  2026-09-04 carry a full toISOString() instant instead; parseCalendarDay
+   *  truncates those to their date part (audit UX-F2). */
   projectStartISO: string;
   /** v3+: project this schedule belongs to. Lets the sub post updates
    *  that the GC's app picks up under the right project context. */
@@ -525,7 +794,18 @@ export function buildSharePayload(
   return {
     v,
     name,
-    projectStartISO: projectStartDate.toISOString(),
+    // UX-F2: a calendar day, from LOCAL components. toISOString() re-projected
+    // local midnight into UTC, and the viewer re-parsed that as UTC midnight —
+    // every shared task sat a day early west of Greenwich.
+    //
+    // Legacy tokens (minted before this fix) still carry that toISOString()
+    // instant, and app/shared-schedule.tsx now reads the date PREFIX of it
+    // (parseCalendarDay). For a token minted WEST of Greenwich the prefix is
+    // the intended day (local midnight is later the same UTC day); for one
+    // minted EAST of Greenwich — where local midnight is still the previous
+    // UTC day — every task in the legacy token reads a day EARLY. Only
+    // re-sharing fixes such a link (B4 review A10).
+    projectStartISO: toCalendarDayString(projectStartDate),
     projectId: opts.projectId,
     gc: opts.gc,
     tasks: tasks.map(t => ({

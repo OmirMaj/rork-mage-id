@@ -5,6 +5,7 @@ import type {
   Project, CompanyBranding, ChangeOrder, Invoice, DailyFieldReport, PunchItem, Warranty, ProjectPhoto,
 } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { effectiveRetentionHeld } from '@/utils/invoiceBilling';
 
 function escapeHtml(raw: string | number | undefined | null): string {
   if (raw === undefined || raw === null) return '';
@@ -87,7 +88,10 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
 
   const totalInvoiced = invoices.reduce((s, i) => s + (i.totalDue ?? 0), 0);
   const totalPaid = invoices.reduce((s, i) => s + (i.amountPaid ?? 0), 0);
-  const totalRetentionHeld = invoices.reduce((s, i) => s + (i.retentionAmount ?? 0), 0);
+  // MONEY-05: the withholding on the work basis, per invoice, so the closeout
+  // packet's retention line agrees with the Retention screen the GC releases
+  // from — a packet that overstates the withholding overstates the final check.
+  const totalRetentionHeld = invoices.reduce((s, i) => s + effectiveRetentionHeld(i), 0);
   const totalRetentionReleased = invoices.reduce((s, i) => s + (i.retentionReleased ?? 0), 0);
   const retentionPending = Math.max(0, totalRetentionHeld - totalRetentionReleased);
 
@@ -170,7 +174,7 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
               <td><span class="pill pill-${inv.status}">${escapeHtml(inv.status.replace(/_/g, ' '))}</span></td>
               <td class="num">${formatMoney(inv.totalDue)}</td>
               <td class="num">${formatMoney(inv.amountPaid ?? 0)}</td>
-              <td class="num">${inv.retentionAmount ? formatMoney(inv.retentionAmount) : '—'}</td>
+              <td class="num">${effectiveRetentionHeld(inv) > 0 ? formatMoney(effectiveRetentionHeld(inv)) : '—'}</td>
             </tr>
           `).join('')}
         </tbody>

@@ -13,6 +13,9 @@ import {
   type AttentionItem,
 } from '../utils/brainWatch';
 import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '../types';
+// MONEY-05: the reader Summary's amount comes from, so the fixture below pins
+// the shipped rule rather than a number copied out of it.
+import { invoiceOutstanding } from '../utils/invoiceBilling';
 
 let pass = 0, fail = 0;
 function ok(n: string, cond: boolean) { if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n); } }
@@ -255,15 +258,73 @@ console.log('\ninvoiceAttention:');
   ok('two overdue → 2 items', items.length === 2);
 }
 
+// MONEY-03 (runtime audit 2026-09-06) — the amount is FORMATTED money.
+//
+// This shipped as `outstanding.toFixed(0)` interpolated into `($${amt})`, so
+// the founder's Summary read "Houston Phone Booth Ad: invoice #1 is 12d overdue
+// ($77201)" — the only unformatted money string on the screen, sitting under a
+// MONEY tile that rendered the same figure as "$77K". These assertions pin the
+// grouping so a future edit cannot quietly drop back to raw digits.
+{
+  const p = mkProject();
+  // The production row, reproduced in FULL — subtotal and retention_percent
+  // included, because MONEY-05 (runtime audit 2026-09-07) is exactly what this
+  // fixture used to be missing.
+  //
+  // The stored retention_amount 4063.23125 is 5% of the TAX-INCLUSIVE total.
+  // While this row trusted that column, Summary's NEEDS YOU line said $77,201
+  // for the same invoice the invoice screen and the Stripe pay-link row both
+  // priced at $77,484.88 — one invoice, two amounts, $283.48 apart, and the one
+  // the contractor was told to chase was the smaller, wrong one. The stored
+  // figure is deliberately LEFT on the row so this case proves the reader
+  // ignores it in favour of 5% of the $75,595 of work.
+  const inv = mkInvoice({
+    dueDate: '2025-01-08', // 12d overdue from NOW_MS (2025-01-20)
+    subtotal: 75595,
+    taxRate: 7.5,
+    taxAmount: 5669.625,
+    totalDue: 81264.625,
+    retentionPercent: 5,
+    retentionAmount: 4063.23125,
+    amountPaid: 0,
+  });
+  const msg = invoiceAttention(p, [inv], NOW_MS)[0].message;
+  ok('overdue amount is thousands-separated', msg.includes('$77,485'));
+  ok('overdue amount is NOT raw digits (MONEY-03)', !msg.includes('$77485'));
+  ok('overdue amount carries no stray cents', !/\$77,485\.\d/.test(msg));
+  ok('amount is net of retention, not gross', !msg.includes('$81,264') && !msg.includes('$81265'));
+  // MONEY-05: the number on Summary is the number on the invoice screen.
+  ok('Summary does NOT report the stored-column figure', !msg.includes('$77,201'));
+  ok('…it reports the retention-net balance every other surface reports',
+    Math.abs(invoiceOutstanding(inv) - 77484.88) <= 0.005);
+}
+
+// Small amounts stay readable too — formatMoney rounds, it does not abbreviate,
+// so a $950 balance must not render as "$1K".
+{
+  const p = mkProject();
+  const inv = mkInvoice({ dueDate: '2025-01-08', totalDue: 950, amountPaid: 0 });
+  const msg = invoiceAttention(p, [inv], NOW_MS)[0].message;
+  ok('sub-$1K overdue amount renders exactly', msg.includes('$950'));
+}
+
 // ─── permitAttention ─────────────────────────────────────────────────────────
 
 console.log('\npermitAttention:');
+
+// inspectionDate is a CALENDAR DAY (bare 'YYYY-MM-DD'), so permitAttention counts
+// whole LOCAL days (daysUntilCalendarDay) — B4 review A3 replaced a UTC-midnight
+// Date.parse + floored-millisecond count that read a day short every morning
+// west of Greenwich. The fixture clock is therefore LOCAL noon on Jan 20, not
+// the UTC-midnight NOW_MS the instant-based sections use: that instant is still
+// Jan 19 in Denver, and a local-day count from it is one day longer.
+const PERMIT_NOW_MS = new Date(2025, 0, 20, 12).getTime();
 
 // inspection in 5 days → high
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-25' }); // 5d from Jan 20
-  const items = permitAttention(p, [perm], NOW_MS);
+  const items = permitAttention(p, [perm], PERMIT_NOW_MS);
   ok('5d inspection → 1 item', items.length === 1);
   ok('5d inspection → high', items[0].severity === 'high');
   ok('5d inspection → permit kind', items[0].kind === 'permit');
@@ -276,42 +337,42 @@ console.log('\npermitAttention:');
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-21' }); // 1d
-  ok('1d inspection → critical', permitAttention(p, [perm], NOW_MS)[0].severity === 'critical');
+  ok('1d inspection → critical', permitAttention(p, [perm], PERMIT_NOW_MS)[0].severity === 'critical');
 }
 
 // inspection in 2 days → critical (≤ 2)
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-22' }); // 2d
-  ok('2d inspection → critical', permitAttention(p, [perm], NOW_MS)[0].severity === 'critical');
+  ok('2d inspection → critical', permitAttention(p, [perm], PERMIT_NOW_MS)[0].severity === 'critical');
 }
 
 // inspection in 8 days → empty (> 7)
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-28' }); // 8d
-  ok('8d inspection → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('8d inspection → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // inspection in past → empty
 {
   const p = mkProject();
   const perm = mkPermit({ inspectionDate: '2025-01-18' }); // 2d ago
-  ok('past inspection → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('past inspection → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // no inspectionDate → empty
 {
   const p = mkProject();
   const perm = mkPermit();
-  ok('no inspectionDate → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('no inspectionDate → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // wrong projectId → empty
 {
   const p = mkProject({ id: 'p2' });
   const perm = mkPermit({ inspectionDate: '2025-01-25' }); // belongs to p1
-  ok('wrong projectId → empty', permitAttention(p, [perm], NOW_MS).length === 0);
+  ok('wrong projectId → empty', permitAttention(p, [perm], PERMIT_NOW_MS).length === 0);
 }
 
 // ─── certAttention ───────────────────────────────────────────────────────────
@@ -328,7 +389,29 @@ console.log('\ncertAttention:');
   ok('expired cert → message has worker name', items[0].message.includes('John Smith'));
   ok('expired cert → message has cert type', items[0].message.includes('OSHA 30'));
   ok('expired cert → message has expired', items[0].message.includes('expired'));
-  ok('expired cert → route /crew', items[0].route.pathname === '/crew');
+  // NAV-02 (runtime audit 2026-09-06). The route MUST be the certifications
+  // screen, never /crew. Certifications and crew members are different records
+  // in different tables: production holds 16 certifications and 0 crew rows, so
+  // routing the founder's #1 attention item ("Dana Cole — First Aid / CPR
+  // expired") to /crew landed him on "No crew yet · Add your first crew member"
+  // with no way to renew, re-date or clear the cert — the flag was permanent.
+  ok('expired cert → route /safety-certifications',
+    items[0].route.pathname === '/safety-certifications');
+  ok('expired cert → route is NOT /crew (NAV-02)',
+    (items[0].route.pathname as string) !== '/crew');
+}
+
+// Every cert item, at every severity, routes somewhere that can actually
+// clear the flag. A single stray '/crew' re-opens NAV-02.
+{
+  const mixed = [
+    mkCert({ id: 'c-exp', status: 'expired', expiresDate: '2025-01-10' }),
+    mkCert({ id: 'c-soon', holderName: 'Ana Ruiz', status: 'expiring', expiresDate: '2025-01-30' }),
+    mkCert({ id: 'c-later', holderName: 'Bo Vance', status: 'expiring', expiresDate: '2025-03-01' }),
+  ];
+  const items = certAttention(mixed, NOW_MS);
+  ok('every cert item routes to /safety-certifications',
+    items.length === 3 && items.every(i => i.route.pathname === '/safety-certifications'));
 }
 
 // expiring in 10 days → high (< 14)
@@ -559,7 +642,7 @@ console.log('\nrankAttention:');
   const items: AttentionItem[] = [
     { id: 'a', projectId: '', projectName: '', kind: 'schedule' as const, severity: 'medium' as const, message: 'A', route: { pathname: '/schedule-pro' } },
     { id: 'b', projectId: '', projectName: '', kind: 'invoice' as const, severity: 'critical' as const, message: 'B', route: { pathname: '/invoice' } },
-    { id: 'c', projectId: '', projectName: '', kind: 'cert' as const, severity: 'high' as const, message: 'C', route: { pathname: '/crew' } },
+    { id: 'c', projectId: '', projectName: '', kind: 'cert' as const, severity: 'high' as const, message: 'C', route: { pathname: '/safety-certifications' } },
     { id: 'd', projectId: '', projectName: '', kind: 'permit' as const, severity: 'medium' as const, message: 'D', route: { pathname: '/permits' } },
   ];
   const ranked = rankAttention(items);

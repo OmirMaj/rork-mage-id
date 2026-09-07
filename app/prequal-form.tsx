@@ -559,7 +559,7 @@ function ErrorState({ title, body, onBack }: { title: string; body: string; onBa
   return (
     <View style={[styles.root, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <AlertTriangle size={32} color={Colors.warning} strokeWidth={1.75} />
+      <AlertTriangle size={32} color={Colors.warningLabel} strokeWidth={1.75} />
       <Text style={styles.errorTitle}>{title}</Text>
       <Text style={styles.errorBody}>{body}</Text>
       <TouchableOpacity onPress={onBack} style={styles.errorBtn}>

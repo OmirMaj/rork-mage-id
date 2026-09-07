@@ -63,6 +63,32 @@ export async function imageUriToBase64(uri: string): Promise<{ base64: string; m
   }
 }
 
+/**
+ * supabase-js collapses every non-2xx into "Edge Function returned a non-2xx
+ * status code"; the real reason — `unauthorized`, `cap_reached`, `rate_limited`,
+ * a tier gate — is the JSON `error` (or `code`) the function wrote, hanging off
+ * `error.context` (a Response). Read it best-effort: a non-JSON body degrades to
+ * the HTTP status, and no context at all degrades to the error's own message.
+ * Same idea as serverErrorMessage() in utils/invoiceReminders.ts.
+ */
+export async function edgeFunctionErrorMessage(error: unknown, fallback: string): Promise<string> {
+  const err = error as { message?: unknown; context?: { status?: unknown; json?: () => Promise<unknown> } } | null;
+  const ctx = err?.context;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = await ctx.json() as { error?: unknown; code?: unknown } | null;
+      const text = typeof body?.error === 'string' && body.error.trim()
+        ? body.error.trim()
+        : typeof body?.code === 'string' && body.code.trim() ? body.code.trim() : null;
+      if (text) return text;
+    } catch {
+      // Body was not JSON (or already consumed) — fall through to the status.
+    }
+    if (typeof ctx.status === 'number' && ctx.status > 0) return `${fallback} (HTTP ${ctx.status})`;
+  }
+  return typeof err?.message === 'string' && err.message.trim() ? err.message : fallback;
+}
+
 export async function reviewPlanCode(opts: {
   imageBase64: string;
   mimeType: string;
@@ -74,7 +100,7 @@ export async function reviewPlanCode(opts: {
     data?: PlanCodeResult;
     error?: string;
   }>('analyze-plan-code', { body: opts });
-  if (error) throw new Error(`Plan review call failed: ${error.message}`);
+  if (error) throw new Error(`Plan review call failed: ${await edgeFunctionErrorMessage(error, 'request failed')}`);
   if (!data?.success || !data.data) throw new Error(data?.error ?? 'Plan review returned an empty result.');
   return {
     findings: Array.isArray(data.data.findings) ? data.data.findings : [],

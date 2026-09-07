@@ -64,7 +64,7 @@ const FLAVOR_VISUAL: Record<DemoFlavor, {
   },
   large: {
     Icon: Building2,
-    accent: Colors.warning,
+    accent: Colors.warningLabel,
     pitch: 'Ground-up multi-unit condo. AIA pay-app cadence, deep buyout, big crew.',
     bullets: [
       '6 invoices on AIA cadence ($8.6M billed)',

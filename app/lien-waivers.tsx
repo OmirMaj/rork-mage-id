@@ -37,9 +37,18 @@ import type { LienWaiver, LienWaiverType, CompanyBranding } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
+import { formatCalendarDay, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
+import { useSafeBack } from '@/hooks/useSafeBack';
+
+/** A calendar day from whatever the invoice screen passed as prefillThroughDate
+ *  (see the seed below): 'YYYY-MM-DD' as-is, an ISO instant as its LOCAL day,
+ *  anything else (or nothing) as today. */
+function normaliseThroughDate(value: string | undefined): string {
+  return calendarDayOf(value) ?? todayCalendarDay();
+}
 
 export default function LienWaiversScreen() {
-  const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { canAccess } = useTierAccess();
   if (!canAccess('lien_waiver_manager')) {
     return (
@@ -47,7 +56,7 @@ export default function LienWaiversScreen() {
         visible={true}
         feature="Lien Waiver Manager"
         requiredTier="pro"
-        onClose={() => router.back()}
+        onClose={goBack}
       />
     );
   }
@@ -62,6 +71,9 @@ function LienWaiversScreenInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
+  // UX-F18: Back must work when this screen is the first route of a fresh
+  // web tab or a cold-start deep link (nothing to pop).
+  const goBack = useSafeBack();
   const { projectId, prefillFromInvoice, prefillAmount, prefillThroughDate } = useLocalSearchParams<{
     projectId: string;
     prefillFromInvoice?: string;
@@ -105,7 +117,14 @@ function LienWaiversScreenInner() {
       subEmail,
       subCompanyId,
       paidAmount: prefillAmount ? Number(prefillAmount) : (invoice.amountPaid ?? invoice.totalDue ?? 0),
-      throughDate: prefillThroughDate ?? new Date().toISOString().slice(0, 10),
+      // UX-F3: a LOCAL calendar day. toISOString().slice(0, 10) wrote
+      // tomorrow's date on a waiver created after ~6 pm Denver time.
+      // B4 review A4: the invoice screen hands over paidDate / issueDate —
+      // full toISOString() instants — or a bare UTC day, and the raw value
+      // used to be stored and printed as-is. Normalised to a calendar day
+      // here: an instant becomes its LOCAL day (the day the GC issued or
+      // paid), a bare day is kept.
+      throughDate: normaliseThroughDate(prefillThroughDate),
     };
   }, [prefillFromInvoice, projectId, prefillAmount, prefillThroughDate, getInvoicesForProject, getCommitmentsForProject, subcontractors]);
 
@@ -257,7 +276,7 @@ function LienWaiversScreenInner() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={goBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -305,7 +324,7 @@ function LienWaiversScreenInner() {
         )}
 
         <View style={styles.disclaimer}>
-          <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+          <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.disclaimerText}>
             Generic 4-type waivers cover ~38 states. CA, TX, FL, GA, AZ require state-specific
             statutory forms — consult an attorney for those.
@@ -381,7 +400,8 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
       <View style={styles.waiverGrid}>
         <View style={styles.waiverField}>
           <Text style={styles.waiverFieldLabel}>Through</Text>
-          <Text style={styles.waiverFieldValue}>{new Date(waiver.throughDate).toLocaleDateString()}</Text>
+          {/* UX-F3: a calendar day — new Date() of it was UTC midnight, a day early west of Greenwich */}
+          <Text style={styles.waiverFieldValue}>{formatCalendarDay(waiver.throughDate)}</Text>
         </View>
         <View style={styles.waiverField}>
           <Text style={styles.waiverFieldLabel}>Amount</Text>
@@ -421,7 +441,7 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
         )}
         {(waiver.status === 'requested' || waiver.status === 'signed') && (
           <TouchableOpacity style={styles.actionGhost} onPress={onMarkVoid}>
-            <XCircle size={13} color={Colors.warning} strokeWidth={1.75} />
+            <XCircle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.actionGhostText}>Void</Text>
           </TouchableOpacity>
         )}
@@ -443,7 +463,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
   const [type, setType] = useState<LienWaiverType>('unconditional_partial');
   const [subName, setSubName] = useState('');
   const [subEmail, setSubEmail] = useState('');
-  const [throughDate, setThroughDate] = useState(new Date().toISOString().slice(0, 10));
+  const [throughDate, setThroughDate] = useState(todayCalendarDay()); // UX-F3: local day
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
@@ -451,7 +471,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
       setType('unconditional_partial');
       setSubName(seed?.subName ?? '');
       setSubEmail(seed?.subEmail ?? '');
-      setThroughDate(seed?.throughDate ?? new Date().toISOString().slice(0, 10));
+      setThroughDate(seed?.throughDate ?? todayCalendarDay());
       setAmount(seed?.paidAmount ? String(seed.paidAmount) : '');
     }
   }, [visible, seed]);
@@ -620,7 +640,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
   actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   actionGhost: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
-  actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning },
+  actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warningLabel },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },

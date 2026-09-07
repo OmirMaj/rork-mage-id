@@ -13,7 +13,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -28,6 +28,7 @@ import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import EmptyState from '@/components/EmptyState';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import {
   buildLookahead, summarizeLookahead, LOOKAHEAD_DAYS,
   type Delivery, type DeliveryView, type LookaheadDays,
@@ -52,6 +53,7 @@ export default function DeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
 
   const {
@@ -141,7 +143,7 @@ export default function DeliveriesScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={() => router.back()} title="Deliveries" subtitle="" styles={styles} t={t} onAdd={undefined} />
+        <Header onBack={goBack} title="Deliveries" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
           toolName="Deliveries"
           message="Deliveries are tracked per project — pick the job whose material you're expecting."
@@ -163,7 +165,7 @@ export default function DeliveriesScreen() {
     <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <Header
-        onBack={() => router.back()}
+        onBack={goBack}
         title={project.name}
         subtitle={summarizeLookahead(look, horizon)}
         styles={styles}
@@ -489,7 +491,11 @@ function AddDeliverySheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      {/* UX-F15: four inputs + Save in a bottom-anchored sheet with no keyboard
+          handling — the keyboard covered "Promised date", "Window" and the Save
+          button, and the first tap on Save only dismissed the keyboard. Same
+          pattern as app/login.tsx. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Expecting a delivery</Text>
@@ -497,6 +503,7 @@ function AddDeliverySheet({
               <X size={20} color={t.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false} style={styles.sheetScroll}>
 
           <Text style={styles.fieldLabel}>What</Text>
           <TextInput
@@ -551,8 +558,9 @@ function AddDeliverySheet({
             <CalendarDays size={16} color="#FFFFFF" strokeWidth={1.75} />
             <Text style={styles.saveBtnText}>Add to the look-ahead</Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -628,7 +636,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sheet: {
     backgroundColor: t.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingHorizontal: 20, paddingTop: 18,
+    maxHeight: '90%', // UX-F15: bounded so the body scrolls above the keyboard
   },
+  sheetScroll: { flexShrink: 1 },
   sheetHead: { flexDirection: 'row' as const, alignItems: 'center' as const },
   sheetTitle: { flex: 1, ...Type.serifHeadline, color: t.text },
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 14, marginBottom: 6 },

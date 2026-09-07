@@ -28,6 +28,7 @@ import {
   seedAIAPayApplicationFromInvoice,
   computeAIATotals,
   generateAIAPayAppPDF,
+  retainagePercentForInvoice,
 } from '@/utils/aiaBilling';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -139,10 +140,17 @@ function AIAPayAppScreenInner() {
   }, [project, invoice, getAIAPayAppsForProject]);
 
   const [carriedFromAppNumber, setCarriedFromAppNumber] = useState<number | null>(null);
+  // MISS-05: the retainage rate on this certificate is now CARRIED from the
+  // source invoice (including a real 0%) instead of falling back to an invented
+  // 10%. Track whether the GC has since overridden it, so the screen can say
+  // where the number on the G702 actually came from.
+  const [retainageEdited, setRetainageEdited] = useState(false);
+  const invoiceRetainagePct = invoice ? retainagePercentForInvoice(invoice) : 0;
 
   useEffect(() => {
     if (!invoice || !project || !settings?.branding) return;
     const seeded = seedAIAPayApplicationFromInvoice(invoice, project, approvedCOs, settings.branding);
+    setRetainageEdited(false);
     // Carry-forward: when there's a prior saved pay app, pre-fill each line's
     // fromPreviousApp with what was billed through the end of the prior
     // period (prior.fromPreviousApp + prior.thisPeriod), and pre-fill the
@@ -167,7 +175,9 @@ function AIAPayAppScreenInner() {
         ...seeded,
         applicationNumber: priorAIA.applicationNumber + 1,
         lines: carriedLines,
-        lessPreviousCertificates: priorAIA.totals.totalEarnedLessRetainage || 0,
+        // MONEY-F1 (client half): a record hydrated from the server can arrive
+        // without `totals`; the second period must not crash on it.
+        lessPreviousCertificates: priorAIA.totals?.totalEarnedLessRetainage ?? 0,
       };
       setApp(carried);
       setCarriedFromAppNumber(priorAIA.applicationNumber);
@@ -212,7 +222,10 @@ function AIAPayAppScreenInner() {
     if (!project || !app) return null;
     return getAIAPayAppsForProject(project.id).find(a => a.applicationNumber === app.applicationNumber) ?? null;
   }, [project, app, getAIAPayAppsForProject]);
-  const isLocked = !!savedForThisAppNumber?.payLinkUrl;
+  // MONEY-F2 / F16: `paidAt` is set by the Stripe webhook and hydrated by the
+  // context mapper; read defensively so an older local record reads "unpaid".
+  const savedPaidAt = (savedForThisAppNumber as (SavedAIAPayApp & { paidAt?: string }) | null)?.paidAt || null;
+  const isLocked = !!savedForThisAppNumber?.payLinkUrl || !!savedPaidAt;
 
   const updateLine = useCallback((lineId: string, patch: Partial<AIASOVLine>) => {
     if (isLocked) return;
@@ -240,6 +253,7 @@ function AIAPayAppScreenInner() {
 
   const updateRetainagePctAll = useCallback((pct: number) => {
     if (isLocked) return;
+    setRetainageEdited(true);
     setApp(prev => prev ? {
       ...prev,
       retainagePercent: pct,
@@ -372,7 +386,8 @@ function AIAPayAppScreenInner() {
     let stripeNotConnected = false;
     let stripeFailureReason: string | null = null;
     const due = rec.totals?.currentPaymentDue ?? 0;
-    if (!payLinkUrl && due > 0 && user?.id) {
+    // MONEY-F2: never mint a Pay button for a pay app that is already paid.
+    if (!payLinkUrl && due > 0 && !savedPaidAt && user?.id) {
       try {
         const status = await fetchStripeConnectStatus(user.id);
         if (status.success && status.chargesEnabled && status.accountId) {
@@ -411,7 +426,9 @@ function AIAPayAppScreenInner() {
       }
     }
 
-    addAIAPayApp({ ...rec, payLinkUrl, payLinkId });
+    // MONEY-F2: remember the amount the link charges (portal shows Pay only
+    // while it still equals what is owed).
+    addAIAPayApp({ ...rec, payLinkUrl, payLinkId, payLinkAmount: payLinkUrl ? Math.round(due * 100) / 100 : undefined });
     setSavedFlash(true);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setSavedFlash(false), 2200);
@@ -438,7 +455,7 @@ function AIAPayAppScreenInner() {
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, tier]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, savedPaidAt, tier]);
 
   // Tap "Generate PDF" → show pre-export confirmation first (liability
   // reducer). Once user confirms they reviewed the totals, we actually
@@ -544,7 +561,9 @@ function AIAPayAppScreenInner() {
               Period #{app.applicationNumber} locked
             </Text>
             <Text style={styles.lockedBannerBody}>
-              This pay application has been generated with a payment link active for ${(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. To revise the numbers, create the next period instead — carry-forward will seed the next pay-app from this period&apos;s billed-through totals.
+              {savedPaidAt
+                ? `This pay application was paid on ${new Date(savedPaidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. The portal no longer shows a Pay button for it. To bill the next period, create the next application — carry-forward will seed it from this period's billed-through totals.`
+                : `This pay application has been generated with a payment link active for ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. To revise the numbers, create the next period instead — carry-forward will seed the next pay-app from this period's billed-through totals.`}
             </Text>
             <TouchableOpacity
               style={styles.lockedBannerCta}
@@ -666,6 +685,19 @@ function AIAPayAppScreenInner() {
               />
             </View>
           </View>
+          {/* MISS-05: say where this rate came from. It used to default to a
+              fabricated 10% whenever the invoice carried no percentage, so a GC
+              who bills without retainage certified 10% held to his lender. */}
+          <Text style={styles.retainageSourceNote} testID="aia-retainage-source">
+            {retainageEdited
+              ? `Set here — the source invoice bills ${invoiceRetainagePct}% retainage.`
+              : invoiceRetainagePct > 0
+                ? `Carried from invoice #${invoice.number} (${invoiceRetainagePct}%). Change it if this contract holds a different rate.`
+                : `Invoice #${invoice.number} withheld no retainage, so this certificate holds none. Set the contract's rate if it holds any.`}
+          </Text>
+          <Text style={styles.retainageSourceNote}>
+            Withheld on completed work and stored materials (G702 line 5) — never on sales tax.
+          </Text>
         </View>
 
         {/* Schedule of Values */}
@@ -766,7 +798,17 @@ function AIAPayAppScreenInner() {
             <Row label="Contract Sum to Date" value={formatMoney(app.contractSumToDate)} bold />
             <Divider />
             <Row label="Total Completed & Stored" value={formatMoney(totals.totalCompletedAndStored)} />
-            <Row label={`Retainage (${app.retainagePercent}%)`} value={`-${formatMoney(totals.totalRetainage)}`} dim />
+            {/* A deductive change-order line carries NEGATIVE retainage, which
+                can make the certificate's total retainage a net add-back. The
+                hardcoded "-" prefix printed "--$250.00" on that certificate,
+                so the sign is chosen from the number. */}
+            <Row
+              label={`Retainage (${app.retainagePercent}% of work in place)`}
+              value={totals.totalRetainage < 0
+                ? `+${formatMoney(Math.abs(totals.totalRetainage))}`
+                : `-${formatMoney(totals.totalRetainage)}`}
+              dim
+            />
             <Row label="Total Earned Less Retainage" value={formatMoney(totals.totalEarnedLessRetainage)} />
             <Row label="Less Previous Certificates" value={`-${formatMoney(app.lessPreviousCertificates)}`} dim />
             <Divider />
@@ -1042,6 +1084,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
 
   retainageChips: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  retainageSourceNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16, marginTop: 6 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
     backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,

@@ -27,10 +27,41 @@
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+
+// Audit AI-F16: upstream failures are reported to the client generically; the
+// raw Gemini/Anthropic text (which can echo model output) stays in the server
+// log. `spent` records whether the model actually answered (2xx) so the
+// handler charges the monthly unit only when the spend was real (AI-F8).
+class UpstreamError extends Error {
+  constructor(message: string, readonly spent: boolean, readonly status = 502) {
+    super(message);
+    this.name = 'UpstreamError';
+  }
+}
+
+// B3 (review 2026-09-04): per-user hourly request ceiling + bounded upstream
+// fetch. A hung socket returns a CORS-carrying 504 instead of the isolate dying
+// at the wall clock; aborts and network failures are UpstreamErrors with
+// spent=false (no model answer → no charge).
+const HOURLY_LIMIT = 30;
+const VISION_TIMEOUT_MS = 120_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ac.signal });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw new UpstreamError(`upstream timed out after ${ms} ms`, false, 504);
+    throw new UpstreamError(`upstream network error: ${(e as Error).message}`, false, 502);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 const MAX_PAGE_BYTES = 8 * 1024 * 1024;
 
 type ModelKey = 'gemini-2.5-flash' | 'gemini-2.5-pro';
@@ -198,26 +229,27 @@ async function callGemini(req: CompareRequest): Promise<{ data: CompareResult; m
       maxOutputTokens: 6000,
     },
   };
-  const r = await fetch(
+  const r = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelUsed}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
+    VISION_TIMEOUT_MS,
   );
   if (!r.ok) {
     const err = await r.text().catch(() => '');
-    throw new Error(`Gemini ${r.status}: ${err.slice(0, 400)}`);
+    throw new UpstreamError(`Gemini ${r.status}: ${err.slice(0, 400)}`, false);
   }
   const json = await r.json();
   const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  if (!raw) throw new Error('Gemini returned no text.');
+  if (!raw) throw new UpstreamError('Gemini returned no text.', true);
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    throw new Error(`Could not parse JSON: ${(e as Error).message}\nRaw: ${raw.slice(0, 400)}`);
+    throw new UpstreamError(`Could not parse JSON: ${(e as Error).message}\nRaw: ${raw.slice(0, 400)}`, true);
   }
   return { data: validate(parsed), modelUsed };
 }
@@ -237,9 +269,22 @@ serve(async (req) => {
     if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
       body.model = 'gemini-2.5-flash';
     }
-    const used = await aiUsageIncrement(auth.userId, 'analyze_drawings');
+    // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+    // the precheck-then-charge window (N racing requests at cap-1) to at most
+    // HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+    // master accounts included. rateLimitCount returns the POST-increment count,
+    // so `n - 1 >= HOURLY_LIMIT` denies exactly the (HOURLY_LIMIT + 1)th request.
+    const hourly = await rateLimitCount(`compare-drawings:user:${auth.userId}`);
+    if (hourly < 0) return jsonResponse({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
+    if (hourly - 1 >= HOURLY_LIMIT) return jsonResponse({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
+    // Monthly cap PRECHECK (audit AI-F8: the unit is charged after the model
+    // answers — see the success path and the UpstreamError branch below).
+    // aiUsageGet fails CLOSED. Accepted window: N requests racing at cap-1 all
+    // pass this read and each charges after, so one user's counter can
+    // overshoot the cap by N-1 — never more.
     const cap = MONTHLY_CAPS[auth.tier].analyze_drawings;
-    if (used > cap) {
+    const used = await aiUsageGet(auth.userId, 'analyze_drawings');
+    if (used >= cap) {
       return jsonResponse({
         success: false,
         error: `Monthly drawing-analysis limit reached (${cap} on ${auth.tier}).`,
@@ -249,13 +294,22 @@ serve(async (req) => {
     }
 
     const { data, modelUsed } = await callGemini(body);
-    return jsonResponse({ success: true, data, modelUsed, usage: { used, cap } });
+    const newUsed = await aiUsageIncrement(auth.userId, 'analyze_drawings');
+    return jsonResponse({ success: true, data, modelUsed, usage: { used: newUsed, cap } });
   } catch (e) {
     if (e instanceof UrlValidationError) {
       // Generic — never echo the offending URL or an upstream status.
       return jsonResponse({ success: false, error: 'One or more image URLs are not allowed.' }, 400);
     }
+    if (e instanceof UpstreamError) {
+      // Charge only when the model actually answered (the spend is real even
+      // if the answer was unusable); an upstream 5xx / network failure is free.
+      if (e.spent) await aiUsageIncrement(auth.userId, 'analyze_drawings');
+      console.error('[compare-drawings] upstream failure', e.message);
+      return jsonResponse({ success: false, error: e.status === 504 ? 'The AI service timed out — please try again.' : 'The AI service returned an error — please try again.', code: e.status === 504 ? 'upstream_timeout' : 'upstream_error' }, e.status);
+    }
+    // The exception text stays in the log; the body is generic (A6 / AI-F16).
     console.error('[compare-drawings] failed', e);
-    return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);
+    return jsonResponse({ success: false, error: 'Internal error — please try again.' }, 500);
   }
 });

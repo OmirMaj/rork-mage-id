@@ -7,6 +7,7 @@ import type { SeededRate } from '@/utils/costSeedCore';
 import { getLanguageMeta } from '@/utils/portalLanguages';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -928,7 +929,7 @@ export async function generateHomeBriefing(
   Schedule health: ${schedule?.healthScore ?? 'N/A'}/100
   Tasks: ${tasks.length} total, ${done} done, ${overdue} potentially overdue
   Estimate: ${est && 'grandTotal' in est ? est.grandTotal.toLocaleString() : '0'}
-  Pending invoices: ${pendingInvoices.length} totaling ${pendingInvoices.reduce((s, i) => s + (i.totalDue - i.amountPaid), 0).toLocaleString()}`;
+  Pending invoices: ${pendingInvoices.length} totaling ${pendingInvoices.reduce((s, i) => s + invoiceOutstanding(i), 0).toLocaleString()} (net of held retention)`;
   }).join('\n---\n');
 
   const aiResult = await mageAI({
@@ -1193,8 +1194,12 @@ export async function generateQuickEstimate(
 ): Promise<AIQuickEstimateResult> {
   console.log('[AI Quick Estimate] Generating for:', description.substring(0, 60));
 
+  // AI-F4 (review): each fact carries its own provenance — "runs $X on your
+  // jobs" is MEASURED, "the contractor's own stated rate" is STATED
+  // (utils/groundingChip.groundingFactLine). The heading and the note must
+  // not launder a stated rate into history.
   const groundingBlock = groundingFacts && groundingFacts.length > 0
-    ? `\nLEARNED RATES FROM YOUR JOBS:\n${groundingFacts.map(f => `- ${f}`).join('\n')}\nWhen a learned rate covers a line, use it as the unit price and note "from your history" in that line's notes field.\n`
+    ? `\nTHIS CONTRACTOR'S OWN RATES (each line says whether it was MEASURED on their jobs or STATED by them):\n${groundingFacts.map(f => `- ${f}`).join('\n')}\nWhen one of these covers a line, use it as the unit price and note "from your history" for a MEASURED rate or "rate you set" for a STATED rate in that line's notes field — never call a stated rate history.\n`
     : '';
 
   const aiResult = await mageAI({

@@ -8,10 +8,11 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import type { ScheduleTask } from '@/types';
+import { parseCalendarDay, addCalendarDays } from '@/utils/calendarDate';
+import { addWorkingDays } from '@/utils/scheduleEngine';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const MS_DAY = 86400000;
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function sameDay(a: Date, b: Date): boolean { return startOfDay(a).getTime() === startOfDay(b).getTime(); }
@@ -21,36 +22,51 @@ interface Props {
   selectedDate: Date;
   tasks: ScheduleTask[];
   startDateIso: string;
+  /** Schedule calendar — see MobileScheduleList. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
   onSelect: (d: Date) => void;
   onClose: () => void;
 }
 
-export function MonthCalendarSheet({ visible, selectedDate, tasks, startDateIso, onSelect, onClose }: Props) {
+export function MonthCalendarSheet({ visible, selectedDate, tasks, startDateIso, workingDaysPerWeek, nonWorkingDates, onSelect, onClose }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [cursor, setCursor] = useState<Date>(startOfDay(selectedDate));
 
   const activeDayKeys = useMemo(() => {
-    const base = startOfDay(new Date(startDateIso));
+    // UX-F2: startDateIso is a bare 'YYYY-MM-DD' — resolve it as a LOCAL
+    // calendar day, or every active-day key sat one day early west of
+    // Greenwich (Sunday highlighted for a Monday start).
+    const base = parseCalendarDay(startDateIso) ?? startOfDay(new Date());
+    const wdpw = workingDaysPerWeek ?? 5;
     const keys = new Set<string>();
     for (const t of tasks) {
       if (t.isSummary) continue;
-      const s = (t.startDay ?? 1) - 1;
-      const e = s + Math.max(1, t.durationDays || 1) - 1;
-      for (let d = s; d <= e; d++) {
-        const day = new Date(base.getTime() + d * MS_DAY);
+      // B4 review A9 / item 2: startDay is a WORKING-day number (day 1 = the
+      // anchor), so a task's active days are walked with addWorkingDays —
+      // the same resolver as the desktop grid — not `base.getTime() + d *
+      // MS_DAY`, which dotted the Saturday for a startDay-6 task and, once
+      // the walk crossed the 2026-11-01 fall-back, dotted every later day
+      // one day early (a 25-hour day floors to 23:00 of the day before).
+      let day = addWorkingDays(base, (t.startDay ?? 1) - 1, wdpw, nonWorkingDates);
+      const n = Math.max(1, t.durationDays || 1);
+      for (let k = 0; k < n; k++) {
         keys.add(`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`);
+        day = addWorkingDays(day, 1, wdpw, nonWorkingDates);
       }
     }
     return keys;
-  }, [tasks, startDateIso]);
+  }, [tasks, startDateIso, workingDaysPerWeek, nonWorkingDates]);
 
   const grid = useMemo(() => {
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
     const startOffset = first.getDay();
-    const gridStart = new Date(first.getTime() - startOffset * MS_DAY);
-    return Array.from({ length: 42 }, (_, i) => new Date(gridStart.getTime() + i * MS_DAY));
+    // Component arithmetic, not `getTime() ± i * MS_DAY`: November 2026 opens
+    // ON the US fall-back (Sunday the 1st), and the millisecond walk rendered
+    // that month as "1, 1, 2, 3, …" in Denver.
+    return Array.from({ length: 42 }, (_, i) => addCalendarDays(first, i - startOffset));
   }, [cursor]);
 
   const today = startOfDay(new Date());

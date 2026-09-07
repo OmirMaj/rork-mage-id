@@ -937,7 +937,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   pickerChipTextActive: { color: '#FFF' },
   projectHint: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginBottom: 12 },
   projectHintEmph: { color: t.text, fontWeight: '700' },
-  projectHintWarn: { fontSize: Type.footnote.fontSize, color: Colors.warning, marginBottom: 12, fontWeight: '600' },
+  projectHintWarn: { fontSize: Type.footnote.fontSize, color: Colors.warningLabel, marginBottom: 12, fontWeight: '600' },
 
   bodyWrap: { gap: 12 },
   tipsBox: {

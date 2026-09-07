@@ -22,7 +22,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
 import { computeMarginRisk, riskBandLabel } from '@/utils/marginRiskScore';
 import { getOutstandingBalance } from '@/utils/projectFinancials';
-import { useProjectRole } from '@/hooks/useProjectRole';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { canViewFinancials } from '@/utils/roleBlinding';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -41,7 +41,7 @@ export default function ProjectHero({ project }: { project: Project }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { getInvoicesForProject, getChangeOrdersForProject, getCommitmentsForProject, getRFIsForProject, getPunchItemsForProject } = useProjects();
-  const role = useProjectRole(project.id);
+  const { role, isError: roleError } = useProjectRoleState(project.id);
 
   const invoices = getInvoicesForProject(project.id);
   const changeOrders = getChangeOrdersForProject(project.id);
@@ -87,7 +87,20 @@ export default function ProjectHero({ project }: { project: Project }) {
   // Field-role collaborators never see the money hero. canViewFinancials fails
   // CLOSED (null role while loading → hidden) so a margin never flashes before
   // the role resolves. The owner viewing their own project resolves to 'owner'.
-  if (!canViewFinancials(role)) return null;
+  if (!canViewFinancials(role)) {
+    // UX-F6 / RT-R2: a FAILED collaborator read is not "still resolving" — the
+    // hero used to vanish with no explanation on a flaky link. Say why, keep
+    // the numbers hidden.
+    if (!roleError) return null;
+    return (
+      <View style={styles.card} testID="project-hero-unavailable">
+        <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+        <Text style={styles.unavailable}>
+          Couldn't verify your access to this project's financials. Check your connection and pull to refresh.
+        </Text>
+      </View>
+    );
+  }
   if (!risk.hasBasis) return null;
 
   const healthColor = health === 'healthy' ? t.success : health === 'watch' ? t.accent : t.danger;
@@ -175,6 +188,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8, flexShrink: 0 },
 
   erosion: { fontSize: Type.footnote.fontSize, fontWeight: '600', marginTop: 12 },
+  unavailable: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 19 },
 
   levelWrap: { marginTop: 18 },
   levelHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },

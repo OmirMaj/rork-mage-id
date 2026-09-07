@@ -27,7 +27,7 @@ interface Props {
 
 const STATUS_CONFIG = {
   on_track: { icon: CheckCircle2, color: "#2E7D44", label: 'ON TRACK', bg: Colors.successLight },
-  at_risk: { icon: AlertTriangle, color: Colors.warning, label: 'AT RISK', bg: Colors.warningLight },
+  at_risk: { icon: AlertTriangle, color: Colors.warningLabel, label: 'AT RISK', bg: Colors.warningLight },
   behind: { icon: AlertTriangle, color: "#C84038", label: 'BEHIND', bg: Colors.errorLight },
   ahead: { icon: TrendingUp, color: "#1565C0", label: 'AHEAD', bg: Colors.infoLight },
 } as const;
@@ -130,7 +130,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                   <Text style={styles.overviewLabel}>On Track</Text>
                 </View>
                 <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: Colors.warning }]}>{result.portfolioSummary?.atRisk ?? 0}</Text>
+                  <Text style={[styles.overviewValue, { color: Colors.warningLabel }]}>{result.portfolioSummary?.atRisk ?? 0}</Text>
                   <Text style={styles.overviewLabel}>At Risk</Text>
                 </View>
                 <View style={styles.overviewItem}>
@@ -457,7 +457,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   riskLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.warning,
+    color: Colors.warningLabel,
   },
   recLabel: {
     fontSize: Type.footnote.fontSize,

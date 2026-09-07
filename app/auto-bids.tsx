@@ -185,8 +185,8 @@ function AutoBidsInner() {
                 )}
                 {b.overBudget && (
                   <View style={styles.flag}>
-                    <AlertTriangle size={11} color={Colors.warning} strokeWidth={2} />
-                    <Text style={[styles.flagText, { color: Colors.warning }]}>
+                    <AlertTriangle size={11} color={Colors.warningLabel} strokeWidth={2} />
+                    <Text style={[styles.flagText, { color: Colors.warningLabel }]}>
                       above their posted budget
                     </Text>
                   </View>

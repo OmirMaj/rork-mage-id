@@ -52,6 +52,7 @@ import { resolveSelectionImage } from '@/utils/ogImage';
 import { saveLienWaiver } from '@/utils/lienWaiverEngine';
 import { saveCloseoutBinder, DEFAULT_MAINTENANCE } from '@/utils/closeoutBinderEngine';
 import { showAlert } from '@/utils/alert';
+import { retainageOnWorkValue } from '@/utils/invoiceBilling';
 import {
   FLAGSHIP_IDENTITY, FLAGSHIP_ESTIMATE_ITEMS, FLAGSHIP_MARKUP_PCT, FLAGSHIP_TASKS,
   FLAGSHIP_START_DAYS_AGO, FLAGSHIP_CONTRACT_VALUE, FLAGSHIP_FEE_PERCENT,
@@ -280,7 +281,9 @@ export default function DevFlagshipSeederScreen() {
           };
         });
         const subtotal = lineItems.reduce((sum, li) => sum + li.total, 0);
-        const retentionAmount = Math.round(subtotal * (RETENTION_PCT / 100));
+        // MONEY-05: seed through the shared rule so demo rows are self-consistent
+        // with what every reader recomputes (whole dollars drifted by cents).
+        const retentionAmount = retainageOnWorkValue(subtotal, RETENTION_PCT);
         // paid === -1 sentinel means "collected in full, less retention".
         const amountPaid = inv.paid === -1 ? subtotal - retentionAmount : inv.paid;
         addInvoice({
@@ -1325,7 +1328,7 @@ export default function DevFlagshipSeederScreen() {
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         <View style={styles.warningCard}>
-          <AlertTriangle size={18} color={Colors.warning} strokeWidth={1.75} />
+          <AlertTriangle size={18} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.warningText}>
             Owner-only screen. Only emails in OWNER_EMAILS (utils/owner.ts) reach here.
             Regular users get redirected home.

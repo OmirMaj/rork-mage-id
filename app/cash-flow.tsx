@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, TrendingDown, DollarSign, Plus, X, Trash2, Edit3,
@@ -35,6 +35,7 @@ import {
   getCachedAIAnalysis, setCachedAIAnalysis,
 } from '@/utils/cashFlowStorage';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -42,6 +43,7 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // Gemini occasionally swaps shapes — returning strings where objects are expected
 // or vice versa. These preprocess coercers normalize the payload so the UI never
@@ -196,6 +198,54 @@ function CashFlowScreenInner() {
   const [aiLoading, setAiLoading] = useState(false);
   const [showAiResults, setShowAiResults] = useState(false);
 
+  // MISS-07 — this screen's sheets must not outlive the screen.
+  //
+  // A React Native <Modal> is presented by iOS as its own view controller OVER
+  // THE WINDOW, not inside this screen's view. Expo Router's native stack keeps
+  // /cash-flow MOUNTED underneath whatever is pushed on top of it, so a sheet
+  // still presented here stays on screen over the next route — the pushed
+  // screen renders, invisibly, behind it. The runtime audit caught the setup
+  // wizard doing exactly that: it auto-opens on mount whenever setup is
+  // incomplete (the effect below), and in the 2026-09-06 capture it covered
+  // nine consecutive screens after a deep link pushed past it, leaving the GC
+  // looking at a 4-step onboarding wizard for a feature they had not asked for.
+  //
+  // Presentation is therefore gated on this screen being the focused one.
+  // Nothing is unmounted and no `show*` flag is cleared, so the wizard keeps
+  // its step and its typed numbers: leaving dismisses the sheet, coming back
+  // re-presents it exactly where the user left it.
+  //
+  // WHAT THIS COVERS, EXACTLY: the four sheets rendered by THIS component —
+  // CashFlowSetup, and the edit-balance / add-expense / add-payment Modals.
+  // It does NOT cover the Paywall at :148, which is a live instance of the
+  // same bug and is deliberately left alone. That Paywall is rendered by the
+  // OUTER CashFlowScreen, which early-returns before this component exists, so
+  // `screenFocused` is not in scope there; and components/Paywall.tsx:318 is
+  // itself a <Modal presentationStyle="pageSheet">, so a below-Pro user sitting
+  // on /cash-flow who is pushed elsewhere gets the paywall over the pushed
+  // screen. That is not a cash-flow defect, and it is not a rare one: 80 files
+  // under app/ render <Paywall>, and 65 of them do it as this screen does —
+  // an unconditional visible={true} inside a below-tier early return, so the
+  // sheet is up for as long as the route is mounted (measured 2026-09-06).
+  // Fixing it one call site at a time would leave 64 screens with the bug and
+  // this one inconsistent with them; the fix belongs inside Paywall.tsx, where
+  // one focus gate closes all 65, as its own reviewed change. Backlog, not
+  // this wave.
+  //
+  // Initial state is `false`, not `true`. useFocusEffect's cleanup only runs
+  // after a focus has happened, so a component mounted while NOT focused would
+  // otherwise present its sheet over the focused route — MISS-07 again, from
+  // the other end. Nothing reachable does that today (no router.prefetch and
+  // no <Link prefetch> anywhere in app/, components/ or utils/), and the flip
+  // to true lands long before anything can open: the wizard only opens after
+  // the async isSetupComplete() in the init effect below, and the other three
+  // sheets need a tap.
+  const [screenFocused, setScreenFocused] = useState(false);
+  useFocusEffect(useCallback(() => {
+    setScreenFocused(true);
+    return () => setScreenFocused(false);
+  }, []));
+
   const relevantInvoices = useMemo(() => {
     if (projectId) return getInvoicesForProject(projectId);
     return allInvoices;
@@ -270,7 +320,7 @@ function CashFlowScreenInner() {
   }, [forecast.length, summary.lowestBalance, summary.netProfit]);
 
   // Aggregate "Total Pending" across every source of expected money that hasn't landed:
-  //   - unpaid invoice balances (totalDue - amountPaid)
+  //   - unpaid invoice balances, net of held retention (MONEY-F5: invoiceOutstanding)
   //   - manually-entered expected payments
   // Approved change orders are intentionally excluded — a CO is billed through a
   // progress invoice, so its dollars already live in that invoice's totalDue.
@@ -280,7 +330,7 @@ function CashFlowScreenInner() {
   const totalPending = useMemo(() => {
     const invoiceTotal = relevantInvoices
       .filter(i => i.status !== 'paid')
-      .reduce((sum, i) => sum + Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)), 0);
+      .reduce((sum, i) => sum + invoiceOutstanding(i), 0);
     const expectedTotal = (cashFlowData?.expectedPayments ?? [])
       .reduce((sum, p) => sum + (p.amount ?? 0), 0);
     return invoiceTotal + expectedTotal;
@@ -486,7 +536,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         title: projectId ? 'Project Cash Flow' : 'Cash Flow Forecast',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         headerRight: () => (
           <TouchableOpacity
             onPress={() => setShowSetup(true)}
@@ -831,7 +881,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           {expandedSections.income && (
             <View style={styles.expandedContent}>
               {relevantInvoices.filter(i => i.status !== 'paid').map(inv => {
-                const remaining = inv.totalDue - inv.amountPaid;
+                const remaining = invoiceOutstanding(inv); // MONEY-F5: net of held retention
                 return (
                   <View key={inv.id} style={styles.incomeListRow}>
                     <View style={styles.incomeListInfo}>
@@ -984,12 +1034,12 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
       </ScrollView>
 
       <CashFlowSetup
-        visible={showSetup}
+        visible={showSetup && screenFocused}
         onComplete={handleSetupComplete}
         onClose={() => setShowSetup(false)}
       />
 
-      <Modal visible={showEditBalance} transparent animationType="fade" onRequestClose={() => setShowEditBalance(false)}>
+      <Modal visible={showEditBalance && screenFocused} transparent animationType="fade" onRequestClose={() => setShowEditBalance(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
@@ -1018,7 +1068,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showAddExpense} transparent animationType="slide" onRequestClose={() => setShowAddExpense(false)}>
+      <Modal visible={showAddExpense && screenFocused} transparent animationType="slide" onRequestClose={() => setShowAddExpense(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }]}>
@@ -1062,7 +1112,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showAddPayment} transparent animationType="slide" onRequestClose={() => setShowAddPayment(false)}>
+      <Modal visible={showAddPayment && screenFocused} transparent animationType="slide" onRequestClose={() => setShowAddPayment(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }]}>

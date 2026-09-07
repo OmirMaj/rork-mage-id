@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Linking, ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -21,6 +21,9 @@ import type { Integration, IntegrationCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useAuth } from '@/contexts/AuthContext';
+import { isOwner } from '@/utils/owner';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (item: Integration) => void }) {
   const { colors: themeColors } = useTheme();
@@ -91,6 +94,8 @@ export default function IntegrationsScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { user, isLoading: authLoading } = useAuth();
+  const ownerOk = isOwner(user?.email);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
@@ -175,9 +180,49 @@ export default function IntegrationsScreen() {
     }
   }, [canAccess]);
 
+  // PRODUCT-F2: this screen is a PREVIEW — MOCK_INTEGRATIONS and a Connect
+  // button that flips local state and never OAuths. It stays reachable for the
+  // owner (demo/dev); everyone else is pointed at the real QuickBooks Online
+  // setup instead of a fake "Connected" badge. An in-place gate rather than a
+  // <Redirect> so the route still mounts on its own (the smoke walker asserts
+  // the landing pathname) and the /integrations/qbo callback segment that
+  // app/_layout.tsx exempts from the auth wall keeps its parent.
+  //
+  // B4 review A6: the session hydrates asynchronously, so `user` is null for
+  // the first render(s) after a cold start — the owner saw the denial flash
+  // (and, on a slow restore, stayed on it) before the gate re-evaluated. Wait
+  // for AuthContext.isLoading first; only then judge ownership.
+  if (authLoading) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
+        <View style={styles.gateWrap} testID="integrations-auth-loading">
+          <ActivityIndicator color={themeColors.accent} />
+        </View>
+      </View>
+    );
+  }
+  if (!ownerOk) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
+        <View style={styles.gateWrap} testID="integrations-owner-gate">
+          <Plug size={26} color={themeColors.accent} strokeWidth={1.75} />
+          <Text style={styles.gateTitle}>QuickBooks Online lives in Settings</Text>
+          <Text style={styles.gateText}>
+            The integrations catalog is a preview and does not connect anything yet. Your accounting sync is set up from the QuickBooks screen.
+          </Text>
+          <TouchableOpacity style={styles.gateBtn} onPress={() => router.push('/qbo-setup')} accessibilityRole="button" testID="integrations-open-qbo">
+            <Text style={styles.gateBtnText}>Open QuickBooks setup</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
+      <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView
         {...fabScroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
@@ -192,7 +237,7 @@ export default function IntegrationsScreen() {
           backgroundColor: Colors.warning + '15', borderRadius: 12,
           borderWidth: 1, borderColor: Colors.warning + '40',
         }}>
-          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warning, letterSpacing: 0.5 }}>
+          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warningLabel, letterSpacing: 0.5 }}>
             PREVIEW
           </Text>
           <Text style={{ fontSize: 13, color: themeColors.text, marginTop: 4, lineHeight: 18 }}>
@@ -298,6 +343,15 @@ export default function IntegrationsScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  // Owner gate (PRODUCT-F2)
+  gateWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 10 },
+  gateTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, textAlign: 'center' },
+  gateText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19 },
+  gateBtn: {
+    marginTop: 6, paddingHorizontal: 18, paddingVertical: 11, minHeight: 42, justifyContent: 'center',
+    borderRadius: Tokens.radius.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+  },
+  gateBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
   heroSection: {
     alignItems: 'center',
     paddingVertical: 24,

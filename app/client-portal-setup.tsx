@@ -28,6 +28,7 @@ import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
+  maskPortalLinkToken, PORTAL_BASE_URL,
 } from '@/utils/portalSnapshot';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import type { BakedHomePassport } from '@/utils/passport/types';
@@ -52,7 +53,6 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
-const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
 // The GC's last link-duration pick, remembered across PROJECTS. A GC who
 // always gives clients 90 days should not re-pick it on every new job, and the
@@ -90,7 +90,7 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showInvoices',
     label: 'Invoices',
     description: 'Invoice history & payment status',
-    icon: <DollarSign size={18} color={Colors.warning} strokeWidth={1.75} />,
+    icon: <DollarSign size={18} color={Colors.warningLabel} strokeWidth={1.75} />,
   },
   {
     key: 'showChangeOrders',
@@ -120,7 +120,7 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showRFIs',
     label: 'RFIs',
     description: 'Requests for information',
-    icon: <MessageSquare size={18} color={Colors.warning} strokeWidth={1.75} />,
+    icon: <MessageSquare size={18} color={Colors.warningLabel} strokeWidth={1.75} />,
   },
   {
     key: 'showDocuments',
@@ -389,16 +389,43 @@ function ClientPortalSetupScreenInner() {
 
   // The decision access token must be present for the share link to authorize
   // client decisions. The heal effect above generates it; until it lands the
-  // first time, Copy/Share guard rather than hand out a token-less link.
+  // first time, Copy/Share/Email guard rather than hand out a token-less link.
   const linkPending = portal.enabled && !portal.accessToken;
+
+  // …but there are TWO reasons it can be missing, and only one of them is a
+  // wait. `portal.enabled` is true from the moment this screen mounts
+  // (DEFAULT_PORTAL.enabled — see the state initializer), while the heal
+  // effect above is keyed on the PERSISTED `project.clientPortal.enabled` and
+  // returns immediately when the portal has never been saved. So on a brand
+  // new portal nothing is syncing and nothing ever will: telling the GC the
+  // link "unlocks in a moment" is a promise the app does not keep, and with
+  // Copy, Share and Email all now guarded, it leaves them stuck behind it.
+  // Name the actual next step instead.
+  const linkNeedsSave = linkPending && !project?.clientPortal?.enabled;
+
+  // Shared guard for the three doors the link goes out of. Returns true when
+  // it took over, so callers bail — same contract as warnIfExpired().
+  const warnIfLinkPending = useCallback((): boolean => {
+    if (!linkPending) return false;
+    showAlert(
+      linkNeedsSave ? 'Save this portal first' : 'Finalizing secure link',
+      linkNeedsSave
+        ? 'The security key that lets your client sign change orders is created when you save. Tap Save, then Copy or Share.'
+        : 'Your portal’s secure link is still syncing — try again in a moment.',
+    );
+    return true;
+  }, [linkPending, linkNeedsSave]);
 
   // The full base64-hash URL is kept around as a backup for clients
   // whose snapshot cache hasn't propagated yet (e.g., right after
   // creation). Not currently used in the UI but available for debug.
   const portalLinkWithHash = useMemo(() => {
-    if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
+    // No snapshot yet: fall back to the SHORT link, which carries `?t=`. The
+    // old fallback concatenated the portalId alone — a URL that opens a portal
+    // the homeowner cannot sign or approve anything in.
+    if (!snapshot) return portalLink;
     return buildPortalUrl(PORTAL_BASE_URL, portal.portalId, snapshot);
-  }, [snapshot, portal.portalId]);
+  }, [snapshot, portal.portalId, portalLink]);
 
   const snapshotSizeKb = useMemo(() => {
     return snapshot ? estimateSnapshotSizeKb(snapshot) : 0;
@@ -449,7 +476,8 @@ function ClientPortalSetupScreenInner() {
   }, [snapshot, project?.id, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
 
   const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
-    if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
+    // Same rule as portalLinkWithHash: the fallback keeps the access token.
+    if (!snapshot) return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id, portal.accessToken);
     // Include invite.id so the portal page can greet the client by name + mark viewed
     const inviteSnapshot = invite
       ? { ...snapshot, clientName: invite.name }
@@ -460,7 +488,7 @@ function ClientPortalSetupScreenInner() {
       inviteSnapshot,
       invite?.id,
     );
-  }, [snapshot, portal.portalId]);
+  }, [snapshot, portal.portalId, portal.accessToken]);
 
   // Short, shareable URL — `mageid.app/portal/<id>?inviteId=...` with no
   // base64 hash. Use this for SMS, email body, and anywhere the long
@@ -638,10 +666,7 @@ function ClientPortalSetupScreenInner() {
     // web the Alert fired before the write actually happened (or
     // silently failed in non-secure contexts) and the user saw "Copied"
     // over an empty clipboard.
-    if (linkPending) {
-      showAlert('Finalizing secure link', 'Your portal’s secure link is still syncing — try again in a moment.');
-      return;
-    }
+    if (warnIfLinkPending()) return;
     if (warnIfExpired()) return;
     const ok = await copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -651,7 +676,7 @@ function ClientPortalSetupScreenInner() {
         ? 'Portal link copied to clipboard.'
         : 'Could not copy the link. Long-press to select the URL above and copy manually.',
     );
-  }, [portalLink, linkPending, warnIfExpired]);
+  }, [portalLink, warnIfLinkPending, warnIfExpired]);
 
   const handleShare = useCallback(() => {
     // Open the Send-by-Email/Text modal on every platform. We no longer
@@ -659,10 +684,15 @@ function ClientPortalSetupScreenInner() {
     // asked for a modal where they can add recipients directly. The share
     // body no longer carries the passcode (out-of-band delivery), so remind
     // the GC to send the code separately after the link goes out.
+    // PORTAL-07: Copy guarded on `linkPending` and Share did not, so the
+    // Send-by-email modal could dispatch a token-less `portalLink` during the
+    // sync window — the one door where the client, not the GC, discovers the
+    // link cannot approve a change order.
+    if (warnIfLinkPending()) return;
     if (warnIfExpired()) return;
     setShowSendModal(true);
     if (portal.requirePasscode && portal.passcode) promptPasscodeSeparately();
-  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired]);
+  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending]);
 
   // Auto-send a branded portal invite email through Resend (via the
   // send-email edge function). The homeowner gets a polished email with
@@ -673,6 +703,10 @@ function ClientPortalSetupScreenInner() {
     // Same expiry guard as Copy/Share — this is the third door the link goes
     // out of, and an expired invite email is the worst of the three because
     // the client finds out, not the GC.
+    // PORTAL-07: and the same token guard, for exactly that reason — an
+    // emailed link with no `?t=` opens the portal but silently cannot approve
+    // a change order.
+    if (warnIfLinkPending()) return;
     if (warnIfExpired()) return;
     // Use the SHORT URL (no #d= hash) so SMS / email forwarding never
     // truncates it. The static portal HTML fetches the snapshot from
@@ -753,7 +787,7 @@ function ClientPortalSetupScreenInner() {
     if (!fallback.success && fallback.error && fallback.error !== 'cancelled') {
       showAlert('Email Not Sent', fallback.error);
     }
-  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired]);
+  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending]);
 
   const handleResetPasscode = useCallback(() => {
     const generate = () => {
@@ -877,12 +911,34 @@ function ClientPortalSetupScreenInner() {
               <Text style={[styles.activeBadgeText, { color: tone.ink }]}>{tone.short}</Text>
             </View>
           </View>
+          {/* PORTAL-07 (runtime audit 2026-09-06): this printed the bare
+              `mageid.app/portal/<id>` while Copy and Share both handed out
+              that URL PLUS `?t=<accessToken>` — and the token is what
+              authorizes the homeowner's change-order e-signature. A GC who
+              read the link off this screen to a client on the phone, or
+              retyped it into their CRM, gave out a portal that opens but
+              cannot approve anything, with no error on either end.
+              The card now shows the SHARED link — with the token's middle
+              elided, because it is a capability secret and this card has no
+              max width, so on desktop the whole 64 characters land in every
+              screenshot. See utils/portalSnapshot.maskPortalLinkToken. */}
           <View style={styles.linkRow}>
             <Link size={12} color={themeColors.info} strokeWidth={1.75} />
-            <Text style={styles.linkText} numberOfLines={1}>
-              {`${PORTAL_BASE_URL}/${portal.portalId}`}
+            <Text style={styles.linkText} numberOfLines={1} testID="portal-link-display">
+              {linkPending ? `${PORTAL_BASE_URL}/${portal.portalId}` : maskPortalLinkToken(portalLink)}
             </Text>
           </View>
+          {/* Three states, and the pending one must not promise a wait that
+              is not happening: on a portal that has never been saved the heal
+              effect never runs (it is keyed on the persisted portal), so the
+              key arrives when the GC taps Save and not a moment before. */}
+          <Text style={styles.linkHint}>
+            {linkNeedsSave
+              ? 'Tap Save to finish securing this link — that is when the key your client needs to sign change orders is created.'
+              : linkPending
+                ? 'Securing this link — the key that lets your client sign change orders is still syncing. Copy and Share unlock in a moment.'
+                : 'Ends in a security key that lets your client sign change orders — part of it is hidden here so a screenshot can\u2019t give it away. Use Copy: a shortened or retyped link opens the portal but cannot approve anything.'}
+          </Text>
           {/* The shared link is now short — `/portal/<id>` with no
               base64 hash. The portal page fetches the snapshot from
               the server, so SMS / email truncation is no longer an
@@ -1403,7 +1459,7 @@ function ClientPortalSetupScreenInner() {
                     <View style={[styles.inviteStatus, invite.status === 'viewed' && styles.inviteStatusViewed]}>
                       {invite.status === 'viewed'
                         ? <Eye size={10} color={themeColors.success} strokeWidth={1.75} />
-                        : <Clock size={10} color={Colors.warning} strokeWidth={1.75} />
+                        : <Clock size={10} color={Colors.warningLabel} strokeWidth={1.75} />
                       }
                       <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: themeColors.success }]}>
                         {invite.status === 'viewed' ? 'Viewed' : 'Pending'}
@@ -1482,8 +1538,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // would be wrong for three of the four states.
   activeBadge: { backgroundColor: t.neutralSoft, borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
   activeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.bg, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 12 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.bg, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 6 },
   linkText: { fontSize: Type.caption1.fontSize, color: t.info, flex: 1 },
+  // PORTAL-07: the displayed link now carries its access token, which is long
+  // and unreadable at a glance — so say what the tail is and why retyping it
+  // breaks approvals, rather than letting the GC assume it is decoration.
+  linkHint: { fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16, marginBottom: 12 },
   linkActions: { flexDirection: 'row', gap: 10 },
   linkActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: t.accent + '15', borderRadius: Tokens.radius.md, paddingVertical: 10 },
   linkActionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.accent },
@@ -1675,7 +1735,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: '#FF950020', borderRadius: Tokens.radius.xs, paddingHorizontal: 6, paddingVertical: 3,
   },
   inviteStatusViewed: { backgroundColor: '#34C75920' },
-  inviteStatusText: { fontSize: 10, fontWeight: '600', color: Colors.warning },
+  inviteStatusText: { fontSize: 10, fontWeight: '600', color: Colors.warningLabel },
   removeBtn: { padding: 4 },
   emailInviteBtn: { padding: 4 },
   resetPasscodeBtn: {
@@ -1694,7 +1754,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   disableBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.danger },
   sizeWarning: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.warning,
+    color: Colors.warningLabel,
     marginTop: -6,
     marginBottom: 10,
     fontStyle: 'italic',

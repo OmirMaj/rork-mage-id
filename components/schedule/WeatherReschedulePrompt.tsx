@@ -126,7 +126,7 @@ function WeatherReschedulePromptImpl({
     <>
       <View style={styles.banner}>
         <View style={styles.bannerIcon}>
-          <CloudRain size={16} color={Colors.warning} strokeWidth={1.75} />
+          <CloudRain size={16} color={Colors.warningLabel} strokeWidth={1.75} />
         </View>
         <View style={styles.bannerBody}>
           {conflictDaysAreSimulated && (
@@ -192,7 +192,7 @@ function WeatherReschedulePromptImpl({
                   activeOpacity={0.85}
                 >
                   <View style={styles.rowIcon}>
-                    <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+                    <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowTitle}>{c.task.title}</Text>

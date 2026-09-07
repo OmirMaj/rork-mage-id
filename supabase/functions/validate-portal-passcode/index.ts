@@ -20,6 +20,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { rateLimitCount } from "../_shared/auth.ts";
+import { clientIpFrom } from "../_shared/notifyGuards.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY =
@@ -90,9 +91,12 @@ serve(async (req) => {
   // Brute-force limiter: cap attempts per portal + per IP per hour. Fail OPEN
   // (count < 0 = limiter unavailable → allow) since the accessToken RPCs are the
   // primary data gate and we don't want to lock out a legit homeowner on a blip.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+  // EDGE-F15 (review 2026-09-05): the address comes from clientIpFrom. The FIRST
+  // x-forwarded-for hop is client-supplied, so keying on it let a caller pick a
+  // fresh bucket per request and brute-force the passcode unthrottled.
+  const ip = clientIpFrom(req.headers);
   const portalHits = await rateLimitCount(`passcode:portal:${portalId}`);
-  const ipHits = ip ? await rateLimitCount(`passcode:ip:${ip}`) : 0;
+  const ipHits = await rateLimitCount(`passcode:ip:${ip}`);
   if (portalHits > PASSCODE_PORTAL_HOURLY_LIMIT || ipHits > PASSCODE_IP_HOURLY_LIMIT) {
     return jsonResponse({ ok: false, error: "Too many attempts. Please wait and try again." }, 429);
   }

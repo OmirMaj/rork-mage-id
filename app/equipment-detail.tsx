@@ -22,11 +22,12 @@ import type { EquipmentCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   available: { label: 'Available', color: "#2E7D44" },
   in_use: { label: 'In Use', color: "#1565C0" },
-  maintenance: { label: 'Maintenance', color: Colors.warning },
+  maintenance: { label: 'Maintenance', color: Colors.warningLabel },
   retired: { label: 'Retired', color: "#9AA3AD" },
 };
 
@@ -141,7 +142,7 @@ export default function EquipmentDetailScreen() {
         title: equip.name,
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: "#FF6A1A",
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView
         {...fabScroll}

@@ -22,7 +22,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
+import { CATEGORY_META, CATALOG_NOT_A_FEED, catalogCompiledLabel, getCatalogPrices, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import type { PriceAlert, AlertDirection } from '@/types';
@@ -96,10 +96,13 @@ export default function CategoryDetailScreen() {
     // Estimate tab's search/AI matching. Browsing that here rendered ~1,600
     // near-identical entries per category. locationMultiplier threads the
     // picker's selection so these BROWSE/DETAIL prices match what the index
-    // card showed. NOTE: this only adjusts the displayed prices in Materials —
-    // cart and Estimate-tab pricing are governed separately by the Estimate
-    // tab's settings.location, which re-prices cart items on its own.
-    const prices = getLivePrices(Date.now() / 10000, locationMultiplier);
+    // card showed.
+    //
+    // getCatalogPrices, not getLivePrices(Date.now() / 10000, …). The seed was
+    // already inert once NAV-01 removed the sine wave, but a wall-clock
+    // argument on a pricing call is how the next reader concludes there is a
+    // feed — which is the defect, one level down from the chip that said so.
+    const prices = getCatalogPrices(locationMultiplier);
     return prices.filter(m => m.category === category && m.specTier === 'base');
   }, [category, locationMultiplier]);
 
@@ -143,7 +146,22 @@ export default function CategoryDetailScreen() {
     setAlertModal(null);
     setAlertPrice('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Alert Set', `You'll be notified when ${alertModal.name} goes ${alertDirection} $${price.toFixed(2)}.`);
+    // Was: "You'll be notified when X goes below $Y."
+    //
+    // Nothing in this app can send that notification. There is no price path
+    // in contexts/NotificationContext.tsx and none in the notify edge
+    // function; a target row is written to price_alerts and to local storage
+    // and then read by exactly one thing — the Materials tab, at render, which
+    // compares it against the catalog. The only code that ever produced a
+    // price notification was the sine-driven showAlert('Price Alert', …) on
+    // the Materials index, and that fired on invented movements, which is why
+    // NAV-01 deleted it. Deleting it turned this promise from misleading into
+    // categorically unbacked, so it says what actually happens instead —
+    // the same sentence the Materials tab's targets panel already shows.
+    showAlert(
+      'Target Saved',
+      `MAGE will compare ${alertModal.name} against the price book — it does not watch the market. Open Materials › Price Targets to see whether it is ${alertDirection} $${price.toFixed(2)}.`,
+    );
   }, [alertModal, alertPrice, alertDirection, addPriceAlert]);
 
   const renderItem = useCallback(({ item }: { item: MaterialItem }) => {
@@ -262,6 +280,17 @@ export default function CategoryDetailScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{meta.label}</Text>
           <Text style={styles.headerCount}>{filteredMaterials.length} of {allMaterials.length} items</Text>
         </View>
+      </View>
+
+      {/* Every surface that shows a catalog price has to say what it is. This
+          one shows a price, a supplier and a Set-Alert bell, and said nothing
+          at all — the caution lived one screen back on the Materials index,
+          which is not where the contractor is standing when he writes the
+          number down. */}
+      <View style={styles.provenanceRow}>
+        <Text style={styles.provenanceText} testID="category-not-a-feed">
+          List prices · {catalogCompiledLabel()} · {CATALOG_NOT_A_FEED}
+        </Text>
       </View>
 
       <View style={styles.searchWrap}>
@@ -407,6 +436,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerInfo: { flex: 1 },
   headerTitle: { ...Type.serifHeadline, color: t.text },
   headerCount: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 1 },
+  provenanceRow: { paddingHorizontal: 16, paddingTop: 8, backgroundColor: t.surface },
+  provenanceText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 15 },
   searchWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: t.surface },
   searchBar: {
     flexDirection: 'row',

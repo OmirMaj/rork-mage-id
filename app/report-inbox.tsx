@@ -18,7 +18,6 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, FileText, ClipboardList, Receipt, Repeat, ChevronRight, AlertTriangle, ArrowDownRight } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -26,8 +25,11 @@ import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import EmptyState from '@/components/EmptyState';
 import { formatMoney } from '@/utils/formatters';
+import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { daysUntilCalendarDay } from '@/utils/calendarDate';
 
 type ReportKind = 'all' | 'dfr' | 'rfi' | 'submittal' | 'invoice' | 'changeOrder';
 type StatusFilter = 'all' | 'open' | 'closed' | 'overdue';
@@ -56,6 +58,7 @@ export default function ReportInboxScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { projects, dailyReports, rfis, submittals, invoices, changeOrders } = useProjects();
 
   const [kindFilter, setKindFilter] = useState<ReportKind>('all');
@@ -79,8 +82,11 @@ export default function ReportInboxScreen() {
         primary: new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
         secondary: `${dr.weather?.conditions || 'No weather'} · ${dr.manpower.reduce((s: number, m: { headcount: number }) => s + m.headcount, 0)} workers`,
         badgeText: dr.status === 'sent' ? 'Sent' : 'Saved',
-        badgeColor: dr.status === 'sent' ? themeColors.success : themeColors.accent,
-        badgeBg: dr.status === 'sent' ? Colors.successLight : themeColors.accent + '15',
+        // UX-F7: every badge pairs a themed SOFT fill with its LABEL ink. The
+        // static Colors.*Light pastels under theme-flipping text computed
+        // 1.8–2.8:1 in dark mode; the amber "Open" pill was 2.0:1 in both.
+        badgeColor: dr.status === 'sent' ? themeColors.successLabel : themeColors.accentLabel,
+        badgeBg: dr.status === 'sent' ? themeColors.successSoft : themeColors.accentSoft,
         timestamp: Number.isFinite(ts) ? ts : 0,
         overdue: false,
         href: '/daily-report',
@@ -91,8 +97,13 @@ export default function ReportInboxScreen() {
     for (const r of rfis) {
       const proj = projectsById.get(r.projectId);
       if (!proj) continue;
-      const required = r.dateRequired ? new Date(r.dateRequired).getTime() : NaN;
-      const overdue = r.status === 'open' && Number.isFinite(required) && required < Date.now();
+      // B4 review A2: dateRequired is a calendar day (bare, or DatePickerModal's
+      // noon-UTC instant) — parseCalendarDay-first via daysUntilCalendarDay, and
+      // overdue only once the due DAY is past (app/rfi.tsx: due today = 0 days
+      // overdue). `new Date(bareDay)` read the due day as UTC midnight and
+      // flagged the RFI overdue from ~6 pm the evening before, west of Greenwich.
+      const daysLeft = daysUntilCalendarDay(r.dateRequired);
+      const overdue = r.status === 'open' && daysLeft !== null && daysLeft < 0;
       list.push({
         key: `rfi-${r.id}`,
         kind: 'rfi',
@@ -102,13 +113,13 @@ export default function ReportInboxScreen() {
         secondary: `${r.assignedTo || 'Unassigned'} · ${r.priority}`,
         badgeText: r.status.charAt(0).toUpperCase() + r.status.slice(1),
         badgeColor:
-          r.status === 'open' ? Colors.warning :
+          r.status === 'open' ? themeColors.warningLabel :
           r.status === 'answered' ? themeColors.info :
-          r.status === 'closed' ? themeColors.success : themeColors.textSecondary,
+          r.status === 'closed' ? themeColors.successLabel : themeColors.textSecondary,
         badgeBg:
-          r.status === 'open' ? Colors.warningLight :
-          r.status === 'answered' ? Colors.infoLight :
-          r.status === 'closed' ? Colors.successLight : themeColors.surfaceAlt,
+          r.status === 'open' ? themeColors.warningSoft :
+          r.status === 'answered' ? themeColors.surfaceAlt : // `info` has no soft token; surfaceAlt keeps AA
+          r.status === 'closed' ? themeColors.successSoft : themeColors.surfaceAlt,
         timestamp: new Date(r.dateSubmitted ?? r.createdAt).getTime(),
         overdue,
         href: '/rfi',
@@ -128,15 +139,15 @@ export default function ReportInboxScreen() {
         secondary: `${s.specSection || 'No spec'} · ${s.reviewCycles.length} cycle${s.reviewCycles.length === 1 ? '' : 's'}`,
         badgeText: s.currentStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
         badgeColor:
-          s.currentStatus === 'approved' ? themeColors.success :
-          s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? themeColors.danger :
+          s.currentStatus === 'approved' ? themeColors.successLabel :
+          s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? themeColors.dangerLabel :
           s.currentStatus === 'in_review' ? themeColors.info :
-          Colors.warning,
+          themeColors.warningLabel,
         badgeBg:
-          s.currentStatus === 'approved' ? Colors.successLight :
-          s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? Colors.errorLight :
-          s.currentStatus === 'in_review' ? Colors.infoLight :
-          Colors.warningLight,
+          s.currentStatus === 'approved' ? themeColors.successSoft :
+          s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? themeColors.dangerSoft :
+          s.currentStatus === 'in_review' ? themeColors.surfaceAlt :
+          themeColors.warningSoft,
         timestamp: new Date(s.submittedDate ?? s.createdAt).getTime(),
         overdue: false,
         href: '/submittal',
@@ -147,7 +158,9 @@ export default function ReportInboxScreen() {
     for (const inv of invoices) {
       const proj = projectsById.get(inv.projectId);
       if (!proj) continue;
-      const balance = inv.totalDue - inv.amountPaid;
+      // MONEY-F5: outstanding is NET of held retention (the shared definition),
+      // so a retention invoice can settle instead of reading unpaid forever.
+      const balance = invoiceOutstanding(inv);
       const overdue = balance > 0 && inv.dueDate && new Date(inv.dueDate).getTime() < Date.now();
       const status = balance <= 0 ? 'paid' : overdue ? 'overdue' : 'unpaid';
       list.push({
@@ -158,8 +171,8 @@ export default function ReportInboxScreen() {
         primary: `${inv.type === 'progress' ? 'Progress Bill' : 'Invoice'} #${inv.number}`,
         secondary: `${formatMoney(inv.totalDue)} · Due ${new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
         badgeText: status.charAt(0).toUpperCase() + status.slice(1),
-        badgeColor: status === 'paid' ? themeColors.success : status === 'overdue' ? themeColors.danger : Colors.warning,
-        badgeBg: status === 'paid' ? Colors.successLight : status === 'overdue' ? Colors.errorLight : Colors.warningLight,
+        badgeColor: status === 'paid' ? themeColors.successLabel : status === 'overdue' ? themeColors.dangerLabel : themeColors.warningLabel,
+        badgeBg: status === 'paid' ? themeColors.successSoft : status === 'overdue' ? themeColors.dangerSoft : themeColors.warningSoft,
         timestamp: new Date(inv.issueDate ?? inv.createdAt).getTime(),
         overdue: !!overdue,
         href: '/invoice',
@@ -179,15 +192,15 @@ export default function ReportInboxScreen() {
         secondary: `${formatMoney(co.changeAmount)} · ${(co.scheduleImpactDays ?? 0) > 0 ? `+${co.scheduleImpactDays}d` : 'no schedule impact'}`,
         badgeText: co.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
         badgeColor:
-          co.status === 'approved' ? themeColors.success :
-          co.status === 'rejected' || co.status === 'void' ? themeColors.danger :
+          co.status === 'approved' ? themeColors.successLabel :
+          co.status === 'rejected' || co.status === 'void' ? themeColors.dangerLabel :
           co.status === 'under_review' ? themeColors.info :
-          Colors.warning,
+          themeColors.warningLabel,
         badgeBg:
-          co.status === 'approved' ? Colors.successLight :
-          co.status === 'rejected' || co.status === 'void' ? Colors.errorLight :
-          co.status === 'under_review' ? Colors.infoLight :
-          Colors.warningLight,
+          co.status === 'approved' ? themeColors.successSoft :
+          co.status === 'rejected' || co.status === 'void' ? themeColors.dangerSoft :
+          co.status === 'under_review' ? themeColors.surfaceAlt :
+          themeColors.warningSoft,
         timestamp: new Date(co.createdAt).getTime(),
         overdue: false,
         href: '/change-order',
@@ -196,7 +209,7 @@ export default function ReportInboxScreen() {
     }
 
     return list.sort((a, b) => b.timestamp - a.timestamp);
-  }, [dailyReports, rfis, submittals, invoices, changeOrders, projectsById]);
+  }, [dailyReports, rfis, submittals, invoices, changeOrders, projectsById, themeColors]);
 
   const counts = useMemo(() => ({
     all: rows.length,
@@ -233,7 +246,7 @@ export default function ReportInboxScreen() {
 
   const statusChips: FilterChip<StatusFilter>[] = [
     { value: 'all', label: 'Any status' },
-    { value: 'open', label: 'Open / Unpaid', color: Colors.warning },
+    { value: 'open', label: 'Open / Unpaid', color: themeColors.warningLabel },
     { value: 'overdue', label: 'Overdue', color: themeColors.danger },
     { value: 'closed', label: 'Closed / Paid', color: themeColors.success },
   ];
@@ -288,7 +301,7 @@ export default function ReportInboxScreen() {
       <Stack.Screen options={{
         title: 'Report Inbox',
         headerLeft: () => (
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
+          <TouchableOpacity onPress={goBack} style={styles.headerBack}>
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>Back</Text>
           </TouchableOpacity>
@@ -348,8 +361,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
   badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' },
-  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.errorLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
-  overduePillText: { fontSize: 9, fontWeight: '800', color: t.danger, letterSpacing: 0.5 },
+  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.dangerSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs }, // UX-F7
+  overduePillText: { fontSize: 9, fontWeight: '800', color: t.dangerLabel, letterSpacing: 0.5 },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 8 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
   emptySub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', maxWidth: 280 },

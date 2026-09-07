@@ -15,12 +15,19 @@ import { TaskChecklist } from './TaskChecklist';
 import { PercentSlider } from './PercentSlider';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { taskCalendarRange } from '@/utils/scheduleOps';
 
 interface TaskDetailSheetProps {
   visible: boolean;
   task: ScheduleTask | null;
   allTasks: ScheduleTask[];
-  startDate: string;
+  /** The schedule's anchor, or NULL when it has none — see MobileScheduleList.
+   *  Undated: the Start stepper and the "Ends" hint read day numbers, so the
+   *  ± control never edits a real task against a date invented from today. */
+  startDate: string | null;
+  /** Schedule calendar — see MobileScheduleList. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
   onClose: () => void;
   onUpdateTask: (next: ScheduleTask) => void;
   onDeleteTask: (id: string) => void;
@@ -28,7 +35,6 @@ interface TaskDetailSheetProps {
 
 type DetailTab = 'overview' | 'resources' | 'docs' | 'activity';
 const STATUSES: TaskStatus[] = ['not_started', 'in_progress', 'done'];
-const MS_DAY = 24 * 60 * 60 * 1000;
 
 function fmt(d: Date): string { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
 
@@ -51,7 +57,7 @@ function Stepper({ value, onDec, onInc }: { value: string; onDec: () => void; on
   );
 }
 
-export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, onUpdateTask, onDeleteTask }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask }: TaskDetailSheetProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -82,10 +88,11 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
   // foreman "correcting" it moved real scheduled work by a day.
   // parseCalendarDay (utils/calendarDate.ts) is the shared fix and also
   // tolerates the full ISO timestamp Supabase can hand back for this field.
-  const baseMs = useMemo(() => {
-    const d = parseCalendarDay(startDate) ?? new Date();
+  const base = useMemo(() => {
+    const d = parseCalendarDay(startDate);
+    if (!d) return null;
     d.setHours(0, 0, 0, 0);
-    return d.getTime();
+    return d;
   }, [startDate]);
 
   if (!task) return null;
@@ -98,11 +105,26 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
   // (sim-audit slop #5).
   const phaseColor = getPhaseColor(task.phase || 'Other');
   const dur = Math.max(1, task.durationDays || 1);
-  // startDay is 1-indexed (day 1 = schedule start), matching the desktop + CPM
-  // engine; shift by -1 to a 0-indexed day-offset from baseMs for the date math.
-  const startOffset = (task.startDay ?? 1) - 1;
-  const start = new Date(baseMs + startOffset * MS_DAY);
-  const end = new Date(baseMs + (startOffset + dur - 1) * MS_DAY);
+  // startDay is 1-indexed (day 1 = schedule start) and counts WORKING days,
+  // matching the desktop + CPM engine, so the dates come from
+  // taskCalendarRange — not `baseMs + offset * MS_DAY`, which printed the
+  // Saturday for a startDay-6 task and contradicted the list row for the
+  // same task (B4 review A9 / item 2).
+  // Undated (base === null): the stepper shows 'Day 6' and the hint 'Ends day
+  // 10'. Those integers ARE the stored plan; the calendar dates were not.
+  const range = base ? taskCalendarRange(task, base, workingDaysPerWeek, nonWorkingDates) : null;
+  const startDayNumber = Math.max(1, task.startDay ?? 1);
+  const startLabel = range ? fmt(range.start) : `Day ${startDayNumber}`;
+  // A 0-day milestone does not END anywhere — it lands. `dur` floors at 1 so
+  // the duration stepper has something to step, and reading the hint off that
+  // floor made the sheet say "Ends day 6" for the same task the list row calls
+  // simply "Day 6" (taskWorkingDayLabel).
+  const isPointMilestone = !!task.isMilestone && !(task.durationDays > 0);
+  const endLabel = isPointMilestone
+    ? (range ? `Lands ${fmt(range.start)}` : `Lands on day ${startDayNumber}`)
+    : range
+      ? `Ends ${fmt(range.end)}`
+      : `Ends day ${startDayNumber + dur - 1}`;
   const predNames = (task.dependencyLinks ?? []).map((l) => allTasks.find((t) => t.id === l.taskId)?.title).filter(Boolean) as string[];
   const checklist = task.checklist ?? [];
 
@@ -186,13 +208,13 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
                 <View style={styles.card}>
                   <View style={styles.editRow}>
                     <Text style={styles.gLbl}>Start</Text>
-                    <Stepper value={fmt(start)} onDec={() => shiftStart(-1)} onInc={() => shiftStart(1)} />
+                    <Stepper value={startLabel} onDec={() => shiftStart(-1)} onInc={() => shiftStart(1)} />
                   </View>
                   <View style={styles.editRow}>
                     <Text style={styles.gLbl}>Duration</Text>
                     <Stepper value={`${dur} day${dur === 1 ? '' : 's'}`} onDec={() => shiftDuration(-1)} onInc={() => shiftDuration(1)} />
                   </View>
-                  <Text style={styles.endHint}>Ends {fmt(end)}</Text>
+                  <Text style={styles.endHint}>{endLabel}</Text>
 
                   <Text style={[styles.gLbl, { marginTop: 14 }]}>Status</Text>
                   <View style={styles.statusRow}>
@@ -224,11 +246,13 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
                   <Trash2 size={16} color={colors.danger} strokeWidth={1.75} />
                   <Text style={styles.deleteText}>Delete task</Text>
                 </TouchableOpacity>
-                {/* A "4D model — coming soon" card used to live here. The 4D
-                    feature SHIPPED — the Living Floor Plan renders in the
-                    "4D Model" sub-tab of MobileScheduleScreen, one tap away
-                    from this sheet — so the card was advertising a delivered
-                    capability as future work.
+                {/* A "4D model — coming soon" card used to live here. It was
+                    advertising a delivered capability as future work: the
+                    Living Floor Plan renders in the "Living Plan" sub-tab of
+                    MobileScheduleScreen, one tap away from this sheet. (That
+                    sub-tab was itself labelled "4D Model" until MISS-08 —
+                    there is no 3D model behind it, and no 3D dependency in the
+                    app; it is a 2D plan whose zones tint by schedule status.)
                     We did NOT replace it with a scoped LivingFloorPlan:
                     that component owns a PanResponder timeline scrubber and
                     its own zone Modal, and this sheet is already a Modal

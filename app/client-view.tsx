@@ -25,6 +25,7 @@ import { usePortalThread } from '@/hooks/usePortalThread';
 import { usePortalSnapshot, type PortalSnapshotStatus } from '@/hooks/usePortalSnapshot';
 import { hydratePortalSnapshot } from '@/utils/portalSnapshotHydrate';
 import { formatMoney } from '@/utils/formatters';
+import { calendarDayStart } from '@/utils/calendarDate';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
 import { documentTypeInfo } from '@/mocks/documents';
@@ -48,6 +49,7 @@ import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
 import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -65,8 +67,13 @@ type PortalFailureKind = PortalSnapshotStatus | 'revoked';
  */
 function formatDate(iso: string | undefined, opts: Intl.DateTimeFormatOptions): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', opts);
+  // Mixed-shape input: Invoice.dueDate, DailyFieldReport.date and CO.date are
+  // toISOString() instants, but RFI.dateRequired is a bare 'YYYY-MM-DD' —
+  // which `new Date()` read as UTC midnight, printing the homeowner the day
+  // BEFORE the due day west of Greenwich (B4 review A2). calendarDayStart
+  // keeps an instant on its local day and a bare day on itself.
+  const d = calendarDayStart(iso);
+  return d ? d.toLocaleDateString('en-US', opts) : null;
 }
 
 /**
@@ -156,7 +163,7 @@ function TaskRow({ task }: { task: ScheduleTask }) {
       <View style={[styles.taskPhaseBar, { backgroundColor: phaseColor }]} />
       <View style={styles.taskContent}>
         <View style={styles.taskTitleRow}>
-          {task.isMilestone && <Flag size={11} color={Colors.warning} strokeWidth={1.75} />}
+          {task.isMilestone && <Flag size={11} color={Colors.warningLabel} strokeWidth={1.75} />}
           {task.isCriticalPath && <GitBranch size={11} color={themeColors.danger} strokeWidth={1.75} />}
           <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
         </View>
@@ -346,7 +353,7 @@ export default function ClientViewScreen() {
       coApprovalEnabled: !!portal?.coApprovalEnabled,
       invoices: invoices.map(i => ({
         id: i.id, number: i.number, status: i.status,
-        balance: Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)),
+        balance: invoiceOutstanding(i), // MONEY-F5: net of held retention
         dueDate: i.dueDate,
       })),
     });
@@ -1041,7 +1048,7 @@ export default function ClientViewScreen() {
             </View>
             {ownerDecisions.map(d => {
               const tone = d.urgency === 'overdue' ? themeColors.danger
-                : d.urgency === 'due_soon' ? Colors.warning
+                : d.urgency === 'due_soon' ? Colors.warningLabel
                 : themeColors.textMuted;
               return (
                 <View key={`${d.kind}-${d.id}`} style={styles.decisionRow}>
@@ -1301,7 +1308,7 @@ export default function ClientViewScreen() {
             <SectionHeader
               title="Invoices"
               infoTerm="pay_app"
-              icon={<DollarSign size={18} color={Colors.warning} strokeWidth={1.75} />}
+              icon={<DollarSign size={18} color={Colors.warningLabel} strokeWidth={1.75} />}
               count={invoices.length}
               expanded={expanded.invoices}
               onToggle={() => toggleSection('invoices')}
@@ -1514,7 +1521,7 @@ export default function ClientViewScreen() {
             <SectionHeader
               title="RFIs"
               infoTerm="rfi"
-              icon={<MessageSquare size={18} color={Colors.warning} strokeWidth={1.75} />}
+              icon={<MessageSquare size={18} color={Colors.warningLabel} strokeWidth={1.75} />}
               count={rfis.filter(r => r.status === 'open').length}
               expanded={expanded.rfis}
               onToggle={() => toggleSection('rfis')}

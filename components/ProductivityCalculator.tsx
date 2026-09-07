@@ -143,7 +143,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
                 <View style={s.scheduleCard}>
                   <View style={s.scheduleRow}>
-                    <Clock size={14} color={Colors.info} strokeWidth={1.75} />
+                    <Clock size={14} color={Colors.infoLabel} strokeWidth={1.75} />
                     <Text style={s.scheduleLabel}>Estimated Duration:</Text>
                     <Text style={s.scheduleValue}>
                       {calculation.daysToComplete < 1
@@ -152,7 +152,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                     </Text>
                   </View>
                   <View style={s.scheduleRow}>
-                    <Users size={14} color={Colors.info} strokeWidth={1.75} />
+                    <Users size={14} color={Colors.infoLabel} strokeWidth={1.75} />
                     <Text style={s.scheduleLabel}>Crew:</Text>
                     <Text style={s.scheduleValue}>{selectedRate.crew}</Text>
                   </View>
@@ -284,13 +284,13 @@ const s = StyleSheet.create({
   rateName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   rateCrew: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   rateRight: { alignItems: 'flex-end' },
-  rateUnitCost: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.success },
+  rateUnitCost: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.successLabel },
   rateUnit: { fontSize: 10, color: Colors.textMuted },
   expandToggle: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 12, paddingBottom: 8, gap: 6,
   },
-  expandText: { fontSize: Type.caption2.fontSize, color: Colors.info, fontWeight: '500' as const },
+  expandText: { fontSize: Type.caption2.fontSize, color: Colors.infoLabel, fontWeight: '500' as const },
   expandedContent: {
     padding: 12, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
     backgroundColor: Colors.surfaceAlt, gap: 4,
@@ -328,8 +328,8 @@ const s = StyleSheet.create({
     backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, gap: 8,
   },
   scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  scheduleLabel: { fontSize: Type.caption1.fontSize, color: Colors.info, fontWeight: '500' as const },
-  scheduleValue: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.info },
+  scheduleLabel: { fontSize: Type.caption1.fontSize, color: Colors.infoLabel, fontWeight: '500' as const },
+  scheduleValue: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.infoLabel },
   notes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

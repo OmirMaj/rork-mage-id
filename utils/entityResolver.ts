@@ -14,6 +14,7 @@
 // this up automatically.
 // ============================================================================
 
+import type { Href } from 'expo-router';
 import type {
   EntityRef,
   EntityKind,
@@ -53,18 +54,29 @@ export interface EntityStore {
 // Route mapping
 // ---------------------------------------------------------------------------
 
-export interface EntityRoute {
-  pathname: string;
-  params?: Record<string, string | number>;
-}
+/**
+ * The object form of expo-router's typed `Href`, so every `pathname` below is
+ * checked against the real route table at compile time. UX-F8: two cases here
+ * pointed at screens that do not exist ('/client-portal', '/price-alerts') and
+ * an `as never` cast in useEntityNavigation hid it until a user tapped a
+ * search result and landed on "Page Not Found".
+ */
+export type EntityRoute = Extract<Href, { pathname: string }>;
 
 /**
  * Map an EntityRef to the expo-router target that renders it. The returned
  * shape is accepted directly by `router.push(...)`.
  *
- * Returns `null` when the kind doesn't have a dedicated detail screen
- * (e.g. `dailyReport` is only rendered inside project-detail's modal grid).
- * Callers should fall back to the parent project in that case.
+ * Returns `null` when a nested kind arrives without the `projectId` its
+ * screen is scoped by. Callers should fall back to the parent project in
+ * that case.
+ *
+ * B4 review A8: every `params` key below is one the target screen actually
+ * reads from useLocalSearchParams. Hints no screen read (`focusPhotoId`,
+ * `punchItemId`, `warrantyId`, `documentId`, `permitId`, `taskId`,
+ * `paymentId`, `subcontractorId`, `packetId`, `pinId`, `markupId`,
+ * `contactId`, `openCommitmentId`) were dead weight in the URL and are
+ * gone; the moment a screen starts reading an id is the moment to pass it.
  */
 export function getEntityRoute(ref: EntityRef): EntityRoute | null {
   switch (ref.kind) {
@@ -72,8 +84,9 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
       return { pathname: '/project-detail', params: { id: ref.id } };
 
     case 'contact':
-      // Contacts live inside /contacts — no per-contact route yet.
-      return { pathname: '/contacts', params: { contactId: ref.id } };
+      // Contacts live inside /contacts — no per-contact route, and
+      // app/contacts.tsx reads no search params.
+      return { pathname: '/contacts' };
 
     case 'equipment':
       return { pathname: '/equipment-detail', params: { equipmentId: ref.id } };
@@ -114,11 +127,12 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
       };
 
     case 'punchItem':
-      // No per-item screen; deep-link the list with a selected id.
+      // No per-item screen; app/punch-list.tsx reads projectId (and the
+      // photo prefill params) only.
       if (!ref.projectId) return null;
       return {
         pathname: '/punch-list',
-        params: { projectId: ref.projectId, punchItemId: ref.id },
+        params: { projectId: ref.projectId },
       };
 
     case 'warranty':
@@ -126,62 +140,58 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
       if (!ref.projectId) return null;
       return {
         pathname: '/warranties',
-        params: { projectId: ref.projectId, warrantyId: ref.id },
+        params: { projectId: ref.projectId },
       };
 
     case 'photo':
-      // Photos live inside project-detail. Send the user to the parent project
-      // with a hint the host screen can read.
+      // Photos live inside project-detail's Photos section. The screen reads
+      // `id`, `tile` and `edit` (its deep-link effect opens the named
+      // section), so the section key is the hint it can act on — the old
+      // `focusPhotoId` was never read.
       if (!ref.projectId) return null;
       return {
         pathname: '/project-detail',
-        params: { id: ref.projectId, focusPhotoId: ref.id },
+        params: { id: ref.projectId, tile: 'photos' },
       };
 
     case 'document':
-      if (!ref.projectId) return null;
-      return {
-        pathname: '/documents',
-        params: { projectId: ref.projectId, documentId: ref.id },
-      };
+      // app/documents.tsx is the all-projects document list and reads no
+      // search params (it links out per row).
+      return { pathname: '/documents' };
 
     case 'permit':
-      if (!ref.projectId) return null;
-      return {
-        pathname: '/permits',
-        params: { projectId: ref.projectId, permitId: ref.id },
-      };
+      // app/permits.tsx reads no search params; the project is picked in-form.
+      return { pathname: '/permits' };
 
     case 'task':
-      // Schedule tasks open inside schedule-pro.
+      // Schedule tasks open inside schedule-pro, which reads projectId only.
       if (!ref.projectId) return null;
       return {
         pathname: '/schedule-pro',
-        params: { projectId: ref.projectId, taskId: ref.id },
+        params: { projectId: ref.projectId },
       };
 
     case 'payment':
-      // Payments are listed in /payments, no per-row detail yet.
-      return { pathname: '/payments', params: { paymentId: ref.id } };
+      // Payments are listed in /payments (no search params, no per-row detail yet).
+      return { pathname: '/payments' };
 
     case 'subcontractor':
-      return {
-        pathname: '/subs',
-        params: { subcontractorId: ref.id },
-      };
+      // app/(tabs)/subs/index.tsx reads no search params.
+      return { pathname: '/subs' };
 
     case 'commitment':
+      // Contracts live in project-detail; no section reads a commitment id.
       if (!ref.projectId) return null;
       return {
         pathname: '/project-detail',
-        params: { id: ref.projectId, openCommitmentId: ref.id },
+        params: { id: ref.projectId },
       };
 
     case 'planSheet':
-      if (!ref.projectId) return null;
+      // app/plan-viewer.tsx reads `sheetId` (and `punchId`) only.
       return {
         pathname: '/plan-viewer',
-        params: { sheetId: ref.id, projectId: ref.projectId },
+        params: { sheetId: ref.id },
       };
 
     case 'commEvent':
@@ -192,41 +202,38 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
       };
 
     case 'portalMessage':
+      // The GC-side thread lives at /client-messages (keyed by project `id`);
+      // there is no /client-portal screen (UX-F8). app/client-messages.tsx
+      // reads ONLY `id` from useLocalSearchParams and scrolls to the end of
+      // the thread — it has no per-message focus, so a `messageId` param was
+      // dead weight in the URL (B4 review A8).
       if (!ref.projectId) return null;
       return {
-        pathname: '/client-portal',
-        params: { projectId: ref.projectId, messageId: ref.id },
+        pathname: '/client-messages',
+        params: { id: ref.projectId },
       };
 
     case 'drawingPin':
-      // Pins live on a plan sheet — open the plan viewer focused on the pin.
-      if (!ref.projectId) return null;
-      return {
-        pathname: '/plan-viewer',
-        params: { pinId: ref.id, projectId: ref.projectId },
-      };
-
     case 'planMarkup':
-      // Markups also live on a plan sheet.
-      if (!ref.projectId) return null;
-      return {
-        pathname: '/plan-viewer',
-        params: { markupId: ref.id, projectId: ref.projectId },
-      };
+      // Pins and markups live on a plan sheet, but an EntityRef carries no
+      // sheetId and app/plan-viewer.tsx reads only `sheetId` / `punchId` —
+      // so the viewer opens without a sheet selected, as it always did (the
+      // old `pinId` / `markupId` / `projectId` params were never read).
+      // Focusing the pin needs a sheetId on the ref first.
+      return { pathname: '/plan-viewer' };
 
     case 'prequalPacket':
-      // Prequal lives in the sub-management surface.
-      return {
-        pathname: '/prequal-manager',
-        params: { packetId: ref.id },
-      };
+      // Prequal lives in the sub-management surface; app/prequal-manager.tsx
+      // reads no search params.
+      return { pathname: '/prequal-manager' };
 
     case 'priceAlert':
-      // Price alerts live in materials/price-alerts surface.
-      return {
-        pathname: '/price-alerts',
-        params: { alertId: ref.id },
-      };
+      // Price alerts render inside the Materials tab (app/(tabs)/materials/
+      // index.tsx `priceAlerts`, listed in its PRICE ALERTS section); there is
+      // no /price-alerts screen (UX-F8). That screen reads NO search params
+      // (only [category].tsx reads `category`/`loc`), so nothing is passed —
+      // the old `alertId` was never read (B4 review A8).
+      return { pathname: '/(tabs)/materials' };
 
     case 'delayEvent':
       // The delay register is project-scoped; deep-link the list with the

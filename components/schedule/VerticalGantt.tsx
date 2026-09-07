@@ -109,7 +109,7 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
         <View style={[s.taskBarFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor + '30' }]} />
         <View style={s.taskBarContent}>
           <View style={s.taskBarIcons}>
-            {task.isCriticalPath && <GitBranch size={9} color={Colors.error} strokeWidth={1.75} />}
+            {task.isCriticalPath && <GitBranch size={9} color={Colors.dangerLabel} strokeWidth={1.75} />}
           </View>
           <Text style={[s.taskBarTitle, { color: phaseColor }]} numberOfLines={1}>{task.title}</Text>
           <Text style={s.taskBarPercent}>{task.progress}%</Text>
@@ -231,13 +231,13 @@ const s = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.textMuted,
   },
-  dayWeekdayToday: { color: Colors.error, fontWeight: '800' as const },
+  dayWeekdayToday: { color: Colors.dangerLabel, fontWeight: '800' as const },
   dayDate: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
-  dayDateToday: { color: Colors.error, fontWeight: '800' as const },
+  dayDateToday: { color: Colors.dangerLabel, fontWeight: '800' as const },
   dayWeather: { fontSize: Type.caption1.fontSize, marginTop: 1 },
   dayTasks: {
     flex: 1,

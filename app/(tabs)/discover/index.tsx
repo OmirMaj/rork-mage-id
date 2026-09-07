@@ -8,7 +8,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import {
   Gavel, Building2, Briefcase, ExternalLink,
-  Plus, Search, Award, CalendarDays, ChevronRight, DollarSign,
+  Plus, UserCircle, Award, CalendarDays, ChevronRight, DollarSign,
   Wrench, Share2, CreditCard, FileSignature, Truck,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -19,6 +19,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
+// Single source of truth for whether the homeowner-RFP feed is readable.
+// app/nearby-rfps.tsx imports it from the same place.
+import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface BidSource {
@@ -279,7 +282,13 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Search size={16} color={Colors.accent} strokeWidth={1.75} />
+              {/* Runtime audit 2026-09-06, VIS-20: this tile shipped a
+                  magnifying glass over the label "My Profile", so it read as
+                  a search box — a contractor looking for search tapped it and
+                  landed in Settings, and one looking for their profile walked
+                  past it. UserCircle is the icon Settings itself uses for the
+                  profile row this tile opens. */}
+              <UserCircle size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>My Profile</Text>
           </TouchableOpacity>
@@ -355,7 +364,26 @@ export default function DiscoverScreen() {
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
           <View>
             <Text style={styles.sectionLabel}>MAGE ID MARKETPLACE</Text>
-            <Text style={styles.sectionHint}>Homeowners post projects, contractors bid, you pick a winner</Text>
+            {/* NAV-03 (runtime audit 2026-09-06): Discover was selling the half
+                of the marketplace that is switched off. RFP_BROWSE_ENABLED is
+                false, so there is no BROWSE — nothing is fetched, and "Browse
+                nearby private projects" is a promise the next screen cannot
+                keep.
+                Precise about what remains, because the two are not the same
+                claim: a posted RFP is still REACHABLE, just not browsable. The
+                `public_bids_notify_nearby` trigger (live and enabled on
+                production) fires notify-nearby-contractors on insert, which
+                emits a `nearby_rfp_posted` notification whose deep link opens
+                /rfp-detail (app/notifications-inbox.tsx:253) — the only route
+                into app/submit-bid-response.tsx. So bids do come in; a
+                contractor just cannot go looking for the job himself. The copy
+                below therefore says post/collect/award, which is true end to
+                end, and does not say "browse", which is not. */}
+            <Text style={styles.sectionHint}>
+              {RFP_BROWSE_ENABLED
+                ? 'Homeowners post projects, contractors bid, you pick a winner'
+                : 'Post a project, collect bids, pick a winner'}
+            </Text>
           </View>
         </View>
 
@@ -364,7 +392,9 @@ export default function DiscoverScreen() {
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="MAGE ID Bids"
-          subtitle="Browse nearby private projects · post your own"
+          subtitle={RFP_BROWSE_ENABLED
+            ? 'Browse nearby private projects · post your own'
+            : 'Post your own project and review the bids on it'}
           onPress={() => navigateTo('/(tabs)/mage-id-bids')}
         />
 
@@ -385,7 +415,7 @@ export default function DiscoverScreen() {
             screen shows the real count; these cards just route there. */}
         <NavigationCard
           icon={Gavel}
-          iconColor={Colors.info}
+          iconColor={Colors.infoLabel}
           iconBg={Colors.info + '15'}
           title="Public Bids"
           subtitle="Government & private bid opportunities"
@@ -394,7 +424,7 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={Building2}
-          iconColor={Colors.info}
+          iconColor={Colors.infoLabel}
           iconBg={Colors.info + '15'}
           title="Companies"
           subtitle="Bond capacity & certifications"
@@ -404,7 +434,7 @@ export default function DiscoverScreen() {
         {HIRE_ENABLED && (
           <NavigationCard
             icon={Briefcase}
-            iconColor={Colors.info}
+            iconColor={Colors.infoLabel}
             iconBg={Colors.info + '15'}
             title="Job Listings"
             subtitle="Construction jobs & direct hire openings"

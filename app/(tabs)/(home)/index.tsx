@@ -44,6 +44,8 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { parseCalendarDay } from '@/utils/calendarDate';
+import { scheduleDayOnCalendar, isTaskActiveOnScheduleDay } from '@/utils/scheduleOps';
 
 // Sticky-dismiss key for the proactive Stripe Connect home banner.
 // Versioned so we can re-show after a future revamp if needed.
@@ -71,32 +73,6 @@ import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 import DailyLogCard from '@/components/home/DailyLogCard';
 import { showAlert } from '@/utils/alert';
-
-// Canonical 1-indexed, working-day-aware "which schedule day is today" — the
-// exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
-// startDate, startDay - 1)). Day 1 = the schedule start date; a date on/before
-// start is day 1; weekends are skipped when workingDaysPerWeek < 7 so the count
-// matches how task bars are laid out. Replicated verbatim in
-// app/(tabs)/summary/index.tsx so Home and Summary agree on "today on site".
-function todayScheduleDayNumber(baseMs: number, now: Date, workingDaysPerWeek?: number): number {
-  const base = new Date(baseMs);
-  base.setHours(0, 0, 0, 0);
-  const tgt = new Date(now);
-  tgt.setHours(0, 0, 0, 0);
-  if (tgt.getTime() <= base.getTime()) return 1;
-  const wdpw = workingDaysPerWeek ?? 5;
-  if (wdpw >= 7) {
-    return Math.floor((tgt.getTime() - base.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-  }
-  let count = 1;
-  const cur = new Date(base);
-  while (cur < tgt) {
-    cur.setDate(cur.getDate() + 1);
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) count++;
-  }
-  return count;
-}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -361,8 +337,15 @@ export default function HomeScreen() {
   //   start = addWorkingDays(startDate, startDay - 1); end = +durationDays-1).
   // So `todayDayNumber` is a 1-INDEXED working-day count from the schedule
   // start (day 1 = start date; weekends skipped when workingDaysPerWeek < 7),
-  // and a task is live when startDay <= todayDayNumber <= startDay+dur-1.
-  // Uses schedule.startDate as day 1; falls back to project.createdAt.
+  // and a task is live when startDay <= todayDayNumber <= startDay+dur-1
+  // (isTaskActiveOnScheduleDay, the same predicate the briefing applies).
+  //
+  // Uses schedule.startDate as day 1, and still falls back to
+  // project.createdAt when there is none — the last un-migrated anchor
+  // invention on this screen, tracked as KNOWN_UNMIGRATED in
+  // scripts/validate-schedule-date-basis.ts. Fixing it means giving this strip
+  // the undated disclosure the Schedule tab has ("no start date — set one"),
+  // not deleting the row silently.
   const todayOnSite = useMemo(() => {
     const out: { project: Project; activeTaskTitles: string[] }[] = [];
     const now = new Date();
@@ -371,16 +354,32 @@ export default function HomeScreen() {
       const sched = p.schedule;
       if (!sched || !sched.tasks || sched.tasks.length === 0) continue;
       const baseIso = sched.startDate || p.createdAt;
-      const baseMs = Date.parse(baseIso);
-      if (!Number.isFinite(baseMs)) continue;
-      const todayDayNumber = todayScheduleDayNumber(baseMs, now, sched.workingDaysPerWeek);
-      const liveTasks = sched.tasks.filter(t => {
-        if (t.status === 'done') return false;
-        const start = Math.max(1, t.startDay ?? 1);
-        const dur = Math.max(0, t.durationDays ?? 0);
-        // Inclusive last active day = start + dur - 1 (matches getTaskDateRange).
-        return todayDayNumber >= start && todayDayNumber <= start + dur - 1;
-      });
+      // UX-F1: schedule.startDate is a bare 'YYYY-MM-DD'. Date.parse reads
+      // that as UTC midnight — the PREVIOUS evening anywhere west of
+      // Greenwich — so this ran one working day ahead of the schedule tab,
+      // which anchors via parseCalendarDay. createdAt is a full instant and
+      // still goes through new Date().
+      const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
+      if (!Number.isFinite(base.getTime())) continue;
+      // MEMBERSHIP, so scheduleDayOnCalendar — NOT scheduleDayNumberFor. This
+      // strip asks "is this task on site TODAY", and scheduleDayNumberFor
+      // answers a different question ("what working day is the job on") with
+      // two clamps that invent work when read as membership: every date at or
+      // before the anchor is day 1, and a closed day folds back onto the
+      // working day before it. On this screen that meant a job starting
+      // 2026-10-01 listed its day-1 tasks on 2026-09-06, and on a Saturday the
+      // strip re-listed Friday's crew as if they were out there. Same defect
+      // the morning briefing had (utils/summaryBriefing.ts scheduleDayFor);
+      // this is the same fix, and the two now agree day for day.
+      //
+      // null = today is not a day of this schedule at all. The whole section
+      // is gated on `todayOnSite.length > 0`, so contributing nothing IS the
+      // honest empty state — an absent fact beats an invented one.
+      const todayDayNumber = scheduleDayOnCalendar(base, now, sched.workingDaysPerWeek, sched.nonWorkingDates);
+      if (todayDayNumber === null) continue;
+      // Shared with the briefing (and the week strip), so a task this screen
+      // lists is exactly a task Summary counts.
+      const liveTasks = sched.tasks.filter(t => isTaskActiveOnScheduleDay(t, todayDayNumber));
       if (liveTasks.length > 0) {
         out.push({
           project: p,
@@ -1117,6 +1116,23 @@ export default function HomeScreen() {
             // Strip collaborators + public portfolio — opt in per project.
             collaborators: undefined,
             publicProfile: undefined,
+            // Strip the client portal. Two reasons, and the second is fatal:
+            //   1. It is wrong on its own terms. clientPortal carries the
+            //      SOURCE project's portalId AND its accessToken — the secret
+            //      the homeowner's link authenticates with. A copy that
+            //      inherits it hands the source job's portal credential to a
+            //      different project; portal_project_for_token resolves the
+            //      duplicate id with `limit 1`, so the homeowner's link can
+            //      serve whichever row Postgres happens to return.
+            //   2. 20260904100950 adds a UNIQUE index on
+            //      client_portal->>'portalId'. With the blob copied, the
+            //      clone's very first sync fails 23505 — and offlineQueue
+            //      exempts a 23505 from "terminal" only when the constraint
+            //      name ends in `_pkey` (utils/offlineQueue.ts), which this
+            //      one does not. The write would be DISCARDED and the copy
+            //      would live on that one device forever, silently.
+            // A duplicate must mint its own portal when the user opens one.
+            clientPortal: undefined,
           };
           addProject(clone);
           if (Platform.OS !== 'web') {

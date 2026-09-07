@@ -16,8 +16,9 @@
 // sections (summary first, everything else collapsed) so users don't
 // have to scroll through a wall of text. A second Modal overlays while
 // the AI request is in flight, with an animated loader that actually
-// communicates what's happening ("Scanning IRC…", "Checking local
-// amendments…") so the spinner doesn't feel dead.
+// communicates what's happening ("Recalling the codes that apply…",
+// "Flagging required permits…") so the spinner doesn't feel dead — and,
+// per AI-F3, never implies a code lookup that does not happen.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,6 +39,7 @@ import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -57,10 +59,21 @@ import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleRev
 import { roadmapToScheduleWork, mergeReviewLines, hasRoadmapScheduleTasks, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { resolveZoning, confirmZoning, isZoningConfirmed } from '@/utils/automation/jurisdiction';
+import {
+  resolveCodeJurisdiction,
+  groundingFactsFor,
+  issuingAuthorityForAddress,
+  jobsiteAddressForProject,
+  sameJobsiteAddress,
+  EMPTY_JOBSITE_ADDRESS,
+  type JobsiteAddress,
+  type JurisdictionGrounding,
+} from '@/utils/codeJurisdiction';
 import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/utils/automation/inspectionResultToScheduleWork';
 import { InspectionResultReviewSheet } from '@/components/automation/InspectionResultReviewSheet';
 import { useSafety } from '@/contexts/SafetyContext';
 import { generateUUID } from '@/utils/generateId';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -136,7 +149,11 @@ const codeCheckSchema = z.object({
   summary: z.string().catch('').default(''),
   applicableCodes: z.array(z.object({
     code: z.string().catch('').default(''),
-    section: z.string().catch('').default(''),
+    // AI-F3: `section` is OPTIONAL on the wire. The prompt tells the model to
+    // leave it empty when unsure (an absent/non-string value lands here as
+    // ''), and the row renders code-only when it is — nothing here retrieves
+    // a code text, so a section number is model recall, never a lookup.
+    section: z.string().optional().catch('').default(''),
     requirement: z.string().catch('').default(''),
   })).default([]),
   permitsRequired: z.array(z.string()).default([]),
@@ -304,6 +321,7 @@ export default function ConstructionAITab() {
 
 function ConstructionAIScreenInner() {
   const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -317,11 +335,42 @@ function ConstructionAIScreenInner() {
 
   // ── Code-Check state ─────────────────────────────────────────────────
   const [codeCheckProjectId, setCodeCheckProjectId] = useState<string | null>(null);
-  const [location, setLocation] = useState<string>('');
+  // A street address, not one free-text box. The AHJ is decided by city+state
+  // (and sometimes county), so those are what the resolver reads; the street is
+  // what makes this feel like a real jobsite address and is what a future
+  // parcel lookup will need. The street is NEVER required to submit.
+  // ONE value, not five useStates. A project switch has to replace the whole
+  // address at once — the old field-by-field prefill left project A's city
+  // sitting under project B's name (runtime audit AI-1).
+  const [address, setAddress] = useState<JobsiteAddress>(EMPTY_JOBSITE_ADDRESS);
+  const { street, city, state: stateCode, zip, county } = address;
+  const setField = useCallback(
+    (key: keyof JobsiteAddress) => (value: string) =>
+      setAddress((prev) => ({ ...prev, [key]: value })),
+    [],
+  );
+  const setStreet = useMemo(() => setField('street'), [setField]);
+  const setCity = useMemo(() => setField('city'), [setField]);
+  const setStateCode = useMemo(() => setField('state'), [setField]);
+  const setZip = useMemo(() => setField('zip'), [setField]);
+  // The address the contractor had typed BEFORE they linked a project, so
+  // going back to "No project" gives it back instead of stranding them with
+  // the last project's address under no project's name.
+  const manualAddressRef = useRef<JobsiteAddress | null>(null);
+  // EXACTLY what the linked project last put in the box. It is the only way to
+  // tell an untouched prefill (safe to replace or to throw away) from one the
+  // contractor has since corrected (never clobber that — a typed address is
+  // the most expensive thing on this screen).
+  const appliedProjectAddressRef = useRef<JobsiteAddress | null>(null);
   const [category, setCategory] = useState<CategoryKey>('residential');
   const [scenario, setScenario] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CodeCheckResult | null>(null);
+  // The grounding that was actually SENT with `result`, snapshotted next to it.
+  // The chip must describe the prompt that ran, not re-render from an address
+  // the contractor has since edited — the same trap the estimate chip fell into
+  // (AI-F4 / review B1).
+  const [resultGrounding, setResultGrounding] = useState<JurisdictionGrounding | null>(null);
   const [resultOpen, setResultOpen] = useState(false);
   const [overLimit, setOverLimit] = useState(false);
 
@@ -342,13 +391,73 @@ function ConstructionAIScreenInner() {
   } = useProjects();
   const { addHazard, hazards } = useSafety();
 
-  // When the user picks a code-check project, auto-fill location if blank.
   const codeCheckProject = codeCheckProjectId ? projects.find((p) => p.id === codeCheckProjectId) ?? null : null;
+
+  // Linking a project REPLACES the address — every field, blanks included.
+  //
+  // This used to be a useEffect keyed on [codeCheckProjectId] that assigned
+  // each field only when it was still empty. Tapping project B after project A
+  // therefore kept A's city and state while the note said "Using B's location",
+  // the grounding chip named A's building department, and the prompt carried
+  // B's name next to A's address (runtime audit AI-1). Doing it as one
+  // replacement in the tap handler makes the note, the chip and the prompt
+  // physically incapable of describing different places: they all read this
+  // one value.
+  const selectCodeCheckProject = useCallback((id: string | null) => {
+    if (id === codeCheckProjectId) return;
+    if (id === null) {
+      // Back to "No project". Hand back whatever they had typed themselves
+      // before the first link — but ONLY if the box still holds the project's
+      // address untouched. An address the contractor typed or corrected while
+      // a project was linked is theirs, and unlinking must not delete it.
+      const applied = appliedProjectAddressRef.current;
+      const untouched = applied !== null && sameJobsiteAddress(address, applied);
+      if (untouched) setAddress(manualAddressRef.current ?? { ...EMPTY_JOBSITE_ADDRESS });
+      manualAddressRef.current = null;
+      appliedProjectAddressRef.current = null;
+    } else {
+      if (codeCheckProjectId === null) manualAddressRef.current = address;
+      const next = jobsiteAddressForProject(projects.find((p) => p.id === id) ?? null);
+      appliedProjectAddressRef.current = next;
+      setAddress(next);
+    }
+    setCodeCheckProjectId(id);
+  }, [codeCheckProjectId, projects, address]);
+
+  // Keep a LINKED project's address current. `codeCheckProject` re-derives from
+  // `projects` on every render, but `address` is state — so editing the linked
+  // project's address on another screen (or a sync landing) used to leave this
+  // screen saying "Using X's location" over the address X had an hour ago: the
+  // same class of lie as AI-1, just arriving from the other direction. Adopt
+  // the change only when the box still holds exactly what the project last put
+  // there; a contractor's own correction always wins.
+  const linkedProjectAddress = useMemo(
+    () => (codeCheckProject ? jobsiteAddressForProject(codeCheckProject) : null),
+    [codeCheckProject],
+  );
   useEffect(() => {
-    if (!codeCheckProject) return;
-    if (!location && codeCheckProject.location) setLocation(codeCheckProject.location);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codeCheckProjectId]);
+    const applied = appliedProjectAddressRef.current;
+    if (!linkedProjectAddress || !applied) return;
+    if (sameJobsiteAddress(applied, linkedProjectAddress)) return;
+    appliedProjectAddressRef.current = linkedProjectAddress;
+    setAddress((prev) => (sameJobsiteAddress(prev, applied) ? linkedProjectAddress : prev));
+  }, [linkedProjectAddress]);
+
+  // The address as one line — the loader subject and the result modal's
+  // context still want a human string.
+  const addressLine = useMemo(() => {
+    const tail = [stateCode.trim(), zip.trim()].filter(Boolean).join(' ');
+    return [street.trim(), city.trim(), tail].filter(Boolean).join(', ');
+  }, [street, city, stateCode, zip]);
+
+  // WHO governs this address and WHICH edition they adopted. Pure lookup over
+  // a cited table — { kind: 'unknown' } when MAGE has no verified record, which
+  // the chip and the prompt both say out loud rather than papering over.
+  const jurisdiction = useMemo(
+    () => resolveCodeJurisdiction({ city, county, state: stateCode }),
+    [city, county, stateCode],
+  );
+  const grounding = useMemo(() => groundingFactsFor(jurisdiction), [jurisdiction]);
 
   const [roadmapProjectId, setRoadmapProjectId] = useState<string | null>(projects[0]?.id ?? null);
   const [roadmapLoading, setRoadmapLoading] = useState(false);
@@ -356,6 +465,24 @@ function ConstructionAIScreenInner() {
   const roadmapDailyCap = useMemo(() => FEATURE_LIMITS.ai_permit_roadmap_daily[tier], [tier]);
 
   const roadmapProject = projects.find((p) => p.id === roadmapProjectId) ?? null;
+
+  // WHO issues the permits on this job. `Permit.jurisdiction` means the issuing
+  // authority — the manual add-permit form refuses to save without one and
+  // spells out the shape ("City of Phoenix, AZ") — but this screen used to
+  // write `roadmapProject.location`, so every AI-generated permit recorded the
+  // jobsite STREET ADDRESS as its issuing jurisdiction, and that string then
+  // propagated to the permit export and the homeowner's closeout passport
+  // (runtime audit MISS-06). `null` when MAGE has no verified record: a blank
+  // the contractor fills in beats a building department that does not exist.
+  const roadmapJobsite = useMemo(() => jobsiteAddressForProject(roadmapProject), [roadmapProject]);
+  const roadmapAuthority = useMemo(
+    () => issuingAuthorityForAddress({
+      city: roadmapJobsite.city,
+      county: roadmapJobsite.county,
+      state: roadmapJobsite.state,
+    }),
+    [roadmapJobsite],
+  );
   const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;
   const roadmapTasks = roadmapProject?.schedule?.tasks ?? [];
   const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
@@ -471,12 +598,14 @@ function ConstructionAIScreenInner() {
           createdBy: user?.id ?? 'unknown',
           now: new Date().toISOString(),
           hazardId: generateUUID(),
-          jurisdiction: roadmapProject.location || undefined,
+          // A lead-time lookup key, so it wants the AHJ — not the street
+          // address, which could never match an override (MISS-06).
+          jurisdiction: roadmapAuthority ?? undefined,
         },
       );
       setPendingResult({ inspection, result, work });
     },
-    [roadmapProject, user],
+    [roadmapProject, roadmapAuthority, user],
   );
 
   // COMMIT — runs ONLY on an explicit confirm from the result sheet. Commits all
@@ -617,9 +746,16 @@ function ConstructionAIScreenInner() {
       projectId: roadmapProject.id,
       projectName: roadmapProject.name,
       type: toPermitType(p.type),
-      jurisdiction: roadmapProject.location || '',
+      // The issuing authority, never the jobsite address (MISS-06). Empty when
+      // MAGE has no verified building-department record — the note under the
+      // Permits heading tells the contractor that before they tap Add.
+      jurisdiction: roadmapAuthority ?? '',
       status: 'applied',
-      appliedDate: new Date().toISOString(),
+      // B4 review A3: Permit.appliedDate is a CALENDAR DAY (permits.applied_date
+      // is a `date` column and app/permits.tsx writes todayCalendarDay()). The
+      // instant this used to write was cast to its UTC date on sync — tomorrow
+      // from ~6 pm, west of Greenwich.
+      appliedDate: todayCalendarDay(),
       fee: 0,
       // Carry the roadmap's descriptive name as the first line of notes (the
       // permits tracker has no dedicated title column), with the "why" below it.
@@ -632,9 +768,13 @@ function ConstructionAIScreenInner() {
       ),
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [roadmapProject, roadmap, addPermit, updatePermitRoadmap]);
+  }, [roadmapProject, roadmap, roadmapAuthority, addPermit, updatePermitRoadmap]);
 
-  const canSubmit = location.trim().length > 0 && scenario.trim().length > 10 && !loading;
+  // City + state are what pick the authority, so they are what the form needs.
+  // A missing street NEVER blocks the check — plenty of code questions are
+  // asked before there is a street number.
+  const canSubmit =
+    city.trim().length > 0 && stateCode.trim().length > 0 && scenario.trim().length > 10 && !loading;
 
   const runCheck = useCallback(async () => {
     if (!canSubmit) return;
@@ -647,6 +787,7 @@ function ConstructionAIScreenInner() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
     setResult(null);
+    setResultGrounding(null);
     setResultOpen(false);
 
     const categoryLabel = CATEGORIES.find((c) => c.key === category)?.label ?? category;
@@ -660,21 +801,25 @@ function ConstructionAIScreenInner() {
 
     const prompt = `You are a licensed code-compliance advisor for US construction. A contractor is working on the following project and needs a building-code sanity check.
 
-${projectContextBlock}Location: ${location.trim()}
+${projectContextBlock}Address: ${addressLine || `${city.trim()}, ${stateCode.trim()}`}
+${grounding.promptBlock}
 Category: ${categoryLabel}
 Scenario: ${scenario.trim()}
 
 Return a JSON object with:
 - summary: one paragraph explaining the key code implications
-- applicableCodes: array of { code (e.g. "IRC 2021", "NYC BC 2022"), section (e.g. "R310.1"), requirement (plain English) }
+- applicableCodes: array of { code (e.g. "IRC 2021", "NYC BC 2022"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English) }
 - permitsRequired: array of permit names the contractor should pull before work
 - inspections: array of inspections this project will likely need
 - commonViolations: array of the most common code violations for this type of work
 - disclaimer: a one-sentence reminder that this is AI guidance, not legal advice, and the AHJ governs
 
-Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.`;
+Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
+Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite only what you would stake your license on.`;
 
-    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${location.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
+    // The jurisdiction is part of the prompt, so it MUST be part of the key —
+    // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
+    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
 
     try {
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey);
@@ -684,6 +829,8 @@ Be specific to the cited location if possible. If the location is not in the US,
         return;
       }
       setResult(res.data as CodeCheckResult);
+      // Snapshot the grounding that went WITH this prompt.
+      setResultGrounding(grounding);
       if (!res.cached) await bumpTodayUsage(user?.id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // iOS can't present two Modals at once. Dismiss the loading modal
@@ -697,7 +844,7 @@ Be specific to the cited location if possible. If the location is not in the US,
       setLoading(false);
       showAlert('Code check failed', err instanceof Error ? err.message : 'Unknown error.');
     }
-  }, [canSubmit, category, dailyCap, location, scenario, user?.id]);
+  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, codeCheckProject, codeCheckProjectId, scenario, user?.id]);
 
   const presets = PRESET_QUESTIONS[category];
 
@@ -781,7 +928,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             testID="mode-toggle-code"
           >
             <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]}>Code Check</Text>
+            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code Check</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, mode === 'roadmap' && styles.modeToggleBtnActive]}
@@ -790,7 +937,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             testID="mode-toggle-roadmap"
           >
             <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]}>Project Roadmap</Text>
+            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project Roadmap</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, mode === 'plan' && styles.modeToggleBtnActive]}
@@ -799,7 +946,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             testID="mode-toggle-plan"
           >
             <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]}>Plan Review</Text>
+            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan Review</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeToggleBtn, mode === 'ask' && styles.modeToggleBtnActive]}
@@ -808,7 +955,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             testID="mode-toggle-ask"
           >
             <MessageCircleQuestion size={14} color={mode === 'ask' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={[styles.modeToggleText, mode === 'ask' && styles.modeToggleTextActive]}>Ask</Text>
+            <Text style={[styles.modeToggleText, mode === 'ask' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Ask</Text>
           </TouchableOpacity>
         </View>
 
@@ -859,7 +1006,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                   <View style={{ flexDirection: 'row' as const, gap: 8 }}>
                     <TouchableOpacity
                       style={[styles.chip, codeCheckProjectId === null && styles.chipActive]}
-                      onPress={() => setCodeCheckProjectId(null)}
+                      onPress={() => selectCodeCheckProject(null)}
                       activeOpacity={0.8}
                       testID="code-check-project-none"
                     >
@@ -870,7 +1017,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                       return (
                         <TouchableOpacity
                           key={p.id}
-                          onPress={() => setCodeCheckProjectId(p.id)}
+                          onPress={() => selectCodeCheckProject(p.id)}
                           activeOpacity={0.8}
                           style={[styles.chip, active && styles.chipActive]}
                           testID={`code-check-project-${p.id}`}
@@ -883,24 +1030,88 @@ Be specific to the cited location if possible. If the location is not in the US,
                 </ScrollView>
                 {codeCheckProject && (
                   <Text style={styles.projectPrefillNote} testID="code-check-project-prefill">
-                    Using {codeCheckProject.name}&apos;s location and scope — edit below to adjust
+                    {city.trim() || stateCode.trim()
+                      ? `Using ${codeCheckProject.name}'s location and scope — edit below to adjust`
+                      : `Using ${codeCheckProject.name}'s scope. It has no jobsite address on file — enter one below.`}
                   </Text>
                 )}
               </>
             )}
 
-            <Text style={styles.label}>Location (city, state)</Text>
+            <Text style={styles.label}>Jobsite address</Text>
             <View style={styles.inputRow}>
               <MapPin size={16} color={Colors.textMuted} strokeWidth={1.75} />
               <TextInput
-                value={location}
-                onChangeText={setLocation}
-                placeholder="e.g. Brooklyn, NY"
+                value={street}
+                onChangeText={setStreet}
+                placeholder="Street address (optional)"
                 placeholderTextColor={Colors.textMuted}
                 style={styles.input}
-                testID="code-check-location"
+                autoComplete="street-address"
+                textContentType="streetAddressLine1"
+                testID="code-check-street"
               />
             </View>
+            <View style={styles.addressRow}>
+              <View style={[styles.inputRow, styles.addressCity]}>
+                <TextInput
+                  value={city}
+                  onChangeText={setCity}
+                  placeholder="City"
+                  placeholderTextColor={Colors.textMuted}
+                  style={styles.input}
+                  autoComplete="postal-address-locality"
+                  textContentType="addressCity"
+                  testID="code-check-city"
+                />
+              </View>
+              <View style={[styles.inputRow, styles.addressState]}>
+                <TextInput
+                  value={stateCode}
+                  onChangeText={setStateCode}
+                  placeholder="State"
+                  placeholderTextColor={Colors.textMuted}
+                  style={styles.input}
+                  autoCapitalize="characters"
+                  maxLength={20}
+                  autoComplete="postal-address-region"
+                  textContentType="addressState"
+                  testID="code-check-state"
+                />
+              </View>
+              <View style={[styles.inputRow, styles.addressZip]}>
+                <TextInput
+                  value={zip}
+                  onChangeText={setZip}
+                  placeholder="ZIP"
+                  placeholderTextColor={Colors.textMuted}
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  autoComplete="postal-code"
+                  textContentType="postalCode"
+                  testID="code-check-zip"
+                />
+              </View>
+            </View>
+            {/* What the check will actually be grounded on, said BEFORE the run
+                so the contractor knows what they are about to get. Same wording
+                as the chip on the result — both come from groundingFactsFor. */}
+            {city.trim() && stateCode.trim() ? (
+              <View
+                style={[styles.jurisdictionChip, !grounding.grounded && styles.jurisdictionChipUnknown]}
+                testID="code-check-jurisdiction-chip"
+              >
+                {grounding.grounded
+                  ? <ShieldCheck size={12} color={Colors.primary} strokeWidth={2} />
+                  : <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />}
+                <Text
+                  style={[styles.jurisdictionChipText, !grounding.grounded && styles.jurisdictionChipTextUnknown]}
+                >
+                  {grounding.chipLabel}
+                </Text>
+              </View>
+            ) : null}
 
             <Text style={styles.label}>Category</Text>
             <View style={styles.chipWrap}>
@@ -1064,7 +1275,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                 {/* Flags banner */}
                 {flags.length > 0 ? (
                   <View style={styles.flagsBanner}>
-                    <Flag size={14} color={Colors.error} strokeWidth={1.75} />
+                    <Flag size={14} color={Colors.dangerLabel} strokeWidth={1.75} />
                     <View style={{ flex: 1, gap: 4 }}>
                       {flags.map((f) => (
                         <Text
@@ -1113,6 +1324,14 @@ Be specific to the cited location if possible. If the location is not in the US,
                   <>
                     {/* Permits section */}
                     <Text style={styles.roadmapSectionTitle}>Permits</Text>
+                    {/* What "Add to Permits" will record as the issuing
+                        jurisdiction — said BEFORE the tap, so a blank field is
+                        never a surprise (MISS-06). */}
+                    <Text style={styles.permitAuthorityNote} testID="roadmap-permit-authority">
+                      {roadmapAuthority
+                        ? `Permits added here record ${roadmapAuthority} as the issuing jurisdiction.`
+                        : `MAGE has no verified building-department record for this jobsite, so permits added here are saved with a blank issuing jurisdiction — fill it in on the Permits screen.`}
+                    </Text>
                     {roadmap.permits.length === 0 ? (
                       <Text style={styles.roadmapEmptyNote}>No permits inferred — add an estimate scope, then Regenerate.</Text>
                     ) : roadmap.permits.map((p) => (
@@ -1396,14 +1615,15 @@ Be specific to the cited location if possible. If the location is not in the US,
         ) : null}
       </KeyboardAvoidingView>
 
-      <LoadingModal visible={loading} subject={location.trim() || undefined} />
-      <RoadmapLoadingModal visible={roadmapLoading} subject={location.trim() || undefined} />
+      <LoadingModal visible={loading} subject={addressLine.trim() || undefined} />
+      <RoadmapLoadingModal visible={roadmapLoading} subject={addressLine.trim() || undefined} />
       <ResultModal
         visible={resultOpen && !!result}
         result={result}
         onClose={() => setResultOpen(false)}
-        location={location}
+        location={addressLine}
         scenario={scenario}
+        grounding={resultGrounding}
       />
     </View>
   );
@@ -1412,9 +1632,9 @@ Be specific to the cited location if possible. If the location is not in the US,
 // ── Roadmap row components ─────────────────────────────────────────────
 
 const PERMIT_STATUS_COLORS: Record<RoadmapPermit['status'], string> = {
-  needed: Colors.warning,
-  applied: Colors.info,
-  approved: Colors.success,
+  needed: Colors.warningLabel,
+  applied: Colors.infoLabel,
+  approved: Colors.successLabel,
 };
 
 function RoadmapPermitRow({
@@ -1470,7 +1690,7 @@ function RoadmapPermitRow({
           style={styles.linkedBadge}
           testID={`open-permit-${permit.id}`}
         >
-          <CheckCircle size={12} color={Colors.success} strokeWidth={1.75} />
+          <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
           <Text style={styles.linkedBadgeText}>Added to Permits</Text>
           <Text style={styles.linkedBadgeLink}>View</Text>
           <ChevronRight size={11} color={Colors.primary} strokeWidth={1.75} />
@@ -1608,11 +1828,13 @@ function RoadmapLoadingModal({ visible, subject }: { visible: boolean; subject?:
 // Shows a rotating gavel + a rotating status line so the wait feels
 // like something is actually happening rather than a dead spinner.
 
+// AI-F3: nothing here scans or checks a code text — the model recalls. The
+// steps say so, matching the recall chip on the result.
 const LOADING_STEPS = [
-  'Scanning applicable codes…',
-  'Checking local amendments…',
+  'Recalling the codes that apply…',
+  'Recalling likely local amendments…',
   'Flagging required permits…',
-  'Reviewing common violations…',
+  'Listing common violations…',
   'Drafting inspection checklist…',
 ];
 
@@ -1625,7 +1847,7 @@ function LoadingModal({ visible, subject }: { visible: boolean; subject?: string
       return;
     }
     // Walk the checklist forward and HOLD on the last step rather than looping
-    // back to the top. A pass that restarts at "Scanning applicable codes…"
+    // back to the top. A pass that restarts at "Recalling the codes that apply…"
     // after reaching the end reads as stuck; holding reads as "finishing up".
     const interval = setInterval(() => {
       setStepIdx(i => Math.min(i + 1, LOADING_STEPS.length - 1));
@@ -1656,7 +1878,7 @@ function LoadingModal({ visible, subject }: { visible: boolean; subject?: string
 type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 
 function ResultModal({
-  visible, result, onClose, location, scenario,
+  visible, result, onClose, location, scenario, grounding,
 }: {
   visible: boolean;
   result: CodeCheckResult | null;
@@ -1665,8 +1887,13 @@ function ResultModal({
    *  summary was run against, not asked in a vacuum. */
   location: string;
   scenario: string;
+  /** The jurisdiction grounding SENT with this result. The drill-in reuses it
+   *  so the detail is answered against the same edition as the summary, and
+   *  the chip describes the run rather than the current form state. */
+  grounding: JurisdictionGrounding | null;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<SectionKey | null>('codes');
   /** Which code row is open, plus its lazily-fetched detail. Rendered INLINE:
@@ -1683,10 +1910,13 @@ function ResultModal({
     setDetails(prev => ({ ...prev, [key]: { loading: true, data: null, error: null } }));
 
     const label = [c.code, c.section].filter(Boolean).join(' ');
+    // Same jurisdiction block as the summary prompt — a drill-in answered
+    // against a different edition than the summary would be worse than useless.
+    const jurisdictionBlock = grounding ? `${grounding.promptBlock}\n` : '';
     const prompt = `You are a licensed code-compliance advisor for US construction. A contractor ran a code check and wants to understand ONE specific code citation in depth.
 
-Location: ${location.trim()}
-Work being done: ${scenario.trim()}
+Address: ${location.trim()}
+${jurisdictionBlock}Work being done: ${scenario.trim()}
 Code cited: ${label}
 Summary requirement given: ${c.requirement}
 
@@ -1699,7 +1929,8 @@ Return a JSON object with:
 
 Be concrete and specific to the cited jurisdiction. Never invent a section number you are unsure of — describe the requirement instead.`;
 
-    const cacheKey = `code_detail::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;
+    // The jurisdiction is in this prompt too, so it is in this key too.
+    const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;
     try {
       const res = await mageAISmart(prompt, codeDetailSchema, cacheKey);
       if (!res.success || !res.data) {
@@ -1710,7 +1941,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
     } catch {
       setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: 'Could not load detail.' } }));
     }
-  }, [details, location, scenario]);
+  }, [details, location, scenario, grounding]);
 
   const toggleCode = useCallback((c: { code: string; section: string; requirement: string }) => {
     const key = codeDetailKey(c);
@@ -1741,6 +1972,27 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24, gap: 10 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* What this answer was grounded on, above everything it produced.
+              Verbatim from groundingFactsFor — the SAME string the prompt
+              carried, so the chip cannot promise a jurisdiction the model was
+              never told about. When there is no adoption record it says so
+              plainly rather than implying a lookup happened. */}
+          {grounding ? (
+            <View
+              style={[styles.jurisdictionChip, !grounding.grounded && styles.jurisdictionChipUnknown]}
+              testID="code-check-jurisdiction-result-chip"
+            >
+              {grounding.grounded
+                ? <ShieldCheck size={12} color={Colors.primary} strokeWidth={2} />
+                : <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />}
+              <Text
+                style={[styles.jurisdictionChipText, !grounding.grounded && styles.jurisdictionChipTextUnknown]}
+              >
+                {grounding.chipLabel}
+              </Text>
+            </View>
+          ) : null}
+
           {result.summary ? (
             <View style={[styles.resultCard, styles.resultSummaryCard]}>
               <View style={styles.resultCardHeader}>
@@ -1761,6 +2013,15 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               expanded={expanded === 'codes'}
               onToggle={toggle}
             >
+              {/* AI-F3: these citations are model recall, not a code lookup —
+                  no retrieval runs on this surface. Say so ABOVE the codes,
+                  not in the footer (brain-center directive, HONEST leg). */}
+              <View style={styles.recallChip} testID="code-check-recall-chip">
+                <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />
+                <Text style={styles.recallChipText}>
+                  From model recall — verify with your AHJ before relying on a section number
+                </Text>
+              </View>
               <Text style={styles.codeTapHint}>Tap a code for what it requires and what the inspector checks.</Text>
               {result.applicableCodes.map((c, i) => {
                 const key = codeDetailKey(c);
@@ -1789,7 +2050,10 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                         {st?.loading && (
                           <View style={styles.codeDetailLoading}>
                             <ActivityIndicator size="small" color={Colors.primary} />
-                            <Text style={styles.codeDetailLoadingText}>Looking up {[c.code, c.section].filter(Boolean).join(' ')}…</Text>
+                            {/* AI-F3: "Looking up" implied a retrieval that never
+                                happens; the drill-in is the model explaining its
+                                own citation. */}
+                            <Text style={styles.codeDetailLoadingText}>Explaining {[c.code, c.section].filter(Boolean).join(' ')}…</Text>
                           </View>
                         )}
                         {st?.error && (
@@ -1859,7 +2123,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               title="Inspections"
               count={result.inspections.length}
               Icon={CheckCircle}
-              iconColor={Colors.success}
+              iconColor={Colors.successLabel}
               expanded={expanded === 'inspections'}
               onToggle={toggle}
             >
@@ -1875,7 +2139,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               title="Common Violations"
               count={result.commonViolations.length}
               Icon={AlertTriangle}
-              iconColor={Colors.warning}
+              iconColor={Colors.warningLabel}
               expanded={expanded === 'violations'}
               onToggle={toggle}
             >
@@ -1987,6 +2251,28 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderColor: themeColors.line, paddingHorizontal: 12, paddingVertical: 10, gap: 8,
   },
   input: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text, padding: 0 },
+  // City / State / ZIP on one line — the whole address is four taps, not four
+  // screens. iOS-first: the row still wraps sanely at large text sizes.
+  addressRow: { flexDirection: 'row' as const, gap: 8, marginTop: 8 },
+  addressCity: { flex: 3 },
+  addressState: { flex: 1.2 },
+  addressZip: { flex: 1.4 },
+  // Grounding chip. Grounded = primary tint (we know the authority);
+  // ungrounded = the same warning treatment as the model-recall chip, because
+  // it is making the same admission.
+  jurisdictionChip: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8, marginTop: 10,
+    borderRadius: Tokens.radius.md, backgroundColor: themeColors.surface,
+    borderWidth: 1, borderColor: themeColors.line,
+  },
+  jurisdictionChipUnknown: {
+    backgroundColor: themeColors.warningSoft, borderColor: 'transparent',
+  },
+  jurisdictionChipText: {
+    ...Type.caption1, fontWeight: '600' as const, color: themeColors.text, flex: 1, lineHeight: 16,
+  },
+  jurisdictionChipTextUnknown: { color: themeColors.warningLabel },
   chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
@@ -2127,6 +2413,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
+  // AI-F3 recall chip — warning tone (theme tokens), never the primary blue
+  // the code rows use, so "from model recall" cannot read as a citation.
+  recallChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10,
+    borderRadius: Tokens.radius.md, backgroundColor: themeColors.warningSoft,
+  },
+  recallChipText: {
+    ...Type.caption1, fontWeight: '600' as const, color: themeColors.warningLabel, flex: 1,
+  },
   codeTapHint: {
     fontSize: Type.caption2.fontSize, color: themeColors.textMuted,
     fontStyle: 'italic' as const, marginBottom: 10, lineHeight: 15,
@@ -2238,25 +2534,57 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     padding: 3,
     gap: 3,
   },
+  // Icon ABOVE the label, not beside it. Four segments share ~89pt on a 402pt
+  // iPhone; a 14pt icon plus a 6pt gap plus "Code Check" at 13pt needs ~98pt,
+  // so the old row layout overflowed its pill and the next segment's icon
+  // painted over the active label (runtime audit AI-3 / VIS-01). Stacking buys
+  // the label the whole segment width, and minWidth 0 + flexShrink + a two-line
+  // cap + overflow hidden mean nothing can spill across the boundary again —
+  // which also stops taps landing on the wrong mode.
   modeToggleBtn: {
     flex: 1,
-    flexDirection: 'row' as const,
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: 'column' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 6,
-    paddingVertical: 9,
+    gap: 3,
+    paddingVertical: 7,
+    paddingHorizontal: 2,
     borderRadius: Tokens.radius.card,
+    overflow: 'hidden' as const,
   },
   modeToggleBtnActive: {
     backgroundColor: Colors.primary,
   },
+  // minHeight is two lines' worth, so a one-line label ("Ask") reserves the
+  // same box as the one that wraps ("Project Roadmap"). Without it the wrapping
+  // segment is taller, justifyContent centres it, and its icon rides ~7pt above
+  // the other three — the audit's "nothing in the bar shares a baseline", in
+  // milder form. lineHeight 15 (not 14) so the descender in "Project" is not
+  // clipped at 12pt.
   modeToggleText: {
-    fontSize: Type.footnote.fontSize,
+    fontSize: Type.caption1.fontSize,
+    lineHeight: 15,
+    minHeight: 30,
     fontWeight: '600' as const,
     color: themeColors.textSecondary,
+    textAlign: 'center' as const,
+    flexShrink: 1,
   },
   modeToggleTextActive: {
     color: '#FFF',
+  },
+
+  // Says which authority a generated permit will be filed under — or that MAGE
+  // does not know one, in which case the field is saved blank rather than
+  // stuffed with the street address (MISS-06).
+  permitAuthorityNote: {
+    fontSize: Type.caption1.fontSize,
+    lineHeight: 17,
+    color: themeColors.textSecondary,
+    marginTop: -4,
+    marginBottom: 10,
   },
 
   // ── Project Roadmap ─────────────────────────────────────────────────
@@ -2273,11 +2601,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   flagText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.warning,
+    color: Colors.warningLabel,
     lineHeight: 18,
   },
   flagTextHigh: {
-    color: Colors.error,
+    color: Colors.dangerLabel,
     fontWeight: '600' as const,
   },
   regenBtn: {

@@ -26,6 +26,8 @@ import { mageAI } from '@/utils/mageAI';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { formatMoneyShort } from '@/utils/formatters';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const CHART_HEIGHT = 200;
 const CHART_PADDING = 40;
@@ -35,11 +37,9 @@ const CHART_HORIZONTAL_INSET = 64;
 // Cap the chart width on desktop so the S-curve doesn't stretch absurdly wide.
 const CHART_MAX_WIDTH = 720;
 
-function formatCurrency(n: number): string {
-  if (Math.abs(n) >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
-  if (Math.abs(n) >= 1000) return '$' + (n / 1000).toFixed(1) + 'K';
-  return '$' + n.toFixed(0);
-}
+// HEALTH-F5: compact, sign-correct money ("-$12K", not "$-12.0K") via the one
+// formatter — no local copy.
+const formatCurrency = (n: number): string => formatMoneyShort(n);
 
 function getMetricColor(value: number, t: ThemeColors): string {
   if (value >= 1.0) return t.success;
@@ -198,7 +198,7 @@ Be specific and actionable. Use construction industry terminology.`;
           title: 'Budget Dashboard',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
-          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }} />
         <ToolProjectPicker
           toolName="the Budget Dashboard"
@@ -300,7 +300,7 @@ Be specific and actionable. Use construction industry terminology.`;
         title: 'Budget Dashboard',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <FeatureHeader

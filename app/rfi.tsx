@@ -36,6 +36,7 @@ import { computeRfiHoldTime } from '@/utils/rfiHoldTime';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
+import { parseCalendarDay, formatCalendarDay, toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -284,7 +285,10 @@ function RFIScreenInner() {
         assignedTo: assignedTo.trim(),
         assignedSubId,
         dateSubmitted: now,
-        dateRequired: dateRequired || new Date(Date.now() + 14 * 86400000).toISOString(),
+        // B4 review A2: dateRequired is a CALENDAR DAY. The two-week default
+        // is a local day, not an evening instant whose UTC date prefix is
+        // tomorrow's.
+        dateRequired: dateRequired || toCalendarDayString(addCalendarDays(new Date(), 14)),
         status: 'open',
         priority,
         // Start with the GC holding the ball — they have to send the
@@ -775,14 +779,18 @@ function RFIScreenInner() {
             style={[styles.pickerBtnText, !dateRequired && { color: themeColors.textMuted }]}
             numberOfLines={1}
           >
-            {dateRequired
-              ? new Date(dateRequired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-              : 'Select a date'}
+            {/* B4 review A2: a calendar day — bare from photo-triage / the voice
+                parsers, noon-UTC from DatePickerModal; formatCalendarDay resolves
+                both. new Date(bareDay) printed the day before, west of Greenwich. */}
+            {dateRequired ? formatCalendarDay(dateRequired) : 'Select a date'}
           </Text>
         </TouchableOpacity>
         <DatePickerModal
           visible={showDatePicker}
-          value={dateRequired}
+          // The picker parses `value` with new Date(); hand it LOCAL midnight of
+          // the day as an instant (same as app/permits.tsx) or a bare day opens
+          // on the previous day west of Greenwich.
+          value={dateRequired ? (parseCalendarDay(dateRequired)?.toISOString() ?? dateRequired) : ''}
           allowFuture
           title="Response required by"
           onClose={() => setShowDatePicker(false)}

@@ -12,6 +12,7 @@
 
 import type { Project, Invoice, ChangeOrder } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling';
 
 // ─── Key normalization ─────────────────────────────────────────────────────
 
@@ -46,8 +47,10 @@ function median(arr: number[]): number | null {
 // ─── Payment latency ───────────────────────────────────────────────────────
 
 /**
- * Days from invoice.issueDate to the date cumulative payments first cover totalDue.
- * Returns null when the invoice is unpaid or has no payments.
+ * Days from invoice.issueDate to the date cumulative payments first settle the
+ * invoice — net of held retention (MONEY-F5): a client who paid everything
+ * they were asked for on day 20 paid on day 20, even if $10k of retention is
+ * still held until closeout. Returns null when unpaid or without payments.
  */
 function daysToFullyPaid(invoice: Invoice): number | null {
   if (!invoice.issueDate || !invoice.payments?.length) return null;
@@ -58,7 +61,7 @@ function daysToFullyPaid(invoice: Invoice): number | null {
   let cumulative = 0;
   for (const pmt of sorted) {
     cumulative += pmt.amount;
-    if (cumulative >= invoice.totalDue) {
+    if (invoice.totalDue > 0 && invoiceIsSettled({ ...invoice, amountPaid: cumulative })) {
       const pmtMs = Date.parse(pmt.date);
       if (!Number.isFinite(pmtMs)) return null;
       return Math.max(0, Math.round((pmtMs - issueMs) / 86_400_000));
@@ -124,7 +127,7 @@ export interface ClientRecord {
     invoiceCount: number;
     /** Median calendar days from issue to full payment. null = insufficient data. */
     medianDaysToPaid: number | null;
-    outstanding$: number; // sum of (totalDue - amountPaid) on open invoices
+    outstanding$: number; // sum of invoiceOutstanding() — net of held retention — on open invoices
     overdue$: number; // outstanding where status === 'overdue'
   };
   coFriction: COFriction;
@@ -191,13 +194,10 @@ export function buildClientBook(input: {
     const projectCount = entry.projectIds.size;
     // Payment latency
     const latencies = entry.invoices.map(daysToFullyPaid).filter((v): v is number => v !== null);
-    const outstanding$ = entry.invoices.reduce(
-      (s, inv) => s + Math.max(0, inv.totalDue - (inv.amountPaid ?? 0)),
-      0,
-    );
+    // MONEY-F5: net of held retention on both figures.
+    const outstanding$ = entry.invoices.reduce((s, inv) => s + invoiceOutstanding(inv), 0);
     const overdue$ = entry.invoices.reduce(
-      (s, inv) =>
-        inv.status === 'overdue' ? s + Math.max(0, inv.totalDue - (inv.amountPaid ?? 0)) : s,
+      (s, inv) => (inv.status === 'overdue' ? s + invoiceOutstanding(inv) : s),
       0,
     );
     clients.push({

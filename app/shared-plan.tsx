@@ -56,7 +56,7 @@ export default function SharedPlanScreen() {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-plan-no-token">
         <Stack.Screen options={{ title: 'Floor plan', headerShown: false }} />
-        <AlertCircle size={28} color={Colors.warning} strokeWidth={1.75} />
+        <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.errorTitle}>No share token</Text>
         <Text style={styles.errorBody}>This link is missing the data it needs. Ask your contractor for a fresh link.</Text>
       </View>

@@ -40,11 +40,15 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = "gemini-2.5-flash";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+// B3 (review 2026-09-04): per-user hourly import ceiling + bounded upstream fetch.
+const HOURLY_LIMIT = 30;
+const TEXT_TIMEOUT_MS = 60_000;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -195,13 +199,15 @@ function readBestGrid(bytes: Uint8Array): XlsxGrid {
 }
 
 // ─── xlsx Gemini column detection + row materialization (metered step) ─────
-async function parseXlsx(grid: XlsxGrid): Promise<ScheduleImportResult> {
+// Returns the import result plus `spent` — whether Gemini actually answered
+// (audit AI-F8: the handler charges the monthly unit only then).
+async function parseXlsx(grid: XlsxGrid): Promise<{ result: ScheduleImportResult; spent: boolean }> {
   const warnings: ScheduleImportWarning[] = [...grid.warnings];
   const { header, dataRows, truncated } = grid;
 
   // Ask Gemini to map header → schedule fields. On any failure, mapping=null
   // and the client asks the user to rename their headers and re-import.
-  const mapping = await detectColumns(header, dataRows.slice(0, 5), warnings);
+  const { mapping, spent } = await detectColumns(header, dataRows.slice(0, 5), warnings);
 
   // Materialize ImportedScheduleRow[] using the suggested mapping. Excel
   // sourceId uses 1-based numbering (i + 1) to match the task IDs that
@@ -246,17 +252,21 @@ async function parseXlsx(grid: XlsxGrid): Promise<ScheduleImportResult> {
     });
   }
 
-  return { format: "xlsx", rawColumns: header, mapping, rows, warnings, truncated };
+  return { result: { format: "xlsx", rawColumns: header, mapping, rows, warnings, truncated }, spent };
 }
 
 async function detectColumns(
   header: string[],
   sample: unknown[][],
   warnings: ScheduleImportWarning[],
-): Promise<ColumnMapping | null> {
+): Promise<{ mapping: ColumnMapping | null; spent: boolean }> {
   const promptText =
     `${MAP_SYSTEM_PROMPT}\n\nHeader row (0-based columns):\n${JSON.stringify(header)}\n\nSample data rows:\n${JSON.stringify(sample)}`;
 
+  // Bounded upstream fetch (B3): an abort/network failure degrades to the
+  // "rename your headers" warning with spent=false — never a wall-clock death.
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
   let geminiResp: Response;
   try {
     geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
@@ -270,14 +280,19 @@ async function detectColumns(
           maxOutputTokens: 500,
         },
       }),
+      signal: ac.signal,
     });
-  } catch {
+  } catch (e) {
+    console.error(`[import-schedule] Gemini ${(e as Error).name === "AbortError" ? "timed out" : "network error"}`);
     warnings.push({ code: "column_detect_failed", message: "Column auto-detect is unavailable right now. Rename your headers (Task, Duration, Start, Predecessors) and re-import." });
-    return null;
+    return { mapping: null, spent: false };
+  } finally {
+    clearTimeout(timer);
   }
   if (!geminiResp.ok) {
+    console.error(`[import-schedule] Gemini ${geminiResp.status}`);
     warnings.push({ code: "column_detect_failed", message: "Column auto-detect is unavailable right now. Rename your headers (Task, Duration, Start, Predecessors) and re-import." });
-    return null;
+    return { mapping: null, spent: false };
   }
 
   let raw = "";
@@ -286,11 +301,11 @@ async function detectColumns(
     const candidates = j?.candidates as { content?: { parts?: { text?: string }[] } }[] | undefined;
     raw = candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   } catch {
-    return null;
+    return { mapping: null, spent: true };
   }
 
   let parsed: Record<string, unknown>;
-  try { parsed = JSON.parse(raw) as Record<string, unknown>; } catch { return null; }
+  try { parsed = JSON.parse(raw) as Record<string, unknown>; } catch { return { mapping: null, spent: true }; }
 
   const mapping: ColumnMapping = {};
   for (const field of MAP_FIELDS) {
@@ -298,7 +313,7 @@ async function detectColumns(
     const idx = typeof v === "number" ? v : (typeof v === "string" ? parseInt(v, 10) : NaN);
     mapping[field] = Number.isInteger(idx) && idx >= 0 && idx < header.length ? idx : null;
   }
-  return mapping;
+  return { mapping, spent: true };
 }
 
 // ─── MSPDI (MS Project XML) parse ─────────────────────────────────────────
@@ -459,10 +474,21 @@ serve(async (req) => {
       });
     }
 
-    // Meter only now — a real Gemini column-detect call is about to run.
-    const used = await aiUsageIncrement(auth.userId, "schedule_import");
+    // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+    // the precheck-then-charge window (N racing requests at cap-1) to at most
+    // HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+    // master accounts included. rateLimitCount returns the POST-increment count,
+    // so `n - 1 >= HOURLY_LIMIT` denies exactly the (HOURLY_LIMIT + 1)th request.
+    const hourly = await rateLimitCount(`import-schedule:user:${auth.userId}`);
+    if (hourly < 0) return jsonResponse({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
+    if (hourly - 1 >= HOURLY_LIMIT) return jsonResponse({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
+    // Monthly cap PRECHECK — a real Gemini column-detect call is about to run;
+    // the unit is charged only if Gemini answers (audit AI-F8). aiUsageGet
+    // fails CLOSED. Accepted window: N racing requests at cap-1 can overshoot
+    // the cap by N-1, never more.
     const cap = MONTHLY_CAPS[auth.tier].schedule_import;
-    if (used > cap) {
+    const used = await aiUsageGet(auth.userId, "schedule_import");
+    if (used >= cap) {
       return jsonResponse({
         success: false,
         error: `Monthly schedule-import limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
@@ -471,10 +497,15 @@ serve(async (req) => {
       }, 429);
     }
 
-    const result = await parseXlsx(grid);
-    console.log(`[import-schedule] format=xlsx rows=${result.rows.length} cols=${result.rawColumns?.length ?? 0}`);
+    const { result, spent } = await parseXlsx(grid);
+    if (spent) await aiUsageIncrement(auth.userId, "schedule_import");
+    console.log(`[import-schedule] format=xlsx rows=${result.rows.length} cols=${result.rawColumns?.length ?? 0} charged=${spent}`);
     return jsonResponse(result);
   } catch (e) {
-    return jsonResponse({ success: false, error: `Failed to parse schedule: ${(e as Error).message}` }, 500);
+    // The exception text (xlsx parser / upstream detail) stays in the log; the
+    // body is generic (A6 / AI-F16). Nothing inside this try throws a
+    // user-facing message, so there was never anything worth relaying.
+    console.error('[import-schedule] failed', e);
+    return jsonResponse({ success: false, error: 'Failed to parse schedule — check the file and try again.', code: 'parse_failed' }, 500);
   }
 });

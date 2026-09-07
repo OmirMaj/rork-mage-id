@@ -19,11 +19,20 @@
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+// B3 (review 2026-09-04): per-user hourly scan ceiling + bounded upstream
+// fetches. Two Gemini calls run back-to-back (classify → extract), so each
+// gets its own budget well under the 120 s vision ceiling — together they
+// must still fit inside one Edge wall clock. An abort is a CORS 504 with
+// spent=false (no model answer → no charge).
+const HOURLY_LIMIT = 30;
+const CLASSIFY_TIMEOUT_MS = 30_000;
+const EXTRACT_TIMEOUT_MS = 45_000;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -205,9 +214,9 @@ Leave a field empty ("" or []) if not legible. Return JSON only — no preamble.
 
 async function classify(
   parts: Record<string, unknown>[],
-): Promise<{ docType: ScanDocType; confidence: number } | { error: string; status: number }> {
+): Promise<{ docType: ScanDocType; confidence: number } | { error: string; status: number; spent: boolean }> {
   const geminiParts = [{ text: CLASSIFY_PROMPT }, ...parts];
-  const r = await callGemini(geminiParts, 400, 30_000);
+  const r = await callGemini(geminiParts, 400, CLASSIFY_TIMEOUT_MS);
   if ('error' in r) return r;
   const o = r.parsed as Record<string, unknown>;
   const t = String(o.docType ?? 'other');
@@ -229,7 +238,7 @@ async function extract(
   // Invoices/contracts can carry 20+ line items; a 1500-token ceiling truncates
   // the JSON mid-object → parse fails → blank form on the headline use case.
   // Give the structured-output path a wider budget so realistic docs fit.
-  const r = await callGemini(geminiParts, 4000, 45_000);
+  const r = await callGemini(geminiParts, 4000, EXTRACT_TIMEOUT_MS);
   // On ANY extraction failure keep the classification but return empty fields —
   // the client presents an editable blank form and still files the image.
   // Never surface raw model text (may contain PII fragments).
@@ -243,12 +252,13 @@ async function extract(
 
 // Shared Gemini call + JSON parse. NEVER returns raw model text to the caller —
 // on non-JSON it logs a length-only marker server-side and returns a generic
-// error (mirrors scan-credential's PII discipline).
+// error (mirrors scan-credential's PII discipline). `spent` says whether the
+// model answered (2xx) so the handler charges only real spend (audit AI-F8).
 async function callGemini(
   parts: Record<string, unknown>[],
   maxOutputTokens: number,
   timeoutMs: number,
-): Promise<{ parsed: unknown } | { error: string; status: number }> {
+): Promise<{ parsed: unknown } | { error: string; status: number; spent: boolean }> {
   let resp: Response;
   // Bound the upstream call: a stalled Gemini connection (hung TLS, no body)
   // would otherwise block the isolate until the Edge wall-clock limit kills it,
@@ -267,26 +277,29 @@ async function callGemini(
     });
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
-      return { error: 'Gemini timed out', status: 504 };
+      return { error: 'The AI service timed out — please try again.', status: 504, spent: false };
     }
-    return { error: `Gemini network error: ${(e as Error).message}`, status: 502 };
+    console.error('[scan-anything] Gemini network error:', (e as Error).message);
+    return { error: 'The AI service is unreachable — please try again.', status: 502, spent: false };
   } finally {
     clearTimeout(to);
   }
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
-    return { error: `Gemini ${resp.status}: ${text.slice(0, 160)}`, status: 502 };
+    // Upstream text stays server-side (audit AI-F16).
+    console.error(`[scan-anything] Gemini ${resp.status}: ${text.slice(0, 300)}`);
+    return { error: 'The AI service returned an error — please try again.', status: 502, spent: false };
   }
   let j: Record<string, unknown>;
   try { j = await resp.json(); }
-  catch { return { error: 'Gemini returned an unreadable response', status: 502 }; }
+  catch { return { error: 'Gemini returned an unreadable response', status: 502, spent: true }; }
   const candidates = j?.candidates as { content?: { parts?: { text?: string }[] } }[] | undefined;
   const raw = candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   try { return { parsed: JSON.parse(raw) }; }
   catch {
     // Never echo `raw` — an extracted invoice / card / permit may hold PII.
     console.log(`[scan-anything] non-JSON Gemini output (len=${raw.length})`);
-    return { error: 'Gemini returned non-JSON', status: 502 };
+    return { error: 'Gemini returned non-JSON', status: 502, spent: true };
   }
 }
 
@@ -339,11 +352,21 @@ serve(async (req) => {
     }, 413);
   }
 
-  // Meter AFTER validation, BEFORE any Gemini call — a missing / oversized
-  // input where no scan runs must never consume a monthly unit.
-  const used = await aiUsageIncrement(auth.userId, 'scan_anything');
+  // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+  // the precheck-then-charge window (N racing requests at cap-1) to at most
+  // HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+  // master accounts included. rateLimitCount returns the POST-increment count,
+  // so `n - 1 >= HOURLY_LIMIT` denies exactly the (HOURLY_LIMIT + 1)th request.
+  const hourly = await rateLimitCount(`scan-anything:user:${auth.userId}`);
+  if (hourly < 0) return jsonResponse({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
+  if (hourly - 1 >= HOURLY_LIMIT) return jsonResponse({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
+  // Monthly cap PRECHECK after validation (audit AI-F8: the unit is charged
+  // once the classify call answers — see below). A missing / oversized input
+  // where no scan runs never consumes a unit. aiUsageGet fails CLOSED.
+  // Accepted window: N racing requests at cap-1 can overshoot by N-1.
   const cap = MONTHLY_CAPS[auth.tier].scan_anything;
-  if (used > cap) {
+  const used = await aiUsageGet(auth.userId, 'scan_anything');
+  if (used >= cap) {
     return jsonResponse({
       success: false,
       error: `Monthly scan limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
@@ -359,7 +382,15 @@ serve(async (req) => {
 
   // Step 1 — classify.
   const classified = await classify(imageParts);
-  if ('error' in classified) return jsonResponse({ success: false, error: classified.error }, classified.status);
+  if ('error' in classified) {
+    // Charge only if the model answered (spend incurred); a 5xx/timeout is free.
+    if (classified.spent) await aiUsageIncrement(auth.userId, 'scan_anything');
+    return jsonResponse({ success: false, error: classified.error }, classified.status);
+  }
+  // One scan = one unit, charged once the classification succeeded (AI-F8).
+  // The extraction step below is part of the same unit: if it fails the
+  // client still gets the (paid-for) classification with an empty form.
+  await aiUsageIncrement(auth.userId, 'scan_anything');
   const { docType, confidence } = classified;
 
   // Step 2 — GOV-ID SHORT-CIRCUIT. No extraction. The client redirects to the

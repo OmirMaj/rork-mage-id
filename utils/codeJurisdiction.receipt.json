@@ -1,0 +1,1087 @@
+{
+  "$comment": "Evidence that every code edition in utils/codeJurisdiction.ts was read off a page, and by whom. scripts/validate-code-jurisdiction.ts fails ship-check if a row is missing here, is not \"confirmed\", or no longer matches the claim that was verified.  PROVENANCE — this file is NOT all machine-written, and saying otherwise would be the exact defect the module exists to prevent. Read `verifiedBy` on each claim. Entries marked \"scripts/verify-code-sources.ts\" were written by that script from its own fetch, and re-running it rewrites them. Entries marked \"verification sweep 2026-09-07\" were seeded by hand from a 23-jurisdiction verification pass in which agents fetched the pages themselves — through a real browser, curl, pdftotext or the Internet Archive — because several of these sources cannot be fetched by the script at all. `readFrom`, where present, is the URL the evidence was actually read from when that differs from the URL the claim cites (e.g. an Internet Archive capture of a bot-blocked page).  EXPECT verify-code-sources.ts TO REPORT SOME OF THESE UNREACHABLE, FOREVER. dos.ny.gov is behind a Cloudflare interstitial that 403s every script; www.mass.gov 403s automation the same way; dallascityhall.com serves an incomplete TLS chain; and two cited ordinances are 34-44 MB PDFs that can time out. The script treats such a claim as receipted rather than failed when this file already holds a confirmed verdict for it. A MISMATCH is never acceptable.  To regenerate the machine-checkable half: bun run scripts/verify-code-sources.ts",
+  "tool": "scripts/verify-code-sources.ts",
+  "rows": {
+    "state:CA": {
+      "label": "California (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.dgs.ca.gov/BSC/Codes",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "2025",
+          "sourceUrl": "https://www.dgs.ca.gov/BSC/Codes",
+          "claimId": "LOCAL|2025|https://www.dgs.ca.gov/BSC/Codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ndards Commission Codes Codes California Building Standards Code Expand All 2025 Triennial Edition of Title 24 The 2025 Cali"
+        }
+      ]
+    },
+    "state:NY": {
+      "label": "New York (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://dos.ny.gov/division-building-standards-and-codes-frequently-asked-questions",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "2025",
+          "sourceUrl": "https://dos.ny.gov/19-nycrr-part-1219",
+          "claimId": "LOCAL|2025|https://dos.ny.gov/19-nycrr-part-1219",
+          "verifiedBy": "verification sweep 2026-09-07 — a person-driven agent fetched this page (browser / curl / pdftotext), not verify-code-sources.ts",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "New York State has adopted the 2025 Uniform Code of New York State and the 2025 Energy Conservation Construction Code of New York State, based on the 2024 International Code Council (ICC) books with New York State specific amendments included."
+        },
+        {
+          "family": "LOCAL",
+          "edition": "2025",
+          "sourceUrl": "https://dos.ny.gov/system/files/documents/2026/02/19-nycrr-part-1240.pdf",
+          "claimId": "LOCAL|2025|https://dos.ny.gov/system/files/documents/2026/02/19-nycrr-part-1240.pdf",
+          "verifiedBy": "verification sweep 2026-09-07 — a person-driven agent fetched this page (browser / curl / pdftotext), not verify-code-sources.ts",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "The current version of the State Energy Code became effective on December 31, 2025*. The two main documents incorporated by reference are the 2025 Energy Conservation Construction Code of New York State (Publication date, July 2025), typically referred to as the 2025 ECCCNYS"
+        }
+      ]
+    },
+    "state:PA": {
+      "label": "Pennsylvania (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "claimId": "IBC|2021|https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": ") The provisions of Chapters 210, 1229 and 3135 of the International Building Code of 2021, except: (i) In occupancies in Use Group R-3 and"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "claimId": "IRC|2021|https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "on Codes minimum requirements. (iii) {Reserved}. (7) The International Residential Code of 2021, except that: (i) The provisions of R314.4 requir"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "claimId": "IECC|2021|https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "enced by other ICC codes adopted in this chapter. (9) The International Energy Conservation Code of 2021 is adopted as follows: (i) {Reserved}. (ii) {Rese"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "claimId": "IEBC|2021|https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ng for compliance with Section N1101.13.5[.] (10) The International Existing Building Code of 2021 except: (i) The accessibility provisions containe"
+        }
+      ]
+    },
+    "state:WA": {
+      "label": "Washington (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://app.leg.wa.gov/WAC/default.aspx?cite=51-50-003",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://app.leg.wa.gov/WAC/default.aspx?cite=51-50-003",
+          "claimId": "IBC|2021|https://app.leg.wa.gov/WAC/default.aspx?cite=51-50-003",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Print 51-50-002 << 51-50-003 >> 51-50-005 PDF WAC 51-50-003 International Building Code. Agency filings affecting this section The 2021 edition of"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://app.leg.wa.gov/WAC/default.aspx?cite=51-51-003",
+          "claimId": "IRC|2021|https://app.leg.wa.gov/WAC/default.aspx?cite=51-51-003",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Print 51-51-002 << 51-51-003 >> 51-51-007 PDF WAC 51-51-003 International Residential Code. Agency filings affecting this section The 2021 edition of"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://app.leg.wa.gov/WAC/default.aspx?cite=51-11C",
+          "claimId": "IECC|2021|https://app.leg.wa.gov/WAC/default.aspx?cite=51-11C",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "DING CODE ADOPTION AND AMENDMENT OF THE 2021 EDITION OF THE INTERNATIONAL ENERGY CONSERVATION CODE, COMMERCIAL Show dispositions Last update: 11/20/24 HTML ve"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://app.leg.wa.gov/WAC/default.aspx?cite=296-46B-010",
+          "claimId": "NEC|2023|https://app.leg.wa.gov/WAC/default.aspx?cite=296-46B-010",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "this section Adopted standards. (1) The 2023 edition of the National Electrical Code (NFPA 70 - 2023) including Annex A, B, C, and subsequent Er"
+        }
+      ]
+    },
+    "state:FL": {
+      "label": "Florida (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.floridabuilding.org/c/default.aspx",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "8th Edition (2023)",
+          "sourceUrl": "https://www.floridabuilding.org/c/default.aspx",
+          "claimId": "LOCAL|8th Edition (2023)|https://www.floridabuilding.org/c/default.aspx",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "website.... The Effective Date for the Florida Building Code, 8th Edition (2023), is December 31, 2023. ‣ Code Resources for Construction Professionals ‣ Materials related to the"
+        }
+      ]
+    },
+    "state:MA": {
+      "label": "Massachusetts (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "claimId": "IBC|2021|https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "verifiedBy": "verification sweep 2026-09-07 — a person-driven agent fetched this page (browser / curl / pdftotext), not verify-code-sources.ts",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "The tenth edition code is based on modified versions of the following 2021 International Codes (I-Codes) as published by the International Code Council (ICC): International Building Code (IBC) [...] The primary structure of the 10th Edition Building Code is based upon adoption of the 35 chapters and appendices of the 2021 International Building Code (IBC).",
+          "readFrom": "http://web.archive.org/web/20260412201831/https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "claimId": "IRC|2021|https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "verifiedBy": "verification sweep 2026-09-07 — a person-driven agent fetched this page (browser / curl / pdftotext), not verify-code-sources.ts",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "For example, a new chapter 51 has been added, this chapter is entitled the Massachusetts Residential Code and adopts the 2021 International Residential Code with Massachusetts specific amendments.",
+          "readFrom": "http://web.archive.org/web/20260412201831/https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "claimId": "IEBC|2021|https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "verifiedBy": "verification sweep 2026-09-07 — a person-driven agent fetched this page (browser / curl / pdftotext), not verify-code-sources.ts",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "The tenth edition code is based on modified versions of the following 2021 International Codes (I-Codes) as published by the International Code Council (ICC): [...] International Existing Building Code (IEBC)",
+          "readFrom": "http://web.archive.org/web/20260412201831/https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "claimId": "IECC|2021|https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780",
+          "verifiedBy": "verification sweep 2026-09-07 — a person-driven agent fetched this page (browser / curl / pdftotext), not verify-code-sources.ts",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "The tenth edition code is based on modified versions of the following 2021 International Codes (I-Codes) as published by the International Code Council (ICC): [...] International Energy Conservation Code (IECC)",
+          "readFrom": "http://web.archive.org/web/20260412201831/https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780"
+        }
+      ]
+    },
+    "state:VA": {
+      "label": "Virginia (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.dhcd.virginia.gov/codes",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://law.lis.virginia.gov/admincode/title13/agency5/chapter63/section10/",
+          "claimId": "IBC|2021|https://law.lis.virginia.gov/admincode/title13/agency5/chapter63/section10/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "1.2 Incorporation by reference. Chapters 2 - 35 of the 2021 International Building Code, published by the International Code Council, Inc., are ado"
+        },
+        {
+          "family": "NEC",
+          "edition": "2020",
+          "sourceUrl": "https://www.dhcd.virginia.gov/codes",
+          "claimId": "NEC|2020|https://www.dhcd.virginia.gov/codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "1 and the 2021 Statewide Fire Prevention Code; and the 2020 National Electrical Code. Click Here Code Development The Virginia Building Codes ar"
+        }
+      ]
+    },
+    "state:GA": {
+      "label": "Georgia (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2024",
+          "sourceUrl": "https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "claimId": "IBC|2024|https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ommunity Affairs. Current Mandatory Codes as Adopted by DCA International Building Code, 2024 Edition, with Georgia Amendments 2026 (PDF, 2.97 MB)"
+        },
+        {
+          "family": "IRC",
+          "edition": "2024",
+          "sourceUrl": "https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "claimId": "IRC|2024|https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": ", 2024 Edition, with Georgia Amendments 2026 (PDF, 2.97 MB) International Residential Code, 2024 Edition, with Georgia Amendments 2026 (PDF, 4.4 MB) I"
+        },
+        {
+          "family": "IECC",
+          "edition": "2015",
+          "sourceUrl": "https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "claimId": "IECC|2015|https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "2023 Edition, with Georgia Amendments 2026 (PDF, 311.86 KB) International Energy Conservation Code, 2015 Edition, with Georgia Supplements and Amendments 2020"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "claimId": "NEC|2023|https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "2024 Edition, with Georgia Amendments 2026 (PDF, 258.96 KB) National Electrical Code, 2023 Edition, with Georgia Amendments 2026 (PDF, 311.86 KB"
+        }
+      ]
+    },
+    "state:OH": {
+      "label": "Ohio (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "claimId": "IBC|2021|https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "doption format Adoption by reference – 2021 ICC model codes IBC, IMC, IPC, IFGC, IECC and IEBC Rules of construction Reduce"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "claimId": "IEBC|2021|https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "erence – 2021 ICC model codes IBC, IMC, IPC, IFGC, IECC and IEBC Rules of construction Reduce duplication and Regulatory Res"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "claimId": "IECC|2021|https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "on by reference – 2021 ICC model codes IBC, IMC, IPC, IFGC, IECC and IEBC Rules of construction Reduce duplication and Regul"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "claimId": "NEC|2023|https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "tic 9 9 2024 OHIO BUILDING CODE • Chapter 27 – Electrical - NFPA 70 - 2023 • Chapter 28 – Mechanical Systems - OMC - 2024 • Cha"
+        }
+      ]
+    },
+    "state:NJ": {
+      "label": "New Jersey (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2024",
+          "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "claimId": "IBC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "AC 5:23 ) Adoption Date BUILDING SUBCODE ( NJAC 5:23-3.14 ) International Building Code/2024 (NJ ed, coming soon) * Corrected pages (NJ errata) - N"
+        },
+        {
+          "family": "IRC",
+          "edition": "2024",
+          "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "claimId": "IRC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "026 ONE- AND TWO-FAMILY DWELLING SUBCODE ( NJAC 5:23-3.21 ) International Residential Code/2024 NJ ed * Corrected pages (NJ errata) - N/A * Corrected"
+        },
+        {
+          "family": "IECC",
+          "edition": "2024",
+          "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "claimId": "IECC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "* TIA 1 - 13 Aug 17, 2026 ENERGY SUBCODE ( NJAC 5:23-3.18 ) International Energy Conservation Code/2024 (Low-Rise Residential) ASHRAE 90.1-2022 (Commercial &"
+        },
+        {
+          "family": "IMC",
+          "edition": "2024",
+          "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "claimId": "IMC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "dential) Aug 17, 2026 MECHANICAL SUBCODE ( NJAC 5:23-3.20 ) International Mechanical Code/2024 Aug 17, 2026 ONE- AND TWO-FAMILY DWELLING SUBCODE ( NJ"
+        },
+        {
+          "family": "IFGC",
+          "edition": "2024",
+          "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "claimId": "IFGC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "024; etc.) Aug 17, 2026 FUEL GAS SUBCODE ( NJAC 5:23-3.22 ) International Fuel Gas Code/2024 Aug 17, 2026 REHABILITATION SUBCODE (NJAC 5:23-6) NJUC"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "claimId": "NEC|2023|https://www.nj.gov/dca/codes/codreg/current.shtml",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "errata) Aug 17, 2026 ELECTRICAL SUBCODE ( NJAC 5:23-3.16 ) National Electrical Code (NFPA 70)/2023 (link also provides access to all NFPA stand"
+        }
+      ]
+    },
+    "state:MN": {
+      "label": "Minnesota (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.dli.mn.gov/sites/default/files/pdf/fs-2020-residential-code.pdf",
+      "codes": [
+        {
+          "family": "IRC",
+          "edition": "2018",
+          "sourceUrl": "https://www.revisor.mn.gov/rules/1309.0010/",
+          "claimId": "IRC|2018|https://www.revisor.mn.gov/rules/1309.0010/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "sion List Part 1309.0010 Version List 1309.0010 ADOPTION OF INTERNATIONAL RESIDENTIAL CODE (IRC) BY REFERENCE. § Subpart 1. Generally. The 2018 editio"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://www.revisor.mn.gov/rules/1315.0200/",
+          "claimId": "NEC|2023|https://www.revisor.mn.gov/rules/1315.0200/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "y with the regulations contained in the 2023 edition of the National Electrical Code (NEC) as approved by the American National Standards Instit"
+        }
+      ]
+    },
+    "state:NC": {
+      "label": "North Carolina (state)",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.ncosfm.gov/codes/codes-current-and-past",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "2018",
+          "sourceUrl": "https://www.ncosfm.gov/codes/codes-current-and-past",
+          "claimId": "LOCAL|2018|https://www.ncosfm.gov/codes/codes-current-and-past",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Commission links to the 2024 North Carolina State Building Code Current Codes 2018 Codes The 2018 NC Codes (Effective 1/1/2"
+        }
+      ]
+    },
+    "city:NY:new york city": {
+      "label": "New York City, NY",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "2022",
+          "sourceUrl": "https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page",
+          "claimId": "LOCAL|2022|https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "DOB Tenant Property or Business Owner Industry Safety Codes Code Development NYC Codes Sustainability Reference Select 2022"
+        }
+      ]
+    },
+    "city:CA:san francisco": {
+      "label": "San Francisco, CA",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.sf.gov/resource--2022--current-san-francisco-building-codes",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "2025",
+          "sourceUrl": "https://www.sf.gov/resource--2022--current-san-francisco-building-codes",
+          "claimId": "LOCAL|2025|https://www.sf.gov/resource--2022--current-san-francisco-building-codes",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "st use the 2025 California Codes and the 2025 San Francisco Code Amendments. There is no grace period. Department of Buildin"
+        }
+      ]
+    },
+    "city:WA:seattle": {
+      "label": "Seattle, WA",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.seattle.gov/construction-and-inspections/codes/codes-we-enforce-(a-z)/building-code",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.seattle.gov/construction-and-inspections/codes/codes-we-enforce-(a-z)/building-code",
+          "claimId": "IBC|2021|https://www.seattle.gov/construction-and-inspections/codes/codes-we-enforce-(a-z)/building-code",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "construction of new buildings. Seattle has adopted the 2021 International Building Code, with amendments specific to our city. What It Isn't This c"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://www.seattle.gov/construction-and-inspections/codes/codes-we-enforce-(a-z)/residential-code",
+          "claimId": "IRC|2021|https://www.seattle.gov/construction-and-inspections/codes/codes-we-enforce-(a-z)/residential-code",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "s and with separate entrances. Seattle has adopted the 2021 International Residential Code, with amendments specific to our jurisdiction. What It Isn'"
+        }
+      ]
+    },
+    "city:PA:philadelphia": {
+      "label": "Philadelphia, PA",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "claimId": "IBC|2021|https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "delphia Administrative Code Philadelphia Building Code 2021 International Building Code 1 Philadelphia Residential Code 2021 International Resident"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "claimId": "IRC|2021|https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "national Building Code 1 Philadelphia Residential Code 2021 International Residential Code Philadelphia Mechanical Code 2021 International Mechanical"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "claimId": "IECC|2021|https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ce Building Code Philadelphia Energy Conservation Code 2021 International Energy Conservation Code Philadelphia Fire Code 2018 International Fire Code 2 Phila"
+        },
+        {
+          "family": "NEC",
+          "edition": "2020",
+          "sourceUrl": "https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "claimId": "NEC|2020|https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Existing Building Code 1 Philadelphia Electrical Code 2020 National Electric Code Philadelphia Performance Code 2021 International Performanc"
+        },
+        {
+          "family": "IFC",
+          "edition": "2018",
+          "sourceUrl": "https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "claimId": "IFC|2018|https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "tional Energy Conservation Code Philadelphia Fire Code 2018 International Fire Code 2 Philadelphia Fuel Gas Code 2021 International Fuel Gas Co"
+        }
+      ]
+    },
+    "city:TX:houston": {
+      "label": "Houston, TX",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "claimId": "IBC|2021|https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "No. 2023-907) PDF Exhibit A Houston Amendments to the 2021 International Building Code (IBC) PDF Exhibit B ASCE 7 Supplement to the 2021 Houston B"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "claimId": "IRC|2021|https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ing Code (UPC) PDF Exhibit I Houston Amendments to the 2021 International Residential Code for One- and Two-Family Dwellings (IRC) PDF Exhibit J Houst"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "claimId": "IECC|2021|https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "sidential Code PDF Exhibit C Houston Amendments to the 2021 International Energy Conservation Code (IECC) PDF Exhibit D Administrative Code Provisions for the"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "claimId": "IEBC|2021|https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "cal Code (NEC) PDF Exhibit E Houston Amendments to the 2021 International Existing Building Code (IEBC) PDF Exhibit F Houston Amendments to the 2021 Interna"
+        },
+        {
+          "family": "IFC",
+          "edition": "2021",
+          "sourceUrl": "https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "claimId": "IFC|2021|https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ng Code (IEBC) PDF Exhibit F Houston Amendments to the 2021 International Fire Code (IFC) PDF Exhibit G Houston Amendments to the 2021 Uniform"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "claimId": "NEC|2023|https://www.houstonpermittingcenter.org/building-code-enforcement/code-development",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": ") PDF Exhibit D Administrative Code Provisions for the 2023 National Electrical Code (NEC) PDF Exhibit E Houston Amendments to the 2021 Internat"
+        }
+      ]
+    },
+    "city:AZ:phoenix": {
+      "label": "Phoenix, AZ",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2024",
+          "sourceUrl": "https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "claimId": "IBC|2024|https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "he referenced ICC A117.1-2017 as scoped in the amended 2024 International Building Code as well as the 2010 ADA Standards for Accessible Design. \\r"
+        },
+        {
+          "family": "IRC",
+          "edition": "2024",
+          "sourceUrl": "https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "claimId": "IRC|2024|https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "nternational Building Code (IBC), including Appendix E 2024 International Residential Code (IRC), including Appendices BA, BB, BF, BG, BI, BJ, BO, CA,"
+        },
+        {
+          "family": "IECC",
+          "edition": "2024",
+          "sourceUrl": "https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "claimId": "IECC|2024|https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "cal Code (IMC) 2024 International Fuel gas Code (IFGC) 2024 International Energy Conservation Code (IECC) 2024 International Existing Building Code (IEBC) 202"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "claimId": "NEC|2023|https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "bing Code (UPC), including Appendices A, B, C, I and M 2023 National Electrical Code (NEC) 2022 ASME A17.1, Safety Code for Elevators and Escala"
+        }
+      ]
+    },
+    "city:CO:denver": {
+      "label": "Denver, CO",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2024",
+          "sourceUrl": "https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides",
+          "claimId": "IBC|2024|https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "below will take you to an external site hosted by the ICC. International Building Code (IBC): 2018 | 2021 | 2024 International Existing Building C"
+        },
+        {
+          "family": "IRC",
+          "edition": "2024",
+          "sourceUrl": "https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides",
+          "claimId": "IRC|2024|https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "024 International Mechanical Code (IMC): 2018 | 2021 | 2024 International Residential Code (IRC): 2018 | 2021 | 2024 International Fuel Gas Code (IFGC"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides",
+          "claimId": "IECC|2021|https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "21 | 2024 International Fire Code (IFC): 2018 | 2021 | 2024 International Energy Conservation Code (IECC): 2018 | 2021 Denver also adopts and enforces the 202"
+        }
+      ]
+    },
+    "city:FL:miami-dade county": {
+      "label": "Miami-Dade County, FL",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.miamidade.gov/global/economy/building/home.page",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "8th Edition (2023)",
+          "sourceUrl": "https://www.miamidade.gov/global/economy/building/home.page",
+          "claimId": "LOCAL|8th Edition (2023)|https://www.miamidade.gov/global/economy/building/home.page",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Binding Interpretation of the 8th Edition Florida Building Code (2023), Section 110.8.1 (attached), issued by the Building"
+        }
+      ]
+    },
+    "city:IL:chicago": {
+      "label": "Chicago, IL",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2018",
+          "sourceUrl": "https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "claimId": "IBC|2018|https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "9 Chicago Building Code from ICC Chicago Amendments to 2018 International Building Code from American Legal Publishing Additional requirements may"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2018",
+          "sourceUrl": "https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "claimId": "IEBC|2018|https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ing Rehabilitation Code from ICC Chicago Amendments to 2018 International Existing Building Code from American Legal Publishing Minimum Requirements for Exi"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "claimId": "IECC|2021|https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "he Municipal Code and are based on and incorporate the 2021 International Energy Conservation Code , published by the International Code Council (ICC). The Ch"
+        },
+        {
+          "family": "NEC",
+          "edition": "2017",
+          "sourceUrl": "https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "claimId": "NEC|2017|https://www.chicago.gov/city/en/depts/bldgs/provdrs/bldg_code/svcs/chicago_buildingcodeonline.html",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "of the Municipal Code) incorporates provisions of the 2017 National Electrical Code , which is published by the National Fire Protection Associ"
+        }
+      ]
+    },
+    "city:MA:boston": {
+      "label": "Boston, MA",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.sec.state.ma.us/reg_pub/pdf/700/780001.pdf",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.sec.state.ma.us/reg_pub/pdf/700/780001.pdf",
+          "claimId": "IBC|2021|https://www.sec.state.ma.us/reg_pub/pdf/700/780001.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "IONS AND STANDARDS 780 CMR: MASSACHUSETTS AMENDMENTS TO THE INTERNATIONAL BUILDING CODE 2021 CHAPTER 1: SCOPE AND ADMINISTRATION (Unique to Massach"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://www.sec.state.ma.us/reg_pub/pdf/700/780051.pdf",
+          "claimId": "IRC|2021|https://www.sec.state.ma.us/reg_pub/pdf/700/780051.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Standards (\"BBRS\") adopts and incorporates by reference the International Residential Code, 2021 (\"IBC\"), as periodically amended by errata, the follo"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://www.sec.state.ma.us/reg_pub/pdf/700/780034.pdf",
+          "claimId": "IEBC|2021|https://www.sec.state.ma.us/reg_pub/pdf/700/780034.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "rred to as 780 CMR 34.00 101.2 Scope. The provisions of the International Existing Building Code - 2021 shall apply to the repair, alteration, change of occ"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://www.sec.state.ma.us/reg_pub/pdf/700/780051.pdf",
+          "claimId": "IECC|2021|https://www.sec.state.ma.us/reg_pub/pdf/700/780051.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "all be designed and constructed in accordance with the 2021 International Energy Conservation Code (IECC) with Massachusetts Amendments contained herein. 780"
+        }
+      ]
+    },
+    "city:CA:los angeles": {
+      "label": "Los Angeles, CA",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://dbs.lacity.gov/sites/default/files/efs/forms/pc17/26-ord-188797-260108.pdf",
+      "codes": [
+        {
+          "family": "LOCAL",
+          "edition": "2025",
+          "sourceUrl": "https://dbs.lacity.gov/sites/default/files/efs/forms/pc17/26-ord-188797-260108.pdf",
+          "claimId": "LOCAL|2025|https://dbs.lacity.gov/sites/default/files/efs/forms/pc17/26-ord-188797-260108.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ordinance amending Chapter IX of the Los Angeles Municipal Code to incorporate by reference certain portions of the 2025 Ed"
+        }
+      ]
+    },
+    "city:DC:washington dc": {
+      "label": "Washington, DC, DC",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://dob.dc.gov/node/1615636",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2015",
+          "sourceUrl": "https://dob.dc.gov/node/1615636",
+          "claimId": "IBC|2015|https://dob.dc.gov/node/1615636",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Amendments 2017 DCMR 12A, DC Building Code Amendments 2015 International Building Code (IBC) 2017 DCMR 12B, DC Residential Code Amendments 2017 DC"
+        },
+        {
+          "family": "IRC",
+          "edition": "2015",
+          "sourceUrl": "https://dob.dc.gov/node/1615636",
+          "claimId": "IRC|2015|https://dob.dc.gov/node/1615636",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "endments 2017 DCMR 12B, DC Residential Code Amendments 2015 International Residential Code (IRC) 2017 DCMR 12C, DC Electrical Code 2017 DCMR 12C, DC E"
+        },
+        {
+          "family": "NEC",
+          "edition": "2014",
+          "sourceUrl": "https://dob.dc.gov/node/1615636",
+          "claimId": "NEC|2014|https://dob.dc.gov/node/1615636",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "national Code Council (ICC) family of model codes, the 2014 National Electrical Code, and 2013 ASHRAE 90.1, as amended by the District of Columb"
+        }
+      ]
+    },
+    "city:TX:austin": {
+      "label": "Austin, TX",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://www.austintexas.gov/development-services/building-technical-codes",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2024",
+          "sourceUrl": "https://services.austintexas.gov/edims/document.cfm?id=453143",
+          "claimId": "IBC|2024|https://services.austintexas.gov/edims/document.cfm?id=453143",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "INTERNATIONAL BUILDING CODE AND LOCAL AMENDMENTS § 25-12-1 INTERNATIONAL BUILDING CODE. (A) The International Building Code, 2024 Edition, publish"
+        },
+        {
+          "family": "IRC",
+          "edition": "2024",
+          "sourceUrl": "https://services.austintexas.gov/edims/document.cfm?id=450486",
+          "claimId": "IRC|2024|https://services.austintexas.gov/edims/document.cfm?id=450486",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "AL CODE § 25-12-241 INTERNATIONAL RESIDENTIAL CODE. (A) The International Residential Code for One- and Two-Family Dwellings, 2024 Edition, published"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2024",
+          "sourceUrl": "https://services.austintexas.gov/edims/document.cfm?id=453143",
+          "claimId": "IEBC|2024|https://services.austintexas.gov/edims/document.cfm?id=453143",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "E § 25-12-231 INTERNATIONAL EX ST NG BUILD NG CODE. (A) The International Existing Building Code, 2024 Edition, published by the International Code Council"
+        },
+        {
+          "family": "IECC",
+          "edition": "2024",
+          "sourceUrl": "https://services.austintexas.gov/edims/document.cfm?id=452785",
+          "claimId": "IECC|2024|https://services.austintexas.gov/edims/document.cfm?id=452785",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "12 to read as follows: ARTICLE 4. ENERGY CODE. § 25-12-261 INTERNATIONAL ENERGY CONSERVATION CODE. (A) The International Energy Conservation Code, 2024 Editi"
+        },
+        {
+          "family": "IFC",
+          "edition": "2024",
+          "sourceUrl": "https://www.austintexas.gov/fire/fire-building-code",
+          "claimId": "IFC|2024|https://www.austintexas.gov/fire/fire-building-code",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "0, 2025, the City of Austin adopted the 2024 edition of the International Fire Code with local amendments. Austin Fire is revising and updating"
+        }
+      ]
+    },
+    "city:TX:san antonio": {
+      "label": "San Antonio, TX",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2024",
+          "sourceUrl": "https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "claimId": "IBC|2024|https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "rovisions and reflects adoption of the 2024 editions of the International Building Code, International Residential Code for One and Two-Family Dwel"
+        },
+        {
+          "family": "IRC",
+          "edition": "2024",
+          "sourceUrl": "https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "claimId": "IRC|2024|https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "on of the 2024 editions of the International Building Code, International Residential Code for One and Two-Family Dwellings, International Mechanical"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2024",
+          "sourceUrl": "https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "claimId": "IEBC|2024|https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Building Code, 2024 edition, as amended by the city. IEBC. International Existing Building Code, 2024 edition, as amended by the city. IECC. International"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "claimId": "IECC|2021|https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "ational Swimming Pool and Spa Code, the 2021 edition of the International Energy Conservation Code, and the 2023 edition of the National Electrical Code and t"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://mcclibraryfunctions.azurewebsites.us/api/ordinanceDownload/11508/1339820/pdf",
+          "claimId": "NEC|2023|https://mcclibraryfunctions.azurewebsites.us/api/ordinanceDownload/11508/1339820/pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "CODE COUNCIL, INC. (ICC), BUILDING- RELATED CODES, THE 2023 NATIONAL ELECTRICAL CODE, THE 2024 EDITION OF THE ICC INTERNATIONAL FIRE CODE AND AP"
+        }
+      ]
+    },
+    "city:TX:dallas": {
+      "label": "Dallas, TX",
+      "verifiedOn": "2026-09-07",
+      "checkedOn": "2026-09-07",
+      "sourceUrl": "https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "claimId": "IBC|2021|https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "Construction Codes of the Dallas City Code CHAPTER 53: 2021 International Building Code with Dallas Amendment s CHAPTER 54: 2021 International Plum"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "claimId": "IRC|2021|https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "allas Amendments (effective June 13, 2022) CHAPTER 57: 2021 International Residential Code with Dallas Amendments - Dallas Amendment: Ordinance 33099"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "claimId": "IEBC|2021|https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "dments - Dallas Amendment: Ordinance 33099 CHAPTER 58: 2021 International Existing Building Code with Dallas Amendments (effective June 13, 2022) CHAPTER 59"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "claimId": "IECC|2021|https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "allas Amendments (effective June 13, 2022) CHAPTER 59: 2021 International Energy Conservation Code with Dallas Amendments CHAPTER 60: 2021 International Fuel"
+        },
+        {
+          "family": "IFC",
+          "edition": "2021",
+          "sourceUrl": "https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "claimId": "IFC|2021|https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "l Code Council codes are effective as of May 12, 2023. 2021 International Fire Code Chapter 16 Dallas Fire Code Amendment is effective as of Fe"
+        },
+        {
+          "family": "NEC",
+          "edition": "2023",
+          "sourceUrl": "https://web.archive.org/web/20260513201721/https://dallascityhall.com/departments/pnv/Documents/AH%20Memos/Chapter%2056%20Amendment,%20Dallas%20Electrical%20Code,.pdf",
+          "claimId": "NEC|2023|https://web.archive.org/web/20260513201721/https://dallascityhall.com/departments/pnv/Documents/AH%20Memos/Chapter%2056%20Amendment,%20Dallas%20Electrical%20Code,.pdf",
+          "verifiedBy": "coordinator, by hand, 2026-09-07 — downloaded the ordinance with curl (HTTP 200, application/pdf, 1,715,246 bytes) and read it with pdftotext -layout. node's fetch gets an HTML 503 from web.archive.org for the same URL, which is why verify-code-sources.ts reports this one unreachable and will keep doing so.",
+          "verifiedOn": "2026-09-07",
+          "verdict": "confirmed",
+          "evidence": "\"An ordinance amending Chapter 56, 'Dallas Electrical Code,' of the Dallas City Code, as amended, adopting with certain changes the 2023 Edition of the National Electrical Code of the National Fire Protection Association, Inc.\" — and, page 3: \"Pages 70-1, 70-2, and 70-10 through 70-23 of the 2023 National Electrical Code\". EXECUTED, not a draft: ordinance number 33081 is stamped in the margin on five pages, the signature block reads \"Passed APR 2 8 2025\", and the City Secretary's \"PROOF OF PUBLICATION - LEGAL ADVERTISING\" page gives \"DATE ADOPTED BY CITY COUNCIL / APR 2 8 2025\". Checked specifically because this row twice shipped a wrong NEC edition.",
+          "readFrom": "https://web.archive.org/web/20260513201721/https://dallascityhall.com/departments/pnv/Documents/AH%20Memos/Chapter%2056%20Amendment,%20Dallas%20Electrical%20Code,.pdf"
+        }
+      ]
+    }
+  }
+}

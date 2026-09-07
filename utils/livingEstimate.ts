@@ -122,9 +122,14 @@ function buyoutVariance(
       untraced += 1;
       continue;
     }
+    // MONEY-F11: COST basis — unitPrice × quantity — not `lineTotal`, which is
+    // the marked-up SELL figure. Commitments are at cost, so comparing them to
+    // sell made a sub signed EXACTLY at the estimate read as a "favorable
+    // buyout" by the markup, with an equal and opposite fake "cost growth"
+    // driver. Same basis as utils/estimateActuals and the job-cost budget.
     const estimatedCost = links.reduce((s, id) => {
       const item = estimate.items.find(it => it.materialId === id);
-      return s + (item?.lineTotal ?? 0);
+      return s + (item ? (item.unitPrice ?? 0) * (item.quantity ?? 0) : 0);
     }, 0);
     if (estimatedCost <= 0) {
       untraced += 1;

@@ -40,6 +40,7 @@ import {
   type SharedSchedulePayload,
 } from '@/utils/scheduleOps';
 import { addWorkingDays, formatShortDate } from '@/utils/scheduleEngine';
+import { parseCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
 import { SubDailyUpdateModal } from '@/components/SubDailyUpdateModal';
 import { appendSubUpdate, loadSubUpdates, rollupLatest } from '@/utils/subScheduleUpdatesStorage';
 import { supabase } from '@/lib/supabase';
@@ -84,8 +85,12 @@ export default function SharedScheduleScreen() {
   const payload = inlinePayload ?? snapshotPayload;
   const tasks = useMemo(() => payload ? tasksFromSharePayload(payload) : [], [payload]);
   const cpm = useMemo(() => runCpm(tasks), [tasks]);
+  // UX-F2: the payload carries the schedule's calendar day ('YYYY-MM-DD';
+  // older tokens carry a full instant, which parseCalendarDay truncates to its
+  // date part). new Date() of the bare form is UTC midnight — the homeowner
+  // saw every task a day early west of Greenwich.
   const projectStartDate = useMemo(
-    () => payload ? new Date(payload.projectStartISO) : new Date(),
+    () => payload ? (parseCalendarDay(payload.projectStartISO) ?? new Date(payload.projectStartISO)) : new Date(),
     [payload],
   );
 
@@ -275,7 +280,7 @@ export default function SharedScheduleScreen() {
       {isSubMode ? (
         subTasks.length === 0 ? (
           <View style={[styles.body, styles.centered]}>
-            <AlertCircle size={28} color={Colors.warning} strokeWidth={1.75} />
+            <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.title}>No tasks assigned to {subName}</Text>
             <Text style={styles.body}>
               The schedule was shared with you but no tasks are tagged for {subName}. Reach out to the GC if you think this is wrong.
@@ -324,8 +329,8 @@ export default function SharedScheduleScreen() {
                       activeOpacity={0.85}
                       testID={`sub-reschedule-${task.id}`}
                     >
-                      <CalendarClock size={14} color={Colors.warning} strokeWidth={1.75} />
-                      <Text style={[styles.subBtnText, { color: Colors.warning }]}>Reschedule</Text>
+                      <CalendarClock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+                      <Text style={[styles.subBtnText, { color: Colors.warningLabel }]}>Reschedule</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -340,7 +345,7 @@ export default function SharedScheduleScreen() {
                           <View style={styles.subUpdateChip}>
                             <Activity size={11} color={themeColors.success} strokeWidth={1.75} />
                             <Text style={styles.subUpdateChipText}>
-                              {last.progressPercent}% on {new Date(last.forDate).toLocaleDateString()}
+                              {last.progressPercent}% on {formatCalendarDay(last.forDate)}
                             </Text>
                           </View>
                         )}

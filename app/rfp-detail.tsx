@@ -10,7 +10,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, Linking, Alert, TextInput, Platform,
+  ActivityIndicator, Linking, TextInput,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +31,8 @@ import { formatMoney } from '@/utils/formatters';
 import { fetchBidQuestions, askBidQuestion, answerBidQuestion, type BidQuestion } from '@/utils/bidQuestionsEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { showAlert } from '@/utils/alert';
+import { showAlert, showPrompt } from '@/utils/alert';
+import { formatCalendarDay } from '@/utils/calendarDate';
 
 interface RfpRow {
   id: string;
@@ -160,15 +161,11 @@ export default function RfpDetailScreen() {
         showAlert('Could not post', e instanceof Error ? e.message : 'Try again.');
       }
     };
-    if (Platform.OS === 'web' || !(Alert as any).prompt) {
-      // Alert.prompt is iOS-only; provide a window.prompt fallback so
-      // homeowners on Android / web can still answer questions.
-      const text = window.prompt(`Reply to: "${q.question}"`, q.answer ?? '');
-      if (text == null) return;
-      void persist(text);
-      return;
-    }
-    (Alert as any).prompt(
+    // UX-F17: RN's Alert.prompt is a no-op on Android (defined, does nothing),
+    // and the old `window.prompt` branch never ran there because the method
+    // exists. showPrompt renders the themed modal on Android and web and
+    // delegates to the native sheet on iOS.
+    showPrompt(
       'Answer',
       `Reply to: "${q.question}"`,
       (text: string) => { if (text != null) void persist(text); },
@@ -243,7 +240,7 @@ export default function RfpDetailScreen() {
   if (!bidId) {
     return renderShell('Project not found', (
       <>
-        <AlertTriangle size={22} color={Colors.warning} strokeWidth={1.75} />
+        <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>We could not open that link</Text>
         <Text style={styles.stateText}>
           It is missing a project reference. Open the project again from your MAGE ID Bids tab.
@@ -267,7 +264,7 @@ export default function RfpDetailScreen() {
   if (loadFailed) {
     return renderShell('Could not load', (
       <>
-        <AlertTriangle size={22} color={Colors.warning} strokeWidth={1.75} />
+        <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>We could not load this project</Text>
         <Text style={styles.stateText}>
           You may be offline or on a weak connection. Nothing was lost.
@@ -373,8 +370,8 @@ export default function RfpDetailScreen() {
             )}
             {!rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: Colors.warning + '15' }]}>
-                <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: Colors.warning }]}>UNVERIFIED ADDRESS</Text>
+                <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />
+                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>UNVERIFIED ADDRESS</Text>
               </View>
             )}
           </View>
@@ -406,7 +403,7 @@ export default function RfpDetailScreen() {
           <View style={styles.cardRow}>
             <Calendar size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.cardRowText}>
-              Bids due {new Date(rfp.deadline).toLocaleDateString()}
+              Bids due {formatCalendarDay(rfp.deadline)}
             </Text>
           </View>
         </View>

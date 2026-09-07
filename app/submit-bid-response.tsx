@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Send, DollarSign, MessageSquare, Eye,
-  AlertTriangle, FileText, Check, CheckCircle2, Lock, ArrowRight,
+  AlertTriangle, FileText, Check, CheckCircle2, Lock, ArrowRight, RefreshCw,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -38,6 +38,7 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 // Free/Pro contractors get a monthly cap on marketplace bid responses;
 // Business+ (the 'unlimited_bid_responses' FeatureKey) is uncapped. There
@@ -99,6 +100,7 @@ export default function SubmitBidResponseScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const goBack = useSafeBack(); // UX-F18: pushed from rfp-detail and from notifications
   const { user } = useAuth();
   const { companies } = useCompanies();
   const { settings, addLead, projects, getCommitmentsForProject } = useProjects() as any;
@@ -141,15 +143,18 @@ export default function SubmitBidResponseScreen() {
   const [selectedTier, setSelectedTier] = useState<ProposalTierKey>('better');
   const [generating, setGenerating]     = useState(false);
 
-  const { data: rfp, isLoading } = useQuery({
+  const { data: rfp, isLoading, isError, isFetching, fetchStatus, refetch } = useQuery({
     queryKey: ['rfp-summary', bidId],
     enabled: !!bidId && isSupabaseConfigured,
     queryFn: async (): Promise<RfpRow | null> => {
+      // UX-F5: maybeSingle + throw, mirroring app/rfp-detail.tsx. `.single()`
+      // + `return null` collapsed "the network is down" and "this RFP is gone"
+      // into one value that could never surface a retry.
       const { data, error: e } = await supabase
         .from('public_bids')
         .select('id,title,user_id,status,is_homeowner_rfp,city,state,category,scope_description,budget_min,budget_max')
-        .eq('id', bidId).single();
-      if (e) return null;
+        .eq('id', bidId).maybeSingle();
+      if (e) throw new Error(e.message || 'Could not load this project.');
       return data;
     },
   });
@@ -366,7 +371,7 @@ export default function SubmitBidResponseScreen() {
         viewSiteFirst
           ? 'The homeowner will see your site-visit request and reach out if they want to schedule. We added it to your Leads pipeline.'
           : 'The homeowner will review your estimate. You\'ll be notified if they shortlist or award you. We added it to your Leads pipeline.',
-        [{ text: 'OK', onPress: () => router.back() }],
+        [{ text: 'OK', onPress: goBack }],
       );
     } catch (e) {
       console.warn('[submit-bid-response] failed', e);
@@ -375,15 +380,90 @@ export default function SubmitBidResponseScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, user, bidId, rfp, company, viewSiteFirst, estimateAmount, estimateSummary, message, proposal, addLead, router, unlimitedBids]);
+  }, [validate, user, bidId, rfp, company, viewSiteFirst, estimateAmount, estimateSummary, message, proposal, addLead, router, unlimitedBids, goBack]);
 
-  if (isLoading || !rfp) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="small" color={themeColors.accent} />
+  // UX-F5: the single `isLoading || !rfp` branch this replaces rendered a bare
+  // spinner under headerShown:false — no text, no retry, no Back — and with a
+  // deleted/closed RFP, a disabled query (no bidId) or an offline first open it
+  // was permanent. Same shell as app/rfp-detail.tsx.
+  const renderShell = (heading: string, body: React.ReactNode) => (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={goBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.eyebrow}>Submit your bid</Text>
+          <Text style={styles.title} numberOfLines={2}>{heading}</Text>
+        </View>
       </View>
-    );
+      <View style={styles.stateWrap}>{body}</View>
+    </View>
+  );
+
+  if (!bidId) {
+    return renderShell('Project not found', (
+      <>
+        <AlertTriangle size={22} color={themeColors.warningLabel} strokeWidth={1.75} />
+        <Text style={styles.stateTitle}>We could not open that link</Text>
+        <Text style={styles.stateText}>It is missing a project reference. Open the project again from your MAGE ID Bids tab.</Text>
+        <TouchableOpacity style={styles.stateBtn} onPress={goBack} accessibilityRole="button" testID="submit-bid-back">
+          <Text style={styles.stateBtnText}>Go back</Text>
+        </TouchableOpacity>
+      </>
+    ));
+  }
+
+  if (isLoading) {
+    return renderShell('Loading', (
+      <>
+        <ActivityIndicator size="small" color={themeColors.accent} />
+        <Text style={styles.stateText}>Loading this project...</Text>
+      </>
+    ));
+  }
+
+  // fetchStatus 'paused' = retries stalled for lack of network (offlineFirst),
+  // not loading; `&& !rfp` keeps a loaded project on screen through a failed
+  // background refetch.
+  if ((!rfp && (isError || fetchStatus === 'paused')) || !isSupabaseConfigured) {
+    return renderShell('Could not load', (
+      <>
+        <AlertTriangle size={22} color={themeColors.warningLabel} strokeWidth={1.75} />
+        <Text style={styles.stateTitle}>We could not load this project</Text>
+        <Text style={styles.stateText}>You may be offline or on a weak connection. Nothing was lost.</Text>
+        <TouchableOpacity
+          style={[styles.stateBtn, isFetching && { opacity: 0.5 }]}
+          onPress={() => { void refetch(); }}
+          disabled={isFetching}
+          accessibilityRole="button"
+          testID="submit-bid-retry"
+        >
+          {isFetching ? (
+            <ActivityIndicator size="small" color={themeColors.accent} />
+          ) : (
+            <>
+              <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.stateBtnText}>Try again</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </>
+    ));
+  }
+
+  if (!rfp) {
+    return renderShell('No longer open', (
+      <>
+        <FileText size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+        <Text style={styles.stateTitle}>This project is no longer open for bids</Text>
+        <Text style={styles.stateText}>The homeowner may have closed or awarded it. Nothing you typed was sent.</Text>
+        <TouchableOpacity style={styles.stateBtn} onPress={goBack} accessibilityRole="button" testID="submit-bid-back">
+          <Text style={styles.stateBtnText}>Go back</Text>
+        </TouchableOpacity>
+      </>
+    ));
   }
 
   return (
@@ -391,7 +471,7 @@ export default function SubmitBidResponseScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={goBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -645,6 +725,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
   title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
+
+  // Non-success shell states (UX-F5) — same idiom as app/rfp-detail.tsx.
+  stateWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 10 },
+  stateTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, textAlign: 'center' },
+  stateText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19 },
+  stateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 6, paddingHorizontal: 18, paddingVertical: 11,
+    borderRadius: Tokens.radius.md, backgroundColor: Colors.card,
+    borderWidth: 1, borderColor: t.line, minWidth: 132, minHeight: 42,
+  },
+  stateBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,

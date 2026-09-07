@@ -11,7 +11,7 @@ import CraneLoader from "@/components/CraneLoader";
 import DesktopSidebar from "@/components/DesktopSidebar";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
+import { ProjectProvider, useProjects, useProjectActions } from "@/contexts/ProjectContext";
 import { SafetyProvider } from "@/contexts/SafetyContext";
 import { CrewProvider } from "@/contexts/CrewContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
@@ -45,6 +45,7 @@ import { pathToDocumentTitle } from '@/utils/routeTitle';
 import { AutonomyProvider } from '@/hooks/useAutonomy';
 import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
 import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
 // goes through utils/alert.ts showAlert/showPrompt, which renders a real
@@ -61,27 +62,33 @@ if (__DEV__) {
   LogBox.ignoreAllLogs();
 }
 
+// UX-F18 — deliberately NO `unstable_settings = { initialRouteName: '(tabs)' }`
+// here. Expo Router 6 honours it (getRoutesCore.js reads `anchor ??
+// initialRouteName`) and it would give a cold-start deep link a parent for Back,
+// but it mounts the tab shell BENEATH every deep-linked route, and /week-close
+// then never settles: WeekCloseCard's useFocusEffect + a second useWeekClose sit
+// under the screen that stamps WEEK_CLOSE_LAST_SEEN_KEY on mount, and the smoke
+// harness hangs past 120 s on that one route (passes in ~3 s without the anchor;
+// A/B'd 2026-09-04, both with and without the ProjectContext changes). Cold-start
+// Back is instead handled per-screen by hooks/useSafeBack.ts (canGoBack() ?
+// back() : replace('/(tabs)/(home)')). Re-add the anchor only after /week-close
+// and the home card stop reacting to each other.
+
 
 /**
- * Title style for the NATIVE stack header, shared by every route that uses one.
+ * Title style for the NATIVE stack header — the shared typeface plus a colour.
  *
- * 40 routes previously repeated `{ fontWeight: '700', color: Colors.text }`
- * inline, so the ~40 screens that rely on the native header stayed in system
- * sans while the hand-rolled headers moved to Fraunces — the same "165
- * separately-built screens" inconsistency the type pass exists to remove.
+ * The typeface itself now lives in constants/navigation.ts so the ~27 screens
+ * that declare their OWN headerTitleStyle can spread it without importing this
+ * route module. See that file for why they each need it (React Navigation
+ * merges screen options shallowly, so an override replaces this wholesale).
  *
- * Written out longhand rather than spreading Type.serifHeadline because
- * @react-navigation/native-stack only honours fontFamily / fontSize /
- * fontWeight / color here; lineHeight and letterSpacing are silently dropped,
- * so spreading the token would imply precision the platform ignores.
- *
- * 17pt is the native header size — serifHeadline's 22 is for in-page headers
- * that own the whole row. No fontWeight: Fraunces_700Bold already carries it,
- * and doubling up makes the platform synthesise a fake bold over a real one.
+ * `Colors.text` is read at module-load and therefore frozen to the light
+ * theme; that is pre-existing on the 41 routes that pass this object, and it is
+ * why the Stack DEFAULT below uses the colourless face instead.
  */
 const NATIVE_HEADER_TITLE = {
-  fontFamily: 'Fraunces_700Bold',
-  fontSize: 17,
+  ...NATIVE_HEADER_TITLE_FACE,
   color: Colors.text,
 } as const;
 
@@ -191,7 +198,7 @@ const queryClient = new QueryClient({
 // requesting a magic link), then exchanges the tokens for a session.
 // Runs at the root so it's mounted before any auth-gated screen.
 function MagicLinkHandler() {
-  const { onNewSessionEstablished } = useAuth();
+  const { onNewSessionEstablished, beginSessionFromToken } = useAuth();
   useEffect(() => {
     // Helper: pull access_token + refresh_token out of the URL hash
     // (Supabase puts them in `#access_token=...&refresh_token=...`).
@@ -210,6 +217,13 @@ function MagicLinkHandler() {
           return;
         }
         if (!accessToken) return;
+        // SYNC-F13: the token's claims name the arriving account. When it is
+        // not the last user on this device, the previous tenant's pending
+        // writes are flushed under THEIR still-active session and their
+        // caches wiped BEFORE the session switches — the same order the
+        // password/OAuth paths use. Wiping only after setSession let the new
+        // user's first queries merge the previous tenant's local rows.
+        const handoff = await beginSessionFromToken(accessToken);
         const { error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
@@ -223,7 +237,7 @@ function MagicLinkHandler() {
           // the session directly here, bypassing login()/signup(), so
           // without this the previous user's cached projects/DFRs and
           // queued mutations would leak into the new user's session.
-          await onNewSessionEstablished();
+          await onNewSessionEstablished(handoff);
         }
       } catch (e) {
         console.warn('[MagicLink] redeem error:', e);
@@ -239,7 +253,7 @@ function MagicLinkHandler() {
       void tryRedeem(url);
     });
     return () => sub.remove();
-  }, [onNewSessionEstablished]);
+  }, [onNewSessionEstablished, beginSessionFromToken]);
   return null;
 }
 
@@ -263,6 +277,8 @@ function AnalyticsManager() {
 function OfflineSyncManager() {
   const appState = useRef(AppState.currentState);
   const { isAuthenticated } = useAuth();
+  // SYNC-F7: the provider's debounced project syncs, flushed on background.
+  const { flushPendingProjectSyncs } = useProjectActions();
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffMs = useRef(0);
 
@@ -309,8 +325,12 @@ function OfflineSyncManager() {
       void processOfflineQueue().then(async (res) => {
         const photos = await processPhotoUploadQueue().catch((err) => {
           console.log('[OfflineSync] Failed to process photo queue:', err);
-          return { uploaded: 0, failed: 0, remaining: 0 };
+          return { uploaded: 0, failed: 0, remaining: 0, foreign: 0 };
         });
+        // A3 (round 3): `remaining` is each queue's OWN-tenant count. Entries
+        // another session left behind come back as `foreign` and must not
+        // re-arm this backoff — they are the tenant switch's to drop, and no
+        // number of retries under this JWT would ever send them.
         return { processed: res.processed, remaining: res.remaining + photos.remaining };
       }).then(({ processed, remaining }) => {
         if (cancelled) return;
@@ -332,20 +352,51 @@ function OfflineSyncManager() {
 
     drain(true);
 
+    // SYNC-F7: on the way OUT of the foreground, fire every debounced project
+    // sync and drain the queue. iOS freezes JS timers in the background and
+    // may evict the app, so an 800 ms debounce that has not fired yet is an
+    // edit that only this process knows about; the next launch's server-first
+    // load would then overwrite it. Runs on `inactive` too (the state iOS
+    // passes through first) so the writes start as early as possible.
+    const flushOnBackground = (why: string) => {
+      console.log('[OfflineSync] App', why, '— flushing pending syncs + queue');
+      void flushPendingProjectSyncs()
+        .then(() => processOfflineQueue())
+        .catch((err) => console.log('[OfflineSync] Background flush failed:', err));
+    };
+
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+      // Compared, not `.match`ed. `AppState.currentState` is seeded from a
+      // native constant and is NOT guaranteed to be a string — it is null on
+      // Android before the first event, and it is a non-string under the jest
+      // harness. `appState.current.match(...)` then throws inside this
+      // listener, which is the ONE place the app learns it was foregrounded:
+      // the offline queue would never drain on resume and the throw would
+      // escape into RN's event emitter. Reproduced by
+      // __tests__/smoke/foreground-permission.test.tsx.
+      const previous = appState.current;
+      if ((previous === 'inactive' || previous === 'background') && nextState === 'active') {
         console.log('[OfflineSync] App foregrounded, processing queue');
         drain(true);
+      } else if (nextState === 'background' || nextState === 'inactive') {
+        flushOnBackground(nextState);
       }
       appState.current = nextState;
     });
+
+    // Web has no AppState transition for a closing tab; `pagehide` is the last
+    // reliable signal before the page is torn down or frozen (bfcache).
+    const onPageHide = () => flushOnBackground('pagehide');
+    const hasWindow = Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function';
+    if (hasWindow) window.addEventListener('pagehide', onPageHide);
 
     return () => {
       cancelled = true;
       clearRetry();
       subscription.remove();
+      if (hasWindow) window.removeEventListener('pagehide', onPageHide);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, flushPendingProjectSyncs]);
 
   return null;
 }
@@ -561,7 +612,7 @@ function RootLayoutNav() {
         </View>
       )}
       <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerBackTitle: "Back" }}>
+        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
@@ -1293,11 +1344,17 @@ function RootLayoutNav() {
           headerTitleStyle: NATIVE_HEADER_TITLE,
         }}
       />
+      {/* UX-F14: gestureEnabled:false on the three estimate modals — they hold
+          an unsaved multi-step draft with no persistence, and onboarding hands
+          a new GC straight into /estimate-wizard. A natural pull-down while
+          scrolling discarded the first bid with no prompt (same reasoning as
+          schedule-wizard above). */}
       <Stack.Screen
         name="estimate-wizard"
         options={{
           title: "Quick Estimate",
           presentation: "modal",
+          gestureEnabled: false,
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
           headerTitleStyle: NATIVE_HEADER_TITLE,
@@ -1306,8 +1363,8 @@ function RootLayoutNav() {
       {/* judges renders its own in-content header (eyebrow + "Should I bid
           this?" + back chevron) — the route-level nav header doubled it with
           a "Bid Advisor" bar + a dead band (sim-audit #9). */}
-      <Stack.Screen name="judges" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="quick-quote" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="judges" options={{ presentation: "modal", headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="quick-quote" options={{ presentation: "modal", headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="project-scope" options={{ headerShown: false }} />
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
         </Stack>

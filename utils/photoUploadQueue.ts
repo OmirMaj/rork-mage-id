@@ -24,12 +24,27 @@ import { Platform } from 'react-native';
 // are NOT re-exported from the SDK 54 root. Same import the other 13
 // filesystem callsites in this repo already use.
 import * as FileSystem from 'expo-file-system/legacy';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { uploadProjectPhoto } from '@/utils/storage';
+// A4 (round 3): who is signed in comes from the same auth-feed-backed value
+// the text queue uses — never a per-call getSession() that can stall on a
+// captive network — and A1 reads that queue to hold photos whose project row
+// has not been sent yet.
+import {
+  bearerStillLive,
+  currentSessionUserId,
+  doomWatermark,
+  expireDoomedProjectIds,
+  getOfflineQueue,
+  takeDoomedProjectIds,
+  type RetainOptions,
+  type RetainResult,
+} from '@/utils/offlineQueue';
 import {
   PHOTO_QUEUE_KEY,
   PHOTO_MAX_QUEUE,
   PHOTO_MAX_RETRIES,
+  PHOTO_RLS_MAX_RETRIES,
   applyPhotoUploadOutcome,
   classifyPhotoUploadError,
   enqueuePhotoUpload,
@@ -60,13 +75,32 @@ function withQueueLock<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/** The persisted queue, or a THROW if storage could not produce one — the twin
+ *  of offlineQueue.readOfflineQueueOrThrow, and for the same reason (A8): the
+ *  retain path below must be able to tell "storage refused" from "there was
+ *  nothing to keep" before AuthContext stamps the last-user marker over it. */
+async function readPhotoUploadQueueOrThrow(): Promise<PhotoUploadTask[]> {
+  const stored = await AsyncStorage.getItem(PHOTO_QUEUE_KEY);
+  return stored ? (JSON.parse(stored) as PhotoUploadTask[]) : [];
+}
+
 export async function getPhotoUploadQueue(): Promise<PhotoUploadTask[]> {
   try {
-    const stored = await AsyncStorage.getItem(PHOTO_QUEUE_KEY);
-    return stored ? (JSON.parse(stored) as PhotoUploadTask[]) : [];
+    return await readPhotoUploadQueueOrThrow();
   } catch {
     return [];
   }
+}
+
+// A3 (round 3): the photos the CURRENT session can still upload — the twin of
+// offlineQueue.getOwnOfflineQueue, and what a UI must count. The persisted
+// queue can also hold another tenant's tasks (kept for the tenant switch to
+// drop); telling this user "2 photos will be lost" about someone else's
+// jobsite is both wrong and alarming. No session → nothing is anyone's.
+export async function getOwnPhotoUploadQueue(): Promise<PhotoUploadTask[]> {
+  const sessionUserId = await currentSessionUserId();
+  if (!sessionUserId) return [];
+  return (await getPhotoUploadQueue()).filter((t) => t.userId === sessionUserId);
 }
 
 async function setPhotoUploadQueue(queue: PhotoUploadTask[]): Promise<void> {
@@ -99,6 +133,57 @@ async function discardPendingCopy(task: PhotoUploadTask): Promise<void> {
   try {
     await FileSystem.deleteAsync(task.localUri, { idempotent: true });
   } catch {/* ignore — a leftover file is harmless */}
+}
+
+// A2 (round 3): the ONLY way to empty the photo queue — the twin of
+// offlineQueue.clearOfflineQueue. Under the same lock as the flush's
+// write-back, so a flush that outlives the sign-out ceiling cannot read the
+// queue before the wipe and write its snapshot back after it. The durable
+// copies go with their tasks: on a tenant switch they are the previous
+// user's jobsite photos sitting in this app's documents folder.
+export async function clearPhotoUploadQueue(): Promise<void> {
+  const cleared = await withQueueLock(async () => {
+    const current = await getPhotoUploadQueue();
+    await AsyncStorage.removeItem(PHOTO_QUEUE_KEY);
+    return current;
+  });
+  for (const t of cleared) void discardPendingCopy(t);
+}
+
+// Same lock discipline for AuthContext's marker-less keep path: keep only the
+// tasks queued by `userId`, drop (and unlink) the rest. `dropUntagged: false`
+// spares a task with no `userId` at all — see RetainOptions in
+// utils/offlineQueue.ts for when a caller may assert that.
+//
+// (A photo task has carried its uploading user since the queue shipped —
+// queuePhotoUpload refuses one without it — so an untagged task here can only
+// come off a pre-field install. The option exists so both queues answer the
+// arriving session with the same rule, decided in one place.)
+export async function retainPhotoUploadQueueForUser(userId: string, opts: RetainOptions = {}): Promise<RetainResult> {
+  const res = await withQueueLock(async () => {
+    const dropUntagged = opts.dropUntagged ?? true;
+    let current: PhotoUploadTask[];
+    try {
+      current = await readPhotoUploadQueueOrThrow();
+    } catch (err) {
+      // A8: storage refused. Nothing inspected, nothing written, no bytes
+      // unlinked — and the caller is told, so it does not read the zeroes below
+      // as "there was nothing of anyone's here".
+      console.warn('[PhotoQueue] Could not read the queue to narrow it — leaving it untouched:', err);
+      return { gone: [] as PhotoUploadTask[], kept: 0, readFailed: true };
+    }
+    const own = current.filter((t) => t.userId === userId || (!t.userId && !dropUntagged));
+    if (own.length === current.length) return { gone: [] as PhotoUploadTask[], kept: own.length, readFailed: false };
+    if (own.length === 0) await AsyncStorage.removeItem(PHOTO_QUEUE_KEY);
+    else await setPhotoUploadQueue(own);
+    // By identity against what we kept, not by re-testing the predicate: with
+    // `dropUntagged: false` an untagged task passes `t.userId !== userId` too,
+    // and unlinking its bytes is exactly what this call was told not to do.
+    const keptSet = new Set(own);
+    return { gone: current.filter((t) => !keptSet.has(t)), kept: own.length, readFailed: false };
+  });
+  for (const t of res.gone) void discardPendingCopy(t);
+  return { kept: res.kept, dropped: res.gone.length, readFailed: res.readFailed };
 }
 
 /**
@@ -256,21 +341,45 @@ function scheduleOpportunisticDrain(): void {
   }, 1500);
 }
 
+/** What a flush did. `remaining` counts THIS session's photos still queued;
+ *  `foreign` the tasks left untouched because they were queued by someone else
+ *  (or, with no session at all, every task). A3: same contract as
+ *  offlineQueue's FlushResult — the sync manager backs off on `remaining`
+ *  alone, never on another tenant's leftovers. */
+export interface PhotoFlushResult { uploaded: number; failed: number; remaining: number; foreign: number }
+
 // Re-entrancy guard, mirroring offlineQueue.processOfflineQueue. Startup,
 // AppState-foreground and the backoff drain can all fire while a flush is still
 // in its network phase; two overlapping flushes would read the same snapshot
 // and upload the same bytes twice.
-let inFlight: Promise<{ uploaded: number; failed: number; remaining: number }> | null = null;
+let inFlight: Promise<PhotoFlushResult> | null = null;
 
-export function processPhotoUploadQueue(): Promise<{ uploaded: number; failed: number; remaining: number }> {
+export function processPhotoUploadQueue(): Promise<PhotoFlushResult> {
   if (inFlight) return inFlight;
-  inFlight = runPhotoUploadQueue().finally(() => {
-    inFlight = null;
-  });
+  // A8 (review 2026-09-05, round 5): the doomed-project verdict is THIS drain's
+  // to spend. runPhotoUploadQueue takes it only once it has photos of its own
+  // to settle, so on every other path — an empty queue above all, which is the
+  // usual state right after a `projects` insert is refused — it used to be left
+  // behind for good: never shrinking, and still lethal to a photo taken for
+  // that project id long afterwards. The mark is read BEFORE the run so a
+  // verdict recorded while this drain was in its network phase is not spent by
+  // it; that one belongs to the drain that follows.
+  const doomMark = doomWatermark();
+  inFlight = runPhotoUploadQueue()
+    .then((res) => {
+      const spent = expireDoomedProjectIds(doomMark);
+      if (spent.length > 0) {
+        console.log('[PhotoQueue] Verdict spent: no queued photos for', spent.length, 'doomed project(s)');
+      }
+      return res;
+    })
+    .finally(() => {
+      inFlight = null;
+    });
   return inFlight;
 }
 
-async function runPhotoUploadQueue(): Promise<{ uploaded: number; failed: number; remaining: number }> {
+async function runPhotoUploadQueue(): Promise<PhotoFlushResult> {
   // Lower the flag BEFORE the snapshot read below, never after. A photo
   // enqueued in the gap is then double-counted — it is in our snapshot AND
   // re-raises the flag — which costs one extra flush that finds an empty queue
@@ -280,28 +389,94 @@ async function runPhotoUploadQueue(): Promise<{ uploaded: number; failed: number
   // direction here; photos are legal documentation on a job.
   photoQueuedSinceSnapshot = false;
 
-  if (!isSupabaseConfigured) return { uploaded: 0, failed: 0, remaining: 0 };
+  if (!isSupabaseConfigured) return { uploaded: 0, failed: 0, remaining: 0, foreign: 0 };
 
   const queue = await getPhotoUploadQueue();
-  if (queue.length === 0) return { uploaded: 0, failed: 0, remaining: 0 };
+  if (queue.length === 0) return { uploaded: 0, failed: 0, remaining: 0, foreign: 0 };
 
   // A signed-out device must not fire uploads that will all 401 and burn the
   // retry budget — leave everything queued until a session exists.
-  try {
-    const { data } = await supabase.auth.getSession();
-    if (!data?.session) return { uploaded: 0, failed: 0, remaining: queue.length };
-  } catch {
-    return { uploaded: 0, failed: 0, remaining: queue.length };
+  //
+  // B1 (review 2026-09-05): and the flush is bound to THAT session. Every task
+  // names its uploading user (folder[1] of the storage path, which RLS
+  // enforces), so a task queued by anyone but the session user is left in
+  // storage untouched — never pushed under the next tenant's JWT on a shared
+  // device — and the session is re-read before every batch: the moment it ends
+  // or changes hands, dispatch stops and the rest stays queued, nothing
+  // dropped. AuthContext's sign-in paths drop a previous tenant's queue on the
+  // tenant switch; this is what keeps the window before that drop closed.
+  const sessionUserId = await currentSessionUserId();
+  if (!sessionUserId) return { uploaded: 0, failed: 0, remaining: 0, foreign: queue.length };
+
+  // A3: ours vs. not ours, for whichever list is persisted at the time.
+  const splitOwn = (tasks: readonly PhotoUploadTask[]): { remaining: number; foreign: number } => {
+    let own = 0;
+    for (const t of tasks) if (t.userId === sessionUserId) own++;
+    return { remaining: own, foreign: tasks.length - own };
+  };
+
+  const own = sortPhotoQueue(queue).filter((t) => t.userId === sessionUserId);
+  if (own.length < queue.length) {
+    console.log('[PhotoQueue] Skipping', queue.length - own.length, 'queued photo(s) that belong to another session');
+  }
+  if (own.length === 0) return { uploaded: 0, failed: 0, ...splitOwn(queue) };
+
+  // A7 (round 4): the projects the text flush just dropped for good — its
+  // verdict, handed over through utils/offlineQueue.takeDoomedProjectIds()
+  // because that module cannot import this one. `projects` never reached the
+  // server (or is not this user's to touch), so project_photos_upload's
+  // can_access_project can never pass for these bytes. Dispatching them buys
+  // PHOTO_RLS_MAX_RETRIES round trips and a SECOND toast a day later; they go
+  // now, counted as failed, named in this flush's one report — the same call
+  // the offline queue makes for a doomed project's text children.
+  //
+  // Taken AFTER the ownership split, so a drain that never gets this far has
+  // not silently swallowed a verdict mid-way. It does not OUTLIVE this drain
+  // either way: processPhotoUploadQueue expires whatever is left unconsumed
+  // when the run ends (A8) — the alternative was a verdict from an empty-queue
+  // drain sitting in memory for the life of the process and dropping a photo
+  // taken for that project an hour later.
+  const doomedProjects = takeDoomedProjectIds();
+  const doomed = doomedProjects.size > 0 ? own.filter((t) => doomedProjects.has(t.projectId)) : [];
+  const survivors = doomed.length > 0 ? own.filter((t) => !doomedProjects.has(t.projectId)) : own;
+  if (doomed.length > 0) {
+    console.warn('[PhotoQueue] Dropping', doomed.length, 'photo(s) with the project whose own write was rejected');
   }
 
-  console.log('[PhotoQueue] Processing', queue.length, 'queued photo upload(s)');
-  const sorted = sortPhotoQueue(queue);
+  // A1 (round 3): parents before bytes, decided HERE rather than at Storage.
+  // project_photos_upload needs the `projects` row, and a project created
+  // offline is a queued insert/upsert in utils/offlineQueue.ts until its flush
+  // lands. That queue is read ONCE, and every task whose project is still in
+  // it is held: not part of this flush at all, so reconcile writes it back
+  // verbatim — no upload attempted, none of its PHOTO_RLS_MAX_RETRIES spent on
+  // a refusal that was certain. It waits for the drain in which the row lands.
+  const pendingProjects = new Set<string>();
+  try {
+    for (const m of await getOfflineQueue()) {
+      if (m.table === 'projects' && (m.operation === 'insert' || m.operation === 'upsert') && typeof m.data?.id === 'string') {
+        pendingProjects.add(m.data.id);
+      }
+    }
+  } catch { /* unreadable text queue — gate nothing; Storage decides */ }
+  const sorted = survivors.filter((t) => !pendingProjects.has(t.projectId));
+  if (sorted.length < survivors.length) {
+    console.log('[PhotoQueue] Holding', survivors.length - sorted.length, 'photo(s) until their project row lands');
+  }
+  // A7: a flush with nothing to upload still has to settle the doomed tasks —
+  // remove them from storage, unlink their bytes, and report them.
+  if (sorted.length === 0 && doomed.length === 0) return { uploaded: 0, failed: 0, ...splitOwn(queue) };
+
+  if (sorted.length > 0) console.log('[PhotoQueue] Processing', sorted.length, 'queued photo upload(s)');
 
   const kept: PhotoUploadTask[] = [];
   const settled: PhotoUploadTask[] = [];
-  const droppedTasks: PhotoUploadTask[] = [];
+  const droppedTasks: PhotoUploadTask[] = [...doomed];
   let uploaded = 0;
-  let failed = 0;
+  let failed = doomed.length;
+  let rlsExhausted = 0;
+  // A4: raised when a refusal turned out to have been answered to a request
+  // with no user token on it — the rest of the flush is left queued.
+  let noBearer = false;
 
   async function runOne(task: PhotoUploadTask): Promise<void> {
     let outcome: ReturnType<typeof classifyPhotoUploadError> = 'success';
@@ -309,13 +484,29 @@ async function runPhotoUploadQueue(): Promise<{ uploaded: number; failed: number
       await uploadProjectPhoto(task.localUri, task.storagePath, task.contentType);
     } catch (err) {
       outcome = classifyPhotoUploadError(err);
+      // A4: Storage refused a request that carried NO user token (the access
+      // token expired and gotrue could not refresh it, so supabase-js sent the
+      // anon key). That is not a verdict on the photo: keep it unchanged and
+      // stop the flush; the next drain runs under a live bearer or not at all.
+      if ((outcome === 'terminal' || outcome === 'rls-pending') && !(await bearerStillLive())) {
+        console.warn('[PhotoQueue] Refused with no live bearer — not a verdict, leaving the rest queued:', task.storagePath);
+        noBearer = true;
+        kept.push(task);
+        return;
+      }
       if (outcome === 'transient') {
         console.log('[PhotoQueue] Offline/transient — keeping photo queued:', task.storagePath);
+      } else if (outcome === 'rls-pending') {
+        // Storage's membership policy needs the `projects` row; on a project
+        // created offline that row is usually still in utils/offlineQueue.ts.
+        // Every drain runs that queue FIRST, so the next pass normally lands
+        // it — kept, on its own bounded counter (PHOTO_RLS_MAX_RETRIES).
+        console.log('[PhotoQueue] Storage refused the upload under RLS — project row not synced yet? Retrying after the next flush:', task.storagePath);
       } else if (outcome !== 'already-uploaded') {
         console.warn('[PhotoQueue] Upload failed:', task.storagePath, err);
       }
     }
-    const decision = applyPhotoUploadOutcome(task, outcome, PHOTO_MAX_RETRIES);
+    const decision = applyPhotoUploadOutcome(task, outcome, PHOTO_MAX_RETRIES, PHOTO_RLS_MAX_RETRIES);
     if (decision.keep) {
       kept.push(decision.task);
       return;
@@ -323,6 +514,10 @@ async function runPhotoUploadQueue(): Promise<{ uploaded: number; failed: number
     if (decision.dropped) {
       failed++;
       droppedTasks.push(decision.task);
+      if (outcome === 'rls-pending') {
+        rlsExhausted++;
+        console.warn('[PhotoQueue] Storage refused the upload under RLS on', PHOTO_RLS_MAX_RETRIES, 'flushes — project row never synced, or no editor access. Dropping:', task.storagePath);
+      }
     } else {
       uploaded++;
       settled.push(decision.task);
@@ -334,26 +529,57 @@ async function runPhotoUploadQueue(): Promise<{ uploaded: number; failed: number
   // out rather than making any of them finish.
   const MAX_CONCURRENCY = 2;
   for (let i = 0; i < sorted.length; i += MAX_CONCURRENCY) {
+    // B1: still the session this flush started under? If not, every task not
+    // yet attempted is kept exactly as it is (unchanged object → reconcile
+    // writes it back verbatim) and the loop ends. Same when the last batch
+    // found no live bearer behind the session (A4).
+    if (noBearer) {
+      kept.push(...sorted.slice(i));
+      break;
+    }
+    if ((await currentSessionUserId()) !== sessionUserId) {
+      console.warn('[PhotoQueue] Session ended or changed hands mid-flush — leaving the rest queued');
+      kept.push(...sorted.slice(i));
+      break;
+    }
     await Promise.all(sorted.slice(i, i + MAX_CONCURRENCY).map(runOne));
   }
 
   // Reclaim disk for everything we're done with — uploaded or given up on.
   for (const t of [...settled, ...droppedTasks]) void discardPendingCopy(t);
   if (droppedTasks.length > 0) {
-    notifyDroppedPhotos(droppedTasks.length, 'terminal error or retry exhaustion');
+    // A7: ONE report per flush, whatever mix of reasons it holds — a doomed
+    // project's photos are named alongside the rest, not in a toast of their own.
+    const why: string[] = [];
+    if (rlsExhausted > 0) {
+      why.push(`${rlsExhausted} refused under storage RLS ${PHOTO_RLS_MAX_RETRIES}x (project row never synced, or no editor access)`);
+    }
+    if (doomed.length > 0) {
+      why.push(`${doomed.length} dropped with a project whose own queued write was rejected`);
+    }
+    notifyDroppedPhotos(
+      droppedTasks.length,
+      why.length > 0 ? `terminal error or retry exhaustion; ${why.join('; ')}` : 'terminal error or retry exhaustion',
+    );
   }
 
   // Atomic write-back under the lock, reconciled against whatever is persisted
-  // NOW so photos taken during this flush survive it.
-  const flushIds = new Set(sorted.map((t) => t.id));
+  // NOW so photos taken during this flush survive it. A7: the doomed tasks are
+  // part of this flush too — without their ids here reconcile would preserve
+  // them verbatim and the next drain would drop them all over again.
+  const flushIds = new Set([...sorted, ...doomed].map((t) => t.id));
   const keptById = new Map(kept.map((t) => [t.id, t] as const));
-  const remaining = await withQueueLock(async () => {
+  const persisted = await withQueueLock(async () => {
     const current = await getPhotoUploadQueue();
+    // A2: emptied under this lock while the flush was in flight
+    // (clearPhotoUploadQueue) — nothing to reconcile into, nothing written.
+    if (current.length === 0) return [] as PhotoUploadTask[];
     const next = reconcilePhotoQueue(current, flushIds, keptById);
     await setPhotoUploadQueue(next);
-    return next.length;
+    return next;
   });
+  const { remaining, foreign } = splitOwn(persisted);
 
-  console.log('[PhotoQueue] Done. Uploaded:', uploaded, 'Failed:', failed, 'Remaining:', remaining);
-  return { uploaded, failed, remaining };
+  console.log('[PhotoQueue] Done. Uploaded:', uploaded, 'Failed:', failed, 'Remaining:', remaining, 'Foreign:', foreign);
+  return { uploaded, failed, remaining, foreign };
 }

@@ -38,6 +38,7 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
 import { resolveAiAffectedTaskIds } from '@/utils/coScheduleReflowCore';
+import { formatMoney } from '@/utils/formatters';
 
 // Pipeline stages — happy path through the CO lifecycle. Side branches
 // (rejected, revised, void) live outside this visual; the user can still
@@ -231,7 +232,8 @@ function ChangeOrderInner() {
   // a homeowner approved e.g. $5,000 and then got billed $5,000 + tax on the
   // progress invoice. Surface the same tax the invoice will add so the
   // approved number matches what gets billed. Sign-aware for credit COs.
-  const taxRatePct = settings.taxRate ?? 7.5;
+  // MONEY-F3: the persisted setting, 0 % when the GC never set one.
+  const taxRatePct = settings.taxRate ?? 0;
   const changeTaxAmount = useMemo(() => changeAmount * (taxRatePct / 100), [changeAmount, taxRatePct]);
   const changeAmountWithTax = useMemo(() => changeAmount + changeTaxAmount, [changeAmount, changeTaxAmount]);
 
@@ -1208,7 +1210,9 @@ function ChangeOrderInner() {
           changeOrder={reflowPreviewCO}
           schedule={project?.schedule ?? null}
           estimateItems={reflowEstimateItems}
-          moneyLine={`Commits ${formatCurrency(reflowPreviewCO.changeAmount)} to the contract.`}
+          moneyLine={reflowPreviewCO.changeAmount < 0
+            ? `Credits ${formatCurrency(-reflowPreviewCO.changeAmount)} back to the contract.`
+            : `Commits ${formatCurrency(reflowPreviewCO.changeAmount)} to the contract.`}
           onClose={() => setReflowPreviewCO(null)}
           onConfirm={(anchorTaskId) => {
             const co = reflowPreviewCO;
@@ -1222,9 +1226,9 @@ function ChangeOrderInner() {
   );
 }
 
-function formatCurrency(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// MONEY-F18 / HEALTH-F5: sign-correct — a −$5,000 credit CO renders as
+// "-$5,000.00", not "$5,000.00". Delegates to the one formatter.
+const formatCurrency = (n: number): string => formatMoney(n, 2);
 
 function getStatusBg(t: ThemeColors, status: string): string {
   switch (status) {

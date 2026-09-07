@@ -11,6 +11,7 @@
 
 import { useMemo } from 'react';
 import { useProjects } from '@/contexts/ProjectContext';
+import { invoiceIsSettled } from '@/utils/invoiceBilling'; // MONEY-F5
 import type { EntityRef } from '@/types';
 
 export type ActivityAction =
@@ -73,7 +74,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
 
     // Invoices
     for (const inv of getInvoicesForProject(projectId)) {
-      const paid = inv.amountPaid >= inv.totalDue && inv.totalDue > 0;
+      const paid = inv.totalDue > 0 && invoiceIsSettled(inv); // MONEY-F5: settled net of held retention
       items.push({
         id: `inv-${inv.id}`,
         ref: { kind: 'invoice', id: inv.id, projectId },

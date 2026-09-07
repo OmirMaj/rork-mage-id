@@ -17,33 +17,144 @@ import { PROVIDER_INFO } from '@/mocks/payments';
 import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
+import { estimateNetAfterFees, platformFeeLabel, STRIPE_CARD_PROCESSING } from '@/utils/platformFees';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
-// Total deduction on a successful card payment, matched to what payments-setup
-// tells the GC: "A 1% platform fee plus standard Stripe processing (2.9% +
-// 30¢)". Both come out of the deposit, so the "net after fees" column must
-// account for BOTH — otherwise the dashboard's Received / net figures overstate
-// what actually cleared the bank. Kept in sync with payments-setup.tsx.
-const STRIPE_FEE_PERCENT = 0.029;
-const STRIPE_FEE_FIXED = 0.30;
-const PLATFORM_FEE_PERCENT = 0.01;
-// Combined percent taken off the gross (Stripe processing + MAGE platform fee).
-const TOTAL_FEE_PERCENT = STRIPE_FEE_PERCENT + PLATFORM_FEE_PERCENT;
+function feeScheduleLabel(tier: string): string {
+  return `${platformFeeLabel(tier)} + ${STRIPE_CARD_PROCESSING.percent}% + ${STRIPE_CARD_PROCESSING.fixedCents}¢`;
+}
 
-// Map the narrower PaymentMethod used on InvoicePayment to the broader
-// PaymentProvider used on the dashboard. credit_card is assumed to flow through
-// Stripe — that's the only card-capable integration we've wired.
-function methodToProvider(method: string): PaymentProvider {
-  switch (method) {
-    case 'credit_card': return 'stripe';
+// A card the GC keyed in by hand is none of the eight PaymentProvider values —
+// MAGE has no idea which processor took it — so the feed carries two display
+// keys of its own alongside the shared PROVIDER_INFO table.
+type FeedProvider = PaymentProvider | 'card' | 'other';
+
+// "Card", not "Stripe": see the MONEY-01 note on the feed below. "Recorded" is
+// for a ledger entry whose method we don't recognise — it says what we know
+// rather than guessing a rail. Neither is a brand, so neither gets a brand
+// colour; they wear the theme's neutral chip in both light and dark.
+const FEED_PROVIDER_LABEL: Record<string, string> = {
+  card: 'Card',
+  other: 'Recorded',
+};
+
+function providerLabel(provider: FeedProvider): string {
+  return FEED_PROVIDER_LABEL[provider] ?? PROVIDER_INFO[provider]?.label ?? FEED_PROVIDER_LABEL.other;
+}
+
+function providerBadge(provider: FeedProvider, t: ThemeColors): { label: string; color: string; bgColor: string } {
+  const brand = FEED_PROVIDER_LABEL[provider] ? undefined : PROVIDER_INFO[provider];
+  if (brand) return { label: brand.label, color: brand.color, bgColor: brand.bgColor };
+  return { label: providerLabel(provider), color: t.textSecondary, bgColor: t.surfaceAlt };
+}
+
+/** One feed row. Extends the shared Payment with what only this screen knows. */
+export interface PaymentRow extends Omit<Payment, 'provider'> {
+  provider: FeedProvider;
+  /**
+   * True only when the money actually moved through MAGE's Stripe integration
+   * — the ONLY case in which the fee on this row is a fee we can compute.
+   */
+  processedByMage: boolean;
+  /** Retention the contract still lets the client hold on this invoice (pending rows). */
+  retentionHeld: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MONEY-01 (runtime audit 2026-09-06). Two lies met on this screen:
+//
+//  1. methodToProvider() mapped EVERY `method: 'credit_card'` to provider
+//     'stripe', and the row was then docked 2.9% + 30¢ Stripe processing AND
+//     the tier platform fee. The founder's only real payment — $48,826.93,
+//     hand-keyed on an invoice with pay_link_url NULL, so MAGE never minted a
+//     link and charged no platform fee — was docked $1,660.41 (including
+//     $244.13 of MAGE fee that was never charged) and badged "Stripe". The
+//     same switch had no 'stripe' case at all, so a payment the webhook really
+//     did record (it writes method 'stripe', id `stripe-<session>`) fell
+//     through to default and was badged "Check".
+//  2. The hero summed netAmount (gross − those invented fees) while the row
+//     two lines below showed gross, so the headline "Received" tied to nothing
+//     — not the rows, not the invoice's Amount Paid, not the bank.
+//
+// The rule now: a row is Stripe-processed only when the ledger entry says so
+// (the webhook stamps method 'stripe' / a `stripe-` id). A hand-keyed card is
+// labelled "Card", carries NO fee estimate, and the screen says plainly that
+// its processor fee is unknown — an absent fact beats an invented one.
+//
+// And "Received" means GROSS cash recorded against invoices, net of refunds
+// and chargebacks: the figure that ties to each row, to invoice.amountPaid and
+// to the bank deposit. The net-of-fees figure stays available as the estimate
+// it is, in the fee tile, labelled as an estimate.
+//
+// --- BEGIN payments feed (pure; executed by scripts/validate-payments-feed.ts — keep the sentinels) ---
+
+/** The shape an entry in invoices.payments actually has on disk. */
+export interface LedgerLike {
+  id?: string;
+  amount?: number;
+  method?: string;
+  /** The app writes `date`; older seeded rows and the webhook also carry `receivedAt`. */
+  date?: string;
+  receivedAt?: string;
+  kind?: string;
+}
+
+// MONEY-F8: every fee figure comes from the ONE schedule in
+// utils/platformFees.ts (mirrored byte-for-byte by the create-payment-link edge
+// function). Stripe card processing and the caller's tier-specific platform
+// fee both come out of the deposit. Only ever called for money that went
+// through MAGE — for anything else there is no fee we know.
+function cardFeeFor(amountDollars: number, tier: string): number {
+  if (!(amountDollars > 0)) return 0;
+  const { stripeFeeCents, platformFeeCents } = estimateNetAfterFees(Math.round(amountDollars * 100), tier);
+  return (stripeFeeCents + platformFeeCents) / 100;
+}
+
+const roundCents = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * Did MAGE process this money? Only the Stripe webhook writes these markers
+ * (`method: 'stripe'`, ledger id `stripe-<session|refund|dispute>-…`); every
+ * hand-recorded payment gets a uuid and one of the four PaymentMethod values.
+ */
+export function isMageProcessed(entry: LedgerLike): boolean {
+  return entry.method === 'stripe' || (typeof entry.id === 'string' && entry.id.startsWith('stripe-'));
+}
+
+export function feedProviderFor(entry: LedgerLike): FeedProvider {
+  if (isMageProcessed(entry)) return 'stripe';
+  switch (entry.method) {
+    case 'credit_card': return 'card';
     case 'check': return 'check';
     case 'ach': return 'ach';
     case 'cash': return 'cash';
-    default: return 'check';
+    default: return 'other';
   }
+}
+
+/** A refund or a lost chargeback the webhook booked — money going back out. */
+export function isReversal(entry: LedgerLike): boolean {
+  return entry.kind === 'refund' || entry.kind === 'dispute' || (entry.amount ?? 0) < 0;
+}
+
+/** Rows whose money has actually moved. The hero "Received" is exactly their sum. */
+export function isSettledRow(row: PaymentRow): boolean {
+  return row.status === 'completed' || row.status === 'refunded';
+}
+
+export function isPendingRow(row: PaymentRow): boolean {
+  return row.status === 'pending' || row.status === 'processing';
+}
+
+function entryDate(entry: LedgerLike, fallback: string): string {
+  const raw = entry.date ?? entry.receivedAt;
+  return raw && !Number.isNaN(new Date(raw).getTime()) ? raw : fallback;
 }
 
 function displayClientName(project: Project, contacts: Contact[]): string {
@@ -59,60 +170,76 @@ function displayClientName(project: Project, contacts: Contact[]): string {
   return project.name;
 }
 
-// Build a unified Payment[] from real invoice data.
+// Build the feed from real invoice data.
 //
-// Three row classes:
-//   1. Completed — each InvoicePayment the GC recorded manually.
+// Row classes:
+//   1. Settled — one per ledger entry. Payments are 'completed'; refunds and
+//      lost chargebacks are 'refunded' and carry their negative amount, so the
+//      settled rows sum to the cash actually kept.
 //   2. Pending (Stripe) — invoice has payLinkUrl out; client hasn't paid yet.
 //   3. Pending (other) — invoice is sent but no Stripe link and still owed.
 //
 // Sorted newest-first so the dashboard always shows the most recent activity.
-function derivePayments(
-  projects: Project[], invoices: Invoice[], contacts: Contact[],
-): Payment[] {
-  const rows: Payment[] = [];
+export function derivePayments(
+  projects: Project[], invoices: Invoice[], contacts: Contact[], tier: string,
+): PaymentRow[] {
+  const rows: PaymentRow[] = [];
 
   for (const inv of invoices) {
     const project = projects.find(p => p.id === inv.projectId);
     if (!project) continue;
     const clientName = displayClientName(project, contacts);
+    // MONEY-05: the withholding through the shared helper, so the Payments
+    // feed's "retention held" and its balance row are the same total_due split
+    // two ways (and match the invoice screen the row links to).
+    const retentionHeld = pendingRetentionHeld(inv);
 
-    // 1. Recorded payments — one row per payment, always 'completed'.
-    for (const p of inv.payments ?? []) {
-      const provider = methodToProvider(p.method);
-      const fee = provider === 'stripe'
-        ? Math.round((p.amount * TOTAL_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
-        : 0;
+    // 1. Recorded ledger entries.
+    for (const entry of (inv.payments ?? []) as LedgerLike[]) {
+      const amount = entry.amount ?? 0;
+      const provider = feedProviderFor(entry);
+      const processedByMage = provider === 'stripe';
+      // A fee we can only state for money MAGE actually ran. For a card the GC
+      // keyed in by hand we do not know the processor, the rate, or whether
+      // one was charged at all — so nothing is deducted and the screen says so.
+      const fee = processedByMage ? roundCents(cardFeeFor(amount, tier)) : 0;
+      const when = entryDate(entry, inv.issueDate);
+      const reversal = isReversal(entry);
+      const suffix = reversal
+        ? (entry.kind === 'dispute' ? ' — chargeback' : ' — refund')
+        : provider === 'card' ? ' — card recorded by hand' : '';
       rows.push({
-        id: p.id,
+        id: entry.id ?? `${inv.id}-${when}-${amount}`,
         invoiceId: inv.id,
         projectId: project.id,
         projectName: project.name,
         clientName,
-        amount: p.amount,
+        amount,
         fee,
-        netAmount: Math.round((p.amount - fee) * 100) / 100,
+        netAmount: roundCents(amount - fee),
         provider,
-        status: 'completed',
-        description: `Invoice #${inv.number}`,
-        createdAt: p.date,
-        completedAt: p.date,
+        processedByMage,
+        retentionHeld: 0,
+        status: reversal ? 'refunded' : 'completed',
+        description: `Invoice #${inv.number}${suffix}`,
+        createdAt: when,
+        completedAt: when,
       });
     }
 
     // 2/3. Outstanding balance row — only for sent/partially_paid/overdue with a
     // positive balance. Draft and fully-paid invoices don't belong on a
-    // payments feed.
-    const balance = Math.max(0, inv.totalDue - inv.amountPaid);
+    // payments feed. MONEY-F5: balance is net of held retention.
+    const balance = invoiceOutstanding(inv);
     if (
       balance > 0 &&
       inv.status !== 'draft' &&
       inv.status !== 'paid'
     ) {
       const hasStripeLink = !!inv.payLinkUrl;
-      const estimatedFee = hasStripeLink
-        ? Math.round((balance * TOTAL_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
-        : 0;
+      // A live MAGE pay link is the one pending case where we DO know the fee
+      // schedule the money will land under.
+      const estimatedFee = hasStripeLink ? roundCents(cardFeeFor(balance, tier)) : 0;
       rows.push({
         id: `pending-${inv.id}`,
         invoiceId: inv.id,
@@ -121,8 +248,10 @@ function derivePayments(
         clientName,
         amount: balance,
         fee: estimatedFee,
-        netAmount: Math.round((balance - estimatedFee) * 100) / 100,
-        provider: hasStripeLink ? 'stripe' : 'check',
+        netAmount: roundCents(balance - estimatedFee),
+        provider: hasStripeLink ? 'stripe' : 'other',
+        processedByMage: hasStripeLink,
+        retentionHeld,
         // overdue is still "pending" from our side — the client owes but
         // nothing has bounced. Reserving 'failed' for actual Stripe card
         // declines we'll pick up via webhook later.
@@ -135,9 +264,48 @@ function derivePayments(
     }
   }
 
-  rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const time = (iso: string): number => {
+    const t = new Date(iso).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+  rows.sort((a, b) => time(b.createdAt) - time(a.createdAt));
   return rows;
 }
+
+export interface PaymentsSummary {
+  /** Gross cash recorded against invoices, net of refunds — the sum of the settled rows. */
+  received: number;
+  /** Outstanding, already net of retention still held. */
+  pending: number;
+  /** Retention excluded from `pending` because the contract lets the client hold it. */
+  pendingRetentionHeld: number;
+  /** Estimated Stripe + MAGE fees on the settled rows MAGE actually processed. */
+  totalFees: number;
+  /** Settled card rows MAGE did NOT process — their processor fee is unknown. */
+  unknownFeeCount: number;
+  failedCount: number;
+}
+
+/**
+ * The hero numbers. `received` is the sum of exactly the rows the Completed
+ * tab renders, so the headline can always be reconciled against the list
+ * underneath it — the thing the old net-of-invented-fees hero could not do.
+ */
+export function summarizePayments(rows: PaymentRow[]): PaymentsSummary {
+  const settled = rows.filter(isSettledRow);
+  const pendingRows = rows.filter(isPendingRow);
+  const sum = (list: PaymentRow[], pick: (r: PaymentRow) => number): number =>
+    roundCents(list.reduce((s, r) => s + pick(r), 0));
+  return {
+    received: sum(settled, r => r.amount),
+    pending: sum(pendingRows, r => r.amount),
+    pendingRetentionHeld: sum(pendingRows, r => r.retentionHeld),
+    totalFees: sum(settled, r => r.fee),
+    unknownFeeCount: settled.filter(r => r.provider === 'card').length,
+    failedCount: rows.filter(r => r.status === 'failed').length,
+  };
+}
+// --- END payments feed ---
 
 // Themed per-status chip styling — a FUNCTION of the palette (not a module
 // static) so the chip fills flip with the theme instead of staying bright
@@ -151,12 +319,12 @@ const statusConfig = (t: ThemeColors): Record<PaymentStatus, { label: string; co
   refunded: { label: 'Refunded', color: t.textSecondary, bgColor: t.surfaceAlt, icon: RefreshCw },
 });
 
-function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => void }) {
+function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const statusInfo = statusConfig(themeColors)[payment.status];
-  const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
+  const providerInfo = providerBadge(payment.provider, themeColors);
   const StatusIcon = statusInfo.icon;
 
   return (
@@ -182,9 +350,13 @@ function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => vo
             <Text style={[styles.payCardAmount, payment.status === 'failed' && { color: themeColors.dangerLabel }]}>
               {formatMoney(payment.amount)}
             </Text>
-            {payment.fee > 0 && (
-              <Text style={styles.payCardFee}>-{formatMoney(payment.fee, 2)} fee</Text>
-            )}
+            {payment.fee > 0 ? (
+              <Text style={styles.payCardFee}>-{formatMoney(payment.fee, 2)} est. fee</Text>
+            ) : payment.provider === 'card' ? (
+              // MONEY-01: MAGE didn't run this card, so we don't know what the
+              // processor took. Say that instead of inventing 2.9% + 30¢.
+              <Text style={styles.payCardFee}>Processor fee unknown</Text>
+            ) : null}
           </View>
         </View>
 
@@ -217,33 +389,31 @@ export default function PaymentsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const { projects, invoices, contacts } = useProjects();
+  const { tier } = useTierAccess();
   const [selectedTab, setSelectedTab] = useState<'all' | 'pending' | 'completed'>('all');
 
   // Derive the whole feed from real invoice data. Recomputes cheaply — the
   // three inputs are already memoized by ProjectContext.
   const payments = useMemo(
-    () => derivePayments(projects, invoices, contacts),
-    [projects, invoices, contacts],
+    () => derivePayments(projects, invoices, contacts, tier),
+    [projects, invoices, contacts, tier],
   );
 
+  // The Completed tab is `isSettledRow` and the hero's Received is the sum of
+  // the SAME predicate — one definition, so the headline always foots to the
+  // list under it (MONEY-01).
   const filtered = useMemo(() => {
     if (selectedTab === 'all') return payments;
-    if (selectedTab === 'pending') return payments.filter(p => p.status === 'pending' || p.status === 'processing');
-    return payments.filter(p => p.status === 'completed');
+    if (selectedTab === 'pending') return payments.filter(isPendingRow);
+    return payments.filter(isSettledRow);
   }, [payments, selectedTab]);
 
-  const stats = useMemo(() => {
-    const received = payments.filter(p => p.status === 'completed').reduce((s, p) => s + p.netAmount, 0);
-    const pending = payments.filter(p => p.status === 'pending' || p.status === 'processing').reduce((s, p) => s + p.amount, 0);
-    const totalFees = payments.filter(p => p.status === 'completed').reduce((s, p) => s + p.fee, 0);
-    const failedCount = payments.filter(p => p.status === 'failed').length;
-    return { received, pending, totalFees, failedCount };
-  }, [payments]);
+  const stats = useMemo(() => summarizePayments(payments), [payments]);
 
   // Tapping any row drops you into the invoice — that's where you record a
   // payment, generate/share a Stripe link, or see payment history. The old
   // "Send Reminder" / "Retry" alerts were fake; no backend existed for them.
-  const handlePaymentPress = useCallback((payment: Payment) => {
+  const handlePaymentPress = useCallback((payment: PaymentRow) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (payment.invoiceId) {
       router.push({
@@ -254,10 +424,9 @@ export default function PaymentsScreen() {
     }
     // No invoice anchor (shouldn't happen with real data, but belt-and-braces
     // so we never leave the user staring at a dead press).
-    const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
     showAlert(
       'Payment Details',
-      `${formatMoney(payment.amount)} • ${providerInfo.label}\n${payment.description}`,
+      `${formatMoney(payment.amount)} • ${providerLabel(payment.provider)}\n${payment.description}`,
     );
   }, []);
 
@@ -271,7 +440,7 @@ export default function PaymentsScreen() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const outstanding = invoices
       .filter(inv =>
-        (inv.totalDue - inv.amountPaid) > 0 &&
+        invoiceOutstanding(inv) > 0 &&
         inv.status !== 'draft' &&
         inv.status !== 'paid',
       )
@@ -308,7 +477,7 @@ export default function PaymentsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Payments', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
+      <Stack.Screen options={{ title: 'Payments', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCards}>
           <View style={[styles.heroCard, { flex: 1.2 }]}>
@@ -317,6 +486,9 @@ export default function PaymentsScreen() {
             </View>
             <Text style={[styles.heroValue, { color: themeColors.success }]}>{formatMoney(stats.received)}</Text>
             <Text style={styles.heroLabel}>Received</Text>
+            {/* Labelled, per MONEY-01: this is the money in, before fees — the
+                same figure the rows and each invoice's Amount Paid show. */}
+            <Text style={styles.heroNote}>Amount paid, before fees</Text>
           </View>
           <View style={styles.heroCard}>
             <View style={[styles.heroIconWrap, { backgroundColor: themeColors.warningSoft }]}>
@@ -324,12 +496,20 @@ export default function PaymentsScreen() {
             </View>
             <Text style={[styles.heroValue, { color: themeColors.warningLabel }]}>{formatMoney(stats.pending)}</Text>
             <Text style={styles.heroLabel}>Pending</Text>
+            <Text style={styles.heroNote}>
+              {stats.pendingRetentionHeld > 0
+                ? `Excludes ${formatMoney(stats.pendingRetentionHeld)} retention held`
+                : 'Owed to you now'}
+            </Text>
           </View>
         </View>
 
         <View style={styles.feeRow}>
           <View style={styles.feeItem}>
-            <Text style={styles.feeItemLabel}>Est. Fees (1% + 2.9% + 30¢)</Text>
+            <View style={styles.feeItemText}>
+              <Text style={styles.feeItemLabel}>Est. fees on payments MAGE processed</Text>
+              <Text style={styles.feeItemSub}>{feeScheduleLabel(tier)}</Text>
+            </View>
             <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
           </View>
           {stats.failedCount > 0 && (
@@ -339,6 +519,14 @@ export default function PaymentsScreen() {
             </View>
           )}
         </View>
+
+        {stats.unknownFeeCount > 0 && (
+          <Text style={styles.feeNote}>
+            {stats.unknownFeeCount === 1
+              ? '1 card payment was recorded by hand. MAGE did not process it, so its processor fee is unknown and none is deducted above.'
+              : `${stats.unknownFeeCount} card payments were recorded by hand. MAGE did not process them, so their processor fees are unknown and none are deducted above.`}
+          </Text>
+        )}
 
         <TouchableOpacity style={styles.sendButton} onPress={handleSendInvoice} activeOpacity={0.85}>
           <Send size={18} color="#fff" strokeWidth={1.75} />
@@ -411,6 +599,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroIconWrap: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
   heroValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
   heroLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  heroNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: -4, lineHeight: 14 },
   feeRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -428,8 +617,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: t.line,
   },
+  feeItemText: { flex: 1, gap: 2, paddingRight: 8 },
   feeItemLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  feeItemSub: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   feeItemValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  feeNote: {
+    paddingHorizontal: 16,
+    marginTop: -8,
+    marginBottom: 16,
+    fontSize: Type.caption1.fontSize,
+    lineHeight: 17,
+    color: t.textMuted,
+  },
   sendButton: {
     marginHorizontal: 16,
     backgroundColor: t.accentFill,

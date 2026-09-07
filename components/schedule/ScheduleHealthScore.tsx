@@ -34,7 +34,7 @@ import { Tokens } from '@/constants/designTokens';
 const GRADE_COLOR: Record<HealthGrade, string> = {
   A: "#2E7D44",
   B: '#0F9B8E',     // teal — different shade from A so users can tell them apart
-  C: Colors.warning,
+  C: Colors.warningLabel,
   D: '#FF8A1A',     // orange between warning and error
   F: "#C84038",
 };
@@ -163,7 +163,7 @@ function CheckRow({
   const styles = useThemedStyles(makeStyles);
   const [expanded, setExpanded] = useState(check.severity !== 'good');
   const tone = check.severity === 'good' ? "#2E7D44"
-    : check.severity === 'warn' ? Colors.warning : "#C84038";
+    : check.severity === 'warn' ? Colors.warningLabel : "#C84038";
   const Icon = check.severity === 'good' ? CheckCircle2 : AlertTriangle;
   return (
     <View style={[styles.checkRow, { borderLeftColor: tone }]}>

@@ -32,6 +32,14 @@
 //     'bid_question_asked'         — contractor asks pre-bid question → RFP poster
 //     'bid_question_answered'      — RFP poster answers → all bidders
 //     'closeout_binder_sent'       — GC delivers binder → homeowner + GC summary
+//
+// DEPLOY ORDER (review 2026-09-04, advisory 4): marketing/portal/index.html must
+// be live BEFORE this function is deployed. Anonymous callers (that page) now
+// have to prove portal possession — payload.portal_id + payload.access_token,
+// checked through the portal_project_for_token RPC — and the page only sends
+// access_token from the same change. Deploying the function first refuses every
+// homeowner selection_chosen / contract_signed with 403 portal_token_required
+// until the page ships.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import {
@@ -50,6 +58,28 @@ import {
   type UnsubscribeOpts,
 } from "../_shared/email.ts";
 import { verifyUser, isServiceRoleToken } from "../_shared/verifyUser.ts";
+// EDGE-F3: database triggers (fire_notify) authenticate with the pg_cron shared
+// secret; a valid x-cron-secret is a privileged caller, like the service key.
+import { isValidCron } from "../_shared/cronAuth.ts";
+// EDGE-F6: every customer-facing portal URL is built by the shared helper so it
+// carries the MINTED portal id and the ?t= access token the page requires.
+import { portalUrlFor, subPortalUrlFor, APP_BASE } from "../_shared/portalLinks.ts";
+// EDGE-F4/F5: the pure authorization pieces (unit-tested by scripts/validate-notify-authz.ts).
+import {
+  ANON_ALLOWED_EVENTS,
+  ANON_HOURLY_CAP,
+  CROSS_TENANT_EVENTS,
+  MAX_RECIPIENTS,
+  RFP_EVENTS,
+  USER_HOURLY_CAP,
+  capRecipients,
+  clientIpFrom,
+  exceedsBodyLimit,
+  isUuid,
+  trustedSubPortalId,
+  userMayAddress,
+  type Caller,
+} from "../_shared/notifyGuards.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -57,9 +87,8 @@ const EXPO_ACCESS_TOKEN = Deno.env.get("EXPO_ACCESS_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
 
 const EXPO_PUSH_ENDPOINT = "https://exp.host/--/api/v2/push/send";
-const PORTAL_BASE = "https://mageid.app/portal";
-const SUB_PORTAL_BASE = "https://mageid.app/sub-portal";
-const APP_BASE = "https://app.mageid.app";
+// PORTAL_BASE / SUB_PORTAL_BASE / APP_BASE live in ../_shared/portalLinks.ts.
+// A bare base-plus-portal-id link (no ?t= token) lands on the fallback page (EDGE-F6).
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -95,6 +124,55 @@ interface ProjectRow {
   id?: string;
   name?: string;
   location?: string;
+  user_id?: string | null;
+  /** Raw projects.client_portal jsonb — only ever read through portalUrlFor(). */
+  client_portal?: unknown;
+}
+
+interface RfpRow {
+  id: string;
+  user_id: string | null;
+  title: string | null;
+}
+
+interface BidderRecipient {
+  email?: string | null;
+  push_token?: string | null;
+  user_id?: string | null;
+}
+
+interface SubPortalLinkRow {
+  id: string;
+  user_id: string | null;
+  access_token: string | null;
+  enabled: boolean | null;
+}
+
+interface BidQuestionRow {
+  id: string;
+  question: string | null;
+  asker_name: string | null;
+  created_at: string | null;
+}
+
+interface SubInvoiceRow {
+  id: string;
+  sub_portal_id: string | null;
+  project_id: string | null;
+  invoice_number: string | null;
+  amount: number | string | null;
+  status: string | null;
+  submitted_by_name: string | null;
+  submitted_by_email: string | null;
+  notes_from_gc: string | null;
+}
+
+function strOrNull(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+function uuidOrNull(v: unknown): string | null {
+  return isUuid(v) ? v : null;
 }
 
 // ─── Supabase REST helpers ────────────────────────────────────────────
@@ -172,14 +250,142 @@ async function isUnsubscribed(email: string | null | undefined, eventKey: string
   }
 }
 
-async function getProjectContext(projectId: string | null): Promise<ProjectRow & { name: string }> {
-  if (!projectId) return { name: 'your project' };
+type ProjectContext = ProjectRow & { name: string; viaPortal: boolean };
+const PROJECT_SELECT = 'select=id,name,location,user_id,client_portal';
+
+/**
+ * Portal-first project lookup. One service-role read yields the GC (user_id),
+ * the email context (name / location) AND client_portal — the only thing a
+ * tokenized portal URL can be built from (EDGE-F6). Looking the project up BY
+ * portal id also means a caller cannot pair one project's name with another
+ * project's portal.
+ */
+async function getProjectContext(projectId: string | null, portalId: string | null): Promise<ProjectContext> {
+  const empty: ProjectContext = { name: 'your project', viaPortal: false };
   try {
-    const rows = await sbGet(`projects?id=eq.${projectId}&select=id,name,location`) as ProjectRow[];
-    const r = rows[0] ?? {};
-    return { id: r.id, name: r.name ?? 'your project', location: r.location };
+    if (portalId) {
+      const rows = await sbGet(`projects?client_portal->>portalId=eq.${encodeURIComponent(portalId)}&${PROJECT_SELECT}&limit=1`) as ProjectRow[];
+      const r = rows[0];
+      if (r?.id) return { ...r, name: r.name ?? 'your project', viaPortal: true };
+    }
+    if (projectId) {
+      const rows = await sbGet(`projects?id=eq.${projectId}&${PROJECT_SELECT}&limit=1`) as ProjectRow[];
+      const r = rows[0];
+      if (r?.id) return { ...r, name: r.name ?? 'your project', viaPortal: false };
+    }
+    return empty;
   } catch {
-    return { name: 'your project' };
+    return empty;
+  }
+}
+
+/**
+ * Review 2026-09-04 (advisory 4): the project a (portal id, access token) pair
+ * proves possession of — via the SECURITY DEFINER RPC every portal write goes
+ * through (EXECUTE for service_role only; migration 20260713150000). Null when
+ * the token is wrong or the portal is disabled — and, once 20260904100800 is
+ * applied, when the link has expired. Only the two-argument signature is used.
+ */
+async function projectForPortalToken(portalId: string, accessToken: string): Promise<string | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/portal_project_for_token`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_portal_id: portalId, p_access_token: accessToken }),
+    });
+    if (!r.ok) return null;
+    const v = await r.json();
+    return isUuid(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getRfp(rfpId: string): Promise<RfpRow | null> {
+  try {
+    const rows = await sbGet(`public_bids?id=eq.${rfpId}&select=id,user_id,title&limit=1`) as RfpRow[];
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * EDGE-F4: the bidder fan-out for `bid_question_answered` is resolved HERE from
+ * bid_responses — a user-JWT caller no longer ships the recipient list.
+ */
+async function resolveBidders(rfpId: string): Promise<BidderRecipient[]> {
+  try {
+    const rows = await sbGet(`bid_responses?bid_id=eq.${rfpId}&select=user_id`) as { user_id: string | null }[];
+    const ids = Array.from(new Set(rows.map((r) => r.user_id).filter(isUuid))).slice(0, MAX_RECIPIENTS);
+    if (ids.length === 0) return [];
+    const profiles = await sbGet(`profiles?id=in.(${ids.join(',')})&select=id,email,push_token`) as { id: string; email: string | null; push_token: string | null }[];
+    return profiles.map((p) => ({ user_id: p.id, email: p.email, push_token: p.push_token }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Review 2026-09-04 (advisory 3 + residual): a user may raise
+ * `bid_question_asked` on an RFP only if they actually asked on it — a
+ * bid_questions row with bid_id = the RFP and asker_user_id = the caller
+ * (written under the bq_ask RLS policy by utils/bidQuestionsEngine.ts before it
+ * calls notify) — and the email carries THAT row's question / asker_name, never
+ * the payload's text. The newest such row wins.
+ */
+async function newestBidQuestionBy(rfpId: string, userId: string): Promise<BidQuestionRow | null> {
+  if (!isUuid(rfpId) || !isUuid(userId)) return null;
+  try {
+    const rows = await sbGet(`bid_questions?bid_id=eq.${rfpId}&asker_user_id=eq.${userId}&select=id,question,asker_name,created_at&order=created_at.desc&limit=1`) as BidQuestionRow[];
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function getSubPortalLink(subPortalId: string): Promise<SubPortalLinkRow | null> {
+  try {
+    const rows = await sbGet(`sub_portal_links?id=eq.${encodeURIComponent(subPortalId)}&select=id,user_id,access_token,enabled&limit=1`) as SubPortalLinkRow[];
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Review 2026-09-04 (residual): a user JWT may raise `sub_invoice_reviewed` only
+ * for an invoice row whose sub-portal link it OWNS, and the recipient is that
+ * row's stored submitter email — never a caller-chosen address. The trigger
+ * (trg_notify_sub_invoice_reviewed, service path) ships the row id as
+ * source_id; a client caller must do the same (or send payload.invoice_id).
+ */
+async function getOwnedSubInvoice(invoiceId: string, ownerId: string): Promise<{ invoice: SubInvoiceRow; link: SubPortalLinkRow } | null> {
+  if (!isUuid(invoiceId) || !isUuid(ownerId)) return null;
+  try {
+    const rows = await sbGet(`sub_submitted_invoices?id=eq.${invoiceId}&select=id,sub_portal_id,project_id,invoice_number,amount,status,submitted_by_name,submitted_by_email,notes_from_gc&limit=1`) as SubInvoiceRow[];
+    const invoice = rows[0];
+    if (!invoice?.sub_portal_id) return null;
+    const link = await getSubPortalLink(invoice.sub_portal_id);
+    if (!link || link.user_id !== ownerId) return null;
+    return { invoice, link };
+  } catch {
+    return null;
+  }
+}
+
+/** Accepted collaborators count as project members for authorization (EDGE-F4). */
+async function isAcceptedCollaborator(projectId: string | null, userId: string): Promise<boolean> {
+  if (!projectId) return false;
+  try {
+    const rows = await sbGet(`project_collaborators?project_id=eq.${projectId}&user_id=eq.${userId}&or=(status.eq.accepted,accepted_at.not.is.null)&select=id&limit=1`) as unknown[];
+    return rows.length > 0;
+  } catch {
+    return false;
   }
 }
 
@@ -216,29 +422,23 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
   }
 }
 
-// ─── Anon allowlist + rate limit ──────────────────────────────────────
-const ANON_ALLOWED_EVENTS = new Set([
-  'contract_signed',
-  'selection_chosen',
-  'bid_question_asked',
-  'bid_question_answered',
-  'closeout_binder_sent',
-]);
-
-// Per-portal rate limit: at most 30 anon-triggered notifications per
-// hour per portal. Backed by the rate_limit_increment SQL function
-// (see migration: rate_limit_counters), which does an atomic
-// INSERT … ON CONFLICT DO UPDATE … RETURNING count. This closes the
-// TOCTOU race in the previous SELECT-then-decide implementation: under
-// N parallel anon callers, the i'th caller is GUARANTEED to see count=i.
+// ─── Rate limit ───────────────────────────────────────────────────────
+// (The anon allowlist lives in ../_shared/notifyGuards.ts: ANON_ALLOWED_EVENTS.)
+//
+// Hourly buckets keyed by an arbitrary scope string, backed by the
+// rate_limit_increment SQL function (see migration: rate_limit_counters),
+// which does an atomic INSERT … ON CONFLICT DO UPDATE … RETURNING count.
+// This closes the TOCTOU race in the previous SELECT-then-decide
+// implementation: under N parallel callers, the i'th caller is GUARANTEED
+// to see count=i. Scopes in use: `portal:<id>` (anon, since day one) and —
+// since EDGE-F4/F5 — `notify:user:<id>` (verified users), `notify:gc:<id>`
+// and `notify:ip:<ip>` (anon path, whichever id the caller supplied).
 //
 // Fail-open semantics: if the RPC errors (network, function missing,
 // etc.), we let the request through. We'd rather risk a duplicate than
 // drop a legit homeowner-signed-contract notification on a transient
 // counter glitch.
-const PORTAL_HOURLY_CAP = 30;
-async function exceedsRateLimit(portalId: string | null): Promise<boolean> {
-  if (!portalId) return false;
+async function exceedsRateLimit(scope: string, cap: number): Promise<boolean> {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/rate_limit_increment`, {
       method: 'POST',
@@ -247,62 +447,194 @@ async function exceedsRateLimit(portalId: string | null): Promise<boolean> {
         'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ p_scope: `portal:${portalId}` }),
+      body: JSON.stringify({ p_scope: scope }),
     });
     if (!r.ok) return false; // fail open
     const count = await r.json();
-    return typeof count === 'number' && count > PORTAL_HOURLY_CAP;
+    return typeof count === 'number' && count > cap;
   } catch {
     return false; // fail open
   }
 }
 
 // ─── Event dispatch ───────────────────────────────────────────────────
-async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unknown> {
+interface DispatchResult {
+  ok: boolean;
+  reason?: string;
+  event?: string;
+  gc?: string | null;
+  portal_id?: string | null;
+  /** Set on authorization / abuse refusals; the handler maps it to the HTTP status. */
+  httpStatus?: number;
+}
+
+async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): Promise<DispatchResult> {
   const { event, source_table, source_id, payload } = req;
-  const portalId = (payload.portal_id as string) ?? (payload.portalId as string) ?? null;
-  const subPortalId = (payload.sub_portal_id as string) ?? null;
+  const isService = caller.kind === 'service';
+  const isAnonCaller = caller.kind === 'anon';
+  const isRfpEvent = RFP_EVENTS.has(event);
+  const portalId = strOrNull(payload.portal_id ?? payload.portalId);
+  // Review 2026-09-04 (blocking 1): only a trusted caller may name a sub-portal
+  // link — its ?t= token is rendered into the sub_invoice_reviewed CTA, and a
+  // user JWT addressing itself would otherwise be mailed a foreign link's token.
+  const subPortalId = trustedSubPortalId(caller, payload.sub_portal_id);
 
   if (isAnonCaller && !ANON_ALLOWED_EVENTS.has(event)) {
     return { ok: false, reason: 'event_not_anon_allowed', event };
   }
-  if (isAnonCaller && portalId && await exceedsRateLimit(portalId)) {
-    return { ok: false, reason: 'rate_limited', portal_id: portalId };
+  // EDGE-F4: the two events that address another tenant's user come only from
+  // award-rfp / notify-nearby-contractors (service role) — never from a JWT.
+  if (!isService && CROSS_TENANT_EVENTS.has(event)) {
+    return { ok: false, reason: 'cross_tenant_event', event, httpStatus: 403 };
   }
+  // EDGE-F4/F5: nobody but a trusted server-to-server caller steers recipients.
+  // Anon callers never name the GC; user callers never name the RFP side; the
+  // bidder list and push tokens are resolved here, not read from the body.
+  if (isAnonCaller || (caller.kind === 'user' && isRfpEvent)) {
+    delete payload.gc_user_id;
+    delete payload.contractor_user_id;
+  }
+  if (!isService) {
+    delete payload.bidder_recipients;
+    delete payload.homeowner_push_token;
+    if (isRfpEvent) delete payload.homeowner_email;
+  }
+
+  let gcUserId: string | null = uuidOrNull(payload.gc_user_id) ?? uuidOrNull(payload.contractor_user_id);
+  // RFP Q&A is scoped to the public_bids row, never to a project: ignore any
+  // project / portal ids a caller adds so no foreign project context leaks in.
+  // An anonymous caller's project comes ONLY from the portal token below, never
+  // from a bare project_id (review 2026-09-04, advisory 4).
+  let projectId: string | null = (isRfpEvent || isAnonCaller) ? null : uuidOrNull(payload.project_id);
+  const effectivePortalId = isRfpEvent ? null : portalId;
+
+  // Review 2026-09-04 (advisory 4): the static portal page must PROVE it holds
+  // the portal — portal_id + the ?t= access token — before it can raise anything.
+  // portal_project_for_token (service-role RPC, the trust root of every portal
+  // write) turns the pair into the project id. A bare project_id used to resolve
+  // the GC on its own, so anyone holding a project uuid could burn the GC's
+  // notify:gc bucket and suppress their real contract_signed notices. Buckets
+  // are consumed AFTER the token check (the IP bucket first, so an invalid-token
+  // spray still costs the sender), and a project_id the page also sends must
+  // agree with the token.
+  const accessToken = strOrNull(payload.access_token);
+  delete payload.access_token; // never into notification_outbox.payload or a log line
   if (isAnonCaller) {
-    delete (payload as Record<string, unknown>).gc_user_id;
-    delete (payload as Record<string, unknown>).contractor_user_id;
+    if (!portalId || !accessToken) {
+      return { ok: false, reason: 'portal_token_required', event, httpStatus: 403 };
+    }
+    if (await exceedsRateLimit(`notify:ip:${clientIp}`, ANON_HOURLY_CAP)) {
+      return { ok: false, reason: 'rate_limited', event, httpStatus: 429 };
+    }
+    const tokenProjectId = await projectForPortalToken(portalId, accessToken);
+    const claimedProjectId = uuidOrNull(payload.project_id);
+    if (!tokenProjectId || (claimedProjectId && claimedProjectId !== tokenProjectId)) {
+      return { ok: false, reason: 'portal_token_invalid', event, portal_id: portalId, httpStatus: 403 };
+    }
+    if (await exceedsRateLimit(`portal:${portalId}`, ANON_HOURLY_CAP)) {
+      return { ok: false, reason: 'rate_limited', portal_id: portalId, httpStatus: 429 };
+    }
+    projectId = tokenProjectId;
   }
 
-  let gcUserId: string | null = (payload.gc_user_id as string)
-    ?? (payload.contractor_user_id as string)
-    ?? null;
-  let projectId: string | null = (payload.project_id as string) ?? null;
+  // Server-resolved bidder fan-out for a user-JWT `bid_question_answered`.
+  let resolvedBidders: BidderRecipient[] | null = null;
+  if (!isService && isRfpEvent) {
+    const rfpId = uuidOrNull(payload.rfp_id) ?? uuidOrNull(payload.bid_id);
+    const rfp = rfpId ? await getRfp(rfpId) : null;
+    if (!rfp) return { ok: false, reason: 'no_rfp', event };
+    if (event === 'bid_question_answered') {
+      // Only the RFP's poster answers, and the recipients are THAT RFP's bidders.
+      if (caller.kind !== 'user' || rfp.user_id !== caller.id) {
+        return { ok: false, reason: 'not_your_project', event, httpStatus: 403 };
+      }
+      resolvedBidders = await resolveBidders(rfp.id);
+    }
+    if (event === 'bid_question_asked') {
+      // Only a bidder who asked on THIS RFP may notify its poster, and only with
+      // the STORED text (advisory 3 + residual) — the payload's is ignored.
+      const asked = caller.kind === 'user' ? await newestBidQuestionBy(rfp.id, caller.id) : null;
+      if (!asked) return { ok: false, reason: 'no_bid_question', event, httpStatus: 403 };
+      payload.question = asked.question ?? '';
+      payload.asker_name = asked.asker_name ?? null;
+      payload.bid_question_id = asked.id;
+    }
+    gcUserId = uuidOrNull(rfp.user_id); // the poster receives 'asked' / sends 'answered'
+    if (rfp.title) payload.rfp_title = rfp.title;
+  }
 
-  if (!gcUserId && portalId) {
-    const rows = await sbGet(`rpc/gc_for_portal?p_portal_id=${encodeURIComponent(portalId)}`).catch(() => null);
-    if (typeof rows === 'string') gcUserId = rows;
+  // Review 2026-09-04 (residual): sub_invoice_reviewed from a user JWT used to
+  // email whatever submitted_by_email the caller typed. The user path now needs
+  // the invoice id (source_id — the slot the trigger uses — or payload.invoice_id),
+  // the row's sub-portal link must belong to the caller, and every field the
+  // email shows comes from the row. No client sends this event today: without
+  // an id it is service-only (the trigger path is unchanged).
+  let ownedSubLink: SubPortalLinkRow | null = null;
+  if (caller.kind === 'user' && event === 'sub_invoice_reviewed') {
+    const invoiceId = uuidOrNull(payload.invoice_id) ?? uuidOrNull(source_id);
+    if (!invoiceId) return { ok: false, reason: 'invoice_id_required', event, httpStatus: 403 };
+    const owned = await getOwnedSubInvoice(invoiceId, caller.id);
+    if (!owned) return { ok: false, reason: 'not_your_invoice', event, httpStatus: 403 };
+    payload.submitted_by_email = owned.invoice.submitted_by_email;
+    payload.submitted_by_name = owned.invoice.submitted_by_name;
+    payload.invoice_number = owned.invoice.invoice_number;
+    payload.amount = owned.invoice.amount;
+    payload.status = owned.invoice.status;
+    payload.notes_from_gc = owned.invoice.notes_from_gc;
+    ownedSubLink = owned.link;
+    if (!gcUserId) gcUserId = owned.link.user_id; // the link's owner === caller
+    projectId = uuidOrNull(owned.invoice.project_id) ?? projectId;
   }
-  if (!gcUserId && subPortalId) {
-    const rows = await sbGet(`rpc/gc_for_sub_portal?p_portal_id=${encodeURIComponent(subPortalId)}`).catch(() => null);
-    if (typeof rows === 'string') gcUserId = rows;
+
+  // Portal-first project lookup: one service-role read yields the GC, the
+  // email context AND client_portal for the tokenized portal URL (EDGE-F6).
+  // Anon: look the project up by the id the token PROVED, not by the portal id
+  // (they agree by construction; the proof must not hinge on a second lookup).
+  const projectCtx = await getProjectContext(projectId, isAnonCaller ? null : effectivePortalId);
+  if (projectCtx.id) projectId = projectCtx.id;
+  if (!gcUserId && effectivePortalId && projectCtx.viaPortal) gcUserId = projectCtx.user_id ?? null;
+
+  let subPortalLink: string | null = null;
+  if (subPortalId) {
+    const link = await getSubPortalLink(subPortalId);
+    subPortalLink = subPortalUrlFor(link);
+    if (!gcUserId && link && isUuid(link.user_id)) gcUserId = link.user_id;
+  } else if (ownedSubLink) {
+    // User path: getOwnedSubInvoice proved this link belongs to the caller.
+    subPortalLink = subPortalUrlFor(ownedSubLink);
   }
-  if (!gcUserId && projectId) {
-    const rows = await sbGet(`projects?id=eq.${projectId}&select=user_id`) as { user_id: string }[];
-    gcUserId = rows[0]?.user_id ?? null;
-  }
+  if (!gcUserId && projectCtx.user_id) gcUserId = projectCtx.user_id;
   if (!gcUserId) return { ok: false, reason: 'no_gc_resolved', event };
+
+  // EDGE-F4: a verified user may only address themselves or a project they belong to.
+  if (caller.kind === 'user') {
+    if (!isRfpEvent) {
+      const ownerId = projectCtx.user_id ?? null;
+      const isMember = !!ownerId && (ownerId === caller.id || await isAcceptedCollaborator(projectCtx.id ?? null, caller.id));
+      if (!userMayAddress({ callerId: caller.id, gcUserId, projectOwnerId: ownerId, isProjectMember: isMember })) {
+        return { ok: false, reason: 'not_your_project', event, httpStatus: 403 };
+      }
+    }
+    if (await exceedsRateLimit(`notify:user:${caller.id}`, USER_HOURLY_CAP)) {
+      return { ok: false, reason: 'rate_limited', event, httpStatus: 429 };
+    }
+  }
+  // EDGE-F5: the anon path is also bucketed by the RESOLVED GC (the client-IP
+  // and per-portal buckets were consumed above, after the token check).
+  if (isAnonCaller && await exceedsRateLimit(`notify:gc:${gcUserId}`, ANON_HOURLY_CAP)) {
+    return { ok: false, reason: 'rate_limited', event, httpStatus: 429 };
+  }
 
   const gc = await getProfile(gcUserId);
   if (!gc) return { ok: false, reason: 'no_gc_profile' };
 
-  const projectCtx = projectId
-    ? await getProjectContext(projectId)
-    : { name: (payload.project_name as string) || 'your project', location: undefined };
-  const projectName = projectCtx.name;
+  const projectName = projectCtx.id
+    ? projectCtx.name
+    : (projectId || effectivePortalId) ? 'your project' : ((payload.project_name as string) || 'your project');
 
-  const portalLink = portalId ? `${PORTAL_BASE}/${portalId}` : APP_BASE;
-  const subPortalLink = subPortalId ? `${SUB_PORTAL_BASE}/${subPortalId}` : null;
+  // EDGE-F6: tokenized portal URL or nothing — never a token-less /portal/<id>.
+  const portalUrl = portalUrlFor(projectCtx.client_portal);
+  const portalLink = portalUrl ?? APP_BASE;
 
   // Reusable email "shell" args populated for every dispatch.
   const sharedEmail = {
@@ -435,7 +767,7 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
           subtitle: `Reply through MAGE ID — your client sees it instantly in their portal.`,
           bodyHtml: emailQuote(trimmed),
           cta: { label: 'Reply in MAGE ID', href: projectDeepLink('client-messages') },
-          secondaryCta: portalId ? { label: 'View their portal', href: portalLink } : undefined,
+          secondaryCta: portalUrl ? { label: 'View their portal', href: portalUrl } : undefined,
         },
       });
       break;
@@ -685,7 +1017,7 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
             <p style="margin:0;">The signed PDF is in MAGE ID under this project's Contract section — pull it for your records. A copy lives in the homeowner's portal too, so they can reference it any time.</p>
           `,
           cta: { label: 'View signed contract', href: projectDeepLink('contract') },
-          secondaryCta: portalId ? { label: 'Open client portal', href: portalLink } : undefined,
+          secondaryCta: portalUrl ? { label: 'Open client portal', href: portalUrl } : undefined,
         },
       });
       break;
@@ -715,7 +1047,7 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
             ${emailProductCard({ imageUrl: productImage, productName, brand, category, price: totalCost ? fmtMoney(totalCost) : undefined, overBudget })}
           `,
           cta: { label: 'View in MAGE ID', href: projectDeepLink('selections') },
-          secondaryCta: portalId ? { label: 'Open client portal', href: portalLink } : undefined,
+          secondaryCta: portalUrl ? { label: 'Open client portal', href: portalUrl } : undefined,
         },
       });
       break;
@@ -755,7 +1087,10 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
       const question = (payload.question as string) || '';
       const answer = (payload.answer as string) || '';
       const detailUrl = rfpId ? `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : APP_BASE;
-      const recipients = (payload.bidder_recipients as { email?: string; push_token?: string; user_id?: string }[] | undefined) ?? [];
+      // EDGE-F4: a user-JWT caller's bidders were resolved server-side from
+      // bid_responses (resolvedBidders); only a service-role caller may ship a
+      // list, and it is capped at MAX_RECIPIENTS either way.
+      const recipients = resolvedBidders ?? capRecipients<BidderRecipient>(payload.bidder_recipients);
       for (const r of recipients) {
         const pushTok = r.push_token ?? null;
         const em = r.email ?? null;
@@ -811,7 +1146,7 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
       const photoCount = payload.photo_count as number | undefined;
       const warrantyCount = payload.warranty_count as number | undefined;
       const heroPhoto = (payload.hero_photo_url as string) || undefined;
-      const portalLink2 = portalId ? `${PORTAL_BASE}/${portalId}` : APP_BASE;
+      const portalLink2 = portalLink; // tokenized via portalUrlFor, or APP_BASE (EDGE-F6)
       const company = gc.company_name || gc.contact_name || 'Your contractor';
 
       // Homeowner-bound — the warm hand-off email.
@@ -891,7 +1226,7 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
               <p style="margin:0;">Their warranty walk reminder is set for 11 months from substantial completion — we'll surface it on your home tab when it's time.</p>
             `,
             cta: { label: 'View binder', href: projectDeepLink('closeout-binder') },
-            secondaryCta: portalId ? { label: 'See homeowner portal', href: portalLink2 } : undefined,
+            secondaryCta: portalUrl ? { label: 'See homeowner portal', href: portalLink2 } : undefined,
           },
         });
       }
@@ -920,31 +1255,59 @@ serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const body = await req.json() as NotifyRequest;
-    if (!body || !body.event) return jsonResponse({ error: "Missing event" }, 400);
+    // EDGE-F4: bound the body BEFORE parsing it — a 10,000-address fan-out
+    // request is refused at the door, not after Resend has seen it.
+    const raw = await req.text();
+    if (exceedsBodyLimit(new TextEncoder().encode(raw).byteLength)) {
+      return jsonResponse({ success: false, error: 'payload_too_large' }, 413);
+    }
+    let body: NotifyRequest;
+    try {
+      body = JSON.parse(raw) as NotifyRequest;
+    } catch {
+      return jsonResponse({ error: "Invalid JSON" }, 400);
+    }
+    if (!body || typeof body.event !== 'string' || !body.event) return jsonResponse({ error: "Missing event" }, 400);
+    if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) body.payload = {};
 
     // Privilege determination — FAIL-CLOSED. This function deploys
     // verify_jwt:false, so the gateway doesn't verify tokens; we must not infer
     // privilege from an unverified `role` claim (a forged role:'authenticated'
     // token previously skipped the allowlist + rate limit and could blast any
-    // event to anyone). A caller is privileged (any event, no rate limit) ONLY
-    // if it proves it: holds the service-role key (trusted server-to-server,
-    // e.g. notify-nearby-contractors / award-rfp) OR presents a GoTrue-verified
-    // authenticated user JWT. Everything else — anon key only, or a forged
-    // token — is treated as anon and held to ANON_ALLOWED_EVENTS + the limiter.
+    // event to anyone). A caller is classified ONLY by what it proves:
+    //   service — holds the service-role key (notify-nearby-contractors,
+    //             award-rfp) OR the pg_cron shared secret (EDGE-F3: the
+    //             fire_notify / public_bids_notify_nearby_fn triggers);
+    //   user    — presents a GoTrue-verified authenticated JWT; may only
+    //             address themselves / their own projects (EDGE-F4);
+    //   anon    — anon key only (the static portal page), or a forged token:
+    //             ANON_ALLOWED_EVENTS + three hourly buckets (EDGE-F5).
     const auth = req.headers.get('Authorization') || req.headers.get('authorization') || '';
     const bearer = auth.replace(/^Bearer\s+/i, '').trim();
     const apikey = req.headers.get('apikey') || req.headers.get('Apikey') || '';
-    const isPrivileged =
-      isServiceRoleToken(bearer) ||
-      isServiceRoleToken(apikey) ||
-      (await verifyUser(req)) !== null;
-    const isAnonCaller = !isPrivileged;
+    let caller: Caller = { kind: 'anon' };
+    if (isServiceRoleToken(bearer) || isServiceRoleToken(apikey)) {
+      caller = { kind: 'service' };
+    } else if ((req.headers.get('x-cron-secret') || '').length >= 16 && await isValidCron(req)) {
+      caller = { kind: 'service' };
+    } else {
+      const user = await verifyUser(req);
+      if (user) caller = { kind: 'user', id: user.id };
+    }
+    // EDGE-F5: the anon path needs at least the project's anon key — a bare
+    // curl with no headers is not a caller we serve.
+    if (caller.kind === 'anon' && !apikey && !bearer) {
+      return jsonResponse({ success: false, error: 'unauthorized' }, 401);
+    }
 
-    const result = await dispatch(body, isAnonCaller);
-    return jsonResponse({ success: true, result });
+    const result = await dispatch(body, caller, clientIpFrom(req.headers));
+    const { httpStatus, ...rest } = result;
+    if (httpStatus && httpStatus >= 400) return jsonResponse({ success: false, ...rest }, httpStatus);
+    return jsonResponse({ success: true, result: rest });
   } catch (e) {
+    // Detail goes to the server log only; the caller gets a generic envelope
+    // (the old `String(e)` echoed PostgREST paths and statuses to anonymous callers).
     console.error('[notify] dispatch failed', e);
-    return jsonResponse({ success: false, error: String(e) }, 500);
+    return jsonResponse({ success: false, error: 'notify_failed' }, 500);
   }
 });

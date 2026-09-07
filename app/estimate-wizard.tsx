@@ -18,7 +18,7 @@
 // project's estimate via the Projects context (left as a follow-up so the
 // existing estimator isn't touched by this first pass).
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, Platform, KeyboardAvoidingView, Modal,
@@ -41,6 +41,10 @@ import { mageAISmart } from '@/utils/mageAI';
 import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
+import {
+  EMPTY_GROUNDING, buildGroundingFacts, estimateThinkingSteps, groundingChipLabel, selectGroundingEntries,
+  type GroundingBundle, type ScopeHints,
+} from '@/utils/groundingChip';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import UpgradeSheet from '@/components/UpgradeSheet';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
@@ -57,35 +61,43 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
-import type { CompanyBranding, LinkedEstimate, LinkedEstimateItem, Project, ProjectType, QualityTier } from '@/types';
+import type { Commitment, CompanyBranding, LinkedEstimate, LinkedEstimateItem, Project, ProjectType, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
-  scopeCacheKey, estimateSchema, QUALITY_LABELS, stepBlockReason,
+  estimateSchema, QUALITY_LABELS, stepBlockReason,
   type WizardAnswers, type EstimateResult,
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { showAlert } from '@/utils/alert';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
-// Two variants, because claiming to price "from your history" when the cost book
-// is empty is a lie the user can't see through — and it's the exact promise the
-// whole product is sold on. A contractor with zero closed jobs gets generic LLM
-// pricing (groundingFacts is []), so say that. The result card at the bottom of
-// this screen already tells the truth; the loading copy above it did not.
-const ESTIMATE_THINKING_STEPS_GROUNDED = [
-  'Reading your scope…',
-  'Pricing from your history…',
-  'Checking your margin…',
-  'Assembling line items…',
-];
-const ESTIMATE_THINKING_STEPS_COLD = [
-  'Reading your scope…',
-  'Pricing from market averages…',
-  'Checking your margin…',
-  'Assembling line items…',
-];
+// The loader's "Pricing from …" line is a claim about this run's prompt, so it
+// comes from the same firewall as the chip: utils/groundingChip
+// estimateThinkingSteps reads the MEASURED / STATED counts of the bundle
+// stored for the run — "your history" only for a measured rate, "the rates
+// you set" for a seeded-only book, market averages for nothing at all.
+
+/** The wizard answers that steer PRODUCT-F18 grounding (project type → trade
+ *  keywords; trades named in the scope / special requirements). */
+const hintsFrom = (a: WizardAnswers): ScopeHints => ({
+  projectType: a.projectType, scope: a.scope, specialRequirements: a.specialRequirements,
+});
+
+/** Bid-vs-actual calibration: one sentence about the worst-calibrated
+ *  category, when there is history to say it. A FACT for the prompt, never an
+ *  ENTRY for the chip count (utils/groundingChip.buildGroundingFacts). */
+function calibrationFactFor(projects: Project[], commitments: Commitment[]): string | null {
+  try {
+    const cal = computeCalibration({ projects, commitments });
+    const top = cal.hasData ? cal.categories[0] : undefined;
+    return top && top.direction !== 'aligned' ? top.detail : null;
+  } catch {
+    return null;
+  }
+}
 
 // On-brand cost-distribution bar palette (no purple/pink — matches the
 // redesign's trade-tile colors). Rotated by category index.
@@ -200,6 +212,10 @@ export default function EstimateWizardScreen() {
 
 function EstimateWizardScreenInner() {
   const router = useRouter();
+  // UX-F14/F18: the wizard is gestureEnabled:false, so a cold-start deep link
+  // into it has no history to pop — useSafeBack falls through to the home tab
+  // instead of leaving the chevron dead (hooks/useSafeBack.ts).
+  const safeBack = useSafeBack();
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -229,6 +245,18 @@ function EstimateWizardScreenInner() {
   const [loading, setLoading] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
+  // AI-F4 / PRODUCT-F18 (review): the grounding that went into THIS run's
+  // prompt, stored next to the result. The chip, the seed CTA and the loader
+  // copy read this — never a memo, which would re-render from newer answers
+  // (the refine path) or from a cost book that finished loading after the
+  // first result, and disagree with the prompt that was actually sent.
+  const [groundingUsed, setGroundingUsed] = useState<GroundingBundle | null>(null);
+  // Run counter (re-review A5). generate() stamps each run; cancelGenerate
+  // bumps the counter without starting one. A run whose id no longer matches
+  // is orphaned: its response is dropped and its `finally` must not flip
+  // `loading` off under a newer run. The fetch itself is not aborted (the
+  // AbortController is internal to mageAI) — this is the stale-state check.
+  const runRef = useRef(0);
   const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
   // Standalone "Save to a project" flow. When the wizard is launched with no
   // ?projectId, the result would otherwise be a dead end (Share PDF + start
@@ -295,22 +323,21 @@ function EstimateWizardScreenInner() {
     [projects, commitments, receipts, laborSamples, seeds],
   );
 
-  const groundingFacts = useMemo<string[]>(() => {
+  // PRODUCT-F18: ground on the entries that match THIS job (project type →
+  // trade keywords, plus trades named in the scope text), not the six
+  // largest jobs in the book — a bathroom used to get roofing, concrete and
+  // siding. The exposure top-N is only the fallback when nothing matches.
+  // Called from generate() with the answers actually SENT, so the refine
+  // path grounds on the refined answers, and the result is stored as
+  // groundingUsed so every surface describes the same prompt.
+  const groundingFor = useCallback((a: WizardAnswers): GroundingBundle => {
     try {
-      // Seeded rates are told to the model as told-to-us, never as measured
-      // history. Handing the LLM "runs $X on your jobs" for a number the
-      // contractor typed would launder a claim into evidence.
-      const facts = costDb.entries.slice(0, 6).map((e) =>
-        e.provenance === 'seeded'
-          ? `${e.trade}: the contractor's own stated rate is $${e.suggestedRate.toFixed(2)}/${e.unit} (self-reported, no closed job yet — use it, but don't call it measured)`
-          : `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
-      const cal = computeCalibration({ projects, commitments });
-      if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
-        facts.push(cal.categories[0].detail);
-      }
-      return facts;
+      return buildGroundingFacts(
+        selectGroundingEntries(costDb.entries, hintsFrom(a), 6),
+        calibrationFactFor(projects, commitments),
+      );
     } catch {
-      return [];
+      return EMPTY_GROUNDING;
     }
   }, [costDb, projects, commitments]);
 
@@ -341,17 +368,31 @@ function EstimateWizardScreenInner() {
 
     setLoading(true);
     setResult(null);
+    const runId = ++runRef.current;
 
     const a = answersOverride ?? answers;
-    const prompt = buildEstimatePrompt(a, groundingFacts);
+    // Grounding from the answers actually SENT, stored before the call so the
+    // loader (during) and the chip + seed CTA (after) describe this run.
+    const used = groundingFor(a);
+    setGroundingUsed(used);
+    const prompt = buildEstimatePrompt(a, used.facts);
 
-    // Grounded prompts must not collide with ungrounded cache entries; salt
-    // by fact CONTENT, not count — the fact list is capped, so a stale count
-    // salt would replay an estimate grounded on an outdated cost book.
-    const cacheKey = scopeCacheKey(a) + (groundingFacts.length > 0 ? `_g${stableHash(groundingFacts.join('|'))}` : '');
+    // The cache key is the PROMPT (re-review B2). The prompt already carries
+    // every answer — including timeline, budget and the special requirements
+    // the refine loop appends to — plus the grounding facts by content, so
+    // two runs share a cached estimate only when the model would have been
+    // asked the identical question. The old key was built from a subset of
+    // the answers (type, size, location, quality, the first 80 chars of the
+    // scope) plus a facts hash; special requirements were not in it, so most
+    // refine answers ("How many bathrooms? 2") came back as the first
+    // estimate, byte-identical, for two hours.
+    const cacheKey = 'wizard::' + stableHash(prompt);
 
     try {
       const res = await mageAISmart(prompt, estimateSchema, cacheKey);
+      // Cancelled or superseded while the model was thinking: a newer run (or
+      // none) owns the screen now. Drop this response on the floor.
+      if (runRef.current !== runId) return;
       if (!res.success || !res.data) {
         showAlert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
       } else {
@@ -386,13 +427,19 @@ function EstimateWizardScreenInner() {
         const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
         setResult(data);
 
-        // Activation funnel: enriched aha event — attaches whether this
+        // Activation funnel: enriched aha event — attaches whether THIS
         // estimate was priced from the contractor's own learned cost data.
+        // used_learned_costs comes from the run's counts: true only when the
+        // prompt that was just sent carried a MEASURED rate. The book-level
+        // form counted seeded entries and the whole book, so a seeded-only
+        // contractor fired the aha without ever seeing MAGE price from their
+        // history (re-review A3). learned_rate_count / jobs_analyzed still
+        // describe the book.
         track(AnalyticsEvents.ESTIMATE_GENERATED, {
           path: 'wizard_generated',
           grand_total: data.total,
           item_count: data.lineItems?.length ?? 0,
-          ...estimateGroundingProps(costDb),
+          ...estimateGroundingProps(costDb, used.counts),
         });
 
         // Project-aware link-back. When the wizard was launched with a
@@ -436,17 +483,20 @@ function EstimateWizardScreenInner() {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
+      if (runRef.current !== runId) return;
       showAlert('Estimate failed', err instanceof Error ? err.message : 'Unknown error.');
     } finally {
-      setLoading(false);
+      // Only the run that owns the screen may take the loader down.
+      if (runRef.current === runId) setLoading(false);
     }
-  }, [answers, groundingFacts, costDb, loading, tier, router, projectId, scopedProject, updateProject]);
+  }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, updateProject]);
 
-  // Escape hatch for the loading screen. We don't actually abort the
-  // in-flight fetch (the AbortController is internal to mageAI), but
-  // flipping loading off lets the user retype / retry — orphaned response
-  // is just dropped via the stale-state check below.
+  // Escape hatch for the loading screen. The in-flight fetch is not aborted
+  // (the AbortController is internal to mageAI); bumping runRef orphans it,
+  // so its response — success, failure or `finally` — cannot land on the
+  // screen or under a run started after the cancel.
   const cancelGenerate = useCallback(() => {
+    runRef.current += 1;
     setLoading(false);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
@@ -492,6 +542,7 @@ function EstimateWizardScreenInner() {
   const reset = useCallback(() => {
     setAnswers(INITIAL_SCOPE);
     setResult(null);
+    setGroundingUsed(null);
     setStep(0);
     setSavedProjectId(null);
   }, []);
@@ -730,9 +781,11 @@ function EstimateWizardScreenInner() {
                 style={styles.brainCardSpacing}
                 confidence={result.confidence}
                 ground={[
-                  groundingFacts.length > 0
-                    ? `Priced with your cost history · ${groundingFacts.length} learned rate${groundingFacts.length === 1 ? '' : 's'}`
-                    : 'Priced from market averages — MAGE has none of your rates yet',
+                  // AI-F4: "learned" counts MEASURED entries only; a stated
+                  // rate is named as one you set; a calibration-only prompt
+                  // says history-only (utils/groundingChip). Read from the
+                  // bundle stored for THIS run, never a live memo.
+                  groundingChipLabel((groundingUsed ?? EMPTY_GROUNDING).counts, { calibration: groundingUsed?.calibration }),
                   result.confidence === undefined ? 'No confidence score returned for this run' : null,
                 ].filter(Boolean).join(' · ')}
                 lead={result.refineWith && result.refineWith.length > 0
@@ -742,7 +795,7 @@ function EstimateWizardScreenInner() {
               {/* Empty cost book: don't just confess to generic pricing, hand
                   them the fix. Closing jobs is the long road; seeding the
                   rates they already know works today. */}
-              {groundingFacts.length === 0 ? (
+              {(groundingUsed?.selectedCount ?? 0) === 0 ? (
                 <TouchableOpacity
                   style={styles.seedPrompt}
                   onPress={() => router.push('/cost-seed' as never)}
@@ -1196,7 +1249,7 @@ function EstimateWizardScreenInner() {
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             onPress={step === 0
-              ? () => (isOnboarding ? router.replace(ONBOARDING_PAYWALL_ROUTE) : router.back())
+              ? () => (isOnboarding ? router.replace(ONBOARDING_PAYWALL_ROUTE) : safeBack())
               : back}
             style={[styles.secondaryBtn, styles.footerBtn]}
             activeOpacity={0.8}
@@ -1245,8 +1298,14 @@ function EstimateWizardScreenInner() {
       <EstimateLoadingOverlay
         visible={loading}
         title="Generating estimate…"
-        subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
-        thinkingSteps={groundingFacts.length > 0 ? ESTIMATE_THINKING_STEPS_GROUNDED : ESTIMATE_THINKING_STEPS_COLD}
+        // Nothing is retrieved: the model estimates from the answers plus the
+        // grounding the steps name. The old line said materials, labor and
+        // this year's pricing were being pulled — a lookup that never happens.
+        subtitle="Usually 20–40 seconds. The model is estimating from your answers plus the grounding listed — nothing is pulled from a price list."
+        // Loader copy from the counts of the bundle stored for THIS run: "your
+        // history" only for a measured rate, "the rates you set" for a
+        // seeded-only book, market averages otherwise (utils/groundingChip).
+        thinkingSteps={estimateThinkingSteps((groundingUsed ?? EMPTY_GROUNDING).counts)}
         onCancel={cancelGenerate}
       />
       <UpgradeSheet

@@ -227,19 +227,32 @@ console.log('\ncomposeBrief — watching:');
   ok('cash routes to /cash-flow', cashItem?.route?.pathname === '/cash-flow');
 
   // Week load: schedule started 30d ago, one 60d task → active all week.
+  // `workingDaysPerWeek` is spelled out because it decides the answer, and the
+  // fixture used to leave it out: computeWeekLoad counted a RAW CALENDAR index,
+  // so this asserted "7 of 7 days" — a crew on site Saturday AND Sunday on a
+  // Mon–Fri job. It now walks the schedule's own working calendar
+  // (scheduleDayOnCalendar), so a 5-day week is 5 of 7 and a 7-day week is 7.
+  const busySchedule = (workingDaysPerWeek: number) => ({
+    id: 's1', name: 'S', projectId: 'p1',
+    startDate: daysAgoISO(30).slice(0, 10),
+    workingDaysPerWeek,
+    tasks: [{ id: 't1', title: 'Framing', phase: 'G', startDay: 1, durationDays: 60, progress: 10, status: 'in_progress' }],
+    riskItems: [], healthScore: 90,
+  });
   const busy = project({
-    id: 'p1', name: 'Henderson',
-    schedule: {
-      id: 's1', name: 'S', projectId: 'p1',
-      startDate: daysAgoISO(30).slice(0, 10),
-      tasks: [{ id: 't1', title: 'Framing', phase: 'G', startDay: 1, durationDays: 60, progress: 10, status: 'in_progress' }],
-      riskItems: [], healthScore: 90,
-    },
+    id: 'p1', name: 'Henderson', schedule: busySchedule(5),
   } as unknown as Partial<Project> & { id: string; name: string });
   const loadBrief = composeBrief(baseInput({ projects: [busy] }));
   const loadItem = loadBrief.watching.find(i => i.id === 'week-load');
   ok('week-load item present when tasks active', !!loadItem);
-  ok('week-load counts 7 busy days', !!loadItem && loadItem.text.includes('7 of 7 days'), loadItem?.text);
+  ok('week-load counts the 5 working days of a Mon–Fri job, not 7',
+    !!loadItem && loadItem.text.includes('5 of 7 days'), loadItem?.text);
+  const busy7 = project({
+    id: 'p1', name: 'Henderson', schedule: busySchedule(7),
+  } as unknown as Partial<Project> & { id: string; name: string });
+  const load7 = composeBrief(baseInput({ projects: [busy7] })).watching.find(i => i.id === 'week-load');
+  ok('… and all 7 when the schedule really does run 7 days a week',
+    !!load7 && load7.text.includes('7 of 7 days'), load7?.text);
   ok('no week-load item when no schedules', composeBrief(baseInput()).watching.every(i => i.id !== 'week-load'));
 
   // Missing report: cadence at d-3/d-4, nothing yesterday.

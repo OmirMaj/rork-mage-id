@@ -102,3 +102,72 @@ for (const c of DISPLAY_CASES) {
 console.log(`displayText: ${dPassed} passed, ${dFailed} failed`);
 
 if (failed + dFailed > 0) process.exit(1);
+
+// ── formatMoney — sign-correct, and the ONLY money formatter (HEALTH-F5) ────
+// Audit 2026-09-03 (11-code-health F5 / money F18): five app-side copies of
+// `'$' + Math.abs(n).toLocaleString(…)` dropped the sign, so a −$5,000 credit
+// change order rendered as "$5,000.00" beside a +$5,000 one. utils/formatters
+// is the one definition; app/ screens may only delegate to it.
+import { formatMoney, formatMoneyShort } from '../utils/formatters';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, dirname, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+let mPassed = 0;
+let mFailed = 0;
+function money(label: string, got: string, want: string) {
+  if (got === want) { mPassed++; }
+  else { mFailed++; console.error(`FAIL [${label}]\n  expected: ${JSON.stringify(want)}\n  got:      ${JSON.stringify(got)}`); }
+}
+money('negative keeps its sign with 2 decimals', formatMoney(-1234.5, 2), '-$1,234.50');
+money('positive with 2 decimals', formatMoney(1234.5, 2), '$1,234.50');
+money('null → $0', formatMoney(null), '$0');
+money('undefined → $0', formatMoney(undefined), '$0');
+money('NaN → $0', formatMoney(Number.NaN), '$0');
+money('negative short form', formatMoneyShort(-12_000), '-$12K');
+money('zero has no sign', formatMoney(-0, 2), '$0.00');
+
+// Source assertion: no file under app/ defines a local money formatter that
+// STRIPS the sign — a body that calls Math.abs and never re-attaches a '-'
+// (a compact "$1.2M" helper that computes `sign` separately is fine; the
+// `'$' + Math.abs(n).toLocaleString(…)` idiom the audit found is not). Both
+// `function x(…) {…}` and `const x = (…) => …` forms, for the audit's names.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+function walk(dir: string, out: string[]): void {
+  for (const name of readdirSync(dir)) {
+    if (name.startsWith('.') || name === 'node_modules') continue;
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (/\.tsx?$/.test(name)) out.push(p);
+  }
+}
+/** Balanced-brace body starting at `open` (index of '{'). */
+function braceBody(src: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) return src.slice(open, i + 1);
+  }
+  return src.slice(open);
+}
+const appFiles: string[] = [];
+walk(join(ROOT, 'app'), appFiles);
+const NAMES = '(?:money|formatMoney|formatCurrency|formatCurrencyPrecise|fmtMoney)';
+const DECL = new RegExp(`(?:function\\s+${NAMES}\\s*\\([^)]*\\)[^{;]*|const\\s+${NAMES}\\s*=\\s*\\([^)]*\\)[^=]*=>\\s*)`, 'g');
+const dropsSign = (body: string) => /Math\.abs\(/.test(body) && !/(['"`]-|\bsign\b|<\s*0)/.test(body);
+const offenders: string[] = [];
+for (const f of appFiles) {
+  const src = readFileSync(f, 'utf8');
+  for (const m of src.matchAll(DECL)) {
+    const at = m.index! + m[0].length;
+    const body = src[at] === '{' ? braceBody(src, at) : src.slice(at, src.indexOf('\n', at));
+    if (dropsSign(body)) { offenders.push(`${relative(ROOT, f)} (${m[0].trim().split(/\s+/).slice(0, 2).join(' ')})`); break; }
+  }
+}
+if (offenders.length === 0) { mPassed++; }
+else {
+  mFailed++;
+  console.error(`FAIL [no sign-dropping local money formatter under app/]\n  ${offenders.join('\n  ')}\n  → delegate to formatMoney from utils/formatters instead`);
+}
+console.log(`formatMoney: ${mPassed} passed, ${mFailed} failed`);
+if (mFailed > 0) process.exit(1);

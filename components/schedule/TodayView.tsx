@@ -26,6 +26,7 @@ import {
   Droplet,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { parseCalendarDay } from '@/utils/calendarDate';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
   formatShortDate,
@@ -261,17 +262,17 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
               <View style={s.predRow}>
                 {predsComplete ? (
                   <View style={s.predBadgeGreen}>
-                    <CheckCircle2 size={10} color={Colors.success} strokeWidth={1.75} />
+                    <CheckCircle2 size={10} color={Colors.successLabel} strokeWidth={1.75} />
                     <Text style={s.predBadgeTextGreen}>Predecessors done</Text>
                   </View>
                 ) : predsInProgress ? (
                   <View style={s.predBadgeYellow}>
-                    <Clock size={10} color={Colors.warning} strokeWidth={1.75} />
+                    <Clock size={10} color={Colors.warningLabel} strokeWidth={1.75} />
                     <Text style={s.predBadgeTextYellow}>Predecessors in progress</Text>
                   </View>
                 ) : (
                   <View style={s.predBadgeRed}>
-                    <AlertTriangle size={10} color={Colors.error} strokeWidth={1.75} />
+                    <AlertTriangle size={10} color={Colors.dangerLabel} strokeWidth={1.75} />
                     <Text style={s.predBadgeTextRed}>Blocked</Text>
                   </View>
                 )}
@@ -300,13 +301,13 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
                 style={[s.quickActionBtn, s.quickActionBtnComplete]}
                 onPress={handleComplete}
               >
-                <CheckCircle2 size={14} color={Colors.success} strokeWidth={1.75} />
-                <Text style={[s.quickActionLabel, { color: Colors.success }]}>Done</Text>
+                <CheckCircle2 size={14} color={Colors.successLabel} strokeWidth={1.75} />
+                <Text style={[s.quickActionLabel, { color: Colors.successLabel }]}>Done</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.quickActionBtn} onPress={handlePhotoCapture}>
-                <Camera size={14} color={Colors.info} strokeWidth={1.75} />
+                <Camera size={14} color={Colors.infoLabel} strokeWidth={1.75} />
                 {photoCount > 0 && (
-                  <Text style={[s.quickActionLabel, { color: Colors.info }]}>{photoCount}</Text>
+                  <Text style={[s.quickActionLabel, { color: Colors.infoLabel }]}>{photoCount}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={s.quickActionBtn} onPress={() => onTaskPress(task)} accessibilityRole="button" accessibilityLabel="Message">
@@ -491,8 +492,10 @@ function TodayView({
       {forecast.length > 1 && (
         <View style={s.forecastRow}>
           {forecast.slice(1).map((f) => {
-            const d = new Date(f.date);
-            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+            // UX-F10: f.date is a bare 'YYYY-MM-DD' — as UTC midnight the strip
+            // was labelled Sun…Sat for Mon…Sun data west of Greenwich.
+            const d = parseCalendarDay(f.date);
+            const dayName = d ? d.toLocaleDateString('en-US', { weekday: 'short' }) : f.date;
             return (
               <View key={f.date} style={[s.forecastDay, !f.isWorkable && s.forecastDayBad]}>
                 <Text style={s.forecastDayName}>{dayName}</Text>
@@ -508,7 +511,7 @@ function TodayView({
       {overdueTasks.length > 0 && (
         <View style={s.section}>
           <View style={s.sectionHeaderOverdue}>
-            <AlertTriangle size={14} color={Colors.error} strokeWidth={1.75} />
+            <AlertTriangle size={14} color={Colors.dangerLabel} strokeWidth={1.75} />
             <Text style={s.sectionTitleOverdue}>Overdue ({overdueTasks.length})</Text>
           </View>
           {overdueTasks.map(task => {
@@ -552,7 +555,7 @@ function TodayView({
         )}
         {activeTasks.length === 0 ? (
           <View style={s.emptyActive}>
-            <CheckCircle2 size={28} color={Colors.success} strokeWidth={1.75} />
+            <CheckCircle2 size={28} color={Colors.successLabel} strokeWidth={1.75} />
             <Text style={s.emptyActiveText}>No tasks active today</Text>
           </View>
         ) : (
@@ -569,7 +572,7 @@ function TodayView({
       {comingUpTasks.length > 0 && (
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <ChevronRight size={14} color={Colors.info} strokeWidth={1.75} />
+            <ChevronRight size={14} color={Colors.infoLabel} strokeWidth={1.75} />
             <Text style={s.sectionTitle}>Coming Up (Next 3 Days)</Text>
           </View>
           {comingUpTasks.map(task => {
@@ -591,7 +594,7 @@ function TodayView({
                 </View>
                 {isBlocked && (
                   <View style={s.blockedBadge}>
-                    <AlertTriangle size={10} color={Colors.error} strokeWidth={1.75} />
+                    <AlertTriangle size={10} color={Colors.dangerLabel} strokeWidth={1.75} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -603,12 +606,12 @@ function TodayView({
       {completedToday.length > 0 && (
         <View style={s.section}>
           <View style={s.sectionHeaderGreen}>
-            <Trophy size={14} color={Colors.success} strokeWidth={1.75} />
+            <Trophy size={14} color={Colors.successLabel} strokeWidth={1.75} />
             <Text style={s.sectionTitleGreen}>Completed ({completedToday.length})</Text>
           </View>
           {completedToday.map(task => (
             <View key={task.id} style={s.completedCard}>
-              <CheckCircle2 size={14} color={Colors.success} strokeWidth={1.75} />
+              <CheckCircle2 size={14} color={Colors.successLabel} strokeWidth={1.75} />
               <Text style={s.completedTitle} numberOfLines={1}>{task.title}</Text>
             </View>
           ))}
@@ -689,9 +692,9 @@ const s = StyleSheet.create({
   },
   sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   sectionHeaderOverdue: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectionTitleOverdue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.error },
+  sectionTitleOverdue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.dangerLabel },
   sectionHeaderGreen: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectionTitleGreen: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.success },
+  sectionTitleGreen: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.successLabel },
 
   swipeHint: {
     flexDirection: 'row',
@@ -770,7 +773,7 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
   },
-  predBadgeTextGreen: { fontSize: 10, fontWeight: '600' as const, color: Colors.success },
+  predBadgeTextGreen: { fontSize: 10, fontWeight: '600' as const, color: Colors.successLabel },
   predBadgeYellow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -780,7 +783,7 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
   },
-  predBadgeTextYellow: { fontSize: 10, fontWeight: '600' as const, color: Colors.warning },
+  predBadgeTextYellow: { fontSize: 10, fontWeight: '600' as const, color: Colors.warningLabel },
   predBadgeRed: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -790,7 +793,7 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
   },
-  predBadgeTextRed: { fontSize: 10, fontWeight: '600' as const, color: Colors.error },
+  predBadgeTextRed: { fontSize: 10, fontWeight: '600' as const, color: Colors.dangerLabel },
 
   progressBarContainer: {
     flexDirection: 'row',
@@ -852,7 +855,7 @@ const s = StyleSheet.create({
   },
   overdueLeft: { flex: 1, gap: 2 },
   overdueTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  overdueMeta: { fontSize: Type.caption1.fontSize, color: Colors.error, fontWeight: '500' as const },
+  overdueMeta: { fontSize: Type.caption1.fontSize, color: Colors.dangerLabel, fontWeight: '500' as const },
   overdueActions: { flexDirection: 'row', gap: 6 },
   overdueResolveBtn: {
     paddingHorizontal: 12,
@@ -860,7 +863,7 @@ const s = StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     backgroundColor: '#34C75918',
   },
-  overdueResolveBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.success },
+  overdueResolveBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.successLabel },
 
   compactCard: {
     flexDirection: 'row',

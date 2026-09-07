@@ -34,6 +34,7 @@ import SignaturePad from '@/components/SignaturePad';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -162,7 +163,7 @@ export default function CompanyProfileScreen() {
           title: 'Company Profile',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
-          headerTitleStyle: { fontWeight: '700', color: themeColors.text },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />

@@ -38,6 +38,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import EmptyState from '@/components/EmptyState';
 import type { Project } from '@/types';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 // ─── ToolHeader ───────────────────────────────────────────────────────────────
 
@@ -51,11 +52,13 @@ export function ToolHeader({ eyebrow, title, right }: {
 }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const router = useRouter();
+  // UX-F18: the eight project-scoped tool screens share this chevron; a bare
+  // router.back() is dead on a cold-start route, so fall through to home.
+  const goBack = useSafeBack();
   return (
     <View style={styles.header}>
       <TouchableOpacity
-        onPress={() => router.back()}
+        onPress={goBack}
         style={styles.headerBtn}
         hitSlop={12}
         accessibilityRole="button"

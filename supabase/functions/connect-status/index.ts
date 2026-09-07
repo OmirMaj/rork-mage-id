@@ -30,6 +30,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { verifyUser } from "../_shared/verifyUser.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_API_VERSION = "2024-06-20";
@@ -80,18 +81,11 @@ serve(async (req) => {
   // body.userId without verifying caller identity — any authenticated
   // MAGE user could read any other user's Stripe Connect status. Now
   // we decode the caller's JWT and require body.userId === payload.sub.
-  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-  let callerSub: string | null = null;
-  try {
-    const parts = bearer.split(".");
-    if (parts.length === 3) {
-      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      while (b64.length % 4) b64 += "=";
-      const payload = JSON.parse(atob(b64));
-      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
-    }
-  } catch { /* fall through to 401 */ }
+  // Audit 2026-09-03 EDGE-F14: the id now comes from a GoTrue-verified JWT
+  // (signature + expiry + ban state via verifyUser), not a bare claims decode
+  // that only the gateway's verify_jwt flag protected.
+  const verified = await verifyUser(req);
+  const callerSub: string | null = verified?.id ?? null;
   if (!callerSub) {
     return new Response(JSON.stringify({ success: false, error: "unauthenticated" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },

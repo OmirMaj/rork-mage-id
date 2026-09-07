@@ -430,7 +430,7 @@ function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionO
         <View style={styles.highlightsRow}>
           {option.highlights.slice(0, 3).map((h, i) => (
             <View key={i} style={styles.highlight}>
-              <Star size={9} color={Colors.warning} strokeWidth={1.75} />
+              <Star size={9} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.highlightText}>{h}</Text>
             </View>
           ))}

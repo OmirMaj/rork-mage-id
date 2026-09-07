@@ -104,6 +104,8 @@ export function useProjectCollaborators(projectId: string | undefined) {
      * including the financial blinding, on any transient error.
      */
     isError: query.isError,
+    /** Re-run the collaborator read (the "Retry" behind a failed role lookup, audit RT-R2). */
+    refetch: () => { void query.refetch(); },
     invite,
     revoke,
     changeRole,

@@ -86,8 +86,6 @@ function makeBuilder(): any {
   return proxy;
 }
 
-const noopSubscription = { unsubscribe: () => {} };
-
 /**
  * The signed-in session, controlled by the test harness.
  *
@@ -100,8 +98,20 @@ const noopSubscription = { unsubscribe: () => {} };
  */
 let currentSession: unknown = null;
 
+// A4 (round 3): utils/offlineQueue.ts keeps the signed-in user from the auth
+// client's state feed instead of calling getSession() per enqueue, so the mock
+// feeds its subscribers the way gotrue does. Synchronously, on purpose: a test
+// flips the session from INSIDE a scripted insert and the flush must see it
+// before its next send. The harness only flips the session between mounts, so
+// AuthContext's own subscriber is never live when this fires there.
+type AuthStateListener = (event: string, session: unknown) => void;
+const authStateListeners = new Set<AuthStateListener>();
+
 export function __setSmokeSession(session: unknown): void {
   currentSession = session;
+  for (const listener of [...authStateListeners]) {
+    try { listener(session ? 'SIGNED_IN' : 'SIGNED_OUT', session); } catch { /* a listener must never break the harness */ }
+  }
 }
 
 export function __getSmokeSession(): unknown {
@@ -111,7 +121,11 @@ export function __getSmokeSession(): unknown {
 const authMock = {
   getSession: async () => ({ data: { session: currentSession }, error: null }),
   getUser: async () => ({ data: { user: (currentSession as any)?.user ?? null }, error: null }),
-  onAuthStateChange: (_cb?: unknown) => ({ data: { subscription: noopSubscription } }),
+  onAuthStateChange: (cb?: unknown) => {
+    const listener = typeof cb === 'function' ? (cb as AuthStateListener) : null;
+    if (listener) authStateListeners.add(listener);
+    return { data: { subscription: { unsubscribe: () => { if (listener) authStateListeners.delete(listener); } } } };
+  },
   signInWithPassword: async () => ({ data: { user: null, session: null }, error: null }),
   signInWithOAuth: async () => ({ data: { provider: null, url: null }, error: null }),
   signInWithIdToken: async () => ({ data: { user: null, session: null }, error: null }),
@@ -189,6 +203,24 @@ export const supabase: any = {
 
 export function supabaseGuard() {
   return supabase;
+}
+
+// RT-R1: lib/supabase.ts's dead-session registry (a 401 the refresh could not
+// fix). Mirrored here so AuthContext's subscription takes its real path under
+// jest instead of relying on its `typeof onSessionExpired !== 'function'`
+// escape hatch; __emitSessionExpired lets a test fire it.
+type SessionExpiredListener = () => void;
+const sessionExpiredListeners = new Set<SessionExpiredListener>();
+
+export function onSessionExpired(listener: SessionExpiredListener): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => { sessionExpiredListeners.delete(listener); };
+}
+
+export function __emitSessionExpired(): void {
+  for (const listener of sessionExpiredListeners) {
+    try { listener(); } catch { /* a listener must never break the emitter */ }
+  }
 }
 
 export default supabase;

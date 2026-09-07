@@ -98,8 +98,27 @@ export function deriveOriginalContract(
 ): number {
   const fromPayApp = payApps[0]?.originalContractSum;
   if (typeof fromPayApp === 'number' && fromPayApp > 0) return fromPayApp;
-  const fromCo = changeOrders[0]?.originalContractValue;
-  if (typeof fromCo === 'number' && fromCo > 0) return fromCo;
+  // MONEY-F10. A change order's originalContractValue is NOT the original
+  // contract: app/change-order.tsx stamps it as
+  //     estimate grandTotal + Σ OTHER approved COs at save time
+  // and getChangeOrdersForProject hands COs out newest-first, so on a job with
+  // two approved COs `changeOrders[0]` already contained the first one and
+  // revisedContract added it AGAIN ($500k estimate, +$20k, +$30k read $570k;
+  // earned revenue, underbilling and the CO cost ratio all inherited it — on
+  // the schedule a surety underwrites). The base every snapshot started from
+  // is the estimate total, so when the project has one, that IS the original
+  // contract — exact, and immune to the order COs were approved in (a
+  // deductive CO approved first leaves a later CO's snapshot BELOW the base).
+  // Without an estimate the snapshots are all there is: the smallest positive
+  // one carries the fewest other COs. Never the newest.
+  if (changeOrders.length > 0) {
+    const fromEstimate = project?.linkedEstimate?.grandTotal ?? project?.estimate?.grandTotal;
+    if (typeof fromEstimate === 'number' && fromEstimate > 0) return fromEstimate;
+    const snapshots = changeOrders
+      .map(co => co.originalContractValue)
+      .filter((v): v is number => typeof v === 'number' && v > 0);
+    if (snapshots.length > 0) return Math.min(...snapshots);
+  }
   const fromBudget = project?.targetBudget?.amount;
   if (typeof fromBudget === 'number' && fromBudget > 0) return fromBudget;
   const fromGmp = project?.gmpCap;

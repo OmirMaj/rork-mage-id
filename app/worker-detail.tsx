@@ -17,6 +17,7 @@ import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import type { AvailabilityStatus } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {
   available: 'Available Now', employed: 'Currently Employed', open_to_offers: 'Open to Offers',
@@ -102,7 +103,7 @@ export default function WorkerDetailScreen() {
         title: 'Worker Profile',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>

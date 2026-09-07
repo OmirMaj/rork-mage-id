@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -213,6 +213,34 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
         }
       } catch (err) {
         console.log('[RC] logIn failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId, queryClient]);
+
+  // AUTH-F17: sign-out never called Purchases.logOut(), so RevenueCat stayed
+  // identified as the previous account — its entitlements, its receipts — until
+  // the next user's logIn aliased over it. Log out the moment the auth user
+  // goes away (a deliberate sign-out, account deletion, or a session the server
+  // rejected — RT-R1), on the platforms where RC is configured. `logOut` throws
+  // for an anonymous RC user, so check first when the SDK can tell us.
+  const previousUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = previousUserIdRef.current;
+    previousUserIdRef.current = userId;
+    if (!rcConfigured || !previous || userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (typeof Purchases.isAnonymous === 'function' && (await Purchases.isAnonymous())) return;
+        const info = await Purchases.logOut();
+        if (cancelled) return;
+        setTier('free');
+        void AsyncStorage.setItem(SUBSCRIPTION_KEY, 'free');
+        queryClient.setQueryData(['rc-customer-info'], info);
+        console.log('[RC] Logged out of RevenueCat after sign-out');
+      } catch (err) {
+        console.log('[RC] logOut failed:', err);
       }
     })();
     return () => { cancelled = true; };

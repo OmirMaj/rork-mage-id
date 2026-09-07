@@ -5,6 +5,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/lib/supabase';
 import { mageAI } from '@/utils/mageAI';
+import { edgeFunctionErrorMessage } from '@/utils/planCodeReviewer';
 import { sheetToDocs, PLAN_SOURCE, type ExtractedSheet } from './planChunk';
 import { buildAskPrompt, citedSheetRefs, type PlanMatch } from './planAnswer';
 import type { PlanSheet } from '@/types';
@@ -59,7 +60,14 @@ export async function indexPlanSheets(projectId: string, sheets: PlanSheet[]): P
     const { data, error } = await supabase.functions.invoke('plan-extract', {
       body: { imageBase64: b64, mimeType: mime, sheetNumber: s.sheetNumber },
     });
-    if (error || !data?.success || !data.text) continue;
+    if (error) {
+      // Still skip the sheet (indexing is best-effort per sheet), but say WHY
+      // with the function's own error code — tier gate, monthly cap, hourly
+      // limit — instead of supabase-js's generic "non-2xx status code".
+      console.warn(`[askYourPlans] plan-extract skipped sheet ${s.sheetNumber || s.name || s.id}: ${await edgeFunctionErrorMessage(error, 'request failed')}`);
+      continue;
+    }
+    if (!data?.success || !data.text) continue;
     extracted.push({ sheetId: s.id, sheetNumber: s.sheetNumber || s.name || 'Sheet', text: data.text });
   }
   const docs = extracted.flatMap(sheetToDocs);

@@ -2,7 +2,7 @@
 // EstimateEditOps to a LinkedEstimate with per-op guards, then recompute totals.
 // Never throws; every op yields an OpResult. React/RN-free.
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
-import { type EstimateEditOp, recomputeEstimate } from './estimateOps';
+import { type EstimateEditOp, applyGlobalMarkupToItems, recomputeEstimate } from './estimateOps';
 
 export interface EstimateOpResult { op: EstimateEditOp; ok: boolean; reason?: string }
 
@@ -44,7 +44,13 @@ export function interpretEstimateOps(
           results.push({ op, ok: true }); break;
         }
         case 'setGlobalMarkup': {
+          // AI-F5: money is per line (recomputeEstimate prices from it.markup),
+          // so reassigning globalMarkup alone moved no totals — "set the markup
+          // to 20%" applied, the header said 20, every line still carried 10,
+          // and the quote went out at the old number. Cascade through the
+          // helper: materials take the new rate, labor / assemblies stay at cost.
           globalMarkup = op.markupPct;
+          items = applyGlobalMarkupToItems(items, op.markupPct);
           results.push({ op, ok: true }); break;
         }
         case 'removeLine': {

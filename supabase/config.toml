@@ -1,0 +1,226 @@
+# supabase/config.toml — per-function gateway settings for the MAGE ID project.
+#
+# WHY THIS FILE EXISTS (audit 2026-09-03: EDGE-F1 / EDGE-F2, OPS-F1 / OPS-F3).
+#   `supabase functions deploy <name>` resets a function's verify_jwt to TRUE
+#   unless the value is pinned here (or --no-verify-jwt is passed on every
+#   single deploy). There was no config.toml, so redeploys silently flipped the
+#   flag: morning-digest, invoice-dunning and qbo-reconciler were redeployed
+#   verify_jwt=true in July 2026, the pg_cron jobs send only x-cron-secret (no
+#   JWT), and the gateway answered 401 to every fire for ~6 weeks while
+#   cron.job_run_details recorded "succeeded". No morning briefing, no overdue
+#   reminder, no QuickBooks reconciliation — and the runbook's next deploy line
+#   would have done the same to stripe-webhook, notify, mcp and the Friday
+#   homeowner digest.
+#
+#   verify_jwt = false is NOT "no auth". Every function pinned false below
+#   authenticates itself in code: the pg_cron shared secret (_shared/cronAuth.ts),
+#   a Stripe / RevenueCat signature, the portal access token, an MCP personal
+#   token, an HMAC-signed URL, or an explicit rate-limited public path.
+#   scripts/validate-edge-verify-jwt.ts fails ship-check if a function directory
+#   is missing here, if a self-authenticating or cron/trigger-targeted function
+#   is pinned true, or if a verify_jwt = false function has no auth check in
+#   its source.
+#
+# DEPLOY: `supabase functions deploy <name> --project-ref nteoqhcswappxxjlpvap`
+#   The CLI reads this file. Do not pass --no-verify-jwt by hand any more, and
+#   do not deploy from a checkout that lacks this file.
+
+project_id = "nteoqhcswappxxjlpvap"
+
+# ── verify_jwt = false — self-authenticating functions ─────────────────────
+
+# pg_cron targets: x-cron-secret via _shared/cronAuth.ts (morning-digest,
+# homeowner-weekly-digest and invoice-dunning ALSO accept a GoTrue-verified
+# user JWT for their in-app preview / "send now" buttons).
+[functions.coi-expiry-watch]
+verify_jwt = false
+
+[functions.daily-digest]
+verify_jwt = false
+
+[functions.fetch-external-data]
+verify_jwt = false
+
+[functions.geocode-bids]
+verify_jwt = false
+
+[functions.homeowner-weekly-digest]
+verify_jwt = false
+
+[functions.invoice-dunning]
+verify_jwt = false
+
+[functions.morning-digest]
+verify_jwt = false
+
+[functions.portal-link-expiry-notice]
+verify_jwt = false
+
+[functions.qbo-reconciler]
+verify_jwt = false
+
+# Database-trigger targets: x-cron-secret from fire_notify /
+# public_bids_notify_nearby_fn (migration 20260904100000_notify_trigger_cron_secret).
+[functions.notify]
+verify_jwt = false
+
+[functions.notify-nearby-contractors]
+verify_jwt = false
+
+# Third-party webhooks: signature-verified; the sender holds no Supabase JWT.
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.revenuecat-webhook]
+verify_jwt = false
+
+# Token-gated links opened from an email, a browser redirect or an MCP client.
+[functions.auth-magic-link]
+verify_jwt = false
+
+[functions.unsubscribe]
+verify_jwt = false
+
+[functions.schedule-ical]
+verify_jwt = false
+
+[functions.financing-redirect]
+verify_jwt = false
+
+[functions.financing-callback]
+verify_jwt = false
+
+[functions.qbo-connect-callback]
+verify_jwt = false
+
+[functions.mcp]
+verify_jwt = false
+
+[functions.mcp-token]
+verify_jwt = false
+
+# Portal / public surfaces: portal access token, or a rate-limited public path.
+[functions.portal-ask-home]
+verify_jwt = false
+
+[functions.portal-mark-viewed]
+verify_jwt = false
+
+[functions.seal-document]
+verify_jwt = false
+
+[functions.public-lead-intake]
+verify_jwt = false
+
+[functions.public-cost-index]
+verify_jwt = false
+
+[functions.widget-estimate]
+verify_jwt = false
+
+# ── verify_jwt = true — in-app callers; the gateway requires a user JWT ────
+
+[functions.ai]
+verify_jwt = true
+
+[functions.analyze-drawings]
+verify_jwt = true
+
+[functions.analyze-photos]
+verify_jwt = true
+
+[functions.analyze-plan-code]
+verify_jwt = true
+
+[functions.analyze-spec-book]
+verify_jwt = true
+
+[functions.analyze-takeoff]
+verify_jwt = true
+
+[functions.award-rfp]
+verify_jwt = true
+
+[functions.claim-crew]
+verify_jwt = true
+
+[functions.compare-drawings]
+verify_jwt = true
+
+[functions.connect-onboarding]
+verify_jwt = true
+
+[functions.connect-status]
+verify_jwt = true
+
+[functions.construction-answer]
+verify_jwt = true
+
+[functions.convert-pdf-to-images]
+verify_jwt = true
+
+[functions.create-payment-link]
+verify_jwt = true
+
+[functions.create-rfp-checkout]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.import-schedule]
+verify_jwt = true
+
+[functions.og-image]
+verify_jwt = true
+
+[functions.plan-extract]
+verify_jwt = true
+
+[functions.project-invite]
+verify_jwt = true
+
+[functions.project-memory-embed]
+verify_jwt = true
+
+[functions.project-memory-search]
+verify_jwt = true
+
+[functions.qbo-connect-start]
+verify_jwt = true
+
+[functions.qbo-connect-status]
+verify_jwt = true
+
+[functions.qbo-sync]
+verify_jwt = true
+
+[functions.safety-detect-hazards]
+verify_jwt = true
+
+[functions.safety-draft-incident]
+verify_jwt = true
+
+[functions.safety-generate-jha]
+verify_jwt = true
+
+[functions.scan-anything]
+verify_jwt = true
+
+[functions.scan-credential]
+verify_jwt = true
+
+[functions.schedule-ical-url]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.transcribe-audio]
+verify_jwt = true
+
+[functions.usage-status]
+verify_jwt = true
+
+[functions.validate-portal-passcode]
+verify_jwt = true

@@ -18,6 +18,7 @@
 // shows one must label which one it is.
 import type { RFI } from '@/types';
 import { summarizeRfiHoldTime, type RfiHoldSummary, type RfiHoldOptions } from '@/utils/rfiHoldTime';
+import { calendarDayStart } from '@/utils/calendarDate';
 
 export interface RFILatencySummary {
   /** Median calendar days from dateSubmitted to dateResponded, across all responded RFIs. */
@@ -53,10 +54,18 @@ export function computeRFILatency(rfis: RFI[], holdOpts: RfiHoldOptions = {}): R
       if (days >= 0) responseTimes.push(days);
     }
     // Overdue: had a required date + either not responded or responded late
-    if (rfi.dateRequired) {
-      const requiredMs = new Date(rfi.dateRequired).getTime();
-      const resolvedDate = rfi.dateResponded ? new Date(rfi.dateResponded) : new Date();
-      if (resolvedDate.getTime() > requiredMs) overdueCount++;
+    // calendarDayStart: dateRequired is a bare 'YYYY-MM-DD' in the common
+    // case; `new Date()` read it as UTC midnight, so a response the evening
+    // BEFORE the due day counted as late west of Greenwich (B4 review A2).
+    const required = calendarDayStart(rfi.dateRequired);
+    if (required) {
+      // Compare DAYS, not an instant against local midnight: a response at
+      // 10:00 on the due day is on time, and `required` is that day's 00:00.
+      const resolved = rfi.dateResponded
+        ? (calendarDayStart(rfi.dateResponded) ?? new Date(rfi.dateResponded))
+        : new Date();
+      const resolvedDay = new Date(resolved.getFullYear(), resolved.getMonth(), resolved.getDate());
+      if (resolvedDay.getTime() > required.getTime()) overdueCount++;
     }
   }
 

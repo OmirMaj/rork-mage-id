@@ -22,6 +22,7 @@ import type {
 import { computeRFILatency } from '@/utils/rfiLatency';
 
 import { generateUUID } from '@/utils/generateId';
+import { calendarDayStart, calendarDayOf, daysUntilCalendarDay } from '@/utils/calendarDate';
 
 const ONE_DAY_MS = 86_400_000;
 
@@ -128,7 +129,10 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
   // ── 3. RFIs — open + overdue (>7 days) ──────────────────────
   const openRfis = (rfis ?? []).filter(r => r.status === 'open');
   const overdueRfis = openRfis.filter(r => {
-    const due = r.dateRequired ? new Date(r.dateRequired).getTime() : 0;
+    // calendarDayStart: dateRequired is a bare 'YYYY-MM-DD' in the common
+    // case; `new Date()` read it as UTC midnight — overdue the evening BEFORE
+    // the due day west of Greenwich (B4 review A2).
+    const due = calendarDayStart(r.dateRequired)?.getTime() ?? 0;
     return due > 0 && due < Date.now();
   });
   const agingRfis = openRfis.filter(r => daysBetween(r.dateSubmitted) > 7);
@@ -165,7 +169,9 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
       title: `${overdueRfis.length} RFI${overdueRfis.length === 1 ? '' : 's'} overdue — oldest #${oldestOverdue.number} (${oldestAge}d old)${avgNote}`,
       detail: overdueRfis.slice(0, 3).map(r => {
         const age = daysBetween(r.dateSubmitted);
-        const dueAge = r.dateRequired ? daysBetween(r.dateRequired) : 0;
+        // Whole local days past the due DAY (not rounded elapsed ms from a
+        // UTC-midnight parse, which said 4 for a three-day-old due date).
+        const dueAge = r.dateRequired ? -(daysUntilCalendarDay(calendarDayOf(r.dateRequired)) ?? 0) : 0;
         return `• #${r.number} ${r.subject} — ${age}d open, ${dueAge}d past due`;
       }).join('\n'),
       status: 'urgent',

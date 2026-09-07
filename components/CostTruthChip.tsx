@@ -22,7 +22,7 @@ export function CostTruthChip({ stats, rate }: { stats: BenchmarkStats | null; r
   const c = compareToBenchmark(rate, stats);
   const color =
     c.verdict === 'above'
-      ? Colors.warning
+      ? Colors.warningLabel
       : c.verdict === 'below'
         ? t.success
         : c.verdict === 'in_range'

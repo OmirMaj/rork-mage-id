@@ -43,6 +43,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { verifyUser } from "../_shared/verifyUser.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_API_VERSION = "2024-06-20";
@@ -111,12 +112,15 @@ serve(async (req) => {
     });
   }
 
-  const { userId, email, returnUrl: rawReturnUrl, refreshUrl: rawRefreshUrl, companyName } = body;
-  if (!userId || !email) {
+  const { userId, returnUrl: rawReturnUrl, refreshUrl: rawRefreshUrl } = body;
+  if (!userId) {
     return new Response(JSON.stringify({ success: false, error: "missing required fields" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  // A7 (review 2026-09-04): the business name is caller text — trim + cap it.
+  // The account email is the GoTrue-verified address, resolved below.
+  const companyName = typeof body.companyName === "string" ? body.companyName.trim().slice(0, 100) : "";
 
   // Audit-2026-05-21: ownership check. Pre-fix, verify_jwt:true at the
   // platform level meant the caller had to be SOME authenticated MAGE
@@ -126,21 +130,22 @@ serve(async (req) => {
   // setup against B's profile, polluting B's stripe_account_id, and
   // potentially leaking B's profile state in the response. Fix: derive
   // the caller's id from their JWT and enforce equality.
-  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-  let callerSub: string | null = null;
-  try {
-    const parts = bearer.split(".");
-    if (parts.length === 3) {
-      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      while (b64.length % 4) b64 += "=";
-      const payload = JSON.parse(atob(b64));
-      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
-    }
-  } catch { /* fall through to 401 */ }
+  // Audit 2026-09-03 EDGE-F14: the id now comes from a GoTrue-verified JWT
+  // (signature + expiry + ban state via verifyUser), not a bare claims decode
+  // that only the gateway's verify_jwt flag protected.
+  const verified = await verifyUser(req);
+  const callerSub: string | null = verified?.id ?? null;
   if (!callerSub) {
     return new Response(JSON.stringify({ success: false, error: "unauthenticated" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  // A7: Stripe's Express account email is the verified sign-in address, never
+  // a body value a caller could point at someone else's inbox.
+  const email = (verified?.email ?? "").trim();
+  if (!email) {
+    return new Response(JSON.stringify({ success: false, error: "signed-in account has no email address" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   if (callerSub !== userId) {
@@ -199,7 +204,7 @@ serve(async (req) => {
       email,
       "capabilities[card_payments][requested]": "true",
       "capabilities[transfers][requested]": "true",
-      "business_profile[name]": companyName ?? "",
+      "business_profile[name]": companyName,
       // Tag the account with our internal user id for forensics.
       "metadata[mageid_user_id]": userId,
     });

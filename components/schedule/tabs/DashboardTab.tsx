@@ -14,6 +14,8 @@ import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import { parseCalendarDay, formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
+import { addWorkingDays } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -33,9 +35,11 @@ export function DashboardTab() {
     const done = tasks.filter(t => t.status === 'done').length;
     const inProgress = tasks.filter(t => t.status === 'in_progress' || t.status === 'on_hold').length;
     const notStarted = tasks.filter(t => t.status === 'not_started').length;
-    const now = Date.now();
+    // UX-F9: deadline is a bare calendar day (GridPane writes 'YYYY-MM-DD');
+    // parsed as UTC midnight it read as overdue from ~6 pm the evening before.
+    // A task is overdue once its deadline DAY is behind local today.
     const overdueTasks = tasks.filter(t =>
-      t.status !== 'done' && t.deadline && new Date(t.deadline).getTime() < now
+      t.status !== 'done' && t.deadline && (daysUntilCalendarDay(t.deadline) ?? 0) < 0
     );
     return {
       total, done, inProgress, notStarted,
@@ -50,8 +54,13 @@ export function DashboardTab() {
                     : healthScore >= 60 ? Colors.pillAtRisk
                     : Colors.pillLate;
 
-  const finishLabel = schedule.startDate
-    ? new Date(new Date(schedule.startDate).getTime() + (schedule.totalDurationDays ?? 0) * 86400000)
+  // UX-F9: the same working-day walk as SchedulerHeader's FINISH KPI. The old
+  // label added raw calendar milliseconds to a UTC-midnight anchor — no
+  // weekends skipped, a fencepost long, and a day early west of Greenwich —
+  // so it disagreed with the header two inches above it.
+  const startAnchor = parseCalendarDay(schedule.startDate);
+  const finishLabel = startAnchor
+    ? addWorkingDays(startAnchor, Math.max(0, (schedule.totalDurationDays ?? 0) - 1), schedule.workingDaysPerWeek, schedule.nonWorkingDates)
         .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : '—';
   // The finish-date driver = the last critical-path task (the one that ends the project).
@@ -166,7 +175,7 @@ export function DashboardTab() {
               <Text style={styles.cpTrade}>{tradeLabel(tradeKeyForTask(t)).toUpperCase()}</Text>
             </View>
             <Text style={styles.cpFloat}>no buffer</Text>
-            <Text style={styles.cpDue}>{t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</Text>
+            <Text style={styles.cpDue}>{t.deadline ? formatCalendarDay(t.deadline, { month: 'short', day: 'numeric' }) : '—'}</Text>
           </View>
         ))}
       </View>

@@ -23,6 +23,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import { REQUIRED_TIER, tierMeetsRequirement } from '@/utils/featureTiers';
 import type { FeatureKey } from '@/utils/featureTiers';
+import { platformFeeLabel } from '@/utils/platformFees';
 
 interface FeatureRow {
   label: string;
@@ -115,8 +116,8 @@ const FEATURES: FeatureRow[] = FEATURE_SPECS.map(toFeatureRow);
 
 // Fintech & revenue products. Surfaced separately from the feature
 // matrix because they're not yes/no — they're priced + early-access
-// gated. Keep the rate numbers in sync with the tier-aware fee logic
-// in supabase/functions/create-payment-link/index.ts.
+// gated. MONEY-F8: the fee row is RENDERED from utils/platformFees.ts
+// (the one schedule, mirrored by create-payment-link) — never typed here.
 interface FintechRow {
   label: string;
   free: string;
@@ -125,7 +126,7 @@ interface FintechRow {
   enterprise: string;
 }
 const FINTECH_PERKS: FintechRow[] = [
-  { label: 'Stripe payment processing markup', free: '1.0%', pro: '0%',  business: '0.5%', enterprise: '0.4%' },
+  { label: 'Platform fee on card payments', free: platformFeeLabel('free'), pro: platformFeeLabel('pro'), business: platformFeeLabel('business'), enterprise: platformFeeLabel('enterprise') },
   { label: 'Client financing (Wisetack)',      free: '—',    pro: '—',   business: 'Early access', enterprise: 'Early access' },
   { label: 'Same-day invoice factoring',       free: '—',    pro: '—',   business: 'Early access', enterprise: 'Early access' },
   { label: 'COI / insurance marketplace',      free: '—',    pro: 'Watcher only', business: 'Early access',  enterprise: 'Early access' },
@@ -542,9 +543,8 @@ export default function PaywallScreen() {
         </View>
 
         {/* Fintech & revenue perks. Surfaces the embedded-fintech bundle
-            as part of the Business+ value prop. Numbers must stay in sync
-            with feeBpsForTier() in create-payment-link/index.ts and
-            FINTECH_PERKS above. */}
+            as part of the Business+ value prop. The fee row reads from
+            utils/platformFees.ts (MONEY-F8) — see FINTECH_PERKS above. */}
         <Text style={styles.compareTitle}>Fintech &amp; Revenue Perks</Text>
         <View style={styles.compareTable}>
           <View style={styles.compareHeaderRow}>

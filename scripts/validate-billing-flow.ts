@@ -244,6 +244,26 @@ console.log('\nreminder eligibility:');
     'status is not trusted alone — the arithmetic rules');
   ok('a partially-paid overdue invoice IS still dunned',
     inv({ status: 'partially_paid', amountPaid: 4_000 }).eligible);
+
+  // MONEY-F5 (audit 2026-09-03): retention the contract lets the client hold
+  // is NOT chased. $100,000 invoice, $10,000 retention held, client paid the
+  // $90,000 they were asked for on day 20 → nothing outstanding, no reminder
+  // at any stage. This was the live "FINAL NOTICE on retention" harm.
+  const retentionOnly = inv({
+    status: 'partially_paid', totalDue: 100_000, retentionAmount: 10_000, amountPaid: 90_000,
+    dueMs: NOW - 20 * DAY,
+  });
+  ok('a retention-only balance is never dunned',
+    retentionOnly.reason === 'nothing_outstanding' && !retentionOnly.eligible,
+    `got reason=${retentionOnly.reason} eligible=${retentionOnly.eligible}`);
+  ok('...and reports $0 outstanding, not $10,000', retentionOnly.outstanding === 0);
+  ok('...at every stage, cron or manual',
+    !inv({ status: 'partially_paid', totalDue: 100_000, retentionAmount: 10_000, amountPaid: 90_000, dueMs: NOW - 45 * DAY, dunningStage: 2 }).eligible &&
+    !inv({ status: 'partially_paid', totalDue: 100_000, retentionAmount: 10_000, amountPaid: 90_000, dueMs: NOW - 45 * DAY, dunningStage: 2, manual: true }).eligible);
+  ok('released-and-unpaid retention IS dunned (release = now collectible)',
+    inv({ status: 'partially_paid', totalDue: 100_000, retentionAmount: 10_000, retentionReleased: 10_000, amountPaid: 90_000, dueMs: NOW - 20 * DAY }).eligible);
+  ok('the amount a reminder demands is net of held retention ($90,000, not $100,000)',
+    inv({ totalDue: 100_000, retentionAmount: 10_000 }).outstanding === 90_000);
   ok('an invoice not yet due is not dunned',
     inv({ dueMs: NOW + 5 * DAY }).reason === 'not_overdue');
   ok('a same-day-due invoice is not dunned (stage starts the day AFTER)',

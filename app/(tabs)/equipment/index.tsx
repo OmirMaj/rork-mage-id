@@ -25,15 +25,30 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 
 type FilterType = 'all' | 'available' | 'in_use' | 'maintenance';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  available: { label: 'Available', color: Colors.success },
-  in_use: { label: 'In Use', color: Colors.info },
-  maintenance: { label: 'Maintenance', color: Colors.warning },
-  retired: { label: 'Retired', color: Colors.textMuted },
-};
+/**
+ * Status chips.
+ *
+ * Runtime audit 2026-09-06, VIS-06: these painted the raw system colour as the
+ * label on an 12.5% tint of ITSELF ("Available" at 2.08:1, "In Use" at 3.61:1)
+ * — the least legible text on a screen whose whole job is scanning rows. Each
+ * status now names a SOFT FILL and a separate AA-verified LABEL token, so the
+ * pair is legible by construction in both themes and cannot regress to
+ * `color === background + alpha`. Built from the theme rather than the static
+ * Colors module so a theme switch repaints it.
+ */
+type StatusChip = { label: string; fill: string; ink: string };
+function statusChipsFor(t: ThemeColors): Record<string, StatusChip> {
+  return {
+    available: { label: 'Available', fill: t.successSoft, ink: t.successLabel },
+    in_use: { label: 'In Use', fill: t.info + '1F', ink: t.info },
+    maintenance: { label: 'Maintenance', fill: t.warningSoft, ink: t.warningLabel },
+    retired: { label: 'Retired', fill: t.neutralSoft, ink: t.textSecondary },
+  };
+}
 
 export default function EquipmentScreen() {
   const insets = useSafeAreaInsets();
@@ -56,6 +71,8 @@ export default function EquipmentScreen() {
   const [newCategory, setNewCategory] = useState<EquipmentCategory>('other');
   const [newDailyRate, setNewDailyRate] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+
+  const statusChips = useMemo(() => statusChipsFor(themeColors), [themeColors]);
 
   const stats = useMemo(() => ({
     total: equipment.length,
@@ -107,7 +124,40 @@ export default function EquipmentScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Text style={styles.largeTitle}>Equipment</Text>
+      {/* Runtime audit 2026-09-06, VIS-02: this screen used to park its own
+          56pt "+" circle at bottom-right, where the GLOBAL Brain FAB already
+          lives. The Brain FAB is mounted above the router, so its safe-area
+          inset excludes the tab bar while this screen's includes it — the two
+          circles landed ~21pt apart and the Brain FAB painted over the "+",
+          swallowing taps meant for it. There is no arithmetic that keeps two
+          floating circles apart across every device and tab-bar height, so
+          the screen gives the corner up and puts Add in the title row —
+          the same shape the sibling Subs screen already uses. */}
+      {/* NAV-07 (runtime audit 2026-09-06): Equipment is registered with
+          href:null (app/(tabs)/_layout.tsx), so the push from Discover → Tools
+          (app/(tabs)/discover/tools.tsx:337) is a tab switch — React Navigation
+          creates no back button and no tab in the bar lights up. Tools is the
+          only surface that links here, so that is where the control points and
+          what it is labelled. See components/HiddenTabBackLink.tsx for why it
+          is not a bare chevron over router.back(). */}
+      <HiddenTabBackLink
+        label="Tools"
+        href="/(tabs)/discover/tools"
+        style={styles.backToTools}
+        testID="equipment-back-to-tools"
+      />
+
+      <View style={styles.titleRow}>
+        <Text style={styles.largeTitle} numberOfLines={1}>Equipment</Text>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() => setShowAddModal(true)}
+          activeOpacity={0.85}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          testID="add-equipment" accessibilityRole="button" accessibilityLabel="Add equipment">
+          <Plus size={20} color="#FFFFFF" strokeWidth={2} />
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
@@ -115,11 +165,11 @@ export default function EquipmentScreen() {
           <Text style={styles.statLabel}>Total Fleet</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statValue, { color: Colors.info }]}>{stats.inUse}</Text>
+          <Text style={[styles.statValue, { color: themeColors.info }]}>{stats.inUse}</Text>
           <Text style={styles.statLabel}>In Use</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statValue, { color: stats.overdueCount > 0 ? Colors.error : Colors.success }]}>{stats.overdueCount}</Text>
+          <Text style={[styles.statValue, { color: stats.overdueCount > 0 ? themeColors.dangerLabel : themeColors.successLabel }]}>{stats.overdueCount}</Text>
           <Text style={styles.statLabel}>Overdue</Text>
         </View>
       </View>
@@ -155,7 +205,7 @@ export default function EquipmentScreen() {
           />
         ) : (
           filteredEquipment.map(equip => {
-            const statusConfig = STATUS_CONFIG[equip.status] ?? STATUS_CONFIG.available;
+            const statusConfig = statusChips[equip.status] ?? statusChips.available;
             const hasOverdue = equip.maintenanceSchedule.some(m => m.isOverdue);
             const projectName = equip.currentProjectId ? getProject(equip.currentProjectId)?.name : null;
 
@@ -174,8 +224,8 @@ export default function EquipmentScreen() {
                     <Text style={styles.equipName} numberOfLines={1}>{equip.name}</Text>
                     <Text style={styles.equipMeta}>{equip.make} {equip.model}</Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
-                    <Text style={[styles.statusBadgeText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: statusConfig.fill }]}>
+                    <Text style={[styles.statusBadgeText, { color: statusConfig.ink }]}>{statusConfig.label}</Text>
                   </View>
                 </View>
                 <View style={styles.equipCardFooter}>
@@ -185,7 +235,7 @@ export default function EquipmentScreen() {
                   <Text style={styles.equipRate}>{formatMoney(equip.dailyRate)}/day</Text>
                   {hasOverdue && (
                     <View style={styles.overdueBadge}>
-                      <AlertTriangle size={12} color={Colors.error} strokeWidth={1.75} />
+                      <AlertTriangle size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
                       <Text style={styles.overdueText}>Overdue</Text>
                     </View>
                   )}
@@ -195,14 +245,6 @@ export default function EquipmentScreen() {
           })
         )}
       </ScrollView>
-
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 20 }]}
-        onPress={() => setShowAddModal(true)}
-        activeOpacity={0.85}
-        testID="add-equipment" accessibilityRole="button" accessibilityLabel="Add">
-        <Plus size={24} color="#fff" strokeWidth={1.75} />
-      </TouchableOpacity>
 
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -300,14 +342,32 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: t.bg,
   },
+  // Only the placement: HiddenTabBackLink owns the chevron, label and tint.
+  backToTools: { marginLeft: 14 },
+  titleRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    marginBottom: 16,
+  },
   largeTitle: {
+    flex: 1,
+    minWidth: 0,
     fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
     color: t.text,
     letterSpacing: -0.5,
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    marginBottom: 16,
+  },
+  addBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: t.accentFill,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   statsRow: {
     flexDirection: 'row' as const,
@@ -412,7 +472,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   equipRate: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: t.accent,
+    // The raw brand hue is 2.87:1 as text; accentLabel is the AA companion
+    // (5.86:1 on surface) and is the same orange family.
+    color: t.accentLabel,
   },
   overdueBadge: {
     flexDirection: 'row' as const,
@@ -421,27 +483,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.dangerSoft,
   },
   overdueText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: t.danger,
-  },
-  fab: {
-    position: 'absolute' as const,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: t.accent,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    shadowColor: t.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    color: t.dangerLabel,
   },
   modalOverlay: {
     flex: 1,

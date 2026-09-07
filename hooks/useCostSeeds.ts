@@ -26,11 +26,15 @@
 // migrations are deliberately not auto-run.
 //
 // Until deleted_at exists, an upsert carrying it hits a PostgREST schema-cache
-// miss, which utils/offlineQueue.ts classifies as TRANSIENT and re-queues
-// UNCHANGED without burning the retry budget. Net effect: deletes take effect
-// on-device immediately and reach the server once the column lands — nothing
-// is lost, and there is nothing to migrate by hand. The same was true of the
-// whole table before 20260805120000 landed.
+// miss (PGRST204), which utils/offlineQueue.ts classifies as TRANSIENT and
+// re-queues UNCHANGED without burning the retry budget. That is why
+// costSeedCore.seedToRow puts the key on the wire ONLY for a tombstone
+// (CONTRACT-F2: it used to send `deleted_at: null` on every row, so the whole
+// book — not just deletes — was rejected and production held 0 seeds). Net
+// effect: live rows sync now; deletes take effect on-device immediately and
+// reach the server once the column lands — nothing is lost, and there is
+// nothing to migrate by hand. The same was true of the whole table before
+// 20260805120000 landed.
 //
 // Writes go through supabaseWrite (utils/offlineQueue), never supabase.from()
 // directly — that is the app-wide rule, and it is what makes the pre-migration

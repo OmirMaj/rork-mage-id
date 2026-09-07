@@ -34,6 +34,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { rateLimitCount } from "../_shared/auth.ts";
+import { clientIpFrom } from "../_shared/notifyGuards.ts";
 
 const SERVICE_ROLE_KEY =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -515,8 +516,10 @@ serve(async (req: Request) => {
   // Rate limit per-IP and per-contractor. Fails OPEN (rateLimitCount returns -1
   // when the limiter is unavailable) — a limiter outage must not stop a real
   // homeowner from getting a number.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
-  const ipCount = ip ? await rateLimitCount(`widget:ip:${ip}`) : 0;
+  // EDGE-F15 (review 2026-09-05): clientIpFrom — the FIRST x-forwarded-for hop
+  // is client-supplied, so keying on it made the per-IP bucket attacker-chosen.
+  const ip = clientIpFrom(req.headers);
+  const ipCount = await rateLimitCount(`widget:ip:${ip}`);
   const contractorCount = await rateLimitCount(`widget:gc:${contractorId}`);
   if (ipCount > WIDGET_IP_HOURLY_LIMIT || contractorCount > WIDGET_CONTRACTOR_HOURLY_LIMIT) {
     return jsonResponse({ error: "Too many requests right now — please try again in a bit." }, 429);

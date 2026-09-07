@@ -270,7 +270,11 @@ const edgeSrc = readFileSync(
 expectTrue('edge fn embeds the exact not-found line', edgeSrc.includes(ASK_HOME_NOT_FOUND));
 expectTrue('edge fn keeps the ONLY-grounding rule', edgeSrc.includes('ONLY the home records'));
 expectTrue('edge fn never logs the access token', !/console\.(log|warn|error)\([^)]*accessToken/i.test(edgeSrc));
-expectTrue('edge fn uses constant-time token compare', edgeSrc.includes('constantTimeEqual'));
+// Review 2026-09-05: the in-file constant-time compare was retired for the
+// portal_project_for_token choke point (token + enabled + expiry in one place;
+// validate-portal-security.ts pins the details).
+expectTrue('edge fn authorises through the portal_project_for_token choke point',
+  edgeSrc.includes('/rest/v1/rpc/portal_project_for_token') && !edgeSrc.includes('constantTimeEqual'));
 expectTrue('edge fn enforces the 20/day portal cap', edgeSrc.includes('PORTAL_DAILY_LIMIT = 20'));
 expectTrue('edge fn filters to homeowner-safe sources', edgeSrc.includes('ALLOWED_SOURCES'));
 

@@ -19,6 +19,7 @@ import {
 import { renderScheduleReportHtml } from '@/utils/scheduleReportHtml';
 import { generateScheduleReportPdf, shareScheduleCsv, buildScheduleShareUrl } from '@/utils/scheduleReportExport';
 import { showAlert } from '@/utils/alert';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 const ALL_SECTIONS: ReportSectionKey[] = ['kpis','critPath','risks','lookahead','milestones','gantt','slippages','phaseProgress','weather'];
 const SIZES: { key: ReportPaperSize | 'auto'; label: string }[] = [
@@ -46,6 +47,11 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
   const [showPred, setShowPred] = useState(false);
   const [sections, setSections] = useState<ReportSectionKey[]>(ALL_SECTIONS);
 
+  // UX-F2: the CSV and the share link anchor on the schedule's CALENDAR DAY.
+  // new Date('YYYY-MM-DD') is UTC midnight, which dated every exported task a
+  // day early west of Greenwich while the screen behind this sheet was right.
+  const startDate = parseCalendarDay(startDateIso) ?? new Date();
+
   const resolveSize = (sz: ReportPaperSize | 'auto'): ReportPaperSize => sz === 'auto' ? pickPaperSize(tasks.filter((t) => !t.isSummary).length) : sz;
 
   const runReport = async (override?: { paperSizeChoice?: ReportPaperSize | 'auto'; secs?: ReportSectionKey[]; singleWallSheet?: boolean; showPredecessors?: boolean }) => {
@@ -70,9 +76,9 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
     } finally { setBusy(false); }
   };
 
-  const runCsv = async () => { if (busy) return; setBusy(true); try { await shareScheduleCsv(tasks, new Date(startDateIso), project.name, { workingDaysPerWeek: project.schedule?.workingDaysPerWeek, nonWorkingDates: project.schedule?.nonWorkingDates }); onClose(); } catch (e) { showAlert('Export failed', e instanceof Error ? e.message : 'Try again.'); } finally { setBusy(false); } };
+  const runCsv = async () => { if (busy) return; setBusy(true); try { await shareScheduleCsv(tasks, startDate, project.name, { workingDaysPerWeek: project.schedule?.workingDaysPerWeek, nonWorkingDates: project.schedule?.nonWorkingDates }); onClose(); } catch (e) { showAlert('Export failed', e instanceof Error ? e.message : 'Try again.'); } finally { setBusy(false); } };
   const runShare = async () => {
-    const url = buildScheduleShareUrl(project.name, new Date(startDateIso), tasks);
+    const url = buildScheduleShareUrl(project.name, startDate, tasks);
     if (!url) { showAlert('Schedule too large', 'This schedule is too large for a quick link — export a PDF instead.'); return; }
     try { const { Share } = await import('react-native'); await shareText({ message: `${project.name} schedule: ${url}`, url }); onClose(); } catch { /* cancelled */ }
   };

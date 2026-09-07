@@ -142,6 +142,22 @@ as $$
   );
 $$;
 
+-- ── 2b. Grants, stated explicitly ───────────────────────────────────────────
+-- These three are CREATE OR REPLACE over functions that already exist in
+-- production, and CREATE OR REPLACE preserves an existing ACL — so against
+-- production this section is a no-op restatement.
+--
+-- It is here for the database that does NOT already have them. On a rebuilt
+-- staging or a fresh environment where 20260904100200 has run first, the
+-- default EXECUTE for public/anon/authenticated is revoked, so these functions
+-- would be created {owner, service_role} only. Every collaborator-gated RLS
+-- policy calls them as `authenticated`, so the result would be a silent,
+-- total lockout: every read and write on twelve tables denied, with nothing in
+-- the migration output to say why. Found by the pre-deploy audit 2026-09-07.
+grant execute on function public.can_access_project(uuid, text)      to authenticated, service_role;
+grant execute on function public.can_access_project(text, text)      to authenticated, service_role;
+grant execute on function public.is_project_collaborator(uuid, text) to authenticated, service_role;
+
 -- ── 3. Let field users actually SAVE field work ─────────────────────────────
 -- Move INSERT/UPDATE on the field tables from the 'editor' tier to 'field'.
 -- SELECT already uses the default (any accepted collaborator) and is unchanged.

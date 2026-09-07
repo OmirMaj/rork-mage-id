@@ -22,11 +22,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { TimeEntry } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
-import { buildLaborSamples, type LaborRateMap } from '@/utils/laborSamples';
+import {
+  buildLaborSamples, normalizeOvertimeMultiplier, DEFAULT_OVERTIME_MULTIPLIER,
+  type LaborRateMap,
+} from '@/utils/laborSamples';
 import { TIME_ENTRIES_STORAGE_KEY } from '@/hooks/useTimeEntries';
 
 const RATES_KEY = 'mageid_labor_rates';
 const RATES_QUERY = ['labor-rates'] as const;
+// MONEY-F19: the GC's overtime premium (default 1.5×). Its OWN key rather
+// than a reserved entry in the trade→rate map above, so nothing that iterates
+// `rates` (the labor-rates modal, computeLaborStats, buildLaborSamples) can
+// mistake it for a trade — and a device holding only the v1 map on disk keeps
+// working, reading the default. `mageid_` prefix ⇒ tenant-wiped with the rates.
+const OVERTIME_KEY = 'mageid_labor_overtime_multiplier';
+const OVERTIME_QUERY = ['labor-overtime-multiplier'] as const;
 const ENTRIES_MIRROR_QUERY = ['time-entries-mirror'] as const;
 
 async function loadRates(): Promise<LaborRateMap> {
@@ -51,6 +61,23 @@ async function persistRates(rates: LaborRateMap): Promise<void> {
     await AsyncStorage.setItem(RATES_KEY, JSON.stringify(rates));
   } catch (err) {
     console.log('[laborRates] persist failed:', err);
+  }
+}
+
+async function loadOvertimeMultiplier(): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(OVERTIME_KEY);
+    return raw == null ? DEFAULT_OVERTIME_MULTIPLIER : normalizeOvertimeMultiplier(Number(raw));
+  } catch {
+    return DEFAULT_OVERTIME_MULTIPLIER;
+  }
+}
+
+async function persistOvertimeMultiplier(multiplier: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OVERTIME_KEY, String(multiplier));
+  } catch (err) {
+    console.log('[laborRates] persist overtime multiplier failed:', err);
   }
 }
 
@@ -95,7 +122,27 @@ export function useLaborRates() {
     setRates({ [tradeKey]: rate });
   }, [setRates]);
 
-  return { rates, isLoading, setRate, setRates };
+  // MONEY-F19: per-GC overtime multiplier. Read with the rates, sane-d on the
+  // way in and out (normalizeOvertimeMultiplier), 1.5× until the GC says
+  // otherwise. Consumers: useLaborCostSamples below and computeJobCost's
+  // `overtimeMultiplier` input.
+  const { data: overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER } = useQuery({
+    queryKey: OVERTIME_QUERY,
+    queryFn: loadOvertimeMultiplier,
+  });
+  const saveOvertime = useMutation({
+    mutationFn: async (raw: number) => {
+      const next = normalizeOvertimeMultiplier(raw);
+      await persistOvertimeMultiplier(next);
+      return next;
+    },
+    onSuccess: (next) => { queryClient.setQueryData(OVERTIME_QUERY, next); },
+  });
+  const setOvertimeMultiplier = useCallback((multiplier: number) => {
+    saveOvertime.mutate(multiplier);
+  }, [saveOvertime]);
+
+  return { rates, isLoading, setRate, setRates, overtimeMultiplier, setOvertimeMultiplier };
 }
 
 async function loadEntriesMirror(): Promise<TimeEntry[]> {
@@ -127,7 +174,7 @@ export function useTimeEntriesMirror(): TimeEntry[] {
 
 /** Self-perform labor cost samples for buildCostDatabase's 4th param. */
 export function useLaborCostSamples(): CostSample[] {
-  const { rates } = useLaborRates();
+  const { rates, overtimeMultiplier } = useLaborRates();
   const entries = useTimeEntriesMirror();
-  return useMemo(() => buildLaborSamples(entries, rates), [entries, rates]);
+  return useMemo(() => buildLaborSamples(entries, rates, overtimeMultiplier), [entries, rates, overtimeMultiplier]);
 }

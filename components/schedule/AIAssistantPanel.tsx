@@ -599,7 +599,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   </View>
                   {bulkResult.errorKind === 'validation' && (
                     <View style={styles.partialBanner}>
-                      <AlertTriangle size={12} color={Colors.warning} strokeWidth={1.75} />
+                      <AlertTriangle size={12} color={Colors.warningLabel} strokeWidth={1.75} />
                       <Text style={styles.partialBannerText}>
                         Partial result — AI response didn't fully match the expected shape. Review carefully before applying.
                       </Text>
@@ -1222,7 +1222,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   partialBannerText: {
     flex: 1,
     fontSize: Type.caption2.fontSize,
-    color: Colors.warning,
+    color: Colors.warningLabel,
     lineHeight: 15,
   },
 });

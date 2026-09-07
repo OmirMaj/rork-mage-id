@@ -30,9 +30,9 @@ interface Props {
 const FOUR_HOURS = 4 * 60 * 60 * 1000;
 
 const STATUS_ICONS = {
-  on_track: { Icon: CheckCircle2, color: Colors.success, bg: Colors.successLight },
-  at_risk: { Icon: AlertTriangle, color: Colors.warning, bg: Colors.warningLight },
-  behind: { Icon: TrendingDown, color: Colors.error, bg: Colors.errorLight },
+  on_track: { Icon: CheckCircle2, color: Colors.successLabel, bg: Colors.successLight },
+  at_risk: { Icon: AlertTriangle, color: Colors.warningLabel, bg: Colors.warningLight },
+  behind: { Icon: TrendingDown, color: Colors.dangerLabel, bg: Colors.errorLight },
   ahead: { Icon: CheckCircle2, color: '#30B0C7', bg: '#E1F5FA' },
 } as const;
 
@@ -160,7 +160,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         <View style={styles.urgentSection}>
           {result.urgentItems.map((item, idx) => (
             <View key={idx} style={styles.urgentRow}>
-              <AlertTriangle size={12} color={Colors.error} strokeWidth={1.75} />
+              <AlertTriangle size={12} color={Colors.dangerLabel} strokeWidth={1.75} />
               <Text style={styles.urgentText}>{item}</Text>
             </View>
           ))}

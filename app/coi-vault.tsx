@@ -264,7 +264,7 @@ function COIVaultInner() {
               )}
               {complianceSummary.expiringSoon > 0 && (
                 <View style={[styles.compliancePill, { backgroundColor: Colors.warningLight }]}>
-                  <Text style={[styles.compliancePillText, { color: Colors.warning }]}>
+                  <Text style={[styles.compliancePillText, { color: Colors.warningLabel }]}>
                     {complianceSummary.expiringSoon} expiring &lt;30d
                   </Text>
                 </View>
@@ -438,7 +438,7 @@ function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none'): {
 } {
   switch (s) {
     case 'pass': return { Icon: ShieldCheck, color: "#2E7D44",        label: 'Valid' };
-    case 'warn': return { Icon: ShieldAlert, color: Colors.warning,        label: 'Review needed' };
+    case 'warn': return { Icon: ShieldAlert, color: Colors.warningLabel,        label: 'Review needed' };
     case 'fail': return { Icon: ShieldX,     color: "#C84038",          label: 'Action required' };
     case 'none':
     default:     return { Icon: Shield,      color: "#9AA3AD",      label: 'No COI' };

@@ -1,12 +1,12 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Animated, AppState, Platform, ScrollView,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Platform, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
-  ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown, ShoppingCart, BarChart3,
+  ChevronRight, TrendingDown, Search, X, BookOpen, Bell, Pause, Play, Trash2, MapPin, ChevronDown, ShoppingCart, Info, AlertTriangle,
   // Category icons (rendered via CATEGORY_ICONS map below) — replaces
   // emoji-as-icon for visual consistency with the rest of the app
   TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
@@ -14,19 +14,36 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '@/constants/colors';
+// Only the ThemeColors TYPE. Every colour on this screen now comes from the
+// theme context (`themeColors` / the `t` handed to makeStyles) rather than the
+// static `Colors` object, whose *Light tints (successLight #E8FAF0,
+// warningLight #FFF3E0) are single fixed hex values with no dark variant.
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import MageRefreshControl from '@/components/MageRefreshControl';
-import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
+import {
+  CATEGORY_META,
+  CATALOG_NOT_A_FEED,
+  CATALOG_SOURCE_LABEL,
+  averageBulkDiscountPct,
+  catalogAgeMonths,
+  catalogCompiledLabel,
+  catalogIsStale,
+  catalogProvenanceLine,
+  evaluatePriceTargets,
+  getCatalogPrices,
+  marketForSelection,
+  resolvePricingMarket,
+  type MaterialItem,
+  type PriceTargetStatus,
+} from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
-import { REGIONS, CITY_ADJUSTMENTS, getRegionForState } from '@/constants/regions';
+import { REGIONS, CITY_ADJUSTMENTS } from '@/constants/regions';
 import type { PricingRegion } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { showAlert } from '@/utils/alert';
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_META);
 
@@ -56,98 +73,75 @@ export default function MaterialsScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { priceAlerts, updatePriceAlert, deletePriceAlert } = useProjects();
+  const { priceAlerts, updatePriceAlert, deletePriceAlert, settings } = useProjects();
   // Shared cart — count comes from MaterialCartContext so the badge stays
   // live as the user adds items from a category screen.
   const { cart } = useMaterialCart();
   const cartCount = cart.reduce((s, item) => s + item.quantity, 0);
   const [searchQuery, setSearchQuery] = useState('');
-  // Browse over BASE products only. getLivePrices returns the full expanded
-  // catalog (base × every region × every pricing tier ≈ 20k rows) which is
-  // meant for the Estimate tab's search/AI matching — rendering it here made
-  // the category counts read as thousands of near-duplicate variants. The
-  // base tier is the real, human-facing product list (~274 items).
-  // Seed with the default location's multiplier (matches locationMultiplier
-  // below for the initial 'New York City' / mid_atlantic selection) so the
-  // first frame shows location-adjusted prices instead of flashing national
-  // prices before the effect re-prices.
-  const [materials, setMaterials] = useState<MaterialItem[]>(() =>
-    getLivePrices(
-      Date.now() / 10000,
-      CITY_ADJUSTMENTS['New York City'] ?? REGIONS.find(r => r.id === 'mid_atlantic')?.costIndex ?? 1.0,
-    ).filter(m => m.specTier === 'base')
-  );
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [refreshing, setRefreshing] = useState(false);
-  const [showAlerts, setShowAlerts] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState<PricingRegion>('mid_atlantic');
-  const [selectedCity, setSelectedCity] = useState<string>('New York City');
+  const [showTargets, setShowTargets] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const appState = useRef(AppState.currentState);
 
-  const regionInfo = useMemo(() => REGIONS.find(r => r.id === selectedRegion), [selectedRegion]);
-  const locationMultiplier = useMemo(() => {
-    const cityAdj = CITY_ADJUSTMENTS[selectedCity];
-    if (cityAdj) return cityAdj;
-    return regionInfo?.costIndex ?? 1.0;
-  }, [selectedCity, regionInfo]);
+  // ── WHICH MARKET ─────────────────────────────────────────────────────────
+  // The screen used to open hardcoded on New York City (+35%) and print "New
+  // York City rates" under the title. For a Houston GC — this account — that
+  // is a 35% uplift he never asked for, stated as if he had. The default is
+  // now HIS market, resolved from settings.location, and when that resolves to
+  // nothing the catalog is shown un-adjusted and says so.
+  const homeMarket = useMemo(() => resolvePricingMarket(settings.location), [settings.location]);
+  const [override, setOverride] = useState<{ regionId: PricingRegion | null; city: string | null } | null>(null);
+  const market = useMemo(
+    () => (override ? marketForSelection(override.regionId, override.city) : homeMarket),
+    [override, homeMarket],
+  );
 
-  const refreshPrices = useCallback((showRefreshing = false) => {
-    if (showRefreshing) setRefreshing(true);
-    const seed = Date.now() / 10000;
-    // Thread the selected location into pricing so the picker actually moves
-    // the numbers, and keep to base products (see initial state note).
-    const newPrices = getLivePrices(seed, locationMultiplier).filter(m => m.specTier === 'base');
-    setMaterials(newPrices);
-    setLastUpdated(new Date());
-    if (showRefreshing) setTimeout(() => setRefreshing(false), 600);
+  // ── THE PRICES ───────────────────────────────────────────────────────────
+  // Deterministic. Browse over BASE products only: getCatalogPrices returns the
+  // full expanded catalog (base × every region × every pricing tier ≈ 20k rows)
+  // which is meant for the Estimate tab's search/AI matching — rendering it
+  // here made the category counts read as thousands of near-duplicate variants.
+  //
+  // There is no interval, no foreground re-price and no pull-to-refresh: they
+  // existed only to re-roll a sine wave, and re-rolling nothing at a stated
+  // time is how "Prices updated 9:20 PM" got onto a screen with no feed behind
+  // it. These numbers change when the catalog ships a new build, or when the
+  // user picks a different market. Nothing else moves them.
+  const materials = useMemo<MaterialItem[]>(
+    () => getCatalogPrices(market.multiplier).filter(m => m.specTier === 'base'),
+    [market.multiplier],
+  );
 
-    priceAlerts.forEach(alert => {
-      if (alert.isPaused || alert.isTriggered) return;
-      const mat = newPrices.find(m => m.id === alert.materialId);
-      if (!mat) return;
-      const triggered = alert.direction === 'below'
-        ? mat.baseRetailPrice <= alert.targetPrice
-        : mat.baseRetailPrice >= alert.targetPrice;
-      if (triggered) {
-        updatePriceAlert(alert.id, { isTriggered: true, currentPrice: mat.baseRetailPrice });
-        showAlert('Price Alert', `${alert.materialName} is now $${mat.baseRetailPrice.toFixed(2)} — ${alert.direction === 'below' ? 'below' : 'above'} your $${alert.targetPrice.toFixed(2)} target.`);
-      } else {
-        updatePriceAlert(alert.id, { currentPrice: mat.baseRetailPrice });
-      }
-    });
-  }, [priceAlerts, updatePriceAlert, locationMultiplier]);
+  const avgBulkDiscount = useMemo(() => averageBulkDiscountPct(materials), [materials]);
+  const provenance = useMemo(
+    () => catalogProvenanceLine(market.resolved ? market.label : null),
+    [market],
+  );
+  const staleMonths = useMemo(() => (catalogIsStale() ? catalogAgeMonths() : 0), []);
 
-  useEffect(() => {
-    const interval = setInterval(() => refreshPrices(false), 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [refreshPrices]);
+  // ── PRICE TARGETS ────────────────────────────────────────────────────────
+  // Derived, never read back from the row. See the note over
+  // evaluatePriceTargets: `currentPrice` and `isTriggered` on a stored alert
+  // were written by the synthetic feed, so they are not evidence of anything.
+  // Nothing here writes, either — the old code pushed a Supabase update per
+  // alert per five-minute re-roll.
+  const targetStatus = useMemo(() => {
+    const statuses = evaluatePriceTargets(
+      priceAlerts.map(a => ({
+        id: a.id,
+        materialId: a.materialId,
+        targetPrice: a.targetPrice,
+        direction: a.direction,
+        isPaused: a.isPaused,
+      })),
+      materials,
+    );
+    return new Map<string, PriceTargetStatus>(statuses.map(st => [st.id, st]));
+  }, [priceAlerts, materials]);
 
-  // Re-price whenever the selected location changes so the picker is no longer
-  // decorative. Keyed only on the multiplier — refreshPrices mutates price
-  // alerts, so keying this on its identity would loop.
-  useEffect(() => {
-    refreshPrices(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationMultiplier]);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', nextState => {
-      if (appState.current.match(/inactive|background/) && nextState === 'active') refreshPrices(false);
-      appState.current = nextState;
-    });
-    return () => sub.remove();
-  }, [refreshPrices]);
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.15, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-  }, [pulseAnim]);
+  const metTargets = useMemo(
+    () => priceAlerts.filter(a => targetStatus.get(a.id)?.meetsTarget === true).length,
+    [priceAlerts, targetStatus],
+  );
 
   const categories: CategorySummary[] = useMemo(() => {
     const grouped: Record<string, MaterialItem[]> = {};
@@ -188,19 +182,16 @@ export default function MaterialsScreen() {
   }, [categories, searchQuery]);
 
   const totalCount = categories.reduce((s, c) => s + c.itemCount, 0);
-  const triggeredAlerts = priceAlerts.filter(a => a.isTriggered && !a.isPaused);
-
-  const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleCategoryPress = useCallback((categoryName: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    // Carry the selected location into the detail screen so its prices match
-    // the picker (the detail route has no picker of its own).
+    // Carry the selected market into the detail screen so its prices match
+    // this one (the detail route has no picker of its own).
     router.push({
       pathname: '/(tabs)/materials/[category]',
-      params: { category: categoryName, loc: String(locationMultiplier) },
+      params: { category: categoryName, loc: String(market.multiplier) },
     });
-  }, [router, locationMultiplier]);
+  }, [router, market.multiplier]);
 
   const renderCategory = useCallback(({ item }: { item: CategorySummary }) => {
     const alertCount = priceAlerts.filter(a =>
@@ -249,12 +240,28 @@ export default function MaterialsScreen() {
 
   const ListHeader = useMemo(() => (
     <View>
-      <View style={[styles.headerArea, { paddingTop: insets.top + 4 }]}>
-        <View>
+      {/* NAV-07 (runtime audit 2026-09-06). This component renders at two
+          routes: /(tabs)/materials, a tab registered href:null (a tab switch,
+          which creates no back button and lights no tab), and
+          /(tabs)/discover/materials, a push inside the Discover stack whose
+          navigator has headerShown:false (so it draws no back button either).
+          Both arrive from Discover's sub-tab strip, so one labelled control
+          serves both. See components/HiddenTabBackLink.tsx for why it pushes a
+          named destination instead of calling router.back(). */}
+      <HiddenTabBackLink
+        label="Discover"
+        href="/(tabs)/discover"
+        style={[styles.backToDiscover, { marginTop: insets.top + 4 }]}
+        testID="materials-back-to-discover"
+      />
+      <View style={styles.headerArea}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.largeTitle}>Materials</Text>
-          <View style={styles.liveRow}>
-            <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />
-            <Text style={styles.liveLabel}>LIVE PRICING</Text>
+          {/* Was a pulsing green dot reading "LIVE PRICING". There is no feed
+              behind this screen, so it says what it is. */}
+          <View style={styles.provenanceRow}>
+            <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.provenanceLabel}>REFERENCE PRICE BOOK</Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -279,27 +286,21 @@ export default function MaterialsScreen() {
           )}
           {priceAlerts.length > 0 && (
             <TouchableOpacity
-              style={[styles.refreshBtn, showAlerts && { backgroundColor: themeColors.accent + '20' }]}
-              onPress={() => setShowAlerts(!showAlerts)}
+              style={[styles.refreshBtn, showTargets && { backgroundColor: themeColors.accent + '20' }]}
+              onPress={() => setShowTargets(!showTargets)}
               activeOpacity={0.7}
+              testID="materials-targets-toggle"
+              accessibilityRole="button"
+              accessibilityLabel={`Price targets (${priceAlerts.length})`}
             >
-              <Bell size={15} color={showAlerts ? themeColors.accent : themeColors.accent} strokeWidth={1.75} />
-              {triggeredAlerts.length > 0 && (
+              <Bell size={15} color={themeColors.accent} strokeWidth={1.75} />
+              {metTargets > 0 && (
                 <View style={styles.alertBadge}>
-                  <Text style={styles.alertBadgeText}>{triggeredAlerts.length}</Text>
+                  <Text style={styles.alertBadgeText}>{metTargets}</Text>
                 </View>
               )}
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={styles.refreshBtn}
-            onPress={() => refreshPrices(true)}
-            activeOpacity={0.7}
-            testID="refresh-prices"
-          >
-            <RefreshCw size={15} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.refreshBtnText}>Refresh</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -307,15 +308,23 @@ export default function MaterialsScreen() {
         style={styles.locationBanner}
         onPress={() => setShowLocationPicker(!showLocationPicker)}
         activeOpacity={0.7}
+        testID="materials-market-banner"
       >
         <MapPin size={14} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.locationText}>
-          Pricing for <Text style={styles.locationBold}>{selectedCity}</Text>
-          {' '}({regionInfo?.label ?? 'US Average'})
-        </Text>
-        <View style={styles.locationMultiplier}>
-          <Text style={styles.multiplierText}>{locationMultiplier > 1 ? '+' : ''}{((locationMultiplier - 1) * 100).toFixed(0)}%</Text>
-        </View>
+        {market.resolved ? (
+          <Text style={styles.locationText}>
+            Priced for <Text style={styles.locationBold}>{market.label}</Text>
+          </Text>
+        ) : (
+          <Text style={styles.locationText}>
+            <Text style={styles.locationBold}>US average</Text> — pick your market
+          </Text>
+        )}
+        {market.resolved && (
+          <View style={styles.locationMultiplier}>
+            <Text style={styles.multiplierText}>{market.multiplier > 1 ? '+' : ''}{((market.multiplier - 1) * 100).toFixed(0)}%</Text>
+          </View>
+        )}
         <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
       </TouchableOpacity>
 
@@ -323,63 +332,93 @@ export default function MaterialsScreen() {
         <View style={styles.locationPicker}>
           <Text style={styles.pickerLabel}>REGION</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
-            {REGIONS.map(region => (
-              <TouchableOpacity
-                key={region.id}
-                style={[styles.pickerChip, selectedRegion === region.id && styles.pickerChipActive]}
-                onPress={() => {
-                  setSelectedRegion(region.id);
-                  setSelectedCity(region.label);
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                }}
-              >
-                <Text style={[styles.pickerChipText, selectedRegion === region.id && styles.pickerChipTextActive]}>
-                  {region.label}
-                </Text>
-                <Text style={[styles.pickerChipSub, selectedRegion === region.id && styles.pickerChipTextActive]}>
-                  {region.costIndex > 1 ? '+' : ''}{((region.costIndex - 1) * 100).toFixed(0)}%
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {/* An explicit way back to the un-adjusted national list price.
+                Without it every selection was an uplift the user could not undo. */}
+            <TouchableOpacity
+              style={[styles.pickerChip, !market.resolved && styles.pickerChipActive]}
+              onPress={() => {
+                setOverride({ regionId: null, city: null });
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+              testID="market-us-average"
+            >
+              <Text style={[styles.pickerChipText, !market.resolved && styles.pickerChipTextActive]}>US average</Text>
+              <Text style={[styles.pickerChipSub, !market.resolved && styles.pickerChipTextActive]}>no adjustment</Text>
+            </TouchableOpacity>
+            {REGIONS.map(region => {
+              const active = market.regionId === region.id && !market.city;
+              return (
+                <TouchableOpacity
+                  key={region.id}
+                  style={[styles.pickerChip, active && styles.pickerChipActive]}
+                  onPress={() => {
+                    setOverride({ regionId: region.id, city: null });
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>
+                    {region.label}
+                  </Text>
+                  <Text style={[styles.pickerChipSub, active && styles.pickerChipTextActive]}>
+                    {region.costIndex > 1 ? '+' : ''}{((region.costIndex - 1) * 100).toFixed(0)}%
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
           <Text style={[styles.pickerLabel, { marginTop: 8 }]}>METRO AREA</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
-            {Object.entries(CITY_ADJUSTMENTS).map(([city, adj]) => (
-              <TouchableOpacity
-                key={city}
-                style={[styles.pickerChip, selectedCity === city && styles.pickerChipActive]}
-                onPress={() => {
-                  setSelectedCity(city);
-                  const stateMap: Record<string, string> = {
-                    'New York City': 'NY', 'San Francisco': 'CA', 'Los Angeles': 'CA',
-                    'Chicago': 'IL', 'Boston': 'MA', 'Seattle': 'WA', 'Miami': 'FL',
-                    'Houston': 'TX', 'Dallas': 'TX', 'Atlanta': 'GA', 'Denver': 'CO',
-                    'Phoenix': 'AZ', 'Philadelphia': 'PA', 'Washington DC': 'DC',
-                    'Detroit': 'MI', 'Minneapolis': 'MN', 'Portland': 'OR',
-                    'Las Vegas': 'NV', 'Nashville': 'TN', 'Charlotte': 'NC',
-                  };
-                  const st = stateMap[city];
-                  if (st) {
-                    const r = getRegionForState(st);
-                    if (r) setSelectedRegion(r.id);
-                  }
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                }}
-              >
-                <Text style={[styles.pickerChipText, selectedCity === city && styles.pickerChipTextActive]}>{city}</Text>
-                <Text style={[styles.pickerChipSub, selectedCity === city && styles.pickerChipTextActive]}>
-                  {adj > 1 ? '+' : ''}{((adj - 1) * 100).toFixed(0)}%
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {Object.entries(CITY_ADJUSTMENTS).map(([city, adj]) => {
+              const active = market.city === city;
+              return (
+                <TouchableOpacity
+                  key={city}
+                  style={[styles.pickerChip, active && styles.pickerChipActive]}
+                  onPress={() => {
+                    // marketForSelection derives the region from the metro, so
+                    // the city↔state table lives in constants/materials.ts
+                    // where it can be tested instead of inline here.
+                    setOverride({ regionId: null, city });
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>{city}</Text>
+                  <Text style={[styles.pickerChipSub, active && styles.pickerChipTextActive]}>
+                    {adj > 1 ? '+' : ''}{((adj - 1) * 100).toFixed(0)}%
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       )}
 
+      {/* Replaces "Prices updated 9:20 PM · New York City rates · Pull to
+          refresh". States when the book was compiled and which factor is on
+          it — never when the screen last re-rendered. */}
       <View style={styles.updatedRow}>
-        <Clock size={11} color={themeColors.textMuted} strokeWidth={1.75} />
-        <Text style={styles.updatedText}>Prices updated {formatTime(lastUpdated)} · {selectedCity} rates · Pull to refresh</Text>
-        <Wifi size={11} color={themeColors.success} strokeWidth={1.75} />
+        <Info size={11} color={themeColors.textMuted} strokeWidth={1.75} />
+        <Text style={styles.updatedText} testID="materials-provenance">{provenance}</Text>
+      </View>
+
+      {/* The stale variant paints itself in the warning palette. It must use
+          the THEME-AWARE pair (warningSoft tint / warningLabel ink), not the
+          fixed-light Colors.warningLight (#FFF3E0): this banner switches
+          itself on with no code change and therefore no review, on
+          CATALOG_COMPILED_ON + CATALOG_STALE_AFTER_MONTHS, and in dark theme
+          the fixed cream carried #FF9500 text at roughly 2:1. A caution
+          nobody can read is a caution that is not there. */}
+      <View style={[styles.cautionBanner, staleMonths > 0 && styles.cautionBannerStale]}>
+        <AlertTriangle
+          size={13}
+          color={staleMonths > 0 ? themeColors.warningLabel : themeColors.textMuted}
+          strokeWidth={1.75}
+        />
+        <Text style={[styles.cautionText, staleMonths > 0 && styles.cautionTextStale]} testID="materials-not-a-feed">
+          {staleMonths > 0
+            ? `This price book is ${staleMonths} months old. ${CATALOG_NOT_A_FEED}`
+            : CATALOG_NOT_A_FEED}
+        </Text>
       </View>
 
       <View style={styles.searchWrap}>
@@ -406,35 +445,57 @@ export default function MaterialsScreen() {
         </View>
       </View>
 
-      {showAlerts && priceAlerts.length > 0 && (
+      {showTargets && priceAlerts.length > 0 && (
         <View style={styles.alertsSection}>
-          <Text style={styles.alertsSectionTitle}>PRICE ALERTS ({priceAlerts.length})</Text>
+          <Text style={styles.alertsSectionTitle}>PRICE TARGETS ({priceAlerts.length})</Text>
+          {/* The old panel promised a watch it could not keep: the "Triggered"
+              badge came from a sine wave, not from a supplier. */}
+          <Text style={styles.alertsSectionNote}>
+            MAGE has no supplier feed. A target is compared against the price book above for {market.resolved ? market.label : 'the US average'} — it does not watch the market.
+          </Text>
           {priceAlerts.map(alert => {
-            const progress = alert.direction === 'below'
-              ? Math.max(0, Math.min(1, (alert.currentPrice - alert.targetPrice) / Math.max(alert.currentPrice, 1)))
-              : Math.max(0, Math.min(1, (alert.targetPrice - alert.currentPrice) / Math.max(alert.targetPrice, 1)));
+            const status = targetStatus.get(alert.id);
+            const catalogPrice = status?.catalogPrice ?? null;
+            const meets = status?.meetsTarget === true;
+            const progress = catalogPrice === null
+              ? 0
+              : alert.direction === 'below'
+                ? Math.max(0, Math.min(1, (catalogPrice - alert.targetPrice) / Math.max(catalogPrice, 1)))
+                : Math.max(0, Math.min(1, (alert.targetPrice - catalogPrice) / Math.max(alert.targetPrice, 1)));
             return (
               <View key={alert.id} style={styles.alertCard}>
                 <View style={styles.alertCardTop}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.alertMatName} numberOfLines={1}>{alert.materialName}</Text>
                     <Text style={styles.alertDetail}>
-                      {alert.direction === 'below' ? '↓ Below' : '↑ Above'} ${alert.targetPrice.toFixed(2)} · Now ${alert.currentPrice.toFixed(2)}
+                      {alert.direction === 'below' ? '↓ Below' : '↑ Above'} ${alert.targetPrice.toFixed(2)}
+                      {' · '}
+                      {catalogPrice === null
+                        ? 'no longer in the price book'
+                        : `book price $${catalogPrice.toFixed(2)}`}
                     </Text>
                   </View>
-                  {alert.isTriggered && (
-                    <View style={[styles.alertStatusBadge, { backgroundColor: Colors.successLight }]}>
-                      <Text style={[styles.alertStatusText, { color: themeColors.success }]}>Triggered</Text>
+                  {/* successSoft/warningSoft + successLabel/warningLabel, not
+                      the fixed-light Colors.successLight (#E8FAF0) /
+                      Colors.warningLight (#FFF3E0). Those two are single hex
+                      values with no dark variant, so in dark theme these
+                      badges were near-white chips carrying #4ED37A and
+                      #FF9500 ink — and unlike the stale-catalog banner below,
+                      these two are reachable TODAY, the moment a target meets
+                      or a target is paused. */}
+                  {meets && (
+                    <View style={[styles.alertStatusBadge, { backgroundColor: themeColors.successSoft }]}>
+                      <Text style={[styles.alertStatusText, { color: themeColors.successLabel }]}>Meets target</Text>
                     </View>
                   )}
                   {alert.isPaused && (
-                    <View style={[styles.alertStatusBadge, { backgroundColor: Colors.warningLight }]}>
-                      <Text style={[styles.alertStatusText, { color: Colors.warning }]}>Paused</Text>
+                    <View style={[styles.alertStatusBadge, { backgroundColor: themeColors.warningSoft }]}>
+                      <Text style={[styles.alertStatusText, { color: themeColors.warningLabel }]}>Paused</Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.alertProgressTrack}>
-                  <View style={[styles.alertProgressFill, { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: alert.isTriggered ? themeColors.success : themeColors.accent }]} />
+                  <View style={[styles.alertProgressFill, { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: meets ? themeColors.success : themeColors.accent }]} />
                 </View>
                 <View style={styles.alertActions}>
                   <TouchableOpacity
@@ -444,8 +505,8 @@ export default function MaterialsScreen() {
                       if (Platform.OS !== 'web') void Haptics.selectionAsync();
                     }}
                   >
-                    {alert.isPaused ? <Play size={12} color={themeColors.accent} strokeWidth={1.75} /> : <Pause size={12} color={Colors.warning} strokeWidth={1.75} />}
-                    <Text style={[styles.alertActionText, { color: alert.isPaused ? themeColors.accent : Colors.warning }]}>
+                    {alert.isPaused ? <Play size={12} color={themeColors.accent} strokeWidth={1.75} /> : <Pause size={12} color={themeColors.warningLabel} strokeWidth={1.75} />}
+                    <Text style={[styles.alertActionText, { color: alert.isPaused ? themeColors.accent : themeColors.warningLabel }]}>
                       {alert.isPaused ? 'Resume' : 'Pause'}
                     </Text>
                   </TouchableOpacity>
@@ -468,7 +529,9 @@ export default function MaterialsScreen() {
 
       <View style={styles.savingsBanner}>
         <TrendingDown size={14} color={themeColors.success} strokeWidth={1.75} />
-        <Text style={styles.savingsText}>Bulk pricing saves up to 25% — tap a category to browse</Text>
+        <Text style={styles.savingsText}>
+          Bulk price averages {avgBulkDiscount}% under list across this book — tap a category to browse
+        </Text>
       </View>
 
       {filteredCategories.length === 0 ? (
@@ -483,7 +546,7 @@ export default function MaterialsScreen() {
         </Text>
       )}
     </View>
-  ), [insets.top, pulseAnim, searchQuery, lastUpdated, showAlerts, priceAlerts, triggeredAlerts.length, filteredCategories.length, totalCount, refreshPrices, updatePriceAlert, deletePriceAlert, selectedRegion, selectedCity, regionInfo, locationMultiplier, showLocationPicker, cartCount, router]);
+  ), [insets.top, searchQuery, showTargets, priceAlerts, targetStatus, metTargets, filteredCategories.length, totalCount, updatePriceAlert, deletePriceAlert, market, showLocationPicker, cartCount, router, provenance, staleMonths, avgBulkDiscount, styles, themeColors]);
 
   return (
     <View style={styles.container}>
@@ -497,9 +560,9 @@ export default function MaterialsScreen() {
           <View style={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
             <View style={styles.sourceNote}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
-                <BarChart3 size={13} color={themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={[styles.sourceText, { flex: 1 }]}>
-                  Prices sourced from major retailers, distributors, and regional wholesalers across the US. Updated in real-time with market variance.
+                <BookOpen size={13} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={[styles.sourceText, { flex: 1 }]} testID="materials-source-note">
+                  {CATALOG_SOURCE_LABEL} compiled {catalogCompiledLabel()}, adjusted by MAGE&apos;s regional cost index. They are list prices, not quotes on your account, and MAGE does not receive supplier feeds — the numbers move only when a new build ships a new book or you change the market above. The supplier on a row is the retail channel the list price was taken from, not a vendor MAGE has priced with for you.
                 </Text>
               </View>
             </View>
@@ -507,9 +570,6 @@ export default function MaterialsScreen() {
         }
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <MageRefreshControl refreshing={refreshing} onRefresh={() => refreshPrices(true)} />
-        }
       />
     </View>
   );
@@ -518,13 +578,15 @@ export default function MaterialsScreen() {
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   listContainer: {},
+  // Only the placement: HiddenTabBackLink owns the chevron, label and tint.
+  backToDiscover: { marginLeft: 14 },
   headerArea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 },
   largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.5 },
-  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: t.success },
-  liveLabel: { fontSize: 10, fontWeight: '700' as const, color: t.success, letterSpacing: 0.8 },
+  // Was a pulsing green `liveDot` + "LIVE PRICING" in success green. Muted and
+  // static: this is a book, not a feed, and the colour said otherwise.
+  provenanceRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  provenanceLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8 },
   refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.accent + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  refreshBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
   // Cart pill — solid-accent button shown only when the cart has items, so
   // it carries weight when present. Taps to the Estimate tab.
   cartPill: {
@@ -547,6 +609,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: t.textMuted, alignItems: 'center', justifyContent: 'center' },
   alertsSection: { marginHorizontal: 16, marginBottom: 16, gap: 8 },
   alertsSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textSecondary, letterSpacing: 0.5, marginBottom: 4 },
+  alertsSectionNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginBottom: 4 },
   alertCard: { backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: t.line, gap: 8 },
   alertCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   alertMatName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
@@ -560,6 +623,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   alertActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
   savingsBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: t.success + '12', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginBottom: 20 },
   savingsText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.success, fontWeight: '500' as const, lineHeight: 17 },
+  cautionBanner: { flexDirection: 'row', alignItems: 'flex-start', marginHorizontal: 16, backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 9, gap: 7, marginBottom: 12 },
+  cautionBannerStale: { backgroundColor: t.warningSoft },
+  cautionText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 16 },
+  cautionTextStale: { color: t.warningLabel, fontWeight: '600' as const },
   sectionHeader: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textSecondary, letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
   categoryCard: {
     marginHorizontal: 16,

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
 import type { Invoice, Project } from '@/types';
+import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
 export interface InvoicePrediction {
   invoiceId: string;
@@ -82,10 +83,14 @@ const predictionHint = {
   topAction: 'Call Acme LLC about invoice #12 — it is 9 days past due and they typically pay on day 45.',
 };
 
+/**
+ * MONEY-05: was a hand-written copy of the invoiceOutstanding formula (the last
+ * entry on validate-money-outstanding's allow-list). A second copy is a second
+ * place to forget the retainage basis, and the A/R model was being fed the
+ * stored-column balance while the invoice screen showed another.
+ */
 function outstandingOf(inv: Invoice): number {
-  const retentionPending = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
-  const netPayable = Math.max(0, (inv.totalDue ?? 0) - retentionPending);
-  return Math.max(0, netPayable - (inv.amountPaid ?? 0));
+  return invoiceOutstanding(inv);
 }
 
 function daysBetween(a: string, b: string): number {
@@ -161,7 +166,7 @@ export async function predictInvoicePayments(
       daysToDue,
       pastDueDays: pastDue,
       paymentsCount: inv.payments.length,
-      retentionPending: Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0)),
+      retentionPending: pendingRetentionHeld(inv),
       history: describePaymentHistory(inv, invoices),
     };
   });

@@ -71,11 +71,14 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
-import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from '../_shared/auth.ts';
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from '../_shared/auth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const CLOUDCONVERT_API_KEY = Deno.env.get('CLOUDCONVERT_API_KEY') ?? '';
+
+// B3 (review 2026-09-04): per-user hourly render ceiling (CloudConvert spend).
+const HOURLY_LIMIT = 30;
 
 const PDF_BUCKET = 'pdf-uploads';
 const PNG_BUCKET = 'plan-sheets';
@@ -165,8 +168,11 @@ serve(async (req) => {
     const { pdfStoragePath, projectId } = body;
     const dpi = clamp(body.dpi ?? 144, 72, 300);
     // Tier-aware page cap. Pro: 50/run (typical residential set is 8–30
-    // sheets). Business: 200/run for hospital / commercial sets.
-    const HARD_PAGE_CAP = auth.tier === 'business' ? 200 : 50;
+    // sheets). Business and Enterprise: 200/run for hospital / commercial
+    // sets. Rank comparison (audit EDGE-F11): strict equality on 'business'
+    // demoted Enterprise to 50 and silently dropped pages from large sets.
+    const TIER_RANK: Record<string, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+    const HARD_PAGE_CAP = (TIER_RANK[auth.tier] ?? 0) >= TIER_RANK.business ? 200 : 50;
     const maxPages = clamp(body.maxPages ?? HARD_PAGE_CAP, 1, HARD_PAGE_CAP);
 
     if (!pdfStoragePath || !projectId) {
@@ -198,6 +204,15 @@ serve(async (req) => {
       log('idor_blocked_project', { projectId, userId: auth.userId });
       return json({ success: false, error: 'forbidden: project not owned by caller' }, 403);
     }
+
+    // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+    // the precheck-then-charge window (N racing requests at cap-1) to at most
+    // HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+    // master accounts included. rateLimitCount returns the POST-increment count,
+    // so `n - 1 >= HOURLY_LIMIT` denies exactly the (HOURLY_LIMIT + 1)th request.
+    const hourly = await rateLimitCount(`convert-pdf-to-images:user:${auth.userId}`);
+    if (hourly < 0) return json({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
+    if (hourly - 1 >= HOURLY_LIMIT) return json({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
 
     // 1a. Download the PDF so we can count pages BEFORE running the cap
     //     check + paying Cloudconvert. pdf-lib parses metadata only — no
@@ -453,13 +468,9 @@ serve(async (req) => {
     // Top-level catch — any uncaught error becomes a clean 500 so the
     // client gets a real message instead of a 546 worker-died.
     console.error('[convert-pdf] FATAL:', err);
-    const msg = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    return json({
-      success: false,
-      error: `Render crashed: ${msg}`,
-      stack: stack?.slice(0, 800),
-    }, 500);
+    // No stack or internal message in the body (audit EDGE-F16 appendix) —
+    // the console.error above is the diagnostic trail.
+    return json({ success: false, error: 'Render crashed — please try again.' }, 500);
   }
 });
 

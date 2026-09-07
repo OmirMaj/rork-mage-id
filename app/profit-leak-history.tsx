@@ -33,6 +33,7 @@ import type { BrainPredictionReadRow } from '@/utils/brain/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // ─── Business gate ──────────────────────────────────────────────────────────
 
@@ -179,7 +180,7 @@ function ProfitLeakHistoryInner() {
           headerShown: true,
           headerStyle: { backgroundColor: t.bg },
           headerTintColor: t.accent,
-          headerTitleStyle: { color: t.text, fontWeight: '700' },
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: t.text },
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
@@ -210,7 +211,7 @@ function ProfitLeakHistoryInner() {
               label="Open"
               count={openRows.length}
               total={openTotal}
-              color={Colors.warning}
+              color={Colors.warningLabel}
               bg={Colors.warning + '14'}
               styles={styles}
               t={t}
@@ -249,8 +250,8 @@ function ProfitLeakHistoryInner() {
             <BucketSection
               label="Open"
               subtitle="Flagged extra work not yet billed as a change order"
-              icon={<Clock size={15} color={Colors.warning} strokeWidth={1.75} />}
-              tint={Colors.warning}
+              icon={<Clock size={15} color={Colors.warningLabel} strokeWidth={1.75} />}
+              tint={Colors.warningLabel}
               rows={openRows}
               styles={styles}
               t={t}

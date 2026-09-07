@@ -61,11 +61,13 @@ serve(async (req: Request) => {
   if (used + docs.length > cap) {
     return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
   }
-  // Hourly burst / shared-key-drain limit. Fail OPEN (rl < 0 = limiter
-  // unavailable → allow): the monthly counter above is the cost ceiling and
-  // already fails closed, so a limiter blip must not lock out a paying user.
+  // Hourly burst / shared-key-drain limit. Fails CLOSED like every other paid
+  // relay (review 2026-09-05 — this was the last fail-open bucket in the tree):
+  // rl < 0 = limiter unavailable → 503; and because rateLimitCount returns the
+  // POST-increment count, `rl - 1 >= LIMIT` lets exactly LIMIT calls through.
   const rl = await rateLimitCount(`pm:${auth.userId}`);
-  if (rl > PM_HOURLY_LIMIT) {
+  if (rl < 0) return json({ success: false, error: "Rate limiter unavailable — please try again in a moment.", code: "rate_limiter_unavailable" }, 503);
+  if (rl - 1 >= PM_HOURLY_LIMIT) {
     return json({ success: false, error: "Too many Project Memory requests — please wait a moment and retry.", code: "rate_limited" }, 429);
   }
 

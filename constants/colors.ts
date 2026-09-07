@@ -73,8 +73,14 @@ export function setCustomColors(primary: string | null, accent: string | null) {
 // (those styles bake at module load), but it DOES fix any file the
 // app lazy-imports for the first time AFTER a theme change.
 //
-// Brand colors (primary, accent, semantic states like success/error)
-// stay static — those carry meaning that shouldn't theme.
+// The BRAND hue (primary/accent) and the SIGNAL FILLS (success,
+// warning, error, info) stay static — a vivid hue used as a dot, bar
+// or bare chip carries meaning by being unmistakable from its
+// siblings, and re-tinting it per theme breaks that. Their TEXT
+// companions (successLabel / warningLabel / dangerLabel / infoLabel,
+// accentLabel, accentFill) DO theme, because legibility is a property
+// of the ground. Runtime audit 2026-09-06 (VIS-06) — see the block
+// above those getters for the measurements.
 let _currentTheme: 'light' | 'dark' = 'light';
 
 /** Called by ThemeContext on every resolved-theme change. */
@@ -122,8 +128,19 @@ export const Colors = {
 
   // ── Text — theme-aware ──
   get text()             { return _currentTheme === 'dark' ? '#F4EFE6' : '#000000'; },
-  get textSecondary()    { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.7)' : 'rgba(60,60,67,0.6)'; },
-  get textMuted()        { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.42)' : 'rgba(60,60,67,0.36)'; },
+  // Runtime audit 2026-09-06 (VIS-04 / VIS-17): the old alphas were Apple's
+  // system label values (0.6 / 0.36), which the Release build rendered at
+  // 3.44:1 and 1.96:1 on white. Both tokens carry REAL CONTENT in this app —
+  // counts ("3 active"), empty-state copy ("Nothing scheduled on site today.")
+  // and the cash-flow caption — not decoration, so both must clear AA 4.5:1.
+  // Measured against this module's own grounds (surface #FFFFFF, background /
+  // surfaceAlt #F2F2F7), worst ground first:
+  //   textSecondary  light 0.82 → 5.88:1   dark 0.70 → 7.70:1
+  //   textMuted      light 0.75 → 4.85:1   dark 0.55 → 5.28:1
+  // The hierarchy between them is now carried by a ~1.2× contrast step plus
+  // size/weight rather than by making the quieter one illegible.
+  get textSecondary()    { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.7)' : 'rgba(60,60,67,0.82)'; },
+  get textMuted()        { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.55)' : 'rgba(60,60,67,0.75)'; },
   textOnPrimary: '#FFFFFF',
   textOnAccent: '#FFFFFF',
 
@@ -131,6 +148,48 @@ export const Colors = {
   get border()           { return _currentTheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(60,60,67,0.18)'; },
   get borderLight()      { return _currentTheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(60,60,67,0.08)'; },
 
+  // ── Semantic status colours — SIGNAL FILLS and their LABEL INKS ──
+  //
+  // Two different jobs, so two different tokens. Conflating them is what the
+  // runtime audit's VIS-06 fix got wrong on its first pass, and the mistake is
+  // worth spelling out because the tokens read interchangeable:
+  //
+  //   SIGNAL FILL (`success` / `warning` / `error` / `info`)
+  //       The colour IS the message. A 10pt health dot on the profit report
+  //       (app/reports.tsx healthTone), the Modified/Removed chips on
+  //       compare-drawings, the margin-band tints. These carry NO TEXT, so the
+  //       requirement is not AA-against-the-ground — it is being unmistakable
+  //       from the SIBLING states next to it. Darkening amber to #B84A00 gave
+  //       it 1.06:1 against the red #C84038 dot and 1.03:1 against the green
+  //       #2E7D44 one: a yellow project and a red project became the same
+  //       swatch. So these stay at the vivid system hues.
+  //
+  //   LABEL INK (`successLabel` / `warningLabel` / `dangerLabel` / `infoLabel`)
+  //       Text — a chip label, a caption, a small icon beside one. The app's
+  //       chip idiom is `backgroundColor: c + '15'` with `color: c`, and the
+  //       vivid hues are illegible that way: the Subs compliance badge, the
+  //       single most load-bearing label on that screen, measured 2.07:1 in
+  //       the Release build. Measured on their own 8% tint over surface:
+  //
+  //           fill  #34C759 2.08:1 · #007AFF 3.61:1 · #FF9500 2.06:1 · #FF3B30 3.18:1
+  //           ink   #256B39 5.76:1 · #1565C0 5.11:1 · #B84A00 4.66:1 · #B93A32 5.01:1
+  //
+  // This is exactly the split `Theme.light` already ships (`danger` #C84038 the
+  // fill, `dangerLabel` #B93A32 the ink; `warningSoft` the tint, `warningLabel`
+  // the ink) — these getters mirror it for the screens that read the static
+  // module. scripts/validate-contrast.ts check 5 holds every LABEL to AA on its
+  // own tint, and check 5b holds every FILL to a minimum separation from its
+  // siblings, so neither half can be "fixed" at the other's expense again.
+  //
+  // The BRAND orange is deliberately not in this set — founder decision #1
+  // keeps `accent` at #FF6A1A for large non-text chrome and routes text through
+  // accentLabel / accentFill. The pale `*Light` companions and `statusFills`
+  // (the Gantt bar palette, which picks its own label colour by fill
+  // brightness) are literals and are unaffected.
+
+  // Signal fills — static in both themes, as they have always been. A vivid
+  // hue reads correctly as a dot/bar on either ground; it is only as TEXT that
+  // the light theme needs the darker ink below.
   success: '#34C759',
   successLight: '#E8FAF0',
   // Material-design dark variants — used as foreground text on a *Light
@@ -146,6 +205,18 @@ export const Colors = {
   info: '#007AFF',
   infoLight: '#EBF3FF',
   infoDark: '#1565C0',      // 8 inline uses
+
+  // Label inks — the value each of the four resolves to when it is TEXT (or a
+  // small icon beside text). Light values are the AA-verified companions this
+  // file already ships as Theme.light.successLabel / .warningLabel /
+  // .dangerLabel / .info; dark values mirror Theme.dark, where the vivid hues
+  // are already legible (8% tint over #14181D: 8.02 / 7.16 / 5.30 / 6.23).
+  get successLabel() { return _currentTheme === 'dark' ? '#4ED37A' : '#256B39'; },
+  get warningLabel() { return _currentTheme === 'dark' ? '#FF9500' : '#B84A00'; },
+  // Named for the semantic, not for `error`, so it matches Theme.*.dangerLabel
+  // — one name for one colour across both colour systems.
+  get dangerLabel()  { return _currentTheme === 'dark' ? '#FF5A51' : '#B93A32'; },
+  get infoLabel()    { return _currentTheme === 'dark' ? '#4EA7FF' : '#1565C0'; },
 
   // Apple iOS system purple. Used in a few places (system "Books," some
   // status indicators). 18 inline uses — surfacing as a token.
@@ -257,15 +328,22 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     surface: '#FFFFFF',
     surfaceAlt: '#F4EFE6',
     text: '#2B3038',
-    textSecondary: 'rgba(43,48,56,0.6)',
-    textMuted: 'rgba(43,48,56,0.4)',
+    // Runtime audit 2026-09-06 (VIS-04 / VIS-17). Sampled from the Release
+    // build: textMuted rendered at 2.20:1 ("3 active", "CASH · 4WK") and
+    // textSecondary at 3.82:1 — both below AA, and both carry real content
+    // rather than decoration. Re-derived against the worst light ground
+    // (surfaceAlt #F4EFE6), so they hold on every surface:
+    //   textSecondary 0.78 → 6.05:1 worst, 6.56:1 on surface
+    //   textMuted     0.70 → 4.79:1 worst, 5.11:1 on surface
+    textSecondary: 'rgba(43,48,56,0.78)',
+    textMuted: 'rgba(43,48,56,0.7)',
     // A genuinely faint NEUTRAL fill — rgba of the ink (#2B3038 = 43,48,56) at
     // 6% alpha, a barely-there tint used DIRECTLY (no `+ 'NN'` suffix, so RN
     // renders it correctly). This replaces the broken `t.textMuted + '14'`
     // pattern, where RN's normalizeColor keeps the rgba() prefix and DROPS the
     // suffix, rendering the ~40% textMuted token as a heavy opaque grey slab.
     // At 6% over surface #FFFFFF it composites to ~rgb(242,243,243), leaving
-    // textSecondary text on it at 3.67:1 — indistinguishable from the 3.82:1 it
+    // textSecondary text on it at 6.15:1 — indistinguishable from the 6.56:1 it
     // reads on bare surface (the fill is nearly transparent).
     neutralSoft: 'rgba(43,48,56,0.06)',
     line: 'rgba(43,48,56,0.12)',
@@ -313,7 +391,10 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     surfaceAlt: '#1A1F26',
     text: '#F4EFE6',
     textSecondary: '#9AA3AD',
-    textMuted: 'rgba(154,163,173,0.6)',
+    // 0.6 measured 3.22:1 on surfaceAlt — same VIS-04 defect as the light
+    // theme. 0.8 → 4.65:1 worst ground, 4.91:1 on surface. (textSecondary is
+    // already solid #9AA3AD at 6.48:1 worst, so it is unchanged.)
+    textMuted: 'rgba(154,163,173,0.8)',
     // Dark-theme twin of neutralSoft — rgba of the dark ink (#9AA3AD =
     // 154,163,173, the textSecondary hue) at 8% alpha. Used DIRECTLY (no
     // suffix). At 8% over surface #14181D it composites to ~rgb(31,35,41),

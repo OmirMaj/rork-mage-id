@@ -12,12 +12,16 @@
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+// B3 (review 2026-09-04): per-user hourly request ceiling + bounded upstream fetch.
+const HOURLY_LIMIT = 30;
+const VISION_TIMEOUT_MS = 120_000;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -113,11 +117,21 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'imageBase64 or imageUrl required' }, 400);
   }
 
-  // Meter AFTER a valid image is in hand — never charge a unit for a missing,
-  // oversized (413), or unfetchable (400) image where no Gemini scan runs.
-  const used = await aiUsageIncrement(auth.userId, 'scan_credential');
+  // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+  // the precheck-then-charge window (N racing requests at cap-1) to at most
+  // HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+  // master accounts included. rateLimitCount returns the POST-increment count,
+  // so `n - 1 >= HOURLY_LIMIT` denies exactly the (HOURLY_LIMIT + 1)th request.
+  const hourly = await rateLimitCount(`scan-credential:user:${auth.userId}`);
+  if (hourly < 0) return jsonResponse({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable' }, 503);
+  if (hourly - 1 >= HOURLY_LIMIT) return jsonResponse({ success: false, error: `Hourly limit reached (${HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit' }, 429);
+  // Monthly cap PRECHECK (audit AI-F8: charged after Gemini answers, below).
+  // Never charge a unit for a missing, oversized (413), or unfetchable (400)
+  // image where no scan runs. aiUsageGet fails CLOSED. Accepted window: N
+  // racing requests at cap-1 can overshoot the cap by N-1, never more.
   const cap = MONTHLY_CAPS[auth.tier].scan_credential;
-  if (used > cap) {
+  const used = await aiUsageGet(auth.userId, 'scan_credential');
+  if (used >= cap) {
     return jsonResponse({
       success: false,
       error: `Monthly credential-scan limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
@@ -133,6 +147,8 @@ serve(async (req) => {
     { inline_data: { mime_type: mimeType, data: imageData } },
   ];
 
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), VISION_TIMEOUT_MS);
   let geminiResp: Response;
   try {
     geminiResp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
@@ -142,14 +158,25 @@ serve(async (req) => {
         contents: [{ parts }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 800 },
       }),
+      signal: ac.signal,
     });
   } catch (e) {
-    return jsonResponse({ success: false, error: `Gemini network error: ${(e as Error).message}` }, 502);
+    if ((e as Error).name === 'AbortError') {
+      return jsonResponse({ success: false, error: 'The AI service timed out — please try again.', code: 'upstream_timeout' }, 504);
+    }
+    console.error('[scan-credential] Gemini network error:', (e as Error).message);
+    return jsonResponse({ success: false, error: 'The AI service is unreachable — please try again.', code: 'upstream_error' }, 502);
+  } finally {
+    clearTimeout(timer);
   }
   if (!geminiResp.ok) {
     const text = await geminiResp.text().catch(() => '');
-    return jsonResponse({ success: false, error: `Gemini ${geminiResp.status}: ${text.slice(0, 160)}` }, 502);
+    console.error(`[scan-credential] Gemini ${geminiResp.status}: ${text.slice(0, 300)}`);
+    return jsonResponse({ success: false, error: 'The AI service returned an error — please try again.', code: 'upstream_error' }, 502);
   }
+  // The model answered — charge the unit now (AI-F8); a non-JSON answer below
+  // is still a paid call.
+  await aiUsageIncrement(auth.userId, 'scan_credential');
 
   // Guard the .json() itself: a 200 with a truncated/partial body throws here.
   // Return a CORS-carrying 502 rather than a bare, CORS-less 500.

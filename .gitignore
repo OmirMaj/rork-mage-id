@@ -69,3 +69,6 @@ export_sections/
 credentials.json
 *.p8
 credentials/
+
+# bun is the package manager; a second lockfile makes EAS/expo-doctor guess (audit HEALTH-F3)
+package-lock.json

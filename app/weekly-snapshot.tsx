@@ -31,8 +31,10 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { formatMoney } from '@/utils/formatters';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { daysUntilCalendarDay } from '@/utils/calendarDate';
 
 type WindowKey = 'thisWeek' | 'lastWeek' | 'last30';
 
@@ -166,14 +168,16 @@ export default function WeeklySnapshotScreen() {
       (r.status === 'closed' || r.status === 'answered') && inRange(r.dateResponded ?? r.updatedAt)
     ).length;
     const stillOpen = rfis.filter(r => r.status === 'open').length;
-    const overdue = rfis.filter(r => r.status === 'open' && r.dateRequired && new Date(r.dateRequired).getTime() < Date.now()).length;
+    // B4 review A2: dateRequired is a calendar day — overdue once the due DAY
+    // is past, resolved parseCalendarDay-first (see app/report-inbox.tsx).
+    const overdue = rfis.filter(r => r.status === 'open' && (daysUntilCalendarDay(r.dateRequired) ?? 0) < 0).length;
     return { opened, closed, stillOpen, overdue };
   }, [rfis, range]);
 
   const invoiceStats = useMemo(() => {
     const issuedThisWindow = invoices.filter(i => inRange(i.issueDate));
     const totalIssued = issuedThisWindow.reduce((s, i) => s + (i.totalDue ?? 0), 0);
-    const totalUnpaid = invoices.reduce((s, i) => s + Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)), 0);
+    const totalUnpaid = invoices.reduce((s, i) => s + invoiceOutstanding(i), 0); // MONEY-F5: net of held retention
     const paidThisWindow = invoices
       .flatMap(i => i.payments ?? [])
       .filter(p => inRange(p.date))
@@ -277,7 +281,7 @@ export default function WeeklySnapshotScreen() {
         <View style={styles.row}>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <FileText size={16} color={Colors.warning} strokeWidth={1.75} />
+              <FileText size={16} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>RFIs</Text>
             </View>
             <Text style={styles.cardBigValue}>{rfiStats.opened} <Text style={styles.cardArrow}>→</Text> {rfiStats.closed}</Text>
@@ -323,7 +327,7 @@ export default function WeeklySnapshotScreen() {
           </View>
           <View style={[styles.card, styles.cardThird]}>
             <View style={styles.cardHeader}>
-              <ClipboardList size={14} color={Colors.warning} strokeWidth={1.75} />
+              <ClipboardList size={14} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Punch</Text>
             </View>
             <Text style={styles.cardBigValueSmall}>{punchOpenedCount}<Text style={styles.cardArrow}>/</Text>{punchClosedCount}</Text>
@@ -334,7 +338,7 @@ export default function WeeklySnapshotScreen() {
         {budgetCap > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} /> : <TrendingDown size={16} color={Colors.warning} strokeWidth={1.75} />}
+              {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} /> : <TrendingDown size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
               <Text style={styles.cardLabel}>Budget Burn</Text>
               <Text style={styles.burnPct}>{Math.round(burnPct * 100)}%</Text>
             </View>

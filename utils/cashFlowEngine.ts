@@ -1,6 +1,6 @@
 import type { Invoice, ChangeOrder } from '@/types';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
-import { netBalanceDue } from '@/utils/invoiceBilling';
+import { netBalanceDue, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
 export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
@@ -51,6 +51,13 @@ export interface CashFlowSummary {
  * payments recorded since the balance was last set. Lets the GC set the balance
  * once ("my bank shows $42k today"), then record payments as checks come in
  * without manually re-typing the balance each time.
+ *
+ * MONEY-F7 (audit 2026-09-03): a RETENTION RELEASE is not cash received. Release
+ * means "now collectible" — it flows into netBalanceDue() and is forecast as
+ * income below; the cash arrives when the GC records the payment, which lands
+ * here through `payments`. Adding `retentionReleases[].amount` as well counted
+ * the same $10,000 as bank balance AND as receivable, then a third time when
+ * the check was recorded.
  */
 export function getEffectiveStartingBalance(
   storedBalance: number,
@@ -67,12 +74,6 @@ export function getEffectiveStartingBalance(
       const ts = new Date(p.date).getTime();
       if (!Number.isNaN(ts) && ts > cutoff) {
         additional += p.amount ?? 0;
-      }
-    }
-    for (const r of inv.retentionReleases ?? []) {
-      const ts = new Date(r.date).getTime();
-      if (!Number.isNaN(ts) && ts > cutoff) {
-        additional += r.amount ?? 0;
       }
     }
   }
@@ -317,7 +318,11 @@ export function pendingRetention(invoices: Invoice[]): number {
   let total = 0;
   for (const inv of invoices) {
     if (getEffectiveInvoiceStatus(inv) === 'draft') continue;
-    total += Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+    // MONEY-05: percentage of work value via the shared helper. Reading the
+    // stored column here made "plus $X retention held to closeout" contradict
+    // the runway right beside it, which nets the SAME retention out of every
+    // receivable through netBalanceDue.
+    total += pendingRetentionHeld(inv);
   }
   return total;
 }

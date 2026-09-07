@@ -290,7 +290,7 @@ export default function WarrantyWalkScreen() {
             <Text style={styles.summaryLabel}>Checked</Text>
           </View>
           <View style={styles.summaryCell}>
-            <Text style={[styles.summaryValue, { color: Colors.warning }]}>{totals.flaggedCount}</Text>
+            <Text style={[styles.summaryValue, { color: Colors.warningLabel }]}>{totals.flaggedCount}</Text>
             <Text style={styles.summaryLabel}>Flagged</Text>
           </View>
           <View style={styles.summaryCell}>

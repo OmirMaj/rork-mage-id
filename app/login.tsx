@@ -30,7 +30,7 @@ export default function LoginScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink } = useAuth();
+  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink, sessionExpiredReason } = useAuth();
 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
@@ -54,6 +54,14 @@ export default function LoginScreen() {
   const buttonScale = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const passwordRef = useRef<TextInput>(null);
+
+  // RT-R1: the app landed here because the server rejected the session and a
+  // refresh could not save it (AuthContext). Say so — a silent bounce to the
+  // sign-in screen reads as a crash. Cleared like any other error on the next
+  // attempt.
+  useEffect(() => {
+    if (sessionExpiredReason) setErrorMessage(sessionExpiredReason);
+  }, [sessionExpiredReason]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;

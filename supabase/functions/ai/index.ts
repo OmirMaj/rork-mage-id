@@ -37,14 +37,19 @@
 // non-200 as `errorKind: 'http'` distinctly from `errorKind: 'model'`.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
 
 const GK = Deno.env.get("GEMINI_API_KEY") || "";
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
+// Model ids come from _shared/models.ts (env-overridable — audit AI-F12).
 const M: Record<string, string> = {
-  fast: "gemini-2.5-flash",
-  smart: "gemini-2.5-flash",
+  fast: GEMINI_TEXT_MODEL,
+  smart: GEMINI_TEXT_MODEL,
 };
+// B3 (review 2026-09-04): per-user hourly request ceiling + bounded upstream fetch.
+const AI_HOURLY_LIMIT = 120;
+const TEXT_TIMEOUT_MS = 60_000;
 const H: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -119,7 +124,9 @@ serve(async (req) => {
     // Rank semantics: business/enterprise auto-satisfy a 'pro' floor. Vision
     // features (photo/drawing/scan/cost-xray) are intentionally ABSENT — they run
     // through their own edge functions with their own requireTier; adding them
-    // here would be dead config. Unlisted/absent feature → no floor (free ok).
+    // here would be dead config. A registered but unlisted feature → no floor
+    // (free ok); an ABSENT/empty tag → the registered default `general` (also
+    // no floor); a NON-EMPTY unregistered tag → 400 (KNOWN_FEATURES below).
     // Keep this map in sync with FEATURE_CONFIG.proOnly text features
     // (scripts/validate-ai-feature-gating.ts guards the parity).
     const FEATURE_MIN_RANK: Record<string, number> = {
@@ -130,8 +137,33 @@ serve(async (req) => {
       fullBudgetDashboard: 2, // business
     };
     const TIER_RANK: Record<string, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
-    const feature = typeof body.feature === "string" ? body.feature : undefined;
-    const minRank = feature ? FEATURE_MIN_RANK[feature] : undefined;
+    // Audit EDGE-F7 / AI-F7: every request carries a REGISTERED feature id.
+    // KNOWN_FEATURES mirrors the AIFeature union in utils/aiRateLimiterCore.ts
+    // plus the canAccess-gated ids (already in FEATURE_MIN_RANK), the two
+    // non-AIFeature tags in use (planAsk, bid_scoring) and `general` — the
+    // default the client wrappers (utils/mageAI.ts) send for untagged calls.
+    // Deploy-order safety: builds that predate that wrapper default send NO
+    // tag; treat those as `general` (normal per-tier ai_text cap, no Pro
+    // floor) and log them so the untagged tail is visible in the function
+    // logs. A NON-EMPTY unregistered id is still a 400 — a typo must not
+    // silently skip a floor. The residual gap (a free account replaying a
+    // Pro prompt under `general`) is AI-F7's server-side prompt registry.
+    const KNOWN_FEATURES = new Set<string>([
+      ...Object.keys(FEATURE_MIN_RANK),
+      "general",
+      "voiceIntake", "leadScoring", "copilot", "homeBriefing", "invoicePrediction", "subEvaluation",
+      "equipmentAdvice", "homeownerSummary", "changeOrderImpact", "dailyReport", "projectReport",
+      "profitLeak", "delayScan", "askMage", "projectMemory", "quickEstimate", "scheduleBuilder",
+      "scheduleCopilot", "estimateValidation", "voiceCapture", "aiTakeoff", "photoAnalysis",
+      "drawingAnalysis", "specBookExtract", "scanCredential", "planAsk", "bid_scoring",
+    ]);
+    const rawFeature = typeof body.feature === "string" ? body.feature.trim() : "";
+    const feature = rawFeature || "general";
+    if (!rawFeature) console.log(`[ai] feature=general(untagged) user=${auth.userId} tier=${auth.tier}`);
+    if (!KNOWN_FEATURES.has(feature)) {
+      return jsonResp({ success: false, error: `Unknown feature id "${feature.slice(0, 40)}".`, code: "unknown_feature", finishReason: "BAD_REQUEST" }, 400);
+    }
+    const minRank: number | undefined = FEATURE_MIN_RANK[feature];
     if (minRank !== undefined && (TIER_RANK[auth.tier] ?? 0) < minRank) {
       const needed = minRank >= 2 ? "business" : "pro";
       return jsonResp({
@@ -201,15 +233,26 @@ serve(async (req) => {
     // Final clamp — even the floor-Math.max above can't exceed the cap.
     maxTokens = Math.min(maxTokens, MAX_OUTPUT_TOKENS_CAP);
 
-    // Monthly cap check + atomic increment. Caps are deliberately set to
-    // daily × 30 in MONTHLY_CAPS so the server-side ceiling matches the
-    // client-side daily limiter without us having to add a separate daily
-    // SQL function. A user who maxes their daily client cap every day for
-    // the month hits the server cap on the same day they would have run
-    // out anyway.
-    const used = await aiUsageIncrement(auth.userId, 'ai_text');
+    // B3 (review 2026-09-04): per-user hourly request bucket, fail-CLOSED. Bounds
+    // the precheck-then-charge window (N racing requests at cap-1) to at most
+    // AI_HOURLY_LIMIT model calls per user-hour whatever the client's concurrency;
+    // master accounts included. rateLimitCount returns the POST-increment count,
+    // so `n - 1 >= AI_HOURLY_LIMIT` denies exactly the (AI_HOURLY_LIMIT + 1)th request.
+    const hourly = await rateLimitCount(`ai:user:${auth.userId}`);
+    if (hourly < 0) return jsonResp({ success: false, error: 'Rate limiter unavailable — please try again in a moment.', code: 'rate_limiter_unavailable', finishReason: 'RATE_LIMITED' }, 503);
+    if (hourly - 1 >= AI_HOURLY_LIMIT) return jsonResp({ success: false, error: `Hourly limit reached (${AI_HOURLY_LIMIT} per hour). Try again in an hour.`, code: 'hourly_limit', finishReason: 'RATE_LIMITED' }, 429);
+
+    // Monthly cap PRECHECK (audit AI-F8: charge after the model answers). Caps
+    // are daily × 30 in MONTHLY_CAPS so the server ceiling matches the client
+    // daily limiter. aiUsageGet fails CLOSED (sentinel on RPC error) so an
+    // outage denies rather than spends. The increment now happens after a 2xx
+    // from Gemini — an upstream 5xx/timeout no longer burns a unit and over-cap
+    // retries no longer climb the counter. Accepted window: N requests racing
+    // at cap-1 all pass this read and each charges after, so one user's
+    // counter can overshoot the cap by N-1 — never more.
     const cap = MONTHLY_CAPS[auth.tier].ai_text ?? 0;
-    if (used > cap) {
+    const usedBefore = await aiUsageGet(auth.userId, 'ai_text');
+    if (usedBefore >= cap) {
       return jsonResp({
         success: false,
         error: `Monthly AI limit reached (${cap}/mo on ${auth.tier}). Resets the 1st of next month.`,
@@ -244,23 +287,46 @@ serve(async (req) => {
     };
 
     const url = BASE + model + ":generateContent?key=" + GK;
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(gb),
-    });
+    // Bounded upstream fetch (B3): a hung socket returns a CORS 504 instead of
+    // the isolate dying at the wall clock; nothing is charged on abort.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
+    let r: Response;
+    try {
+      r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(gb),
+        signal: ac.signal,
+      });
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        return jsonResp({ success: false, error: "The AI service timed out — please try again.", code: "upstream_timeout", finishReason: "UPSTREAM_TIMEOUT" }, 504);
+      }
+      console.error("GEMINI NETWORK ERROR:", (e as Error).message);
+      return jsonResp({ success: false, error: "The AI service is unreachable — please try again.", code: "upstream_error", finishReason: "UPSTREAM_HTTP_ERROR" }, 502);
+    } finally {
+      clearTimeout(timer);
+    }
     if (!r.ok) {
       const e = await r.text();
       console.error("GEMINI ERROR:", r.status, e.substring(0, 500));
+      // Upstream text stays in the server log (audit AI-F16) — not charged.
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Gemini error (" + r.status + "): " + e.substring(0, 200),
+          error: "The AI service returned an error (" + r.status + "). Please try again.",
           finishReason: "UPSTREAM_HTTP_ERROR",
         }),
         { status: 502, headers: { ...H, "Content-Type": "application/json" } },
       );
     }
+
+    // The model answered (2xx) — the spend is real, so charge now regardless
+    // of how usable the answer turns out to be: MAX_TOKENS / SAFETY / bad JSON
+    // are still paid Gemini calls and the cap is the cost ceiling. Only the
+    // upstream failure above is free.
+    await aiUsageIncrement(auth.userId, 'ai_text');
 
     const data = await r.json();
     const candidate = data.candidates?.[0];
@@ -321,7 +387,8 @@ serve(async (req) => {
   } catch (err) {
     console.error("Edge function error:", err);
     return new Response(
-      JSON.stringify({ success: false, error: "Internal error: " + String(err), finishReason: "INTERNAL_ERROR" }),
+      // A6 (review): the detail is in the console.error above, never the body.
+      JSON.stringify({ success: false, error: "Internal error — please try again.", finishReason: "INTERNAL_ERROR" }),
       { status: 500, headers: { ...H, "Content-Type": "application/json" } },
     );
   }

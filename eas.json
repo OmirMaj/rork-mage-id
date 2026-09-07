@@ -15,7 +15,8 @@
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pDxXdBBycnzMaWAnsljVhdOdOjz",
         "EXPO_PUBLIC_REVENUECAT_WEB_API_KEY": "rcb_sb_nJlnyGGBFrMoHlMzqnfhKHSFe",
-        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu"
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
+        "EXPO_PUBLIC_OPENWEATHER_API_KEY": ""
       }
     },
     "production": {
@@ -29,7 +30,8 @@
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pDxXdBBycnzMaWAnsljVhdOdOjz",
         "EXPO_PUBLIC_REVENUECAT_WEB_API_KEY": "rcb_sb_nJlnyGGBFrMoHlMzqnfhKHSFe",
-        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu"
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
+        "EXPO_PUBLIC_OPENWEATHER_API_KEY": ""
       },
       "ios": {
         "credentialsSource": "remote",

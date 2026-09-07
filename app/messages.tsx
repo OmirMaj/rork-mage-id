@@ -19,6 +19,7 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import type { ChatMessage } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 export default function MessagesScreen() {
   // A chat screen: the composer sits at the bottom of the flex column, which is
@@ -158,7 +159,7 @@ export default function MessagesScreen() {
         title: otherName,
         headerStyle: { backgroundColor: themeColors.surface },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         headerRight: () => onlineIndicator,
       }} />
       <KeyboardAvoidingView

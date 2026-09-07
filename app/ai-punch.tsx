@@ -107,7 +107,7 @@ interface ReviewableItem extends AiPunchItem {
 
 const PRIORITY_COLORS: Record<PunchItemPriority, string> = {
   high: "#C84038",
-  medium: Colors.warning,
+  medium: Colors.warningLabel,
   low: "#9AA3AD",
 };
 
@@ -611,7 +611,7 @@ function AiPunchScreenInner() {
           {!!notice && (
             <View style={styles.section}>
               <View style={styles.noticeBanner}>
-                <AlertCircle size={14} color={Colors.warning} strokeWidth={1.75} />
+                <AlertCircle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
                 <Text style={styles.noticeText}>{notice}</Text>
               </View>
             </View>

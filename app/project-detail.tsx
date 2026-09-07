@@ -19,7 +19,7 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
-  Clock, Lock, Mic, FileSignature, CalendarClock,
+  Clock, Lock, Mic, FileSignature, CalendarClock, Truck,
 } from 'lucide-react-native';
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
@@ -65,6 +65,7 @@ import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
 import { formatMoney, displayText } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
+import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
@@ -72,13 +73,14 @@ import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { buildPortalSnapshot } from '@/utils/portalSnapshot';
+import { buildPortalSnapshot, portalShareUrl, maskPortalLinkToken } from '@/utils/portalSnapshot';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
+import { daysUntilCalendarDay } from '@/utils/calendarDate';
 import {
   computeDailyLogCompletion, calendarOfSchedule,
   dailyLogHeadline, dailyLogEmptyDayLine, dailyLogGapLine, dailyLogTodayLine,
@@ -105,7 +107,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const PROJECT_DETAIL_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
 const PROJECT_DETAIL_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -524,6 +526,8 @@ export default function ProjectDetailScreen() {
     // Routes out to /field-ticket rather than opening an in-screen section,
     // so this flag is never read — present only to satisfy the exhaustive map.
     fieldTickets: true,
+    // PRODUCT-F4: routes out to /deliveries the same way — flag never read.
+    deliveries: true,
     punchList: true,
     rfis: true,
     submittals: true,
@@ -785,17 +789,33 @@ export default function ProjectDetailScreen() {
   // gives a meaningful "Copy failed" path so silent failures can't
   // recur. Used by both the dedicated Copy button and the tappable
   // link pill.
+  //
+  // The URL this copies is the one the client actually receives, `?t=` and
+  // all: every portal RPC (approve a change order, sign the contract, accept a
+  // selection) refuses a request without that token, so a bare
+  // `mageid.app/portal/<id>` is not a shorter link — it is a portal the client
+  // cannot act in. portalShareUrl returns null rather than build one, and null
+  // is reported as the missing step, not copied.
+  const portalLink = useMemo(
+    () => portalShareUrl(project?.clientPortal),
+    [project?.clientPortal],
+  );
+
   const handleCopyPortalLink = useCallback(async () => {
-    const portalId = project?.clientPortal?.portalId;
-    if (!portalId) return;
-    const url = `https://mageid.app/portal/${portalId}`;
-    const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
+    if (!portalLink) {
+      showAlert(
+        'Secure link not ready',
+        'This portal has no signing key yet, so there is no link to share. Open Client Portal and tap Save — the key that lets your client approve and sign is created there.',
+      );
+      return;
+    }
+    const ok = await (await import('@/utils/clipboard')).copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok ? 'Portal link copied to clipboard.' : 'Could not copy the link. Long-press the URL above to select it manually.',
     );
-  }, [project?.clientPortal?.portalId]);
+  }, [portalLink]);
 
   const handleShareEmail = useCallback(async () => {
     if (!project) return;
@@ -900,10 +920,8 @@ export default function ProjectDetailScreen() {
     if (!project || !id) return;
     if (generatingCloseout) return;
     const openPunchCount = punchItems.filter(p => p.status !== 'closed').length;
-    const unpaidInvoices = projectInvoices.filter(i => {
-      const net = (i.totalDue ?? 0) - Math.max(0, (i.retentionAmount ?? 0) - (i.retentionReleased ?? 0));
-      return (i.amountPaid ?? 0) < net;
-    });
+    // MONEY-F5: one definition of "still owed" — net of held retention.
+    const unpaidInvoices = projectInvoices.filter(i => invoiceOutstanding(i) > 0);
     const warn: string[] = [];
     if (openPunchCount > 0) warn.push(`${openPunchCount} open punch item${openPunchCount === 1 ? '' : 's'}`);
     if (unpaidInvoices.length > 0) warn.push(`${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length === 1 ? '' : 's'}`);
@@ -959,17 +977,28 @@ export default function ProjectDetailScreen() {
         invoices: projectInvoices,
         warranties: projectWarranties,
       });
+      // SCHED-NO-ANCHOR: an undated schedule contributes NO task events (the
+      // generator refuses to date them off today). The count alone would read
+      // as a complete calendar — and "no schedule tasks found" would be flatly
+      // false on a 20-task plan — so the skip is stated either way.
+      const { undatedSchedule, skippedTaskCount } = result.scheduleSkip;
+      const skipNote = undatedSchedule
+        ? ` ${skippedTaskCount} schedule task${skippedTaskCount === 1 ? '' : 's'} ${skippedTaskCount === 1 ? 'was' : 'were'} left out: this schedule has no start date, so its tasks have day numbers but no calendar days yet.`
+        : '';
       if (result.eventCount === 0) {
         showAlert(
           'Calendar Feed',
-          'No schedule tasks, invoice due dates, or warranty expirations found for this project yet. Add items to the schedule to populate the feed.',
+          undatedSchedule
+            ? `Nothing could be written to a calendar file.${skipNote} Set the start date on the Schedule tab and export again.`
+            : 'No schedule tasks, invoice due dates, or warranty expirations found for this project yet. Add items to the schedule to populate the feed.',
         );
         return;
       }
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (undatedSchedule) showAlert('Calendar Feed', `Exported ${result.eventCount} event${result.eventCount === 1 ? '' : 's'}.${skipNote}`);
       } else {
-        showAlert('Calendar Feed', `Downloaded ${result.eventCount} event${result.eventCount === 1 ? '' : 's'} to your calendar file. Open it to import.`);
+        showAlert('Calendar Feed', `Downloaded ${result.eventCount} event${result.eventCount === 1 ? '' : 's'} to your calendar file. Open it to import.${skipNote}`);
       }
     } catch (err) {
       console.error('[ProjectDetail] Calendar export error:', err);
@@ -1790,7 +1819,7 @@ export default function ProjectDetailScreen() {
           const PEOPLE_COLOR = themeColors.info;     // blue (same as docs)
           const GROUP_BY_KEY: Partial<Record<SectionKey, string>> = {
             // field
-            dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR,
+            dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR, deliveries: FIELD_COLOR,
             punchList: FIELD_COLOR, photos: FIELD_COLOR,
             plans: FIELD_COLOR, schedule: FIELD_COLOR,
             // money
@@ -1823,6 +1852,8 @@ export default function ProjectDetailScreen() {
             // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
             // has already earned and not yet asked for.
             { key: 'fieldTickets', label: 'T&M Tickets', icon: FileSignature, color: colorFor('fieldTickets'), count: projectFieldTickets.filter(x => x.status === 'signed').length },
+            // PRODUCT-F4 / UX-F16: Deliveries had no entry point on iPhone at all.
+            { key: 'deliveries', label: 'Deliveries', icon: Truck, color: colorFor('deliveries'), count: null as number | null },
             { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
             { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
             { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
@@ -1841,7 +1872,7 @@ export default function ProjectDetailScreen() {
           ];
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
-            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
+            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
             { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
             { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
@@ -1882,6 +1913,7 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'fieldTickets') { router.push({ pathname: '/field-ticket' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'deliveries') { router.push({ pathname: '/deliveries', params: { projectId: id } }); return; }
                   if (tile.key === 'projectFiles') { router.push({ pathname: '/project-files' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'scope') { router.push({ pathname: '/project-scope', params: { id } } as never); return; }
                   setActiveTile(tile.key);
@@ -2830,9 +2862,11 @@ export default function ProjectDetailScreen() {
                 </TouchableOpacity>
               )}
               {projectInvoices.length > 0 && (() => {
+                // MONEY-F5: settled = retention-net balance covered; held
+                // retention does not keep an invoice in the Unpaid chip.
                 const counts = {
-                  unpaid: projectInvoices.filter(i => i.amountPaid < i.totalDue).length,
-                  paid: projectInvoices.filter(i => i.amountPaid >= i.totalDue).length,
+                  unpaid: projectInvoices.filter(i => !invoiceIsSettled(i)).length,
+                  paid: projectInvoices.filter(i => invoiceIsSettled(i)).length,
                 };
                 const chips: FilterChip<'unpaid' | 'paid' | 'all'>[] = [
                   { value: 'unpaid', label: 'Unpaid', count: counts.unpaid, color: themeColors.accent },
@@ -2850,11 +2884,11 @@ export default function ProjectDetailScreen() {
                 );
               })()}
               {(invoiceFilter === 'all' ? projectInvoices : projectInvoices.filter(i => {
-                if (invoiceFilter === 'unpaid') return i.amountPaid < i.totalDue;
-                if (invoiceFilter === 'paid') return i.amountPaid >= i.totalDue;
+                if (invoiceFilter === 'unpaid') return !invoiceIsSettled(i); // MONEY-F5
+                if (invoiceFilter === 'paid') return invoiceIsSettled(i);    // MONEY-F5
                 return true;
               })).map(inv => {
-                const _balance = inv.totalDue - inv.amountPaid;
+                const _balance = invoiceOutstanding(inv); // MONEY-F5: net of held retention
                 const displayStatus = getEffectiveInvoiceStatus(inv);
                 // "Overdue" alone doesn't tell a GC whether to call today. Days
                 // do. Same helper the invoice screen's header pill uses.
@@ -3245,7 +3279,9 @@ export default function ProjectDetailScreen() {
                 if (rfiFilter === 'closed') return r.status === 'closed' || r.status === 'void';
                 return true;
               })).slice(0, 5).map(rfi => {
-                const isOverdue = rfi.status === 'open' && new Date(rfi.dateRequired) < new Date();
+                // B4 review A2: dateRequired is a calendar day — overdue once the
+                // due DAY is past (see app/report-inbox.tsx).
+                const isOverdue = rfi.status === 'open' && (daysUntilCalendarDay(rfi.dateRequired) ?? 0) < 0;
                 return (
                   <TouchableOpacity
                     key={rfi.id}
@@ -3784,7 +3820,14 @@ export default function ProjectDetailScreen() {
                       accessibilityLabel="Copy portal link"
                     >
                       <Link size={12} color={themeColors.info} strokeWidth={1.75} />
-                      <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
+                      {/* PORTAL-07: print the link Copy hands out — token
+                          included so the bare URL is never mistaken for it,
+                          middle elided so a screenshot does not leak the key. */}
+                      <Text style={styles.portalLinkText} numberOfLines={1}>
+                        {portalLink
+                          ? maskPortalLinkToken(portalLink.replace(/^https:\/\//, ''))
+                          : 'Secure link not ready — open Client Portal and Save'}
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.portalCopyBtn} onPress={handleCopyPortalLink} accessibilityRole="button" accessibilityLabel="Copy">
                       <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />

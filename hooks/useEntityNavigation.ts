@@ -61,11 +61,13 @@ export function useEntityNavigation() {
 
       onBeforeNavigate?.();
 
+      // No cast: EntityRoute is the typed Href object form, so a pathname that
+      // does not exist fails `tsc` here instead of at the user's thumb (UX-F8).
       const go = () => {
         if (mode === 'replace') {
-          router.replace(route as never);
+          router.replace(route);
         } else {
-          router.push(route as never);
+          router.push(route);
         }
       };
 

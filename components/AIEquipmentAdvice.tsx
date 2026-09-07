@@ -32,7 +32,7 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 const REC_STYLES = {
   rent: { label: 'Keep Renting', Icon: RefreshCw, color: "#1565C0", bg: Colors.infoLight },
   buy: { label: 'Buy It', Icon: Tag, color: "#2E7D44", bg: Colors.successLight },
-  lease: { label: 'Consider Leasing', Icon: ClipboardList, color: Colors.warning, bg: Colors.warningLight },
+  lease: { label: 'Consider Leasing', Icon: ClipboardList, color: Colors.warningLabel, bg: Colors.warningLight },
 } as const;
 
 export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTier }: Props) {

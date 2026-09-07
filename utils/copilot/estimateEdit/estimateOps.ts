@@ -96,12 +96,12 @@ export function isAtCostLine(item: Pick<LinkedEstimateItem, 'category'>): boolea
  *  (materials) and never touches laborCart / assemblyCart. Pure; feed the
  *  result to recomputeEstimate.
  *
- *  NOTE FOR THE setGlobalMarkup OP: interpretEstimateOps.ts currently only
- *  reassigns estimate.globalMarkup, which — now that money is per-line — moves
- *  no totals. That op's case should run its items through this helper so
- *  "bump the markup to 20%" reprices materials and leaves labor/assemblies at
- *  cost. recomputeEstimate re-zeroes at-cost lines regardless, so a cascade
- *  written any other way still cannot mark up labor. */
+ *  interpretEstimateOps.ts's setGlobalMarkup case runs its items through this
+ *  helper (AI-F5 — it used to reassign estimate.globalMarkup alone, which,
+ *  with money per-line, moved no totals), so "bump the markup to 20%" reprices
+ *  materials and leaves labor/assemblies at cost. recomputeEstimate re-zeroes
+ *  at-cost lines regardless, so a cascade written any other way still cannot
+ *  mark up labor. */
 export function applyGlobalMarkupToItems(items: LinkedEstimateItem[], markupPct: number): LinkedEstimateItem[] {
   return items.map((it) => (isAtCostLine(it) ? { ...it, markup: 0 } : { ...it, markup: markupPct }));
 }

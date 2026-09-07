@@ -15,7 +15,8 @@
 import React, { useMemo, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Zap, Plus, Trash2, Share2, CheckCircle2, XCircle,
@@ -56,7 +57,10 @@ export default function QuickQuoteScreen() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  // UX-F14/F18: the route is gestureEnabled:false, so Back must still work
+  // when this screen is the first route (cold-start deep link) — falls
+  // through to the home tab instead of an unhandled GO_BACK.
+  const goBack = useSafeBack();
   const { globalMarkup } = useMaterialCart();
   const { proposals, addProposal, updateProposal } = useSmartProposals();
 
@@ -170,7 +174,7 @@ export default function QuickQuoteScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>

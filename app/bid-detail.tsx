@@ -26,6 +26,7 @@ import type { PublicBid } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const TRACKED_BIDS_KEY = 'mageid_tracked_bids';
 
@@ -291,7 +292,7 @@ export default function BidDetailScreen() {
         title: 'Bid Details',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
         {layout.isDesktop ? (

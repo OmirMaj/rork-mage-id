@@ -65,8 +65,8 @@ const STORAGE_KEY = 'mageid_estimate_versions';
 function formatDelta(current: number, saved: number): { text: string; color: string; icon: typeof TrendingUp } {
   const delta = current - saved;
   const pct = saved > 0 ? ((delta / saved) * 100).toFixed(1) : '0.0';
-  if (delta > 0) return { text: `+$${delta.toFixed(0)} (+${pct}%)`, color: Colors.error, icon: TrendingUp };
-  if (delta < 0) return { text: `-$${Math.abs(delta).toFixed(0)} (${pct}%)`, color: Colors.success, icon: TrendingDown };
+  if (delta > 0) return { text: `+$${delta.toFixed(0)} (+${pct}%)`, color: Colors.dangerLabel, icon: TrendingUp };
+  if (delta < 0) return { text: `-$${Math.abs(delta).toFixed(0)} (${pct}%)`, color: Colors.successLabel, icon: TrendingDown };
   return { text: '$0 (0%)', color: Colors.textMuted, icon: Minus };
 }
 
@@ -241,7 +241,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
                         style={s.deleteBtn}
                         onPress={() => handleDeleteVersion(version.id)}
                       >
-                        <X size={12} color={Colors.error} strokeWidth={1.75} />
+                        <X size={12} color={Colors.dangerLabel} strokeWidth={1.75} />
                         <Text style={s.deleteBtnText}>Delete</Text>
                       </TouchableOpacity>
                     )}
@@ -289,7 +289,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
                   <Text style={s.changesSectionTitle}>Line Item Changes</Text>
                   {comparison.changedItems.slice(0, 15).map((item, idx) => {
                     const bgColor = item.type === 'new' ? Colors.successLight : item.type === 'removed' ? Colors.errorLight : Colors.warningLight;
-                    const textColor = item.type === 'new' ? Colors.success : item.type === 'removed' ? Colors.error : Colors.warning;
+                    const textColor = item.type === 'new' ? Colors.successLabel : item.type === 'removed' ? Colors.dangerLabel : Colors.warningLabel;
                     const label = item.type === 'new' ? 'NEW' : item.type === 'removed' ? 'REMOVED' : 'CHANGED';
                     return (
                       <View key={`${item.name}-${idx}`} style={[s.changeRow, { backgroundColor: bgColor }]}>
@@ -364,7 +364,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' as const,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.errorLight,
   },
-  deleteBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.error },
+  deleteBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.dangerLabel },
   comparisonSection: { marginTop: 8, gap: 8 },
   compTable: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder,

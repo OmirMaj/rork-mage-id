@@ -139,7 +139,7 @@
   </main>
 
   <script>
-    // Static unsubscribe page. Reads ?e=email&k=event_key, lets the user
+    // Static unsubscribe page. Reads ?e=email&k=event_key&t=token, lets the user
     // confirm, then POSTs to the `unsubscribe` edge function. Idempotent
     // (the DB has a unique constraint on (email, event_key)).
     (function () {
@@ -162,7 +162,9 @@
 
       function readQuery() {
         var p = new URLSearchParams(window.location.search);
-        return { email: p.get('e') || '', key: p.get('k') || '' };
+        // t = the signed token every footer link carries — the function
+        // requires it for BOTH directions (review B2, 2026-09-04).
+        return { email: p.get('e') || '', key: p.get('k') || '', token: p.get('t') || '' };
       }
 
       var $eyebrow = document.getElementById('eyebrow');
@@ -182,6 +184,13 @@
       if (!qs.email) {
         $title.textContent = 'No email on the link';
         $lede.textContent = 'This unsubscribe link is missing the email address. Please use the link from a recent email, or contact support.';
+        $actionsBlock.classList.add('hidden');
+        return;
+      }
+
+      if (!qs.token) {
+        $title.textContent = 'This link is incomplete';
+        $lede.textContent = 'This unsubscribe link is missing its security token. Please use the "Unsubscribe" link from a recent email, or contact support.';
         $actionsBlock.classList.add('hidden');
         return;
       }
@@ -208,7 +217,7 @@
             'apikey': SUPABASE_ANON_KEY,
             'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({ email: qs.email, event_key: qs.key || null, source: 'one_click' }),
+          body: JSON.stringify({ email: qs.email, event_key: qs.key || null, token: qs.token, source: 'one_click' }),
         }).then(function (r) {
           if (!r.ok) throw new Error('http_' + r.status);
           return r.json();

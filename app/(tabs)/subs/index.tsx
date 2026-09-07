@@ -16,7 +16,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AISubEvaluator from '@/components/AISubEvaluator';
-import type { Subcontractor, SubTrade, ComplianceStatus } from '@/types';
+import type { Subcontractor, SubTrade } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -25,33 +25,46 @@ import { generateUUID } from '@/utils/generateId';
 import { getLicenseLookupTarget } from '@/utils/licenseBoardLookup';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { showAlert } from '@/utils/alert';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
+// NAV-05 (runtime audit 2026-09-06). The compliance rule used to live in this
+// file as three module-private functions, where no script in the ship-check
+// chain could reach it — and what it shipped was `return 'compliant'` for a sub
+// with no licence date and no COI date at all. It now lives in
+// utils/subCompliance.ts and is pinned by scripts/validate-sub-network.ts, so
+// "no dates → green Compliant" cannot come back silently. What stays here is
+// presentation only: which colour and which tint each state paints.
+import {
+  getComplianceStatus,
+  missingComplianceDocs,
+  complianceLabel as getStatusLabel,
+  type ComplianceState,
+} from '@/utils/subCompliance';
 
 function createId(_prefix: string): string {
   return generateUUID();
 }
 
-function getComplianceStatus(sub: Subcontractor): ComplianceStatus {
-  const now = new Date();
-  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-  const licExpiry = sub.licenseExpiry ? new Date(sub.licenseExpiry) : null;
-  const coiExpiry = sub.coiExpiry ? new Date(sub.coiExpiry) : null;
-
-  if ((licExpiry && licExpiry < now) || (coiExpiry && coiExpiry < now)) return 'expired';
-  if ((licExpiry && licExpiry.getTime() - now.getTime() < thirtyDays) ||
-      (coiExpiry && coiExpiry.getTime() - now.getTime() < thirtyDays)) return 'expiring_soon';
-  return 'compliant';
+function getStatusColor(status: ComplianceState): string {
+  if (status === 'compliant') return Colors.successLabel;
+  if (status === 'expiring_soon') return Colors.warningLabel;
+  // Not a severity — a gap. Deliberately a neutral rather than a fifth hue:
+  // "we have not seen this document" is the absence of a signal, and painting
+  // it amber would put it in the same visual class as an expiry the app has
+  // actually measured. textSecondary (not textMuted) because this is a chip
+  // LABEL at 11pt, and textSecondary is the quietest token this file is allowed
+  // to set body-weight text in; scripts/validate-contrast.ts owns whether that
+  // token clears AA, and holds constants/colors.ts to it.
+  if (status === 'unknown') return Colors.textSecondary;
+  return Colors.dangerLabel;
 }
 
-function getStatusColor(status: ComplianceStatus): string {
-  if (status === 'compliant') return Colors.success;
-  if (status === 'expiring_soon') return Colors.warning;
-  return Colors.error;
-}
-
-function getStatusLabel(status: ComplianceStatus): string {
-  if (status === 'compliant') return 'Compliant';
-  if (status === 'expiring_soon') return 'Expiring Soon';
-  return 'Expired';
+/** Chip/badge tint. `color + '15'` is only valid for the hex tokens; the
+ *  neutral is an rgba() getter, where concatenating an alpha suffix produces
+ *  an unparseable color string (the bug documented at constants/colors.ts:264).
+ */
+function getStatusTint(status: ComplianceState): string {
+  if (status === 'unknown') return Colors.fillTertiary;
+  return getStatusColor(status) + '15';
 }
 
 // ── Verification card: state-board deep-link + verified badges ──────
@@ -73,9 +86,9 @@ function LicenseVerificationCard({
     const ms = Date.now() - new Date(iso).getTime();
     if (!Number.isFinite(ms) || ms < 0) return { label: 'Not verified', color: Colors.textMuted };
     const days = Math.floor(ms / (24 * 60 * 60 * 1000));
-    if (days <= 90) return { label: `Verified ${days}d ago`, color: Colors.success };
-    if (days <= 180) return { label: `Verified ${days}d ago — stale`, color: Colors.warning };
-    return { label: `Verified ${days}d ago — re-check`, color: Colors.error };
+    if (days <= 90) return { label: `Verified ${days}d ago`, color: Colors.successLabel };
+    if (days <= 180) return { label: `Verified ${days}d ago — stale`, color: Colors.warningLabel };
+    return { label: `Verified ${days}d ago — re-check`, color: Colors.dangerLabel };
   };
 
   const license = verifiedAge(sub.licenseVerifiedAt);
@@ -124,8 +137,8 @@ function LicenseVerificationCard({
             <Text style={vStyles.actionBtnText}>{target?.directDeepLink ? 'Verify' : 'Open board'}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => onMarkVerified('license')} activeOpacity={0.85} style={vStyles.actionBtn}>
-            <CheckCircle size={12} color={Colors.success} strokeWidth={1.75} />
-            <Text style={[vStyles.actionBtnText, { color: Colors.success }]}>Mark verified</Text>
+            <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
+            <Text style={[vStyles.actionBtnText, { color: Colors.successLabel }]}>Mark verified</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -140,8 +153,8 @@ function LicenseVerificationCard({
           </View>
         </View>
         <TouchableOpacity onPress={() => onMarkVerified('coi')} activeOpacity={0.85} style={vStyles.actionBtn}>
-          <CheckCircle size={12} color={Colors.success} strokeWidth={1.75} />
-          <Text style={[vStyles.actionBtnText, { color: Colors.success }]}>Mark verified</Text>
+          <CheckCircle size={12} color={Colors.successLabel} strokeWidth={1.75} />
+          <Text style={[vStyles.actionBtnText, { color: Colors.successLabel }]}>Mark verified</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -241,8 +254,8 @@ export default function SubsScreen() {
     setAddress(sub.address);
     setTrade(sub.trade);
     setLicenseNumber(sub.licenseNumber);
-    setLicenseExpiry(sub.licenseExpiry);
-    setCoiExpiry(sub.coiExpiry);
+    setLicenseExpiry(sub.licenseExpiry ?? '');
+    setCoiExpiry(sub.coiExpiry ?? '');
     setW9OnFile(sub.w9OnFile);
     setNotes(sub.notes);
     setTaxIdLast4(sub.taxIdLast4 ?? '');
@@ -319,7 +332,11 @@ export default function SubsScreen() {
     const compliant = subcontractors.filter(s => getComplianceStatus(s) === 'compliant').length;
     const expiring = subcontractors.filter(s => getComplianceStatus(s) === 'expiring_soon').length;
     const expired = subcontractors.filter(s => getComplianceStatus(s) === 'expired').length;
-    return { compliant, expiring, expired, total: subcontractors.length };
+    // Subs with no usable date on one or both documents. They used to be
+    // counted as Compliant (NAV-05) — the green number was partly a count of
+    // paperwork nobody has ever seen.
+    const unknown = subcontractors.filter(s => getComplianceStatus(s) === 'unknown').length;
+    return { compliant, expiring, expired, unknown, total: subcontractors.length };
   }, [subcontractors]);
 
   // Prequal compliance summary for the banner. We surface this above the
@@ -336,6 +353,7 @@ export default function SubsScreen() {
   const renderSub = useCallback(({ item }: { item: Subcontractor }) => {
     const status = getComplianceStatus(item);
     const statusColor = getStatusColor(status);
+    const statusTint = getStatusTint(status);
     return (
       <TouchableOpacity
         style={styles.subCard}
@@ -344,16 +362,16 @@ export default function SubsScreen() {
         testID={`sub-${item.id}`}
       >
         <View style={styles.subCardTop}>
-          <View style={[styles.tradeIcon, { backgroundColor: statusColor + '15' }]}>
+          <View style={[styles.tradeIcon, { backgroundColor: statusTint }]}>
             <Users size={16} color={statusColor} strokeWidth={1.75} />
           </View>
           <View style={styles.subCardInfo}>
             <Text style={styles.subName}>{item.companyName}</Text>
             <Text style={styles.subContact}>{item.contactName} · {item.trade}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: statusTint }]}>
             <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusText, { color: statusColor }]}>{getStatusLabel(status)}</Text>
+            <Text style={[styles.statusText, { color: statusColor }]}>{getStatusLabel(status, item)}</Text>
           </View>
         </View>
         {item.phone || item.email ? (
@@ -387,6 +405,18 @@ export default function SubsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>
+            {/* NAV-07: Subs is registered with href:null, so arriving from
+                Discover → Tools is a tab switch — no back button is created
+                and no tab in the bar lights up. See
+                components/HiddenTabBackLink.tsx for why this names its
+                destination instead of being a bare chevron. */}
+            <HiddenTabBackLink
+              label="Tools"
+              href="/(tabs)/discover/tools"
+              style={styles.backToTools}
+              testID="subs-back-to-tools"
+            />
+
             <View style={styles.headerRow}>
               <Text style={styles.largeTitle}>Subs</Text>
               <View style={styles.headerBtns}>
@@ -461,17 +491,27 @@ export default function SubsScreen() {
             {stats.total > 0 && (
               <View style={styles.statsRow}>
                 <View style={[styles.statCard, { borderLeftColor: Colors.success }]}>
-                  <Text style={[styles.statNum, { color: Colors.success }]}>{stats.compliant}</Text>
+                  <Text style={[styles.statNum, { color: Colors.successLabel }]}>{stats.compliant}</Text>
                   <Text style={styles.statLabel}>Compliant</Text>
                 </View>
                 <View style={[styles.statCard, { borderLeftColor: Colors.warning }]}>
-                  <Text style={[styles.statNum, { color: Colors.warning }]}>{stats.expiring}</Text>
+                  <Text style={[styles.statNum, { color: Colors.warningLabel }]}>{stats.expiring}</Text>
                   <Text style={styles.statLabel}>Expiring</Text>
                 </View>
                 <View style={[styles.statCard, { borderLeftColor: Colors.error }]}>
-                  <Text style={[styles.statNum, { color: Colors.error }]}>{stats.expired}</Text>
+                  <Text style={[styles.statNum, { color: Colors.dangerLabel }]}>{stats.expired}</Text>
                   <Text style={styles.statLabel}>Expired</Text>
                 </View>
+                {/* Only appears when there is something to say. A sub with no
+                    licence or COI date is not compliant and is not expired —
+                    it is unverified, and it gets its own number rather than
+                    padding the green one (NAV-05). */}
+                {stats.unknown > 0 && (
+                  <View style={[styles.statCard, { borderLeftColor: Colors.textSecondary }]}>
+                    <Text style={[styles.statNum, { color: Colors.textSecondary }]}>{stats.unknown}</Text>
+                    <Text style={styles.statLabel}>No docs</Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -709,6 +749,8 @@ export default function SubsScreen() {
               const sub = showDetail;
               const status = getComplianceStatus(sub);
               const statusColor = getStatusColor(status);
+              const statusTint = getStatusTint(status);
+              const missingDocs = missingComplianceDocs(sub);
               return (
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <View style={styles.formHeader}>
@@ -718,9 +760,25 @@ export default function SubsScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  <View style={[styles.detailStatusBar, { backgroundColor: statusColor + '12', borderLeftColor: statusColor }]}>
-                    {status === 'compliant' ? <CheckCircle size={16} color={statusColor} strokeWidth={1.75} /> : status === 'expiring_soon' ? <Clock size={16} color={statusColor} strokeWidth={1.75} /> : <AlertTriangle size={16} color={statusColor} strokeWidth={1.75} />}
-                    <Text style={[styles.detailStatusText, { color: statusColor }]}>{getStatusLabel(status)}</Text>
+                  <View style={[styles.detailStatusBar, { backgroundColor: statusTint, borderLeftColor: statusColor }]}>
+                    {status === 'compliant'
+                      ? <CheckCircle size={16} color={statusColor} strokeWidth={1.75} />
+                      : status === 'expiring_soon'
+                        ? <Clock size={16} color={statusColor} strokeWidth={1.75} />
+                        : status === 'unknown'
+                          ? <FileText size={16} color={statusColor} strokeWidth={1.75} />
+                          : <AlertTriangle size={16} color={statusColor} strokeWidth={1.75} />}
+                    {/* Name the gap. "Unknown" on its own tells the GC nothing
+                        he can act on; the missing document does. */}
+                    <Text style={[styles.detailStatusText, { color: statusColor }]} numberOfLines={2}>
+                      {status === 'unknown'
+                        ? (missingDocs.coi && missingDocs.license
+                            ? 'No license or COI expiry on file — insurance unverified'
+                            : missingDocs.coi
+                              ? 'No COI expiry on file — insurance unverified'
+                              : 'No license expiry on file')
+                        : getStatusLabel(status, sub)}
+                    </Text>
                   </View>
 
                   <View style={styles.detailSection}>
@@ -736,7 +794,7 @@ export default function SubsScreen() {
                     <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not set'}</Text></View>
                     <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License Expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
                     <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI Expiry: {sub.coiExpiry || 'Not set'}</Text></View>
-                    <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.success : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
+                    <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.successLabel : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
 
                     {/* Verification badges + deep-link to state board.
                         Two paths:
@@ -771,7 +829,7 @@ export default function SubsScreen() {
                           </View>
                           <Text style={styles.bidAmount}>${bid.bidAmount.toLocaleString()}</Text>
                           <View style={[styles.bidOutcome, { backgroundColor: bid.outcome === 'won' ? Colors.successLight : bid.outcome === 'lost' ? Colors.errorLight : Colors.warningLight }]}>
-                            <Text style={[styles.bidOutcomeText, { color: bid.outcome === 'won' ? Colors.success : bid.outcome === 'lost' ? Colors.error : Colors.warning }]}>
+                            <Text style={[styles.bidOutcomeText, { color: bid.outcome === 'won' ? Colors.successLabel : bid.outcome === 'lost' ? Colors.dangerLabel : Colors.warningLabel }]}>
                               {bid.outcome.charAt(0).toUpperCase() + bid.outcome.slice(1)}
                             </Text>
                           </View>
@@ -798,7 +856,7 @@ export default function SubsScreen() {
                       <Text style={styles.editDetailBtnText}>Edit</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.deleteDetailBtn} onPress={() => handleDelete(sub)} activeOpacity={0.7}>
-                      <Trash2 size={16} color={Colors.error} strokeWidth={1.75} />
+                      <Trash2 size={16} color={Colors.dangerLabel} strokeWidth={1.75} />
                       <Text style={styles.deleteDetailBtnText}>Delete</Text>
                     </TouchableOpacity>
                   </View>
@@ -814,6 +872,8 @@ export default function SubsScreen() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  // Only the placement: HiddenTabBackLink owns the chevron, label and tint.
+  backToTools: { marginLeft: 14 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, marginBottom: 16 },
   largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: themeColors.text, letterSpacing: -0.5 },
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -832,8 +892,19 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   prequalTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   prequalSub: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, marginTop: 1 },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  // NAV-05 added a conditional fourth card. Three cards fit a 393pt iPhone
+  // comfortably; four leave ~56pt of content width each, which is under the
+  // measured width of the word "Compliant" at 11pt/600, so the labels wrap to
+  // two lines and the row's cards end up different heights. A 96pt basis plus
+  // `flexWrap` keeps the usual three on one row (they grow to fill it) and
+  // drops the conditional "No docs" card onto a second line when it appears,
+  // where it has the full width for its label. `alignItems: stretch` keeps
+  // cards on the same line the same height.
+  statsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch',
+    paddingHorizontal: 16, gap: 8, marginBottom: 16,
+  },
+  statCard: { flexGrow: 1, flexShrink: 1, flexBasis: 96, minWidth: 96, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   statNum: { fontSize: 24, fontWeight: '800' as const },
   statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, marginTop: 2 },
   searchWrap: { paddingHorizontal: 16, marginBottom: 12 },
@@ -883,7 +954,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   detailCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' },
   detailStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Tokens.radius.card, borderLeftWidth: 3, marginBottom: 16 },
-  detailStatusText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
+  detailStatusText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   detailSection: { marginBottom: 20, gap: 8 },
   detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, letterSpacing: 0.5 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -899,5 +970,5 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   deleteDetailBtn: { flexDirection: 'row', minHeight: 48, paddingHorizontal: 20, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.error },
+  deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.dangerLabel },
 });
