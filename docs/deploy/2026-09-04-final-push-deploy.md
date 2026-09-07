@@ -7,15 +7,22 @@
 ## 0. Order of operations (the gates that bite)
 
 1. **Secrets first** (edge-function secrets, `supabase secrets set`):
-   - `UNSUB_SECRET` — new. Without it `unsubscribe` 500s on every POST and the
-     six token-minting functions (`daily-digest`, `homeowner-weekly-digest`,
-     `invoice-dunning`, `morning-digest`, `notify`, `send-email`) throw on every
-     send once deployed.
-   - `SCHEDULE_ICAL_SECRET` — **unset in production today (proven by probe:
-     the deployed `schedule-ical` accepts tokens minted from the public fallback
-     literal).** The branch removes the fallback, so set it BEFORE deploying
-     `schedule-ical` / `schedule-ical-url`. Rotation invalidates every existing
-     calendar-subscription URL; users re-copy from the app.
+   - ✅ **DONE 2026-09-07 — both are set in production.** Verified present in
+     `supabase secrets list`. Neither is shared with any other system (both are
+     minted and verified only inside edge functions), so there is nothing to
+     copy into `.env` and nothing to record elsewhere.
+   - `UNSUB_SECRET` — set. Inert until the deploy: the *deployed*
+     `_shared/email.ts` is still the pre-rotation FNV version and never reads
+     it. It matters the moment `unsubscribe` and the six token-minting functions
+     (`daily-digest`, `homeowner-weekly-digest`, `invoice-dunning`,
+     `morning-digest`, `notify`, `send-email`) ship, since they throw without it.
+   - `SCHEDULE_ICAL_SECRET` — set, and this **closed a live hole without a
+     deploy**. The deployed `schedule-ical` had been falling back to the literal
+     `mage-id-ical-fallback-rotate-on-leak`, which is in this public repo. The
+     same forged token that the fallback used to accept now returns
+     `401 Bad token`. Blast radius was measured first and was nil (no ical
+     table, no stored feed rows, two dated schedules); if anyone had a calendar
+     subscription it would need re-copying from the app.
    - Optional overrides: `GEMINI_TEXT_MODEL`, `GEMINI_VISION_MODEL`,
      `GEMINI_EMBED_MODEL` (defaults in `_shared/models.ts`).
 2. **Migrations** — apply through the Supabase MCP `apply_migration` (never
@@ -299,9 +306,14 @@ applying `20260827120000_project_financials_drop_legacy`.
   while a deliberately malformed operator returns **400 PGRST100**. The
   `client_portal->>portalId=in.(...)` filter form also returns 200. So the
   resolver parses; it does not need a post-deploy syntax probe.
-- `SCHEDULE_ICAL_SECRET` is unset in production: a token derived from the public
-  fallback literal was accepted by the deployed `schedule-ical`. Set it before
-  deploying that function (see step 1).
+- ~~`SCHEDULE_ICAL_SECRET` is unset in production~~ — **fixed 2026-09-07.** It
+  was unset, and the deployed `schedule-ical` accepted tokens minted from the
+  public fallback literal. The secret is now set and the same forged token
+  returns `401 Bad token`. No deploy was needed to close it.
+- The deployed `unsubscribe` still verifies with that public FNV literal, so
+  **any address can be globally suppressed by a forged token today** — silently
+  blocking that person's invoices, dunning and COI warnings. Fixed in this
+  branch; closes when the function deploys.
 - Four functions are deployed with `verify_jwt: true` that must be false
   (`morning-digest`, `invoice-dunning`, `qbo-reconciler`, `portal-ask-home`);
   `net._http_response` carries the resulting 401s.
