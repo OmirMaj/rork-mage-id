@@ -45,7 +45,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { parseCalendarDay } from '@/utils/calendarDate';
-import { scheduleDayNumberFor } from '@/utils/scheduleOps';
+import { scheduleDayOnCalendar, isTaskActiveOnScheduleDay } from '@/utils/scheduleOps';
 
 // Sticky-dismiss key for the proactive Stripe Connect home banner.
 // Versioned so we can re-show after a future revamp if needed.
@@ -337,8 +337,15 @@ export default function HomeScreen() {
   //   start = addWorkingDays(startDate, startDay - 1); end = +durationDays-1).
   // So `todayDayNumber` is a 1-INDEXED working-day count from the schedule
   // start (day 1 = start date; weekends skipped when workingDaysPerWeek < 7),
-  // and a task is live when startDay <= todayDayNumber <= startDay+dur-1.
-  // Uses schedule.startDate as day 1; falls back to project.createdAt.
+  // and a task is live when startDay <= todayDayNumber <= startDay+dur-1
+  // (isTaskActiveOnScheduleDay, the same predicate the briefing applies).
+  //
+  // Uses schedule.startDate as day 1, and still falls back to
+  // project.createdAt when there is none — the last un-migrated anchor
+  // invention on this screen, tracked as KNOWN_UNMIGRATED in
+  // scripts/validate-schedule-date-basis.ts. Fixing it means giving this strip
+  // the undated disclosure the Schedule tab has ("no start date — set one"),
+  // not deleting the row silently.
   const todayOnSite = useMemo(() => {
     const out: { project: Project; activeTaskTitles: string[] }[] = [];
     const now = new Date();
@@ -354,21 +361,25 @@ export default function HomeScreen() {
       // still goes through new Date().
       const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
       if (!Number.isFinite(base.getTime())) continue;
-      // B4 review item 3: ONE day-number basis — scheduleDayNumberFor (the
-      // inverse of getTaskDateRange, shared with app/daily-report.tsx and the
-      // Summary tab). The local copy this replaced ignored nonWorkingDates
-      // (a site closure put the strip a day ahead of the schedule tab) and
-      // floored raw milliseconds on 7-day weeks — a day behind all summer in
-      // Denver, since local midnight-to-midnight is 23 hours after the
-      // spring-forward.
-      const todayDayNumber = scheduleDayNumberFor(base, now, sched.workingDaysPerWeek, sched.nonWorkingDates);
-      const liveTasks = sched.tasks.filter(t => {
-        if (t.status === 'done') return false;
-        const start = Math.max(1, t.startDay ?? 1);
-        const dur = Math.max(0, t.durationDays ?? 0);
-        // Inclusive last active day = start + dur - 1 (matches getTaskDateRange).
-        return todayDayNumber >= start && todayDayNumber <= start + dur - 1;
-      });
+      // MEMBERSHIP, so scheduleDayOnCalendar — NOT scheduleDayNumberFor. This
+      // strip asks "is this task on site TODAY", and scheduleDayNumberFor
+      // answers a different question ("what working day is the job on") with
+      // two clamps that invent work when read as membership: every date at or
+      // before the anchor is day 1, and a closed day folds back onto the
+      // working day before it. On this screen that meant a job starting
+      // 2026-10-01 listed its day-1 tasks on 2026-09-06, and on a Saturday the
+      // strip re-listed Friday's crew as if they were out there. Same defect
+      // the morning briefing had (utils/summaryBriefing.ts scheduleDayFor);
+      // this is the same fix, and the two now agree day for day.
+      //
+      // null = today is not a day of this schedule at all. The whole section
+      // is gated on `todayOnSite.length > 0`, so contributing nothing IS the
+      // honest empty state — an absent fact beats an invented one.
+      const todayDayNumber = scheduleDayOnCalendar(base, now, sched.workingDaysPerWeek, sched.nonWorkingDates);
+      if (todayDayNumber === null) continue;
+      // Shared with the briefing (and the week strip), so a task this screen
+      // lists is exactly a task Summary counts.
+      const liveTasks = sched.tasks.filter(t => isTaskActiveOnScheduleDay(t, todayDayNumber));
       if (liveTasks.length > 0) {
         out.push({
           project: p,

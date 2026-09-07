@@ -28,7 +28,7 @@ import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
-  maskPortalLinkToken,
+  maskPortalLinkToken, PORTAL_BASE_URL,
 } from '@/utils/portalSnapshot';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import type { BakedHomePassport } from '@/utils/passport/types';
@@ -53,7 +53,6 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
-const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
 // The GC's last link-duration pick, remembered across PROJECTS. A GC who
 // always gives clients 90 days should not re-pick it on every new job, and the
@@ -421,9 +420,12 @@ function ClientPortalSetupScreenInner() {
   // whose snapshot cache hasn't propagated yet (e.g., right after
   // creation). Not currently used in the UI but available for debug.
   const portalLinkWithHash = useMemo(() => {
-    if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
+    // No snapshot yet: fall back to the SHORT link, which carries `?t=`. The
+    // old fallback concatenated the portalId alone — a URL that opens a portal
+    // the homeowner cannot sign or approve anything in.
+    if (!snapshot) return portalLink;
     return buildPortalUrl(PORTAL_BASE_URL, portal.portalId, snapshot);
-  }, [snapshot, portal.portalId]);
+  }, [snapshot, portal.portalId, portalLink]);
 
   const snapshotSizeKb = useMemo(() => {
     return snapshot ? estimateSnapshotSizeKb(snapshot) : 0;
@@ -474,7 +476,8 @@ function ClientPortalSetupScreenInner() {
   }, [snapshot, project?.id, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
 
   const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
-    if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
+    // Same rule as portalLinkWithHash: the fallback keeps the access token.
+    if (!snapshot) return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id, portal.accessToken);
     // Include invite.id so the portal page can greet the client by name + mark viewed
     const inviteSnapshot = invite
       ? { ...snapshot, clientName: invite.name }
@@ -485,7 +488,7 @@ function ClientPortalSetupScreenInner() {
       inviteSnapshot,
       invite?.id,
     );
-  }, [snapshot, portal.portalId]);
+  }, [snapshot, portal.portalId, portal.accessToken]);
 
   // Short, shareable URL — `mageid.app/portal/<id>?inviteId=...` with no
   // base64 hash. Use this for SMS, email body, and anywhere the long

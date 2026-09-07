@@ -106,6 +106,29 @@ function PickerOptions({ children, testID }: { children: React.ReactNode; testID
   );
 }
 
+/**
+ * A permit can legitimately carry NO issuing authority.
+ *
+ * The Construction AI roadmap's "Add to Permits" writes
+ * `jurisdiction: roadmapAuthority ?? ''`, and `roadmapAuthority` is null
+ * whenever utils/codeJurisdiction could not verify which building department
+ * governs the jobsite — it refuses to guess, and the roadmap says so before
+ * the tap ("saved with a blank issuing jurisdiction — fill it in on the
+ * Permits screen"). This screen has to keep the other half of that promise:
+ * the card rendered the empty string raw, so the permit arrived with a blank
+ * line where the authority goes — indistinguishable from a layout bug, and
+ * silent about the one field the manual form refuses to save without.
+ *
+ * Name the gap and point at the fix. Returns null when there is nothing real
+ * to print, so each caller decides how to say it.
+ */
+const JURISDICTION_UNSET = 'Issuing jurisdiction not set';
+
+function jurisdictionOrNull(value: string | null | undefined): string | null {
+  const v = (value ?? '').trim();
+  return v.length > 0 ? v : null;
+}
+
 function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -165,7 +188,19 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
         )}
 
         <Text style={styles.permitProject}>{permit.projectName}</Text>
-        <Text style={styles.permitJurisdiction}>{permit.jurisdiction}</Text>
+        {/* Tapping anywhere on this card opens the edit form, where
+            jurisdiction is a required field — so "tap to add" is the literal
+            next step, not a slogan. */}
+        {(() => {
+          const jurisdiction = jurisdictionOrNull(permit.jurisdiction);
+          return jurisdiction ? (
+            <Text style={styles.permitJurisdiction}>{jurisdiction}</Text>
+          ) : (
+            <Text style={styles.permitJurisdictionUnset} testID={`permit-jurisdiction-unset-${permit.id}`}>
+              {JURISDICTION_UNSET} — tap to add
+            </Text>
+          );
+        })()}
         {permit.type === 'special_inspection' && permit.inspectorName && (
           <Text style={styles.specialInspectorLine}>Inspector: {permit.inspectorName}</Text>
         )}
@@ -455,9 +490,14 @@ function PermitsScreenInner() {
 
   const handleDelete = useCallback(() => {
     if (!editingPermit) return;
+    // Named by what it IS, not by an authority it may not have: with a blank
+    // jurisdiction the old string read "This will remove  permit  from this
+    // project" — a confirmation dialog that cannot say what it is deleting.
+    const jurisdiction = jurisdictionOrNull(editingPermit.jurisdiction);
+    const typeLabel = (PERMIT_TYPE_INFO[editingPermit.type] ?? PERMIT_TYPE_INFO.other).label;
     showAlert(
       'Delete permit?',
-      `This will remove ${editingPermit.jurisdiction} permit ${editingPermit.permitNumber ? `#${editingPermit.permitNumber}` : ''} from this project. This cannot be undone.`,
+      `This will remove the ${typeLabel} permit${editingPermit.permitNumber ? ` #${editingPermit.permitNumber}` : ''}${jurisdiction ? ` issued by ${jurisdiction}` : ''} from this project. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => {
@@ -515,7 +555,7 @@ function PermitsScreenInner() {
               </View>
               <Text style={styles.nextInspectionType}>{typeInfo.label} Inspection</Text>
               <Text style={styles.nextInspectionProject} numberOfLines={1}>
-                {nextInspection.projectName} &middot; {nextInspection.jurisdiction}
+                {nextInspection.projectName} &middot; {jurisdictionOrNull(nextInspection.jurisdiction) ?? JURISDICTION_UNSET}
               </Text>
               {nextInspection.permitNumber ? (
                 <Text style={styles.nextInspectionPermitNum}>Permit #{nextInspection.permitNumber}</Text>
@@ -1178,6 +1218,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   permitNumber: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: t.textMuted },
   permitProject: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
   permitJurisdiction: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  // Italic + muted: an absent fact, visibly not a value. Never styled like a
+  // real jurisdiction, and never blank.
+  permitJurisdictionUnset: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontStyle: 'italic' as const },
   // IBC Ch.17 category chip — sits between permit number and project name
   // on Special Inspection cards. Color tied to PERMIT_TYPE_INFO.special_inspection.
   specialCategoryChip: {

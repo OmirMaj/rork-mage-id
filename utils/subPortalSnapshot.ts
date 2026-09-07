@@ -315,3 +315,21 @@ export function buildSubPortalUrl(
   const query = q ? `?${q}` : '';
   return `${baseUrl}/${portalId}${query}#d=${encoded}`;
 }
+
+/**
+ * The short sub-portal link — no snapshot hash, `?t=` kept.
+ *
+ * The static sub-portal page fetches its snapshot from `sub_portal_snapshots`
+ * by id when no `#d=` hash is present, so this URL works on its own. What it
+ * must never do is drop the token: `sub_portal_get_snapshot` and
+ * `sub_portal_submit_invoice` both refuse a request without it, so a bare
+ * `<base>/<id>` is a page the sub can open and cannot submit from.
+ */
+export function buildShortSubPortalUrl(
+  baseUrl: string,
+  portalId: string,
+  accessToken?: string,
+): string {
+  const q = accessToken ? `?t=${encodeURIComponent(accessToken)}` : '';
+  return `${baseUrl}/${portalId}${q}`;
+}

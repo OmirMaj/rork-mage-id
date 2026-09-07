@@ -27,14 +27,16 @@
 // that has quietly stopped scanning cannot pass.
 //
 // Run: bun run scripts/validate-portal-owner.ts
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   derivePayAppPeriods, buildPeriodNarrative, buildOwnerDecisions,
   buildCOConsentRecord, summarizeOwnerDecisions,
   ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION, DUE_SOON_DAYS,
   type OwnerDecision,
 } from '../utils/portalOwnerCore';
-import { buildPortalSnapshot, scheduleWorkComplete, maskPortalLinkToken, PORTAL_SNAPSHOT_VERSION } from '../utils/portalSnapshot';
+import { buildPortalSnapshot, scheduleWorkComplete, maskPortalLinkToken, portalShareUrl, PORTAL_BASE_URL, PORTAL_SNAPSHOT_VERSION } from '../utils/portalSnapshot';
 import type { Project, ClientPortalSettings, SavedAIAPayApp, SelectionCategory, ChangeOrder, DailyFieldReport, ProjectPhoto, Invoice } from '../types';
 
 let pass = 0, fail = 0;
@@ -1017,6 +1019,93 @@ ok('the money bar no longer maxes cash-plus-balance against the pre-tax contract
     && /'Save this portal first'/.test(setup));
   ok('the share link builder still appends the access token',
     /buildShortPortalUrl\(PORTAL_BASE_URL, portal\.portalId, undefined, portal\.accessToken\)/.test(setup));
+}
+
+// ── A portal URL is never built by concatenating a portalId ────────────────
+//
+// The signing RPCs gate on `?t=<accessToken>`. A URL built from the portalId
+// alone opens a portal that renders — and refuses every decision the page asks
+// the homeowner to make. That is exactly what app/contract.tsx mailed under
+// the subject "your contract is ready to sign" until 2026-09-07, and what
+// app/project-detail.tsx put on the clipboard and printed on the card.
+//
+// So: ONE builder on each side of the wire — portalShareUrl (client) and
+// portalUrlFor (edge functions) — both of which return null instead of a
+// token-less link, and a textual sweep that fails the build on a new
+// hand-rolled one.
+console.log('\nno portal URL is built by string-concatenating a portalId:');
+{
+  expect('portalShareUrl carries the token',
+    portalShareUrl({ enabled: true, portalId: 'portal-abc', accessToken: 'tok123' }),
+    `${PORTAL_BASE_URL}/portal-abc?t=tok123`);
+  expect('…and the inviteId ahead of it',
+    portalShareUrl({ enabled: true, portalId: 'portal-abc', accessToken: 'tok123' }, 'inv1'),
+    `${PORTAL_BASE_URL}/portal-abc?inviteId=inv1&t=tok123`);
+  expect('no token → null, NOT a bare URL',
+    portalShareUrl({ enabled: true, portalId: 'portal-abc' }), null);
+  expect('empty token → null', portalShareUrl({ enabled: true, portalId: 'portal-abc', accessToken: '  ' }), null);
+  expect('no portalId → null', portalShareUrl({ enabled: true, accessToken: 'tok123' }), null);
+  expect('a disabled portal → null', portalShareUrl({ enabled: false, portalId: 'portal-abc', accessToken: 'tok123' }), null);
+  expect('nothing at all → null', portalShareUrl(null), null);
+  // The client answer and the server answer must be the same string.
+  ok('the edge-function builder applies the same rule',
+    /if \(!portalId \|\| !token\) return null;/.test(read('supabase/functions/_shared/portalLinks.ts')));
+
+  // The sweep. Any source line that pastes a portal id straight onto a portal
+  // base — `https://mageid.app/portal/${...}`, `${PORTAL_BASE_URL}/${...}`,
+  // `${PORTAL_BASE}/${...}` — is a token-less link unless it is named here.
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const walk = (d: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const f = join(d, e.name);
+      if (e.isDirectory()) walk(f, out);
+      else if (/\.tsx?$/.test(e.name)) out.push(f);
+    }
+    return out;
+  };
+  const CONCAT = /(?:https:\/\/mageid\.app\/(?:sub-)?portal|\$\{(?:SUB_)?PORTAL_BASE(?:_URL)?\})\/\$\{/;
+  // The ONE legal exception: the Portal Link card's explicit pending state,
+  // which prints the base URL precisely to say the secure link is not ready
+  // yet. It is not copied, shared or emailed — the three doors all guard on
+  // warnIfLinkPending — and the string on screen is labelled as pending.
+  const ALLOWED = new Set(['app/client-portal-setup.tsx']);
+  const hits: string[] = [];
+  for (const root of ['app', 'components', 'utils', 'hooks', 'contexts', 'supabase/functions']) {
+    for (const f of walk(join(ROOT, root))) {
+      const rel = f.slice(ROOT.length + 1);
+      if (rel === 'supabase/functions/_shared/portalLinks.ts') continue; // the builder itself
+      readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        if (/^\s*(?:\/\/|\*)/.test(line)) return;       // comments explaining the defect
+        if (!CONCAT.test(line)) return;
+        if (ALLOWED.has(rel)) return;
+        hits.push(`${rel}:${i + 1}: ${line.trim()}`);
+      });
+    }
+  }
+  ok('no source file concatenates a portalId into a portal URL', hits.length === 0,
+    hits.join('\n       ') +
+    '\n\n      A portal URL without ?t=<accessToken> opens a portal that cannot' +
+    '\n      sign, approve or select. Call portalShareUrl(project.clientPortal)' +
+    '\n      from @/utils/portalSnapshot (or portalUrlFor in _shared/portalLinks' +
+    '\n      on the server) and render the null case — say the secure link is' +
+    '\n      not ready and name the step that mints it.');
+
+  // The two call sites the runtime audit caught, pinned by shape.
+  const contract = read('app/contract.tsx');
+  ok('the contract-signing email builds its CTA with portalShareUrl',
+    /const portalUrl = project \? portalShareUrl\(portalSettings\) : null;/.test(contract)
+    && /if \(project && portalUrl && recipients\.length > 0\)/.test(contract));
+  ok('…and when there is no key it says so instead of mailing a dead CTA',
+    /no secure signing key yet, so nothing was emailed/.test(contract));
+  const detail = read('app/project-detail.tsx');
+  ok('project-detail copies the link the client receives',
+    /const portalLink = useMemo\(\s*\(\) => portalShareUrl\(project\?\.clientPortal\),/.test(detail)
+    && /copyToClipboard\(portalLink\)/.test(detail));
+  ok('…prints that same link (token masked), not a bare URL',
+    /maskPortalLinkToken\(portalLink\.replace\(\/\^https:\\\/\\\/\/, ''\)\)/.test(detail));
+  ok('…and refuses to copy when there is no key',
+    /'Secure link not ready'/.test(detail));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

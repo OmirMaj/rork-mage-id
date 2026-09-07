@@ -73,7 +73,7 @@ import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { buildPortalSnapshot } from '@/utils/portalSnapshot';
+import { buildPortalSnapshot, portalShareUrl, maskPortalLinkToken } from '@/utils/portalSnapshot';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -789,17 +789,33 @@ export default function ProjectDetailScreen() {
   // gives a meaningful "Copy failed" path so silent failures can't
   // recur. Used by both the dedicated Copy button and the tappable
   // link pill.
+  //
+  // The URL this copies is the one the client actually receives, `?t=` and
+  // all: every portal RPC (approve a change order, sign the contract, accept a
+  // selection) refuses a request without that token, so a bare
+  // `mageid.app/portal/<id>` is not a shorter link — it is a portal the client
+  // cannot act in. portalShareUrl returns null rather than build one, and null
+  // is reported as the missing step, not copied.
+  const portalLink = useMemo(
+    () => portalShareUrl(project?.clientPortal),
+    [project?.clientPortal],
+  );
+
   const handleCopyPortalLink = useCallback(async () => {
-    const portalId = project?.clientPortal?.portalId;
-    if (!portalId) return;
-    const url = `https://mageid.app/portal/${portalId}`;
-    const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
+    if (!portalLink) {
+      showAlert(
+        'Secure link not ready',
+        'This portal has no signing key yet, so there is no link to share. Open Client Portal and tap Save — the key that lets your client approve and sign is created there.',
+      );
+      return;
+    }
+    const ok = await (await import('@/utils/clipboard')).copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok ? 'Portal link copied to clipboard.' : 'Could not copy the link. Long-press the URL above to select it manually.',
     );
-  }, [project?.clientPortal?.portalId]);
+  }, [portalLink]);
 
   const handleShareEmail = useCallback(async () => {
     if (!project) return;
@@ -3804,7 +3820,14 @@ export default function ProjectDetailScreen() {
                       accessibilityLabel="Copy portal link"
                     >
                       <Link size={12} color={themeColors.info} strokeWidth={1.75} />
-                      <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
+                      {/* PORTAL-07: print the link Copy hands out — token
+                          included so the bare URL is never mistaken for it,
+                          middle elided so a screenshot does not leak the key. */}
+                      <Text style={styles.portalLinkText} numberOfLines={1}>
+                        {portalLink
+                          ? maskPortalLinkToken(portalLink.replace(/^https:\/\//, ''))
+                          : 'Secure link not ready — open Client Portal and Save'}
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.portalCopyBtn} onPress={handleCopyPortalLink} accessibilityRole="button" accessibilityLabel="Copy">
                       <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />

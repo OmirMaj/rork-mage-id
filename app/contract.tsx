@@ -48,6 +48,7 @@ import { statusPillStyle } from '@/utils/statusPill';
 import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import { sendEmail } from '@/utils/emailService';
 import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
+import { portalShareUrl } from '@/utils/portalSnapshot';
 import SignaturePad from '@/components/SignaturePad';
 import { supabase } from '@/lib/supabase';
 import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError } from '@/utils/contractSealing';
@@ -432,8 +433,15 @@ function ContractScreenInner() {
         const recipients = invites
           .filter(i => (i.email ?? '').trim().includes('@'))
           .map(i => ({ email: i.email!.trim(), name: i.name }));
-        if (project && portalSettings?.enabled && portalSettings.portalId && recipients.length > 0) {
-          const portalUrl = `https://mageid.app/portal/${portalSettings.portalId}`;
+        // The link in this email IS the homeowner's authority to counter-sign:
+        // the portal's signing RPCs all gate on `?t=<accessToken>`. A bare
+        // `mageid.app/portal/<id>` opens a portal that cannot do the one thing
+        // this email asks for, and says nothing about why. portalShareUrl is
+        // the client mirror of _shared/portalLinks.portalUrlFor — it returns
+        // null rather than a token-less URL, and a null link is not a link to
+        // send. Tell the GC what is missing instead of mailing a dead CTA.
+        const portalUrl = project ? portalShareUrl(portalSettings) : null;
+        if (project && portalUrl && recipients.length > 0) {
           const companyName = settings?.branding?.companyName || 'MAGE ID';
           const senderName = settings?.branding?.contactName || companyName;
           const senderEmail = settings?.branding?.email;
@@ -478,8 +486,12 @@ function ContractScreenInner() {
           } else {
             emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
           }
+        } else if (recipients.length === 0) {
+          emailNote = ' Note: no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.';
+        } else if (portalSettings?.enabled && portalSettings.portalId) {
+          emailNote = ' Note: this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.';
         } else {
-          emailNote = ' Note: no portal invitee email on file — share the portal URL manually so the homeowner can counter-sign.';
+          emailNote = ' Note: the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.';
         }
       } catch (err) {
         console.warn('[contract] email send failed', err);

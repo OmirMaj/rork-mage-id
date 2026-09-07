@@ -16,14 +16,17 @@ import {
   Mail, MessageSquare, FolderOpen, FileText, Send,
   HardHat, Boxes, ClipboardList, Ruler, Calculator, Gauge, GitCompare,
   ChevronRight,
- Wifi, PlusCircle, History, Star, FileUp, ScanSearch, Mic } from 'lucide-react-native';
+ Wifi, PlusCircle, History, Star, FileUp, ScanSearch, Mic, BookOpen } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { CATEGORY_META, getLivePrices, resolvePricingMarket, type MaterialItem } from '@/constants/materials';
+import {
+  CATEGORY_META, getCatalogPrices, resolvePricingMarket, catalogProvenanceLine,
+  type MaterialItem,
+} from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useMaterialCart, type MaterialCartItem, type LaborCartItem, type AssemblyCartItem } from '@/contexts/MaterialCartContext';
@@ -193,6 +196,12 @@ export default function EstimateScreen() {
   // the uplift proving he is.
   const market = useMemo(() => resolvePricingMarket(settings.location), [settings.location]);
   const locationMultiplier = market.multiplier;
+  // The same sentence the Materials tab prints: which book, how old, which
+  // market factor. Never an "updated at" time — nothing updates.
+  const catalogProvenance = useMemo(
+    () => catalogProvenanceLine(market.resolved ? market.label : null),
+    [market.resolved, market.label],
+  );
   const regionLabel = market.label;
 
   const { receipts } = useMaterialReceipts();
@@ -250,11 +259,12 @@ export default function EstimateScreen() {
     }
   }, [costDb, projects, commitments]);
 
-  // Stable seed — previously Date.now()/10000 which caused prices to drift by a cent
-  // on every refresh (app resume, 5min interval, location change). Pricing is now
-  // deterministic per-location so estimates don't mysteriously change after you leave.
-  const PRICE_SEED = 1;
-  const [materials, setMaterials] = useState<MaterialItem[]>(() => getLivePrices(PRICE_SEED, locationMultiplier));
+  // getCatalogPrices, not the `getLivePrices` shim it replaced. The seed
+  // argument that shim still accepts is ignored — there is nothing live to
+  // seed — but a pricing call taking a seed is how the next reader concludes
+  // there is a feed. These prices are the dated book in constants/materials.ts
+  // multiplied by this market's factor, and nothing else.
+  const [materials, setMaterials] = useState<MaterialItem[]>(() => getCatalogPrices(locationMultiplier));
   const [_lastUpdated, setLastUpdated] = useState(new Date());
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -409,7 +419,11 @@ export default function EstimateScreen() {
       bulkMinQty: 10,
       supplier: aiMat.brand || aiMat.priceSource || 'AI Found',
       pricingModel: 'market',
-      sourceLabel: 'AI Live Price',
+      // Was 'AI Live Price'. Nothing was live: findMaterials asks the Gemini
+      // relay, which has no browsing tool and no supplier feed. This label
+      // travels with the row into the cart, the estimate and the bid PDF, so
+      // it is the last place that claim could have survived unexamined.
+      sourceLabel: 'AI estimate — not a supplier quote',
       region: 'National Avg',
       specTier: 'base',
     };
@@ -556,8 +570,8 @@ export default function EstimateScreen() {
   }, [materials]);
 
   const refreshPrices = useCallback(() => {
-    // Uses the stable PRICE_SEED so prices only change when the location changes.
-    const newPrices = getLivePrices(PRICE_SEED, locationMultiplier);
+    // Prices only change when the location (market factor) changes.
+    const newPrices = getCatalogPrices(locationMultiplier);
     setMaterials(newPrices);
     setLastUpdated(new Date());
     // Re-price existing cart items against the new location multiplier. We
@@ -1574,20 +1588,23 @@ export default function EstimateScreen() {
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.headerTitle}>Estimator</Text>
-            <View style={styles.liveRow}>
-              <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />
-              {/* Was "{n} materials · live". Nothing about this catalog is
-                  live: it is the same dated book the Materials tab now labels
-                  with its compile date, priced through getCatalogPrices, with
-                  no feed and no network call behind it. The desktop header
-                  above already reads "{n} materials"; this is the phone one
-                  saying the same true thing. (The pulsing dot beside it, and
-                  the AI supplier-search copy further down — "Search Live",
-                  "real-time pricing", sourceLabel 'AI Live Price' — are the
-                  Estimate screen's own to answer for; they make a claim about
-                  an AI call, not about this catalog.) */}
-              <Text style={styles.liveLabel}>{formatNumber(totalMaterialCount)} materials</Text>
+            {/* Was "{n} materials · live" under a pulsing GREEN dot — the
+                same "LIVE PRICING" costume the Materials tab took off. Nothing
+                here is live: these are the dated list prices in
+                constants/materials.ts through getCatalogPrices, with no feed
+                and no network call behind them. Same treatment as Materials —
+                a book icon, muted, static — plus the compile date and the
+                market factor, because this screen is where the number becomes
+                a bid. */}
+            <View style={styles.provenanceRow}>
+              <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
+              <Text style={styles.provenanceLabel}>
+                {formatNumber(totalMaterialCount)} MATERIALS · REFERENCE PRICE BOOK
+              </Text>
             </View>
+            <Text style={styles.provenanceDetail} numberOfLines={1} testID="estimator-price-provenance">
+              {catalogProvenance}
+            </Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
@@ -1861,11 +1878,17 @@ export default function EstimateScreen() {
           </View>
           <View style={aiStyles.aiSearchPromptContent}>
             <Text style={aiStyles.aiSearchPromptTitle}>Can't find what you need?</Text>
-            <Text style={aiStyles.aiSearchPromptDesc}>AI will search suppliers for real-time pricing</Text>
+            {/* This button DOES make a real call — utils/materialFinder
+                findMaterials → the `ai` edge function. What it does not do is
+                touch a supplier: the relay has no browsing tool and no price
+                feed, so the model answers from recall and the number is an
+                estimate, not a quote off anyone's shelf. "Search suppliers for
+                real-time pricing" claimed both. */}
+            <Text style={aiStyles.aiSearchPromptDesc}>MAGE AI can estimate a price for it from recall — not a supplier quote</Text>
           </View>
           <TouchableOpacity accessibilityRole="button" style={aiStyles.aiSearchBtn} onPress={handleAiSearch} activeOpacity={0.8}>
-            <Wifi size={14} color={Colors.textOnPrimary} strokeWidth={1.75} />
-            <Text style={aiStyles.aiSearchBtnText}>Search Live</Text>
+            <MageAIMark size={14} color={Colors.textOnPrimary} />
+            <Text style={aiStyles.aiSearchBtnText}>Ask AI</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1875,7 +1898,7 @@ export default function EstimateScreen() {
           <View style={aiStyles.aiResultsHeader}>
             <View style={aiStyles.aiResultsTitleRow}>
               <MageAIMark size={14} color={Colors.primary} />
-              <Text style={aiStyles.aiResultsTitle}>Live Search: "{query}"</Text>
+              <Text style={aiStyles.aiResultsTitle}>AI estimate: "{query}"</Text>
             </View>
             <TouchableOpacity onPress={() => { setShowAiResults(false); setAiSearchResults([]); }} accessibilityRole="button" accessibilityLabel="Close">
               <X size={16} color={Colors.textMuted} strokeWidth={1.75} />
@@ -1884,7 +1907,7 @@ export default function EstimateScreen() {
           {isAiSearching && (
             <View style={aiStyles.aiLoadingRow}>
               <Animated.View style={[styles.liveDot, { backgroundColor: Colors.primary, transform: [{ scale: pulseAnim }] }]} />
-              <Text style={aiStyles.aiLoadingText}>Searching suppliers...</Text>
+              <Text style={aiStyles.aiLoadingText}>Asking MAGE AI…</Text>
             </View>
           )}
           {aiSearchError && (
@@ -1923,6 +1946,12 @@ export default function EstimateScreen() {
               </View>
             );
           })}
+          {aiSearchResults.length > 0 && (
+            <Text style={aiStyles.aiProvenanceNote} testID="ai-price-provenance">
+              Prices recalled by the model, not read from a supplier — MAGE has no
+              supplier feed. Confirm before you bid.
+            </Text>
+          )}
           {aiSearchResults.length > 0 && aiSearchResults[0].relatedItems.length > 0 && (
             <View style={aiStyles.aiRelatedRow}>
               <MageAIMark size={12} color={Colors.infoLabel} />
@@ -2279,10 +2308,13 @@ export default function EstimateScreen() {
         <View style={dStyles.desktopHeader}>
           <View>
             <Text style={[styles.headerTitle, { fontSize: 24 }]}>Estimator</Text>
-            <View style={styles.liveRow}>
-              <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />
-              <Text style={styles.liveLabel}>{formatNumber(totalMaterialCount)} materials</Text>
+            <View style={styles.provenanceRow}>
+              <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
+              <Text style={styles.provenanceLabel}>
+                {formatNumber(totalMaterialCount)} MATERIALS · REFERENCE PRICE BOOK
+              </Text>
             </View>
+            <Text style={styles.provenanceDetail} numberOfLines={1}>{catalogProvenance}</Text>
           </View>
           {/* Tabs widened — bigger font + padding so the four labels
               (Materials / Labor / Assemblies / Templates) stop squishing
@@ -4167,22 +4199,34 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     ...Type.serifTitle,
     color: themeColors.text,
   },
-  liveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 2,
-  },
+  // Kept for the ONE honest use left: the pulsing dot beside "Asking MAGE
+  // AI…" while a request is actually in flight. `liveRow`/`liveLabel` (a
+  // static green dot + green "· live" beside the catalog count) are gone —
+  // green said "feed", and there is no feed.
   liveDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
     backgroundColor: themeColors.success,
   },
-  liveLabel: {
+  // Same treatment as the Materials tab's provenanceRow: muted, static, a
+  // book — not a live indicator.
+  provenanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  provenanceLabel: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: themeColors.textMuted,
+    letterSpacing: 0.8,
+  },
+  provenanceDetail: {
     fontSize: Type.caption2.fontSize,
-    color: themeColors.success,
-    fontWeight: '500' as const,
+    color: themeColors.textMuted,
+    marginTop: 1,
   },
   headerActions: {
     flexDirection: 'row',
@@ -5855,6 +5899,17 @@ const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '500' as const,
+  },
+  // The one line that has to travel with every AI-priced row: what the number
+  // is, and what it is not. Muted, not a warning — it is provenance, not a
+  // problem.
+  aiProvenanceNote: {
+    fontSize: Type.caption2.fontSize,
+    lineHeight: 15,
+    color: themeColors.textMuted,
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 10,
   },
   aiErrorRow: {
     flexDirection: 'row',

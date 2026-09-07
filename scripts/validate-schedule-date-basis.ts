@@ -395,7 +395,7 @@ console.log('\nthe mobile surfaces adopted it:');
 // all summer in Denver). They must call scheduleDayNumberFor — the inverse of
 // getTaskDateRange that app/daily-report.tsx already used — with the
 // schedule's closures, and no private copy may exist anywhere.
-console.log('\nHome, Summary and the daily report share scheduleDayNumberFor:');
+console.log('\nthe daily report uses scheduleDayNumberFor, and nobody keeps a private copy:');
 {
   const walk = (d: string, out: string[] = []): string[] => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
@@ -414,13 +414,12 @@ console.log('\nHome, Summary and the daily report share scheduleDayNumberFor:');
   }
   ok('no private todayScheduleDayNumber definition survives', copies.length === 0, copies.join('\n       '));
   for (const [file, re] of [
-    ['app/(tabs)/(home)/index.tsx', /scheduleDayNumberFor\(base, now, sched\.workingDaysPerWeek, sched\.nonWorkingDates\)/],
-    // Summary is NOT in this list. It asks a different question — "is this
-    // task on site on THIS calendar day", a membership test — and
-    // scheduleDayNumberFor answers the "what day is the job on" question with
-    // two clamps that invent work when used for membership. It calls
-    // scheduleDayOnCalendar instead; section 8b pins that and the clamp
-    // difference between the two.
+    // Neither Summary NOR Home is in this list any more. Both ask a different
+    // question — "is this task on site on THIS calendar day", a membership
+    // test — and scheduleDayNumberFor answers the "what day is the job on"
+    // question with two clamps that invent work when used for membership.
+    // They call scheduleDayOnCalendar instead; section 8b pins that, the Home
+    // strip's own two symptoms, and the clamp difference between the two.
     ['app/daily-report.tsx', /scheduleDayNumberFor\(base, reportDay, project\.schedule\.workingDaysPerWeek, project\.schedule\.nonWorkingDates\)/],
     ['app/daily-report.tsx', /scheduleDayNumberFor\(startDay, reportDay, sched\.workingDaysPerWeek, sched\.nonWorkingDates\)/],
   ] as const) {
@@ -518,6 +517,57 @@ console.log('\nthe morning briefing never invents work the schedule does not hav
   eq('one 0-day milestone on a Thursday start counts ONCE, not once per clamped day',
     msWeek.milestoneCount, 1);
   eq('… on the Thursday', msWeek.days.filter(d => d.hasMilestone).map(d => d.date).join(','), '2026-09-10');
+
+  // ── Home's TODAY ON SITE strip is the same question, so the same helper ──
+  // It shipped on scheduleDayNumberFor and therefore had both clamp symptoms
+  // in the user's face: a job starting 2026-10-01 was listed as on site today,
+  // and every Saturday and Sunday it re-listed Friday's crew. Home builds its
+  // rows inline in a .tsx that cannot be imported here, so the rule is pinned
+  // textually and the ARITHMETIC is reconciled against the briefing below.
+  {
+    const home = stripComments(read('app/(tabs)/(home)/index.tsx'));
+    ok('Home asks membership with scheduleDayOnCalendar',
+      /scheduleDayOnCalendar\(base, now, sched\.workingDaysPerWeek, sched\.nonWorkingDates\)/.test(home));
+    ok('… and drops the project when today is not a day of its schedule',
+      /if \(todayDayNumber === null\) continue;/.test(home));
+    ok('… reusing the shared active-task predicate rather than inlining the range',
+      /isTaskActiveOnScheduleDay\(t, todayDayNumber\)/.test(home)
+      && !/todayDayNumber >= start && todayDayNumber <= start \+ dur - 1/.test(home));
+    ok('… and no longer imports the clamping helper at all',
+      !/scheduleDayNumberFor/.test(home),
+      (home.match(/.*scheduleDayNumberFor.*/g) ?? []).join('\n       '));
+
+    // Home's rule, replayed here over the same inputs the briefing gets: for
+    // every calendar day of a month, the set of task titles Home would list is
+    // exactly the set Summary counts. One basis, two screens, no drift.
+    const homeRow = (p: Project, now: Date): string[] => {
+      const sched = p.schedule;
+      if (!sched || !sched.tasks || sched.tasks.length === 0) return [];
+      const base = parseCalendarDay(sched.startDate ?? null);
+      if (!base) return [];
+      const n = scheduleDayOnCalendar(base, now, sched.workingDaysPerWeek, sched.nonWorkingDates);
+      if (n === null) return [];
+      return sched.tasks.filter(t => isTaskActiveOnScheduleDay(t, n)).map(t => t.title);
+    };
+    const job = mk('home', '2026-09-10', [T('t1', 1, 4), T('t2', 3, 6), T('t3', 12, 2)]);
+    let agree = true;
+    const detail: string[] = [];
+    const before: string[] = [];
+    const weekend: string[] = [];
+    for (let i = -6; i < 30; i++) {
+      const d = new Date(2026, 8, 4 + i);
+      const mine = homeRow(job, d).sort().join(',');
+      const theirs = computeTodayTasks([job], d).map(t => t.taskTitle).sort().join(',');
+      if (mine !== theirs) { agree = false; detail.push(`${toCalendarDayString(d)}: home [${mine}] vs summary [${theirs}]`); }
+      if (d < new Date(2026, 8, 10)) before.push(mine);
+      if (d.getDay() === 0 || d.getDay() === 6) weekend.push(mine);
+    }
+    ok('Home lists exactly what the briefing counts, every day for a month', agree, detail.join('; '));
+    ok('(a) nothing is on site before the job starts', before.every(x => x === ''), before.join('|'));
+    ok('(b) nothing is on site on a weekend of a 5-day schedule', weekend.every(x => x === ''), weekend.join('|'));
+    eq('… while the start day itself lists its day-1 work',
+      homeRow(job, new Date(2026, 8, 10)).join(','), 'T1');
+  }
 }
 
 // ── 9. ONE anchor rule: an undated schedule has NO date, not today's ──────

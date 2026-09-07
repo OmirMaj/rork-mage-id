@@ -22,7 +22,7 @@ import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import RecordPaymentModal, { type PaymentDetail } from '@/components/RecordPaymentModal';
 import { reconciliationState, reconciliationLabel, paymentSummary } from '@/utils/apReconciliation';
 import {
-  buildSubPortalSnapshot, buildSubPortalUrl,
+  buildSubPortalSnapshot, buildSubPortalUrl, buildShortSubPortalUrl,
 } from '@/utils/subPortalSnapshot';
 import { formatMoney } from '@/utils/formatters';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -206,7 +206,12 @@ function SubPortalSetupScreenInner() {
   }, [link, project, sub, settings, commitments, submitted.invoices, projectPunchItems]);
 
   const portalUrl = useMemo(() => {
-    if (!snapshot) return `${SUB_PORTAL_BASE_URL}/${link.id}`;
+    // The no-snapshot fallback used to be `${SUB_PORTAL_BASE_URL}/${link.id}`
+    // — the sub-portal twin of the token-less homeowner link. Both sub-portal
+    // RPCs gate on `?t=`, so that URL opened a page the sub could read and
+    // could not submit an invoice from, and it was what Copy, Share and the
+    // email invite all handed out until the first snapshot landed.
+    if (!snapshot) return buildShortSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, link.accessToken);
     return buildSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, snapshot, link.accessToken);
   }, [snapshot, link.id, link.accessToken]);
 

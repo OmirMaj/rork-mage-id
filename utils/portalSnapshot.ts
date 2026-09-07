@@ -1362,6 +1362,43 @@ export function buildShortPortalUrl(
 }
 
 /**
+ * The customer-facing portal origin. ONE definition on the client, mirroring
+ * `PORTAL_BASE` in supabase/functions/_shared/portalLinks.ts.
+ */
+export const PORTAL_BASE_URL = 'https://mageid.app/portal';
+
+/** The `client_portal` fields a share link is built from. */
+export interface ClientPortalLinkSource {
+  enabled?: boolean | null;
+  portalId?: string | null;
+  accessToken?: string | null;
+}
+
+/**
+ * THE client-side portal link — the exact mirror of
+ * `portalUrlFor` in supabase/functions/_shared/portalLinks.ts.
+ *
+ * Returns null — never a bare `mageid.app/portal/<id>` — when the portal is
+ * off or has no minted access token, because a token-less URL is not a
+ * degraded link, it is a different page: every portal RPC (sign a change
+ * order, accept a selection, counter-sign the contract) refuses a request
+ * without `?t=`. Handing one to a homeowner in an email that asks them to
+ * sign opens a portal that cannot sign, with nothing on screen saying why.
+ * A caller that gets null must say so and offer the fix — it must NOT
+ * fall back to concatenating the portalId.
+ */
+export function portalShareUrl(
+  clientPortal: ClientPortalLinkSource | null | undefined,
+  inviteId?: string,
+): string | null {
+  if (!clientPortal || clientPortal.enabled === false) return null;
+  const portalId = typeof clientPortal.portalId === 'string' ? clientPortal.portalId.trim() : '';
+  const token = typeof clientPortal.accessToken === 'string' ? clientPortal.accessToken.trim() : '';
+  if (!portalId || !token) return null;
+  return buildShortPortalUrl(PORTAL_BASE_URL, portalId, inviteId, token);
+}
+
+/**
  * PORTAL-07 — the share link, safe to PRINT on a screen.
  *
  * Two requirements pull against each other on the Portal Link card. The
