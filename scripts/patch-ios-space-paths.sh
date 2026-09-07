@@ -45,11 +45,26 @@ for f in \
 do
   [ -f "$f" ] || continue
   grep -q 'basename \$PROJECT_DIR' "$f" 2>/dev/null || continue
+  # WRITE BACK IN PLACE, do not `mv` the temp over it.
+  #
+  # `mv` would replace the file with a fresh one created at the default umask
+  # (644) and DROP THE EXECUTABLE BIT. These are Xcode build-phase scripts:
+  # without +x the phase dies with
+  #     bash: .../create-updates-resources-ios.sh: Permission denied
+  # and the whole build fails. That is exactly what happened on 2026-09-07 —
+  # the first version of this portability fix used `mv`, and it broke both the
+  # local Release build and EAS build #15 in "Run fastlane". `sed -i` had
+  # preserved the mode for free; the temp-file rewrite has to be told.
+  #
+  # `cat > "$f"` truncates and rewrites the SAME inode, so mode, ownership and
+  # any extended attributes survive — and it needs no `stat`/`chmod`, both of
+  # which differ between BSD and GNU.
   tmp="$f.mageid-tmp.$$"
   if sed 's|basename \$PROJECT_DIR|basename "$PROJECT_DIR"|g' "$f" > "$tmp" 2>/dev/null &&
      [ -s "$tmp" ] &&
-     mv "$tmp" "$f" 2>/dev/null
+     cat "$tmp" > "$f" 2>/dev/null
   then
+    rm -f "$tmp" 2>/dev/null || true
     echo "  quoted \$PROJECT_DIR in $f"
     patched=$((patched + 1))
   else

@@ -16,7 +16,7 @@
 // plugin + postinstall this guard pins.
 //
 // Run via: bun run test:ios-space-paths
-import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, mkdtempSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -88,6 +88,19 @@ for (const rel of [
   ok(`${rel.split('/')[1]}: basename "$PROJECT_DIR" is quoted`,
     !/basename \$PROJECT_DIR/.test(src),
     'unquoted here means: build succeeds, no app.manifest, app crashes at launch');
+
+  // THE PATCH MUST NOT COST THE EXECUTABLE BIT. These are Xcode build-phase
+  // scripts; Xcode runs them directly. 2026-09-07: the first portable rewrite
+  // of patch-ios-space-paths.sh replaced `sed -i` with write-temp-then-`mv`,
+  // and `mv` installs a fresh file at the default umask (644). Both the local
+  // Release build and EAS build #15 then died with
+  //     bash: .../create-updates-resources-ios.sh: Permission denied
+  // The script now writes back in place (`cat > "$f"`), which keeps the inode
+  // and therefore the mode. This asserts the outcome, not the technique.
+  const mode = statSync(abs).mode & 0o777;
+  ok(`${rel.split('/')[1]}: still executable after patching (mode ${mode.toString(8)})`,
+    (mode & 0o111) !== 0,
+    'Xcode executes this directly — without +x the build phase fails "Permission denied"');
 }
 
 // ── the Podfile snippet the plugin WRITES must be valid Ruby ────────────────
