@@ -29,7 +29,9 @@ import {
   EMPTY_JOBSITE_ADDRESS,
   LOCAL_ADOPTIONS,
   STATE_ADOPTIONS,
+  codeClaimIds,
   codeLine,
+  codeReceiptKey,
   codesSummary,
   groundingFactsFor,
   issuingAuthorityForAddress,
@@ -39,6 +41,7 @@ import {
   resolveCodeJurisdiction,
   sameJobsiteAddress,
   splitLocationText,
+  type CodeVerdict,
   type LocalAdoption,
   type StateAdoption,
 } from '../utils/codeJurisdiction';
@@ -83,6 +86,109 @@ for (const e of ALL) {
   ok(`no row was checked more than a year ago${stale.length ? ` (stale: ${stale.map(labelOf).join(', ')})` : ''}`, stale.length === 0);
   const future = ALL.filter((e) => Date.parse(e.checkedOn) - now > 24 * 60 * 60 * 1000);
   ok('no row claims to have been checked in the future', future.length === 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+console.log('\nthe verification receipt — every claim was read off a page:');
+// ─────────────────────────────────────────────────────────────────────
+{
+  // THE HOLE THIS CLOSES. Everything above is shape: a URL that parses, a date
+  // that is recent, a family with an edition string. None of it has ever
+  // OPENED the page, so a row with a real, freshly-dated citation and a
+  // recalled edition sailed through the whole suite — which is exactly how
+  // "Dallas: NEC 2023" shipped against a page that says 2020, and how
+  // "Minnesota: NEC 2020" shipped against a rule that says 2023.
+  //
+  // scripts/verify-code-sources.ts does the reading; it needs the network, so
+  // it cannot run here. What it CAN do is leave evidence behind. It writes
+  // utils/codeJurisdiction.receipt.json — one entry per row, one verdict per
+  // claimed code, each with the sentence that confirmed it — and this block
+  // refuses to pass a table the receipt does not cover.
+  //
+  // The receipt records each claim as `FAMILY|edition|the URL it was checked
+  // against`, so it is not enough for a jurisdiction to merely APPEAR in the
+  // file: change an edition, add a family, or re-point a citation, and the
+  // claim no longer matches what was verified and this fails until somebody
+  // re-runs the fetcher. That is the point — you cannot alter what this table
+  // asserts about a building code without opening the page that proves it.
+  interface ReceiptCode { claimId?: unknown; verdict?: unknown; evidence?: unknown }
+  interface ReceiptRow {
+    label?: unknown; verifiedOn?: unknown; checkedOn?: unknown;
+    sourceUrl?: unknown; codes?: ReceiptCode[];
+  }
+
+  let receipt: Record<string, ReceiptRow> | null = null;
+  let readErr = '';
+  try {
+    const parsed = JSON.parse(src('utils/codeJurisdiction.receipt.json')) as { rows?: unknown };
+    if (parsed && typeof parsed === 'object' && parsed.rows && typeof parsed.rows === 'object') {
+      receipt = parsed.rows as Record<string, ReceiptRow>;
+    } else {
+      readErr = 'the file has no `rows` object';
+    }
+  } catch (err) {
+    readErr = err instanceof Error ? err.message : String(err);
+  }
+
+  ok(`utils/codeJurisdiction.receipt.json exists and parses${readErr ? ` (${readErr})` : ''}`, receipt !== null);
+
+  if (receipt) {
+    const rows = receipt;
+    const now = Date.now();
+    const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+    const missing: string[] = [];
+    const drifted: string[] = [];
+    const notConfirmed: string[] = [];
+    const staleReceipt: string[] = [];
+
+    for (const e of ALL) {
+      const who = labelOf(e);
+      const entry = rows[codeReceiptKey(e)];
+      if (!entry) { missing.push(who); continue; }
+
+      // The row must be verified AS IT STANDS: same check date, same primary
+      // citation, same claims in the same order.
+      const claims = codeClaimIds(e);
+      const recorded = (entry.codes ?? []).map((c) => String(c.claimId ?? ''));
+      if (entry.checkedOn !== e.checkedOn) {
+        drifted.push(`${who}: checkedOn ${String(entry.checkedOn)} verified, table now says ${e.checkedOn}`);
+      } else if (entry.sourceUrl !== e.sourceUrl) {
+        drifted.push(`${who}: a different sourceUrl was verified`);
+      } else if (recorded.length !== claims.length || claims.some((c, i) => c !== recorded[i])) {
+        const added = claims.filter((c) => !recorded.includes(c));
+        drifted.push(`${who}: ${added.length ? `unverified claim(s) ${added.join(', ')}` : 'the verified claim list no longer matches'}`);
+      }
+
+      for (const c of entry.codes ?? []) {
+        const verdict = String(c.verdict ?? '') as CodeVerdict;
+        if (verdict !== 'confirmed') notConfirmed.push(`${who}: ${String(c.claimId ?? '?')} → ${verdict || 'no verdict'}`);
+      }
+
+      const when = Date.parse(String(entry.verifiedOn ?? ''));
+      if (!Number.isFinite(when) || now - when > YEAR_MS || when - now > 24 * 60 * 60 * 1000) {
+        staleReceipt.push(`${who} (${String(entry.verifiedOn)})`);
+      }
+    }
+
+    ok(`every row has a receipt${missing.length ? ` (missing: ${missing.join(', ')})` : ''}`, missing.length === 0);
+    ok(`no row changed since it was verified${drifted.length ? ` — ${drifted.join('; ')}` : ''}`, drifted.length === 0);
+    // A MISMATCH receipt is the Dallas bug caught red-handed; an unconfirmed
+    // one is a claim whose own citation does not state it. Neither ships.
+    ok(`every verified claim came back 'confirmed'${notConfirmed.length ? ` — ${notConfirmed.join('; ')}` : ''}`, notConfirmed.length === 0);
+    ok(`no receipt is older than a year${staleReceipt.length ? ` (stale: ${staleReceipt.join(', ')})` : ''}`, staleReceipt.length === 0);
+
+    const live = new Set(ALL.map(codeReceiptKey));
+    const orphans = Object.keys(rows).filter((k) => !live.has(k));
+    ok(`the receipt has no entry for a row that no longer exists${orphans.length ? ` (${orphans.join(', ')})` : ''}`, orphans.length === 0);
+
+    // Evidence is the difference between a receipt and a rubber stamp: it is
+    // what lets a human re-read the sentence that confirmed a claim.
+    const noEvidence = Object.entries(rows)
+      .filter(([, r]) => (r.codes ?? []).some((c) => typeof c.evidence !== 'string' || !c.evidence.trim()))
+      .map(([k]) => k);
+    ok(`every receipted claim quotes the text that confirmed it${noEvidence.length ? ` (bare: ${noEvidence.join(', ')})` : ''}`, noEvidence.length === 0);
+  }
 }
 
 {

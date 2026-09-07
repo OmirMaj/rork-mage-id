@@ -25,8 +25,23 @@
 //   every automated check passes. `bun run scripts/verify-code-sources.ts`
 //   is the answer to that shape: it FETCHES each sourceUrl and looks for the
 //   editions the row claims. Run it whenever you touch the table. And see
-//   "RE-CHECK THESE FROM A REAL BROWSER", in the comment block that opens the
-//   table, for the rows whose sources this environment cannot open at all.
+//   "SOURCES THIS ENVIRONMENT CANNOT OPEN", in the comment block that opens
+//   the table, for the rows whose citations no script here can fetch.
+//
+//   READ THE REST OF THAT STORY BEFORE YOU DRAW THE WRONG MORAL FROM IT.
+//   The Dallas row TODAY says NEC 2023 — the same string that was once the
+//   fabrication. It is not a relapse: Dallas actually enacted the 2023 NEC as
+//   Ordinance No. 33081, adopted 28 April 2025 and effective 23 May 2025, and
+//   the row cites the executed ordinance with the City Secretary's proof of
+//   publication bound into it. In between, a pass "corrected" the row to 2020
+//   against the city's landing page, which had gone stale, and against an
+//   unsigned working draft of the ordinance whose number was still blank. So
+//   the row has now been wrong in BOTH directions, and neither error was
+//   caught by the shape of the citation. The moral is not "2023 is the wrong
+//   answer" — it is that an edition is only as good as the document it was
+//   read off, and a department's summary page is not that document when an
+//   ordinance exists. Prefer the enacted instrument; and a blank ordinance
+//   number proves you are holding the draft, never that the law did not pass.
 //
 // AN ABSENT ROW IS A CORRECT ANSWER
 //   resolveCodeJurisdiction returns { kind: 'unknown', reason } for anywhere
@@ -62,6 +77,24 @@ export interface AdoptedCode {
   edition: string;
   /** The code's own name when it is not simply "<family> <edition>". */
   name?: string;
+  /**
+   * The page that states THIS family's edition, when the row's own `sourceUrl`
+   * does not.
+   *
+   * This exists because jurisdictions genuinely split their adoptions across
+   * documents, and the single-URL row forced a choice between citing one
+   * document and dropping every claim the other one carried. Washington adopts
+   * the IBC in WAC 51-50-003, the IRC in WAC 51-51-003 and the NEC in a
+   * different agency's rule entirely (WAC 296-46B-010); Minnesota adopts the
+   * IRC in Rules 1309 and the NEC in Rules 1315. Before this field those rows
+   * carried claims their cited page never made — the exact shape the firewall
+   * above exists to stop.
+   *
+   * scripts/verify-code-sources.ts fetches this URL instead of the row's for
+   * this one code, so every claim is checked against the page that actually
+   * makes it.
+   */
+  sourceUrl?: string;
 }
 
 interface BaseEntry {
@@ -138,31 +171,51 @@ export interface LocalAdoption extends BaseEntry {
 //                 and to 'unknown' otherwise, which is the correct answer
 //                 until somebody reads their building department's page.
 //
-// RE-CHECK THESE FROM A REAL BROWSER — cited, but the citation cannot be
-// confirmed from an automated session, so nothing here has re-read them:
-//   Massachusetts every mass.gov path 403s to curl AND to the agent fetch
-//   and Boston    tool — the 780 CMR handbook page and the dates-and-editions
-//                 page both, across two sessions. Boston's own ISD page DOES
-//                 load and confirms the authority half ("all the work follows
-//                 the Massachusetts State Building Code (780 CMR)") but states
-//                 no edition, so the 10th-Edition / 2021-I-Codes claim on BOTH
-//                 rows rests entirely on a page nothing here can open. Open it
-//                 in a normal browser before trusting those two rows.
-//   New York      dos.ny.gov 403s automated fetches the same way. The state
-//     (state)     row's 2025-Uniform-Code claim has the same status: cited,
-//                 not re-readable from here. NYC itself is fine — nyc.gov
-//                 loads, and the NYC row is what a New York job actually hits.
+// SOURCES THIS ENVIRONMENT CANNOT OPEN — every one of these WAS read on
+// 2026-09-07, out of band, and the receipt records how. What they have in
+// common is that `bun run scripts/verify-code-sources.ts` will never fetch
+// them from a script, so it reports them unreachable FOREVER. That is a
+// property of the host, not a defect in the row: do not "fix" it by swapping
+// in a worse citation that happens to be fetchable.
+//   New York      dos.ny.gov sits behind a Cloudflare interstitial ("Just a
+//     (state)     moment…") that returns 403 to curl and to every fetch tool,
+//                 with or without a browser User-Agent, and does the same for
+//                 its regulation PDFs — so no dos.ny.gov URL will ever verify
+//                 from a script. It loads normally in a real browser, and it
+//                 was read in one: the row's FAQ states both 2025 codes and
+//                 the 2024-ICC basis in a single sentence, and 19 NYCRR
+//                 1219.2(a)(1) and 1240.2(a) were read as well and say the
+//                 same. This row is no longer "re-check me" — it is checked.
+//   Massachusetts www.mass.gov 403s every automated request (a 14 kB block
+//                 page, not an outage). The state row keeps citing the live
+//                 BBRS handbook because that is the right page for a HUMAN to
+//                 open; it was read through the Internet Archive's snapshot
+//                 of that exact URL, which names all four families at 2021 in
+//                 one sentence, and corroborated against the promulgated
+//                 780 CMR chapter PDFs. Boston no longer depends on mass.gov
+//                 at all — it now cites those 780 CMR PDFs directly, and
+//                 sec.state.ma.us serves them to a script quite happily.
+//   Dallas        dallascityhall.com serves an incomplete TLS chain (the
+//                 Sectigo intermediate is missing), so bun, node and this
+//                 repo's fetcher all correctly refuse it; macOS `curl` gets
+//                 through only because it chases the missing intermediate via
+//                 AIA. Both Dallas citations therefore go through the
+//                 Internet Archive, and both captures were diffed against the
+//                 live documents.
+//   Large PDFs    Los Angeles cites a 44 MB ordinance and Austin a 34 MB one;
+//                 the fetcher may time out on them. They parse fine when it
+//                 does not.
 //
-//                 `bun run scripts/verify-code-sources.ts` is what surfaced
-//                 both: it fetches every sourceUrl and looks for each claimed
-//                 edition, and reports an unreachable page rather than passing
-//                 it. (It also reports Dallas unreachable — dallascityhall.com
-//                 serves an incomplete TLS chain. That one IS verified: `curl`
-//                 reads it, and the Dallas row was corrected against it on
-//                 2026-09-07.) It is NOT in ship-check — it needs the network.
-//                 As of 2026-09-07 it confirms 44 claimed editions against the
-//                 row's own page with 0 MISMATCH; the gaps are the unreachable
-//                 rows above plus the four PDF citations it will not parse.
+//                 verify-code-sources.ts knows about all of this now: when a
+//                 fetch fails and the committed receipt already holds a
+//                 `confirmed` verdict for that exact claim, it reports the
+//                 claim as receipted rather than counting it a failure. A
+//                 MISMATCH is still a failure, always. The script is NOT in
+//                 ship-check — it needs the network. Its run on 2026-09-07:
+//                 79 editions read off the page by the script itself, 7
+//                 carried by the receipt (the four Massachusetts claims, both
+//                 New York ones, and the Dallas NEC ordinance), 0 MISMATCH,
+//                 0 unconfirmed.
 // ─────────────────────────────────────────────────────────────────────
 
 export const STATE_ADOPTIONS: readonly StateAdoption[] = [
@@ -173,21 +226,30 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     codes: [
       { family: 'LOCAL', edition: '2025', name: 'California Building Standards Code (Title 24), 2025 Triennial Edition' },
     ],
-    notes: 'California writes its own Title 24 rather than adopting a model code straight; cities amend Title 24 on top of it. The 2025 edition took effect 1 January 2026.',
+    notes: 'Title 24 is NOT simply "California\'s version of a model code", and it is not simply California\'s own writing either — the Commission describes it as a compilation of three kinds of standard, the first being "building standards that have been adopted by state agencies without change from building standards contained in national model codes", the rest being state amendments to those model codes and standards written by state agencies where no model code covers the subject. Cities then amend Title 24 on top of that. The 2025 edition took effect 1 January 2026.',
     sourceUrl: 'https://www.dgs.ca.gov/BSC/Codes',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'NY',
     stateName: 'New York',
     authorityName: 'New York State Department of State, Division of Building Standards and Codes',
     codes: [
-      { family: 'LOCAL', edition: '2025', name: '2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes)' },
-      { family: 'LOCAL', edition: '2025', name: '2025 Energy Conservation Construction Code of New York State' },
+      // Both claims are cited to the BINDING regulation rather than to the FAQ
+      // that is the row's sourceUrl. The FAQ does state both, in one sentence,
+      // which is why it stays as the row citation; 19 NYCRR is what makes them
+      // law. Part 1219 has a stable landing URL that redirects to the current
+      // file, so it will follow the next code cycle by itself. Part 1240 has
+      // NO such landing URL (dos.ny.gov/19-nycrr-part-1240 is a 404), so its
+      // citation is a dated file path and WILL rot at the next amendment —
+      // when it does, re-find it from dos.ny.gov's laws-and-regulations page
+      // rather than deleting the claim.
+      { family: 'LOCAL', edition: '2025', name: '2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes)', sourceUrl: 'https://dos.ny.gov/19-nycrr-part-1219' },
+      { family: 'LOCAL', edition: '2025', name: '2025 Energy Conservation Construction Code of New York State', sourceUrl: 'https://dos.ny.gov/system/files/documents/2026/02/19-nycrr-part-1240.pdf' },
     ],
-    notes: 'The 2025 Uniform Code replaced the 2020 edition on 31 December 2025. The state states its basis as the 2024 ICC books collectively and does not publish separate IBC/IRC/IECC edition years, so none are claimed here. New York City is exempt — it runs its own Construction Codes.',
+    notes: 'The 2025 Uniform Code replaced the 2020 edition on 31 December 2025. The state states its basis as the 2024 ICC books collectively and does not publish separate IBC/IRC/IECC edition years, so none are claimed here. NEW YORK CITY IS A PARTIAL, NOT A TOTAL, EXEMPTION: it writes its own Construction Codes in place of the Uniform Code, but the Energy Code is statewide and NYC enforces an approved, more-restrictive LOCAL version of it rather than being outside it. ONE LARGE PROVISION IS ON THE BOOKS BUT UNENFORCEABLE: the 2025 prohibition on fossil-fuel equipment and building systems in new buildings (19 NYCRR § 1240.6 and Subpart 1229-2) is suspended by court order and is neither effective nor enforceable — do not price a new build all-electric on the assumption that it applies.',
     sourceUrl: 'https://dos.ny.gov/division-building-standards-and-codes-frequently-asked-questions',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'PA',
@@ -201,7 +263,7 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     ],
     notes: "Pennsylvania's Uniform Construction Code moved to the 2021 I-Codes on 1 January 2026. Verified against the binding regulation (34 Pa. Code § 403.21) because the department's own landing page still describes the superseded 2018 adoption. No NEC edition is claimed — the state reaches it through the adopted I-Codes rather than listing one.",
     sourceUrl: 'https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'WA',
@@ -209,14 +271,18 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     authorityName: 'Washington State Building Code Council (SBCC)',
     codes: [
       { family: 'IBC', edition: '2021' },
-      { family: 'IRC', edition: '2021' },
-      { family: 'IECC', edition: '2021', name: '2021 Washington State Energy Code' },
-      { family: 'NEC', edition: '2023' },
+      { family: 'IRC', edition: '2021', sourceUrl: 'https://app.leg.wa.gov/WAC/default.aspx?cite=51-51-003' },
+      // The SECTION text (WAC 51-11C-10100) only ever says "Washington State
+      // Energy Code" — the words "International Energy Conservation Code"
+      // appear in the CHAPTER heading, which is why this cites the chapter and
+      // not a section inside it.
+      { family: 'IECC', edition: '2021', name: '2021 Washington State Energy Code', sourceUrl: 'https://app.leg.wa.gov/WAC/default.aspx?cite=51-11C' },
+      { family: 'NEC', edition: '2023', sourceUrl: 'https://app.leg.wa.gov/WAC/default.aspx?cite=296-46B-010' },
     ],
-    notes: "Verified against the binding rule text (WAC 51-50-003 and 51-51-003) because the SBCC's own landing page still presents the 2018 codes as current. The electrical code is run separately by the Department of Labor & Industries (WAC 296-46B), and it flips to the 2026 NEC on 31 December 2026 — re-check this row after that date.",
+    notes: "Verified against the binding rule text (WAC 51-50-003 for the IBC, 51-51-003 for the IRC, chapter 51-11C for the energy code) because the SBCC's own landing page still presents the 2018 codes as current. Washington does not enforce the IECC directly — it writes the Washington State Energy Code as an adoption and amendment of the 2021 IECC, and the amendments are extensive, so price the envelope off the WSEC rather than the model code. THE ELECTRICAL CODE HAS A HARD EXPIRY: it is run separately by the Department of Labor & Industries (WAC 296-46B), and the same rule that adopts the 2023 NEC also states that on 31 December 2026 the 2026 NEC replaces it — this row is wrong the day after that date.",
     noteSourceUrl: 'https://app.leg.wa.gov/WAC/default.aspx?cite=296-46B-010',
     sourceUrl: 'https://app.leg.wa.gov/WAC/default.aspx?cite=51-50-003',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'FL',
@@ -227,7 +293,7 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     ],
     notes: 'Statewide code — local jurisdictions enforce it rather than writing their own. Effective 31 December 2023.',
     sourceUrl: 'https://www.floridabuilding.org/c/default.aspx',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'MA',
@@ -242,20 +308,20 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     notes: 'The 10th Edition took effect 11 October 2024 and, after an extended concurrency period, became the only code in effect on 30 June 2025. It is structured on the 2021 IBC with Massachusetts amendments; the residential code is 780 CMR Chapter 51, which adopts the 2021 IRC. ENERGY IS THE TRAP: the 10th Edition is only the BASE energy code, and the Department of Energy Resources publishes stretch and specialized stretch codes (225 CMR 22.00 and 23.00) that individual municipalities adopt on top of it — ask the city or town which of the three applies before you price the envelope.',
     noteSourceUrl: 'https://www.mass.gov/info-details/dates-and-editions-of-massachusetts-building-code-780-cmr',
     sourceUrl: 'https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'VA',
     stateName: 'Virginia',
     authorityName: 'Virginia Department of Housing and Community Development (Virginia Uniform Statewide Building Code)',
     codes: [
-      { family: 'IBC', edition: '2021', name: '2021 Virginia Uniform Statewide Building Code' },
-      { family: 'IRC', edition: '2021', name: '2021 Virginia Uniform Statewide Building Code' },
+      { family: 'IBC', edition: '2021', name: '2021 Virginia Uniform Statewide Building Code', sourceUrl: 'https://law.lis.virginia.gov/admincode/title13/agency5/chapter63/section10/' },
       { family: 'NEC', edition: '2020' },
     ],
-    notes: 'Virginia adopted the 2021 I-Codes and the 2020 National Electrical Code effective 18 January 2024. The electrical edition is a cycle behind the building codes — do not assume they move together.',
+    notes: 'Virginia adopted the 2021 USBC effective 18 January 2024; 13VAC5-63-10 incorporates chapters 2-35 of the 2021 International Building Code by reference. The electrical edition is a cycle behind — the 2020 National Electrical Code — so do not assume the two move together. NO IRC EDITION IS CLAIMED: houses are built to the Virginia Residential Code, which 13VAC5-63-210 defines as "the provisions of the IRC … as amended by VCC Section 310.8" WITHOUT naming an edition year, and the only place the regulation prints "2021 International Residential Code" is a note that 13VAC5-63-10 itself says is "to provide information only". Confirm the residential edition with the building official.',
+    noteSourceUrl: 'https://law.lis.virginia.gov/admincode/title13/agency5/chapter63/section210/',
     sourceUrl: 'https://www.dhcd.virginia.gov/codes',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'GA',
@@ -269,7 +335,7 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     ],
     notes: 'The energy code is NINE YEARS behind the rest of the family: Georgia\'s mandatory state minimum codes are the 2024 I-Codes and the 2023 NEC, but the energy code is still the 2015 IECC with Georgia supplements and amendments. The International Existing Building Code is PERMISSIVE in Georgia (2018 edition) rather than mandatory, so whether it applies to your renovation depends on the local jurisdiction adopting it.',
     sourceUrl: 'https://dca.georgia.gov/community-assistance/construction-codes/current-state-minimum-codes-construction',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'OH',
@@ -284,7 +350,7 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     notes: 'The "2024" Ohio Building Code is the 2021 ICC model codes (IBC, IMC, IPC, IFGC, IECC, IEBC) adopted by reference, effective 1 March 2024 — the year in its name is the Ohio edition, not the model-code year. Its electrical chapter is NFPA 70 (2023). One-, two- and three-family dwellings are NOT under the Ohio Building Code: they are under the separate Residential Code of Ohio (Ohio Administrative Code 4101:8), whose model-code edition MAGE has not verified.',
     noteSourceUrl: 'https://codes.ohio.gov/ohio-administrative-code/4101:8',
     sourceUrl: 'https://dam.assets.ohio.gov/image/upload/com.ohio.gov/documents/2024%20OBC%20Executive%20Summary%201.pdf',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'NJ',
@@ -300,20 +366,20 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     ],
     notes: 'The 2024 I-Codes and the 2023 NEC became effective in the New Jersey Uniform Construction Code on 17 August 2026 — a very recent turnover, so a job permitted before that date is on the previous adoption. New Jersey does NOT use the International Plumbing Code: plumbing is the National Standard Plumbing Code (2024). The 2024 IECC governs low-rise residential only; commercial and other residential go to ASHRAE 90.1-2022.',
     sourceUrl: 'https://www.nj.gov/dca/codes/codreg/current.shtml',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'MN',
     stateName: 'Minnesota',
     authorityName: 'Minnesota Department of Labor and Industry, Construction Codes and Licensing Division',
     codes: [
-      { family: 'IRC', edition: '2018', name: '2020 Minnesota Residential Code' },
-      { family: 'NEC', edition: '2020' },
+      { family: 'IRC', edition: '2018', name: '2020 Minnesota Residential Code', sourceUrl: 'https://www.revisor.mn.gov/rules/1309.0010/' },
+      { family: 'NEC', edition: '2023', sourceUrl: 'https://www.revisor.mn.gov/rules/1315.0200/' },
     ],
-    notes: 'The 2020 Minnesota State Building Code took effect 31 March 2020 (the Mechanical and Fuel Gas Code on 6 April 2020) and is mandatory statewide with limited exceptions. Minnesota Rules 1309 adopts the 2018 IRC as amended and Rules 1315 adopts the 2020 NEC. MAGE could NOT verify which IBC edition Rules 1305 adopts, so no commercial building edition is claimed here — confirm that one with the building official.',
+    notes: 'The 2020 Minnesota State Building Code took effect 31 March 2020 and is mandatory statewide with limited exceptions. Minnesota Rules 1309.0010 adopts the 2018 IRC as amended. THE ELECTRICAL CODE IS A FULL CYCLE AHEAD OF THE RESIDENTIAL ONE: Minnesota Rules 1315.0200 requires the 2023 NEC (ANSI/NFPA 70-2023), not the 2020 edition the DLI residential fact sheet era implies — the two chapters move independently. MAGE could NOT verify which IBC edition Rules 1305 adopts, so no commercial building edition is claimed here — confirm that one with the building official.',
     noteSourceUrl: 'https://www.dli.mn.gov/business/codes-and-laws/makeup-minnesota-state-building-code',
     sourceUrl: 'https://www.dli.mn.gov/sites/default/files/pdf/fs-2020-residential-code.pdf',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     state: 'NC',
@@ -325,7 +391,7 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     notes: 'North Carolina is stuck between editions. OSFM still lists the 2018 codes — in effect since 1 January 2019 — as the current ones. The 2024 North Carolina State Building Code has been adopted but does not take effect until twelve months after the State Fire Marshal certifies that publication and distribution are complete and the Residential Code Council is fully constituted, so it has no fixed effective date; confirm before designing to it. MAGE has not verified which ICC model-code editions sit under the 2018 North Carolina code, so none are claimed here.',
     noteSourceUrl: 'https://www.ncosfm.gov/news/press-releases/2025/04/07/north-carolina-delays-implementation-2024-state-building-code',
     sourceUrl: 'https://www.ncosfm.gov/codes/codes-current-and-past',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
 ];
 
@@ -346,7 +412,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     ],
     notes: 'New York City writes and enforces its own Construction Codes rather than the state code; the 2022 Construction Codes took effect 7 November 2022.',
     sourceUrl: 'https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'San Francisco',
@@ -359,7 +425,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     ],
     notes: 'Permits filed on or after 1 January 2026 use the 2025 California Codes plus the 2025 San Francisco amendments.',
     sourceUrl: 'https://www.sf.gov/resource--2022--current-san-francisco-building-codes',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Seattle',
@@ -368,11 +434,11 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     authorityName: 'Seattle Department of Construction & Inspections (SDCI)',
     codes: [
       { family: 'IBC', edition: '2021', name: '2021 Seattle Building Code' },
-      { family: 'IRC', edition: '2021', name: '2021 Seattle Residential Code' },
+      { family: 'IRC', edition: '2021', name: '2021 Seattle Residential Code', sourceUrl: 'https://www.seattle.gov/construction-and-inspections/codes/codes-we-enforce-(a-z)/residential-code' },
     ],
-    notes: 'The Seattle Residential Code governs houses, duplexes and townhouses up to three storeys with separate entrances; everything else is under the Building Code.',
+    notes: 'The Seattle Residential Code governs houses, duplexes and townhouses up to three storeys with separate entrances; everything else is under the Building Code. SDCI publishes the two on separate pages and each names only its own basis, so the row cites both.',
     sourceUrl: 'https://www.seattle.gov/construction-and-inspections/codes/codes-we-enforce-(a-z)/building-code',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Philadelphia',
@@ -389,7 +455,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     ],
     notes: 'The electrical and fire codes are off-cycle from the rest of the family: the Electrical Code is on the 2020 NEC and the Fire Code on the 2018 IFC inside an otherwise-2021 adoption. Philadelphia amends the ICC family locally.',
     sourceUrl: 'https://www.phila.gov/departments/department-of-licenses-and-inspections/resources/applicable-codes/',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Houston',
@@ -400,11 +466,13 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
       { family: 'IBC', edition: '2021', name: '2021 Houston Construction Code' },
       { family: 'IRC', edition: '2021', name: '2021 Houston Construction Code' },
       { family: 'IECC', edition: '2021' },
+      { family: 'IEBC', edition: '2021' },
       { family: 'IFC', edition: '2021' },
+      { family: 'NEC', edition: '2023' },
     ],
-    notes: 'Houston takes its mechanical and plumbing codes from IAPMO — the Uniform Mechanical Code and Uniform Plumbing Code with Houston amendments — NOT the ICC\'s IMC/IPC. The 2021 Houston Construction Code took effect 1 January 2024. MAGE could not resolve which NEC edition Houston is on (two city pages disagree), so no electrical edition is claimed here.',
-    sourceUrl: 'https://www.houstonpermittingcenter.org/houston-code-archive',
-    checkedOn: '2026-09-06',
+    notes: 'Houston takes its mechanical and plumbing codes from IAPMO — the 2021 Uniform Mechanical Code and Uniform Plumbing Code with Houston amendments — NOT the ICC\'s IMC/IPC. The 2021 Houston Construction Code took effect 1 January 2024 (Ord. No. 2023-907). THE ELECTRICAL CODE IS A CYCLE AHEAD OF THE REST and is not Houston\'s choice: the 2023 NEC applies as a Texas state mandate from 1 September 2023, and the city publishes only administrative amendments to it.',
+    sourceUrl: 'https://www.houstonpermittingcenter.org/building-code-enforcement/code-development',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Phoenix',
@@ -419,7 +487,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     ],
     notes: 'Phoenix adopts BOTH the 2024 IPC and the 2024 UPC, so confirm which plumbing code your reviewer is working from. The 2024 Phoenix Building Construction Code took effect 1 August 2025 — a full cycle ahead of most large cities.',
     sourceUrl: 'https://www.phoenix.gov/administration/departments/pdd/tools-resources/codes-ordinance/building-code.html',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Denver',
@@ -434,7 +502,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     ],
     notes: 'The 2025 Denver Building and Fire Code is built on the 2024 I-Codes, except the energy code, which stays on the 2021 IECC.',
     sourceUrl: 'https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Miami-Dade County',
@@ -448,7 +516,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     notes: "The county's Product Control Section must approve building-envelope products before use — windows, exterior glazing, wall cladding, roofing, exterior doors, skylights, glass block, siding and shutters.",
     noteSourceUrl: 'https://www.miamidade.gov/global/economy/board-and-code/product-approval.page',
     sourceUrl: 'https://www.miamidade.gov/global/economy/building/home.page',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Chicago',
@@ -473,15 +541,25 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     matchCity: ['boston'],
     authorityName: 'City of Boston Inspectional Services Department (ISD)',
     codes: [
+      // Each claim now cites the PROMULGATED 780 CMR chapter that makes it, as
+      // published by the Secretary of the Commonwealth. The row used to cite a
+      // boston.gov homeowner-permits page whose only code sentence is "all the
+      // work follows the Massachusetts State Building Code (780 CMR)" — true,
+      // and proof of the AUTHORITY, but it names no edition and no model-code
+      // family, so it proved none of these four. It is kept as noteSourceUrl.
+      // (www.mass.gov, the obvious alternative, 403s every automated request.)
       { family: 'IBC', edition: '2021', name: 'Massachusetts State Building Code, 780 CMR 10th Edition' },
-      { family: 'IRC', edition: '2021', name: 'Massachusetts State Building Code, 780 CMR 10th Edition' },
-      { family: 'IEBC', edition: '2021', name: 'Massachusetts State Building Code, 780 CMR 10th Edition' },
-      { family: 'IECC', edition: '2021', name: 'Massachusetts State Building Code, 780 CMR 10th Edition' },
+      { family: 'IRC', edition: '2021', name: 'Massachusetts State Building Code, 780 CMR 10th Edition', sourceUrl: 'https://www.sec.state.ma.us/reg_pub/pdf/700/780051.pdf' },
+      { family: 'IEBC', edition: '2021', name: 'Massachusetts State Building Code, 780 CMR 10th Edition', sourceUrl: 'https://www.sec.state.ma.us/reg_pub/pdf/700/780034.pdf' },
+      // 780 CMR 51.00 § 1101.1.1, NOT 780 CMR 13.00. The commercial energy
+      // chapter never plainly adopts an IECC edition — its only "IECC2021" is
+      // inside a drafting note, unspaced, which would not even match.
+      { family: 'IECC', edition: '2021', name: 'Massachusetts State Building Code, 780 CMR 10th Edition', sourceUrl: 'https://www.sec.state.ma.us/reg_pub/pdf/700/780051.pdf' },
     ],
-    notes: 'Boston has no building code of its own: the Inspectional Services Department issues the permits and enforces the statewide Massachusetts State Building Code (780 CMR), whose 10th Edition has been the only code in effect since 30 June 2025. Massachusetts municipalities may adopt the Department of Energy Resources stretch or specialized stretch energy code (225 CMR 22.00 / 23.00) on top of the base code — MAGE could NOT verify which one Boston is on, so confirm the energy code with ISD before pricing insulation, glazing or heating.',
-    noteSourceUrl: 'https://www.mass.gov/handbook/tenth-edition-of-the-ma-state-building-code-780',
-    sourceUrl: 'https://www.boston.gov/departments/inspectional-services/what-homeowners-should-know-about-permits',
-    checkedOn: '2026-09-06',
+    notes: 'Boston has no building code of its own: the Inspectional Services Department issues the permits and enforces the statewide Massachusetts State Building Code (780 CMR), whose 10th Edition has been the only code in effect since 30 June 2025. Massachusetts municipalities may adopt the Department of Energy Resources stretch or specialized stretch energy code (225 CMR 22.00 / 23.00) on top of the base code — MAGE could NOT verify which one Boston is on, so confirm the energy code with ISD before pricing insulation, glazing or heating. ELECTRICAL IS NOT IN THIS CODE AT ALL and is not claimed here: 780 CMR 1.00 § 101.4.10 sends every electrical reference to 527 CMR 12.00, the Massachusetts Electrical Code, which is promulgated separately by the Board of Fire Prevention Regulations and moves on its own schedule — ask the electrical inspector, and do not assume it tracks the 2021 I-Codes.',
+    noteSourceUrl: 'https://www.boston.gov/departments/inspectional-services/what-homeowners-should-know-about-permits',
+    sourceUrl: 'https://www.sec.state.ma.us/reg_pub/pdf/700/780001.pdf',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Los Angeles',
@@ -493,21 +571,38 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     codes: [
       { family: 'LOCAL', edition: '2025', name: 'California Building Standards Code (Title 24), 2025 Edition, with City of Los Angeles amendments' },
     ],
-    // sourceUrl is LADBS's own EO-8 implementation guidelines because that is
-    // the LADBS document that NAMES the edition ("Standards in the 2025
-    // California Building Standards Code are suspended [for wildfire rebuilds].
-    // Projects may utilize the 2022…"), which only reads as an exception
-    // because the 2025 code is otherwise the code in force. The LADBS report
-    // to Council carries the structural half — that state law requires the
-    // current Title 24 edition and that the City amends the CBC by ordinance —
-    // and is cited as noteSourceUrl. An earlier draft of this row cited the
-    // Council report for the edition AND for "LAMC Chapter IX"; the report
-    // states neither, so both claims are gone. LADBS's amendments do live in
-    // LAMC Chapter IX, but no page reachable from here says so, and a citation
-    // that does not support its row is the same failure as no citation.
-    notes: 'Los Angeles has no code of its own: LADBS enforces the state California Building Standards Code (Title 24), which the City adopts and amends by ordinance, and state law requires local jurisdictions to follow the CURRENT edition of Title 24. MAGE has not verified which City amendment ordinance is in force right now, so read the LADBS amendments rather than assuming them. WILDFIRE REBUILDS ARE DIFFERENT: LADBS\'s own Executive Order No. 8 implementation guidelines suspend the 2025 California Building Standards Code standards for a project repairing, restoring, demolishing or replacing a residential structure substantially damaged or destroyed by the wildfires — those projects may use the 2022 edition instead, EXCEPT the State Fire Marshal fire and public-life-safety requirements carried into the 2025 code. Flood-zone minimum-elevation standards still come from the 2025 code, and the California Energy Code solar-PV requirement is suspended while Solar Ready still applies.',
-    noteSourceUrl: 'https://cityclerk.lacity.org/onlinedocs/2025/25-0247_rpt_dbs_1_6-25-25.pdf',
-    sourceUrl: 'https://dbs.lacity.gov/sites/default/files/efs/pdf/publications/EO-8-Implementation-Guidelines.pdf',
+    // sourceUrl is the ADOPTING ORDINANCE, as LADBS itself publishes it.
+    // Ordinance No. 188797 opens "An ordinance amending Chapter IX of the Los
+    // Angeles Municipal Code to incorporate by reference certain portions of
+    // the 2025 Edition of the California Building Standards Code…", was passed
+    // 12 December 2025 and approved 24 December 2025, and carries an urgency
+    // clause making it effective on publication. That single document proves
+    // the edition, the LAMC Chapter IX location and the adopt-by-ordinance
+    // mechanism — three things this row previously had to hedge.
+    //
+    // WHAT IT REPLACED, AND WHY. The row used to cite LADBS's EO-8 wildfire
+    // implementation guidelines, the only LADBS document then reachable that
+    // NAMED the edition — and it names it only to suspend it ("Standards in
+    // the 2025 California Building Standards Code are suspended… Projects may
+    // utilize the 2022…"). Reading that as proof of adoption is an inference,
+    // not a citation, and by the Dallas rule an inference is not a source. The
+    // guidelines are now noteSourceUrl, where they belong: they are what
+    // proves the wildfire carve-out in `notes`. The LADBS report to Council
+    // (cityclerk.lacity.org/onlinedocs/2025/25-0247_rpt_dbs_1_6-25-25.pdf)
+    // carried the structural half before the ordinance was found and still
+    // states it verbatim — "State law requires local jurisdictions to follow
+    // the current edition of Title 24" — but the ordinance now covers it.
+    //
+    // TWO THINGS TO KNOW BEFORE TOUCHING THIS CITATION. The ordinance PDF is
+    // 44 MB (it embeds the CALGreen checklists), so verify-code-sources.ts is
+    // slow on this row and a phone tapping straight through to sourceUrl will
+    // pull a large file. The City Clerk publishes a byte-identical copy at
+    // cityclerk.lacity.org/onlinedocs/2025/25-1217_ord_188797_12-24-25.pdf;
+    // LADBS's own copy is cited because LADBS is the authority in this row.
+    // codelibrary.amlegal.com, which hosts the codified LAMC, 403s automation.
+    notes: 'Los Angeles has no code of its own: LADBS enforces the state California Building Standards Code (Title 24), which the City adopts and amends by ordinance, and state law requires local jurisdictions to follow the CURRENT edition of Title 24. The ordinance in force is No. 188797, the 2025 triennial adoption — passed 12 December 2025, approved 24 December 2025, effective on publication — which amends Chapter IX of the Los Angeles Municipal Code so that the Los Angeles Building Code and Los Angeles Residential Code adopt portions of the 2025 California Building Code and 2025 California Residential Code (Title 24 Parts 2 and 2.5) by reference. Read the City amendments in LAMC Chapter IX rather than pricing off the state code alone. WILDFIRE REBUILDS ARE DIFFERENT: LADBS\'s Executive Order No. 8 implementation guidelines (v2.0, 18 December 2025) suspend the 2025 California Building Standards Code standards for a project repairing, restoring, demolishing or replacing a residential structure substantially damaged or destroyed by the wildfires — those projects may use the 2022 edition instead, EXCEPT the State Fire Marshal fire and public-life-safety requirements carried into the 2025 code. Flood-zone minimum-elevation standards still come from the 2025 code, and the California Energy Code solar-PV requirement is suspended while Solar Ready still applies. That suspension rides on an emergency executive order, and emergency orders lapse: MAGE has confirmed the guidelines still read this way but NOT that the order behind them is still live, so confirm the carve-out with LADBS before relying on it.',
+    noteSourceUrl: 'https://dbs.lacity.gov/sites/default/files/efs/pdf/publications/EO-8-Implementation-Guidelines.pdf',
+    sourceUrl: 'https://dbs.lacity.gov/sites/default/files/efs/forms/pc17/26-ord-188797-260108.pdf',
     checkedOn: '2026-09-07',
   },
   {
@@ -521,9 +616,9 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
       { family: 'IRC', edition: '2015', name: '2017 District of Columbia Construction Codes' },
       { family: 'NEC', edition: '2014' },
     ],
-    notes: 'The District is a full code cycle behind most of the country and the name hides it: the "2017" DC Construction Codes are the 2015 ICC family plus the 2014 National Electrical Code and ASHRAE 90.1-2013, and they only took effect on 29 May 2020. Do not price a DC job off the current I-Codes.',
-    sourceUrl: 'https://dob.dc.gov/page/dc-construction-codes',
-    checkedOn: '2026-09-06',
+    notes: 'The District is more than a code cycle behind most of the country and the name hides it: the "2017" DC Construction Codes are the 2015 ICC family plus the 2014 National Electrical Code and ASHRAE 90.1-2013, and they only took effect on 29 May 2020. Do not price a DC job off the current I-Codes. This is still the code in force — the 2024 DC Construction Codes, built on the 2021 I-Codes, are in rulemaking and not adopted; the Department of Buildings took over code development in February 2026 and does not expect final rules before winter 2027.',
+    sourceUrl: 'https://dob.dc.gov/node/1615636',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Austin',
@@ -531,15 +626,26 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     matchCity: ['austin'],
     authorityName: 'City of Austin Development Services Department',
     codes: [
-      { family: 'IBC', edition: '2024' },
-      { family: 'IRC', edition: '2024' },
-      { family: 'IEBC', edition: '2024' },
-      { family: 'IECC', edition: '2024' },
-      { family: 'IFC', edition: '2024' },
+      // Every claim cites the ENACTED ordinance that adopts it, not the
+      // department's summary table. The table is right, but a landing page
+      // that lists editions is a description of the law; these are the law.
+      // (Two mirrors that look authoritative are NOT usable: Municode serves
+      // only an SPA shell to every client, and austin-tx.elaws.us still
+      // returns "The International Fire Code and Appendices B and F, 2015
+      // Edition" marked "Latest version." — three cycles stale.)
+      { family: 'IBC', edition: '2024', name: 'Austin City Code § 25-12-1, Ordinance No. 20250410-045', sourceUrl: 'https://services.austintexas.gov/edims/document.cfm?id=453143' },
+      { family: 'IRC', edition: '2024', name: 'Austin City Code § 25-12-241, Ordinance No. 20250410-040', sourceUrl: 'https://services.austintexas.gov/edims/document.cfm?id=450486' },
+      { family: 'IEBC', edition: '2024', name: 'Austin City Code § 25-12-231, Ordinance No. 20250410-045', sourceUrl: 'https://services.austintexas.gov/edims/document.cfm?id=453143' },
+      { family: 'IECC', edition: '2024', name: 'Austin City Code § 25-12-261, Ordinance No. 20250410-038', sourceUrl: 'https://services.austintexas.gov/edims/document.cfm?id=452785' },
+      // No enacted IFC ordinance is reachable: the city's link for it goes to
+      // Municode, and the only Austin fire ordinance that does open is a
+      // pre-adoption draft headed "ORDINANCE NO. 1" — the Dallas trap, so it
+      // is not cited. Austin Fire's own page states the adoption instead.
+      { family: 'IFC', edition: '2024', sourceUrl: 'https://www.austintexas.gov/fire/fire-building-code' },
     ],
-    notes: 'Austin\'s technical codes are Chapter 25-12 of the City Code; the 2024 I-Codes took effect 10 July 2025. Like Houston, Austin takes plumbing and mechanical from IAPMO — the 2024 Uniform Plumbing Code and Uniform Mechanical Code — NOT the ICC\'s IPC/IMC. MAGE claims no electrical edition for Austin: the city\'s own code page lists the 2023 NEC as current while also stating the 2026 NEC is effective 1 September 2026, a date that has now passed, so confirm the electrical edition with Development Services.',
-    sourceUrl: 'https://www.austintexas.gov/page/building-technical-codes',
-    checkedOn: '2026-09-06',
+    notes: 'Austin\'s technical codes are Chapter 25-12 of the City Code; the 2024 I-Codes took effect 10 July 2025. Like Houston, Austin takes plumbing and mechanical from IAPMO — the 2024 Uniform Plumbing Code and Uniform Mechanical Code — NOT the ICC\'s IPC/IMC. MAGE claims no electrical edition for Austin: the city\'s own code page lists the 2023 NEC as current while also stating the 2026 NEC is effective 1 September 2026 — a date that has now passed with the page left unchanged, so the page implies both editions at once. Confirm the electrical edition with Development Services.',
+    sourceUrl: 'https://www.austintexas.gov/development-services/building-technical-codes',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'San Antonio',
@@ -551,11 +657,18 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
       { family: 'IRC', edition: '2024' },
       { family: 'IEBC', edition: '2024' },
       { family: 'IECC', edition: '2021' },
-      { family: 'NEC', edition: '2023' },
+      // NOT the row's Chapter 10 PDF: that document's Article VI is STALE. It
+      // still prints "Sec. 10-51. Adoption of National Electrical Code (2020)"
+      // and "The 2020 edition of the National Electrical Code … is adopted",
+      // while the ordinance that enacted it adopts the 2023 edition in the
+      // same section. The enacting ordinance is the law; the codified
+      // compilation is a publication of it, and here it lags.
+      { family: 'NEC', edition: '2023', sourceUrl: 'https://mcclibraryfunctions.azurewebsites.us/api/ordinanceDownload/11508/1339820/pdf' },
     ],
-    notes: 'Chapter 10 of the City Code, effective 1 May 2025 (Ordinance 2025-01-30-0075), adopts the 2024 IBC, IRC, IMC, IPC, IEBC, IFGC, IFC and ISPSC — but the energy code stayed on the 2021 IECC and the electrical code on the 2023 NEC, so those two are a cycle behind the rest.',
+    notes: 'Chapter 10 of the City Code, effective 1 May 2025 (Ordinance 2025-01-30-0075), adopts the 2024 IBC, IRC, IMC, IPC, IEBC, IFGC, IFC and ISPSC — but the energy code stayed on the 2021 IECC, a cycle behind the rest. THE ELECTRICAL EDITION IS A DOCUMENTED CONFLICT, so confirm it in writing: Ordinance 2025-01-30-0075 adopts the 2023 NEC in its caption, its recitals and its operative Sec. 10-51 ("The 2023 edition of the National Electrical Code … is adopted"), but the codified Chapter 10 PDF the city publishes still prints the superseded 2020 article, and the definitions article of BOTH documents still reads "NFPA 70, 2020 edition". MAGE follows the enacting ordinance.',
+    noteSourceUrl: 'https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf',
     sourceUrl: 'https://docsonline.sanantonio.gov/DSDUploads/2024Ch10Building-RelatedCodesFinal.pdf',
-    checkedOn: '2026-09-06',
+    checkedOn: '2026-09-07',
   },
   {
     name: 'Dallas',
@@ -568,13 +681,81 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
       { family: 'IEBC', edition: '2021' },
       { family: 'IECC', edition: '2021' },
       { family: 'IFC', edition: '2021' },
-      { family: 'NEC', edition: '2020' },
+      // NOT the row's know_code landing page: that page is STALE on this one
+      // family. Sixteen months after the 2023 NEC took effect it still prints
+      // "CHAPTER 56: 2020 National Electrical Code with Dallas Amendments
+      // (effective June 13, 2022)" — while hyperlinking that very line to the
+      // 2023-NEC adoption. The enacted ordinance is the law; the landing page
+      // is a description of it, and here it lags. Cited through the archive
+      // for the same TLS reason as the row itself (see below).
+      { family: 'NEC', edition: '2023', name: 'Dallas Electrical Code (Dallas City Code chapter 56), Ordinance No. 33081', sourceUrl: 'https://web.archive.org/web/20260513201721/https://dallascityhall.com/departments/pnv/Documents/AH%20Memos/Chapter%2056%20Amendment,%20Dallas%20Electrical%20Code,.pdf' },
     ],
-    notes: 'The 2021 ICC codes with Dallas amendments took effect 12 May 2023 and live as Dallas City Code chapters 53-62 (Building 53, Plumbing 54, Mechanical 55, Electrical 56, Residential 57, Existing Building 58, Energy 59, Fuel Gas 60). THE ELECTRICAL CODE IS A FULL CYCLE BEHIND THE REST: Chapter 56 is the 2020 National Electrical Code with Dallas amendments, effective 13 June 2022 — do not price Dallas electrical off the 2023 NEC. The Dallas Fire Code amendment to the 2021 IFC took effect earlier still, on 10 February 2023, and the Existing Building and Swimming Pool codes also date from 13 June 2022.',
-    sourceUrl: 'https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx',
+    notes: 'The 2021 ICC codes with Dallas amendments took effect 12 May 2023 and live as Dallas City Code chapters 53-62 (Building 53, Plumbing 54, Mechanical 55, Electrical 56, Residential 57, Existing Building 58, Energy 59, Fuel Gas 60); the Fire Code is chapter 16. THE ELECTRICAL CODE IS OUT OF STEP WITH THE REST, AND THE CITY\'S OWN PAGE WILL TELL YOU THE WRONG ONE: Chapter 56 is now the 2023 National Electrical Code with Dallas amendments, adopted as Ordinance No. 33081 on 28 April 2025 and effective 23 May 2025, replacing the 2020 NEC that had been in force since 13 June 2022 — but the city\'s "Know the Code" page still displays the superseded 2020 line, so a contractor pricing off that page is a full cycle behind. The Dallas Fire Code amendment to the 2021 IFC took effect earlier still, on 10 February 2023, and the Existing Building and Swimming Pool codes also date from 13 June 2022.',
+    // CITED THROUGH THE INTERNET ARCHIVE ON PURPOSE. dallascityhall.com serves
+    // an incomplete TLS chain (the Sectigo intermediate is missing), so every
+    // correct client — bun, node, this repo's fetcher — refuses it, and
+    // dallas.gov redirects there. American Legal's copy is behind Cloudflare
+    // and returns 403 to everything. The capture below was diffed against the
+    // live page and matches it verbatim; noteSourceUrl is the live page a
+    // human should open in a browser. Do NOT "fix" this by disabling
+    // certificate verification — a checker that lies about the transport is
+    // worth less than no checker.
+    //
+    // A BLANK ORDINANCE NUMBER PROVES YOU HAVE THE DRAFT, NOT THAT THE LAW
+    // DID NOT PASS. This row previously said the 2023 NEC was "drafted but
+    // NOT enacted" because the PDF the know_code page links (…/DCH documents/
+    // adopt 2023 National Electrical Code w edits.pdf, dated 4-22-25) has a
+    // blank "ORDINANCE NO.", a blank "Passed:" line and an unsigned attorney
+    // block. That is the working draft. Dallas publishes the EXECUTED copy at
+    // a different path — the scan cited on the NEC entry above — carrying the
+    // stamped number 33081, "Passed APR 2 8 2025" and the City Secretary's
+    // "PROOF OF PUBLICATION — LEGAL ADVERTISING" page. Look for the executed
+    // or published copy before ever concluding "not enacted".
+    noteSourceUrl: 'https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx',
+    sourceUrl: 'https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx',
     checkedOn: '2026-09-07',
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// The verification receipt's vocabulary
+//
+// scripts/verify-code-sources.ts opens every page above and writes what it
+// found to utils/codeJurisdiction.receipt.json; scripts/validate-code-
+// jurisdiction.ts (which runs in ship-check, offline) refuses to pass a row
+// whose claims are not covered by that receipt. The two scripts have to agree
+// EXACTLY on how a row is named and on what counts as "the same claim", so
+// both helpers live here, next to the table, rather than being written twice.
+//
+// This is the loop the audit found open: the offline validator checked the
+// SHAPE of a citation and had never opened one, so a real URL next to a
+// recalled edition passed everything. It cannot any more — change a family, an
+// edition or a citation and the fingerprint below stops matching the receipt,
+// which fails ship-check until somebody re-runs the fetcher.
+// ─────────────────────────────────────────────────────────────────────
+
+export type CodeVerdict = 'confirmed' | 'mismatch' | 'unconfirmed' | 'unreachable' | 'manual';
+
+/** Stable identity for one row of the table, used as the receipt's key. */
+export function codeReceiptKey(e: StateAdoption | LocalAdoption): string {
+  return 'name' in e ? `city:${e.state}:${normalizePlace(e.name)}` : `state:${e.state}`;
+}
+
+/**
+ * Canonical description of ONE verifiable claim: the family, the edition, and
+ * the page that is supposed to prove it. Deliberately NOT hashed — a receipt
+ * you can read is worth more than one you have to trust, and this module is
+ * kept import-free (it ships inside the RN bundle) so it has no crypto to
+ * reach for anyway.
+ */
+export function codeClaimId(c: AdoptedCode, rowSourceUrl: string): string {
+  return `${c.family}|${c.edition}|${c.sourceUrl ?? rowSourceUrl}`;
+}
+
+/** Every claim a row makes, in table order. Any edit changes this list. */
+export function codeClaimIds(e: StateAdoption | LocalAdoption): string[] {
+  return e.codes.map((c) => codeClaimId(c, e.sourceUrl));
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Normalisation
