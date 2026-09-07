@@ -19,6 +19,7 @@ import type { Invoice, Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatMoney } from '@/utils/formatters';
+import { effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // HEALTH-F5: sign-correct money via the one formatter — no local Math.abs copies.
@@ -59,7 +60,12 @@ export default function RetentionScreen() {
       if (!project) return;
       if (scopeProjectId && pid !== scopeProjectId) return;
       const totalContract = invs.reduce((s, i) => s + (i.totalDue ?? 0), 0);
-      const retentionHeld = invs.reduce((s, i) => s + (i.retentionAmount ?? 0), 0);
+      // MONEY-05: the withholding is the shared helper's (percentage of work
+      // value), not the stored column — this screen caps how much a GC can
+      // release, so a stale stored figure stranded $283.48 as permanently
+      // "pending" on the founder's Houston invoice while the invoice screen
+      // capped the release at the smaller, correct number.
+      const retentionHeld = invs.reduce((s, i) => s + effectiveRetentionHeld(i), 0);
       const retentionReleased = invs.reduce((s, i) => s + (i.retentionReleased ?? 0), 0);
       const retentionPending = Math.max(0, retentionHeld - retentionReleased);
       list.push({
@@ -229,7 +235,7 @@ export default function RetentionScreen() {
 
                   <Text style={styles.invoicesSectionLabel}>Invoices</Text>
                   {pr.invoicesWithRetention.map(inv => {
-                    const invPending = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+                    const invPending = pendingRetentionHeld(inv);
                     const invDone = invPending < 0.01 && (inv.retentionReleased ?? 0) > 0;
                     return (
                       <TouchableOpacity

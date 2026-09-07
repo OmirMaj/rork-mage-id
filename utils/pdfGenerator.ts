@@ -3,7 +3,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding, ContractSignature, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal } from '@/types';
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
-import { netBalanceDue } from './invoiceBilling';
+import { netBalanceDue, effectiveRetentionHeld, pendingRetentionHeld } from './invoiceBilling';
 import { calendarDayStart } from './calendarDate';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
@@ -927,10 +927,14 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
   // BEFORE the payable figure, and the balance is computed by the same helper
   // the pay link uses (utils/invoiceBilling.netBalanceDue), so the client never
   // reads "Total Due $100,000" beside an email that says "$90,000 due".
-  const retentionPending = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
-  const retentionReleased = Math.min(inv.retentionAmount ?? 0, inv.retentionReleased ?? 0);
-  const hasRetention = (inv.retentionAmount ?? 0) > 0;
-  const netPayable = netBalanceDue({ totalDue: inv.totalDue, retentionAmount: inv.retentionAmount, retentionReleased: inv.retentionReleased });
+  // MONEY-05: the withheld figure is the shared helper's (percentage of work
+  // value), never the stored column — this PDF is the document the client pays
+  // from, and it has to state the same withholding the Pay button subtracts.
+  const retentionWithheld = effectiveRetentionHeld(inv);
+  const retentionPending = pendingRetentionHeld(inv);
+  const retentionReleased = Math.min(retentionWithheld, inv.retentionReleased ?? 0);
+  const hasRetention = retentionWithheld > 0;
+  const netPayable = netBalanceDue({ ...inv, amountPaid: 0 });
   const balance = netBalanceDue(inv);
 
   const headerHtml = D.pdfHeader(branding);

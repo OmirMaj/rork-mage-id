@@ -37,7 +37,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { invoiceOutstanding } from '../utils/invoiceBilling';
+import { invoiceOutstanding, pendingRetentionHeld } from '../utils/invoiceBilling';
 import { estimateNetAfterFees } from '../utils/platformFees';
 
 // Declared locally rather than pulled from `bun-types`: this repo has no bun
@@ -110,9 +110,9 @@ if (from < 0 || to < 0) {
 const js = new Bun.Transpiler({ loader: 'ts' })
   .transformSync(screenSrc.slice(from, to).replace(/^export /gm, ''));
 const feed = new Function(
-  'invoiceOutstanding', 'estimateNetAfterFees',
+  'invoiceOutstanding', 'pendingRetentionHeld', 'estimateNetAfterFees',
   `${js}\nreturn { derivePayments, summarizePayments, isSettledRow, isPendingRow, isMageProcessed, feedProviderFor };`,
-)(invoiceOutstanding, estimateNetAfterFees) as Feed;
+)(invoiceOutstanding, pendingRetentionHeld, estimateNetAfterFees) as Feed;
 
 const {
   derivePayments, summarizePayments, isSettledRow, isPendingRow, isMageProcessed, feedProviderFor,

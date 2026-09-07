@@ -179,10 +179,21 @@ async function moneyByProject(userId: string): Promise<Map<string, Record<string
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
-/** Retention-net balance still owed on an invoice row — never negative. */
+/**
+ * Retention-net balance still owed on an invoice row — never negative.
+ *
+ * MONEY-05: `subtotal` and `retention_percent` are passed through UNCOERCED so
+ * paymentMath.effectiveRetention can tell "the column is NULL" from "the column
+ * is 0". `num()` collapses both to 0, which would send every row down the
+ * stored-`retention_amount` fallback — the pre-MISS-04 tax-inclusive figure —
+ * and hand the assistant a different balance from the one on the invoice screen.
+ * The two selects that feed this function must fetch both columns.
+ */
 function invoiceBalance(inv: Record<string, unknown>): number {
   const settlement: SettlementInput = {
     total_due: num(inv.total_due),
+    subtotal: inv.subtotal as SettlementInput["subtotal"],
+    retention_percent: inv.retention_percent as SettlementInput["retention_percent"],
     retention_amount: num(inv.retention_amount),
     retention_released: num(inv.retention_released),
   };
@@ -254,7 +265,7 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
   switch (name) {
     case "financial_summary": {
       const invoices = await rest<Record<string, unknown>>(
-        `invoices?user_id=eq.${userId}&select=total_due,amount_paid,status,due_date,retention_amount,retention_released`,
+        `invoices?user_id=eq.${userId}&select=total_due,amount_paid,status,due_date,subtotal,retention_percent,retention_amount,retention_released`,
       );
       let invoiced = 0, paid = 0, outstanding = 0, overdue = 0, overdueCount = 0;
       const t = today();
@@ -340,7 +351,7 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
     case "list_overdue": {
       const t = today();
       const invoices = await rest<Record<string, unknown>>(
-        `invoices?user_id=eq.${userId}&select=number,total_due,amount_paid,status,due_date,project_id,retention_amount,retention_released&order=due_date.asc`,
+        `invoices?user_id=eq.${userId}&select=number,total_due,amount_paid,status,due_date,project_id,subtotal,retention_percent,retention_amount,retention_released&order=due_date.asc`,
       );
       const names = await projectNameMap(userId);
       const overdueInv = invoices.filter((inv) => {

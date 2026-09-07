@@ -13,7 +13,7 @@ import type {
   SavedAIAPayApp, PortalState,
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
-import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { roundCents } from '@/utils/aiaBilling';
 import {
   getEffectiveInvoiceStatus, getOutstandingBalance, getInvoicedToDate,
@@ -705,7 +705,12 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         const amountPaid = inv.amountPaid ?? 0;
         // MONEY-F5: the balance the client sees is net of held retention.
         const balance = invoiceOutstanding(inv);
-        const retentionHeld = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+        // MONEY-05: the client's drawer shows the withholding the shared helper
+        // computes (percentage of work value), never the stored column — the
+        // portal was showing a homeowner $4,063.23 held on an invoice whose Pay
+        // button charged a balance computed on $3,779.75.
+        const retentionWithheld = effectiveRetentionHeld(inv);
+        const retentionHeld = pendingRetentionHeld(inv);
         // MONEY-F2 (client half): a Stripe Payment Link charges the ONE amount
         // it was minted for, every time it is opened. After a net-of-retention
         // payment the old link would charge the pre-payment figure again, so
@@ -740,7 +745,12 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           issueDate: inv.issueDate,
           lineItems,
           retentionPercent: inv.retentionPercent,
-          retentionAmount: inv.retentionAmount,
+          // The EFFECTIVE withholding, not the stored column. Older portal
+          // builds fall back to `retentionAmount − retentionReleased` when the
+          // snapshot carries no `retentionHeld`, and shipping the stale stored
+          // figure here would reintroduce the disagreement on exactly the
+          // clients running an old cached page (MONEY-05).
+          retentionAmount: retentionWithheld > 0 ? retentionWithheld : undefined,
           retentionReleased: inv.retentionReleased,
           // The status the app shows the GC — so the client's pill agrees
           // with it (overdue past due; paid once the net balance is covered;

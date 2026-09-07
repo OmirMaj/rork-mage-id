@@ -18,7 +18,7 @@ import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { estimateNetAfterFees, platformFeeLabel, STRIPE_CARD_PROCESSING } from '@/utils/platformFees';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
@@ -189,7 +189,10 @@ export function derivePayments(
     const project = projects.find(p => p.id === inv.projectId);
     if (!project) continue;
     const clientName = displayClientName(project, contacts);
-    const retentionHeld = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+    // MONEY-05: the withholding through the shared helper, so the Payments
+    // feed's "retention held" and its balance row are the same total_due split
+    // two ways (and match the invoice screen the row links to).
+    const retentionHeld = pendingRetentionHeld(inv);
 
     // 1. Recorded ledger entries.
     for (const entry of (inv.payments ?? []) as LedgerLike[]) {

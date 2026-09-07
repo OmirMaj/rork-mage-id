@@ -23,6 +23,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  effectiveRetention,
   netPayable,
   retentionPending,
   settlementStatus,
@@ -33,6 +34,9 @@ import {
   toCents2,
   type LedgerEntry,
 } from '../supabase/functions/_shared/paymentMath';
+// MONEY-05: the CLIENT half of the same rule, imported so the two can be
+// checked against each other rather than against a hand-copied constant.
+import { effectiveRetentionHeld as clientEffectiveRetentionHeld } from '../utils/invoiceBilling';
 
 // Declared locally rather than pulled from `bun-types`: this repo has no bun
 // type package installed, and without this `npx tsc --noEmit` fails with
@@ -233,8 +237,98 @@ const pay = (id: string, amount: number): LedgerEntry => ({ id, amount, method: 
   const grossReceipt = /opts\.totalDue\s*-\s*opts\.newAmountPaid/.test(src);
   eq('the receipt no longer subtracts amount_paid from the GROSS total_due', grossReceipt, false);
   eq('ReceiptOpts carries the retention columns INVOICE_COLS already reads',
-    /interface ReceiptOpts[\s\S]{0,600}?retentionAmount:\s*number;[\s\S]{0,120}?retentionReleased:\s*number;/.test(src),
+    /interface ReceiptOpts[\s\S]{0,900}?retentionAmount:\s*number;[\s\S]{0,120}?retentionReleased:\s*number;/.test(src),
     true);
+
+  // ── MONEY-05 · the webhook must READ the basis, not just be able to ────────
+  // effectiveRetention() silently falls back to the stored retention_amount
+  // when subtotal / retention_percent are absent from the row. That fallback is
+  // correct for rows that genuinely have no percentage — and catastrophic if
+  // the SELECT simply forgot the columns, because every legacy invoice would
+  // then be charged on the tax-inclusive basis with nothing to show for it.
+  // A column list is not type-checked, so pin it in source.
+  const invoiceCols = src.match(/const INVOICE_COLS = "([^"]+)"/)?.[1] ?? '';
+  eq('INVOICE_COLS selects the work value the withholding is recomputed from',
+    invoiceCols.includes('subtotal'), true);
+  eq('…and the contract percentage', invoiceCols.includes('retention_percent'), true);
+  eq('…alongside the stored columns it now only falls back to',
+    invoiceCols.includes('retention_amount') && invoiceCols.includes('retention_released'), true);
+  eq('the InvoiceRow type declares both, so a dropped column is a type error too',
+    /interface InvoiceRow[\s\S]{0,600}?subtotal: number \| string \| null;[\s\S]{0,200}?retention_percent: number \| string \| null;/.test(src),
+    true);
+  eq('creditInvoice takes the EFFECTIVE withholding, not the raw column',
+    /const retentionAmount = effectiveRetention\(inv\);/.test(src)
+    && !/const retentionAmount = Number\(inv\.retention_amount/.test(src),
+    true);
+}
+
+// ── MONEY-05 · effectiveRetention — the server half of the one rule ─────────
+// Must agree, to the cent, with utils/invoiceBilling.effectiveRetentionHeld.
+// This file decides what Stripe collects; the client file decides what the GC
+// and the client are SHOWN. When they disagreed, the founder's Houston client
+// was quoted $77,484.88 on the invoice and would have been settled against
+// $77,201.39 by the webhook.
+{
+  console.log('\neffectiveRetention (MONEY-05):');
+  // The production row, verbatim (invoices.d8f3e7a8… — read-only SELECT, 2026-09-07).
+  const houstonRow = {
+    total_due: 81264.625,
+    subtotal: 75595,
+    retention_percent: 5,
+    retention_amount: 4063.2312500000003,
+    retention_released: 0,
+  };
+  close('Houston #1 withholds 5% of the WORK value', effectiveRetention(houstonRow), 3779.75);
+  close('…not the 4,063.23 the column stores', retentionPending(houstonRow), 3779.75);
+  close('…so the net collectible is 77,484.88', netPayable(houstonRow), 81264.625 - 3779.75);
+  eq('…and a client who pays 77,484.88 is PAID',
+    settlementStatus('sent', 77484.88, houstonRow), 'paid');
+  eq('…while the old stored-basis figure leaves the invoice open',
+    settlementStatus('sent', 77201.39, houstonRow), 'partially_paid');
+
+  // PostgREST hands NUMERIC back as a string. A string percentage must still
+  // take the derived branch, or every real webhook payload falls back.
+  close('NUMERIC-as-string subtotal and percent still derive',
+    effectiveRetention({ subtotal: '75595', retention_percent: '5', retention_amount: '4063.23' }), 3779.75);
+
+  // The fallback branch, and the three edges it exists for.
+  close('no percentage → the stored column stands (nothing to recompute from)',
+    effectiveRetention({ subtotal: 10000, retention_amount: 500 }), 500);
+  close('a NULL percentage is not a zero percentage',
+    effectiveRetention({ subtotal: 10000, retention_percent: null, retention_amount: 500 }), 500);
+  close('percent 0 with a stored amount → the stored column stands',
+    effectiveRetention({ subtotal: 10000, retention_percent: 0, retention_amount: 500 }), 500);
+  close('no subtotal → the stored column stands',
+    effectiveRetention({ retention_percent: 5, retention_amount: 500 }), 500);
+  close('a non-numeric subtotal falls back rather than poisoning the charge',
+    effectiveRetention({ subtotal: 'not a number', retention_percent: 5, retention_amount: 500 }), 500);
+  close('nothing at all → nothing withheld', effectiveRetention({}), 0);
+  close('a credit-memo subtotal withholds nothing',
+    effectiveRetention({ subtotal: -5000, retention_percent: 5 }), 0);
+  close('a percentage above 100 is clamped', effectiveRetention({ subtotal: 1000, retention_percent: 500 }), 1000);
+  close('a release against the OLD basis leaves nothing pending, never a negative',
+    retentionPending({ ...houstonRow, retention_released: 4063.23 }), 0);
+  close('…and the whole total_due becomes collectible',
+    netPayable({ ...houstonRow, retention_released: 4063.23 }), 81264.625);
+  close('a partial release nets off the WORK-basis figure',
+    retentionPending({ ...houstonRow, retention_released: 1000 }), 2779.75);
+
+  // The two implementations of one rule, checked against each other rather than
+  // against a hand-copied constant — a drift between them is the whole bug class.
+  const clientSide = [
+    { subtotal: 75595, retentionPercent: 5, retentionAmount: 4063.2312500000003, retentionReleased: 0 },
+    { subtotal: 20000, retentionPercent: 10, retentionAmount: 2150, retentionReleased: 500 },
+    { subtotal: 10000, retentionAmount: 500 },
+    { subtotal: 10000, retentionPercent: 0, retentionAmount: 500 },
+    { subtotal: 0, retentionPercent: 5 },
+  ];
+  const drift = clientSide.filter(c => Math.abs(
+    effectiveRetention({
+      subtotal: c.subtotal, retention_percent: c.retentionPercent ?? null,
+      retention_amount: c.retentionAmount ?? null, retention_released: c.retentionReleased ?? null,
+    }) - clientEffectiveRetentionHeld(c),
+  ) > 0.005);
+  eq('server effectiveRetention === client effectiveRetentionHeld on every case', drift, []);
 }
 
 console.log(`\nvalidate-stripe-webhook-math: ${pass} passed, ${fail} failed`);

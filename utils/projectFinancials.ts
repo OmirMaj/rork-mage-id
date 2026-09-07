@@ -9,7 +9,7 @@
 
 import type { Project, ChangeOrder, Invoice, InvoiceStatus } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling';
+import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
 /**
  * Total contract value = base estimate + approved change orders.
@@ -86,9 +86,18 @@ export function getRetentionHeld(invoices: Invoice[] | null | undefined): number
     .reduce((sum, inv) => sum + pendingRetentionOf(inv), 0);
 }
 
-/** Retention currently held on one invoice — retentionAmount less what has been released. */
-export function pendingRetentionOf(invoice: Pick<Invoice, 'retentionAmount' | 'retentionReleased'>): number {
-  return Math.max(0, (invoice.retentionAmount ?? 0) - (invoice.retentionReleased ?? 0));
+/**
+ * Retention currently held on one invoice, less what has been released.
+ *
+ * MONEY-05: the withholding comes from `pendingRetentionHeld` — percentage of
+ * work value, stored column only as a fallback — so this figure and the one
+ * `invoiceOutstanding` nets out are always two halves of the same total. When
+ * they were computed differently, held + outstanding did not foot to total_due.
+ */
+export function pendingRetentionOf(
+  invoice: Pick<Invoice, 'subtotal' | 'retentionPercent' | 'retentionAmount' | 'retentionReleased'>,
+): number {
+  return pendingRetentionHeld(invoice);
 }
 
 /**
@@ -97,7 +106,9 @@ export function pendingRetentionOf(invoice: Pick<Invoice, 'retentionAmount' | 'r
  * which is exactly the state getEffectiveInvoiceStatus() no longer hides
  * behind 'partially_paid'.
  */
-export function retentionOpen(invoice: Pick<Invoice, 'retentionAmount' | 'retentionReleased'>): boolean {
+export function retentionOpen(
+  invoice: Pick<Invoice, 'subtotal' | 'retentionPercent' | 'retentionAmount' | 'retentionReleased'>,
+): boolean {
   return pendingRetentionOf(invoice) > 0;
 }
 

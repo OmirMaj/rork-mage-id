@@ -286,6 +286,14 @@ export interface ReminderEligibilityInput {
    */
   retentionAmount?: number | null;
   retentionReleased?: number | null;
+  /**
+   * MONEY-05: the work value and the contract percentage the withholding is
+   * actually computed from. Without them invoiceOutstanding falls back to the
+   * stored `retentionAmount`, and a legacy row's tax-inclusive figure would
+   * decide both whether to chase a client and the amount the notice demands.
+   */
+  subtotal?: number | null;
+  retentionPercent?: number | null;
   /** ms epoch. Callers parse the ISO string; NaN is handled as bad_due_date. */
   dueMs: number;
   dunningStage?: number | null;
@@ -330,6 +338,8 @@ export function reminderEligibility(input: ReminderEligibilityInput): ReminderEl
   const outstanding = invoiceOutstanding({
     totalDue: input.totalDue ?? 0,
     amountPaid: input.amountPaid ?? 0,
+    subtotal: input.subtotal ?? undefined,
+    retentionPercent: input.retentionPercent ?? undefined,
     retentionAmount: input.retentionAmount ?? 0,
     retentionReleased: input.retentionReleased ?? 0,
   });

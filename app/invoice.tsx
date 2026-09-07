@@ -73,6 +73,7 @@ import {
   invoiceIsSettled,
   roundCents,
   retainageOnWorkValue,
+  pendingRetentionHeld,
   taxBasisRetentionOverhold,
 } from '@/utils/invoiceBilling';
 import { billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
@@ -367,14 +368,27 @@ function InvoiceInner() {
     [retentionBasis, retentionPctValue],
   );
   const retentionReleased = existingInvoice?.retentionReleased ?? 0;
-  const retentionPending = roundCents(Math.max(0, retentionAmount - retentionReleased));
+  // MONEY-05: through the shared helper, so the cap on "Release Retention"
+  // is the same withholding every other screen reports for this invoice.
+  const retentionPending = pendingRetentionHeld({
+    subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,
+  });
   // MONEY-F5: ONE formula for what the client owes (utils/invoiceBilling).
   // netPayable = retention-net total before payments; balanceDue = collectible
   // today, never negative (an overpayment reads as $0 due, not −$X).
   // Rounded here because `amountPaid` / `retentionReleased` arrive from the
   // server and pre-fix rows carry sub-cent values (MISS-04).
-  const netPayable = roundCents(netBalanceDue({ totalDue, retentionAmount, retentionReleased }));
-  const balanceDue = roundCents(netBalanceDue({ totalDue, amountPaid, retentionAmount, retentionReleased }));
+  // MONEY-05: `subtotal` + `retentionPercent` are passed so netBalanceDue runs
+  // the SAME effectiveRetentionHeld rule every other surface runs, rather than
+  // being handed a figure this screen computed privately. On a live edit the two
+  // agree by construction; on a legacy row they are what makes Summary, A/R, the
+  // portal and the webhook report the number printed here.
+  const netPayable = roundCents(netBalanceDue({
+    totalDue, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,
+  }));
+  const balanceDue = roundCents(netBalanceDue({
+    totalDue, amountPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,
+  }));
 
   // MISS-04: an invoice saved before the basis fix stored retainage computed on
   // the tax-INCLUSIVE total. The Retention screen, Payments, the portal and the
@@ -963,10 +977,14 @@ function InvoiceInner() {
     const newPaid = amountPaid + amt;
     // MONEY-F5: settled = the retention-net balance is covered. Held retention
     // no longer parks an invoice at "partially paid" until closeout.
-    const newStatus = invoiceIsSettled({ totalDue, amountPaid: newPaid, retentionAmount, retentionReleased })
+    const newStatus = invoiceIsSettled({
+      totalDue, amountPaid: newPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,
+    })
       ? 'paid' as const
       : 'partially_paid' as const;
-    const newBalance = netBalanceDue({ totalDue, amountPaid: newPaid, retentionAmount, retentionReleased });
+    const newBalance = netBalanceDue({
+      totalDue, amountPaid: newPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,
+    });
 
     updateInvoice(existingInvoice.id, {
       amountPaid: newPaid,
@@ -1002,7 +1020,7 @@ function InvoiceInner() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Payment Recorded', `${formatCurrency(amt)} payment recorded. Status: ${newStatus.replace('_', ' ')}`);
     router.back();
-  }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, retentionAmount, retentionReleased, updateInvoice, mintPayLinkFor, router]);
+  }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, subtotal, retentionPctValue, retentionAmount, retentionReleased, updateInvoice, mintPayLinkFor, router]);
 
   // Stripe payment link: generate once per invoice (or regenerate if the link
   // is lost/stale). We persist `payLinkUrl` + `payLinkId` on the invoice so the
@@ -1141,6 +1159,10 @@ function InvoiceInner() {
       totalDue: existingInvoice.totalDue ?? 0,
       amountPaid: existingInvoice.amountPaid ?? 0,
       // MONEY-F5: eligibility is net of held retention (see billingFlowCore).
+      // MONEY-05: from the STORED row's own basis, so this screen's "a reminder
+      // is/isn't eligible" line agrees with what the dunning cron will compute.
+      subtotal: existingInvoice.subtotal,
+      retentionPercent: existingInvoice.retentionPercent,
       retentionAmount: existingInvoice.retentionAmount ?? 0,
       retentionReleased: existingInvoice.retentionReleased ?? 0,
       dueMs: existingInvoice.dueDate ? new Date(existingInvoice.dueDate).getTime() : NaN,
@@ -1197,9 +1219,12 @@ function InvoiceInner() {
   // this is safe on a locked invoice — which is the only kind the banner can
   // realistically appear on, since every invoice past draft hides the save bar.
   //
-  // Without this the correction is compute-only: the Retention screen would keep
-  // summing the STORED $4,063.23 while this screen capped a release at the live
-  // $3,779.75, stranding $283.48 as "pending" with no way to release it.
+  // MONEY-05 changed what this button is FOR. It used to be the only way to make
+  // the rest of the app agree with this screen; now `effectiveRetentionHeld`
+  // makes every reader agree on read, so no money moves when it is pressed. What
+  // it still does — and the only thing it claims to do — is bring the saved
+  // column into line for everything that reads the raw record: the CSV export,
+  // the closeout packet's invoice register, an accountant querying the table.
   const handleCorrectRetentionBasis = useCallback(() => {
     if (!existingInvoice || !legacyTaxBasisRetention) return;
     const { corrected, overheld } = legacyTaxBasisRetention;
@@ -1212,10 +1237,11 @@ function InvoiceInner() {
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      'Retention Corrected',
-      `Now holding ${formatCurrency(corrected)} — ${storedPct}% of the work completed. `
-      + `${formatCurrency(overheld)} was held against sales tax; it is collectible now, `
-      + `on this invoice, the Retention screen and Payments.`,
+      'Saved Figure Updated',
+      `This invoice now records ${formatCurrency(corrected)} held — ${storedPct}% of the work completed. `
+      + `The ${formatCurrency(overheld)} that was recorded against sales tax was never being charged: `
+      + `this screen, the Retention screen, Payments, the client portal, the pay link and your `
+      + `exports were already using the corrected figure. The stored record now matches them.`,
     );
   }, [existingInvoice, legacyTaxBasisRetention, updateInvoice]);
 
@@ -1241,7 +1267,9 @@ function InvoiceInner() {
       note: retentionReleaseNote.trim() || undefined,
     };
     const newReleased = retentionReleased + amt;
-    const newBalance = netBalanceDue({ totalDue, amountPaid, retentionAmount, retentionReleased: newReleased });
+    const newBalance = netBalanceDue({
+      totalDue, amountPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased: newReleased,
+    });
     updateInvoice(existingInvoice.id, {
       retentionReleased: newReleased,
       retentionReleases: [...(existingInvoice.retentionReleases || []), release],
@@ -1284,7 +1312,7 @@ function InvoiceInner() {
     setRetentionReleaseNote('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Retention Released', `${formatCurrency(amt)} is now collectible. Regenerate the pay link or send the invoice to bill it; record the payment when it arrives.`);
-  }, [existingInvoice, retentionReleaseAmount, retentionReleaseNote, retentionPending, retentionReleased, totalDue, amountPaid, retentionAmount, updateInvoice, mintPayLinkFor]);
+  }, [existingInvoice, retentionReleaseAmount, retentionReleaseNote, retentionPending, retentionReleased, totalDue, amountPaid, subtotal, retentionPctValue, retentionAmount, updateInvoice, mintPayLinkFor]);
 
   // Use the effective status so an unpaid-but-past-due invoice flips to "overdue"
   // in the UI without anyone having to run a cron to mutate the record, and a
@@ -1578,13 +1606,23 @@ function InvoiceInner() {
                   {retentionPctValue}% of {formatCurrency(retentionBasis)} completed work
                   {taxAmount > 0 ? ' · sales tax is not retained' : ''}
                 </Text>
+                {/* MONEY-05: the money already agrees. Every screen and the
+                    Stripe webhook now compute the withholding from the work
+                    value, so this card is NOT "your balance is wrong" — the
+                    balance above is already the corrected one. What is still
+                    wrong is the saved column, which anything reading the raw
+                    record (the CSV export, the closeout packet, an accountant
+                    pulling the table) still sees. The copy says exactly that:
+                    a bookkeeping repair, not a change to what is owed. */}
                 {legacyTaxBasisRetention && (
                   <View style={styles.retentionLegacyCard} testID="retention-basis-legacy">
                     <Text style={styles.retentionBasisWarn}>
-                      This invoice is stored holding {formatCurrency(legacyTaxBasisRetention.stored)} —
-                      {' '}{existingInvoice?.retentionPercent ?? 0}% of the tax-inclusive total, which took
-                      {' '}{formatCurrency(legacyTaxBasisRetention.overheld)} out of sales tax you remit either way.
-                      The Retention screen, Payments and the client portal read that stored figure.
+                      Saved on this record: {formatCurrency(legacyTaxBasisRetention.stored)} —
+                      {' '}{existingInvoice?.retentionPercent ?? 0}% of the tax-inclusive total, which held
+                      {' '}{formatCurrency(legacyTaxBasisRetention.overheld)} against sales tax you remit either way.
+                      Every screen, your PDFs and your exports already use the
+                      {' '}{formatCurrency(legacyTaxBasisRetention.corrected)} above, so nothing you or
+                      your client is charged changes. This only updates the stored record to match.
                     </Text>
                     <TouchableOpacity
                       style={styles.retentionFixBtn}
@@ -1593,7 +1631,7 @@ function InvoiceInner() {
                       testID="retention-basis-fix-btn"
                     >
                       <Text style={styles.retentionFixBtnText}>
-                        Correct it to {formatCurrency(legacyTaxBasisRetention.corrected)}
+                        Update the saved figure to {formatCurrency(legacyTaxBasisRetention.corrected)}
                       </Text>
                     </TouchableOpacity>
                   </View>

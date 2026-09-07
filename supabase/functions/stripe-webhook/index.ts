@@ -58,6 +58,7 @@ import { wrapEmailHtml, resendSend } from "../_shared/email.ts";
 import {
   applyChargeRefund,
   applyLedgerEntry,
+  effectiveRetention,
   ledgerFrom,
   netPayable,
   retentionPending,
@@ -421,7 +422,12 @@ async function handleAccountUpdated(
   return { ok: true };
 }
 
-const INVOICE_COLS = "id, total_due, amount_paid, payments, status, retention_amount, retention_released, pay_link_id";
+// MONEY-05: `subtotal` and `retention_percent` are NOT optional here. They are
+// what paymentMath.effectiveRetention recomputes the withholding from; drop
+// either and every row silently falls back to the stored `retention_amount`,
+// which on pre-MISS-04 invoices is retainage taken on the tax-inclusive total.
+// That is the difference between charging a client $77,484.88 and $77,201.39.
+const INVOICE_COLS = "id, total_due, amount_paid, payments, status, subtotal, retention_percent, retention_amount, retention_released, pay_link_id";
 
 interface InvoiceRow {
   id: string;
@@ -429,6 +435,8 @@ interface InvoiceRow {
   amount_paid: number | string | null;
   payments: unknown;
   status: string | null;
+  subtotal: number | string | null;
+  retention_percent: number | string | null;
   retention_amount: number | string | null;
   retention_released: number | string | null;
   pay_link_id: string | null;
@@ -499,7 +507,11 @@ async function creditInvoice(
   const totalDue = Number(inv.total_due ?? 0);
   // Carried through to the receipt (MONEY-02). PostgREST hands NUMERIC back as
   // a string, so coerce once here rather than in the email builder.
-  const retentionAmount = Number(inv.retention_amount ?? 0) || 0;
+  // MONEY-05: the EFFECTIVE withholding (percent of work value), not the stored
+  // column, so the receipt's "Balance remaining" is the same number
+  // settlementStatus judged paid/partial on one line below — and the same number
+  // the app, the portal and the A/R aging show for this invoice.
+  const retentionAmount = effectiveRetention(inv);
   const retentionReleased = Number(inv.retention_released ?? 0) || 0;
   const entry: LedgerEntry = {
     id: `stripe-${session.id}`,
@@ -829,6 +841,12 @@ interface ReceiptOpts {
 interface ReceiptBalanceInput {
   totalDue: number;
   newAmountPaid: number;
+  /**
+   * MONEY-05: the EFFECTIVE withholding creditInvoice already resolved through
+   * paymentMath.effectiveRetention — never the raw `retention_amount` column.
+   * The row rebuilt below therefore carries no subtotal/percent and correctly
+   * takes effectiveRetention's fallback branch, which returns this figure back.
+   */
   retentionAmount: number;
   retentionReleased: number;
 }

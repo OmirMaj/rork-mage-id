@@ -153,15 +153,37 @@ eq('forecast income equals netBalanceDue — one formula, not two',
     `offending: ${selects.filter(x => !x.includes('retention_amount')).join(' | ') || 'none'}`,
   );
 
-  // NaN guard: if either column were ever missing, Number(null ?? 0) must still
-  // be 0 rather than NaN, or `outstanding` becomes NaN and every comparison
-  // below it is false — the invoice would be silently skipped forever.
+  // MONEY-05 (runtime audit 2026-09-07). The retention math is no longer written
+  // out here — it is _shared/paymentMath, the same module the Stripe webhook
+  // runs, which recomputes the withholding as retention_percent x subtotal and
+  // falls back to the stored column only when there is nothing to recompute
+  // from. The hand-written subtraction that used to sit in this file trusted
+  // `retention_amount`, which on rows written before the MISS-04 basis fix is
+  // retainage taken on the TAX-INCLUSIVE total: the notice demanded $77,201.39
+  // on the founder's Houston invoice while the app, the portal and the Stripe
+  // pay link all said $77,484.88. A dunning notice is the one place the client
+  // reads a number and pays it.
   check(
-    'the retention math is null-safe (?? 0 on both columns)',
-    /Number\(invoice\.retention_amount \?\? 0\)/.test(dunning) &&
-      /Number\(invoice\.retention_released \?\? 0\)/.test(dunning),
-    'Without ?? 0 a NULL column yields NaN, outstanding becomes NaN, and the ' +
-    'invoice is skipped rather than dunned — a silent stop, not a loud one.',
+    'dunning takes the withholding from _shared/paymentMath, not its own arithmetic',
+    /from '\.\.\/_shared\/paymentMath\.ts'/.test(dunning) &&
+      /const\s+netPayable\s*=\s*netPayableOf\(invoice\)/.test(dunning),
+    'invoice-dunning must not re-derive retention. netPayable() in ' +
+    'supabase/functions/_shared/paymentMath.ts is the one rule, shared with the ' +
+    'Stripe webhook and mirrored by utils/invoiceBilling on the client.',
+  );
+  check(
+    '…and no hand-written retention subtraction survives in the file',
+    !/Number\(invoice\.retention_amount[^)]*\)\s*-\s*Number\(invoice\.retention_released/.test(dunning),
+    'A second copy of the arithmetic is a second place to forget the basis.',
+  );
+  check(
+    'every invoice select also fetches the basis the withholding is recomputed from',
+    selects.length > 0 && selects.every(sel =>
+      sel.includes('subtotal') && sel.includes('retention_percent')),
+    'Omit subtotal or retention_percent and effectiveRetention() silently falls ' +
+    'back to the stored retention_amount for every row — the exact figure this ' +
+    'fix exists to stop trusting. Offending: ' +
+    (selects.filter(x => !(x.includes('subtotal') && x.includes('retention_percent'))).join(' | ') || 'none'),
   );
 }
 

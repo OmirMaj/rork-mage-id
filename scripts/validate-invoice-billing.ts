@@ -12,6 +12,8 @@ import {
   roundCents,
   retainageOnWorkValue,
   taxBasisRetentionOverhold,
+  effectiveRetentionHeld,
+  pendingRetentionHeld,
 } from '../utils/invoiceBilling';
 import {
   retainagePercentForInvoice,
@@ -381,8 +383,23 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     // MISS-05 at the writer: a deliberate 0% must persist AS 0.
     eq('a 0% retention is persisted as 0, never erased to undefined',
       /retentionPercent: retentionPctValue \|\| undefined/.test(code), false);
+    // Line-anchored: only the three PERSIST sites (buildNewInvoice, save, send)
+    // write `retentionPercent` as a standalone field. MONEY-05 added the same
+    // key inline to the READ-time netBalanceDue / invoiceIsSettled calls, which
+    // are not write sites and must not be counted here.
     eq('…at all three write sites',
-      (code.match(/retentionPercent: retentionPctValue,/g) ?? []).length, 3);
+      (code.match(/^\s+retentionPercent: retentionPctValue,$/gm) ?? []).length, 3);
+    // MONEY-05: the screen's own balance must run the SHARED rule, not a figure
+    // it computed privately — that divergence is the whole defect.
+    eq('the screen hands netBalanceDue the basis, so it runs effectiveRetentionHeld',
+      /netBalanceDue\(\{\s*\n?\s*totalDue, amountPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,/.test(code), true);
+    eq('…and the release cap comes from the shared pendingRetentionHeld',
+      /const retentionPending = pendingRetentionHeld\(\{/.test(code), true);
+    // The "Correct it" button no longer changes any money — every surface
+    // already agrees — so its copy must not promise that it does.
+    eq('the repair affordance is described as a bookkeeping fix, not a money change',
+      /Update the saved figure to \{formatCurrency\(legacyTaxBasisRetention\.corrected\)\}/.test(code)
+      && /nothing you or\s*\n?\s*your client is charged changes/.test(code), true);
   }
 }
 
@@ -544,6 +561,66 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   // pending forever while the invoice screen hid the release button.
   close('…and the repaired stored amount is exactly what a full release can clear',
     roundCents((houston?.corrected ?? 0) - retainageOnWorkValue(75_595, 5)), 0);
+}
+
+// ── MONEY-05 — the stored column never sets the amount a client is asked for ─
+//
+// MISS-04 fixed the BASIS the editor computes retainage on; every shared reader
+// kept trusting the STORED `retentionAmount`, so the founder's live invoice #1
+// read $77,484.88 on the invoice screen and the Stripe pay-link row while
+// Summary's NEEDS YOU line, the A/R aging, cash flow, the portal and the webhook
+// all read $77,201.39. The row below is production, verbatim (read-only SELECT,
+// 2026-09-07): subtotal 75,595 / tax 5,669.625 / total_due 81,264.625 / 5% /
+// stored retention 4,063.2312500000003 — a stored figure that is exactly 5% of
+// the TAX-INCLUSIVE total.
+{
+  const houston: Invoice = {
+    id: 'd8f3e7a8', number: 1, projectId: 'phone-booth', type: 'progress',
+    issueDate: '2026-08-01T12:00:00.000Z', dueDate: '2026-08-31T12:00:00.000Z',
+    paymentTerms: 'net_30', notes: '', lineItems: [],
+    subtotal: 75_595, taxRate: 7.5, taxAmount: 5_669.625, totalDue: 81_264.625,
+    amountPaid: 0, status: 'sent', payments: [],
+    retentionPercent: 5, retentionAmount: 4_063.2312500000003, retentionReleased: 0,
+    createdAt: '2026-08-01', updatedAt: '2026-08-01',
+  } as unknown as Invoice;
+
+  close('the withholding is 5% of the work value', effectiveRetentionHeld(houston), 3_779.75);
+  close('…and nothing has been released, so that is what is held',
+    pendingRetentionHeld(houston), 3_779.75);
+  close('the stored column is NOT what the client is asked for',
+    netBalanceDue(houston), 77_484.88);
+  close('…and the two halves foot to the cent-rounded total',
+    roundCents(pendingRetentionHeld(houston) + netBalanceDue(houston)), 81_264.63);
+  eq('the invoice is not settled at zero paid', invoiceIsSettled(houston), false);
+  eq('…paying the $77,484.88 the screen shows settles it',
+    invoiceIsSettled({ ...houston, amountPaid: 77_484.88 }), true);
+  eq('…paying the old stored-basis $77,201.39 does not',
+    invoiceIsSettled({ ...houston, amountPaid: 77_201.39 }), false);
+
+  // The pay application for the same job has always used the work basis; now
+  // the invoice agrees with it, which is what MISS-04 set out to achieve and
+  // MONEY-05 finished.
+  close('the G702 certificate withholds the same figure',
+    retainageOnWorkValue(75_595, retainagePercentForInvoice(houston)), 3_779.75);
+
+  // The WIP report a banker reads must hold the same figure — it is a real
+  // reader, not a re-implementation.
+  const project = {
+    id: 'phone-booth', name: 'Houston Phone Booth Ad', status: 'active',
+    startDate: '2026-07-01', schedule: { tasks: [] },
+  } as unknown as Project;
+  const wip = computeWIPReport([project], [houston], [], [] as Commitment[]);
+  close('utils/financialReports WIP retainage holds $3,779.75',
+    wip.rows[0]?.retainageHeld ?? -1, 3_779.75, 0.005);
+
+  // And the banner that offers to repair the ROW still fires — the money agrees
+  // now, but the saved column is still on the old basis until someone fixes it.
+  const flagged = taxBasisRetentionOverhold(houston);
+  eq('the row is still flagged as stored on the tax basis', flagged !== null, true);
+  close('…and the repair writes exactly what every reader already computes',
+    flagged?.corrected ?? -1, effectiveRetentionHeld(houston));
+  eq('…so applying it changes no money anywhere',
+    netBalanceDue({ ...houston, retentionAmount: flagged?.corrected }), netBalanceDue(houston));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

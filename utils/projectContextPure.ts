@@ -516,6 +516,9 @@ export interface InvoiceSettlementInput {
   status?: string;
   totalDue?: number;
   amountPaid?: number;
+  /** MONEY-05: the basis invoiceIsSettled recomputes the withholding from. */
+  subtotal?: number;
+  retentionPercent?: number;
   retentionAmount?: number;
   retentionReleased?: number;
 }
@@ -535,6 +538,7 @@ export function shouldFlipInvoiceToPaid(inv: InvoiceSettlementInput): boolean {
   if ((inv.totalDue ?? 0) <= 0) return false;
   return invoiceIsSettled({
     totalDue: inv.totalDue ?? 0, amountPaid: inv.amountPaid,
+    subtotal: inv.subtotal, retentionPercent: inv.retentionPercent,
     retentionAmount: inv.retentionAmount, retentionReleased: inv.retentionReleased,
   });
 }

@@ -54,6 +54,10 @@ import { wrapEmailHtml, resendSend, emailButton, fmtMoney, isEmailUnsubscribed }
 import { portalUrlFor } from '../_shared/portalLinks.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
+// MONEY-05: the ONE server-side retainage rule (percent of work value, stored
+// column only as a fallback). This function prints the amount it demands, so a
+// second copy of the arithmetic here is a second place to demand the wrong one.
+import { netPayable as netPayableOf } from '../_shared/paymentMath.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -97,6 +101,8 @@ interface InvoiceRow {
   due_date: string;
   total_due: number | string;
   amount_paid: number | string | null;
+  subtotal: number | string | null;
+  retention_percent: number | string | null;
   retention_amount: number | string | null;
   retention_released: number | string | null;
   status: string;
@@ -313,11 +319,15 @@ async function processInvoice(
   // Stripe pay link and the cash-flow forecast already use. The pay link was
   // charging net while dunning chased gross — the two disagreed about the same
   // invoice, and only the client saw both.
-  const retentionPending = Math.max(
-    0,
-    Number(invoice.retention_amount ?? 0) - Number(invoice.retention_released ?? 0),
-  );
-  const netPayable = Math.max(0, Number(invoice.total_due) - retentionPending);
+  //
+  // MONEY-05: the withholding itself comes from _shared/paymentMath, which
+  // recomputes it as retention_percent x subtotal and falls back to the stored
+  // column only when there is nothing to recompute from. Rows written before the
+  // MISS-04 basis fix store retainage taken on the TAX-INCLUSIVE total, so the
+  // hand-written subtraction that used to sit here under-demanded by exactly the
+  // retainage on the tax — on the founder's Houston invoice, a notice for
+  // $77,201.39 against an app, portal and pay link all saying $77,484.88.
+  const netPayable = netPayableOf(invoice);
   const outstanding = netPayable - Number(invoice.amount_paid ?? 0);
   const dueMs = new Date(invoice.due_date).getTime();
   const nowMs = Date.now();
@@ -506,7 +516,7 @@ Deno.serve(async (req: Request) => {
   if (body.invoiceId) {
     const invRes = await client
       .from('invoices')
-      .select('id,number,project_id,due_date,total_due,amount_paid,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
+      .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
       .eq('id', body.invoiceId)
       .maybeSingle();
 
@@ -559,7 +569,7 @@ Deno.serve(async (req: Request) => {
   // logic filter.
   const invRes = await client
     .from('invoices')
-    .select('id,number,project_id,due_date,total_due,amount_paid,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
+    .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
     .not('status', 'in', '("paid","draft")')
     .not('due_date', 'is', null);
 

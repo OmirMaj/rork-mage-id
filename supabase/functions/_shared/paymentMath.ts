@@ -29,6 +29,19 @@ export interface LedgerEntry {
 
 export interface SettlementInput {
   total_due?: number | string | null;
+  /**
+   * MONEY-05 — the work value and the contract percentage retainage is actually
+   * withheld on. Rows written before the MISS-04 basis fix store a
+   * `retention_amount` computed on the TAX-INCLUSIVE total, and this file
+   * decides what Stripe collects and what the receipt says. Trusting the column
+   * charged the founder's Houston client $77,201.39 where the invoice screen,
+   * the portal and the pay link all said $77,484.88.
+   *
+   * Callers MUST select `subtotal` and `retention_percent` alongside the two
+   * retention columns; omitting them silently falls back to the stored figure.
+   */
+  subtotal?: number | string | null;
+  retention_percent?: number | string | null;
   retention_amount?: number | string | null;
   retention_released?: number | string | null;
 }
@@ -44,9 +57,37 @@ export function toCents2(n: number): number {
   return r === 0 ? 0 : r; // normalise -0
 }
 
+/**
+ * Retainage withheld on this invoice — the server half of
+ * utils/invoiceBilling.effectiveRetentionHeld, and it must stay identical to it.
+ *
+ * THE RULE: `retention_percent` of the WORK VALUE (`subtotal`); the stored
+ * `retention_amount` only when there is nothing to recompute from — a NULL or
+ * zero percentage, or a NULL/non-numeric subtotal. See the client file for why
+ * a percentage-bearing row's stored amount is stale by construction rather than
+ * a deliberate hand-typed figure (no UI in this app writes one).
+ *
+ * PostgREST hands NUMERIC back as a string, so `retention_percent` is coerced
+ * before it is tested — `Number("5") > 0` is the test that matters, and a NULL
+ * column must read as "no percentage", never as 0-therefore-nothing-held.
+ */
+export function effectiveRetention(inv: SettlementInput): number {
+  const rawPct = inv.retention_percent;
+  const rawSubtotal = inv.subtotal;
+  if (rawPct != null && rawSubtotal != null) {
+    const pct = Number(rawPct);
+    const subtotal = Number(rawSubtotal);
+    if (Number.isFinite(pct) && pct > 0 && Number.isFinite(subtotal)) {
+      const clamped = Math.min(100, pct);
+      return toCents2(Math.max(0, subtotal) * (clamped / 100));
+    }
+  }
+  return toCents2(Math.max(0, num(inv.retention_amount)));
+}
+
 /** Retention the contract still lets the client hold back. */
 export function retentionPending(inv: SettlementInput): number {
-  return Math.max(0, num(inv.retention_amount) - num(inv.retention_released));
+  return toCents2(Math.max(0, effectiveRetention(inv) - Math.max(0, num(inv.retention_released))));
 }
 
 /**

@@ -784,14 +784,17 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
         id: 'p1', number: 1, projectId: 'hen', type: 'progress', issueDate: '2026-06-10', dueDate: '2026-07-10',
         paymentTerms: 'net_30', notes: '', lineItems: [], subtotal: 20_000, taxRate: 7.5, taxAmount: 1_500,
         totalDue: 21_500, amountPaid: 5_000, status: 'sent', payments: [],
-        retentionPercent: 10, retentionAmount: 2_150, retentionReleased: 0,
+        // MONEY-05: 10% of the $20,000 of WORK, not of the $21,500 taxed total.
+        // This fixture was itself written on the tax-inclusive basis (2,150) —
+        // which is how far MISS-04 reached: even the guard agreed with the bug.
+        retentionPercent: 10, retentionAmount: 2_000, retentionReleased: 0,
         createdAt: '2026-06-10', updatedAt: '2026-06-10',
       },
     ] as unknown as Invoice[],
   });
   const b = partial.sections.budget!;
-  // 21,500 billed − 2,150 retention still held − 5,000 paid = 14,350.
-  expect('outstanding nets the retention the contract lets the client hold', b.outstanding, 14_350);
+  // 21,500 billed − 2,000 retention still held − 5,000 paid = 14,500.
+  expect('outstanding nets the retention the contract lets the client hold', b.outstanding, 14_500);
   ok('outstanding is NOT contract-minus-cash', b.outstanding !== b.contractValue - b.paidToDate,
     `${b.outstanding} vs ${b.contractValue - b.paidToDate}`);
   ok('paid + outstanding no longer collapses onto contractValue (it tracks billing, not the contract)',
@@ -848,11 +851,15 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
   // "paid" nor "outstanding" — it is reported on its own.
   const withRet = buildPortalSnapshot({
     project: henderson, portal: portalSettings,
+    // MONEY-05: `inv` is subtotal 10,000 + 800 tax. 10% of the WORK is 1,000;
+    // the 1,080 this fixture used to assert is 10% of the taxed 10,800 — the
+    // stored-column basis. The stored figure is deliberately left at 1,080 so
+    // this case also proves the reader ignores it.
     invoices: [inv({ id: 'r1', retentionPercent: 10, retentionAmount: 1_080, retentionReleased: 0, amountPaid: 2_000 })],
   });
   const wb = withRet.sections.budget!;
-  expect('retention held is reported separately', wb.retentionHeld, 1_080);
-  expect('…and excluded from what is due now', wb.outstanding, 10_800 - 1_080 - 2_000);
+  expect('retention held is 10% of the work value, not of the taxed total', wb.retentionHeld, 1_000);
+  expect('…and excluded from what is due now', wb.outstanding, 10_800 - 1_000 - 2_000);
   expect('…while the invoiced total still carries it', wb.invoicedToDate, 10_800);
 }
 

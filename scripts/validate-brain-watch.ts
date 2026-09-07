@@ -13,6 +13,9 @@ import {
   type AttentionItem,
 } from '../utils/brainWatch';
 import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '../types';
+// MONEY-05: the reader Summary's amount comes from, so the fixture below pins
+// the shipped rule rather than a number copied out of it.
+import { invoiceOutstanding } from '../utils/invoiceBilling';
 
 let pass = 0, fail = 0;
 function ok(n: string, cond: boolean) { if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n); } }
@@ -264,19 +267,36 @@ console.log('\ninvoiceAttention:');
 // grouping so a future edit cannot quietly drop back to raw digits.
 {
   const p = mkProject();
-  // The production row, reproduced: total_due 81264.625, retention 4063.23125,
-  // nothing paid → invoiceOutstanding 77201.39375.
+  // The production row, reproduced in FULL — subtotal and retention_percent
+  // included, because MONEY-05 (runtime audit 2026-09-07) is exactly what this
+  // fixture used to be missing.
+  //
+  // The stored retention_amount 4063.23125 is 5% of the TAX-INCLUSIVE total.
+  // While this row trusted that column, Summary's NEEDS YOU line said $77,201
+  // for the same invoice the invoice screen and the Stripe pay-link row both
+  // priced at $77,484.88 — one invoice, two amounts, $283.48 apart, and the one
+  // the contractor was told to chase was the smaller, wrong one. The stored
+  // figure is deliberately LEFT on the row so this case proves the reader
+  // ignores it in favour of 5% of the $75,595 of work.
   const inv = mkInvoice({
     dueDate: '2025-01-08', // 12d overdue from NOW_MS (2025-01-20)
+    subtotal: 75595,
+    taxRate: 7.5,
+    taxAmount: 5669.625,
     totalDue: 81264.625,
+    retentionPercent: 5,
     retentionAmount: 4063.23125,
     amountPaid: 0,
   });
   const msg = invoiceAttention(p, [inv], NOW_MS)[0].message;
-  ok('overdue amount is thousands-separated', msg.includes('$77,201'));
-  ok('overdue amount is NOT raw digits (MONEY-03)', !msg.includes('$77201'));
-  ok('overdue amount carries no stray cents', !/\$77,201\.\d/.test(msg));
+  ok('overdue amount is thousands-separated', msg.includes('$77,485'));
+  ok('overdue amount is NOT raw digits (MONEY-03)', !msg.includes('$77485'));
+  ok('overdue amount carries no stray cents', !/\$77,485\.\d/.test(msg));
   ok('amount is net of retention, not gross', !msg.includes('$81,264') && !msg.includes('$81265'));
+  // MONEY-05: the number on Summary is the number on the invoice screen.
+  ok('Summary does NOT report the stored-column figure', !msg.includes('$77,201'));
+  ok('…it reports the retention-net balance every other surface reports',
+    Math.abs(invoiceOutstanding(inv) - 77484.88) <= 0.005);
 }
 
 // Small amounts stay readable too — formatMoney rounds, it does not abbreviate,

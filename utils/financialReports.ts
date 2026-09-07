@@ -19,7 +19,7 @@
 import type { Project, Invoice, ChangeOrder, Commitment } from '@/types';
 import { computeJobCost } from './jobCostEngine';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
 // ─── WIP ─────────────────────────────────────────────────────────────
 
@@ -85,8 +85,13 @@ export function computeWIPReport(
     const paidToDate = billedInvoices.reduce((s, inv) => s + (inv.amountPaid || 0), 0);
     // Retention is only withheld from money actually billed, so it follows the
     // same population — a draft withholds nothing.
+    // MONEY-05: the withholding is the percentage of the work value, via the
+    // shared helper — not the stored column, which on legacy rows is retainage
+    // computed on the tax-inclusive total. A WIP report that held one figure
+    // while the A/R aging on the same screen collected against another does not
+    // foot for the banker reading both.
     const retainageHeld = billedInvoices.reduce(
-      (s, inv) => s + Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0)),
+      (s, inv) => s + pendingRetentionHeld(inv),
       0,
     );
 
@@ -291,7 +296,9 @@ export function computeARAgingReport(
     // is not due until closeout. Skip anything already collected (half-dollar
     // floor absorbs rounding on split payments).
     const outstanding = invoiceOutstanding(inv);
-    const retainageHeld = Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+    // MONEY-05: same helper invoiceOutstanding nets out, so the aged balance and
+    // the Retainage Held column are two halves of one total_due.
+    const retainageHeld = pendingRetentionHeld(inv);
     // Nothing collectible AND nothing held → fully collected, no receivable.
     // A settled invoice that still HOLDS retainage stays on the report as a
     // zero-current row: the $10,000 the client keeps until closeout is a

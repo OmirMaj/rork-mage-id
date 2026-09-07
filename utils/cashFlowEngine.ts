@@ -1,6 +1,6 @@
 import type { Invoice, ChangeOrder } from '@/types';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
-import { netBalanceDue } from '@/utils/invoiceBilling';
+import { netBalanceDue, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
 export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
@@ -318,7 +318,11 @@ export function pendingRetention(invoices: Invoice[]): number {
   let total = 0;
   for (const inv of invoices) {
     if (getEffectiveInvoiceStatus(inv) === 'draft') continue;
-    total += Math.max(0, (inv.retentionAmount ?? 0) - (inv.retentionReleased ?? 0));
+    // MONEY-05: percentage of work value via the shared helper. Reading the
+    // stored column here made "plus $X retention held to closeout" contradict
+    // the runway right beside it, which nets the SAME retention out of every
+    // receivable through netBalanceDue.
+    total += pendingRetentionHeld(inv);
   }
   return total;
 }
