@@ -1116,6 +1116,23 @@ export default function HomeScreen() {
             // Strip collaborators + public portfolio — opt in per project.
             collaborators: undefined,
             publicProfile: undefined,
+            // Strip the client portal. Two reasons, and the second is fatal:
+            //   1. It is wrong on its own terms. clientPortal carries the
+            //      SOURCE project's portalId AND its accessToken — the secret
+            //      the homeowner's link authenticates with. A copy that
+            //      inherits it hands the source job's portal credential to a
+            //      different project; portal_project_for_token resolves the
+            //      duplicate id with `limit 1`, so the homeowner's link can
+            //      serve whichever row Postgres happens to return.
+            //   2. 20260904100950 adds a UNIQUE index on
+            //      client_portal->>'portalId'. With the blob copied, the
+            //      clone's very first sync fails 23505 — and offlineQueue
+            //      exempts a 23505 from "terminal" only when the constraint
+            //      name ends in `_pkey` (utils/offlineQueue.ts), which this
+            //      one does not. The write would be DISCARDED and the copy
+            //      would live on that one device forever, silently.
+            // A duplicate must mint its own portal when the user opens one.
+            clientPortal: undefined,
           };
           addProject(clone);
           if (Platform.OS !== 'web') {

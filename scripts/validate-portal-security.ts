@@ -116,6 +116,29 @@ ok('it asserts the freeze fires before trg_portal_access_token (same-event trigg
   /order by tgname/.test(uniq) && /trg_portal_access_token/.test(uniq),
   "a stripped id must never reach the token trigger's mint branch");
 
+// ── The unique portalId index has a CLIENT precondition ──────────────────────
+// 20260904100950 makes client_portal->>'portalId' UNIQUE. "Duplicate project"
+// on the home screen builds the clone with a spread of the source project, so
+// before this check it carried the source's portalId AND accessToken into the
+// copy. Two bugs, depending on whether the index exists:
+//   without it — two projects share one portalId and one accessToken, and
+//     portal_project_for_token resolves the duplicate with `limit 1`, so the
+//     homeowner's link can serve the wrong row;
+//   with it — the clone's first sync fails 23505, and offlineQueue treats a
+//     23505 as recoverable ONLY when the constraint name ends in `_pkey`
+//     (isAlreadyLandedInsert), so the write is dropped as terminal and the
+//     copy never leaves the device.
+// The migration is right; the clone was always wrong. Keep them in step.
+const homeScreen = read('app/(tabs)/(home)/index.tsx');
+const cloneBlock = (() => {
+  const i = homeScreen.indexOf('const clone: Project = {');
+  return i === -1 ? '' : homeScreen.slice(i, homeScreen.indexOf('};', i));
+})();
+ok('the home screen still has a project-clone block', cloneBlock.length > 0,
+  'if this moved, re-point the check below rather than deleting it');
+ok('the project clone strips clientPortal', /clientPortal:\s*undefined/.test(cloneBlock),
+  'a copy must mint its own portal — inheriting the source accessToken leaks it, and the unique portalId index turns the copy into a silently dropped write');
+
 // ── Passcode brute-force limiter ──────────────────────────────────────────────
 const passcode = read('supabase/functions/validate-portal-passcode/index.ts');
 ok('validate-portal-passcode rate-limits attempts', /rateLimitCount\(`passcode:portal:/.test(passcode) && /rateLimitCount\(`passcode:ip:/.test(passcode));
