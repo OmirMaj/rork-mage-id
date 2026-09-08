@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, CheckCircle2, X, AlertTriangle, FolderOpen, Inbox,
@@ -182,7 +182,13 @@ function QboReviewInner() {
     () => stagedLines.filter(row => effectiveProject(row) != null && !duplicateOf(row)),
     [stagedLines, effectiveProject, duplicateOf],
   );
-  useBrainFabLift(bulkEligible.length > 1 ? bottomBarH : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = bulkEligible.length > 1 ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
 
   const onConfirmAllMapped = useCallback(() => {
     if (bulkEligible.length === 0) return;
@@ -254,7 +260,7 @@ function QboReviewInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 96 }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {stagedLines.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Inbox size={32} color={t.textMuted} strokeWidth={1.5} />

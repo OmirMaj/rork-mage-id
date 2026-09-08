@@ -442,8 +442,10 @@ const ALLOWED: Allowed[] = [
   { file: 'app/project-detail.tsx', line: 'new Date(dr.date)', added: '2026-09-04', reason: 'DailyFieldReport.date instant (see app/daily-report.tsx)' },
   { file: 'app/project-detail.tsx', line: 'new Date(b.date)', added: '2026-09-04', reason: 'DFR sort key over instants' },
   { file: 'app/project-detail.tsx', line: 'new Date(a.date)', added: '2026-09-04', reason: 'DFR sort key, other operand' },
-  { file: 'components/AIInvoicePredictor.tsx', line: 'new Date(inv.dueDate)', added: '2026-09-04', reason: 'Invoice.dueDate instant' },
-  { file: 'components/AIInvoicePredictor.tsx', line: 'new Date(lastPayment.date)', added: '2026-09-04', reason: 'payment record date instant (app/invoice.tsx handleMarkPaid / handleReleaseRetention)' },
+  // Two sibling entries (new Date(inv.dueDate), new Date(lastPayment.date)) were
+  // removed 2026-09-07: the per-client prediction rewrite deleted both call
+  // sites, and an ALLOWED entry with no live site is a blind entry — it would
+  // silently re-permit the parse if someone reintroduced it.
   { file: 'components/AIInvoicePredictor.tsx', line: 'new Date(invoice.dueDate)', added: '2026-09-04', reason: 'Invoice.dueDate instant' },
   { file: 'components/NextStepHero.tsx', line: 'new Date(r.dateSubmitted ?? Date.now())', added: '2026-09-04', reason: 'RFI.dateSubmitted instant (app/rfi.tsx:287, dateSubmitted: now)' },
   // ── Clones of a Date instance (the parameter is typed Date), not parses ──

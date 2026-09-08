@@ -18,6 +18,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, TextInput, Platform, GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHideBrainFab } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import {
@@ -93,6 +94,13 @@ function PlanViewerScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Suppress the global Brain FAB rather than pad around it (hands-on UI
+  // pass 2026-09-07). The canvas is a full-bleed draw responder — bottom
+  // padding would push the sheet off-centre AND the 56pt circle would still
+  // swallow markup strokes aimed at the bottom-right of the drawing. This
+  // screen already carries its own Brain entry point (the Ask button in the
+  // header), so nothing is lost by hiding the global one here.
+  useHideBrainFab();
   const router = useRouter();
   const params = useLocalSearchParams<{ sheetId?: string; punchId?: string }>();
   const sheetId = typeof params.sheetId === 'string' ? params.sheetId : undefined;

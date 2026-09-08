@@ -122,6 +122,7 @@ interface ColumnResizeHandleProps {
 }
 
 function ColumnResizeHandle({ colKey, currentWidth, onResize }: ColumnResizeHandleProps) {
+  const gridResizeHandleStyle = useThemedStyles(makeResizeHandleStyles);
   const startWidthRef = useRef(currentWidth);
   // Keep the ref in sync with the latest width so a fresh drag uses the
   // current value (not whatever was passed when the handle first mounted).
@@ -158,7 +159,7 @@ function ColumnResizeHandle({ colKey, currentWidth, onResize }: ColumnResizeHand
   );
 }
 
-const gridResizeHandleStyle = StyleSheet.create({
+const makeResizeHandleStyles = (t: ThemeColors) => StyleSheet.create({
   // Outer hit area — sits at the right edge of the header cell. INSIDE the
   // cell at `right: 0` (not hanging off) because the cell uses overflow:
   // hidden to clip long labels. 10 px wide for an easy touch target.
@@ -173,11 +174,14 @@ const gridResizeHandleStyle = StyleSheet.create({
   },
   // Inner visible bar — 2 px wide, faint by default. Sits flush with the
   // right edge so it visually anchors to the column boundary.
+  // The bar was a fixed `rgba(0,0,0,0.18)` — black-on-black, i.e. invisible,
+  // on the dark theme's #14181D header (audit 2026-09-07). `t.line` is the
+  // same "column boundary" identity in both themes.
   bar: {
     width: 2,
     height: '60%',
     borderRadius: 1,
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    backgroundColor: t.line,
   },
 });
 
@@ -1121,7 +1125,7 @@ export default function GridPane({
         display = <Text style={[styles.cellText, !task.crew && styles.cellTextMuted]}>{task.crew || '—'}</Text>;
         break;
       case 'status': {
-        const chip = statusChip(task.status);
+        const chip = statusChip(task.status, themeColors);
         display = (
           <TouchableOpacity
             style={[styles.statusChip, { backgroundColor: chip.bg }]}
@@ -1448,7 +1452,7 @@ export default function GridPane({
                 position: 'sticky',
                 left: frozenLeftOffset.get(col.key) ?? 0,
                 zIndex: 4,
-                backgroundColor: Colors.surfaceAlt,
+                backgroundColor: themeColors.surfaceAlt,
                 ...(isLastFrozen ? { boxShadow: '2px 0 4px -2px rgba(0,0,0,0.15)' } : {}),
               } : null;
               return (
@@ -1510,7 +1514,7 @@ export default function GridPane({
                 : isSelected ? themeColors.accent + '18'
                 : isFocused ? themeColors.accent + '10'
                 : rowIndex % 2 === 1 ? themeColors.surface
-                : Colors.card;
+                : themeColors.surface;
 
               return (
                 <Pressable
@@ -1628,6 +1632,7 @@ export default function GridPane({
 // ---------------------------------------------------------------------------
 
 function MiniDonut({ progress, status }: { progress: number; status?: 'not_started' | 'in_progress' | 'done' | 'on_hold' }) {
+  const { colors: themeColors } = useTheme();
   const size = 18;
   const stroke = 3;
   const r = (size - stroke) / 2;
@@ -1638,7 +1643,7 @@ function MiniDonut({ progress, status }: { progress: number; status?: 'not_start
   return (
     <Svg width={size} height={size}>
       <SvgG rotation="-90" origin={`${size / 2}, ${size / 2}`}>
-        <SvgCircle cx={size / 2} cy={size / 2} r={r} stroke={Colors.fillTertiary} strokeWidth={stroke} fill="none" />
+        <SvgCircle cx={size / 2} cy={size / 2} r={r} stroke={themeColors.neutralSoft} strokeWidth={stroke} fill="none" />
         {pct > 0 && (
           <SvgCircle
             cx={size / 2}
@@ -1685,7 +1690,13 @@ interface AnchorPickerModalProps {
 
 function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
   const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
+  // Built per theme, not at import. This sheet used to be a module-scope
+  // StyleSheet.create of Theme.light literals (a #FFFFFF card, #2B3038 ink)
+  // while the web date <input> a few lines below painted itself with the LIVE
+  // `themeColors.text` — so in dark mode the modal was cream type on a white
+  // card, i.e. an invisible date field. Baked and live colour in one tree is
+  // the exact defect the 2026-09-07 audit singled this file out for.
+  const anchorStyles = useThemedStyles(makeAnchorStyles);
   const [type, setType] = useState<AnchorType>('none');
   const [date, setDate] = useState<string>('');
 
@@ -1791,7 +1802,7 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
   );
 }
 
-const anchorStyles = StyleSheet.create({
+const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -1801,7 +1812,7 @@ const anchorStyles = StyleSheet.create({
   card: {
     width: 420,
     maxWidth: '92%',
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     shadowColor: '#000',
     shadowOpacity: 0.18,
@@ -1816,10 +1827,10 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(43,48,56,0.12)",
+    borderBottomColor: t.line,
   },
-  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: "#2B3038" },
-  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: "#9AA3AD", marginLeft: 4 },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: t.textMuted, marginLeft: 4 },
   closeBtn: { padding: 4 },
   option: {
     flexDirection: 'row',
@@ -1828,18 +1839,20 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(43,48,56,0.12)",
+    borderBottomColor: t.line,
   },
-  optionActive: { backgroundColor: Colors.primaryLight },
+  optionActive: { backgroundColor: t.accentSoft },
   radio: {
-    width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: "rgba(43,48,56,0.12)",
+    width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
-  radioActive: { borderColor: "#FF6A1A" },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#FF6A1A" },
-  optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#2B3038" },
-  optionLabelActive: { color: "#FF6A1A" },
-  optionHelp: { fontSize: Type.caption2.fontSize, color: "#9AA3AD", marginTop: 1 },
+  radioActive: { borderColor: t.accent },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.accent },
+  optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  // accentLabel, not accent: the selected option's label is TEXT, and the brand
+  // #FF6A1A is 2.87:1 on a light card.
+  optionLabelActive: { color: t.accentLabel },
+  optionHelp: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1847,18 +1860,18 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(43,48,56,0.12)",
+    borderTopColor: t.line,
   },
-  dateLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#2B3038" },
+  dateLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   dateInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "rgba(43,48,56,0.12)",
+    borderColor: t.line,
     borderRadius: Tokens.radius.xs,
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: Type.bodyCompact.fontSize,
-    color: "#2B3038",
+    color: t.text,
   },
   footer: {
     flexDirection: 'row',
@@ -1867,15 +1880,17 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(43,48,56,0.12)",
+    borderTopColor: t.line,
   },
   btnGhost: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
   },
-  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#9AA3AD" },
+  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
   btnPrimary: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
-    backgroundColor: "#FF6A1A",
+    // accentFill, not accent: btnPrimaryText below is white, and white on the
+    // brand #FF6A1A is 2.87:1. #BC440C carries it at 5.29:1.
+    backgroundColor: t.accentFill,
   },
   btnDisabled: { opacity: 0.45 },
   btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
@@ -1885,16 +1900,21 @@ const anchorStyles = StyleSheet.create({
 // Status chip helper
 // ---------------------------------------------------------------------------
 
-function statusChip(status: TaskStatus): { bg: string; fg: string; label: string; Icon?: any } {
+// Takes the resolved theme rather than reading the static Colors module: the
+// pale *Light tints (#E8FAF0, #EBF3FF) and the light inks (#2E7D44, #1565C0)
+// were the same on both themes, so a Done chip in dark mode was mid-green type
+// on a near-white slab inside an otherwise dark grid (audit 2026-09-07). The
+// *Soft/*Label pairs are the tint-and-ink split constants/colors.ts documents.
+function statusChip(status: TaskStatus, t: ThemeColors): { bg: string; fg: string; label: string; Icon?: any } {
   switch (status) {
     case 'done':
-      return { bg: Colors.successLight, fg: "#2E7D44", label: 'Done', Icon: Check };
+      return { bg: t.successSoft, fg: t.successLabel, label: 'Done', Icon: Check };
     case 'in_progress':
-      return { bg: Colors.infoLight, fg: "#1565C0", label: 'Active', Icon: Play };
+      return { bg: t.info + '1F', fg: t.info, label: 'Active', Icon: Play };
     case 'on_hold':
-      return { bg: Colors.warningLight, fg: Colors.warning, label: 'Hold', Icon: Pause };
+      return { bg: t.warningSoft, fg: t.warningLabel, label: 'Hold', Icon: Pause };
     default:
-      return { bg: "#F4EFE6", fg: "#9AA3AD", label: 'Not Started', Icon: Circle };
+      return { bg: t.neutralSoft, fg: t.textMuted, label: 'Not Started', Icon: Circle };
   }
 }
 
@@ -1934,7 +1954,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: t.line,
     // Matches InteractiveGantt.HEADER_HEIGHT so the first table row and
@@ -1964,7 +1984,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     height: ROW_HEIGHT,
     alignItems: 'center',
-    backgroundColor: Colors.card,
+    backgroundColor: t.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: t.line,
     borderLeftWidth: 3,
@@ -1979,7 +1999,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.danger + '10',
   },
   rowSummary: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
   },
   cell: {
     paddingHorizontal: 10,
@@ -2151,7 +2171,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   selectCell: {
     // Visually distinguish the # column as a clickable selection target.
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
   },
   selectCellActive: {
     backgroundColor: t.accent + '20',

@@ -19,7 +19,9 @@ import {
   Trees,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate } from '@/constants/scheduleTemplates';
 import { Type } from '@/constants/typography';
@@ -61,6 +63,11 @@ function getNextMonday(): Date {
 }
 
 function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModalProps) {
+  // Built per theme: the sheet baked Colors.surface/text/surfaceAlt at import,
+  // so the schedule on-ramp came up as a white sheet in dark mode
+  // (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedTemplate, setSelectedTemplate] = useState<ScheduleTemplate | null>(null);
   const [selectedSize, setSelectedSize] = useState<ProjectSize>('medium');
@@ -123,7 +130,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
               <MageAIMark size={20} color={Colors.accent} />
               <Text style={s.headerTitle}>Quick Build</Text>
             </View>
-            <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={s.stepIndicator}>
@@ -152,7 +159,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
                         <Text style={s.templateName}>{template.name}</Text>
                         <Text style={s.templateMeta}>{template.taskCount} tasks · {template.typicalDuration}</Text>
                       </View>
-                      <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
+                      <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   );
                 })}
@@ -240,40 +247,40 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
     maxHeight: '80%',
     gap: 10,
   },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 4 },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: t.neutralSoft, alignSelf: 'center', marginBottom: 4 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text },
 
   stepIndicator: { flexDirection: 'row', gap: 6, alignSelf: 'center' },
-  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary },
+  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.neutralSoft },
   stepDotActive: { backgroundColor: Colors.primary },
 
-  stepTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
-  stepSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: -4 },
+  stepTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
+  stepSubtitle: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: -4 },
 
   scrollContent: { maxHeight: 380 },
 
   templateCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 8,
     gap: 12,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   templateIconWrap: {
     width: 40,
@@ -284,38 +291,38 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   templateInfo: { flex: 1, gap: 2 },
-  templateName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  templateMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  templateName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  templateMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
 
   sizeOptions: { flexDirection: 'row', gap: 10, marginTop: 6 },
   sizeCard: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.panel,
     padding: 18,
     gap: 6,
     borderWidth: 2,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   sizeCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
-  sizeLabel: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.text },
+  sizeLabel: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: t.text },
   sizeLabelActive: { color: Colors.primary },
-  sizeDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, textAlign: 'center' as const },
+  sizeDesc: { fontSize: Type.caption2.fontSize, color: t.textSecondary, textAlign: 'center' as const },
   sizeDescActive: { color: Colors.primary },
-  sizeFactor: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
+  sizeFactor: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textMuted },
   sizeFactorActive: { color: Colors.primary },
 
   reviewCard: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.card,
     padding: 12,
     gap: 2,
     flex: 1,
   },
   reviewRow: { flexDirection: 'row', gap: 8 },
-  reviewLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
-  reviewValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  reviewLabel: { fontSize: 10, fontWeight: '600' as const, color: t.textMuted, textTransform: 'uppercase' as const },
+  reviewValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
 
   taskPreview: { maxHeight: 200, marginTop: 4 },
   previewRow: {
@@ -323,10 +330,10 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
-  previewName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
-  previewDur: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
+  previewName: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '500' as const },
+  previewDur: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textMuted },
 
   createBtn: {
     flexDirection: 'row',
@@ -341,7 +348,7 @@ const s = StyleSheet.create({
   createBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
   backBtn: { alignSelf: 'center', paddingVertical: 8 },
-  backBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  backBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.textSecondary },
 });
 
 export default React.memo(QuickBuildModal);

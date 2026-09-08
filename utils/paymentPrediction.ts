@@ -100,6 +100,73 @@ function daysBetween(a: string, b: string): number {
   return Math.round((t2 - t1) / 86_400_000);
 }
 
+export interface InvoicePaymentHistory {
+  /** Prior PAID invoices on this invoice's own project that carry a payment.
+   *  This is the evidence base and nothing else — the number a grounding chip
+   *  is allowed to say, and the number handed to the model. */
+  paidInvoices: number;
+  /** Mean days the last payment landed AFTER the due date, over those
+   *  invoices. `null` when paidInvoices === 0: "we have never been paid by
+   *  this client" and "this client pays exactly on time" are different claims,
+   *  and a 0 renders as the second one. */
+  avgDaysLate: number | null;
+  /** One prompt-ready sentence. Carries no number when there is no evidence. */
+  summary: string;
+}
+
+/**
+ * The per-project payment record behind a single invoice's prediction.
+ *
+ * AI-F(audit 2026-09-07, ai-features): components/AIInvoicePredictor built this
+ * scalar over `allInvoices` — EVERY paid invoice in the account — and handed it
+ * to the relay under the heading "CLIENT HISTORY". A GC with one chronically
+ * late homeowner and nine prompt commercial clients got that homeowner's next
+ * invoice scored against the nine. `describePaymentHistory` below has always
+ * scoped to `projectId`; this is the same boundary, exported so the single-
+ * invoice card and the portfolio forecaster cannot drift apart.
+ *
+ * Deliberately a DIFFERENT metric from describePaymentHistory: that one reports
+ * issue → payment for the A/R prompt; this one reports lateness against the due
+ * date, which is what a single invoice's prediction turns on.
+ */
+export function paymentHistoryForInvoice(inv: Invoice, allInvoices: Invoice[]): InvoicePaymentHistory {
+  const priorPaid = allInvoices.filter(
+    i => i.id !== inv.id
+      && i.projectId === inv.projectId
+      && i.status === 'paid'
+      && i.payments.length > 0,
+  );
+  if (priorPaid.length === 0) {
+    return {
+      paidInvoices: 0,
+      avgDaysLate: null,
+      summary: 'No prior paid invoices on this project — there is no payment record for this client yet.',
+    };
+  }
+  const lateDays = priorPaid.map(p => {
+    const lastPayment = p.payments[p.payments.length - 1];
+    const days = daysBetween(p.dueDate, lastPayment.date);
+    // Floored at 0 on purpose: paying eleven days EARLY is not "minus eleven
+    // days late", and letting it net off a genuinely late invoice would report
+    // a client as punctual who is not. Known limitation of that floor:
+    // daysBetween returns 0 for an unparseable date pair, so a payment row with
+    // a broken date counts as on-time rather than being dropped. Both dates
+    // come from pickers, so it is rare — called out because the comment that
+    // stood here claimed the case was handled, and it never was
+    // (review 2026-09-07).
+    return Math.max(0, days);
+  });
+  const avgDaysLate = Math.round(lateDays.reduce((s, n) => s + n, 0) / lateDays.length);
+  const noun = priorPaid.length === 1 ? 'invoice' : 'invoices';
+  return {
+    paidInvoices: priorPaid.length,
+    avgDaysLate,
+    summary: avgDaysLate === 0
+      ? `${priorPaid.length} prior paid ${noun} on this project, all paid by the due date.`
+      : `${priorPaid.length} prior paid ${noun} on this project, paid on average ${avgDaysLate} day${avgDaysLate === 1 ? '' : 's'} past the due date.`,
+  };
+}
+
 function describePaymentHistory(inv: Invoice, allInvoices: Invoice[]): string {
   const sameProject = allInvoices.filter(i => i.projectId === inv.projectId && i.id !== inv.id);
   const paidOnes = sameProject.filter(i => i.status === 'paid' && i.payments.length > 0);

@@ -29,6 +29,8 @@ import {
   computeAIATotals,
   generateAIAPayAppPDF,
   retainagePercentForInvoice,
+  reconcileAIASov,
+  carryForwardPriorLines,
 } from '@/utils/aiaBilling';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -155,26 +157,20 @@ function AIAPayAppScreenInner() {
     // fromPreviousApp with what was billed through the end of the prior
     // period (prior.fromPreviousApp + prior.thisPeriod), and pre-fill the
     // G702 "less previous certificates" with the prior period's earned
-    // amount net of retainage. Match lines by itemNo ONLY — pre-fix this
-    // also fell back to description, but two SOV lines sharing a description
-    // (e.g. "Concrete — slab on grade" repeated for two phases) would have
-    // the second line silently inherit the first line's billed-through, off-
-    // by-one'ing the entire pay app. AIA G702/G703 keys on itemNo for a
-    // reason; if the GC reorders lines they need to keep the numbering
-    // stable. Lines without a prior match get fromPreviousApp = 0 and the
-    // GC enters this-period-only.
+    // amount net of retainage.
+    //
+    // The matching itself lives in utils/aiaBilling.carryForwardPriorLines —
+    // it keys on the SOV line id and falls back to itemNo, because the
+    // schedule of values is no longer numbered over the invoice's lines (see
+    // buildAIASovLines), so itemNo alone lands a row off after a CO is
+    // approved or on any application saved before that change. It is money
+    // math on a bank document, so it is a pure function
+    // scripts/validate-invoice-billing.ts executes.
     if (priorAIA && priorAIA.lines.length > 0) {
-      const priorByItem = new Map(priorAIA.lines.map(l => [l.itemNo, l]));
-      const carriedLines = seeded.lines.map(line => {
-        const match = priorByItem.get(line.itemNo);
-        if (!match) return line;
-        const billedThrough = (match.fromPreviousApp || 0) + (match.thisPeriod || 0);
-        return { ...line, fromPreviousApp: billedThrough };
-      });
       const carried = {
         ...seeded,
         applicationNumber: priorAIA.applicationNumber + 1,
-        lines: carriedLines,
+        lines: carryForwardPriorLines(seeded.lines, priorAIA.lines),
         // MONEY-F1 (client half): a record hydrated from the server can arrive
         // without `totals`; the second period must not crash on it.
         lessPreviousCertificates: priorAIA.totals?.totalEarnedLessRetainage ?? 0,
@@ -188,6 +184,15 @@ function AIAPayAppScreenInner() {
   }, [invoice, project, approvedCOs, settings?.branding, priorAIA]);
 
   const totals = useMemo(() => (app ? computeAIATotals(app) : null), [app]);
+
+  // Audit 2026-09-07 ("Do next" #3). G702 line 3 (Contract Sum to Date) and the
+  // G703 column C total are two statements of the same contract. When they
+  // disagree, at least one number on the certificate the GC is about to sign is
+  // wrong — most often because the project has no linked estimate, so the SOV
+  // could only be reconstructed from this one invoice and knows nothing about
+  // the scope the invoice didn't touch. Say so on the screen; do not print both
+  // figures side by side and let a bank find the gap.
+  const sovReconciliation = useMemo(() => (app ? reconcileAIASov(app) : null), [app]);
 
   // Audit-2026-05-21 (#28.1 HIGH): edit-after-send lock for AIA pay-apps.
   //
@@ -717,8 +722,40 @@ function AIAPayAppScreenInner() {
             </View>
           </View>
           <Text style={styles.sectionHint}>
-            Tap a line to adjust this period's work completed. Use the % slider to quickly set line progress.
+            Tap a line to adjust this period&apos;s work completed. Use the % slider to quickly set line progress.
           </Text>
+
+          {/* Where column C came from. "Scheduled" is the whole contract line;
+              "This Period" is this month's draw. They are equal only on a final
+              billing — the pre-fix seeding set both from the same invoice line,
+              which opened every certificate at 100% Complete.
+
+              Scheduled Value is READ-ONLY here and the G703 has no
+              add/edit/delete (the audit's "Do next" #3 says so in as many
+              words), so this copy must never tell the GC to fix the lines on
+              this screen. Column C is rebuilt from the project's estimate and
+              its approved change orders every time this screen opens — that is
+              where the fix actually is, and it is what this says. */}
+          <Text style={styles.sovBasisNote} testID="aia-sov-basis">
+            {app.sovBasis === 'linked_estimate'
+              ? 'Scheduled Value is each line of the linked estimate plus each approved change order — the full contract, not this draw. This Period is what invoice #' + invoice.number + ' bills against it. Column C is not edited here: it is rebuilt from the estimate and the approved COs each time you open this application.'
+              : 'This project has no itemized estimate linked, so the Scheduled Value column could only be reconstructed from invoice #' + invoice.number + ' — it covers just the scope this invoice touched. Column C is not edited here: link the job\u2019s estimate to this project (Estimate \u2192 Link to Project), then reopen this application to certify against the whole contract.'}
+          </Text>
+
+          {sovReconciliation && !sovReconciliation.reconciled && (
+            <View style={styles.sovWarnBanner} testID="aia-sov-reconciliation">
+              <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
+              <Text style={styles.sovWarnText}>
+                The schedule of values totals {formatMoney(sovReconciliation.totalScheduledValue, 2)} but
+                Contract Sum to Date is {formatMoney(sovReconciliation.contractSumToDate, 2)} —
+                a {formatMoney(Math.abs(sovReconciliation.difference), 2)}{' '}
+                {sovReconciliation.difference > 0 ? 'overage' : 'gap'}. % Complete is computed from this
+                column and Balance to Finish from the contract sum, so they are telling a bank two
+                different stories. Scheduled Value cannot be edited on this screen — correct the project&apos;s
+                estimate and its approved change orders, then reopen this application.
+              </Text>
+            </View>
+          )}
 
           {app.lines.map(line => {
             const totalCompleted = line.fromPreviousApp + line.thisPeriod + line.materialsPresentlyStored;
@@ -1085,6 +1122,19 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
   retainageChips: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   retainageSourceNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16, marginTop: 6 },
+  sovBasisNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16, marginBottom: 10 },
+  sovWarnBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.warning + '15',
+    borderWidth: 1,
+    borderColor: Colors.warning + '40',
+  },
+  sovWarnText: { flex: 1, fontSize: Type.footnote.fontSize, lineHeight: 18, color: themeColors.text },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
     backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,

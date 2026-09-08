@@ -38,6 +38,11 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
+// Check 12 measures the REAL derived palette, not a regex of it. Both modules
+// are import-free leaves (no react-native, no bundler), so bun loads them the
+// same way scripts/validate-schedule-colors.ts already loads constants/colors.
+import { Theme, deriveAccentPalette, BRAND_ACCENT } from '../constants/colors';
+import { THEME_PRESETS } from '../types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -830,7 +835,12 @@ ok(
 // Deliberately NOT in this set:
 //   • `accent` / `primary` — founder decision #1 keeps the brand hue #FF6A1A
 //     for large non-text chrome under the 3:1 rule; its text companions are
-//     `accentLabel` (checked) and `accentFill` (white-on-fill, check 1c).
+//     `accentLabel` and `accentFill`, which since 2026-09-07 are DERIVED per
+//     hue rather than frozen in Theme.light/dark and are measured for all nine
+//     presets by check 12 below. Leaving `accentLabel` in the list here would
+//     have been worse than removing it: THEME[theme].accentLabel is now
+//     undefined and the loop's `if (!fg) continue` would have skipped it in
+//     silence, which is the failure mode this whole file exists to prevent.
 //   • `Theme.*.danger` and `Colors.success/warning/error/info` — the SOLID
 //     signal hues for dots, bars and icons. Their text companions are the
 //     *Label tokens, which ARE checked.
@@ -845,7 +855,7 @@ function chipRatio(label: string, ground: string): number | null {
 }
 
 const chipFailures: string[] = [];
-const THEME_CHIP_TOKENS = ['success', 'info', 'accentLabel', 'successLabel', 'warningLabel', 'dangerLabel'] as const;
+const THEME_CHIP_TOKENS = ['success', 'info', 'successLabel', 'warningLabel', 'dangerLabel'] as const;
 for (const theme of ['light', 'dark'] as const) {
   const surface = THEME[theme].surface;
   for (const token of THEME_CHIP_TOKENS) {
@@ -1359,6 +1369,257 @@ ok(
   'every native header title style carries the app typeface (Fraunces)',
   headerFailures.length === 0,
   headerFailures.join('\n        '),
+);
+
+// ── Check 12: every theme preset's DERIVED accent family clears AA ─────────
+//
+// Audit 2026-09-07, "Do next" 4. Settings → APP THEME ships nine presets and
+// promised "Customize the app's accent colors to match your brand", but the
+// five accent tokens every screen draws in were '#FF6A1A' literals frozen
+// inside Theme.light / Theme.dark, so picking Navy repainted the ~420
+// `Colors.primary|accent` reads and left the ~3,395 `t.accent*` reads orange.
+// The family is now solved per hue in constants/colors.ts, which moves the
+// risk: a hue that is legible for the brand orange is not legible for
+// Charcoal, and NOTHING in the type system says a solved value made its
+// budget. This check is what makes the feature safe to ship.
+//
+// It calls the real deriveAccentPalette — so it fails if the solver breaks,
+// if a preset names a hue no lightness of which can clear AA, and (via the
+// distinctness check) if someone "fixes" a failure by collapsing every preset
+// back onto the brand family.
+//
+// Budgets, taken from the token comments in constants/colors.ts:
+//   accentLabel  coloured TEXT — AA 4.5:1 on bg / surface / surfaceAlt AND on
+//                the accentSoft wash of itself over each (the app's chip idiom)
+//   accentFill   a BUTTON, so TWO budgets: white text on it at AA 4.5:1, AND
+//                the button itself visible as a shape at WCAG 1.4.11's 3:1
+//                against bg / surface / surfaceAlt. Measuring only the first
+//                is what let the original fix through review with a Charcoal
+//                dark-mode CTA at 1.19:1 on the page — a black slab carrying
+//                floating white text, at 461 call sites (review 2026-09-07).
+//                No founder-decision exemption here: unlike `accent` this is
+//                an interactive control, not decoration.
+//   accent       nominally large non-text chrome, but 373 of the 588
+//                `color: …accent` sites are text, so in the DARK theme it
+//                carries the AA 4.5:1 text budget the brand hue already meets
+//                there (#FF6A1A is 5.78:1 on its worst dark ground). In the
+//                LIGHT theme the brand sits at 2.50:1 on surfaceAlt and
+//                founder decision #1 keeps it there, so the light floor is
+//                only "no preset may be harder to see than the brand already
+//                is" (review 2026-09-07)
+//   accentSoft   a WASH, so it must stay translucent — an opaque value here
+//                would silently turn every chip tint into a solid block
+
+const PRESET_AA = 4.5;
+// Dark is the AA text bar, not 3:1 — see the accent note above. A picked hue
+// solved to a bare 3:1 would have taken every accent-coloured caption in dark
+// mode from the brand's 5.78:1 to ~3.05:1 (review 2026-09-07).
+const PRESET_CHROME_FLOOR = { light: 2.4, dark: 4.5 } as const;
+// A button boundary is a UI component, not chrome — 3:1 in BOTH themes.
+const PRESET_FILL_FLOOR = 3.0;
+const WHITE: RGB = [255, 255, 255];
+
+// Solver probes, swept alongside the real presets.
+//
+// The nine shipped hues are all mid-to-dark, so every one of them clears the
+// white-on-accentFill budget at its own lightness without the solver moving a
+// step — which means the preset sweep alone cannot tell a working fill solve
+// from a broken one. (Measured: reversing the accentFill search direction left
+// all nine passing.) These probes are the hues the presets do not cover — pale
+// enough that the fill MUST darken, dark enough that the dark-theme chrome MUST
+// lighten — so the guard exercises the solver rather than only the data. They
+// are not offered to users; they exist to fail here first.
+const SOLVER_PROBES = [
+  { id: 'probe-pale-amber', primary: '#FFE08A' },
+  { id: 'probe-pale-cyan', primary: '#7FE3FF' },
+  { id: 'probe-near-black', primary: '#0A0A0A' },
+] as const;
+
+const accentFailures: string[] = [];
+const seenAccents = new Map<string, string>();
+
+for (const theme of ['light', 'dark'] as const) {
+  const base = Theme[theme] as unknown as Record<string, string>;
+  const grounds = (['bg', 'surface', 'surfaceAlt'] as const).map((g) => {
+    const c = parseColor(base[g]);
+    return { name: g, hex: base[g], rgb: c ? c.rgb : ([0, 0, 0] as RGB) };
+  });
+
+  for (const preset of [...THEME_PRESETS, ...SOLVER_PROBES]) {
+    const fam = deriveAccentPalette(preset.primary, theme);
+    const label = `${preset.id}/${theme}`;
+
+    const accentC = parseColor(fam.accent);
+    const labelC = parseColor(fam.accentLabel);
+    const fillC = parseColor(fam.accentFill);
+    const softC = parseColor(fam.accentSoft);
+    if (!accentC || !labelC || !fillC || !softC) {
+      accentFailures.push(`${label}: unparseable family ${JSON.stringify(fam)}`);
+      continue;
+    }
+
+    // accentSoft must stay a wash of the accent it belongs to.
+    if (softC.a >= 1) {
+      accentFailures.push(`${label}: accentSoft ${fam.accentSoft} is opaque — every chip tint becomes a solid block`);
+    }
+
+    // accentLabel — bare grounds, then the accentSoft wash over each.
+    for (const g of grounds) {
+      const bare = contrast(labelC.rgb, g.rgb);
+      if (bare < PRESET_AA) {
+        accentFailures.push(`${label}: accentLabel ${fam.accentLabel} on ${g.name} ${g.hex} = ${round2(bare)}:1 — needs ${PRESET_AA}:1`);
+      }
+      const tint = composite(softC, g.rgb);
+      const onTint = contrast(labelC.rgb, tint);
+      if (onTint < PRESET_AA) {
+        accentFailures.push(`${label}: accentLabel ${fam.accentLabel} on its accentSoft wash over ${g.name} = ${round2(onTint)}:1 — needs ${PRESET_AA}:1`);
+      }
+    }
+
+    // accentFill — white text sits on it, AND it is the primary button, so it
+    // also has to be visible as a shape against the page it is a button on.
+    const white = contrast(fillC.rgb, WHITE);
+    if (white < PRESET_AA) {
+      accentFailures.push(`${label}: white text on accentFill ${fam.accentFill} = ${round2(white)}:1 — needs ${PRESET_AA}:1`);
+    }
+    const worstFill = Math.min(...grounds.map((g) => contrast(fillC.rgb, g.rgb)));
+    if (worstFill < PRESET_FILL_FLOOR) {
+      accentFailures.push(
+        `${label}: accentFill ${fam.accentFill} is ${round2(worstFill)}:1 on its worst ${theme} ground — ` +
+        `needs ${PRESET_FILL_FLOOR}:1. The primary button is an invisible slab with white text floating on it.`,
+      );
+    }
+
+    // accent — non-text chrome, worst ground of its own theme.
+    const worstChrome = Math.min(...grounds.map((g) => contrast(accentC.rgb, g.rgb)));
+    if (worstChrome < PRESET_CHROME_FLOOR[theme]) {
+      accentFailures.push(
+        `${label}: accent ${fam.accent} is ${round2(worstChrome)}:1 on its worst ${theme} ground — ` +
+        `needs ${PRESET_CHROME_FLOOR[theme]}:1. An icon or progress bar in this hue disappears into the page.`,
+      );
+    }
+
+    // Two presets that resolve to one accent means the picker stopped picking.
+    // Probes are exempt: they are never offered, so a collision with one is
+    // not a picker defect.
+    if (preset.id.startsWith('probe-')) continue;
+    const prior = seenAccents.get(`${theme}|${fam.accent.toUpperCase()}`);
+    if (prior && prior !== preset.id) {
+      accentFailures.push(
+        `${label}: accent ${fam.accent} is identical to preset "${prior}" — ` +
+        `two presets paint the same app, so the picker is not applying the chosen hue.`,
+      );
+    }
+    seenAccents.set(`${theme}|${fam.accent.toUpperCase()}`, preset.id);
+  }
+}
+
+// The brand must be one of the presets, or the default the app boots in is not
+// a thing the picker can express (and check 12 would not be measuring it).
+if (!THEME_PRESETS.some((p) => p.primary.toUpperCase() === BRAND_ACCENT)) {
+  accentFailures.push(`no preset carries the brand hue ${BRAND_ACCENT} — the default palette is unreachable from the picker`);
+}
+
+ok(
+  "every theme preset's derived accent family clears AA on the grounds it lands on",
+  accentFailures.length === 0,
+  accentFailures.join('\n        '),
+);
+
+// ── Check 12b: the accent family is DERIVED, and the picker reaches it ─────
+//
+// The maths above only protects values that are actually built per hue. Two
+// regressions would make it vacuous, and both are one careless edit away —
+// re-freezing an accent literal back into Theme.light/dark (where it silently
+// wins over the derived one, because ThemeContext spreads the base FIRST), or
+// dropping the merge in ThemeContext and returning Theme[resolved] again,
+// which is exactly the state this finding was filed against.
+
+const derivationFailures: string[] = [];
+
+const themeObjSrc = (() => {
+  const at = colorsSrc.indexOf('export const Theme');
+  if (at < 0) return '';
+  const end = colorsSrc.indexOf('\n};', at);
+  return stripComments(colorsSrc.slice(at, end < 0 ? undefined : end));
+})();
+for (const tok of ['accent', 'accentHot', 'accentSoft', 'accentLabel', 'accentFill']) {
+  if (new RegExp(`\\b${tok}\\s*:`).test(themeObjSrc)) {
+    derivationFailures.push(
+      `constants/colors.ts: Theme declares \`${tok}\` again — a frozen accent token overrides the derived ` +
+      `family for all nine presets, which is the defect audit 2026-09-07 "Do next" 4 was filed against`,
+    );
+  }
+}
+
+const themeCtxSrc = stripComments(read('contexts/ThemeContext.tsx'));
+if (!/deriveAccentPalette\(/.test(themeCtxSrc)) {
+  derivationFailures.push('contexts/ThemeContext.tsx no longer builds the palette with deriveAccentPalette() — every screen is back on the frozen accent');
+}
+if (!/subscribeCustomPrimary\(/.test(themeCtxSrc)) {
+  derivationFailures.push('contexts/ThemeContext.tsx no longer subscribes to the picker — a saved theme would need an app restart to appear');
+}
+
+// Boot must only re-apply a hue this file has actually measured. `theme_colors`
+// is a jsonb column older builds wrote with a different preset list, and an
+// unknown hue would repaint the whole app in something check 12 never swept
+// while Settings displayed MAGE Orange as the selection (review 2026-09-07).
+const themeBootSrc = stripComments(read('app/_layout.tsx'));
+const loaderCall = /setCustomPrimary\(([^)]*)\)/.exec(themeBootSrc);
+if (!loaderCall) {
+  derivationFailures.push('app/_layout.tsx no longer restores the saved hue on boot — a picked theme would not survive a relaunch');
+} else if (
+  // Not `/THEME_PRESETS/` — that string is satisfied by the import line at the
+  // top of app/_layout.tsx, so the check passed with the gate itself deleted
+  // (proved by mutation, review 2026-09-07). The lookup has to be CALLED, and
+  // the value handed to setCustomPrimary has to be something other than the
+  // stored hue passed straight through.
+  !/THEME_PRESETS\.(some|find|includes|indexOf)\(/.test(themeBootSrc) ||
+  /^[\w.]*themeColors\.\w+$/.test(loaderCall[1].trim())
+) {
+  derivationFailures.push(
+    `app/_layout.tsx applies the stored hue (\`setCustomPrimary(${loaderCall[1].trim()})\`) without checking it against ` +
+    'THEME_PRESETS — a retired preset from an older build would paint the whole app in a hue no guard has measured',
+  );
+}
+
+// The DEFAULT may not drift. Every screen the product has ever shipped is
+// drawn in these five values, and check 12 above only proves a family clears
+// AA — a brand family re-solved a step of lightness away would clear it too,
+// and would restyle the entire app on a refactor nobody reviewed as a redesign.
+// Pinned here, in the theme's own terms, and asserted through the SAME entry
+// point the app calls (lowercase included: a `theme_colors` row could carry
+// either spelling).
+const BRAND_EXPECTED: Record<'light' | 'dark', Record<string, string>> = {
+  light: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.12)', accentLabel: '#B23E08', accentFill: '#BC440C' },
+  dark: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.16)', accentLabel: '#FF6A1A', accentFill: '#BC440C' },
+};
+for (const theme of ['light', 'dark'] as const) {
+  for (const seed of [BRAND_ACCENT, BRAND_ACCENT.toLowerCase()]) {
+    const fam = deriveAccentPalette(seed, theme) as unknown as Record<string, string>;
+    for (const [tok, want] of Object.entries(BRAND_EXPECTED[theme])) {
+      if ((fam[tok] ?? '').toUpperCase() !== want.toUpperCase()) {
+        derivationFailures.push(
+          `deriveAccentPalette('${seed}', '${theme}').${tok} is ${fam[tok]} — the shipped default is ${want}. ` +
+          'The no-custom-colour palette must stay the measured brand family, not a re-solve of it.',
+        );
+      }
+    }
+  }
+}
+
+const settingsSrc = stripComments(read('app/(tabs)/settings/index.tsx'));
+if (!/setCustomPrimary\(/.test(settingsSrc)) {
+  derivationFailures.push('app/(tabs)/settings/index.tsx no longer sets the chosen hue — the APP THEME picker writes nothing');
+}
+if (/restarting the app/i.test(settingsSrc)) {
+  derivationFailures.push('app/(tabs)/settings/index.tsx still tells the user to restart for theme changes — the palette is live, so the instruction is false');
+}
+
+ok(
+  'the accent family stays derived per hue and the picker still reaches it',
+  derivationFailures.length === 0,
+  derivationFailures.join('\n        '),
 );
 
 console.log('');

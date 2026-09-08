@@ -38,6 +38,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { resolveScheduleAnchor, scheduleDayNumberFor } from '../utils/scheduleOps';
+// measuredUsage is sliced out of the component and RUN below, so every helper
+// it calls has to be handed to `new Function` explicitly — the slice has no
+// imports of its own. It moved from a bare `new Date(u.date)` to the calendar
+// helper on 2026-09-07 (validate-calendar-date), which is what made this
+// injection necessary; the same pattern as resolveScheduleAnchor above.
+import { parseCalendarDay } from '../utils/calendarDate';
 
 // These validators run under bun (`bun run scripts/...`), but tsc type-checks
 // them against the app's react-native lib set — which has no Bun global. The
@@ -253,13 +259,24 @@ console.log('\nno AI panel spends a metered call from a mount effect:');
 const MOUNT_CACHE_ONLY: Record<string, RegExp> = {
   'components/AIHomeBriefing.tsx|fetchBriefing': /fetchBriefing\(\s*true\s*\)/,
   'components/AIScheduleRisk.tsx|loadOrAnalyze': /loadOrAnalyze\(\s*false\s*,\s*true\s*\)/,
+  'components/AIInvoicePredictor.tsx|fetchPrediction': /fetchPrediction\(\s*true\s*\)/,
+};
+
+// …and the flag it passes has to actually STOP the spend. The call-site regex
+// above proves only that the effect passed something: verified by mutation on
+// 2026-09-07, deleting `if (cacheOnly) return;` from fetchPrediction's body put
+// the metered call back on every invoice open and this suite still reported
+// "0 failed". So the gate is checked where it lives — it must short-circuit
+// BEFORE the meter runs.
+const MOUNT_CACHE_ONLY_GATE: Record<string, string> = {
+  'components/AIHomeBriefing.tsx|fetchBriefing': 'cacheOnly',
+  'components/AIScheduleRisk.tsx|loadOrAnalyze': 'cacheOnly',
+  'components/AIInvoicePredictor.tsx|fetchPrediction': 'cacheOnly',
 };
 
 // Panels whose mount effect still spends. Each entry is a live audit finding,
 // not an exemption — delete the line when the panel is fixed.
 const MOUNT_WAIVED: Record<string, string> = {
-  'components/AIInvoicePredictor.tsx|fetchPrediction':
-    'audit 2026-09-07 ai-features: auto-runs on every unpaid invoice open; fix is the tap-to-run pattern (file not owned by wave F)',
   'components/AIWeeklySummary.tsx|handleGenerate':
     'gated on `visible` — the effect fires when the GC opens Full Analysis, which IS the gesture',
 };
@@ -284,6 +301,7 @@ for (const rel of AI_COMPONENTS) {
   // on 2026-09-07: the suite still reported "0 failed".
   const meters = [...b.matchAll(/recordAIUsage\s*\(/g)].map(m => m.index);
   const spenders = new Set<string>();
+  const spenderBody = new Map<string, [number, number]>();
   const declRe = /(?:const|let|var)\s+([A-Za-z0-9_]+)\s*=\s*(?:(?:React\.)?useCallback\s*\(|(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_]+)\s*=>\s*\{)|(?:async\s+)?function\s+([A-Za-z0-9_]+)\s*\(/g;
   for (let m = declRe.exec(b); m; m = declRe.exec(b)) {
     const name = m[1] ?? m[2];
@@ -291,7 +309,10 @@ for (const rel of AI_COMPONENTS) {
       ? parenBlock(b, m.index + m[0].length - 1)
       : braceBlock(b, m.index + m[0].length - 1);
     if (!range) continue;
-    if (meters.some(o => o > range[0] && o < range[1])) spenders.add(name);
+    if (meters.some(o => o > range[0] && o < range[1])) {
+      spenders.add(name);
+      spenderBody.set(name, range);
+    }
   }
   // The floor that keeps the check from silently disappearing: if the file
   // meters anything, this scan has to have found the function that does it.
@@ -314,19 +335,84 @@ for (const rel of AI_COMPONENTS) {
       ok(`${rel}: ${fn} runs cache-only from its effect`,
         !!shape && shape.test(effectReal),
         shape ? 'the effect must pass the cache-only argument' : `no cache-only shape declared for ${key}`);
+
+      const flag = MOUNT_CACHE_ONLY_GATE[key];
+      const body = spenderBody.get(fn);
+      const slice = flag && body ? b.slice(body[0], body[1]) : '';
+      const gateAt = slice ? slice.search(new RegExp(`if\\s*\\(\\s*${flag}\\s*\\)\\s*return`)) : -1;
+      const meterAt = slice ? slice.search(/recordAIUsage\s*\(/) : -1;
+      ok(`${rel}: ${fn}'s cache-only flag returns before the meter`,
+        !!flag && gateAt >= 0 && meterAt >= 0 && gateAt < meterAt,
+        flag
+          ? `\`if (${flag}) return\` must sit above recordAIUsage — passing the flag is not the same as honouring it`
+          : `no cache-only gate declared for ${key}`);
     }
   }
+}
+
+// ─── 2b) A cap that blocks a control says so ────────────────────────────────
+// `if (!limit.allowed) return;` is the same silence as an empty catch: the
+// panel simply never appears and the GC cannot tell a cap from a feature that
+// does not exist. showAILimitAlert is the shared sheet (it is the only thing
+// that routes to /paywall); setError / setPaywallReason are what stays on the
+// card after it is dismissed. Either satisfies this — a bare return does not.
+console.log('\nno AI panel goes silent when a tier cap blocks it:');
+
+const CAP_SAYS_SOMETHING = /\bsetError\s*\(|\bsetPaywallReason\s*\(|\bshowAlert\s*\(|\bshowAILimitAlert\s*\(/;
+
+for (const rel of AI_COMPONENTS) {
+  const b = blank(src(rel));
+  const capRe = /if\s*\(\s*!\s*limit\.allowed\s*\)/g;
+  for (let m = capRe.exec(b); m; m = capRe.exec(b)) {
+    const block = braceBlock(b, m.index + m[0].length - 1);
+    if (!block) continue;
+    capRe.lastIndex = block[1];
+    ok(`${rel}: the tier cap names itself instead of returning silently`,
+      CAP_SAYS_SOMETHING.test(b.slice(block[0], block[1])),
+      'a blocked control must say why — showAILimitAlert({ limit, router }) and/or setError(limit.message)');
+  }
+}
+
+// ─── 2c) The one panel that legitimately auto-spends cannot loop ────────────
+// AIWeeklySummary is MOUNT_WAIVED above because its effect is gated on
+// `visible`, and opening Full Analysis IS the gesture. That waiver holds only
+// while the effect stops after a failure: without `!error` in the condition,
+// the run re-enters the instant setIsLoading(false) lands and the sheet retries
+// forever, one smart-tier call per pass. And `!error` is only safe if the error
+// is dropped on dismiss — Home mounts this component unconditionally and merely
+// toggles `visible`, so a stale error would otherwise make the gate permanent
+// and the sheet would show "Analysis didn't run" for the rest of the session.
+// Both halves verified by mutation on 2026-09-07 (removing `!error` left the
+// suite green before this section existed).
+console.log('\nthe auto-running summary stops after a failure, and forgets it on dismiss:');
+{
+  const b = blank(src('components/AIWeeklySummary.tsx'));
+  const effectRe = /(?:React\.)?useEffect\s*\(/g;
+  let autoRun: string | null = null;
+  let clearsOnDismiss = false;
+  for (let m = effectRe.exec(b); m; m = effectRe.exec(b)) {
+    const args = parenBlock(b, m.index + m[0].length - 1);
+    if (!args) continue;
+    effectRe.lastIndex = args[1];
+    const body = b.slice(args[0], args[1]);
+    if (/\bhandleGenerate\s*\(/.test(body) && /\bvisible\b/.test(body)) autoRun = body;
+    if (/if\s*\(\s*!\s*visible\s*\)\s*setError\s*\(\s*null\s*\)/.test(body)) clearsOnDismiss = true;
+  }
+  ok('the auto-run effect is still findable', !!autoRun);
+  ok('it does not re-enter on its own error',
+    !!autoRun && /!\s*error\b/.test(autoRun),
+    'a failed run with no `!error` gate retries forever, spending a smart-tier call each pass');
+  ok('dismissing the sheet clears the error so reopening retries',
+    clearsOnDismiss,
+    'without this the `!error` gate is permanent and Full Analysis never runs again this session');
 }
 
 // ─── 3) A failed generate says what failed ──────────────────────────────────
 console.log('\nevery AI catch block tells the user something:');
 
-// Still console-only. Each is the same audit finding; delete the line when fixed.
-const SILENT_WAIVED: Record<string, string> = {
-  'components/AIDFRFromPhotos.tsx': 'audit 2026-09-07 ai-features: silent catch at the photo-DFR generate (file not owned by wave F)',
-  'components/AIInvoicePredictor.tsx': 'audit 2026-09-07 ai-features: auto-run card renders nothing on failure (file not owned by wave F)',
-  'components/AIWeeklySummary.tsx': 'audit 2026-09-07 ai-features: silent catch on Full Analysis (file not owned by wave F)',
-};
+// Still console-only. Each is the same audit finding; delete the line when
+// fixed. Empty as of 2026-09-07: every AI panel now names its own failure.
+const SILENT_WAIVED: Record<string, string> = {};
 const SAYS_SOMETHING = /\bsetError\s*\(|\bshowAlert\s*\(|\bshowAILimitAlert\s*\(/;
 
 /** True for a `try { … } catch (…)`, false for a promise's `.catch(…)`. */
@@ -479,11 +565,11 @@ console.log('\nno themed AI stylesheet paints on a baked light-theme tint:');
 
 const BAKED_TINT = /\bColors\.(errorLight|successLight|warningLight|infoLight)\b/;
 
-// Same finding, in a file wave F does not own. Delete the line when it moves.
-const TINT_WAIVED: Record<string, string> = {
-  'components/AIInvoicePredictor.tsx':
-    'audit 2026-09-07 polish-delight: tipRow paints t.info ink on the static Colors.infoLight; fix is t.info over a themed ground (file not owned by wave F)',
-};
+// Empty as of 2026-09-07. AIQuickEstimate.tsx was waived here for one review
+// cycle on the grounds that another wave owned it — it did not; the file was in
+// the same wave that turned its module-scope sheet into a `(t) =>` factory and
+// so created the regression. Four grounds now use the *Soft tokens.
+const TINT_WAIVED: Record<string, string> = {};
 
 for (const rel of AI_COMPONENTS) {
   const b = blank(src(rel));
@@ -507,6 +593,292 @@ for (const rel of AI_COMPONENTS) {
       'swap the static *Light tint for the theme pair (t.dangerSoft/t.dangerLabel, t.successSoft/t.successLabel)');
   }
 }
+
+// ─── 7) No fabricated supplier, store or benchmark reaches a rendered field ──
+// The same defect shape as (1), one layer down: not a number the app computed
+// wrong, but a number or a NAME the model was invited to make up and the UI
+// then printed as fact. The supplier case is the worst of them because it does
+// not stop at the screen — `supplier` rides the row into the cart, the estimate
+// line items (app/(tabs)/estimate/review.tsx:185) and out onto the bid PDF the
+// GC signs, so the client reads a store nobody ever called
+// (audit 2026-09-07, money-trust).
+console.log('\nno invented supplier, store or dollar benchmark is rendered as fact:');
+
+const finder = src('utils/materialFinder.ts');
+const finderBlank = blank(finder);
+// The prompt lives in a template literal, which `blank` erases — so this one
+// assertion reads the REAL text, sliced to the literal so the file's own
+// comments (which quote the removed clause verbatim) cannot satisfy it.
+const promptOpen = finder.indexOf('prompt: `');
+const promptClose = finder.indexOf('`,', promptOpen);
+const finderPrompt = promptOpen >= 0 && promptClose > promptOpen ? finder.slice(promptOpen, promptClose) : '';
+ok('findMaterials still has a prompt this check can read', finderPrompt.length > 200);
+ok('the prompt names no store or price book',
+  !/home ?depot|lowe'?s|menards|ace hardware|rsmeans|grainger|ferguson/i.test(finderPrompt),
+  'a named supplier in the prompt becomes a named supplier on the bid PDF');
+ok('the false "access to current US construction supply pricing" premise is gone',
+  !/access to current/i.test(finderPrompt));
+ok('the prompt tells the model it has no feed and forbids naming one',
+  /NO price feed/i.test(finderPrompt) && /Do not name a store/i.test(finderPrompt));
+ok('the schema has no model-filled priceSource field',
+  !/priceSource\s*:\s*z\./.test(finderBlank),
+  'a field the model fills is a field the model can put a store name in');
+ok('priceSource is stamped from a constant instead',
+  /priceSource:\s*AI_PRICE_SOURCE/.test(finderBlank) && /AI_PRICE_SOURCE\s*=/.test(finderBlank));
+ok('the two dead fabrication functions are gone with it',
+  !finderBlank.includes('getPriceComparison')
+  && !finderBlank.includes('suggestMaterialsForPhase')
+  && !/homeDepotPrice|lowesPrice|rsmeansPrice/.test(finderBlank),
+  'getPriceComparison / suggestMaterialsForPhase fabricated named-source pricing and had zero callers');
+
+// Every screen that turns an AI material into a cart row. A model-supplied
+// value in `supplier` is the defect; a constant is the fix.
+// Empty as of 2026-09-07. AIQuickEstimate.tsx was waived here for one review
+// cycle as "not owned by wave 5" — it was in fact in scope, and the waiver left
+// the headline defect live on the second of the two paths to the bid PDF:
+// `aiQuickEstimateSchema.supplier` DEFAULTS to 'Home Depot'
+// (utils/aiService.ts:1113), so the store reached the cart even when the model
+// said nothing at all.
+const SUPPLIER_WAIVED: Record<string, string> = {};
+// `aiMat` is the AI material row in both screens. Deliberately NOT a looser
+// pattern: full.tsx:998 legitimately carries an already-set `item.material.
+// supplier` into a linked estimate, and flagging that would train the next
+// reader to widen the waiver list instead of fixing the defect.
+for (const rel of ['app/(tabs)/estimate/full.tsx', 'components/AIQuickEstimate.tsx']) {
+  const b = blank(src(rel));
+  const bad = /supplier:\s*aiMat\./.test(b);
+  if (SUPPLIER_WAIVED[rel]) {
+    if (bad) note(`${rel} reads a model value into supplier — waived (${SUPPLIER_WAIVED[rel]})`);
+    else note(`WAIVER NO LONGER NEEDED: ${rel} sets a constant supplier — drop it from SUPPLIER_WAIVED`);
+    continue;
+  }
+  ok(`${rel}: supplier is a constant, never a model value`, !bad,
+    "set supplier to a literal and let sourceLabel carry the provenance");
+}
+ok('the estimator sets the constant it should', /supplier: 'AI estimate'/.test(src('app/(tabs)/estimate/full.tsx')));
+ok('… and so does Quick Estimate', /supplier: 'AI estimate'/.test(src('components/AIQuickEstimate.tsx')));
+
+// Stopping it at the cart is not enough: the Quick Estimate result list printed
+// `{m.supplier}` straight off the parsed response, one line under each material
+// name, so the GC read "Home Depot" on screen before anything was applied. A
+// rendered field is a claim.
+const qeReal = src('components/AIQuickEstimate.tsx');
+ok('no AI material row RENDERS a model-supplied supplier',
+  !/\{\s*m\.supplier\s*\}/.test(qeReal) && !/\{\s*aiMat\.supplier\s*\}/.test(qeReal),
+  'the row shows the unit price instead — a figure the estimate is actually built from');
+// mageAI has no browsing tool, no cost book and no supplier feed, so "based on
+// current market data" is the same false premise findMaterials' prompt shed.
+ok('the Quick Estimate disclaimer claims no market feed',
+  !/current market data/i.test(qeReal) && /recall, not a quote or a market feed/.test(qeReal));
+
+// The rent-vs-buy panel restated arithmetic the prompt had already handed it
+// (so the tile could disagree with its own basis), priced a machine it has no
+// catalog for, and rendered `breakEvenProjects`' zero default as
+// "0+ projects/yr".
+const equipReal = src('components/AIEquipmentAdvice.tsx');
+const equipBlank = blank(equipReal);
+ok('the rent-vs-buy tiles render no model-supplied dollar figure',
+  !/result\.annualRentalCost/.test(equipBlank)
+  && !/result\.purchasePrice/.test(equipBlank)
+  && !/result\.breakEvenProjects/.test(equipBlank));
+ok('they read the measured utilization log instead',
+  /measuredUsage\(/.test(equipBlank) && /usage\.costAtDayRate/.test(equipBlank) && /usage\.daysUsed/.test(equipBlank));
+ok('the run is blocked, not floored, when the log cannot answer',
+  /if \(isLoading \|\| !usage\.ok\) return;/.test(equipBlank) && /styles\.blockedText/.test(equipBlank));
+// The tile prints the NAMED job count. `jobs` below floors at 1 for the model
+// only, because a machine with logged hours ran on at least one job — the tile
+// must not repeat that lower bound as if it were a measurement.
+ok('the job tile prints "Not logged" rather than the model\'s lower bound',
+  /usage\.jobsNamed \? usage\.projects : 'Not logged'/.test(equipReal));
+ok('the money tile is labelled by ownership — an owner is never told they paid rent',
+  /equipment\.type === 'rented' \? 'Rent paid' : 'At your day rate'/.test(equipReal));
+
+// ─── 7b) measuredUsage, RUN ─────────────────────────────────────────────────
+// Regexes police the SPELLING of a floor; the defect is its SHAPE. Verified by
+// mutation on 2026-09-07: `Math.max(uniqueProjects, 2)` was replaced by
+// `Math.max(projects, 1)` inside measuredUsage and the assertion that claimed
+// to forbid floors — `!/Math\.max\(uniqueProjects/` — stayed green. So the
+// shipped function is lifted and executed, the same way (1) and (8) do it.
+console.log('\nthe rent-vs-buy panel measures the log or refuses, and never fills a gap:');
+
+const usageAt = equipBlank.indexOf('function measuredUsage(');
+const usageBlock = usageAt >= 0 ? braceBlock(equipBlank, usageAt) : null;
+ok('components/AIEquipmentAdvice.tsx still declares measuredUsage', usageAt >= 0 && !!usageBlock);
+
+type UtilFixture = { projectId: string; date: string; hoursUsed: number };
+type EquipFixture = { type: string; dailyRate: number; utilizationLog: UtilFixture[] };
+type UsageOut =
+  | { ok: true; projects: number; jobsNamed: boolean; daysUsed: number; spanDays: number; costAtDayRate: number }
+  | { ok: false; reason: string };
+
+let measuredUsage: ((e: EquipFixture) => UsageOut) | null = null;
+if (usageAt >= 0 && usageBlock) {
+  // The reason sentences are string literals, which `blank` erases — so the
+  // REAL source is sliced at offsets taken from the blanked copy.
+  const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(
+    `${equipReal.slice(usageAt, usageBlock[1])}\nmodule.exports = { measuredUsage };`,
+  );
+  const mod: { exports: Record<string, unknown> } = { exports: {} };
+  new Function('module', 'exports', 'parseCalendarDay', js)(mod, mod.exports, parseCalendarDay);
+  measuredUsage = mod.exports.measuredUsage as (e: EquipFixture) => UsageOut;
+}
+
+const entry = (projectId: string, date: string, hoursUsed: number): UtilFixture => ({ projectId, date, hoursUsed });
+const rented = (log: UtilFixture[], dailyRate = 350): EquipFixture => ({ type: 'rented', dailyRate, utilizationLog: log });
+const owned = (log: UtilFixture[], dailyRate = 350): EquipFixture => ({ type: 'owned', dailyRate, utilizationLog: log });
+
+const empty = measuredUsage?.(rented([]));
+ok('an empty log refuses instead of answering', empty?.ok === false);
+ok('… and the refusal says what is missing and what it turns on',
+  empty?.ok === false && /Log some usage/.test(empty.reason) && /won't guess them/.test(empty.reason));
+// An owner told to "keep renting" a machine they own is the same class of
+// defect as copy pointing at a control that does not exist. 'owned' is the
+// default the add form starts on (app/(tabs)/equipment/index.tsx:70).
+ok('the refusal is written for THIS machine — an owner is not told to keep renting',
+  measuredUsage?.(owned([])).ok === false
+  && /owning it still pays/.test((measuredUsage?.(owned([])) as { reason: string }).reason)
+  && !/keep renting/.test((measuredUsage?.(owned([])) as { reason: string }).reason));
+
+// The add form takes `parseFloat(newDailyRate) || 0`, so a machine with no rate
+// is ordinary. Pricing 12 logged days at $0 and printing "$0" as a measured
+// figure is a fabricated number wearing a measurement's clothes.
+const noRate = measuredUsage?.(rented([entry('p1', '2026-08-01', 96)], 0));
+ok('a $0 day rate refuses rather than pricing the log at zero', noRate?.ok === false);
+ok('… and it names the field that fixes it',
+  noRate?.ok === false && /Daily Rate/.test(noRate.reason));
+
+const twoJobs = measuredUsage?.(rented([
+  entry('p1', '2026-08-01', 8),
+  entry('p1', '2026-08-05', 8),
+  entry('p2', '2026-08-10', 16),
+]));
+ok('days are hours ÷ 8 over the whole log', twoJobs?.ok === true && twoJobs.daysUsed === 4);
+ok('cost is those days at the GC\'s own rate, nothing else',
+  twoJobs?.ok === true && twoJobs.costAtDayRate === 4 * 350);
+ok('the calendar window is first entry to last, inclusive',
+  twoJobs?.ok === true && twoJobs.spanDays === 10);
+ok('distinct named jobs are counted', twoJobs?.ok === true && twoJobs.projects === 2 && twoJobs.jobsNamed);
+
+// The Log Usage sheet has NO project picker (app/equipment-detail.tsx:299) —
+// it stamps `editProjectId || ''` — so an unassigned machine records every
+// entry with an empty projectId. That is 0 known jobs, and 0 is what has to
+// come back: a floor here is how "Projects: 1" got printed for a machine MAGE
+// had never seen on a job.
+const unnamed = measuredUsage?.(rented([entry('', '2026-08-01', 40), entry('', '2026-08-09', 40)]));
+ok('an unassigned machine reports 0 known jobs, NOT a floor of 1',
+  unnamed?.ok === true && unnamed.projects === 0 && unnamed.jobsNamed === false);
+ok('… while its days and cost are still real',
+  unnamed?.ok === true && unnamed.daysUsed === 10 && unnamed.costAtDayRate === 3500);
+ok('a log of zero-hour entries refuses too — there is nothing to measure',
+  measuredUsage?.(rented([entry('p1', '2026-08-01', 0)])).ok === false);
+ok('an unparseable date does not poison the window',
+  measuredUsage?.(rented([entry('p1', 'not-a-date', 8)]))?.ok === true);
+
+// The invoice predictor averaged EVERY paid invoice in the account and handed
+// the scalar to the relay under the heading "CLIENT HISTORY".
+const predBlank = blank(src('components/AIInvoicePredictor.tsx'));
+ok('the invoice predictor scopes payment history to this invoice\'s own project',
+  /paymentHistoryForInvoice\(invoice,\s*allInvoices\)/.test(predBlank)
+  && !/allInvoices\.filter\(/.test(predBlank),
+  'the per-project filter lives in utils/paymentPrediction.ts — do not re-derive it here');
+ok('the chip and the payload read the SAME history object',
+  /totalInvoices: history\.paidInvoices/.test(predBlank) && /history\.summary/.test(predBlank),
+  'a chip computed separately from the payload can claim a record the prompt never saw');
+
+// ─── 8) The per-project payment history, RUN ────────────────────────────────
+// Same technique as (1): utils/paymentPrediction.ts cannot be imported here
+// (mageAI pulls react-native), so the shipped function is lifted out verbatim,
+// transpiled and executed. An edit to it changes what these fixtures return.
+console.log('\npayment history is this project\'s record, and says so when there is none:');
+
+const ppSrc = src('utils/paymentPrediction.ts');
+const ppBlank = blank(ppSrc);
+const histAt = ppBlank.indexOf('export function paymentHistoryForInvoice(');
+const daysAt = ppBlank.indexOf('function daysBetween(');
+ok('utils/paymentPrediction.ts still exports paymentHistoryForInvoice', histAt >= 0 && daysAt >= 0);
+
+type InvFixture = {
+  id: string; projectId: string; status: string; dueDate: string;
+  payments: { date: string }[];
+};
+type HistFn = (inv: InvFixture, all: InvFixture[]) =>
+  { paidInvoices: number; avgDaysLate: number | null; summary: string };
+
+let paymentHistoryForInvoice: HistFn | null = null;
+if (histAt >= 0 && daysAt >= 0) {
+  const histBlock = braceBlock(ppBlank, histAt);
+  const daysBlock = braceBlock(ppBlank, daysAt);
+  // `export` is stripped: the lifted text is fed to `new Function`, which is
+  // script scope, not a module.
+  const body = `${ppSrc.slice(daysAt, daysBlock?.[1] ?? daysAt)}\n${ppSrc.slice(histAt, histBlock?.[1] ?? histAt)}`
+    .replace(/^export\s+/gm, '');
+  const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(
+    `${body}\nmodule.exports = { paymentHistoryForInvoice };`,
+  );
+  const mod: { exports: Record<string, unknown> } = { exports: {} };
+  new Function('module', 'exports', js)(mod, mod.exports);
+  paymentHistoryForInvoice = mod.exports.paymentHistoryForInvoice as HistFn;
+}
+
+const inv = (id: string, projectId: string, over: Partial<InvFixture> = {}): InvFixture =>
+  ({ id, projectId, status: 'paid', dueDate: '2026-08-01', payments: [{ date: '2026-08-01' }], ...over });
+
+const target = inv('target', 'p1', { status: 'sent', payments: [] });
+// p1 is the job being invoiced; p2 is a different client who pays on time.
+const book = [
+  target,
+  inv('a', 'p1', { dueDate: '2026-06-01', payments: [{ date: '2026-06-21' }] }), // 20 days late
+  inv('b', 'p1', { dueDate: '2026-07-01', payments: [{ date: '2026-07-11' }] }), // 10 days late
+  inv('c', 'p2', { dueDate: '2026-07-01', payments: [{ date: '2026-07-01' }] }), // another client, on time
+  inv('d', 'p2', { dueDate: '2026-07-01', payments: [{ date: '2026-07-01' }] }),
+  inv('e', 'p1', { status: 'sent', payments: [] }),                              // unpaid, proves nothing
+  inv('f', 'p1', { status: 'paid', payments: [] }),                              // paid flag, no payment row
+];
+ok('only this project\'s prior PAID invoices count — the other client is not averaged in',
+  paymentHistoryForInvoice?.(target, book).paidInvoices === 2,
+  `got ${String(paymentHistoryForInvoice?.(target, book).paidInvoices)}`);
+ok('the average is 15 days late, not the 7.5 the whole-account average gave',
+  paymentHistoryForInvoice?.(target, book).avgDaysLate === 15,
+  `got ${String(paymentHistoryForInvoice?.(target, book).avgDaysLate)}`);
+ok('the summary quotes that count and that number',
+  /2 prior paid invoices on this project/.test(paymentHistoryForInvoice?.(target, book).summary ?? '')
+  && /15 days past the due date/.test(paymentHistoryForInvoice?.(target, book).summary ?? ''));
+ok('the invoice never counts itself',
+  paymentHistoryForInvoice?.(
+    inv('self', 'p1', { dueDate: '2026-06-01', payments: [{ date: '2026-06-21' }] }),
+    [inv('self', 'p1', { dueDate: '2026-06-01', payments: [{ date: '2026-06-21' }] })],
+  ).paidInvoices === 0);
+ok('no record ⇒ avgDaysLate is null, NOT 0 — "never been paid" is not "always on time"',
+  paymentHistoryForInvoice?.(target, [target, inv('c', 'p2')]).avgDaysLate === null);
+ok('… and the sentence carries no number at all',
+  /No prior paid invoices on this project/.test(paymentHistoryForInvoice?.(target, [target]).summary ?? '')
+  && !/\d/.test(paymentHistoryForInvoice?.(target, [target]).summary ?? ''));
+ok('early payment is not negative lateness — it floors at 0 and reads as on time',
+  (() => {
+    const early = [target, inv('a', 'p1', { dueDate: '2026-07-01', payments: [{ date: '2026-06-20' }] })];
+    const h = paymentHistoryForInvoice?.(target, early);
+    return h?.avgDaysLate === 0 && /all paid by the due date/.test(h.summary);
+  })());
+ok('singular reads "1 prior paid invoice"',
+  /1 prior paid invoice on this project/.test(
+    paymentHistoryForInvoice?.(target, [target, inv('a', 'p1', { dueDate: '2026-07-01', payments: [{ date: '2026-07-02' }] })]).summary ?? '',
+  ));
+
+// ─── 9) The DFR haptics shim is not a component ─────────────────────────────
+// `Platform_isMobile` in AIDFRFromPhotos is called from event handlers. The
+// theme migration dropped a useTheme() + useThemedStyles() pair into it along
+// with every real component's, so `useMemo` ran with a null dispatcher: every
+// photo tap and every Generate press threw "Invalid hook call" BEFORE reaching
+// the try/catch this file's error copy sits in (found 2026-09-07 while fixing
+// that catch — the silent failure was hiding a hard throw).
+console.log('\nthe DFR haptics shim calls no hooks:');
+const dfrBlank = blank(src('components/AIDFRFromPhotos.tsx'));
+const shimAt = dfrBlank.indexOf('function Platform_isMobile(');
+const shimBody = shimAt >= 0 ? braceBlock(dfrBlank, shimAt) : null;
+ok('the shim is still there to check', shimAt >= 0 && !!shimBody);
+ok('its body calls nothing that looks like a hook',
+  !!shimBody && !/\buse[A-Z]/.test(dfrBlank.slice(shimBody[0], shimBody[1])),
+  'a hook called outside render throws — this function runs from onPress');
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

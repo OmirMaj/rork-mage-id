@@ -1078,11 +1078,28 @@ export interface SupplierListing {
   imageUrl?: string;
 }
 
+/** The persisted shape of `AppSettings.themeColors` (Supabase `theme_colors`).
+ *  `primary` is the hue the app is painted in; `accent` is the legacy second
+ *  swatch, kept so existing rows round-trip — see THEME_PRESETS below. */
 export interface ThemeColors {
   primary: string;
   accent: string;
 }
 
+// Settings → APP THEME.
+//
+// `primary` is the ONLY field that paints anything. constants/colors.ts
+// derives the whole accent family from it (accent / accentHot / accentSoft /
+// accentLabel / accentFill), which is what makes the picker reach the ~3,800
+// accent call sites instead of the ~420 it reached before 2026-09-07.
+// `accent` is the original second swatch: it fed `Colors.accent` alone, so a
+// green preset used to paint amber buttons on one colour system and orange
+// ones on the other. It no longer resolves to a token, and is retained only
+// because it is half of the persisted `themeColors` shape.
+//
+// Adding a preset: nothing here has to clear a contrast budget by hand —
+// scripts/validate-contrast.ts check 12 solves and re-measures the family for
+// every entry in this list and fails the build if a hue cannot make AA.
 export const THEME_PRESETS: { id: string; label: string; primary: string; accent: string }[] = [
   // MAGE Orange — the brand default. Listed first so the Settings theme
   // picker shows it as option #1; matches the icon-circle / accent

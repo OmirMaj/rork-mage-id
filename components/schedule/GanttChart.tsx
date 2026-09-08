@@ -8,7 +8,9 @@ import {
   Dimensions,
 } from 'react-native';
 import { Flag, GitBranch, CloudRain } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
   formatShortDate,
@@ -39,6 +41,10 @@ interface GanttChartProps {
 }
 
 function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseline, forecast }: GanttChartProps) {
+  // Built per theme: the chart's gutter, grid rules and date ink baked their
+  // Colors.borderLight/textMuted/surfaceAlt/text at import (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const totalDays = schedule.totalDurationDays;
   const ganttWidth = Math.max(SCREEN_WIDTH * 1.5, totalDays * 14 + 200);
 
@@ -115,8 +121,8 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
       >
         <View style={s.ganttLabel}>
           <View style={s.ganttLabelIcons}>
-            {task.isMilestone && <Flag size={9} color={Colors.warningLabel} strokeWidth={1.75} />}
-            {task.isCriticalPath && <GitBranch size={9} color={Colors.dangerLabel} strokeWidth={1.75} />}
+            {task.isMilestone && <Flag size={9} color={t.warningLabel} strokeWidth={1.75} />}
+            {task.isCriticalPath && <GitBranch size={9} color={t.dangerLabel} strokeWidth={1.75} />}
             {weatherRisk && <CloudRain size={9} color="#F5A623" strokeWidth={1.75} />}
           </View>
           <Text style={s.ganttLabelText} numberOfLines={1}>{task.title}</Text>
@@ -135,7 +141,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
             <View
               style={[
                 s.ganttDiamond,
-                { left: `${barLeft}%` as any, backgroundColor: Colors.info },
+                { left: `${barLeft}%` as any, backgroundColor: t.info },
               ]}
             />
           ) : (
@@ -234,7 +240,7 @@ function addDays(date: Date, days: number): Date {
   return result;
 }
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -246,7 +252,7 @@ const s = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
     height: 32,
   },
   headerLabel: {
@@ -254,12 +260,12 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     paddingLeft: 12,
     borderRightWidth: 1,
-    borderRightColor: Colors.borderLight,
+    borderRightColor: t.line,
   },
   headerLabelText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
   },
@@ -270,13 +276,13 @@ const s = StyleSheet.create({
   },
   weekColumn: {
     borderRightWidth: 0.5,
-    borderRightColor: Colors.borderLight,
+    borderRightColor: t.line,
     justifyContent: 'center',
     paddingLeft: 4,
   },
   weekLabel: {
     fontSize: 9,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   todayLine: {
@@ -293,17 +299,17 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderLeftWidth: 3,
   },
   phaseHeaderText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   phaseHeaderCount: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   ganttRow: {
@@ -311,7 +317,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     height: 32,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   ganttLabel: {
     width: 130,
@@ -320,7 +326,7 @@ const s = StyleSheet.create({
     gap: 3,
     paddingHorizontal: 8,
     borderRightWidth: 1,
-    borderRightColor: Colors.borderLight,
+    borderRightColor: t.line,
   },
   ganttLabelIcons: {
     flexDirection: 'row',
@@ -330,12 +336,12 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: t.text,
   },
   ganttLabelPercent: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   ganttBarArea: {
     flex: 1,
@@ -379,9 +385,15 @@ const s = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: '#FFF4E0',
+    // Was a fixed pale-amber #FFF4E0 with a #F5A623 rule. Once the rest of this
+    // sheet started following the theme, a hardcoded light fill became the
+    // stranded-surface shape validate-theme-surface-pairs.ts exists to catch:
+    // light chip, inverting ink around it. warningSoft composites over whatever
+    // ground the chart is on, and Colors.warning is the vivid signal amber the
+    // literal was approximating.
+    backgroundColor: t.warningSoft,
     borderWidth: 1,
-    borderColor: '#F5A623',
+    borderColor: Colors.warning,
     alignItems: 'center',
     justifyContent: 'center',
   },

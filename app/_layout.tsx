@@ -33,7 +33,8 @@ import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
 import { useQuickActionRouting } from "expo-quick-actions/router";
 import { ConfettiHost } from "@/components/animations/Confetti";
-import { Colors, setCustomColors } from "@/constants/colors";
+import { Colors, setCustomPrimary } from "@/constants/colors";
+import { THEME_PRESETS } from "@/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -1476,8 +1477,25 @@ function ThemeLoader({ children }: { children: React.ReactNode }) {
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed.themeColors) {
-            setCustomColors(parsed.themeColors.primary, parsed.themeColors.accent);
-            console.log('[Theme] Loaded custom colors:', parsed.themeColors.primary);
+            // Only the PRIMARY is read: the whole accent family is derived
+            // from it (constants/colors.ts deriveAccentPalette). The preset's
+            // second swatch is still persisted so older `theme_colors` rows
+            // round-trip, but it no longer paints anything.
+            //
+            // And only a hue THE PICKER STILL OFFERS. `theme_colors` is a
+            // Supabase jsonb column written by older builds whose preset list
+            // was different (Settings falls back to 'mage' for "any
+            // unrecognized primary" for exactly that reason). Before the family
+            // was derived, a retired hue only reached the ~420 Colors.primary
+            // reads; now it would paint the whole app in a hue no guard has
+            // ever measured, while the picker showed MAGE Orange as selected —
+            // the app and its own settings screen disagreeing about what colour
+            // it is. scripts/validate-contrast.ts check 12 proves AA for the
+            // nine presets, so the nine presets are what may be applied
+            // (review 2026-09-07).
+            const known = THEME_PRESETS.some((p) => p.primary === parsed.themeColors.primary);
+            setCustomPrimary(known ? parsed.themeColors.primary : null);
+            console.log('[Theme] Loaded custom accent hue:', known ? parsed.themeColors.primary : 'brand default (retired preset)');
           }
         }
       } catch (err) {

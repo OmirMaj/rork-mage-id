@@ -296,11 +296,24 @@ ok('the chip renders nothing for a live day',
   /if \(source === 'live'\) return null;/.test(noticeCode));
 ok('the marker is inline UI, not a tooltip/title attribute',
   /accessibilityRole="alert"/.test(noticeCode) && !/title=\{SIMULATED/.test(noticeCode));
+// The marker must read as a WARNING, never as a hint. It was pinned to the
+// static Colors.warningLight/warning/warningDark trio until 2026-09-07, when
+// the notice was converted to a per-theme makeStyles factory: those three are
+// baked light-theme literals, so keeping them would have painted cream body
+// copy on a pale amber card in dark mode. The theme-aware pair is the same
+// hue — warningSoft is rgba(255,149,0,…) and warningLabel is #B84A00 (light) /
+// #FF9500 (dark), i.e. #FF9500 is `warning` itself — so this now accepts
+// EITHER spelling and still requires a fill AND an ink from the amber family.
+// The prohibition is the part that carries the meaning and stays absolute:
+// info/neutral would make invented weather look like ordinary information.
+const AMBER_FILL = /(Colors\.warningLight|\bt\.warningSoft|colors\.warningSoft|warningSoft)/;
+const AMBER_INK  = /(Colors\.warningDark|\bt\.warningLabel|colors\.warningLabel|warningLabel)/;
+const AMBER_HUE  = /(Colors\.warning\b|warningSoft|warningLabel)/;
 ok('the marker uses the amber warning palette, never info/neutral',
-  /Colors\.warningLight/.test(noticeCode) &&
-  /Colors\.warning\b/.test(noticeCode) &&
-  /Colors\.warningDark/.test(noticeCode) &&
-  !/Colors\.info/.test(noticeCode),
+  AMBER_FILL.test(noticeCode) &&
+  AMBER_INK.test(noticeCode) &&
+  AMBER_HUE.test(noticeCode) &&
+  !/Colors\.info|\bt\.info\b|colors\.info\b|infoSoft|infoLabel/.test(noticeCode),
   'this is a trust warning, not a hint');
 ok('the marker uses palette tokens, not a fresh hex',
   !/#[0-9A-Fa-f]{6}/.test(noticeCode));

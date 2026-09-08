@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, ActivityIndicator, type LayoutChangeEvent} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -1324,7 +1324,13 @@ function InvoiceInner() {
     || effectiveStatus === 'sent'
     || effectiveStatus === 'partially_paid'
     || effectiveStatus === 'overdue';
-  useBrainFabLift(!isLocked ? bottomBarH : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = !isLocked ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
   // Money can be recorded on any invoice the client has seen that is not yet
   // settled. Effective, not stored, status — so a legacy row stored 'paid' with
   // a balance reopened by a retention release still offers Record Payment and
@@ -1385,7 +1391,7 @@ function InvoiceInner() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           {...fabScroll}
-          contentContainerStyle={[{ paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}
+          contentContainerStyle={[{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

@@ -5,7 +5,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, TrendingUp, Lock, FileSpreadsheet, X, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, TrendingUp, Lock, FileSpreadsheet, X, AlertTriangle, HelpCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -24,8 +24,11 @@ import { useWip } from '@/contexts/WipContext';
 import {
   computeWipRow, computeWipPortfolio, flagWipRow,
   suggestCostToDate, suggestBilledToDate, sumApprovedChangeOrders,
-  deriveOriginalContract, deriveEstimatedCost,
+  deriveOriginalContract, deriveEstimatedCost, isWipReportableProject,
+  deriveOriginalContractWithSource, deriveEstimatedCostWithSource,
+  suggestCostToDateWithSource, WIP_SOURCE_LABELS,
 } from '@/utils/wip';
+import { FeatureExplainerSheet } from '@/components/FeatureExplainerSheet';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { wipPeriodToCSV, shareWipPeriodPdf } from '@/utils/wipExport';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -129,10 +132,17 @@ function WipReportScreenInner() {
   // silently dropped edits when the user tapped X without dismissing the keyboard).
   const [drillCostText, setDrillCostText] = useState<string>('');
 
+  // Audit 2026-09-07 ("Do next" #2, axis 4). This was `() => projects` — every
+  // project, CLOSED ones included — while utils/financialReports.computeWIPReport,
+  // one sidebar row away, has always skipped closed jobs. So the two bank-facing
+  // WIP schedules in this app listed different jobs and restated backlog that no
+  // longer exists on a document a surety sizes a bond from. The population is
+  // now the shared predicate; neither surface gets its own opinion.
   const activeProjects: Project[] = useMemo(
-    () => projects,
+    () => projects.filter(isWipReportableProject),
     [projects],
   );
+  const closedCount = projects.length - activeProjects.length;
 
   // Build a live WIP input for one project from existing collections.
   const buildInput = useCallback((project: Project): WipRowInput => {
@@ -177,7 +187,34 @@ function WipReportScreenInner() {
     [periods],
   );
 
+  // Provenance for the drill-in (audit 2026-09-07, "Worth doing" #26). Every
+  // figure on this schedule comes off a fallback chain — deriveOriginalContract
+  // alone has seven branches — and a GC could not learn that the $1.4M
+  // "contract" his banker is reading came from a GMP cap he typed once during
+  // setup. That is the surety's first question. Same chains as buildInput, read
+  // through the …WithSource siblings so the number and the explanation cannot
+  // drift apart.
+  const buildProvenance = useCallback((project: Project) => {
+    const cos = getChangeOrdersForProject(project.id);
+    const commitments = getCommitmentsForProject(project.id);
+    const payApps = getAIAPayAppsForProject(project.id);
+    const receipts = getReceiptsForProject(project.id);
+    const contract = deriveOriginalContractWithSource(project, cos, payApps);
+    return {
+      contract,
+      cost: deriveEstimatedCostWithSource(project, commitments, {
+        approvedChangeOrders: sumApprovedChangeOrders(cos),
+        originalContract: contract.value,
+      }),
+      costToDate: suggestCostToDateWithSource(commitments, receipts),
+      overridden: costOverrides[project.id] !== undefined,
+    };
+  }, [costOverrides, getChangeOrdersForProject, getCommitmentsForProject, getAIAPayAppsForProject, getReceiptsForProject]);
+
+  const [explainerOpen, setExplainerOpen] = useState(false);
+
   const drillProject = activeProjects.find((p) => p.id === drillProjectId) ?? null;
+  const drillProvenance = drillProject ? buildProvenance(drillProject) : null;
   const drillInput = drillProject ? buildInput(drillProject) : null;
   const drillOutput = drillInput ? computeWipRow(drillInput) : null;
   const drillPriorRow = priorPeriod?.rows.find((r) => r.projectId === drillProjectId)?.output;
@@ -257,8 +294,41 @@ function WipReportScreenInner() {
           <Text style={styles.eyebrow}>Financial Reporting</Text>
           <Text style={styles.title}>WIP Report</Text>
         </View>
+        {/* Audit 2026-09-07 ("Worth doing" #22): this screen printed
+            Overbilling in red and Underbilling in blue with no legend and no
+            definition, to residential GCs who have never seen a WIP schedule —
+            and underbilling is the one a surety actually asks about. */}
+        <TouchableOpacity
+          onPress={() => setExplainerOpen(true)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="What is a WIP schedule?"
+          testID="wip-explainer-chip"
+        >
+          <HelpCircle size={20} color={themeColors.textSecondary} strokeWidth={2} />
+        </TouchableOpacity>
         <TrendingUp size={22} color={themeColors.accent} strokeWidth={1.75} />
       </View>
+
+      <FeatureExplainerSheet
+        visible={explainerOpen}
+        onClose={() => setExplainerOpen(false)}
+        term="WIP Schedule (Work-In-Progress)"
+        definition={
+          'A WIP schedule compares what you have EARNED on each job against what you have BILLED for it. '
+          + 'Earned revenue is the contract times percent complete, and percent complete is cost-to-date '
+          + 'divided by your total estimated cost. Overbilling means you have billed MORE than you have '
+          + 'earned — the client is funding you ahead of the work, which is good for cash but is a liability '
+          + 'you still owe in labor and materials. Underbilling means you have earned MORE than you have '
+          + 'billed — you are financing your client with your own money, and it is the first thing a surety '
+          + 'or a lender looks for.'
+        }
+        whenToUse={[
+          'Every month before you close the books — lock the period so the figures cannot move afterward',
+          'When a bank or a bonding agent asks for a WIP schedule (they will ask for it by that name)',
+          'When a job feels profitable but the bank account disagrees — underbilling is usually why',
+        ]}
+      />
 
       <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
         {/* Portfolio totals */}
@@ -314,6 +384,20 @@ function WipReportScreenInner() {
         {/* Per-project rows (live) */}
         <View style={[styles.card, isDesktop && styles.cardFullDesktop]}>
           <Text style={styles.sectionTitle}>Projects</Text>
+          {/* The two colours below carry the whole meaning of this table, and
+              until now nothing on the screen said what they meant. */}
+          <View style={styles.legendRow} testID="wip-legend">
+            <Text style={styles.legendText}>
+              <Text style={styles.over}>Over</Text> = billed more than earned (client is ahead of you) ·{' '}
+              <Text style={styles.under}>Under</Text> = earned more than billed (you are financing the client)
+            </Text>
+          </View>
+          {closedCount > 0 ? (
+            <Text style={styles.muted}>
+              {closedCount} closed project{closedCount === 1 ? ' is' : 's are'} excluded — a WIP schedule
+              carries work in progress only.
+            </Text>
+          ) : null}
           {liveRows.length === 0 ? (
             <Text style={styles.muted}>No active projects.</Text>
           ) : liveRows.map((r) => {
@@ -373,6 +457,38 @@ function WipReportScreenInner() {
                   <Row label="Profit to date" value={money(drillOutput.profitToDate)} styles={styles} />
                   <Row label="Cost to complete" value={money(drillOutput.costToComplete)} styles={styles} />
                   <Row label="Backlog" value={money(drillOutput.backlog)} styles={styles} />
+
+                  {/* Where each number came from. A banker's first question is
+                      "what is this contract figure?" and until now the answer
+                      lived only in deriveOriginalContract's branch order. */}
+                  {drillProvenance ? (
+                    <View style={styles.sourceBox} testID="wip-provenance">
+                      <Text style={styles.sourceTitle}>Where these numbers come from</Text>
+                      <Text style={styles.sourceLine}>
+                        Contract {money(drillProvenance.contract.value)} —{' '}
+                        {WIP_SOURCE_LABELS[drillProvenance.contract.source]}
+                        {drillInput.approvedChangeOrders !== 0
+                          ? `, plus ${money(drillInput.approvedChangeOrders)} of approved change orders`
+                          : ''}
+                      </Text>
+                      <Text style={styles.sourceLine}>
+                        Cost budget {money(drillProvenance.cost.value)} —{' '}
+                        {WIP_SOURCE_LABELS[drillProvenance.cost.source]}
+                      </Text>
+                      <Text style={styles.sourceLine}>
+                        {drillProvenance.overridden
+                          ? `Cost-to-date ${money(drillInput.costToDate)} — entered by you. `
+                            + `The app can only see ${money(drillProvenance.costToDate.value)} `
+                            + `(${money(drillProvenance.costToDate.committed)} subs paid + `
+                            + `${money(drillProvenance.costToDate.materials)} material receipts).`
+                          : `Cost-to-date ${money(drillProvenance.costToDate.value)} — `
+                            + `${money(drillProvenance.costToDate.committed)} subs paid + `
+                            + `${money(drillProvenance.costToDate.materials)} material receipts. `
+                            + 'Self-performed labor is NOT included, so this is a lower bound — type the real figure above.'}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {drillOutput.anticipatedLoss ? (
                     <View style={styles.flagBox}>
                       <View style={styles.flagRow}>
@@ -472,6 +588,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
     paddingHorizontal: 12, paddingVertical: 10, color: t.text, fontSize: Type.body.fontSize, marginBottom: 8,
   },
+  legendRow: { paddingBottom: 8 },
+  legendText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
+  sourceBox: {
+    marginTop: 12, padding: 12, gap: 6,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line,
+  },
+  sourceTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
+  sourceLine: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
   flagBox: { marginTop: 10, gap: 6 },
   flagRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   flagText: { fontSize: Type.footnote.fontSize, color: t.danger, flex: 1 },

@@ -1,6 +1,6 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -260,6 +260,10 @@ function deepLinkFor(item: NotificationFeedItem): string | null {
   }
 }
 
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8). summarize() runs
+// over server-shaped payloads; one malformed row used to take out the bundle.
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
+
 export default function NotificationsInboxScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -269,6 +273,18 @@ export default function NotificationsInboxScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const feed = useNotificationFeed();
+  // "Check again" re-runs a query that has already settled, so `feed.isLoading`
+  // stays FALSE for the whole round trip (react-query 5: isLoading === isPending
+  // && isFetching, and a settled query is not pending). If the inbox is still
+  // empty afterwards, nothing on screen changes — the tap read as dead, which
+  // is the one thing a "the read may have failed" affordance cannot afford to
+  // look like (review fix, 2026-09-07). Track the refetch locally and say so.
+  const [rechecking, setRechecking] = useState(false);
+  const handleRecheck = useCallback(() => {
+    if (rechecking) return;
+    setRechecking(true);
+    void feed.refetch().finally(() => setRechecking(false));
+  }, [feed, rechecking]);
 
   const handleTap = useCallback((item: NotificationFeedItem) => {
     if (!item.readAt) feed.markRead(item.id);
@@ -326,13 +342,41 @@ export default function NotificationsInboxScreen() {
         keyExtractor={i => i.id}
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, paddingHorizontal: 16, paddingTop: 8 }}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Bell size={40} color={"#9AA3AD"} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>You&apos;re all caught up</Text>
-            <Text style={styles.emptyBody}>
-              When clients send messages, propose budgets, approve change orders, or subs submit invoices, you&apos;ll see the history here.
-            </Text>
-          </View>
+          // "You're all caught up" is an absolute claim, and it was being made
+          // before the outbox read had returned — on every cold open, for as
+          // long as the fetch took (audit 2026-09-07, the site batch 1 could
+          // not reach). Say what is actually true while it is in flight.
+          feed.isLoading ? (
+            <View style={styles.empty} testID="notifications-loading">
+              <ActivityIndicator size="small" color={themeColors.accent} />
+              <Text style={styles.emptyTitle}>Checking your inbox…</Text>
+            </View>
+          ) : (
+            <View style={styles.empty} testID="notifications-empty">
+              <Bell size={40} color={"#9AA3AD"} strokeWidth={1.75} />
+              <Text style={styles.emptyTitle}>You&apos;re all caught up</Text>
+              <Text style={styles.emptyBody}>
+                When clients send messages, propose budgets, approve change orders, or subs submit invoices, you&apos;ll see the history here.
+              </Text>
+              {/* useNotificationFeed's queryFn catches its own fetch error and
+                  returns [], so a dead session is indistinguishable from a
+                  quiet inbox from out here. Until that hook surfaces the
+                  failure, this is the honest affordance: a way to ask again. */}
+              <TouchableOpacity
+                onPress={handleRecheck}
+                disabled={rechecking}
+                style={styles.emptyAction}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: rechecking, busy: rechecking }}
+                accessibilityLabel={rechecking ? 'Checking' : 'Check again'}
+                testID="notifications-recheck"
+              >
+                <Text style={styles.emptyActionText}>
+                  {rechecking ? 'Checking…' : 'Check again'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )
         }
         ListFooterComponent={
           feed.items.length > 0 ? (
@@ -440,6 +484,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, marginTop: 4 },
   emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
+  emptyAction: { marginTop: 6, paddingVertical: 8, paddingHorizontal: 16 },
+  // accentLabel, not accent: this is text, and #FF6A1A is 2.87:1.
+  emptyActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accentLabel },
 
   clearAll: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,

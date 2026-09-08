@@ -16,7 +16,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -92,7 +92,13 @@ export default function LeadDetailScreen() {
   const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
-  useBrainFabLift(bottomBarH);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = bottomBarH;
+  useBrainFabLift(fabLift);
   const router = useRouter();
   const { leadId, mode } = useLocalSearchParams<{ leadId?: string; mode?: string }>();
   const { getLead, addLead, updateLead, deleteLead, addLeadTouch, convertLeadToProject, settings } = useProjects();
@@ -263,7 +269,7 @@ export default function LeadDetailScreen() {
     <>
       <Stack.Screen options={{ title: isNew ? 'New lead' : existing?.name ?? 'Lead', headerLargeTitle: false }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView {...fabScroll} style={styles.root} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} keyboardShouldPersistTaps="handled">
+        <ScrollView {...fabScroll} style={styles.root} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
           {/* Quick actions row */}
           {existing && (
             <View style={styles.quickRow}>

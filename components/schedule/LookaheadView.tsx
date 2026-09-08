@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   ChevronRight,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { parseCalendarDay } from '@/utils/calendarDate';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
@@ -78,6 +80,8 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
   onProgressUpdate: (task: ScheduleTask, progress: number) => void;
   onTaskPress: (task: ScheduleTask) => void;
 }) {
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const phaseColor = getPhaseColor(task.phase);
   const preds = getPredecessors(task, allTasks);
   const isBlocked = preds.some(p => p.status !== 'done');
@@ -162,7 +166,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
               <Text style={s.taskCardTitle} numberOfLines={1}>{task.title}</Text>
               {isBlocked && (
                 <View style={s.blockedTag}>
-                  <AlertTriangle size={9} color={Colors.dangerLabel} strokeWidth={1.75} />
+                  <AlertTriangle size={9} color={t.dangerLabel} strokeWidth={1.75} />
                   <Text style={s.blockedTagText}>BLOCKED</Text>
                 </View>
               )}
@@ -200,6 +204,10 @@ function LookaheadView({
   onTaskPress,
   location,
 }: LookaheadViewProps) {
+  // Built per theme: the week cards, day columns and their ink baked their
+  // t.surface/text/cardBorder at import (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const [weekCount, setWeekCount] = useState<3 | 6>(3);
   const now = useMemo(() => new Date(), []);
 
@@ -298,7 +306,7 @@ function LookaheadView({
                   {/* Per-day provenance chip — says WHICH days are invented, so
                       a part-live / part-padded week can't be read as all-real. */}
                   <SimulatedDayChip source={f.source} />
-                  {isRisky && <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />}
+                  {isRisky && <AlertTriangle size={10} color={t.warningLabel} strokeWidth={1.75} />}
                 </View>
               );
             })}
@@ -410,12 +418,12 @@ function LookaheadView({
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { paddingHorizontal: 16, gap: 12 },
 
   segmentControl: {
     flexDirection: 'row',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     borderRadius: Tokens.radius.card,
     padding: 3,
     alignSelf: 'flex-start',
@@ -426,18 +434,18 @@ const s = StyleSheet.create({
     borderRadius: Tokens.radius.md,
   },
   segmentBtnActive: { backgroundColor: Colors.primary },
-  segmentBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  segmentBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   segmentBtnTextActive: { color: '#FFF' },
 
   weekList: { gap: 16 },
 
   weekSection: { gap: 8 },
   weekHeader: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     gap: 8,
   },
   weekHeaderTop: {
@@ -445,13 +453,13 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  weekLabel: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: Colors.text },
-  weekSummary: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  weekLabel: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: t.text },
+  weekSummary: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '500' as const },
 
   weekWeatherRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-around' },
   weekWeatherDay: { alignItems: 'center', gap: 1 },
   weekWeatherDayBad: { opacity: 0.5 },
-  weekWeatherDayName: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
+  weekWeatherDayName: { fontSize: 10, fontWeight: '600' as const, color: t.textMuted },
   weekWeatherIcon: { fontSize: Type.bodyCompact.fontSize },
   weatherRisk: { fontSize: 10 },
 
@@ -464,10 +472,10 @@ const s = StyleSheet.create({
   weekEmpty: {
     alignItems: 'center',
     paddingVertical: 16,
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.neutralSoft,
     borderRadius: Tokens.radius.card,
   },
-  weekEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  weekEmptyText: { fontSize: Type.footnote.fontSize, color: t.textMuted },
 
   // Crew/trade grouping inside each week. Hairline separator + small
   // crew label keeps the visual weight tilted toward the task cards.
@@ -488,13 +496,13 @@ const s = StyleSheet.create({
   crewGroupName: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: 0.1,
   },
   crewGroupMeta: {
     flex: 1,
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'right' as const,
   },
 
@@ -521,11 +529,11 @@ const s = StyleSheet.create({
 
   taskCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     overflow: 'hidden' as const,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   taskCardBlocked: { borderColor: '#FF3B3025' },
   taskPhaseBar: { width: 4 },
@@ -535,7 +543,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  taskCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  taskCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text, flex: 1, marginRight: 8 },
   blockedTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -545,25 +553,25 @@ const s = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: Tokens.radius.xs,
   },
-  blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: Colors.dangerLabel },
+  blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: t.dangerLabel },
   taskCardMeta: { flexDirection: 'row', gap: 10 },
-  taskCardCrewText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  taskCardDayText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  taskCardCrewText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  taskCardDayText: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   taskCardProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   taskCardProgressTrack: {
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.neutralSoft,
     overflow: 'hidden' as const,
   },
   taskCardProgressFill: { height: '100%', borderRadius: 3 },
-  taskCardProgressText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 28, textAlign: 'right' as const },
+  taskCardProgressText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.text, minWidth: 28, textAlign: 'right' as const },
   incrementBtn: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },

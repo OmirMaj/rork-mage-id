@@ -151,6 +151,8 @@ function NavigationCard({
         onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
         activeOpacity={1}
         style={styles.navCardInner}
+        accessibilityRole="button"
+        accessibilityLabel={count !== undefined ? `${title}, ${count}. ${subtitle}` : `${title}. ${subtitle}`}
       >
         <View style={[styles.navIconWrap, { backgroundColor: iconBg }]}>
           <Icon size={22} color={iconColor} />
@@ -232,6 +234,9 @@ export default function DiscoverScreen() {
                 onPress={() => handleTabPress(tab.id)}
                 activeOpacity={0.7}
                 testID={`discover-tab-${tab.id}`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={tab.label}
               >
                 {TabIcon && <TabIcon size={14} color={isActive ? '#FFF' : themeColors.textSecondary} />}
                 <Text style={[styles.tabPillText, isActive && styles.tabPillTextActive]}>
@@ -258,6 +263,8 @@ export default function DiscoverScreen() {
             style={styles.quickAction}
             onPress={() => navigateTo('/post-bid')}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Post Bid"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
               <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
@@ -269,6 +276,8 @@ export default function DiscoverScreen() {
               style={styles.quickAction}
               onPress={() => navigateTo('/post-job')}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Post Job"
             >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
                 <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
@@ -280,6 +289,8 @@ export default function DiscoverScreen() {
             style={styles.quickAction}
             onPress={() => navigateTo('/(tabs)/settings')}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="My Profile"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
               {/* Runtime audit 2026-09-06, VIS-20: this tile shipped a
@@ -459,6 +470,8 @@ export default function DiscoverScreen() {
               style={styles.bidSourceCard}
               onPress={() => openBidSource(source.url)}
               activeOpacity={0.7}
+              accessibilityRole="link"
+              accessibilityLabel={`${source.name}. ${source.description}. Opens in your browser.`}
             >
               <View style={styles.bidSourceTop}>
                 <View style={[styles.bidSourceDot, { backgroundColor: source.color }]} />

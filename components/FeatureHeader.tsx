@@ -71,9 +71,17 @@ function FeatureHeaderImpl({
               aria-level=1 promotes this to an <h1> on web. Every
               workflow screen using FeatureHeader (RFI, Submittal, CO,
               Invoice, AIA, Buyout, Closeout, Handover, etc.) inherits
-              this fix. Native ignores. */}
+              this fix. Native ignores.
+
+              Type.serifHeadline, not Type.title2: the rule in
+              constants/typography.ts is that a SCREEN TITLE is Fraunces, and
+              this component is the title on 11 screens. It opened in anonymous
+              bold sans until the 2026-09-07 audit counted the drift (61 screens
+              across the three shared header components). No fontWeight —
+              Fraunces_700Bold carries its own weight and an override makes the
+              platform synthesise a fake bold on top of a real one. */}
           <Text
-            style={[Type.title2, { color: colors.text }]}
+            style={[Type.serifHeadline, { color: colors.text }]}
             numberOfLines={2}
             accessibilityRole="header"
             aria-level={1 as never}

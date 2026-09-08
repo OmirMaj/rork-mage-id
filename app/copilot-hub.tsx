@@ -11,6 +11,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
   X, ClipboardList, CalendarDays, Receipt, Repeat, MessageSquare,
   FileText, CheckSquare, Wallet, ShieldAlert, ShieldCheck, HardHat, FolderPlus,
@@ -124,7 +125,7 @@ export default function CopilotHubScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={styles.eyebrow}>JUST TELL ME WHAT YOU NEED</Text>
         <Text style={styles.question}>What are we doing?</Text>
         <Text style={styles.hint}>“LOG TODAY’S REPORT”  ·  “OWNER WANTS A HEAT PUMP”  ·  “RFI ON THE BEAM SIZE”</Text>

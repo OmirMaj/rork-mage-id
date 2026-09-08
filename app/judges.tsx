@@ -20,6 +20,7 @@ import {
 import { Stack } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { ChevronLeft, Scale, List } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -270,7 +271,7 @@ function JudgesInner() {
           </TouchableOpacity>
         </View>
         <ScrollView
-          contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }, isDesktop && styles.contentDesktop]}
+          contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
         >
           <VerdictCard result={result} />
@@ -319,7 +320,7 @@ function JudgesInner() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }, isDesktop && styles.contentDesktop]}
+        contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

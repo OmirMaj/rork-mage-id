@@ -120,6 +120,13 @@ const total = [...perFile.values()].reduce((s, l) => s + l.length, 0);
 // audit measured it: 1 Button on the whole screen before, every control after.
 const SWEPT: readonly string[] = [
   'app/payments.tsx',
+  // Discover, 2026-09-07. The same pass measured 8 Buttons against 24
+  // GenericElements here — the worst ratio of any screen it read. index.tsx is
+  // the sub-tab strip + quick actions + navigation cards + the live-bid-portal
+  // grid; tools.tsx is the Tools hub. Its four siblings (bids, companies, hire,
+  // schedule) are still on the backlog the ceiling below holds.
+  'app/(tabs)/discover/index.tsx',
+  'app/(tabs)/discover/tools.tsx',
 ];
 
 for (const rel of SWEPT) {
@@ -144,7 +151,12 @@ for (const rel of SWEPT) {
 // (above) un-hid one role-less pressable in app/(tabs)/settings/index.tsx that
 // the first version of this guard could not see. Not this wave's file — it is
 // the first entry of the backlog this ceiling now holds.
-const CEILING = 1791;
+//
+// 1791 → 1785 on 2026-09-07 as Discover was swept. Measured while other fix
+// waves were still landing in the same tree, so it is a CEILING, not a count of
+// what is left: if the script prints a lower number on your first run, that is
+// another wave's work arriving, and lowering it is correct.
+const CEILING = 1785;
 
 ok(`no NEW role-less pressables (${total} ≤ ceiling ${CEILING})`, total <= CEILING,
   total > CEILING
@@ -161,7 +173,29 @@ if (total < CEILING) {
   console.log(`        ↓ lower CEILING to ${total}`);
 }
 
-// ── 3. The theme preference honours the OS ──
+// ── 3. The Discover sub-tab strip announces itself as tabs ──
+//
+// Named separately from the file sweep above because this is the specific thing
+// the 2026-09-07 pass measured: all six sub-tabs across the top of Discover
+// (Overview, Tools, Public Bids, Companies, Estimator, Schedule) came back as
+// GenericElement, so VoiceOver read six unlabelled shapes where the screen's
+// primary navigation is. A file-level count would go green again if someone
+// swapped `tab` for a role-less wrapper and annotated something else instead;
+// this does not. `selected` is part of the contract — without it a blind user
+// hears six identical tabs and cannot tell which one they are on.
+const discover = readFileSync('app/(tabs)/discover/index.tsx', 'utf8');
+const tabPill = openingTags(discover, 'TouchableOpacity')
+  .find(t => /testID=\{`discover-tab-/.test(t.text));
+ok('Discover sub-tab pills are role=tab and carry a selected state',
+  !!tabPill && /accessibilityRole="tab"/.test(tabPill.text) &&
+    /accessibilityState=\{\{\s*selected:/.test(tabPill.text),
+  tabPill
+    ? `the pill at app/(tabs)/discover/index.tsx:${tabPill.line} is missing ` +
+      `accessibilityRole="tab" and/or accessibilityState={{ selected }} — ` +
+      `VoiceOver reads Discover's primary navigation as six anonymous shapes.`
+    : 'no TouchableOpacity with a `discover-tab-` testID found — did the strip move?');
+
+// ── 4. The theme preference honours the OS ──
 //
 // One word, and it has been flipped once already. Pin it: `resolve()` reads
 // Appearance only when the pref is 'system', so a 'light' default silently

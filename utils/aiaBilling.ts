@@ -5,12 +5,19 @@
 // scripts/validate-invoice-billing.ts under bun — a top-level
 // `import { Platform } from 'react-native'` makes the whole module unloadable
 // outside Metro, and money math this app depends on must be testable.
-import type { CompanyBranding, Project, Invoice, ChangeOrder } from '@/types';
+import type {
+  CompanyBranding, Project, Invoice, InvoiceLineItem, ChangeOrder, LinkedEstimateItem,
+} from '@/types';
 // roundCents / retainageOnWorkValue are the app's shared money math and live
 // in utils/invoiceBilling beside netBalanceDue — see MISS-04 there for why
 // retainage is withheld on the work value and why the basis is not clamped.
-import { roundCents, retainageOnWorkValue } from '@/utils/invoiceBilling';
+// billedAmountForLine is the one definition of "how much of this line did this
+// invoice actually charge", including the anyPreScaled gate.
+import { roundCents, retainageOnWorkValue, billedAmountForLine } from '@/utils/invoiceBilling';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+// The namespaced key an approved change order rides on an invoice line, so a
+// CO billed through either entry point lands on the right G703 row.
+import { changeOrderBillKey } from '@/utils/changeOrderBilling';
 
 // Re-exported so the pay-app module keeps offering the retainage rule it is the
 // reference implementation of, and existing importers (utils/portalSnapshot)
@@ -87,6 +94,15 @@ export interface AIAPayApplication {
 
   lines: AIASOVLine[];
   notes?: string;
+
+  /**
+   * Where column C (Scheduled Value) came from — see buildAIASovLines. The
+   * screen prints it under the SOV so the GC can tell a bank whether the
+   * schedule of values is the signed contract's or was reconstructed from one
+   * invoice. Optional so a hand-built application (tests, older records) still
+   * type-checks.
+   */
+  sovBasis?: AIASovBasis;
 }
 
 function escapeHtml(text: string): string {
@@ -150,10 +166,311 @@ export function computeAIATotals(app: AIAPayApplication) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE SCHEDULE OF VALUES — column C is the CONTRACT, column E is this month.
+//
+// DEFECT (app-experience audit 2026-09-07, "Do next" #3). The seeding below
+// used to be, verbatim:
+//
+//     invoice.lineItems.map(li => ({ scheduledValue: li.total,
+//                                    thisPeriod:     li.total, ... }))
+//
+// — the same dollar in column C and column E. computeAIATotals then divided a
+// number by itself, so EVERY G702 opened at "100% Complete" no matter how
+// little of the job had been built. On a partial billing that is four numbers
+// on one page that cannot all be true at once: Contract Sum to Date states the
+// full contract, Total Completed & Stored states one draw, Balance to Finish
+// states the remainder, and % Complete says the job is finished. That page
+// goes to a bank and to a surety, over the GC's signature.
+//
+// Column C is the SCHEDULE OF VALUES: what each contract line is worth in
+// total, for the life of the contract. Column E is what was put in place THIS
+// PERIOD. They coincide only on a final billing — which is why the invoice-line
+// fallback below still lets them coincide when the invoice really does bill
+// 100% of the line.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Where column C came from. Reported so the certificate can say so. */
+export type AIASovBasis =
+  /** The project's linked estimate + approved COs — a real schedule of values
+   *  that foots to Contract Sum to Date. */
+  | 'linked_estimate'
+  /** No linked estimate on the project: column C is reconstructed from this
+   *  invoice's own lines, grossed back up by what fraction of each line the
+   *  invoice bills. Honest but partial — it only knows the scope this invoice
+   *  touched, so it will not foot to the contract. */
+  | 'invoice_lines';
+
+/**
+ * Full value of the contract line an invoice line is billing a piece of.
+ *
+ * The two invoice-creation paths store `total` in incompatible units (see
+ * progressSubtotal in utils/invoiceBilling):
+ *   • Bill-from-Estimate stores an ALREADY-scaled amount + `billedPercent`, so
+ *     the whole line grosses back up as total ÷ (billedPercent/100).
+ *   • The native editor stores the FULL line total and scales once at the
+ *     invoice level, so `total` already IS column C.
+ * A full (non-progress) invoice bills the whole line, so C = E there and the
+ * certificate legitimately reads 100%.
+ */
+function scheduledValueForInvoiceLine(
+  li: Pick<InvoiceLineItem, 'total' | 'billedPercent'>,
+  invoice: Pick<Invoice, 'type' | 'progressPercent'>,
+  anyPreScaled: boolean,
+): number {
+  const billed = li.total || 0;
+  if (li.billedPercent != null) {
+    // 0% would divide by zero and 100% is already the whole line; anything
+    // outside (0,100) is a data-integrity edge where the safe answer is "this
+    // is the whole line", which understates % complete rather than inventing
+    // contract value that was never signed.
+    if (li.billedPercent > 0 && li.billedPercent < 100) {
+      return roundCents(billed / (li.billedPercent / 100));
+    }
+    return roundCents(billed);
+  }
+  // Native-editor progress line (and the mixed-invoice case the anyPreScaled
+  // gate covers): `total` is the full line either way.
+  void invoice; void anyPreScaled;
+  return roundCents(billed);
+}
+
+/** What this invoice actually charged against one of its own lines. */
+function thisPeriodForInvoiceLine(
+  li: InvoiceLineItem,
+  invoice: Invoice,
+  anyPreScaled: boolean,
+): number {
+  return roundCents(billedAmountForLine(li, invoice, anyPreScaled));
+}
+
+/**
+ * Build the G703 schedule of values for a pay application seeded from
+ * `invoice`.
+ *
+ * PREFERRED BASIS — the project's linked estimate. Every estimate item becomes
+ * one SOV line at its full `lineTotal`, and every approved change order becomes
+ * one lump-sum line at its `changeAmount`.
+ *
+ * WHETHER IT FOOTS depends on which screen built the estimate, and the honest
+ * answer is "usually, not always". app/(tabs)/estimate/full.tsx builds
+ * grandTotal as Σ lineTotal exactly (materials carry their markup INSIDE
+ * lineTotal; labor and assemblies are all-in), so Σ column C + Σ changeAmount
+ * === Contract Sum to Date on the mainline path. But app/area-takeoff.tsx:394
+ * and app/plan-intelligence.tsx:222 append an item whose lineTotal EXCLUDES
+ * markup while bumping grandTotal by lineTotal + its share of markup, so after
+ * either flow the SOV under-foots by exactly that markup. That is not
+ * something this builder can invent its way out of — column C must stay the
+ * line values the GC priced — so reconcileAIASov reports the gap and
+ * app/aia-pay-app.tsx prints it. A certificate that does not foot must say so.
+ *
+ * Column E is then attributed to those lines by `sourceEstimateItemId`, the
+ * same key Bill-from-Estimate and the CO billing path write, falling back to a
+ * name match for invoices written before that field existed (mirroring
+ * app/bill-from-estimate.tsx).
+ *
+ * Any invoice line that matches NO contract line is appended as its own SOV
+ * row. Money that was billed must never fall off the certificate — a G702
+ * whose column E omits a charge under-certifies the payment due.
+ *
+ * FALLBACK BASIS — no linked estimate: reconstruct column C from the invoice's
+ * own lines. The result is honest about what it is (`sovBasis` says so, and
+ * reconcileAIASov flags the gap against the contract), and the GC edits from
+ * there.
+ */
+export function buildAIASovLines(
+  invoice: Invoice,
+  project: Pick<Project, 'linkedEstimate'>,
+  approvedCOs: ChangeOrder[],
+  retainagePercent: number,
+): { lines: AIASOVLine[]; basis: AIASovBasis } {
+  const anyPreScaled = invoice.lineItems.some(l => l.billedPercent != null);
+  const consumed = new Set<number>();
+
+  // SOV line ids must be UNIQUE. `sov_${materialId}` is not, on its own: the
+  // merge branch of app/(tabs)/estimate/full.tsx handleConfirmLink
+  // concatenates two item lists, so one materialId can legitimately appear
+  // twice on a linked estimate — and a materialId-less legacy item keys on its
+  // name, which repeats even more easily. app/aia-pay-app.tsx renders the rows
+  // with `key={line.id}` and edits them with
+  // `lines.map(l => l.id === lineId ? …)`, so two rows sharing an id means
+  // typing this period's draw into the first row silently writes the same
+  // dollars into the second — a doubled draw on a certificate a bank funds
+  // against. Suffixed by occurrence rather than by row position so the id of a
+  // contract line does not move when an off-contract line appears above it.
+  const usedIds = new Set<string>();
+  const uniqueId = (base: string): string => {
+    let id = base;
+    for (let n = 2; usedIds.has(id); n++) id = `${base}__${n}`;
+    usedIds.add(id);
+    return id;
+  };
+
+  /** Σ of the invoice lines belonging to one contract line, each consumed once. */
+  const billedAgainst = (key: string, name: string): number => {
+    let sum = 0;
+    invoice.lineItems.forEach((li, i) => {
+      if (consumed.has(i)) return;
+      const matches = li.sourceEstimateItemId
+        ? li.sourceEstimateItemId === key
+        : li.name === name;
+      if (!matches) return;
+      consumed.add(i);
+      sum += thisPeriodForInvoiceLine(li, invoice, anyPreScaled);
+    });
+    return roundCents(sum);
+  };
+
+  const estimateItems: LinkedEstimateItem[] = project.linkedEstimate?.items ?? [];
+  const lines: AIASOVLine[] = [];
+  const basis: AIASovBasis = estimateItems.length > 0 ? 'linked_estimate' : 'invoice_lines';
+
+  if (basis === 'linked_estimate') {
+    estimateItems.forEach((item) => {
+      // Bill-from-Estimate keys a linked item as `materialId || name`; a legacy
+      // item has no materialId, so the name IS the key there too.
+      const key = item.materialId || item.name;
+      lines.push({
+        id: uniqueId(`sov_${key}`),
+        itemNo: String(lines.length + 1),
+        description: item.name,
+        scheduledValue: roundCents(item.lineTotal),
+        fromPreviousApp: 0,
+        thisPeriod: billedAgainst(key, item.name),
+        materialsPresentlyStored: 0,
+        retainagePercent,
+      });
+    });
+    approvedCOs.forEach((co) => {
+      const key = changeOrderBillKey(co.id);
+      const label = `CO #${co.number}${co.description ? ` — ${co.description}` : ''}`;
+      lines.push({
+        id: uniqueId(`sov_${key}`),
+        itemNo: String(lines.length + 1),
+        description: label,
+        scheduledValue: roundCents(co.changeAmount),
+        fromPreviousApp: 0,
+        thisPeriod: billedAgainst(key, label),
+        materialsPresentlyStored: 0,
+        retainagePercent,
+      });
+    });
+  }
+
+  // Everything this invoice billed that no contract line claimed. In the
+  // fallback basis that is every line; in the estimate basis it is the manual
+  // adds (a voice-entered line, a T&M ticket) that still belong on the G703.
+  invoice.lineItems.forEach((li, i) => {
+    if (consumed.has(i)) return;
+    consumed.add(i);
+    lines.push({
+      id: uniqueId(li.id),
+      itemNo: String(lines.length + 1),
+      description: [li.name, li.description].filter(Boolean).join(' — '),
+      scheduledValue: scheduledValueForInvoiceLine(li, invoice, anyPreScaled),
+      fromPreviousApp: 0,
+      thisPeriod: thisPeriodForInvoiceLine(li, invoice, anyPreScaled),
+      materialsPresentlyStored: 0,
+      retainagePercent,
+    });
+  });
+
+  return { lines, basis };
+}
+
+/**
+ * Carry a prior period's billed-through onto a freshly seeded application.
+ *
+ * MATCH ON `id` FIRST, itemNo only as a fallback (review 2026-09-07).
+ * `itemNo` is a POSITION, and buildAIASovLines above just changed what it
+ * counts: it numbers the estimate's lines, then the approved COs, then
+ * whatever the invoice billed off-contract. So approving one CO between
+ * periods shifts every off-contract row's number by one, and a pay app SAVED
+ * BEFORE this change numbered its rows over the INVOICE's line items instead
+ * of the estimate's. Either way the next period's carry-forward lands a row
+ * off and the G703 states billed-through against work that row never billed —
+ * a line can be pushed past its own scheduled value, and every per-line %
+ * complete and balance-to-finish on the continuation sheet is wrong. The G702
+ * cover still totals correctly, which is exactly why nobody would catch it.
+ *
+ * `id` is the contract line's identity — `sov_<materialId>` for an estimate
+ * line, `sov_co:<coId>` for a change order — and stays put for as long as the
+ * estimate does. itemNo remains the fallback, and ONLY the fallback, so a
+ * record saved under the old numbering carries its history forward exactly as
+ * it does today rather than losing it.
+ *
+ * Each prior line is consumed at most once, ids before itemNos: a prior line
+ * claimed by both an id match on one row and an itemNo match on another would
+ * count the same billed-through twice on the cover. Description is NOT a key —
+ * two SOV lines sharing one ("Concrete — slab on grade" for two phases) had
+ * the second silently inherit the first's billed-through, which is why that
+ * fallback was removed. Lines with no prior match get fromPreviousApp = 0 and
+ * the GC enters this period only.
+ */
+export type PriorSOVLine = Pick<
+  AIASOVLine, 'id' | 'itemNo' | 'fromPreviousApp' | 'thisPeriod'
+>;
+
+export function carryForwardPriorLines(
+  lines: AIASOVLine[],
+  priorLines: PriorSOVLine[],
+): AIASOVLine[] {
+  const claimed = new Set<number>();
+  const take = (pick: (prior: PriorSOVLine) => boolean): PriorSOVLine | null => {
+    const i = priorLines.findIndex((prior, idx) => !claimed.has(idx) && pick(prior));
+    if (i < 0) return null;
+    claimed.add(i);
+    return priorLines[i];
+  };
+  const matched: (PriorSOVLine | null)[] = lines.map(line => take(prior => prior.id === line.id));
+  lines.forEach((line, i) => {
+    if (matched[i]) return;
+    matched[i] = take(prior => prior.itemNo === line.itemNo);
+  });
+  return lines.map((line, i) => {
+    const prior = matched[i];
+    if (!prior) return line;
+    return {
+      ...line,
+      fromPreviousApp: roundCents((prior.fromPreviousApp || 0) + (prior.thisPeriod || 0)),
+    };
+  });
+}
+
+/**
+ * Does the schedule of values foot to the contract it is billing against?
+ *
+ * G702 line 3 (Contract Sum to Date) and the G703 column C total are two
+ * statements of the same contract. When they disagree, at least one of the
+ * certificate's numbers is wrong and the GC must fix the SOV before signing —
+ * so the screen shows this, rather than the app quietly printing both.
+ */
+export interface AIASovReconciliation {
+  totalScheduledValue: number;
+  contractSumToDate: number;
+  /** Scheduled − contract. Positive = the SOV claims more than the contract. */
+  difference: number;
+  reconciled: boolean;
+}
+
+export function reconcileAIASov(app: AIAPayApplication): AIASovReconciliation {
+  const totalScheduledValue = roundCents(app.lines.reduce((s, l) => s + l.scheduledValue, 0));
+  const contractSumToDate = roundCents(app.contractSumToDate);
+  const difference = roundCents(totalScheduledValue - contractSumToDate);
+  return {
+    totalScheduledValue,
+    contractSumToDate,
+    difference,
+    // A cent of float rounding is not a discrepancy; anything the certificate
+    // would actually print as a different number is.
+    reconciled: Math.abs(difference) <= 0.01,
+  };
+}
+
 /**
  * Prefill an AIA pay application from a MAGE ID invoice + project + approved COs.
- * Lines are seeded from the invoice's lineItems, with `thisPeriod` = line total (contractor
- * can edit on the screen).
+ * Column C comes from the contract (buildAIASovLines); column E is what THIS
+ * invoice bills. The contractor edits both on the screen.
  */
 export function seedAIAPayApplicationFromInvoice(
   invoice: Invoice,
@@ -176,18 +493,10 @@ export function seedAIAPayApplicationFromInvoice(
   const netChangeByCO = roundCents(approvedCOs.reduce((s, co) => s + co.changeAmount, 0));
   const contractSumToDate = roundCents(originalContractSum + netChangeByCO);
 
-  const lines: AIASOVLine[] = invoice.lineItems.map((li, i) => ({
-    id: li.id,
-    itemNo: String(i + 1),
-    description: [li.name, li.description].filter(Boolean).join(' — '),
-    scheduledValue: roundCents(li.total),
-    fromPreviousApp: 0,
-    thisPeriod: roundCents(li.total),
-    materialsPresentlyStored: 0,
-    retainagePercent,
-  }));
+  const { lines, basis } = buildAIASovLines(invoice, project, approvedCOs, retainagePercent);
 
   return {
+    sovBasis: basis,
     applicationNumber: opts?.applicationNumber ?? invoice.number,
     applicationDate: invoice.issueDate,
     periodTo: invoice.issueDate,

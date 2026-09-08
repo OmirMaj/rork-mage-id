@@ -8,7 +8,7 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Activity, Plus, RefreshCcw, CheckCircle2,
-  XCircle, DollarSign, Upload,
+  XCircle, DollarSign, Upload, CloudOff,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -19,9 +19,13 @@ import { useActivityFeed, type ActivityAction, type ActivityItem } from '@/hooks
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import type { EntityRef } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8).
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function ActivityFeedScreen() {
   const { colors: themeColors } = useTheme();
@@ -32,7 +36,10 @@ export default function ActivityFeedScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject } = useProjects();
+  // RT-R1: useActivityFeed composes this timeline from the same ProjectContext
+  // collections that swallow a failed read and serve the cache, so an empty
+  // feed is EITHER a quiet project OR a dead session (audit 2026-09-07).
+  const { getProject, sourceFailed, retryRemoteReads } = useProjects();
   const { navigateTo } = useEntityNavigation();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -66,12 +73,33 @@ export default function ActivityFeedScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
-          <Text style={styles.headerSubtitle}>{items.length} event{items.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.headerSubtitle}>
+            {items.length === 0 && sourceFailed
+              ? 'Not loaded'
+              : `${items.length} event${items.length === 1 ? '' : 's'}`}
+          </Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
 
-      {items.length === 0 ? (
+      {/* A project's whole history reading as "nothing has happened here" is
+          the most alarming version of this bug, so the failed read is told
+          apart first. A genuinely quiet project (sourceFailed false) still
+          gets the friendly copy below. */}
+      {items.length === 0 && sourceFailed ? (
+        <ErrorState
+          icon={<CloudOff size={32} color={themeColors.warningLabel} strokeWidth={1.75} />}
+          title="Couldn't reach MAGE"
+          body="This project's history didn't come back from the last read. Nothing has been deleted — this device just has nothing cached to show yet."
+          steps={[
+            'Check that you have signal or Wi-Fi.',
+            'Tap Try again below.',
+            'If it keeps failing, sign out and back in — the session may have expired.',
+          ]}
+          onRetry={retryRemoteReads}
+          testID="activity-unreachable"
+        />
+      ) : items.length === 0 ? (
         <EmptyState
           icon={<Activity size={32} color={themeColors.accent} strokeWidth={1.75} />}
           title="No activity yet"

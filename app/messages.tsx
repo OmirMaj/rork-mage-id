@@ -4,7 +4,8 @@ import {
   Animated,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useBrainFabLift } from '@/components/brain/brainFabState';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Send, ChevronDown, MessageCircle } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
@@ -35,6 +36,7 @@ export default function MessagesScreen() {
     setComposerH(e.nativeEvent.layout.height);
   }, []);
   useBrainFabLift(composerH);
+  const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -172,7 +174,7 @@ export default function MessagesScreen() {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.messageList}
+          contentContainerStyle={[styles.messageList, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
           showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={100}

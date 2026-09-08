@@ -62,6 +62,7 @@ interface TutorialStep {
 
 // Tap the "+" to create a project.
 const TapPlusDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
+  const demoStyles = useThemedStyles(makeDemoStyles);
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (completed) return;
@@ -115,6 +116,7 @@ const TapPlusDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
 // Generic "tap the highlighted thing" demo — used for tab selection.
 function buildTapTarget(targetIdx: number, items: { label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }[]): React.FC<DemoProps> {
   const Comp: React.FC<DemoProps> = ({ onComplete, completed }) => {
+    const demoStyles = useThemedStyles(makeDemoStyles);
     const pulse = useRef(new Animated.Value(0)).current;
     useEffect(() => {
       if (completed) return;
@@ -177,6 +179,7 @@ function buildTapTarget(targetIdx: number, items: { label: string; Icon: React.C
 
 // Swipe / drag-style demo — a mock Gantt bar. User drags it to fill the timeline.
 const GanttDragDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
+  const demoStyles = useThemedStyles(makeDemoStyles);
   const [progress, setProgress] = useState(0);
   const fill = useRef(new Animated.Value(0)).current;
 
@@ -227,6 +230,7 @@ const GanttDragDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
 // Quiz-style: pick the correct option.
 function buildQuizDemo(question: string, options: string[], correctIdx: number): React.FC<DemoProps> {
   const Comp: React.FC<DemoProps> = ({ onComplete, completed }) => {
+    const demoStyles = useThemedStyles(makeDemoStyles);
     const [picked, setPicked] = useState<number | null>(null);
 
     return (
@@ -277,7 +281,9 @@ function buildQuizDemo(question: string, options: string[], correctIdx: number):
 }
 
 // Success checkbox — auto-completes on tap. Used for the final "ready" step.
-const TapToFinishDemo: React.FC<DemoProps> = ({ onComplete, completed }) => (
+const TapToFinishDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
+  const demoStyles = useThemedStyles(makeDemoStyles);
+  return (
   <View style={demoStyles.mockScreen}>
     <TouchableOpacity
       onPress={() => {
@@ -303,7 +309,8 @@ const TapToFinishDemo: React.FC<DemoProps> = ({ onComplete, completed }) => (
       )}
     </TouchableOpacity>
   </View>
-);
+  );
+};
 
 // --- Steps ------------------------------------------------------------
 
@@ -316,7 +323,9 @@ const TAB_ITEMS = [
 
 // "Got it" — universal step demo for the trimmed tour. Replaces the
 // previous quiz/mock-UI pattern that felt slideshow-y.
-const GotItDemo = ({ onComplete, completed }: { onComplete: () => void; completed: boolean }) => (
+const GotItDemo = ({ onComplete, completed }: { onComplete: () => void; completed: boolean }) => {
+  const demoStyles = useThemedStyles(makeDemoStyles);
+  return (
   <View style={demoStyles.mockScreen}>
     <TouchableOpacity
       onPress={() => {
@@ -337,7 +346,8 @@ const GotItDemo = ({ onComplete, completed }: { onComplete: () => void; complete
       <Text style={demoStyles.finishBtnText}>{completed ? 'Got it' : 'Got it — next'}</Text>
     </TouchableOpacity>
   </View>
-);
+  );
+};
 
 const STEPS: TutorialStep[] = [
   // Tutorial v3 (May 2026): trimmed from 19 quiz-and-mock-UI steps down
@@ -757,41 +767,46 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 });
 
 // ── Demo-specific styles ──────────────────────────────────────────────
+//
+// A factory, like makeStyles above it. This sheet was the one module-scope
+// holdout in the file — the tutorial's mock screens froze Colors.surface /
+// cardBorder / textSecondary at import, so a first-run user in dark mode was
+// taught the app on white mock screens (audit 2026-09-07).
 
-const demoStyles = StyleSheet.create({
+const makeDemoStyles = (t: ThemeColors) => StyleSheet.create({
   mockScreen: {
     width: '100%' as const,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     padding: 14,
     minHeight: 180,
   },
   mockHeader: {
     paddingBottom: 8,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
     marginBottom: 10,
   },
   mockHeaderText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 0.5,
   },
   mockBody: {
     gap: 8,
   },
   mockProjectRow: {
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     borderRadius: Tokens.radius.sm,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
   mockProjectText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '500' as const,
   },
   mockEmpty: {
@@ -800,12 +815,12 @@ const demoStyles = StyleSheet.create({
   },
   mockEmptyText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontStyle: 'italic' as const,
   },
   mockLabel: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginBottom: 10,
     fontWeight: '500' as const,
   },
@@ -839,7 +854,7 @@ const demoStyles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row' as const,
     justifyContent: 'space-around' as const,
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.neutralSoft,
     borderRadius: Tokens.radius.card,
     padding: 8,
     marginBottom: 10,
@@ -864,7 +879,7 @@ const demoStyles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   hintRow: {
@@ -876,11 +891,11 @@ const demoStyles = StyleSheet.create({
   },
   hintText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   ganttTrack: {
     height: 36,
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.neutralSoft,
     borderRadius: Tokens.radius.sm,
     overflow: 'hidden' as const,
     position: 'relative' as const,
@@ -912,14 +927,14 @@ const demoStyles = StyleSheet.create({
   ganttLabel: {
     flex: 1,
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center' as const,
     fontWeight: '500' as const,
   },
   quizQuestion: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 10,
     lineHeight: 19,
   },
@@ -927,12 +942,12 @@ const demoStyles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     borderRadius: Tokens.radius.md,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   quizOptionCorrect: {
     borderColor: Colors.success,
@@ -945,7 +960,7 @@ const demoStyles = StyleSheet.create({
   quizOptionText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   startBtn: {
     flexDirection: 'row' as const,

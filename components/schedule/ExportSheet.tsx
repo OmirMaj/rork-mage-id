@@ -7,7 +7,9 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 import { FileText, FileSpreadsheet, Share2, Calendar, Printer, ChevronRight } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 const OPT_ICON: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
   pdf: FileText, csv: FileSpreadsheet, share: Share2, ical: Calendar, print: Printer,
@@ -32,6 +34,10 @@ interface Opt {
 }
 
 export function ExportSheet(props: ExportSheetProps) {
+  // Built per theme: the sheet baked Colors.surface/text/border at import, so
+  // in dark mode it slid up as a white card (audit 2026-09-07).
+  const { colors: t } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const opts: Opt[] = [
     {
       key: 'pdf',
@@ -63,7 +69,7 @@ export function ExportSheet(props: ExportSheetProps) {
     },
     {
       key: 'print',
-      iconColor: Colors.textSecondary,
+      iconColor: t.textSecondary,
       label: 'Print / AirPrint',
       sub: 'iOS share sheet · any AirPrint printer',
       onPress: props.onAirPrint,
@@ -97,7 +103,7 @@ export function ExportSheet(props: ExportSheetProps) {
               <Text style={styles.optLabel}>{o.label}</Text>
               <Text style={styles.optSub}>{o.sub}</Text>
             </View>
-            <ChevronRight size={18} color={Colors.textSecondary} strokeWidth={1.75} />
+            <ChevronRight size={18} color={t.textSecondary} strokeWidth={1.75} />
           </Pressable>
         ))}
       </View>
@@ -105,7 +111,7 @@ export function ExportSheet(props: ExportSheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -115,7 +121,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     padding: 16,
@@ -124,13 +130,13 @@ const styles = StyleSheet.create({
   grab: {
     width: 36,
     height: 4,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 10,
   },
   title: {
-    color: Colors.text,
+    color: t.text,
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 10,
@@ -142,7 +148,12 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(31,37,45,0.6)',
+    // Was a fixed `rgba(31,37,45,0.6)`. At 60% alpha that is not a hairline,
+    // it is a bar: over the sheet's `t.surface` it composites to rgb(121,124,
+    // 129) on the light theme and to rgb(27,29,32) — invisible — on the dark
+    // one. The same literal was fixed in tabs/DashboardTab.tsx by this pass
+    // and missed here (review 2026-09-07).
+    borderBottomColor: t.line,
   },
   optIcon: {
     fontSize: 18,
@@ -150,17 +161,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   optLabel: {
-    color: Colors.text,
+    color: t.text,
     fontSize: 13,
     fontWeight: '600',
   },
   optSub: {
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontSize: 10,
     marginTop: 2,
   },
   chev: {
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontSize: 16,
   },
 });

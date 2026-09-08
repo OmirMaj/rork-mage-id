@@ -7,8 +7,8 @@
 import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Check } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
-import { useTheme } from '@/contexts/ThemeContext';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { supabase } from '@/lib/supabase';
 
 export interface TabComingSoonProps {
@@ -21,7 +21,11 @@ export interface TabComingSoonProps {
 }
 
 export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabComingSoonProps) {
-  useTheme();
+  // Was a bare `useTheme()` over a module-scope StyleSheet: subscribing to the
+  // theme does nothing when the styles froze their Colors.* getters at import
+  // (audit 2026-09-07). useThemedStyles is the subscription that actually
+  // rebuilds the sheet.
+  const styles = useThemedStyles(makeStyles);
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
 
   const notify = async () => {
@@ -65,11 +69,11 @@ export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabCo
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 14 },
-  preview: { width: 240, height: 120, backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 12, opacity: 0.7 },
-  title: { fontSize: 18, color: Colors.text, fontWeight: '700' },
-  tagline: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', maxWidth: 320, lineHeight: 19 },
+  preview: { width: 240, height: 120, backgroundColor: t.surfaceAlt, borderRadius: 10, padding: 12, opacity: 0.7 },
+  title: { fontSize: 18, color: t.text, fontWeight: '700' },
+  tagline: { fontSize: 13, color: t.textSecondary, textAlign: 'center', maxWidth: 320, lineHeight: 19 },
   btn: { backgroundColor: 'rgba(255,106,26,0.15)', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
   btnDone: { backgroundColor: 'rgba(78,211,122,0.15)' },
   btnText: { color: Colors.tradeColors.general, fontSize: 12, fontWeight: '700' },

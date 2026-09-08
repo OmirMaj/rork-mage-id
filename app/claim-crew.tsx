@@ -4,7 +4,8 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { redeemCrewClaim } from '@/utils/crewScan';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 
 // Worker claim redemption. Opened from the magic-link invite
@@ -21,6 +22,10 @@ export default function ClaimCrewScreen() {
   const { user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [state, setState] = useState<'waiting' | 'done' | 'failed'>('waiting');
+  // Built per theme: this screen's page background and body ink were baked at
+  // import, so a worker who opens the invite link in dark mode landed on a
+  // light-grey page (audit 2026-09-07).
+  const styles = useThemedStyles(makeStyles);
 
   useEffect(() => {
     if (!token) { setState('failed'); return; }
@@ -54,8 +59,8 @@ export default function ClaimCrewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background, padding: 24, gap: 16 },
-  msg: { fontSize: Type.body.fontSize, color: Colors.text, textAlign: 'center' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, padding: 24, gap: 16 },
+  msg: { fontSize: Type.body.fontSize, color: t.text, textAlign: 'center' },
   link: { fontSize: Type.body.fontSize, color: Colors.primary, fontWeight: '700' },
 });

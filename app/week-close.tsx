@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { CheckCircle2, ChevronRight, X } from 'lucide-react-native';
@@ -175,7 +176,7 @@ function WeekCloseInner() {
         contentContainerStyle={[
           styles.content,
           isDesktop && styles.contentDesktop,
-          { paddingBottom: insets.bottom + 32 },
+          { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE },
         ]}
       >
         {/* Header */}

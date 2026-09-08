@@ -85,14 +85,18 @@ const CLEARS = /BRAIN_FAB_CLEARANCE|useHideBrainFab/;
  * to the scroll container's contentContainerStyle. The money screens —
  * invoice, aia-pay-app, change-order, cost-xray, estimate-wizard — are the ones
  * where a covered last row costs a contractor something.
+ *
+ * 30 → 6 on 2026-09-07. Two of the twenty-four needed something other than the
+ * two-line change and are worth knowing about before you fix the rest:
+ *   - Where the FAB is LIFTED over a measured sticky bar (useBrainFabLift), the
+ *     clearance is measured from the top of that bar. Check 4 below enforces
+ *     that case; do not hand-roll it.
+ *   - plan-viewer calls useHideBrainFab() instead: its scroll container is a
+ *     pinch-zoom draw canvas, where padding would push the sheet off-centre and
+ *     the circle would still eat markup strokes.
  */
 const KNOWN_GAPS: ReadonlySet<string> = new Set([
-  'ai-punch', 'aia-pay-app', 'bid-detail', 'brief', 'change-order', 'client-update',
-  'copilot-hub', 'cost-xray', 'data-export', 'estimate-wizard', 'generative-setup',
-  'import-pipeline', 'invoice', 'judges', 'lead-detail', 'messages', 'paywall',
-  'photo-annotator', 'plan-intelligence', 'plan-viewer', 'post-rfp', 'qbo-review',
-  'quick-quote', 'scan', 'schedule-import', 'schedule-review', 'schedule-wizard',
-  'submit-bid-response', 'takeoff-estimate', 'week-close',
+  'aia-pay-app', 'change-order', 'paywall', 'takeoff-estimate',
   '(tabs)/estimate/review', '(tabs)/settings/appearance',
 ]);
 
@@ -131,6 +135,81 @@ if (fixed.length) {
   console.log(`\n  ${fixed.length} KNOWN_GAPS entr${fixed.length === 1 ? 'y is' : 'ies are'} now clear — delete from the list:`);
   for (const r of fixed) console.log(`        ↓ '${r}'`);
 }
+
+// ── 4. A LIFTED FAB needs the bar's height in the padding too ──
+//
+// The check above only asks whether BRAIN_FAB_CLEARANCE appears in the file.
+// That is enough for a plain screen and useless for a screen with a sticky
+// bar: every one of those bars is `position: 'absolute', bottom: 0`, so the
+// scroll container still reaches the window bottom, and `useBrainFabLift(h)`
+// pushes the FAB from its resting +70..+126 up to +70+h..+126+h. A screen that
+// pads `insets.bottom + BRAIN_FAB_CLEARANCE` there is short by exactly `h` —
+// roughly 100pt on an iPhone — and its last row sits under the raised circle
+// AND under the bar.
+//
+// The 2026-09-07 sweep applied the flat padding to 24 screens and got this
+// wrong on seven of them (data-export, generative-setup, invoice, lead-detail,
+// plan-intelligence, qbo-review, schedule-review) while its own KNOWN_GAPS
+// comment described the correct fix. Check 3 passed all seven. So the rule is
+// mechanical now: whatever expression is handed to useBrainFabLift must appear
+// VERBATIM in a paddingBottom next to BRAIN_FAB_CLEARANCE. Name it once —
+//
+//   const fabLift = showBar ? bottomBarH : 0;
+//   useBrainFabLift(fabLift);
+//   contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }}
+//
+// — and the two can no longer drift apart.
+
+/**
+ * Screens whose lifted bar is a FLEX SIBLING below the scroll container, not an
+ * absolute overlay. There the container already stops at the bar's top edge, so
+ * the lift is exactly cancelled and adding it to the padding would double-count
+ * it. Verified by reading the bar's style, not assumed.
+ */
+const LIFT_ABOVE_SCROLL: ReadonlySet<string> = new Set([
+  'messages',   // styles.inputBar — plain flex row, no `position: absolute`.
+]);
+
+/**
+ * Lifted screens that still pad for the FAB alone. Owned by other waves on
+ * 2026-09-07; four of them are already in KNOWN_GAPS above for the simpler
+ * reason. May only SHRINK — the fix is the three-line `fabLift` shape above.
+ */
+const LIFT_GAPS: ReadonlySet<string> = new Set([
+  'aia-pay-app', 'bill-from-estimate', 'change-order', 'takeoff-estimate',
+  '(tabs)/estimate/review', '(tabs)/estimate/full',
+]);
+
+const liftOffenders: string[] = [];
+let lifted = 0;
+
+for (const file of walk('app')) {
+  const route = relative('app', file).replace(/\.tsx$/, '');
+  if (route.endsWith('_layout')) continue;
+  const src = readFileSync(file, 'utf8');
+  // The argument, balanced to the closing paren of the call. Ternaries and
+  // member access are all fine; nested parens are not, and no call site has any.
+  const arg = src.match(/useBrainFabLift\(([^()\n]*(?:\([^()]*\)[^()\n]*)*)\)/)?.[1]?.trim();
+  if (!arg || arg === '0') continue;
+  lifted++;
+  if (LIFT_ABOVE_SCROLL.has(route)) continue;
+  // Same expression, in a paddingBottom that also clears the FAB.
+  const padded = new RegExp(
+    'paddingBottom:[^,}\\n]*\\b' + arg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+    '\\b[^,}\\n]*BRAIN_FAB_CLEARANCE').test(src);
+  if (!padded && !LIFT_GAPS.has(route)) liftOffenders.push(`${route}  (lift: ${arg})`);
+}
+
+ok(`${lifted} screens lift the FAB over a sticky bar; each pads for the bar too`,
+  liftOffenders.length === 0,
+  liftOffenders.length
+    ? `${liftOffenders.length} screen(s) lift the FAB but pad only for its resting position:\n      ` +
+      liftOffenders.join('\n      ') +
+      `\n      Name the height once and use it in both:` +
+      `\n        const fabLift = <the same expression>;` +
+      `\n        useBrainFabLift(fabLift);` +
+      `\n        paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE`
+    : '');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -37,6 +37,7 @@ import {
   Platform, Modal, Pressable, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -683,7 +684,7 @@ export default function ScheduleWizardScreen() {
            without this every tap on "+ Add task" / a chip while the keyboard is
            up is swallowed dismissing the keyboard instead. */
         <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="none"
@@ -1504,7 +1505,7 @@ function TasksStep(props: {
         {/* Right pane: live Gantt — updates as tasks/dates change. */}
         <ScrollView
           style={styles.desktopRightPane}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={{ paddingBottom: BRAIN_FAB_CLEARANCE }}
           showsVerticalScrollIndicator={false}
         >
           <ScheduleStep

@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ClipboardPaste, Users, Check, X, Trash2, DollarSign, Phone,
@@ -144,7 +145,7 @@ export default function ImportPipelineScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

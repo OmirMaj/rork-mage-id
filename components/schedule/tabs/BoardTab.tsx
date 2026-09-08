@@ -15,9 +15,10 @@
 import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { useResponsive } from '@/utils/useResponsive';
@@ -30,7 +31,10 @@ const COLUMNS: { key: TaskStatus; title: string }[] = [
 ];
 
 export function BoardTab() {
-  useTheme();
+  // Was a bare `useTheme()` over a module-scope StyleSheet, so the three
+  // columns and every card on them kept their light fills in dark mode
+  // (audit 2026-09-07). useThemedStyles is the subscription that rebuilds.
+  const styles = useThemedStyles(makeStyles);
   const { bp } = useResponsive();
   const { tasks, cpm, setSelectedTaskId } = useScheduler();
   const [phoneCol, setPhoneCol] = useState<TaskStatus>('in_progress');
@@ -132,6 +136,7 @@ function BoardCard({
   isCritical: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const phase = tradeKeyForTask(task);
   const phaseColor = Colors.tradeColors[phase];
   const progress =
@@ -162,6 +167,7 @@ function BoardCard({
 }
 
 function CardDonut({ percent }: { percent: number }) {
+  const { colors: t } = useTheme();
   const size = 14;
   const stroke = 2.5;
   const r = (size - stroke) / 2;
@@ -176,7 +182,7 @@ function CardDonut({ percent }: { percent: number }) {
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={Colors.fillTertiary}
+          stroke={t.neutralSoft}
           strokeWidth={stroke}
           fill="none"
         />
@@ -208,9 +214,9 @@ function formatDate(task: ScheduleTask): string {
   return `${task.durationDays ?? 0}d`;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, flexDirection: 'row', padding: 10, gap: 10 },
-  col: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: 8 },
+  col: { flex: 1, backgroundColor: t.surfaceAlt, borderRadius: 8 },
   colContent: { padding: 10, gap: 8 },
   colHeader: {
     flexDirection: 'row',
@@ -219,22 +225,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.line,
     marginBottom: 4,
   },
   colTitle: {
-    color: Colors.text,
+    color: t.text,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.6,
   },
-  colCount: { color: Colors.textSecondary, fontSize: 11 },
+  colCount: { color: t.textSecondary, fontSize: 11 },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 8,
     padding: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.04)',
+    // Was white-at-4%, a leftover from when the board was dark-only. Once the
+    // card ground became `t.surface` (#FFFFFF in light) that outline was white
+    // on white, so light-theme cards lost their edge against the `t.surfaceAlt`
+    // column behind them. `t.line` is what colHeader above already uses
+    // (review 2026-09-07).
+    borderColor: t.line,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -244,20 +255,20 @@ const styles = StyleSheet.create({
   },
   phaseDot: { width: 7, height: 7, borderRadius: 4 },
   phaseLabel: {
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontSize: 9,
     letterSpacing: 0.8,
     fontWeight: '700',
   },
   cardName: {
-    color: Colors.text,
+    color: t.text,
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 17,
     marginBottom: 8,
   },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardDate: { color: Colors.textSecondary, fontSize: 10 },
+  cardDate: { color: t.textSecondary, fontSize: 10 },
   cpBadge: {
     backgroundColor: Colors.pillLate,
     paddingHorizontal: 5,
@@ -271,7 +282,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   emptyHint: {
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontSize: 11,
     textAlign: 'center',
     paddingVertical: 20,
@@ -287,8 +298,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     gap: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomColor: t.line,
+    backgroundColor: t.surface,
   },
   phoneSwitcherTab: {
     flex: 1,
@@ -299,13 +310,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 6,
     borderRadius: 7,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
   },
   phoneSwitcherTabActive: {
     backgroundColor: Colors.tradeColors.general,
   },
   phoneSwitcherLabel: {
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -314,7 +325,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   phoneSwitcherCount: {
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontSize: 10,
     fontWeight: '600',
   },
@@ -322,6 +333,6 @@ const styles = StyleSheet.create({
     color: '#0B0D10',
     fontWeight: '700',
   },
-  phoneCol: { flex: 1, backgroundColor: Colors.surfaceAlt },
+  phoneCol: { flex: 1, backgroundColor: t.surfaceAlt },
   phoneColContent: { padding: 12, gap: 8 },
 });

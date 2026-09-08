@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Platform,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
@@ -120,6 +121,7 @@ export default function BidDetailScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
@@ -129,7 +131,13 @@ export default function BidDetailScreen() {
   const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
-  useBrainFabLift(!layout.isDesktop ? bottomBarH : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = !layout.isDesktop ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
   const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
   const router = useRouter();
   const { bids: localBids } = useBids();
@@ -294,7 +302,7 @@ export default function BidDetailScreen() {
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
-      <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
         {layout.isDesktop ? (
           <View style={bidDesktopStyles.twoCol}>
             <View style={bidDesktopStyles.mainCol}>
@@ -635,7 +643,6 @@ export default function BidDetailScreen() {
           testID="bid-ai-scorecard"
         />
 
-        <View style={{ height: 120 }} />
           </>
         )}
       </ScrollView>

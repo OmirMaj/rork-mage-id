@@ -16,7 +16,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -146,7 +146,13 @@ function AiPunchScreenInner() {
   const onCtaLayout = useCallback((e: LayoutChangeEvent) => {
     setCtaH(e.nativeEvent.layout.height);
   }, []);
-  useBrainFabLift(ctaH > 0 ? ctaH + 18 : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = ctaH > 0 ? ctaH + 18 : 0;
+  useBrainFabLift(fabLift);
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const { projects, getProject, getPhotosForProject, addPunchItem, addPunchItems } = useProjects();
@@ -484,7 +490,7 @@ function AiPunchScreenInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <ToolHeader eyebrow="AI PUNCH · MAGE ID" title={project.name} />
-        <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
+        <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
               subtitle). All AI feature screens share this look so the user

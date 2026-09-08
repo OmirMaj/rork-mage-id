@@ -12,7 +12,9 @@ import { MageAIMark } from '@/components/icons';
 import { nailIt } from '@/components/animations/NailItToast';
 import { BrainCard } from '@/components/brain/BrainCard';
 import { EMPTY_GROUNDING, groundingChipLabel, type GroundingBundle, type ScopeHints } from '@/utils/groundingChip';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -93,6 +95,12 @@ export default React.memo(function AIQuickEstimate({
   visible, onClose, onApplyEstimate, existingMaterials, globalMarkup, location, calculateAssemblyCost,
   groundingFor,
 }: Props) {
+  // Built per theme: this sheet baked 13 distinct Colors.* getters at import —
+  // background, surface, both text ranks, both fills, all three label inks —
+  // so the whole estimator rendered light-on-light in dark mode
+  // (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const { tier } = useSubscription();
   const router = useRouter();
   const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
@@ -250,9 +258,19 @@ export default React.memo(function AIQuickEstimate({
         baseRetailPrice: aiMat.unitPrice,
         baseBulkPrice: aiMat.unitPrice * 0.85,
         bulkMinQty: 10,
-        supplier: aiMat.supplier || 'AI Estimated',
+        // A CONSTANT, never `aiMat.supplier`. That field is model-filled and
+        // its schema DEFAULTS to the string 'Home Depot' (utils/aiService.ts
+        // :1113), with the same store named again in the prompt's worked
+        // example (:1201) and in the offline fallback rows (:1223) — so a GC
+        // who never saw a store name got one anyway. `supplier` rides this row
+        // into the cart, into estimate line items (app/(tabs)/estimate/
+        // review.tsx:185) and onto the bid PDF the client reads, which is how
+        // "Home Depot" ended up beside a price nobody ever quoted
+        // (audit 2026-09-07, money-trust). Matches the constant the materials
+        // estimator settled on at app/(tabs)/estimate/full.tsx:441.
+        supplier: 'AI estimate',
         pricingModel: 'market',
-        sourceLabel: matched ? 'Matched' : 'AI Generated',
+        sourceLabel: matched ? 'Matched' : 'AI estimate — not a supplier quote',
       };
 
       return {
@@ -365,7 +383,7 @@ export default React.memo(function AIQuickEstimate({
           value={description}
           onChangeText={setDescription}
           placeholder="e.g., 2,500 sqft kitchen remodel with mid-range finishes, new cabinets, countertops, flooring, lighting..."
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={t.textMuted}
           multiline
           numberOfLines={4}
           textAlignVertical="top"
@@ -376,20 +394,20 @@ export default React.memo(function AIQuickEstimate({
       <View style={s.detailsRow}>
         <View style={s.detailField}>
           <Text style={s.detailLabel}>
-            <Ruler size={12} color={Colors.textSecondary} strokeWidth={1.75} /> Sq Ft
+            <Ruler size={12} color={t.textSecondary} strokeWidth={1.75} /> Sq Ft
           </Text>
           <TextInput
             style={s.detailInput}
             value={sqft}
             onChangeText={setSqft}
             placeholder="0"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={t.textMuted}
             keyboardType="numeric"
           />
         </View>
         <View style={s.detailField}>
           <Text style={s.detailLabel}>
-            <MapPin size={12} color={Colors.textSecondary} strokeWidth={1.75} /> Location
+            <MapPin size={12} color={t.textSecondary} strokeWidth={1.75} /> Location
           </Text>
           <View style={s.locationBadge}>
             <Text style={s.locationText} numberOfLines={1}>{location || 'US Avg'}</Text>
@@ -432,7 +450,7 @@ export default React.memo(function AIQuickEstimate({
 
       {error && (
         <View style={s.errorBanner}>
-          <AlertTriangle size={16} color={Colors.dangerLabel} strokeWidth={1.75} />
+          <AlertTriangle size={16} color={t.dangerLabel} strokeWidth={1.75} />
           <Text style={s.errorText}>{error}</Text>
         </View>
       )}
@@ -448,9 +466,13 @@ export default React.memo(function AIQuickEstimate({
         <Text style={s.generateBtnText}>Generate Estimate with AI</Text>
       </TouchableOpacity>
 
+      {/* This used to claim the estimate was based on live market pricing.
+          mageAI relays to Gemini with no browsing tool, no cost book and no
+          supplier feed — the same false premise that was removed from the
+          materials prompt (utils/materialFinder.ts, audit 2026-09-07). */}
       <View style={s.disclaimer}>
         <Text style={s.disclaimerText}>
-          Uses 1 advanced AI credit. Estimate is based on current market data and should be reviewed before sending to clients.
+          Uses 1 advanced AI credit. Every price here is the model&apos;s recall, not a quote or a market feed — price the job against your own rates before you send it.
         </Text>
       </View>
 
@@ -549,19 +571,19 @@ export default React.memo(function AIQuickEstimate({
                 <Text style={s.totalBreakdownValue}>${estimatedTotals.labor.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
               <View style={s.totalBreakdownItem}>
-                <Shield size={14} color={Colors.infoLabel} strokeWidth={1.75} />
+                <Shield size={14} color={t.info} strokeWidth={1.75} />
                 <Text style={s.totalBreakdownLabel}>Other</Text>
                 <Text style={s.totalBreakdownValue}>${estimatedTotals.additional.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
               <View style={s.totalBreakdownItem}>
-                <Clock size={14} color={Colors.textSecondary} strokeWidth={1.75} />
+                <Clock size={14} color={t.textSecondary} strokeWidth={1.75} />
                 <Text style={s.totalBreakdownLabel}>Duration</Text>
                 <Text style={s.totalBreakdownValue}>{result.estimatedDuration}</Text>
               </View>
             </View>
             {result.costPerSqFt > 0 && (
               <View style={s.costPerSqftRow}>
-                <DollarSign size={12} color={Colors.textSecondary} strokeWidth={1.75} />
+                <DollarSign size={12} color={t.textSecondary} strokeWidth={1.75} />
                 <Text style={s.costPerSqftText}>${result.costPerSqFt.toFixed(0)}/sq ft</Text>
               </View>
             )}
@@ -580,7 +602,15 @@ export default React.memo(function AIQuickEstimate({
                 <View key={i} style={s.itemRow}>
                   <View style={s.itemLeft}>
                     <Text style={s.itemName} numberOfLines={1}>{m.name}</Text>
-                    <Text style={s.itemMeta}>{m.quantity} {m.unit} · {m.supplier}</Text>
+                    {/* The unit price, not `m.supplier`: that field defaults to
+                        'Home Depot' in the schema, so this line printed a store
+                        the model never checked next to a price it recalled
+                        (audit 2026-09-07, money-trust). The rate is the number
+                        the GC actually needs to sanity-check the row, and it is
+                        a figure the estimate is genuinely built from. */}
+                    <Text style={s.itemMeta}>
+                      {m.quantity} {m.unit} · ${(m.unitPrice ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}/{m.unit}
+                    </Text>
                   </View>
                   <Text style={s.itemPrice}>${((m.unitPrice ?? 0) * (m.quantity ?? 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                 </View>
@@ -615,7 +645,7 @@ export default React.memo(function AIQuickEstimate({
             </View>
           ))}
 
-          {renderCollapsible('additional', 'Additional Costs', DollarSign, Colors.textSecondary, () => (
+          {renderCollapsible('additional', 'Additional Costs', DollarSign, t.textSecondary, () => (
             <View style={s.itemsList}>
               {(result.additionalCosts?.permits ?? 0) > 0 && (
                 <View style={s.itemRow}>
@@ -655,7 +685,7 @@ export default React.memo(function AIQuickEstimate({
           {(result.warnings ?? []).length > 0 && (
             <View style={s.warningsCard}>
               <View style={s.warningsHeader}>
-                <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+                <AlertTriangle size={14} color={t.warningLabel} strokeWidth={1.75} />
                 <Text style={s.warningsTitle}>Watch Out</Text>
               </View>
               {(result.warnings ?? []).map((w, i) => (
@@ -667,7 +697,7 @@ export default React.memo(function AIQuickEstimate({
           {(result.savingsTips ?? []).length > 0 && (
             <View style={s.tipsCard}>
               <View style={s.tipsHeader}>
-                <TrendingDown size={14} color={Colors.successLabel} strokeWidth={1.75} />
+                <TrendingDown size={14} color={t.successLabel} strokeWidth={1.75} />
                 <Text style={s.tipsTitle}>Savings Tips</Text>
               </View>
               {(result.savingsTips ?? []).map((t, i) => (
@@ -713,7 +743,7 @@ export default React.memo(function AIQuickEstimate({
             </View>
             <Text style={s.collapsibleTitle}>{title}</Text>
           </View>
-          {isOpen ? <ChevronUp size={18} color={Colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={18} color={Colors.textMuted} strokeWidth={1.75} />}
+          {isOpen ? <ChevronUp size={18} color={t.textMuted} strokeWidth={1.75} /> : <ChevronDown size={18} color={t.textMuted} strokeWidth={1.75} />}
         </TouchableOpacity>
         {isOpen && content()}
       </View>
@@ -730,7 +760,7 @@ export default React.memo(function AIQuickEstimate({
               <MageAIMark size={20} color={Colors.primary} />
               <Text style={s.modalTitle}>AI Estimator</Text>
             </View>
-            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>
         </View>
 
@@ -753,24 +783,24 @@ export default React.memo(function AIQuickEstimate({
   );
 });
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   modalHeader: {
     paddingTop: 8,
     paddingHorizontal: 20,
     paddingBottom: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   modalHandle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     alignSelf: 'center',
     marginBottom: 12,
   },
@@ -787,13 +817,13 @@ const s = StyleSheet.create({
   modalTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.neutralSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -819,11 +849,11 @@ const s = StyleSheet.create({
   heroTitle: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   heroDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 20,
@@ -834,7 +864,7 @@ const s = StyleSheet.create({
   sectionLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
     marginBottom: 10,
@@ -848,9 +878,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
   },
   quickChipActive: {
     backgroundColor: Colors.primary + '12',
@@ -859,7 +889,7 @@ const s = StyleSheet.create({
   quickChipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   quickChipTextActive: {
     color: Colors.primary,
@@ -870,14 +900,14 @@ const s = StyleSheet.create({
   },
   descInput: {
     minHeight: 100,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 22,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
   },
   detailsRow: {
     flexDirection: 'row',
@@ -891,32 +921,32 @@ const s = StyleSheet.create({
   detailLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   detailInput: {
     height: 44,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
   },
   locationBadge: {
     height: 44,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
   },
   locationText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: t.text,
   },
   typeRow: {
     flexDirection: 'row',
@@ -927,9 +957,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
   },
   typeChipActive: {
     backgroundColor: Colors.primary,
@@ -938,7 +968,7 @@ const s = StyleSheet.create({
   typeChipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   typeChipTextActive: {
     color: Colors.textOnPrimary,
@@ -953,9 +983,9 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     alignItems: 'center',
     gap: 2,
   },
@@ -966,24 +996,33 @@ const s = StyleSheet.create({
   qualityChipLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   qualityChipLabelActive: {
     color: Colors.primary,
   },
   qualityChipDesc: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center' as const,
   },
   qualityChipDescActive: {
     color: Colors.primary,
   },
+  // The four tinted grounds below were `Colors.errorLight` / `warningLight` /
+  // `successLight` — baked LIGHT hex, frozen once at import while this sheet
+  // was a module-scope StyleSheet.create. Turning the sheet into a `(t) =>`
+  // factory (2026-09-07) made the ink on top re-resolve per theme, so in dark
+  // mode `t.dangerLabel` #FF5A51 landed on #FFF0EF (2.78:1), `t.warningLabel`
+  // #FF9500 on #FFF3E0 (~2.0:1) and `t.successLabel` #4ED37A on #E8FAF0
+  // (~1.6:1) — a contrast regression the theming fix itself created. The
+  // *Soft tokens are the grounds those inks are measured against
+  // (constants/colors.ts:410-453).
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.dangerSoft,
     borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 12,
@@ -991,7 +1030,7 @@ const s = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.dangerLabel,
+    color: t.dangerLabel,
     fontWeight: '500' as const,
   },
   generateBtn: {
@@ -1023,7 +1062,7 @@ const s = StyleSheet.create({
   },
   disclaimerText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center',
     lineHeight: 16,
   },
@@ -1046,18 +1085,18 @@ const s = StyleSheet.create({
   loadingTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   loadingDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
   progressBar: {
     width: '100%',
     height: 4,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     borderRadius: 2,
     overflow: 'hidden',
     marginTop: 8,
@@ -1079,7 +1118,7 @@ const s = StyleSheet.create({
   },
   loadingStepText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   cancelLoadingBtn: {
     marginTop: 24,
@@ -1087,12 +1126,12 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
+    borderColor: t.line,
+    backgroundColor: t.surfaceAlt,
   },
   cancelLoadingText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '600',
   },
   resultContainer: {
@@ -1131,34 +1170,34 @@ const s = StyleSheet.create({
   },
   resultSummary: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
   },
   summaryCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 14,
     marginTop: 12,
     marginBottom: 8,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   summaryLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
     marginBottom: 6,
   },
   summaryText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 19,
   },
   totalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     marginBottom: 16,
@@ -1173,7 +1212,7 @@ const s = StyleSheet.create({
   totalLabel: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   totalValue: {
     fontSize: Type.title1.fontSize,
@@ -1182,7 +1221,7 @@ const s = StyleSheet.create({
   },
   totalDivider: {
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
     marginVertical: 12,
   },
   totalBreakdownGrid: {
@@ -1196,18 +1235,18 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.md,
     padding: 10,
   },
   totalBreakdownLabel: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   totalBreakdownValue: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginLeft: 'auto' as const,
   },
   costPerSqftRow: {
@@ -1220,10 +1259,10 @@ const s = StyleSheet.create({
   costPerSqftText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   collapsibleCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     marginBottom: 10,
     overflow: 'hidden',
@@ -1249,7 +1288,7 @@ const s = StyleSheet.create({
   collapsibleTitle: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   itemsList: {
     paddingHorizontal: 14,
@@ -1262,7 +1301,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 10,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.md,
   },
   itemLeft: {
@@ -1272,11 +1311,11 @@ const s = StyleSheet.create({
   itemName: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   itemMeta: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
   itemPrice: {
@@ -1285,7 +1324,7 @@ const s = StyleSheet.create({
     color: Colors.primary,
   },
   warningsCard: {
-    backgroundColor: Colors.warningLight,
+    backgroundColor: t.warningSoft,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 10,
@@ -1300,15 +1339,17 @@ const s = StyleSheet.create({
   warningsTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.warningLabel,
+    color: t.warningLabel,
   },
   warningItem: {
+    // Was #7A5400 — a dark ink chosen for the pale ground above. On the themed
+    // warningSoft it would be dark-on-dark in dark mode.
     fontSize: Type.footnote.fontSize,
-    color: '#7A5400',
+    color: t.text,
     lineHeight: 18,
   },
   tipsCard: {
-    backgroundColor: Colors.successLight,
+    backgroundColor: t.successSoft,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 16,
@@ -1323,11 +1364,12 @@ const s = StyleSheet.create({
   tipsTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.successLabel,
+    color: t.successLabel,
   },
   tipItem: {
+    // Was #1B5E20, same story as warningItem.
     fontSize: Type.footnote.fontSize,
-    color: '#1B5E20',
+    color: t.text,
     lineHeight: 18,
   },
   applyBtn: {
@@ -1367,13 +1409,15 @@ const s = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: Colors.successLight ?? '#E8FAF0',
+    // `Colors.successLight ?? '#E8FAF0'` — the `??` was dead (the constant is
+    // non-nullable) and the value was a baked light hex under themed ink.
+    backgroundColor: t.successSoft,
     borderRadius: 8,
     alignItems: 'center',
   },
   groundingChipText: {
     fontSize: 12,
-    color: Colors.successLabel,
+    color: t.successLabel,
     fontWeight: '500' as const,
     textAlign: 'center',
   },

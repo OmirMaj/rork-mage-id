@@ -6,6 +6,61 @@ import type {
   Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project, MaterialReceipt,
 } from '@/types';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE WIP TERMS — one definition each (app-experience audit 2026-09-07, "Do
+// next" #2).
+//
+// MAGE ships TWO bank-facing WIP schedules one sidebar row apart — this engine
+// (app/wip-report.tsx) and utils/financialReports.computeWIPReport (the WIP tab
+// of app/reports.tsx) — and they disagreed on four axes:
+//
+//   1. BILLINGS POPULATION — suggestBilledToDate summed EVERY invoice
+//      including drafts; computeWIPReport excludes them. A draft is a document
+//      the client has never seen, so counting it inflates billed-to-date and
+//      understates underbilling — the exact number a lender reads to judge
+//      whether a job is financing itself on its own client's money.
+//   2. COST-TO-DATE BASIS — this engine sums commitment.paidToDate + material
+//      receipts (suggestCostToDate); computeWIPReport routes through
+//      utils/jobCostEngine. validate-money-definitions.ts already pins those
+//      two to the same arithmetic.
+//   3. PERCENT-COMPLETE BASIS — both are cost-based (cost ÷ cost-at-
+//      completion); they inherit whatever axis 2 hands them.
+//   4. PROJECT POPULATION — app/wip-report.tsx listed EVERY project including
+//      CLOSED ones; computeWIPReport skips closed. A finished job carried on a
+//      surety document restates backlog that does not exist.
+//
+// Axes 1 and 4 are settled HERE, by the two predicates below, so that a screen
+// cannot express its own opinion about what a billing or a WIP-reportable job
+// is. scripts/validate-wip-parity.ts asserts both engines return the same
+// dollars for the same inputs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * DEFINITION 1 — a BILLING is an invoice the client has actually been given.
+ *
+ * A `draft` is a document that exists only on the GC's phone: it has been
+ * issued to nobody and owes nothing. Everything else — sent, partially_paid,
+ * paid, overdue — has genuinely been billed. utils/changeOrderBilling and
+ * app/bill-from-estimate already draw the line in exactly this place.
+ */
+export function isWipBilling(invoice: Pick<Invoice, 'status'>): boolean {
+  return invoice.status !== 'draft';
+}
+
+/**
+ * DEFINITION 4 — which projects belong on a WIP schedule.
+ *
+ * Work-in-progress means work still in progress. A `closed` job has no
+ * remaining backlog, no cost to complete and no earned revenue left to
+ * recognize; carrying it inflates portfolio backlog and revised contract on a
+ * document a surety sizes a bond from. `completed` is deliberately KEPT — a
+ * job can be built out and still be carrying unbilled revenue or unreleased
+ * retainage, which is precisely what the schedule exists to show.
+ */
+export function isWipReportableProject(project: Pick<Project, 'status'>): boolean {
+  return project.status !== 'closed';
+}
+
 /** Clamp with NaN → lo, so divide-by-zero never leaks a NaN downstream. */
 export function clamp(n: number, lo: number, hi: number): number {
   if (Number.isNaN(n)) return lo;
@@ -79,6 +134,58 @@ export function sumApprovedChangeOrders(changeOrders: ChangeOrder[]): number {
     .reduce((sum, co) => sum + (co.changeAmount || 0), 0);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PROVENANCE (audit 2026-09-07, "Worth doing" #26).
+//
+// Every input on this schedule comes off a multi-branch fallback chain —
+// deriveOriginalContract alone has seven — and the GC had no way to learn that
+// the $1,400,000 "contract" a bank is reading came from a GMP cap he typed once
+// during project setup rather than from a signed contract. That is his surety's
+// first question and he could not answer it from inside the product.
+//
+// So each derive function has a `…WithSource` sibling that returns
+// `{ value, source }`, and the plain function is a one-line wrapper over it.
+// One chain, one set of branches: a new fallback cannot be added to the number
+// without also being added to the explanation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Which branch of a WIP fallback chain actually produced the number. */
+export type WipSource =
+  | 'pay_app_contract_sum'
+  | 'estimate_grand_total'
+  | 'change_order_snapshot'
+  | 'target_budget'
+  | 'gmp_cap'
+  | 'legacy_estimate_grand_total'
+  | 'estimate_base_total'
+  | 'signed_commitments'
+  | 'commitments_and_receipts'
+  | 'none';
+
+/** A derived WIP figure and the branch it came from. */
+export interface WipDerived {
+  value: number;
+  source: WipSource;
+}
+
+/**
+ * Plain-English provenance, phrased for a GC answering a banker — not for a
+ * developer reading a stack. Shown in the WIP drill-in and exported alongside
+ * the figure so the schedule can say where each number came from.
+ */
+export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
+  pay_app_contract_sum: 'Original contract sum on a saved AIA pay application',
+  estimate_grand_total: 'Linked estimate — grand total (priced)',
+  change_order_snapshot: 'Reconstructed from a change order’s contract snapshot',
+  target_budget: 'Target budget you entered in project setup',
+  gmp_cap: 'GMP cap you entered in project setup',
+  legacy_estimate_grand_total: 'Legacy estimate — grand total',
+  estimate_base_total: 'Linked estimate — base total (cost before markup)',
+  signed_commitments: 'Signed subcontracts and POs, including CO revisions',
+  commitments_and_receipts: 'Subs paid to date plus material receipts',
+  none: 'No source on file — enter this figure yourself',
+};
+
 /**
  * Recover the original (pre-change-order) contract value. `Project` has no
  * direct contract field, so fall back through the best available sources.
@@ -96,8 +203,19 @@ export function deriveOriginalContract(
   changeOrders: ChangeOrder[],
   payApps: SavedAIAPayApp[],
 ): number {
+  return deriveOriginalContractWithSource(project, changeOrders, payApps).value;
+}
+
+/** deriveOriginalContract, plus which of its seven branches answered. */
+export function deriveOriginalContractWithSource(
+  project: Pick<Project, 'targetBudget' | 'gmpCap' | 'linkedEstimate' | 'estimate'> | null | undefined,
+  changeOrders: ChangeOrder[],
+  payApps: SavedAIAPayApp[],
+): WipDerived {
   const fromPayApp = payApps[0]?.originalContractSum;
-  if (typeof fromPayApp === 'number' && fromPayApp > 0) return fromPayApp;
+  if (typeof fromPayApp === 'number' && fromPayApp > 0) {
+    return { value: fromPayApp, source: 'pay_app_contract_sum' };
+  }
   // MONEY-F10. A change order's originalContractValue is NOT the original
   // contract: app/change-order.tsx stamps it as
   //     estimate grandTotal + Σ OTHER approved COs at save time
@@ -112,22 +230,43 @@ export function deriveOriginalContract(
   // Without an estimate the snapshots are all there is: the smallest positive
   // one carries the fewest other COs. Never the newest.
   if (changeOrders.length > 0) {
-    const fromEstimate = project?.linkedEstimate?.grandTotal ?? project?.estimate?.grandTotal;
-    if (typeof fromEstimate === 'number' && fromEstimate > 0) return fromEstimate;
+    // Linked estimate then legacy estimate, in that order — the same order the
+    // tail of this chain uses. (This branch used to be one `??` expression, so
+    // a linkedEstimate stored with grandTotal 0 skipped the legacy estimate
+    // entirely and reconstructed the contract from a CO snapshot instead. Two
+    // branches rather than one is also what lets each say where it came from.)
+    const fromLinked = project?.linkedEstimate?.grandTotal;
+    if (typeof fromLinked === 'number' && fromLinked > 0) {
+      return { value: fromLinked, source: 'estimate_grand_total' };
+    }
+    const fromLegacy = project?.estimate?.grandTotal;
+    if (typeof fromLegacy === 'number' && fromLegacy > 0) {
+      return { value: fromLegacy, source: 'legacy_estimate_grand_total' };
+    }
     const snapshots = changeOrders
       .map(co => co.originalContractValue)
       .filter((v): v is number => typeof v === 'number' && v > 0);
-    if (snapshots.length > 0) return Math.min(...snapshots);
+    if (snapshots.length > 0) {
+      return { value: Math.min(...snapshots), source: 'change_order_snapshot' };
+    }
   }
   const fromBudget = project?.targetBudget?.amount;
-  if (typeof fromBudget === 'number' && fromBudget > 0) return fromBudget;
+  if (typeof fromBudget === 'number' && fromBudget > 0) {
+    return { value: fromBudget, source: 'target_budget' };
+  }
   const fromGmp = project?.gmpCap;
-  if (typeof fromGmp === 'number' && fromGmp > 0) return fromGmp;
+  if (typeof fromGmp === 'number' && fromGmp > 0) {
+    return { value: fromGmp, source: 'gmp_cap' };
+  }
   const fromLinkedEstimate = project?.linkedEstimate?.grandTotal;
-  if (typeof fromLinkedEstimate === 'number' && fromLinkedEstimate > 0) return fromLinkedEstimate;
+  if (typeof fromLinkedEstimate === 'number' && fromLinkedEstimate > 0) {
+    return { value: fromLinkedEstimate, source: 'estimate_grand_total' };
+  }
   const fromLegacyEstimate = project?.estimate?.grandTotal;
-  if (typeof fromLegacyEstimate === 'number' && fromLegacyEstimate > 0) return fromLegacyEstimate;
-  return 0;
+  if (typeof fromLegacyEstimate === 'number' && fromLegacyEstimate > 0) {
+    return { value: fromLegacyEstimate, source: 'legacy_estimate_grand_total' };
+  }
+  return { value: 0, source: 'none' };
 }
 
 /**
@@ -148,9 +287,28 @@ export function suggestCostToDate(
   commitments: Commitment[],
   materialReceipts: MaterialReceipt[] = [],
 ): number {
+  return suggestCostToDateWithSource(commitments, materialReceipts).value;
+}
+
+/**
+ * suggestCostToDate, plus the split the screen needs to say what is IN the
+ * lower bound and what is missing from it. `source` is always
+ * `commitments_and_receipts` — this figure has one chain, not a fallback tree —
+ * but the two components are returned so the drill-in can print
+ * "$180,000 subs paid + $42,000 materials — self-performed labor not included".
+ */
+export function suggestCostToDateWithSource(
+  commitments: Commitment[],
+  materialReceipts: MaterialReceipt[] = [],
+): WipDerived & { committed: number; materials: number } {
   const committed = commitments.reduce((sum, c) => sum + (c.paidToDate ?? 0), 0);
   const materials = materialReceipts.reduce((sum, r) => sum + (r.total ?? 0), 0);
-  return committed + materials;
+  return {
+    value: committed + materials,
+    source: 'commitments_and_receipts',
+    committed,
+    materials,
+  };
 }
 
 /**
@@ -177,30 +335,40 @@ export function deriveEstimatedCost(
    */
   opts?: { approvedChangeOrders?: number; originalContract?: number },
 ): number {
+  return deriveEstimatedCostWithSource(project, commitments, opts).value;
+}
+
+/** deriveEstimatedCost, plus which branch supplied the cost base. */
+export function deriveEstimatedCostWithSource(
+  project: Pick<Project, 'linkedEstimate' | 'estimate'> | null | undefined,
+  commitments: Commitment[],
+  opts?: { approvedChangeOrders?: number; originalContract?: number },
+): WipDerived {
   // Which branch supplied the base matters: the commitments branch already
   // contains CO cost (c.changeAmount is the sub-side CO revision), so adding a
   // derived CO cost on top of it would DOUBLE COUNT. The estimate branches are
   // frozen at original scope and are the ones that need topping up.
   let base = 0;
   let baseIsOriginalScope = false;
+  let source: WipSource = 'none';
 
   const fromEstimate = project?.linkedEstimate?.baseTotal;
   const fromLegacy = project?.estimate?.grandTotal;
   if (typeof fromEstimate === 'number' && fromEstimate > 0) {
-    base = fromEstimate; baseIsOriginalScope = true;
+    base = fromEstimate; baseIsOriginalScope = true; source = 'estimate_base_total';
   } else if (typeof fromLegacy === 'number' && fromLegacy > 0) {
-    base = fromLegacy; baseIsOriginalScope = true;
+    base = fromLegacy; baseIsOriginalScope = true; source = 'legacy_estimate_grand_total';
   } else {
     const committed = commitments.reduce(
       (sum, c) => sum + (c.amount ?? 0) + (c.changeAmount ?? 0), 0);
-    if (committed > 0) base = committed; // already CO-inclusive
+    if (committed > 0) { base = committed; source = 'signed_commitments'; } // already CO-inclusive
   }
 
-  if (base === 0) return 0;
-  if (!baseIsOriginalScope) return base;
+  if (base === 0) return { value: 0, source: 'none' };
+  if (!baseIsOriginalScope) return { value: base, source };
 
   const coRevenue = opts?.approvedChangeOrders ?? 0;
-  if (coRevenue === 0) return base;
+  if (coRevenue === 0) return { value: base, source };
 
   // THE BUG THIS CLOSES. computeWipRow does
   //     revisedContract = originalContract + approvedChangeOrders
@@ -227,7 +395,7 @@ export function deriveEstimatedCost(
   // reads. Never fall back to 0.
   const originalContract = opts?.originalContract ?? 0;
   const costRatio = originalContract > 0 ? base / originalContract : 1;
-  return base + coRevenue * costRatio;
+  return { value: base + coRevenue * costRatio, source };
 }
 
 /**
@@ -243,6 +411,13 @@ export function deriveEstimatedCost(
  * Both failure modes understate billings and flip an overbilled job to
  * apparent underbilling on a bank/CPA-facing schedule. The invoices fallback
  * sums totalDue (gross), keeping both billing sources on the same gross basis.
+ *
+ * DRAFTS ARE NOT BILLINGS (audit 2026-09-07, "Do next" #2 axis 1). This summed
+ * every invoice regardless of status while utils/financialReports.ts — the
+ * OTHER WIP schedule, one sidebar row away — already excluded them, so an
+ * unsent draft inflated billed-to-date here and the two reports handed a bank
+ * two different underbilling figures for the same job. The population is
+ * `isWipBilling` above, so neither engine gets to hold its own opinion.
  */
 export function suggestBilledToDate(
   invoices: Invoice[],
@@ -253,7 +428,7 @@ export function suggestBilledToDate(
       (b.applicationNumber ?? 0) >= (a.applicationNumber ?? 0) ? b : a);
     return latest.totals?.totalCompletedAndStored ?? 0;
   }
-  return invoices.reduce((sum, i) => sum + (i.totalDue ?? 0), 0);
+  return invoices.filter(isWipBilling).reduce((sum, i) => sum + (i.totalDue ?? 0), 0);
 }
 
 // Thresholds for the profit-fade watch. Exported so the screen can reference

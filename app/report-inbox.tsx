@@ -17,19 +17,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, FileText, ClipboardList, Receipt, Repeat, ChevronRight, AlertTriangle, ArrowDownRight } from 'lucide-react-native';
+import { ChevronLeft, FileText, ClipboardList, Receipt, Repeat, ChevronRight, AlertTriangle, ArrowDownRight, CloudOff } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import { formatMoney } from '@/utils/formatters';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { daysUntilCalendarDay } from '@/utils/calendarDate';
+
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8) — a bad row here
+// costs this screen, not the whole bundle.
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
 type ReportKind = 'all' | 'dfr' | 'rfi' | 'submittal' | 'invoice' | 'changeOrder';
 type StatusFilter = 'all' | 'open' | 'closed' | 'overdue';
@@ -59,7 +64,15 @@ export default function ReportInboxScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const goBack = useSafeBack(); // UX-F18: cold-start safe
-  const { projects, dailyReports, rfis, submittals, invoices, changeOrders } = useProjects();
+  // RT-R1: every collection below is served from ProjectContext, which
+  // swallows a failed read and hands back the local cache — so zero rows is
+  // EITHER "nothing filed yet" OR "every read 401'd". The empty state makes an
+  // absolute claim about the GC's own paperwork, so it has to know which
+  // (audit 2026-09-07, the sourceFailed site batch 1 could not reach).
+  const {
+    projects, dailyReports, rfis, submittals, invoices, changeOrders,
+    sourceFailed, retryRemoteReads,
+  } = useProjects();
 
   const [kindFilter, setKindFilter] = useState<ReportKind>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -319,7 +332,25 @@ export default function ReportInboxScreen() {
         )}
       </View>
 
-      {filtered.length === 0 ? (
+      {/* A failed read outranks an empty one — but ONLY when the whole inbox
+          is empty. `filtered` can be empty because the GC picked a chip
+          combination nothing matches, and that is not a failure. A brand-new
+          account (rows 0, sourceFailed false) still gets the teaching empty
+          state below. */}
+      {rows.length === 0 && sourceFailed ? (
+        <ErrorState
+          icon={<CloudOff size={32} color={themeColors.warningLabel} strokeWidth={1.75} />}
+          title="Couldn't reach MAGE"
+          body="Your reports didn't come back from the last read, so this inbox is showing nothing rather than everything. Nothing has been deleted."
+          steps={[
+            'Check that you have signal or Wi-Fi.',
+            'Tap Try again below.',
+            'If it keeps failing, sign out and back in — the session may have expired.',
+          ]}
+          onRetry={retryRemoteReads}
+          testID="report-inbox-unreachable"
+        />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={<ArrowDownRight size={32} color={themeColors.accent} strokeWidth={1.75} />}
           title="Nothing in this slice"

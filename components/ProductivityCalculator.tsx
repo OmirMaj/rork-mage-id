@@ -4,7 +4,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { X, Search, Clock, Users, DollarSign, ChevronDown, ChevronUp } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { PRODUCTIVITY_RATES, PRODUCTIVITY_CATEGORIES, type ProductivityRate } from '@/constants/productivityRates';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -16,6 +18,10 @@ interface ProductivityCalculatorProps {
 }
 
 const ProductivityCalculator = React.memo(function ProductivityCalculator({ visible, onClose, onAddToEstimate }: ProductivityCalculatorProps) {
+  // Built per theme — the calculator baked its page background, rate rows and
+  // ink at import (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedRate, setSelectedRate] = useState<ProductivityRate | null>(null);
@@ -79,7 +85,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
             <Text style={s.headerTitle}>Productivity Calc</Text>
             <Text style={s.headerSub}>Crew output & cost estimator</Text>
           </View>
-          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {selectedRate ? (
@@ -111,7 +117,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
               keyboardType="decimal-pad"
               textAlign="center"
               placeholder={`Enter ${selectedRate.unit}`}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={t.textMuted}
             />
 
             {calculation && (
@@ -143,7 +149,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
                 <View style={s.scheduleCard}>
                   <View style={s.scheduleRow}>
-                    <Clock size={14} color={Colors.infoLabel} strokeWidth={1.75} />
+                    <Clock size={14} color={t.info} strokeWidth={1.75} />
                     <Text style={s.scheduleLabel}>Estimated Duration:</Text>
                     <Text style={s.scheduleValue}>
                       {calculation.daysToComplete < 1
@@ -152,7 +158,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                     </Text>
                   </View>
                   <View style={s.scheduleRow}>
-                    <Users size={14} color={Colors.infoLabel} strokeWidth={1.75} />
+                    <Users size={14} color={t.info} strokeWidth={1.75} />
                     <Text style={s.scheduleLabel}>Crew:</Text>
                     <Text style={s.scheduleValue}>{selectedRate.crew}</Text>
                   </View>
@@ -175,17 +181,17 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
         ) : (
           <View style={s.body}>
             <View style={s.searchBar}>
-              <Search size={16} color={Colors.textMuted} strokeWidth={1.75} />
+              <Search size={16} color={t.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={s.searchInput}
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search tasks..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={t.textMuted}
               />
               {query.length > 0 && (
                 <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={Colors.textMuted} strokeWidth={1.75} />
+                  <X size={14} color={t.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -222,7 +228,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                       onPress={() => setExpandedId(isExpanded ? null : rate.id)}
                     >
                       <Text style={s.expandText}>{rate.dailyOutput} {rate.unit}/day</Text>
-                      {isExpanded ? <ChevronUp size={12} color={Colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={12} color={Colors.textMuted} strokeWidth={1.75} />}
+                      {isExpanded ? <ChevronUp size={12} color={t.textMuted} strokeWidth={1.75} /> : <ChevronDown size={12} color={t.textMuted} strokeWidth={1.75} />}
                     </TouchableOpacity>
                     {isExpanded && (
                       <View style={s.expandedContent}>
@@ -244,93 +250,93 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
 export default ProductivityCalculator;
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
-    backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+    backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.line,
   },
-  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  headerSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  headerSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 2 },
   closeBtn: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.fillTertiary,
+    width: 34, height: 34, borderRadius: 17, backgroundColor: t.neutralSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   backBtn: { marginBottom: 8 },
   backBtnText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' as const },
-  taskTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 12 },
+  taskTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 12 },
   searchBar: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: t.neutralSoft,
     borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 42, marginBottom: 8,
   },
-  searchInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  searchInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text },
   catScroll: { maxHeight: 40, marginBottom: 8 },
   catContent: { gap: 6, paddingRight: 16 },
   catChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: Colors.fillTertiary,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: t.neutralSoft,
   },
   catChipActive: { backgroundColor: Colors.primary },
-  catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   catChipTextActive: { color: Colors.textOnPrimary },
   rateList: { flex: 1 },
   rateCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, marginBottom: 6,
-    borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card, marginBottom: 6,
+    borderWidth: 1, borderColor: t.line, overflow: 'hidden' as const,
   },
   rateCardTop: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
   rateInfo: { flex: 1, gap: 2 },
-  rateName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  rateCrew: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  rateName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  rateCrew: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   rateRight: { alignItems: 'flex-end' },
-  rateUnitCost: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.successLabel },
-  rateUnit: { fontSize: 10, color: Colors.textMuted },
+  rateUnitCost: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.successLabel },
+  rateUnit: { fontSize: 10, color: t.textMuted },
   expandToggle: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 12, paddingBottom: 8, gap: 6,
   },
-  expandText: { fontSize: Type.caption2.fontSize, color: Colors.infoLabel, fontWeight: '500' as const },
+  expandText: { fontSize: Type.caption2.fontSize, color: t.info, fontWeight: '500' as const },
   expandedContent: {
-    padding: 12, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.surfaceAlt, gap: 4,
+    padding: 12, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: t.line,
+    backgroundColor: t.surfaceAlt, gap: 4,
   },
-  expandedRow: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
-  expandedNotes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
+  expandedRow: { fontSize: Type.caption2.fontSize, color: t.textSecondary },
+  expandedNotes: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic' as const },
   crewCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, gap: 10, marginBottom: 16,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 14, gap: 10, marginBottom: 16,
+    borderWidth: 1, borderColor: t.line,
   },
   crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  crewLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  crewValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6 },
+  crewLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
+  crewValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginBottom: 6 },
   qtyInput: {
-    height: 52, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, fontSize: Type.title2.fontSize,
-    fontWeight: '700' as const, color: Colors.text, borderWidth: 1, borderColor: Colors.border, marginBottom: 16,
+    height: 52, backgroundColor: t.surface, borderRadius: Tokens.radius.card, fontSize: Type.title2.fontSize,
+    fontWeight: '700' as const, color: t.text, borderWidth: 1, borderColor: t.line, marginBottom: 16,
   },
   resultCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 10,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 10,
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
-  resultTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  resultTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
   costRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
   },
-  costLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, width: 80 },
-  costSub: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  costValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  divider: { height: 1, backgroundColor: Colors.borderLight },
+  costLabel: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, width: 80 },
+  costSub: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted },
+  costValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  divider: { height: 1, backgroundColor: t.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  totalLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
   totalValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
   scheduleCard: {
     backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, gap: 8,
   },
   scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  scheduleLabel: { fontSize: Type.caption1.fontSize, color: Colors.infoLabel, fontWeight: '500' as const },
-  scheduleValue: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.infoLabel },
-  notes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
+  scheduleLabel: { fontSize: Type.caption1.fontSize, color: t.info, fontWeight: '500' as const },
+  scheduleValue: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.info },
+  notes: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4,

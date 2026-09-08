@@ -19,12 +19,16 @@ import {
   retainagePercentForInvoice,
   computeAIATotals,
   seedAIAPayApplicationFromInvoice,
+  reconcileAIASov,
+  carryForwardPriorLines,
   type AIAPayApplication,
+  type AIASOVLine,
 } from '../utils/aiaBilling';
+import { changeOrderBillKey } from '../utils/changeOrderBilling';
 import { billFromEstimateUnitPrice } from '../utils/billFromEstimateCore';
 import { getEffectiveStartingBalance, generateForecast, calculateSummary } from '../utils/cashFlowEngine';
 import { computeWIPReport } from '../utils/financialReports';
-import type { Invoice, Project, Commitment } from '../types';
+import type { Invoice, Project, Commitment, ChangeOrder } from '../types';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -623,6 +627,338 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     flagged?.corrected ?? -1, effectiveRetentionHeld(houston));
   eq('…so applying it changes no money anywhere',
     netBalanceDue({ ...houston, retentionAmount: flagged?.corrected }), netBalanceDue(houston));
+}
+
+// ── The G702 must not open at 100% Complete on a partial billing ───────────
+// App-experience audit 2026-09-07, "Do next" #3. seedAIAPayApplicationFromInvoice
+// set column C (Scheduled Value) and column E (This Period) from the SAME
+// invoice line, so computeAIATotals divided a number by itself and every
+// certificate read 100% Complete while Contract Sum to Date stated the full
+// contract and Balance to Finish stated the remainder. Four numbers on one
+// page that cannot all be true — on the document a bank funds against and a
+// surety underwrites, over the GC's signature.
+{
+  const estimateProject = (): Project => ({
+    id: 'p1', name: 'Henderson', status: 'in_progress', estimate: null,
+    linkedEstimate: {
+      id: 'e1', globalMarkup: 0, baseTotal: 400_000, markupTotal: 100_000,
+      grandTotal: 500_000, createdAt: '2026-01-01',
+      items: [
+        { materialId: 'm1', name: 'Framing', category: 'Structure', unit: 'ls', quantity: 1, unitPrice: 300_000, bulkPrice: 300_000, markup: 0, usesBulk: false, lineTotal: 300_000, supplier: '' },
+        { materialId: 'm2', name: 'Finishes', category: 'Interior', unit: 'ls', quantity: 1, unitPrice: 200_000, bulkPrice: 200_000, markup: 0, usesBulk: false, lineTotal: 200_000, supplier: '' },
+      ],
+    },
+    createdAt: '2026-01-01', updatedAt: '2026-01-01',
+  } as unknown as Project);
+
+  const inv = (lineItems: unknown[], over: Record<string, unknown> = {}): Invoice => ({
+    id: 'inv1', number: 7, projectId: 'p1', type: 'progress',
+    issueDate: '2026-03-01', dueDate: '2026-03-31', paymentTerms: 'net_30', notes: '',
+    lineItems, subtotal: 0, taxRate: 0, taxAmount: 0, totalDue: 0, amountPaid: 0,
+    status: 'sent', payments: [], retentionPercent: 5,
+    createdAt: '2026-03-01', updatedAt: '2026-03-01', ...over,
+  } as unknown as Invoice);
+
+  const brand = { companyName: 'MAGE' } as never;
+
+  // A Bill-from-Estimate draw: 30% of the $300k framing line, on a $500k job.
+  const partial = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 90_000, total: 90_000, sourceEstimateItemId: 'm1', billedPercent: 30 }]),
+    estimateProject(), [], brand);
+  const partialTotals = computeAIATotals(partial);
+
+  // `?? -1` rather than a bare index: a regression that drops SOV lines should
+  // report a wrong number, not crash the validator two assertions in and hide
+  // everything after it.
+  const at = (a: AIAPayApplication, i: number) => a.lines[i] ?? { scheduledValue: -1, thisPeriod: -1, description: '(missing)' };
+
+  eq('the schedule of values comes from the contract, not from one invoice',
+    partial.sovBasis, 'linked_estimate');
+  eq('…so every estimate line is on the G703, billed or not', partial.lines.length, 2);
+  close('column C is the whole framing line', at(partial, 0).scheduledValue, 300_000);
+  close('column E is only what this invoice bills', at(partial, 0).thisPeriod, 90_000);
+  close('an unbilled contract line carries 0 this period', at(partial, 1).thisPeriod, 0);
+  // THE DEFECT, as one number. Pre-fix this read 100.
+  close('a $90,000 draw on a $500,000 contract certifies 18% complete, not 100%',
+    partialTotals.percentComplete, 18, 1e-9);
+  close('…and the SOV total foots to Contract Sum to Date',
+    partialTotals.totalScheduledValue, partial.contractSumToDate);
+  eq('…so the reconciliation check is clean', reconcileAIASov(partial).reconciled, true);
+  close('Balance to Finish is the rest of the contract, net of retainage',
+    partialTotals.balanceToFinish, roundCents(500_000 - partialTotals.totalEarnedLessRetainage));
+
+  // A native-editor progress invoice stores FULL line totals and scales once at
+  // the invoice level, so column C is the stored total and column E is the
+  // scaled share — the opposite unit convention from the case above.
+  const native = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 300_000, total: 300_000, sourceEstimateItemId: 'm1' }],
+      { progressPercent: 25 }),
+    estimateProject(), [], brand);
+  close('a native 25% progress line bills a quarter of the contract line',
+    at(native, 0).thisPeriod, 75_000);
+  close('…against the full scheduled value', at(native, 0).scheduledValue, 300_000);
+  close('…for 15% of a $500,000 contract', computeAIATotals(native).percentComplete, 15, 1e-9);
+
+  // A FINAL billing legitimately reads 100% — the fix must not make that
+  // impossible, or a closeout certificate would understate itself.
+  const final = seedAIAPayApplicationFromInvoice(
+    inv([
+      { id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 300_000, total: 300_000, sourceEstimateItemId: 'm1', billedPercent: 100 },
+      { id: 'l2', name: 'Finishes', description: '', quantity: 1, unit: 'ls', unitPrice: 200_000, total: 200_000, sourceEstimateItemId: 'm2', billedPercent: 100 },
+    ], { type: 'full' }),
+    estimateProject(), [], brand);
+  close('a final billing still certifies 100% complete',
+    computeAIATotals(final).percentComplete, 100, 1e-9);
+
+  // An approved change order is its own CONTRACT line — it belongs in column C
+  // whether or not this invoice bills it, because Contract Sum to Date already
+  // includes it. The unbilled case is the one that proves the CO branch runs:
+  // when the invoice DOES carry the CO, an appended off-contract line would
+  // produce identical output, so that case alone tests nothing.
+  const co = { id: 'co1', number: 2, projectId: 'p1', description: 'Add deck', changeAmount: 25_000, status: 'approved' } as unknown as ChangeOrder;
+  const coUnbilled = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 90_000, total: 90_000, sourceEstimateItemId: 'm1', billedPercent: 30 }]),
+    estimateProject(), [co], brand);
+  eq('an approved CO is on the G703 even before it is billed', coUnbilled.lines.length, 3);
+  close('…at its change amount', at(coUnbilled, 2).scheduledValue, 25_000);
+  close('…with nothing billed against it yet', at(coUnbilled, 2).thisPeriod, 0);
+  eq('…and it is named as the change order it is',
+    /^CO #2/.test(at(coUnbilled, 2).description), true);
+  close('…so column C totals the CO-revised contract',
+    computeAIATotals(coUnbilled).totalScheduledValue, 525_000);
+  eq('…and the certificate reconciles', reconcileAIASov(coUnbilled).reconciled, true);
+
+  // Billed on this invoice, it lands on that same row rather than a duplicate.
+  const withCO = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'CO #2 — Add deck', description: '', quantity: 1, unit: 'lump', unitPrice: 25_000, total: 25_000, sourceEstimateItemId: changeOrderBillKey('co1'), billedPercent: 100 }]),
+    estimateProject(), [co], brand);
+  eq('billing the CO does not create a second row for it', withCO.lines.length, 3);
+  close('…it is charged on the CO row', at(withCO, 2).thisPeriod, 25_000);
+  close('…and the SOV still foots to the CO-revised contract',
+    computeAIATotals(withCO).totalScheduledValue, 525_000);
+  eq('…so the certificate reconciles', reconcileAIASov(withCO).reconciled, true);
+
+  // Money that was billed must never fall off the certificate: an invoice line
+  // matching no contract line is appended rather than dropped, and the
+  // resulting overage is surfaced instead of printed silently.
+  const withExtra = seedAIAPayApplicationFromInvoice(
+    inv([
+      { id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 90_000, total: 90_000, sourceEstimateItemId: 'm1', billedPercent: 30 },
+      { id: 'l9', name: 'T&M dig-out', description: 'unforeseen rock', quantity: 1, unit: 'ls', unitPrice: 4_000, total: 4_000 },
+    ]),
+    estimateProject(), [], brand);
+  eq('an off-contract line is added to the G703, not dropped', withExtra.lines.length, 3);
+  close('…at what it billed', at(withExtra, 2).thisPeriod, 4_000);
+  eq('…and the SOV no longer foots, which the screen must say',
+    reconcileAIASov(withExtra).reconciled, false);
+  close('…by exactly the off-contract amount', reconcileAIASov(withExtra).difference, 4_000);
+
+  // No linked estimate: column C can only be reconstructed from this invoice.
+  // That is honest, reported, and still not 100% on a partial draw.
+  const bare = { id: 'p2', name: 'Bare', status: 'in_progress', estimate: { grandTotal: 500_000 } } as unknown as Project;
+  const reconstructed = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 90_000, total: 90_000, billedPercent: 30 }]),
+    bare, [], brand);
+  eq('with no linked estimate the basis says so', reconstructed.sovBasis, 'invoice_lines');
+  close('…column C grosses the billed line back up', at(reconstructed, 0).scheduledValue, 300_000);
+  close('…column E stays the draw', at(reconstructed, 0).thisPeriod, 90_000);
+  eq('…and the gap to the contract is flagged, not hidden',
+    reconcileAIASov(reconstructed).reconciled, false);
+  close('…the SOV covers only the scope this invoice touched',
+    reconcileAIASov(reconstructed).difference, -200_000);
+
+  // The NAME fallback. Invoices written before `sourceEstimateItemId` existed
+  // carry no key, so column E is attributed by name — the same fallback
+  // app/bill-from-estimate.tsx uses to compute already-billed. Lose it and
+  // those lines match nothing, get APPENDED as off-contract rows, and column C
+  // states the contract PLUS the scope already in it: a G703 that over-foots
+  // Contract Sum to Date on every pre-field invoice in the account.
+  const preField = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 90_000, total: 90_000, billedPercent: 30 }]),
+    estimateProject(), [], brand);
+  eq('a pre-sourceEstimateItemId line matches its contract line by name',
+    preField.lines.length, 2);
+  close('…and is charged on that line, not appended as new contract value',
+    at(preField, 0).thisPeriod, 90_000);
+  eq('…so the SOV still foots', reconcileAIASov(preField).reconciled, true);
+
+  // SOV line ids must be UNIQUE. app/aia-pay-app.tsx renders rows with
+  // `key={line.id}` and edits them with `lines.map(l => l.id === lineId ? …)`,
+  // so two rows sharing an id means typing this period's draw into one row
+  // silently writes the same dollars into the other. The merge branch of
+  // app/(tabs)/estimate/full.tsx handleConfirmLink concatenates two item lists,
+  // so one materialId genuinely can appear twice on a linked estimate.
+  const mergedProject = {
+    id: 'p3', name: 'Merged', status: 'in_progress', estimate: null,
+    linkedEstimate: {
+      id: 'e2', globalMarkup: 0, baseTotal: 450_000, markupTotal: 0,
+      grandTotal: 450_000, createdAt: '2026-01-01',
+      items: [
+        { materialId: 'm1', name: 'Framing', category: 'S', unit: 'ls', quantity: 1, unitPrice: 300_000, bulkPrice: 300_000, markup: 0, usesBulk: false, lineTotal: 300_000, supplier: '' },
+        { materialId: 'm1', name: 'Framing', category: 'S', unit: 'ls', quantity: 1, unitPrice: 150_000, bulkPrice: 150_000, markup: 0, usesBulk: false, lineTotal: 150_000, supplier: '' },
+      ],
+    },
+  } as unknown as Project;
+  const merged = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'Framing', description: '', quantity: 1, unit: 'ls', unitPrice: 30_000, total: 30_000, sourceEstimateItemId: 'm1', billedPercent: 10 }]),
+    mergedProject, [], brand);
+  eq('a merged estimate with a repeated material still gets two SOV rows',
+    merged.lines.length, 2);
+  eq('…with DISTINCT ids, or editing one row would edit the other',
+    new Set(merged.lines.map(l => l.id)).size, merged.lines.length);
+  close('…and the draw lands on exactly one of them',
+    merged.lines.reduce((t, l) => t + l.thisPeriod, 0), 30_000);
+
+  // A degenerate billedPercent must not divide by zero or invent contract value.
+  const zeroPct = seedAIAPayApplicationFromInvoice(
+    inv([{ id: 'l1', name: 'X', description: '', quantity: 1, unit: 'ls', unitPrice: 1_000, total: 1_000, billedPercent: 0 }]),
+    bare, [], brand);
+  close('billedPercent 0 grosses up to the line itself, never Infinity',
+    at(zeroPct, 0).scheduledValue, 1_000);
+  eq('…and no G702 total is non-finite',
+    Object.values(computeAIATotals(zeroPct)).every(Number.isFinite), true);
+}
+
+// ── Carry-forward must land on the RIGHT contract line ────────────────────
+// Review 2026-09-07. buildAIASovLines changed what `itemNo` counts: it now
+// numbers the ESTIMATE's lines, then the approved COs, then whatever the
+// invoice billed off-contract — where it used to number the invoice's own
+// lines. app/aia-pay-app.tsx carries the prior period's billed-through onto
+// the new application, and it matched on itemNo alone, so:
+//
+//   • every pay app SAVED BEFORE this change carries old-scheme numbers, and
+//     the next period lands $X of "billed through" on whichever contract line
+//     now happens to sit at that position;
+//   • approving one CO between periods shifts every off-contract row by one.
+//
+// The G702 cover still totals correctly — Σ fromPreviousApp is unchanged —
+// which is exactly why nobody would catch it. The G703 is what is wrong: a
+// line can be pushed past its own scheduled value, and every per-line %
+// complete and balance-to-finish on the continuation sheet is a fiction.
+{
+  const sov = (id: string, itemNo: string, sched: number, from: number, per: number): AIASOVLine => ({
+    id, itemNo, description: id, scheduledValue: sched,
+    fromPreviousApp: from, thisPeriod: per, materialsPresentlyStored: 0, retainagePercent: 10,
+  });
+  const billedThrough = (ls: AIASOVLine[]) => ls.map(l => `${l.id}=${l.fromPreviousApp}`).join(',');
+
+  // OLD-SCHEME PRIOR. Period 1 was numbered over the invoice, which billed
+  // only "Interiors", so its itemNo "1" is Interiors — while the new period's
+  // itemNo "1" is Sitework, the first line of the estimate.
+  const oldPrior = [{ id: 'l77', itemNo: '1', fromPreviousApp: 0, thisPeriod: 20_000 }];
+  const fresh = [sov('sov_m1', '1', 60_000, 0, 0), sov('sov_m2', '2', 40_000, 0, 0)];
+  eq('an old-scheme prior still carries forward — by itemNo, as it always did',
+    billedThrough(carryForwardPriorLines(fresh, oldPrior)), 'sov_m1=20000,sov_m2=0');
+
+  // NEW-SCHEME PRIOR, with a CO approved in between. Under itemNo matching the
+  // CO row (itemNo 3) would inherit the T&M row's $4,000.
+  const newPrior = [
+    { id: 'sov_m1', itemNo: '1', fromPreviousApp: 0, thisPeriod: 30_000 },
+    { id: 'sov_m2', itemNo: '2', fromPreviousApp: 0, thisPeriod: 5_000 },
+    { id: 'l9', itemNo: '3', fromPreviousApp: 0, thisPeriod: 4_000 },
+  ];
+  const afterCO = [
+    sov('sov_m1', '1', 60_000, 0, 0),
+    sov('sov_m2', '2', 40_000, 0, 0),
+    sov('sov_co:co1', '3', 25_000, 0, 0),
+    sov('l9', '4', 4_000, 0, 0),
+  ];
+  const carriedAfterCO = carryForwardPriorLines(afterCO, newPrior);
+  eq('a CO approved between periods does not inherit the previous row\u2019s billings',
+    billedThrough(carriedAfterCO),
+    'sov_m1=30000,sov_m2=5000,sov_co:co1=0,l9=4000');
+  close('…and the cover still totals what was actually billed through',
+    carriedAfterCO.reduce((t, l) => t + l.fromPreviousApp, 0), 39_000);
+
+  // A prior line must be claimed ONCE. id and itemNo both pointing at it would
+  // count the same billed-through twice on the G702 cover.
+  const ambiguous = [{ id: 'sov_m1', itemNo: '1', fromPreviousApp: 0, thisPeriod: 30_000 }];
+  const twoClaimants = [sov('sov_m1', '9', 60_000, 0, 0), sov('other', '1', 40_000, 0, 0)];
+  const claimedOnce = carryForwardPriorLines(twoClaimants, ambiguous);
+  close('one prior line is carried onto one new line, never two',
+    claimedOnce.reduce((t, l) => t + l.fromPreviousApp, 0), 30_000);
+  eq('…and it is the id match that wins, not the position',
+    billedThrough(claimedOnce), 'sov_m1=30000,other=0');
+
+  // Nothing to carry is still nothing to carry.
+  eq('no prior lines carries nothing', billedThrough(carryForwardPriorLines(fresh, [])),
+    'sov_m1=0,sov_m2=0');
+
+  // And the screen uses it rather than keeping its own copy of the matching.
+  const payScreen = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'app', 'aia-pay-app.tsx'), 'utf8');
+  eq('app/aia-pay-app.tsx carries forward through the shared helper',
+    /carryForwardPriorLines\(seeded\.lines, priorAIA\.lines\)/.test(payScreen), true);
+  eq('…and no longer matches prior lines on itemNo alone',
+    /priorByItem/.test(payScreen), false);
+}
+
+// ── …and the screen actually shows the reconciliation ─────────────────────
+// bun cannot import a .tsx screen. The banner is the interim the audit asked
+// for and the only thing standing between a non-footing SOV and a signature.
+{
+  const screen = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'app', 'aia-pay-app.tsx'), 'utf8');
+  eq('app/aia-pay-app.tsx computes the SOV reconciliation',
+    /reconcileAIASov\(app\)/.test(screen), true);
+  // Anchored on the `{` that opens the JSX expression: a `{false && …` or any
+  // other short-circuit inserted ahead of the condition breaks the match. The
+  // looser form of this check passed while the banner was disabled.
+  eq('…and renders a banner when it does not foot',
+    /\{sovReconciliation && !sovReconciliation\.reconciled && \(/.test(screen), true);
+  eq('…which is actually mounted, not commented out',
+    /testID="aia-sov-reconciliation"/.test(screen), true);
+  eq('…naming both figures so the GC can see which one is wrong',
+    /sovReconciliation\.totalScheduledValue/.test(screen)
+    && /sovReconciliation\.contractSumToDate/.test(screen), true);
+  eq('…and the SOV says where column C came from',
+    /testID="aia-sov-basis"/.test(screen) && /sovBasis === 'linked_estimate'/.test(screen), true);
+  // Scheduled Value is a read-only <Text> and the G703 has no add/edit/delete
+  // (the audit says so at "Do next" #3), so neither the basis note nor the
+  // banner may send the GC to a control this screen does not have. They must
+  // name the place the fix actually lives instead.
+  eq('column C is still read-only, so the copy must not send him to edit it here',
+    /scheduledValue[^\n]*onChangeText/.test(screen), false);
+  eq('…the banner names where column C actually comes from',
+    /Scheduled Value cannot be edited on this screen/.test(screen)
+    && /estimate and its approved change orders/.test(screen), true);
+  eq('…and neither string tells him to fix or add lines on this screen',
+    /fix the lines before you certify|Add the rest of the contract before certifying/.test(screen), false);
+}
+
+// ── The Retention screen shows every invoice holding money, and says the basis ─
+// Audit 2026-09-07, "Worth doing" #27. Two separate defects on one screen:
+//
+//   (a) it selected invoices on the STORED `retentionPercent` column, so a row
+//       holding money via `retentionAmount` alone — a legacy import, or a row
+//       whose percent was cleared after the fact — was absent from the one
+//       screen whose entire job is "what is still being held from me", while
+//       effectiveRetentionHeld went on withholding it everywhere else.
+//   (b) the arithmetic has been right since MISS-04 (retainage on the work
+//       value, before sales tax) but only app/invoice.tsx ever SAID so, so a
+//       client reading "Retention held (5%)" beside a tax-inclusive total
+//       multiplied it himself, got a bigger number, and called.
+{
+  // The arithmetic half, executed rather than regexed: a row with an amount and
+  // no percent IS holding money, so it must be in the population.
+  const amountOnly = { subtotal: 20_000, retentionAmount: 1_000 };
+  close('a row with a stored amount and no percent still holds money',
+    effectiveRetentionHeld(amountOnly), 1_000);
+  eq('…so a retentionPercent filter would have hidden it',
+    ((amountOnly as { retentionPercent?: number }).retentionPercent ?? 0) > 0, false);
+  close('a released row drops out of the pending figure, not out of "held"',
+    pendingRetentionHeld({ subtotal: 100_000, retentionPercent: 5, retentionReleased: 5_000 }), 0);
+
+  const screen = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'app', 'retention.tsx'), 'utf8');
+  eq('app/retention.tsx selects on the money held, not on the stored percent',
+    /invoices\.filter\(inv => effectiveRetentionHeld\(inv\) > 0\)/.test(screen), true);
+  eq('…so the old retentionPercent filter is gone',
+    /invoices\.filter\(inv => \(inv\.retentionPercent \?\? 0\) > 0\)/.test(screen), false);
+  eq('…and a row with no percent on file does not print a bare "%"',
+    /\(inv\.retentionPercent \?\? 0\) > 0[\s\S]{0,120}retainage on file/.test(screen), true);
+  eq('the basis is stated on the screen, not only in the invoice editor',
+    /testID="retention-basis-note"/.test(screen)
+    && /before sales tax/.test(screen), true);
+  eq('…and the explainer defines the term for a GC who has never met it',
+    /term="Retention \(Retainage\)"/.test(screen), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

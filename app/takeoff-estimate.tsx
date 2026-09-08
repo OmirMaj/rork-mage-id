@@ -68,6 +68,12 @@ import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8). This screen holds
+// twenty minutes of AI pricing in component state; a crash used to restart the
+// bundle and take all of it, at the initial route.
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
 interface PricedLine {
   id: string;
@@ -377,7 +383,12 @@ function TakeoffEstimateInner() {
       }
       setLines(cleaned);
     } catch (e) {
-      setPricingError(e instanceof Error ? e.message : String(e));
+      // The banner used to print the thrown text verbatim — a GC watching a
+      // 20-second AI pricing run got "Failed to fetch" or a relay's JSON blob
+      // as the whole story (audit 2026-09-07, "Worth doing" #7). The takeoff
+      // itself is untouched by a failed pricing pass, hence keptLocally.
+      console.warn('[takeoff-estimate] pricing failed:', rawErrorMessage(e));
+      setPricingError(describeError(e, { action: 'price this takeoff', keptLocally: true }).body);
     } finally {
       setPricing(false);
     }
@@ -515,7 +526,13 @@ function TakeoffEstimateInner() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
-      showAlert('Save failed', e instanceof Error ? e.message : String(e));
+      // Was `e.message` as the entire body — the audit's named example
+      // (2026-09-07, "Worth doing" #7): forty priced lines on screen and a
+      // PGRST204 schema string as the only explanation, with no answer to the
+      // one question he has. The lines are still in state, so he can retry.
+      console.warn('[takeoff-estimate] replace failed:', rawErrorMessage(e));
+      const copy = describeError(e, { action: 'save this estimate to the project', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       setSaving(false);
     }
@@ -551,7 +568,11 @@ function TakeoffEstimateInner() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
-      showAlert('Save failed', e instanceof Error ? e.message : String(e));
+      // Same defect, append path. The existing estimate is untouched when the
+      // patch throws, and the takeoff lines are still on screen.
+      console.warn('[takeoff-estimate] append failed:', rawErrorMessage(e));
+      const copy = describeError(e, { action: 'add these lines to the estimate', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       setSaving(false);
     }

@@ -178,7 +178,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
+  // Fraunces at 22/26 — the screen-title rule from constants/typography.ts,
+  // whose serifHeadline is sized for exactly this row (back chevron + title +
+  // action). Was system sans 17/700, which is what the 2026-09-07 audit meant
+  // by "opens in anonymous bold sans" across this component's 17 importers.
+  // No fontWeight: overriding Fraunces_700Bold synthesises a fake bold.
+  headerTitle: { ...Type.serifHeadline, color: t.text },
 
   pickerEmptyWrap: { flex: 1, padding: 16 },
   pickerContent: { padding: 16, paddingBottom: 48 },

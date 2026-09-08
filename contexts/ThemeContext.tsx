@@ -17,7 +17,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import { Theme, setColorTheme, type ThemeColors } from '@/constants/colors';
+import {
+  Theme,
+  setColorTheme,
+  deriveAccentPalette,
+  getCustomPrimary,
+  subscribeCustomPrimary,
+  type ThemeColors,
+} from '@/constants/colors';
 
 const STORAGE_KEY = 'mageid_theme';
 
@@ -66,7 +73,32 @@ export const [ThemeProvider, useTheme] = createContextHook(() => {
     await AsyncStorage.setItem(STORAGE_KEY, p);
   }, []);
 
-  const colors: ThemeColors = useMemo(() => Theme[resolved], [resolved]);
+  // The user's brand hue from Settings → APP THEME. It is set outside React
+  // (constants/colors.ts holds it, so the non-themed `Colors.*` getters resolve
+  // through the same value), by ThemeLoader on boot and by the picker on save —
+  // so mirror it into state and rebuild the palette when it changes. Before
+  // 2026-09-07 this context had no accent handling at all and returned
+  // `Theme[resolved]` unmodified, which is why picking Navy recoloured about a
+  // tenth of the app and the confirmation alert had to promise a restart that
+  // would not have helped either (audit 2026-09-07, "Do next" 4).
+  const [customPrimary, setCustomPrimaryState] = useState<string>(() => getCustomPrimary());
+  useEffect(() => {
+    // Re-read on subscribe as well as on notify. ThemeLoader sets the hue from
+    // an AsyncStorage read, and nothing orders that read against this mount —
+    // a write that lands between the useState initialiser above and this
+    // subscription would otherwise be a notification with no listener, leaving
+    // a user who has picked Navy on the brand palette until something else
+    // re-rendered the provider (review 2026-09-07).
+    setCustomPrimaryState(getCustomPrimary());
+    return subscribeCustomPrimary(() => setCustomPrimaryState(getCustomPrimary()));
+  }, []);
+
+  // The accent family is DERIVED, not stored: `Theme[resolved]` deliberately
+  // carries no accent tokens, and only this merge is a complete ThemeColors.
+  const colors: ThemeColors = useMemo(
+    () => ({ ...Theme[resolved], ...deriveAccentPalette(customPrimary, resolved) }),
+    [resolved, customPrimary],
+  );
 
   // Mirror the resolved theme into the static Colors module so any
   // file that reads `Colors.surface` / `Colors.text` / etc. (instead

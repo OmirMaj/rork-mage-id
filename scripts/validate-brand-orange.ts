@@ -72,10 +72,35 @@ const darkBlock = (() => {
   return m[1];
 })();
 
-/** Pull a hex token value from the light or dark Theme block. */
+// The five accent tokens left the `Theme` object on 2026-09-07: they are now
+// DERIVED per user-chosen hue (deriveAccentPalette), and the brand's own
+// family — the values founder decision #1 is about, and the ones this guard
+// measures — lives in the BRAND_ACCENT_FAMILY table below `Theme`. Without
+// this second block the guard did not merely lose coverage, it threw at
+// `token('light','accent')` and took itself off ship-check entirely
+// (review 2026-09-07).
+const familyObj = (() => {
+  const start = colorsSrc.indexOf('const BRAND_ACCENT_FAMILY');
+  if (start < 0) throw new Error('could not find `BRAND_ACCENT_FAMILY` in colors.ts — the brand accent family must stay a readable table');
+  return colorsSrc.slice(start);
+})();
+const familyLight = (() => {
+  const m = /light:\s*\{([\s\S]*?)\n {2}\},\n {2}dark:/.exec(familyObj);
+  if (!m) throw new Error('could not find BRAND_ACCENT_FAMILY.light block');
+  return m[1];
+})();
+const familyDark = (() => {
+  const m = /dark:\s*\{([\s\S]*?)\n {2}\},\n\};/.exec(familyObj);
+  if (!m) throw new Error('could not find BRAND_ACCENT_FAMILY.dark block');
+  return m[1];
+})();
+
+/** Pull a hex token value from the light or dark Theme block, or — for the
+ *  accent family, which no longer lives there — from BRAND_ACCENT_FAMILY. */
 function token(theme: 'light' | 'dark', name: string): string {
-  const block = theme === 'light' ? lightBlock : darkBlock;
-  const m = new RegExp(`\\b${name}:\\s*'(#[0-9A-Fa-f]{6})'`).exec(block);
+  const re = new RegExp(`\\b${name}:\\s*'(#[0-9A-Fa-f]{6})'`);
+  const m = re.exec(theme === 'light' ? lightBlock : darkBlock)
+    ?? re.exec(theme === 'light' ? familyLight : familyDark);
   if (!m) throw new Error(`token ${theme}.${name} not found (or not a plain hex)`);
   return m[1];
 }

@@ -227,6 +227,30 @@ console.log('\nsource assertions:');
   const full = src('app/(tabs)/estimate/full.tsx');
   ok('estimator (re-review A2): Quick Estimate grounds through selectGroundingEntries with the run hints, not entries.slice(0, 6)', !/costDb\.entries\.slice\(0, 6\)/.test(full) && /selectGroundingEntries\(costDb\.entries, hints, 6\)/.test(full) && /groundingFor=\{quickEstimateGroundingFor\}/.test(full));
   ok('estimator: the bundle is built by buildGroundingFacts — measured count, groundingFactLine wording, calibration as a fact', /buildGroundingFacts\(/.test(full) && !/rateCount: costDb\.entries\.length/.test(full) && !/on your jobs \(\$\{e\.confidence\}/.test(full));
+  // AI-F(audit 2026-09-07, ai-features): AIEstimateValidator scores the bid
+  // "against industry standards" with nothing retrieved behind the phrase,
+  // while computeCalibration — measured bias from TRACED actuals only — sat
+  // uncalled. The deterministic answer now renders above the AI card, the way
+  // MorningBriefCard sits beside the AI briefing on Home.
+  ok('estimator: the measured calibration is computed for the validator, not just for Quick Estimate', /const validatorCalibration = useMemo\(/.test(full) && (full.match(/computeCalibration\(\{ projects, commitments \}\)/g) ?? []).length >= 2);
+  ok('estimator: it renders ABOVE the AI validator, not after it', (() => {
+    const cal = full.indexOf('testID="estimate-calibration"');
+    const val = full.indexOf('<AIEstimateValidator');
+    return cal > 0 && val > 0 && cal < val;
+  })());
+  // Counted, not merely present. A bare `.test()` passed a mutation that
+  // swapped the rendered NUMBER for the word "several" and left the count only
+  // in the singular/plural ternary beside it — the chip said "several jobs"
+  // and the guard reported green (verified 2026-09-07). Each figure has to
+  // appear twice: once as the value, once to pluralise its own noun.
+  ok('estimator: the calibration chip prints the measured category and job COUNTS, not a vague quantity', (full.match(/validatorCalibration\.summary\.categoryCount/g) ?? []).length >= 2 && (full.match(/validatorCalibration\.summary\.totalJobs/g) ?? []).length >= 2 && /traced\s*\n?\s*actuals/.test(full));
+  ok('estimator: the chip refuses the market-average framing', /Not a market average/.test(full) && /your own paid costs against your own bids/.test(full));
+  ok('estimator: an empty book says it has nothing measured rather than scoring anyway', /hasData \?/.test(full) && /No traced actuals yet/.test(full));
+  const pred = src('components/AIInvoicePredictor.tsx');
+  ok('invoice predictor: the chip is the same history object the prompt was built from', /paymentHistoryForInvoice\(invoice, allInvoices\)/.test(pred) && /totalInvoices: history\.paidInvoices/.test(pred) && (pred.match(/history\.summary/g) ?? []).length >= 2);
+  ok('invoice predictor: an absent predicted date renders as absent, not as a blank accent slot', /const predictedDate = result\.predictedPaymentDate\.trim\(\)/.test(pred) && /No date returned/.test(pred));
+  const equip = src('components/AIEquipmentAdvice.tsx');
+  ok('equipment advice: the chip cites the log rows and the rate it multiplied, and names the recall it cannot source', /utilization \{equipment\.utilizationLog\.length === 1 \? 'entry' : 'entries'\}/.test(equip) && /at your \$\{equipment\.dailyRate\.toLocaleString\(\)\}\/day rate/.test(equip) && /no equipment price feed/.test(equip));
   const ai = src('utils/aiService.ts');
   ok('quick estimate prompt (review 4): no "LEARNED RATES FROM YOUR JOBS" heading; measured vs stated spelled out', !/LEARNED RATES FROM YOUR JOBS/.test(ai) && /MEASURED on their jobs or STATED/.test(ai) && /never call a stated rate history/.test(ai));
   const code = src('app/(tabs)/construction-ai/index.tsx');

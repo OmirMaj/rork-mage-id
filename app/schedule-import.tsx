@@ -21,6 +21,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -368,7 +369,7 @@ export default function ScheduleImportScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <TopBar title="Import Schedule" onBack={() => router.back()} styles={styles} color={themeColors.text} />
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={styles.heroIcon}><FileInput size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.heroTitle}>Import a schedule</Text>

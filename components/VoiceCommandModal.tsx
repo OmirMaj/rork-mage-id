@@ -11,7 +11,9 @@ import {
   RotateCcw, ChevronRight, Clock, MessageSquare,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
@@ -66,6 +68,7 @@ const QUICK_COMMANDS = [
 const HistoryItem = React.memo(function HistoryItem({
   item, onTap,
 }: { item: VoiceHistoryItem; onTap: (text: string) => void }) {
+  const histStyles = useThemedStyles(makeHistStyles);
   const timeAgo = useMemo(() => {
     const diff = Date.now() - new Date(item.timestamp).getTime();
     const mins = Math.floor(diff / 60000);
@@ -96,6 +99,11 @@ const HistoryItem = React.memo(function HistoryItem({
 export default function VoiceCommandModal({
   visible, onClose, tasks, projectName, projectId, updateFunctions, activeTodayTask,
 }: VoiceCommandModalProps) {
+  // Built per theme: the sheet, its transcript field and the history rows baked
+  // Colors.surface/text/textMuted at import, so the voice modal came up as a
+  // white slab in dark mode (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const insets = useSafeAreaInsets();
   const [inputText, setInputText] = useState('');
   const [modalState, setModalState] = useState<ModalState>('input');
@@ -466,7 +474,10 @@ export default function VoiceCommandModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={s.overlay} onPress={onClose}>
+      {/* The scrim colour is read INLINE, not from the sheet: ThemeColors has
+          no scrim token, and Colors.overlay inside the memoized factory would
+          latch whichever theme was current when the sheet was first built. */}
+      <Pressable style={[s.overlay, { backgroundColor: Colors.overlay }]} onPress={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={s.keyboardView}
@@ -521,17 +532,16 @@ export default function VoiceCommandModal({
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   keyboardView: {
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '75%',
@@ -541,7 +551,7 @@ const s = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     alignSelf: 'center',
     marginTop: 10,
     marginBottom: 6,
@@ -553,7 +563,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -563,7 +573,7 @@ const s = StyleSheet.create({
   headerTitle: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   aiBadge: {
     flexDirection: 'row',
@@ -590,17 +600,17 @@ const s = StyleSheet.create({
     marginBottom: 20,
   },
   textInput: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.panel,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 14,
     fontSize: Type.body.fontSize,
-    color: Colors.text,
+    color: t.text,
     minHeight: 80,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   inputHint: {
     flexDirection: 'row',
@@ -611,12 +621,12 @@ const s = StyleSheet.create({
   },
   inputHintText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   sectionLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginBottom: 8,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
@@ -631,17 +641,17 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   chipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: t.text,
   },
   historyList: {
     gap: 4,
@@ -679,15 +689,15 @@ const s = StyleSheet.create({
   stateTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   stateSubtitle: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   stateMessage: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 8,
@@ -704,7 +714,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
   },
   undoBtnText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -734,7 +744,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: Tokens.radius.card,
@@ -742,12 +752,12 @@ const s = StyleSheet.create({
   batchItemText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: t.text,
     flex: 1,
   },
   helpSection: {
     alignSelf: 'stretch',
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     gap: 6,
@@ -756,12 +766,12 @@ const s = StyleSheet.create({
   helpTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginBottom: 2,
   },
   helpExample: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 22,
   },
   clarifyList: {
@@ -773,12 +783,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   clarifyDot: {
     width: 8,
@@ -792,11 +802,11 @@ const s = StyleSheet.create({
   clarifyTaskName: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   clarifyTaskMeta: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   bottomBar: {
     flexDirection: 'row',
@@ -804,7 +814,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   sendBtn: {
     width: 44,
@@ -815,11 +825,11 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: {
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
   },
 });
 
-const histStyles = StyleSheet.create({
+const makeHistStyles = (t: ThemeColors) => StyleSheet.create({
   historyItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -827,15 +837,15 @@ const histStyles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
   },
   historyText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   historyTime: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 });

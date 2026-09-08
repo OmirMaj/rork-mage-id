@@ -22,7 +22,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -103,7 +103,13 @@ function PlanIntelligenceInner() {
   const [imageAspect, setImageAspect] = useState(1.4);
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
-  useBrainFabLift(phase === 'review' && rooms.length > 0 ? bottomBarH : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = phase === 'review' && rooms.length > 0 ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
   const [editing, setEditing] = useState<PlanRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [taught, setTaught] = useState(false);
@@ -266,7 +272,7 @@ function PlanIntelligenceInner() {
           ]}
         />
       ) : (
-        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* Memory status — the trust-builder. */}
           <View style={styles.memoryChip}>
             <GraduationCap size={14} color={trainedLine ? t.accent : t.textMuted} strokeWidth={1.75} />
