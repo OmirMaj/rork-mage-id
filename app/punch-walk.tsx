@@ -52,6 +52,7 @@ import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/ty
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { neutralInk } from '@/components/ui/ink';
 import { showAlert } from '@/utils/alert';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
@@ -405,7 +406,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             {/* Inferred-trade + priority badges */}
             <View style={styles.metaRow}>
               <TouchableOpacity style={styles.metaChip} onPress={cycleTrade}>
-                <View style={[styles.metaDot, { backgroundColor: tradeColor(draft.trade) }]} />
+                <View style={[styles.metaDot, { backgroundColor: tradeColor(draft.trade, themeColors) }]} />
                 <Text style={styles.metaChipText}>{draft.trade}</Text>
                 {draft.matchedKeyword && (
                   <Text style={styles.metaChipHint}>· {draft.matchedKeyword}</Text>
@@ -511,7 +512,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
               <Text style={styles.sessionTitle}>Captured this walk · {session.length}</Text>
               {session.map(c => (
                 <View key={c.id} style={styles.sessionRow}>
-                  <View style={[styles.sessionDot, { backgroundColor: tradeColor(c.trade) }]} />
+                  <View style={[styles.sessionDot, { backgroundColor: tradeColor(c.trade, themeColors) }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sessionDesc} numberOfLines={2}>{c.description}</Text>
                     <Text style={styles.sessionMeta}>{c.location} · {c.trade} · {c.priority}</Text>
@@ -555,7 +556,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                     setShowTradeOverride(false);
                   }}
                 >
-                  <View style={[styles.metaDot, { backgroundColor: tradeColor(t) }]} />
+                  <View style={[styles.metaDot, { backgroundColor: tradeColor(t, themeColors) }]} />
                   <Text style={styles.tradeOptionText}>{t}</Text>
                   {draft.trade === t && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>
@@ -617,7 +618,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
 
 // ─────────────────────────────────────────────────────────────
 
-function tradeColor(trade: SubTrade): string {
+function tradeColor(trade: SubTrade, t: ThemeColors): string {
   switch (trade) {
     case 'Electrical': return '#F59E0B';
     case 'Plumbing':   return '#3B82F6';
@@ -631,7 +632,10 @@ function tradeColor(trade: SubTrade): string {
     case 'Landscaping': return '#16A34A';
     case 'General':
     case 'Other':
-    default:           return '#9AA3AD';
+    // neutralInk, not the dark theme's textSecondary this returned: it is a
+    // trade DOT, and at #9AA3AD on a light card it was 2.55:1 — under the 3:1
+    // floor a non-text indicator has to clear to be seen at all.
+    default:           return neutralInk(t);
   }
 }
 

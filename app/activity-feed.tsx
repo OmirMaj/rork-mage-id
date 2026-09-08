@@ -23,6 +23,7 @@ import ErrorState from '@/components/ErrorState';
 import type { EntityRef } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { neutralInk } from '@/components/ui/ink';
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8).
 export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
@@ -141,7 +142,7 @@ interface RowProps {
 function ActivityRow({ item, onPress, onLongPress }: RowProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { icon: Icon, color, verb } = iconAndColor(item.action);
+  const { icon: Icon, color, verb } = iconAndColor(item.action, themeColors);
 
   return (
     <TouchableOpacity
@@ -178,7 +179,10 @@ function ActivityRow({ item, onPress, onLongPress }: RowProps) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function iconAndColor(action: ActivityAction) {
+// Takes the theme because 'closed'/'unknown' render in the NEUTRAL ink, and a
+// neutral has to invert between themes — this returned the dark theme's
+// #9AA3AD, which is 2.5:1 as the `rowVerb` text on a light row.
+function iconAndColor(action: ActivityAction, t: ThemeColors) {
   switch (action) {
     case 'created':
       return { icon: Plus, color: "#FF6A1A", verb: 'Created' };
@@ -187,7 +191,7 @@ function iconAndColor(action: ActivityAction) {
     case 'completed':
       return { icon: CheckCircle2, color: "#2E7D44", verb: 'Completed' };
     case 'closed':
-      return { icon: XCircle, color: "#9AA3AD", verb: 'Closed' };
+      return { icon: XCircle, color: neutralInk(t), verb: 'Closed' };
     case 'paid':
       return { icon: DollarSign, color: "#2E7D44", verb: 'Paid' };
     case 'uploaded':
@@ -195,7 +199,7 @@ function iconAndColor(action: ActivityAction) {
     default: {
       const _exhaustive: never = action;
       void _exhaustive;
-      return { icon: Activity, color: "#9AA3AD", verb: 'Activity' };
+      return { icon: Activity, color: neutralInk(t), verb: 'Activity' };
     }
   }
 }

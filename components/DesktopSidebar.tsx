@@ -23,23 +23,38 @@ import {
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
-import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { featureFor, type FeatureId } from '@/utils/featureRegistry';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface NavItem {
   key: string;
+  /** Rail label. Deliberately the sidebar's own, not the registry title: a
+   *  240pt rail says "Plans" where the registry says "Plans & Drawings". */
   label: string;
   // Accepts lucide icons AND the bespoke MageAIMark (a plain function
   // component, so `typeof Home`'s ForwardRef type would reject it).
   icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+  /** Pushed on tap. Kept as a literal even though `feature` already names the
+   *  destination, because scripts/validate-feature-search.ts:68 and its
+   *  iOS-reachability pass grep this string out of the file — see the note in
+   *  utils/featureRegistry.ts. scripts/validate-nav-coverage.ts asserts it
+   *  equals featureFor(feature).route, so the two cannot disagree. */
   route: string;
   section: string;
-  // Optional feature gate — when set, sidebar shows a small lock badge if
-  // the user's tier doesn't unlock it. Tap still routes (Paywall renders
-  // on the destination screen) so the upgrade flow stays one tap away.
-  requires?: FeatureKey;
+  /** The registry row this destination IS. The tier gate is read from it —
+   *  there is deliberately no `requires` field here any more. The sidebar
+   *  carried its own copy until 2026-09-07 and two had drifted:
+   *  /plan-intelligence advertised ask_your_plans (Business) while
+   *  app/plan-intelligence.tsx:61 enforces ai_estimate_wizard (Pro), so a Pro
+   *  subscriber saw a lock on a feature they already owned; and
+   *  /client-portal-setup carried no gate at all while the screen renders a
+   *  Paywall on client_portal (:169), so the wall arrived unannounced.
+   *  Undefined only for rows with no registry entry (Direct Hire, Messages —
+   *  both HIRE_ENABLED-gated and filtered out below). */
+  feature?: FeatureId;
 }
 
 // ─── Information architecture (2026 declutter audit) ──────────────────────
@@ -53,62 +68,69 @@ interface NavItem {
 // GLOBAL groups render expanded by default; PROJECT groups render collapsed
 // by default (the group containing the active route auto-expands for
 // context). Account is pinned to the bottom of the rail, dimmed.
+//
+// This rail is one of four rendered nav surfaces; utils/featureRegistry.ts is
+// the source they all name. A row owns its label, icon and section (rail
+// voice); the destination and the tier gate come from `feature`.
 const NAV_ITEMS: NavItem[] = [
   // ── WORKSPACE — global landing surfaces
-  { key: 'summary',           label: 'Summary',          icon: MageSummary, route: '/(tabs)/summary',                  section: 'WORKSPACE' },
-  { key: 'home',              label: 'Projects',         icon: MageProject,    route: '/(tabs)/(home)',                   section: 'WORKSPACE' },
-  { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE' },
-  { key: 'business',          label: 'Your Business',    icon: Briefcase,       route: '/business',                         section: 'WORKSPACE', requires: 'brain_accuracy' },
-  { key: 'track-record',      label: 'Track Record',     icon: Target,          route: '/track-record',                     section: 'WORKSPACE', requires: 'brain_accuracy' },
-  { key: 'waiting-on',        label: 'Waiting on Others', icon: Inbox,          route: '/waiting-on',                       section: 'WORKSPACE' },
-  { key: 'delay-events',      label: 'Delay Register',   icon: CalendarClock,   route: '/delay-events',                     section: 'WORKSPACE' },
-  { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'portfolio_margin' },
-  { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
-  { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
-  // job_costing, matching the real gate in app/estimate-scorecard.tsx — NOT
-  // brain_accuracy like Track Record two rows up.
-  { key: 'estimate-scorecard', label: 'Estimate Scorecard', icon: BarChart3,    route: '/estimate-scorecard',               section: 'WORKSPACE', requires: 'job_costing' },
-  { key: 'cost-seed',         label: 'Seed Your Rates',  icon: Upload,          route: '/cost-seed',                        section: 'WORKSPACE', requires: 'job_costing' },
-  { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
-  { key: 'cost-xray',         label: 'Cost X-Ray',       icon: ScanEye,         route: '/cost-xray',                        section: 'WORKSPACE', requires: 'cost_xray' },
+  { key: 'summary',           label: 'Summary',          icon: MageSummary, route: '/(tabs)/summary',                  section: 'WORKSPACE', feature: 'summary' },
+  { key: 'home',              label: 'Projects',         icon: MageProject,    route: '/(tabs)/(home)',                   section: 'WORKSPACE', feature: 'projects' },
+  { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE', feature: 'ask-mage' },
+  { key: 'business',          label: 'Your Business',    icon: Briefcase,       route: '/business',                         section: 'WORKSPACE', feature: 'business' },
+  { key: 'track-record',      label: 'Track Record',     icon: Target,          route: '/track-record',                     section: 'WORKSPACE', feature: 'track-record' },
+  { key: 'waiting-on',        label: 'Waiting on Others', icon: Inbox,          route: '/waiting-on',                       section: 'WORKSPACE', feature: 'waiting-on' },
+  { key: 'delay-events',      label: 'Delay Register',   icon: CalendarClock,   route: '/delay-events',                     section: 'WORKSPACE', feature: 'delay-events' },
+  { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,           route: '/portfolio-margin',                 section: 'WORKSPACE', feature: 'margin-board' },
+  { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', feature: 'margin-alerts' },
+  { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,         route: '/cost-database',                    section: 'WORKSPACE', feature: 'cost-database' },
+  // Gate is job_costing (app/estimate-scorecard.tsx:51), NOT brain_accuracy like
+  // Track Record two rows up. The registry row carries it; this note stays as a
+  // reading aid for anyone scanning the rail.
+  { key: 'estimate-scorecard', label: 'Estimate Scorecard', icon: BarChart3,    route: '/estimate-scorecard',               section: 'WORKSPACE', feature: 'estimate-scorecard' },
+  { key: 'cost-seed',         label: 'Seed Your Rates',  icon: Upload,          route: '/cost-seed',                        section: 'WORKSPACE', feature: 'cost-seed' },
+  { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'WORKSPACE', feature: 'area-takeoff' },
+  { key: 'cost-xray',         label: 'Cost X-Ray',       icon: ScanEye,         route: '/cost-xray',                        section: 'WORKSPACE', feature: 'cost-xray' },
   // MAGE Copilot hub — the universal voice→build engine's front door.
-  { key: 'copilot-hub',       label: 'MAGE Copilot',     icon: Mic,             route: '/copilot-hub',                      section: 'WORKSPACE' },
+  { key: 'copilot-hub',       label: 'MAGE Copilot',     icon: Mic,             route: '/copilot-hub',                      section: 'WORKSPACE', feature: 'copilot-hub' },
 
   // ── FIND WORK — marketplace / bids / suppliers
-  { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK' },
-  { key: 'bids',              label: 'Public Bids',      icon: ScrollText,      route: '/(tabs)/discover/bids',            section: 'FIND WORK' },
+  { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK', feature: 'mage-id-bids' },
+  { key: 'bids',              label: 'Public Bids',      icon: ScrollText,      route: '/(tabs)/discover/bids',            section: 'FIND WORK', feature: 'public-bids' },
   // Publish a solicitation of your own. Its only inbound link was a card on
   // app/(tabs)/discover/index.tsx, and the Discover TAB does not exist on
   // desktop (the sidebar replaces the tab bar at ≥1024pt, and
   // HiddenTabBackLink returns null there) — so on a laptop this screen had no
   // click path at all, and ⌘K could not find it either because the registry
   // indexed it as "Post-Bid Analysis". Audit 2026-09-07, navigation-ia #1.
-  { key: 'post-bid',          label: 'Post a Bid',       icon: Megaphone,       route: '/post-bid',                         section: 'FIND WORK' },
-  { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK' },
+  { key: 'post-bid',          label: 'Post a Bid',       icon: Megaphone,       route: '/post-bid',                         section: 'FIND WORK', feature: 'post-bid' },
+  { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK', feature: 'marketplace' },
   // JUDGES bid scoring — screen self-titles "Bid Advisor" (app/judges.tsx).
-  { key: 'judges',            label: 'Bid Advisor',      icon: Scale,           route: '/judges',                           section: 'FIND WORK', requires: 'bid_scoring' },
-  { key: 'auto-bids',         label: 'Pre-priced Bids',  icon: Zap,             route: '/auto-bids',                        section: 'FIND WORK', requires: 'bid_scoring' },
+  { key: 'judges',            label: 'Bid Advisor',      icon: Scale,           route: '/judges',                           section: 'FIND WORK', feature: 'judges' },
+  { key: 'auto-bids',         label: 'Pre-priced Bids',  icon: Zap,             route: '/auto-bids',                        section: 'FIND WORK', feature: 'auto-bids' },
 
   // ── NETWORK — people + AI
-  { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
+  { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK', feature: 'leads' },
   // The embed widget is how a contractor turns their own website into a lead
   // source, but the setup screen shipped with no inbound navigation — you could
   // not find your own widget ID without knowing to search for it.
-  { key: 'widget-setup',      label: 'Website Widget',   icon: Code,            route: '/widget-setup',                     section: 'NETWORK' },
-  { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
-  { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'NETWORK', requires: 'crew_management' },
-  { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
-  { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
+  { key: 'widget-setup',      label: 'Website Widget',   icon: Code,            route: '/widget-setup',                     section: 'NETWORK', feature: 'widget-setup' },
+  { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK', feature: 'contacts' },
+  { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'NETWORK', feature: 'crew' },
+  { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK', feature: 'subs' },
+  { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK', feature: 'companies' },
   { key: 'hire',              label: 'Hire',             icon: Handshake,       route: '/(tabs)/discover/hire',            section: 'NETWORK' },
-  { key: 'construction-ai',   label: 'Construction AI',  icon: MageAIMark,      route: '/(tabs)/construction-ai',          section: 'NETWORK' },
+  { key: 'construction-ai',   label: 'Construction AI',  icon: MageAIMark,      route: '/(tabs)/construction-ai',          section: 'NETWORK', feature: 'construction-ai' },
 
   // ── PROJECT · OVERVIEW
-  { key: 'estimate',          label: 'Estimate',         icon: MageEstimate,      route: '/(tabs)/discover/estimate',        section: 'OVERVIEW' },
-  { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
-  { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
-  { key: 'plans',             label: 'Plans',            icon: MagePlans,       route: '/plans',                            section: 'OVERVIEW' },
-  // Ask-your-plans conversational plan search.
-  { key: 'plan-intelligence', label: 'Plan Intelligence', icon: FileSearch,     route: '/plan-intelligence',                section: 'OVERVIEW', requires: 'ask_your_plans' },
+  { key: 'estimate',          label: 'Estimate',         icon: MageEstimate,      route: '/(tabs)/discover/estimate',        section: 'OVERVIEW', feature: 'estimate' },
+  { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', feature: 'schedule' },
+  { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'OVERVIEW', feature: 'last-planner' },
+  { key: 'plans',             label: 'Plans',            icon: MagePlans,       route: '/plans',                            section: 'OVERVIEW', feature: 'plans' },
+  // Ask-your-plans conversational plan search. The gate is ai_estimate_wizard
+  // (Pro), not ask_your_plans (Business) — the sidebar's own copy said the
+  // latter until 2026-09-07 and painted a Business lock on a Pro feature.
+  { key: 'plan-intelligence', label: 'Plan Intelligence', icon: FileSearch,     route: '/plan-intelligence',                section: 'OVERVIEW', feature: 'plan-intelligence' },
   // Weekly Snapshot intentionally omitted from the global rail: it's a
   // single-project screen (reads ?projectId, dead-ends on "No project to
   // snapshot yet" without one). It's reachable from inside each project
@@ -116,57 +138,57 @@ const NAV_ITEMS: NavItem[] = [
   // projectId and always landed on the empty state.
 
   // ── PROJECT · FIELD OPS
-  { key: 'daily-report',      label: 'Daily Report',     icon: MageDailyReport, route: '/daily-report',                     section: 'FIELD OPS' },
+  { key: 'daily-report',      label: 'Daily Report',     icon: MageDailyReport, route: '/daily-report',                     section: 'FIELD OPS', feature: 'daily-report' },
   // T&M ticket — signed-on-site record of extra work. Sits directly under the
   // daily report because that is where the super notices the work.
-  { key: 'field-ticket',      label: 'T&M Tickets',      icon: FileSignature,   route: '/field-ticket',                     section: 'FIELD OPS', requires: 'change_orders_invoicing' },
-  { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS', requires: 'subcontractor_management' },
-  { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
+  { key: 'field-ticket',      label: 'T&M Tickets',      icon: FileSignature,   route: '/field-ticket',                     section: 'FIELD OPS', feature: 'field-ticket' },
+  { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS', feature: 'time-tracking' },
+  { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', feature: 'photo-triage' },
   // Scan-Anything: classify → extract → auto-file any document/photo.
-  { key: 'scan',              label: 'Scan Anything',    icon: ScanLine,        route: '/scan',                             section: 'FIELD OPS', requires: 'scan_anything' },
-  { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
-  { key: 'safety',            label: 'Safety',           icon: HardHat,         route: '/safety',                           section: 'FIELD OPS', requires: 'safety_management' },
-  { key: 'rfi',               label: 'RFIs',             icon: MageRFI,    route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
-  { key: 'submittal',         label: 'Submittals',       icon: MageSubmittal,       route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
-  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS' },
-  // No `requires`: neither screen calls useTierAccess, so a gate badge here
-  // would be a promise the code does not keep.
-  { key: 'deliveries',        label: 'Deliveries',       icon: Truck,           route: '/deliveries',                       section: 'FIELD OPS' },
-  { key: 'building-access',   label: 'Building Access',  icon: Building2,       route: '/building-access',                  section: 'FIELD OPS' },
-  { key: 'equipment',         label: 'Equipment',        icon: MageEquipment,           route: '/(tabs)/equipment',                section: 'FIELD OPS', requires: 'equipment_rental' },
+  { key: 'scan',              label: 'Scan Anything',    icon: ScanLine,        route: '/scan',                             section: 'FIELD OPS', feature: 'scan' },
+  { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'FIELD OPS', feature: 'punch-list' },
+  { key: 'safety',            label: 'Safety',           icon: HardHat,         route: '/safety',                           section: 'FIELD OPS', feature: 'safety' },
+  { key: 'rfi',               label: 'RFIs',             icon: MageRFI,    route: '/rfi',                              section: 'FIELD OPS', feature: 'rfi' },
+  { key: 'submittal',         label: 'Submittals',       icon: MageSubmittal,       route: '/submittal',                        section: 'FIELD OPS', feature: 'submittal' },
+  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS', feature: 'oac-meeting' },
+  // Neither screen calls useTierAccess, so their registry rows carry no
+  // `requires` — a lock badge here would be a promise the code does not keep.
+  { key: 'deliveries',        label: 'Deliveries',       icon: Truck,           route: '/deliveries',                       section: 'FIELD OPS', feature: 'deliveries' },
+  { key: 'building-access',   label: 'Building Access',  icon: Building2,       route: '/building-access',                  section: 'FIELD OPS', feature: 'building-access' },
+  { key: 'equipment',         label: 'Equipment',        icon: MageEquipment,           route: '/(tabs)/equipment',                section: 'FIELD OPS', feature: 'equipment' },
 
   // ── PROJECT · FINANCIALS
-  { key: 'invoice',           label: 'Invoices',         icon: MageInvoice,     route: '/invoice',                          section: 'FINANCIALS' },
-  { key: 'change-order',      label: 'Change Orders',    icon: MageChangeOrder,   route: '/change-order',                     section: 'FINANCIALS', requires: 'change_orders_invoicing' },
-  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: MagePayApp,        route: '/aia-pay-app',                      section: 'FINANCIALS', requires: 'aia_pay_app' },
-  { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', requires: 'full_budget_dashboard' },
-  { key: 'wip-report',        label: 'WIP Report',       icon: TrendingUp,      route: '/wip-report',                       section: 'FINANCIALS', requires: 'wip_reporting' },
-  { key: 'job-costing',       label: 'Job Costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', requires: 'job_costing' },
-  { key: 'cash-flow',         label: 'Cash Flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCIALS', requires: 'cash_flow_forecaster' },
-  { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCIALS' },
-  { key: 'reports',           label: 'Reports',          icon: BarChart3,       route: '/reports',                          section: 'FINANCIALS' },
+  { key: 'invoice',           label: 'Invoices',         icon: MageInvoice,     route: '/invoice',                          section: 'FINANCIALS', feature: 'invoice' },
+  { key: 'change-order',      label: 'Change Orders',    icon: MageChangeOrder,   route: '/change-order',                     section: 'FINANCIALS', feature: 'change-order' },
+  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: MagePayApp,        route: '/aia-pay-app',                      section: 'FINANCIALS', feature: 'aia-pay-app' },
+  { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', feature: 'budget-dashboard' },
+  { key: 'wip-report',        label: 'WIP Report',       icon: TrendingUp,      route: '/wip-report',                       section: 'FINANCIALS', feature: 'wip-report' },
+  { key: 'job-costing',       label: 'Job Costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', feature: 'job-costing' },
+  { key: 'cash-flow',         label: 'Cash Flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCIALS', feature: 'cash-flow' },
+  { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCIALS', feature: 'payments' },
+  { key: 'reports',           label: 'Reports',          icon: BarChart3,       route: '/reports',                          section: 'FINANCIALS', feature: 'reports' },
 
   // ── PROJECT · CLIENT
-  { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT' },
-  { key: 'contract',          label: 'Contracts',        icon: MageContract,    route: '/contract',                         section: 'CLIENT' },
+  { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT', feature: 'client-portal' },
+  { key: 'contract',          label: 'Contracts',        icon: MageContract,    route: '/contract',                         section: 'CLIENT', feature: 'contract' },
   // Good/better/best proposals. Same story as Post a Bid above: its only
   // inbound link was a tile in app/(tabs)/discover/tools.tsx, which is
   // phone-only, so a paid feature was click-unreachable on the laptop where
-  // proposals actually get written. `requires` mirrors the screen's own gate.
-  { key: 'smart-proposal',    label: 'Smart Proposal',   icon: FileSignature,   route: '/smart-proposal',                   section: 'CLIENT', requires: 'job_costing' },
-  { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT' },
-  { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT' },
+  // proposals actually get written.
+  { key: 'smart-proposal',    label: 'Smart Proposal',   icon: FileSignature,   route: '/smart-proposal',                   section: 'CLIENT', feature: 'smart-proposal' },
+  { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT', feature: 'selections' },
+  { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT', feature: 'closeout-binder' },
   // Shipped fully built with ZERO inbound navigation — reachable only by typing
   // "home passport" into the Cmd-K palette, which nobody does for a feature they
   // don't know exists. It's the artifact the homeowner keeps after the job ends,
   // so it's also the best referral surface in the product.
-  { key: 'home-passport',     label: 'Home Passport',    icon: BadgeCheck,      route: '/home-passport',                    section: 'CLIENT' },
+  { key: 'home-passport',     label: 'Home Passport',    icon: BadgeCheck,      route: '/home-passport',                    section: 'CLIENT', feature: 'home-passport' },
 
   // ── ACCOUNT (pinned to bottom)
-  { key: 'notifications',     label: 'Notifications',    icon: Bell,            route: '/notifications-inbox',              section: 'ACCOUNT' },
+  { key: 'notifications',     label: 'Notifications',    icon: Bell,            route: '/notifications-inbox',              section: 'ACCOUNT', feature: 'notifications' },
   { key: 'messages',          label: 'Messages',         icon: MessageCircle,   route: '/messages',                         section: 'ACCOUNT' },
-  { key: 'report-inbox',      label: 'Report Inbox',     icon: Inbox,           route: '/report-inbox',                     section: 'ACCOUNT' },
-  { key: 'settings',          label: 'Settings',         icon: Settings,        route: '/(tabs)/settings',                 section: 'ACCOUNT' },
+  { key: 'report-inbox',      label: 'Report Inbox',     icon: Inbox,           route: '/report-inbox',                     section: 'ACCOUNT', feature: 'report-inbox' },
+  { key: 'settings',          label: 'Settings',         icon: Settings,        route: '/(tabs)/settings',                 section: 'ACCOUNT', feature: 'settings' },
 ];
 
 // Global groups render expanded; project groups render collapsed by default.
@@ -180,13 +202,13 @@ const ACCOUNT_SECTION = 'ACCOUNT';
 // project, see active RFPs, talk to awarded contractors, manage account. Most
 // contractor-side routes aren't even authorized for clients server-side.
 const CLIENT_NAV_ITEMS: NavItem[] = [
-  { key: 'home',          label: 'Home',           icon: Home,          route: '/(tabs)/(home)', section: 'PROPERTY OWNER' },
-  { key: 'my-rfps',       label: 'My Projects',    icon: Briefcase,     route: '/my-rfps',       section: 'PROPERTY OWNER' },
-  { key: 'post-rfp',      label: 'Post a Project', icon: FileText,      route: '/post-rfp',      section: 'PROPERTY OWNER' },
+  { key: 'home',          label: 'Home',           icon: Home,          route: '/(tabs)/(home)', section: 'PROPERTY OWNER', feature: 'projects' },
+  { key: 'my-rfps',       label: 'My Projects',    icon: Briefcase,     route: '/my-rfps',       section: 'PROPERTY OWNER', feature: 'my-rfps' },
+  { key: 'post-rfp',      label: 'Post a Project', icon: FileText,      route: '/post-rfp',      section: 'PROPERTY OWNER', feature: 'post-rfp' },
 
   { key: 'messages',      label: 'Messages',       icon: MessageCircle, route: '/messages',      section: 'ACCOUNT' },
-  { key: 'notifications', label: 'Notifications',  icon: Bell,          route: '/notifications-inbox', section: 'ACCOUNT' },
-  { key: 'settings',      label: 'Settings',       icon: Settings,      route: '/(tabs)/settings', section: 'ACCOUNT' },
+  { key: 'notifications', label: 'Notifications',  icon: Bell,          route: '/notifications-inbox', section: 'ACCOUNT', feature: 'notifications' },
+  { key: 'settings',      label: 'Settings',       icon: Settings,      route: '/(tabs)/settings', section: 'ACCOUNT', feature: 'settings' },
 ];
 const CLIENT_SECTIONS = ['PROPERTY OWNER'];
 
@@ -290,7 +312,9 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     const active = isActiveRoute(pathname, item.key, item.route);
     const hovered = hoveredKey === item.key;
     const Icon = item.icon;
-    const locked = !!item.requires && !canAccess(item.requires);
+    // Gate read from the registry, never from a field on the row — see NavItem.
+    const requires = item.feature ? featureFor(item.feature).requires : undefined;
+    const locked = !!requires && !canAccess(requires);
     const baseColor = dimmed ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.6)';
 
     return (

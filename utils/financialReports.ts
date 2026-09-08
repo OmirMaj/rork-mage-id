@@ -65,6 +65,40 @@ export interface WIPReport {
 // useLaborRates), so they are forwarded here rather than re-derived. Default
 // `{}` keeps a caller that has not been wired yet compiling — and honest: it
 // gets the same lower bound it got before, not a silently different number.
+//
+// `costSources` is spread WHOLE into the engine at both call sites, so it
+// carries every field of JobCostActualSources — including the `equipment` and
+// `permits` that MONEY-EQP-1 / MONEY-PMT-1 added after this was written. There
+// is no per-field list here to fall behind the type: widening
+// JobCostActualSources widens these reports the same day.
+//
+// HOW FAR THE GUARD ACTUALLY REACHES, measured rather than assumed (mutation-
+// tested 2026-09-08). scripts/validate-money-definitions.ts regex-counts the
+// engine calls in this file against the ones carrying a `...costSources`
+// spread, so DELETING a spread fails it immediately, three assertions at once.
+// What it does not catch is a spread that is kept and then overridden: append
+// `, equipment: [], permits: []` after the spread at both call sites and the
+// regex still matches, while every arithmetic assertion in that guard is built
+// from receipts / timeEntries / laborRates alone — it passes 89/89 with
+// machine time and permit fees silently deleted from a page a bank reads.
+// validate-job-cost and validate-wip-parity pass on that mutation too.
+//
+// So the spread is protected against removal, not against narrowing. If you
+// override a field of it, only review will stop you — do not read a green
+// guard as permission. (That regex also counts occurrences in PROSE, which is
+// why this paragraph talks around the call's name instead of quoting it.)
+//
+// WHICH MEANS THE UNDERSTATEMENT THAT REMAINS IS ENTIRELY AT THE CALL SITES.
+// A caller that omits the argument gets subs-and-POs only, and the omission
+// compiles silently because the parameter is optional and positional. As of
+// this pass the callers still passing nothing are app/reports.tsx (the WIP tab
+// and the Profit tab) and utils/portfolio/pipelineHorizon.ts — so those three
+// reports understate cost-to-date by exactly the materials, self-perform
+// labour, machine time and permit fees the engine now counts, and overstate
+// margin by the same. Fixing them is a matter of building the object from the
+// context data the screen already holds; nothing in this file can do it,
+// because the receipts, time entries, equipment and permits live in React
+// context and never reach a pure module on their own.
 export function computeWIPReport(
   projects: Project[],
   invoices: Invoice[],
@@ -192,6 +226,17 @@ export interface ProfitRow {
   health: 'green' | 'yellow' | 'red';
 }
 
+/**
+ * Revenue minus projected final cost, per project.
+ *
+ * `costSources` carries the same contract as computeWIPReport above and is
+ * spread whole into the engine: pass it and `costToDate` is the engine's full
+ * ACTUAL (commitment payments + material receipts + priced crew hours +
+ * equipment days + permit fees); omit it and every one of those but the
+ * commitment payments is missing, which shows as margin the job has not
+ * earned. The health chip is derived from that margin, so an omitted argument
+ * paints a bleeding job green.
+ */
 export function computeProfitReport(
   projects: Project[],
   invoices: Invoice[],

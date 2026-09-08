@@ -1,8 +1,17 @@
 // In-app interactive tutorial — a guided walkthrough that actually gets
 // users to tap, swipe and try things instead of just reading text.
 //
-// Triggered from Settings → "Show Tutorial". Also auto-opens once after
-// first login via AsyncStorage key `mageid_tutorial_seen_v1`. Each step
+// Reached two ways: the Brain surface's Help action (app-wide, every screen —
+// components/brain/BrainSurface.tsx) and Settings → "Show Tutorial".
+//
+// It does NOT auto-open. This header claimed for months that it "auto-opens
+// once after first login"; nothing ever called hasSeenTutorial() and no such
+// path existed, so the claim sent every reader looking for code that was not
+// there (audit 2026-09-07). Auto-opening is also the wrong product call and was
+// decided against elsewhere: components/NextStepHero.tsx:17 calls this "a
+// 60-sec OPTIONAL orientation", and first run is being made shorter, not
+// longer. `mageid_tutorial_seen_v1` still records completion so the Help menu
+// can distinguish a first view from a replay. Each step
 // renders an interactive demo (tappable mock UI, drag target, quiz card,
 // or a "Try it now" deep-link into the real app). The user has to perform
 // the interaction to advance — that's the "interactive" part. Skip/close

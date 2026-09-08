@@ -219,7 +219,7 @@ function CheckRow({
                     <Text style={styles.flaggedTitle}>{f.title}</Text>
                     <Text style={styles.flaggedReason}>{f.reason}</Text>
                   </View>
-                  {onJumpToTask && <ChevronRight size={12} color={"#9AA3AD"} strokeWidth={1.75} />}
+                  {onJumpToTask && <ChevronRight size={12} color={themeColors.textMuted} strokeWidth={1.75} />}
                 </TouchableOpacity>
               ))}
             </View>

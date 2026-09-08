@@ -387,7 +387,7 @@ export default function WarrantiesScreen() {
 
         {list.length === 0 ? (
           <View style={styles.emptyState}>
-            <Shield size={36} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Shield size={36} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No warranties yet</Text>
             <Text style={styles.emptyDesc}>Track equipment, roofing, HVAC, and finish warranties to protect your clients and your liability.</Text>
           </View>
@@ -493,7 +493,7 @@ export default function WarrantiesScreen() {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingId ? 'Edit Warranty' : 'New Warranty'}</Text>
                   <TouchableOpacity onPress={() => setShowForm(false)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={"#9AA3AD"} strokeWidth={1.75} />
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
@@ -515,7 +515,7 @@ export default function WarrantiesScreen() {
                 )}
 
                 <Text style={styles.fieldLabel}>Title</Text>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof - 10-Year Manufacturer" placeholderTextColor={"#9AA3AD"} />
+                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof - 10-Year Manufacturer" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.fieldLabel}>Category</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
@@ -531,24 +531,24 @@ export default function WarrantiesScreen() {
                 </ScrollView>
 
                 <Text style={styles.fieldLabel}>Provider / Manufacturer</Text>
-                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="e.g. GAF, Carrier, Kohler" placeholderTextColor={"#9AA3AD"} />
+                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="e.g. GAF, Carrier, Kohler" placeholderTextColor={themeColors.textMuted} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Start Date</Text>
-                    <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={"#9AA3AD"} />
+                    <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Duration (months)</Text>
-                    <TextInput style={styles.input} value={durationMonths} onChangeText={setDurationMonths} keyboardType="number-pad" placeholder="12" placeholderTextColor={"#9AA3AD"} />
+                    <TextInput style={styles.input} value={durationMonths} onChangeText={setDurationMonths} keyboardType="number-pad" placeholder="12" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
                 <Text style={styles.fieldLabel}>Coverage Details</Text>
-                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={"#9AA3AD"} multiline />
+                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={themeColors.textMuted} multiline />
 
                 <Text style={styles.fieldLabel}>Notes</Text>
-                <TextInput style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={"#9AA3AD"} multiline />
+                <TextInput style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={themeColors.textMuted} multiline />
 
                 {editingId && (() => {
                   const editingWarranty = list.find(w => w.id === editingId);
@@ -593,7 +593,7 @@ export default function WarrantiesScreen() {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Log a Claim</Text>
                   <TouchableOpacity onPress={() => setClaimFor(null)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={"#9AA3AD"} strokeWidth={1.75} />
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
@@ -609,7 +609,7 @@ export default function WarrantiesScreen() {
                       value={claimDesc}
                       onChangeText={setClaimDesc}
                       placeholder="e.g. Roof leak over the kitchen window after the March storm"
-                      placeholderTextColor={"#9AA3AD"}
+                      placeholderTextColor={themeColors.textMuted}
                       multiline
                       testID="warranty-claim-description"
                     />
@@ -617,11 +617,11 @@ export default function WarrantiesScreen() {
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.fieldLabel}>Date reported</Text>
-                        <TextInput style={styles.input} value={claimDate} onChangeText={setClaimDate} placeholder="YYYY-MM-DD" placeholderTextColor={"#9AA3AD"} testID="warranty-claim-date" />
+                        <TextInput style={styles.input} value={claimDate} onChangeText={setClaimDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} testID="warranty-claim-date" />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.fieldLabel}>Cost so far</Text>
-                        <TextInput style={styles.input} value={claimCost} onChangeText={setClaimCost} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={"#9AA3AD"} testID="warranty-claim-cost" />
+                        <TextInput style={styles.input} value={claimCost} onChangeText={setClaimCost} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={themeColors.textMuted} testID="warranty-claim-cost" />
                       </View>
                     </View>
 

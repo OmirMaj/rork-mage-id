@@ -24,7 +24,7 @@ import {
   CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight, Receipt,
 } from 'lucide-react-native';
 import { MageContract } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import Paywall from '@/components/Paywall';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -37,7 +37,10 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   fetchActiveContract, saveContract, setContractStatus,
   buildDraftContract, buildProposalFromRevision, defaultPaymentSchedule,
+  contractTimeline, contractTimelineSentence, suggestContractTimeline,
 } from '@/utils/contractEngine';
+import DatePickerModal from '@/components/DatePickerModal';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import {
   milestoneBillability, milestoneBlockMessage, deriveMilestoneInvoiceLine, milestoneInvoiceNote,
   type MilestoneBillability,
@@ -110,7 +113,11 @@ function ContractScreenInner() {
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
+  // Reached from the sidebar (CLIENT ▸ Contracts), universal search or a deep
+  // link there is no projectId, so ToolProjectPicker sets one locally
+  // (field-ticket pattern). A pick outranks the param so a STALE id in the URL
+  // — deleted project, old shared link — can't make the picker inert.
+  const { projectId: paramProjectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
   const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject } = useProjects();
   // The converted_to_contract snapshot was building its cost book from closed
   // jobs ALONE — no receipts, no self-perform labor, no seeds — so it graded
@@ -120,13 +127,18 @@ function ContractScreenInner() {
   const laborSamples = useLaborCostSamples();
   const { seeds } = useCostSeeds();
   const { isFree } = useTierAccess();
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = projectId ? getProject(projectId) : undefined;
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
   const [contract, setContract] = useState<ProjectContract | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signatureModal, setSignatureModal] = useState(false);
+  const [startDatePicker, setStartDatePicker] = useState(false);
 
   // Load (or seed a draft for) this project's contract.
   useEffect(() => {
@@ -443,6 +455,11 @@ function ContractScreenInner() {
         const portalUrl = project ? portalShareUrl(portalSettings) : null;
         if (project && portalUrl && recipients.length > 0) {
           const companyName = settings?.branding?.companyName || 'MAGE ID';
+          // CONTRACT-TIME-1: the homeowner is being asked to counter-sign a
+          // completion date. Stated from the SAME helper the screen renders, so
+          // the email and the document can never name different days. Omitted
+          // entirely when either half is blank — never a half-stated timeline.
+          const emailTimeline = contractTimeline(contract.startDate, contract.durationDays);
           const senderName = settings?.branding?.contactName || companyName;
           const senderEmail = settings?.branding?.email;
           const greetingFirstName = (recipients[0].name ?? '').split(' ')[0] || 'there';
@@ -461,6 +478,7 @@ function ContractScreenInner() {
                  <strong style="color:#0B0D10;">Project:</strong> ${escapeHtml(project.name)}<br/>
                  ${project.location ? `<strong style="color:#0B0D10;">Location:</strong> ${escapeHtml(project.location)}<br/>` : ''}
                  <strong style="color:#0B0D10;">Contract value:</strong> ${escapeHtml(formatMoney(contract.contractValue ?? 0))}
+                 ${emailTimeline ? `<br/><strong style="color:#0B0D10;">Timeline:</strong> ${escapeHtml(emailTimeline.startLabel)} to ${escapeHtml(emailTimeline.completionLabel)} (${emailTimeline.durationDays} calendar days)` : ''}
                </p>`,
             ].join(''),
             cta: { label: 'Review & sign in your portal', href: portalUrl },
@@ -556,17 +574,18 @@ function ContractScreenInner() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Contracts"
+          message="A contract — scope, payment schedule, allowances, signatures — is written against one project."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MageContract size={36} color={themeColors.accent} />}
-          title="No contract open yet"
-          message="Contracts (scope, payment schedule, allowances, signatures) live inside a project. To start one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Contracts inside the project tile grid.',
             'Edit the seeded draft, sign as the GC, and send to the homeowner for counter-signature.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );
@@ -583,6 +602,14 @@ function ContractScreenInner() {
   const isLocked = contract.status === 'sent' || contract.status === 'signed';
   const totalScheduled = contract.paymentSchedule.reduce((s, m) => s + (m.amount ?? 0), 0);
   const scheduleMatchesValue = Math.abs(totalScheduled - contract.contractValue) < 1;
+
+  // CONTRACT-TIME-1: the two columns that existed, round-tripped, and were
+  // read by nothing. `timeline` is non-null only when BOTH halves are set —
+  // a completion date derived from a blank start is not a date.
+  const timeline = contractTimeline(contract.startDate, contract.durationDays);
+  // Offered, never applied. `basis` states the working→calendar conversion so
+  // the GC is not signing 90 working days under a 90-calendar-day label.
+  const timelineSuggestion = project && !timeline ? suggestContractTimeline(project) : null;
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
@@ -647,6 +674,92 @@ function ContractScreenInner() {
               placeholderTextColor={themeColors.textMuted}
             />
           </View>
+        </View>
+
+        {/* Timeline — CONTRACT-TIME-1. Several states require a start date and
+            a completion date on a residential contract, and clause 7 binds a
+            change of timeline to a written Change Order for a timeline the
+            document did not state. Calendar days, because that is what
+            "substantial completion within N days" means to a homeowner. */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Timeline</Text>
+          <Text style={styles.cardHelper}>
+            When work starts and how long it runs. Both are binding terms — changes to either need a
+            signed Change Order (clause 7).
+          </Text>
+
+          <View style={styles.timelineRow}>
+            <View style={styles.timelineCol}>
+              <Text style={styles.timelineFieldLabel}>Start date</Text>
+              <TouchableOpacity
+                style={[styles.timelineField, isLocked && styles.inputDisabled]}
+                onPress={() => !isLocked && setStartDatePicker(true)}
+                disabled={isLocked}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Pick the contract start date"
+                testID="contract-start-date"
+              >
+                <Calendar size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={[styles.timelineFieldText, !contract.startDate && styles.timelineFieldPlaceholder]}>
+                  {contract.startDate ? formatCalendarDay(contract.startDate) : 'Pick a date'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.timelineCol}>
+              <Text style={styles.timelineFieldLabel}>Duration (calendar days)</Text>
+              <TextInput
+                style={[styles.input, { marginBottom: 0 }, isLocked && styles.inputDisabled]}
+                value={contract.durationDays ? String(contract.durationDays) : ''}
+                onChangeText={v => {
+                  const n = Number(v.replace(/[^0-9]/g, ''));
+                  updateContract('durationDays', n > 0 ? n : undefined);
+                }}
+                keyboardType="numeric"
+                editable={!isLocked}
+                placeholder="e.g. 120"
+                placeholderTextColor={themeColors.textMuted}
+                testID="contract-duration-days"
+              />
+            </View>
+          </View>
+
+          {timeline ? (
+            <Text style={styles.timelineSentence} testID="contract-timeline-sentence">
+              {contractTimelineSentence(timeline)}
+            </Text>
+          ) : (
+            // A blocked state that says WHICH half is missing, not "incomplete".
+            <Text style={styles.timelineMissing} testID="contract-timeline-missing">
+              {contract.startDate
+                ? 'Add a duration and this contract will state its completion date.'
+                : contract.durationDays
+                  ? 'Add a start date and this contract will state its completion date.'
+                  : 'No dates set — this contract will not state when work starts or finishes.'}
+            </Text>
+          )}
+
+          {timelineSuggestion && !isLocked ? (
+            <TouchableOpacity
+              style={styles.timelineSuggest}
+              onPress={() => {
+                setContract(prev => prev ? {
+                  ...prev,
+                  startDate: timelineSuggestion.startDate,
+                  durationDays: timelineSuggestion.durationDays,
+                } : prev);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              testID="contract-timeline-suggest"
+            >
+              <Text style={styles.timelineSuggestTitle}>
+                Use my schedule — {formatCalendarDay(timelineSuggestion.startDate)} to {timelineSuggestion.completionLabel}
+              </Text>
+              <Text style={styles.timelineSuggestBasis}>{timelineSuggestion.basis}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Scope */}
@@ -913,6 +1026,29 @@ function ContractScreenInner() {
         onSign={handleSignAndSend}
         signing={signing}
         defaultName={user?.name ?? user?.email ?? ''}
+      />
+
+      {/* CONTRACT-TIME-1. This render was MISSING on first pass: the field
+          above set `startDatePicker` true and nothing listened, so the start
+          date was a dead tap on every platform and the whole timeline card was
+          inert unless the project happened to have a schedule to seed from.
+          scripts/validate-money-definitions.ts §6 now asserts the render, not
+          just the control.
+
+          DatePickerModal emits a NOON-UTC instant; `.slice(0, 10)` takes the
+          day the GC actually tapped. `toCalendarDayString(new Date(iso))` reads
+          LOCAL components off that instant, which in UTC+13 is the NEXT day —
+          a contract commencing one day after the one he picked. */}
+      <DatePickerModal
+        visible={startDatePicker}
+        value={contract.startDate ?? ''}
+        allowFuture
+        title="Contract start date"
+        onClose={() => setStartDatePicker(false)}
+        onChange={(iso) => {
+          updateContract('startDate', iso.slice(0, 10));
+          setStartDatePicker(false);
+        }}
       />
     </View>
   );
@@ -1195,6 +1331,38 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   inputDisabled: { opacity: 0.7 },
   inputMultiline: { minHeight: 110, paddingTop: 11 },
+
+  // Timeline card (CONTRACT-TIME-1).
+  timelineRow: { flexDirection: 'row', gap: 10 },
+  timelineCol: { flex: 1, minWidth: 0 },
+  timelineFieldLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textSecondary,
+    marginBottom: 6,
+  },
+  timelineField: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
+    paddingHorizontal: 12, paddingVertical: 11,
+  },
+  timelineFieldText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  timelineFieldPlaceholder: { color: themeColors.textMuted },
+  // The sentence that goes on the document — same helper, so it reads exactly
+  // as it will in the homeowner's email.
+  timelineSentence: {
+    fontSize: Type.caption1.fontSize, color: themeColors.text, lineHeight: 18, marginTop: 12,
+  },
+  timelineMissing: {
+    fontSize: Type.caption1.fontSize, color: themeColors.warningLabel, lineHeight: 18, marginTop: 12,
+  },
+  // accentSoft fill with accentLabel ink: this is 11–13px type, and the raw
+  // accent behind or as white type misses AA (2.87:1).
+  timelineSuggest: {
+    marginTop: 12, padding: 12, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.line,
+  },
+  timelineSuggestTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: themeColors.accentLabel },
+  timelineSuggestBasis: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, marginTop: 4, lineHeight: 16 },
   inputTermsMultiline: { minHeight: 200, paddingTop: 11, fontSize: Type.caption1.fontSize, lineHeight: 18 },
 
   amountField: {

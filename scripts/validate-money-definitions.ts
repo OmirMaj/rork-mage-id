@@ -1,6 +1,8 @@
 // validate-money-definitions.ts — pins ONE definition of "actual cost" across
-// the two engines that compute it, and pins the path an approved change order
-// takes to become money.
+// the two engines that compute it, pins the path an approved change order
+// takes to become money, and pins the two money TERMS a contractor commits to
+// that the app captured and then dropped: the contract's timeline, and the
+// price he quoted a lead.
 //
 // WHY THIS EXISTS. The app-experience audit (docs/audits/2026-09-07-app-
 // experience-audit.md) named this the single most valuable fix in the product,
@@ -33,6 +35,10 @@
 //   • an approved CO is billable exactly once, through a namespaced key both
 //     entry points read from the same helper (source-level — bun cannot import
 //     a .tsx screen).
+//   • a contract states a start date AND a completion date, or states neither
+//     — never half a timeline (CONTRACT-TIME-1).
+//   • the price a GC quoted a lead survives the sheet that produced it
+//     (QUOTE-PERSIST-1).
 //
 // Run via: bun run test:money-definitions
 
@@ -42,8 +48,13 @@ import { suggestCostToDate } from '../utils/wip';
 import {
   billedAgainstChangeOrder, changeOrderBillKey, changeOrderBillingState, isChangeOrderBillKey,
 } from '../utils/changeOrderBilling';
+import {
+  contractTimeline, contractTimelineSentence, suggestContractTimeline,
+} from '../utils/contractTimelineCore';
+import { quoteTouchBody, quotedFromTouches, QUOTE_LINE } from '../utils/leadQuoteCore';
 import type {
   Project, Invoice, Commitment, LinkedEstimate, MaterialReceipt, TimeEntry,
+  LeadTouch, ProposalTier, TieredProposal,
 } from '../types';
 // fileURLToPath + join because the repo path contains a space.
 import { readFileSync } from 'node:fs';
@@ -192,11 +203,13 @@ console.log('\nactual cost is money paid OUT (MONEY-DEF-1):');
   });
   close('paid sub + receipt + priced hours sum, client cash excluded',
     jc.actual, 100_000 + 25_000 + 600);
+  // `.length`: MONEY-DRILL-1 turned these counters into id arrays so the phase
+  // drill-down can name WHICH records built the line. The counts are unchanged.
   const src = jc.byPhase.reduce(
     (t, p) => ({
-      commitments: t.commitments + p.sources.commitments,
-      receipts: t.receipts + p.sources.receipts,
-      timeEntries: t.timeEntries + p.sources.timeEntries,
+      commitments: t.commitments + p.sources.commitments.length,
+      receipts: t.receipts + p.sources.receipts.length,
+      timeEntries: t.timeEntries + p.sources.timeEntries.length,
     }),
     { commitments: 0, receipts: 0, timeEntries: 0 },
   );
@@ -385,6 +398,210 @@ function coInvoice(
   ok('neither screen tells the GC to add a negative line by hand',
     !/negative line/i.test(stripComments(co)) && !/negative line/i.test(stripComments(bill)),
     'app/invoice.tsx has no add-a-line form — that instruction cannot be followed');
+}
+
+// ── 6. The contract states its own timeline (CONTRACT-TIME-1) ────────────
+// `start_date` and `duration_days` are columns that round-trip through the row
+// mapping and were set to undefined by both constructors and read by nothing,
+// while DEFAULT_TERMS clause 7 binds a change of TIMELINE to a written Change
+// Order for a timeline the document never stated.
+
+console.log('\na contract states when work starts and finishes (CONTRACT-TIME-1):');
+{
+  const t = contractTimeline('2026-03-02', 120);
+  expect('120 calendar days from Mar 2 completes Jun 29 (inclusive of day 1)',
+    t ? [t.startDate, t.completionDate] : null, ['2026-03-02', '2026-06-29']);
+  // The off-by-one that would put a wrong completion date on a signed contract.
+  expect('a 1-day job starts and finishes the same day',
+    contractTimeline('2026-03-02', 1)?.completionDate, '2026-03-02');
+  expect('…and a 2-day job finishes the next day',
+    contractTimeline('2026-03-02', 2)?.completionDate, '2026-03-03');
+  // A calendar day is a day on a calendar. Crossing a month and a DST boundary
+  // must not shift it (US DST starts 2026-03-08).
+  expect('the span crosses a DST change without losing a day',
+    contractTimeline('2026-03-01', 31)?.completionDate, '2026-03-31');
+  expect('…and a leap February is 29 days', contractTimeline('2028-02-01', 29)?.completionDate, '2028-02-29');
+}
+{
+  // Half a timeline is not a timeline. A document must never print a
+  // completion date derived from a blank.
+  ok('a start date with no duration yields nothing', contractTimeline('2026-03-02', undefined) === null);
+  ok('a duration with no start date yields nothing', contractTimeline(undefined, 120) === null);
+  ok('a zero duration yields nothing', contractTimeline('2026-03-02', 0) === null);
+  ok('a negative duration yields nothing', contractTimeline('2026-03-02', -30) === null);
+  ok('a NaN duration yields nothing (the input is free text)', contractTimeline('2026-03-02', Number.NaN) === null);
+  ok('a non-date start yields nothing', contractTimeline('soon', 120) === null);
+}
+{
+  const t = contractTimeline('2026-03-02', 120)!;
+  const sentence = contractTimelineSentence(t);
+  ok('the document sentence names both dates and the day count',
+    sentence.includes('Mar 2, 2026') && sentence.includes('Jun 29, 2026') && sentence.includes('120 calendar days'),
+    sentence);
+  ok('…and says CALENDAR days, not just "days"', /calendar days/.test(sentence), sentence);
+  ok('…and ties a change of timeline back to a written Change Order',
+    /written Change Order/.test(sentence), sentence);
+}
+{
+  // The suggestion is grounded in the GC's own schedule and states its
+  // conversion. 90 working days at 5 days/week is 126 calendar days, and a GC
+  // who signed the smaller number would owe the larger one.
+  const scheduled = {
+    id: 'p1', name: 'Henderson',
+    schedule: { startDate: '2026-03-02', totalDurationDays: 90, workingDaysPerWeek: 5, tasks: [] },
+  } as unknown as Project;
+  const s = suggestContractTimeline(scheduled);
+  // 90 working days is 18 five-day weeks: Mon Mar 2 through the Friday of week
+  // 18 is 124 calendar days inclusive. NOT the 90 × 7/5 = 126 a back-of-envelope
+  // conversion gives — which is why this runs the schedule's own calendar
+  // instead of multiplying (the 126 was this guard's first, wrong, expectation).
+  ok('a 90-working-day schedule at 5 days/week suggests 124 calendar days',
+    s?.durationDays === 124, String(s?.durationDays));
+  ok('…finishing on the schedule’s own last working day',
+    s?.completionDate === '2026-07-03', s?.completionDate);
+  ok('…and the basis states the conversion it made',
+    !!s && /90 working days at 5 days\/week/.test(s.basis) && /124 calendar days/.test(s.basis),
+    s?.basis);
+  ok('…and it is NOT the raw working-day count',
+    s?.durationDays !== 90, 'shipping working days under a calendar-day label is the trap');
+
+  const sevenDay = {
+    ...scheduled,
+    schedule: { startDate: '2026-03-02', totalDurationDays: 90, workingDaysPerWeek: 7, tasks: [] },
+  } as unknown as Project;
+  ok('a 7-day-a-week schedule suggests exactly its working days',
+    suggestContractTimeline(sevenDay)?.durationDays === 90);
+
+  const withClosures = {
+    ...scheduled,
+    schedule: {
+      startDate: '2026-03-02', totalDurationDays: 10, workingDaysPerWeek: 5, tasks: [],
+      nonWorkingDates: ['2026-03-05', '2026-03-06'],
+    },
+  } as unknown as Project;
+  const c = suggestContractTimeline(withClosures);
+  ok('logged closures push the completion date out and are disclosed',
+    c?.durationDays === 16 && /2 logged closures/.test(c.basis), JSON.stringify(c));
+
+  ok('a project with no schedule suggests nothing (never invents a date)',
+    suggestContractTimeline({ id: 'p2', name: 'x' } as unknown as Project) === null);
+  ok('a schedule with no start date suggests nothing',
+    suggestContractTimeline({
+      id: 'p3', name: 'x', schedule: { totalDurationDays: 30, workingDaysPerWeek: 5, tasks: [] },
+    } as unknown as Project) === null);
+}
+{
+  const engine = read('utils/contractEngine.ts');
+  ok('both contract constructors seed the timeline instead of hardcoding undefined',
+    (engine.match(/\.\.\.timelineSeed\(/g) ?? []).length === 2
+    && !/startDate: undefined/.test(engine),
+    'buildDraftContract and buildProposalFromRevision both set it to undefined before CONTRACT-TIME-1');
+  ok('…and saveContract still writes both columns',
+    /start_date: c\.startDate \?\? null/.test(engine) && /duration_days: c\.durationDays \?\? null/.test(engine));
+
+  const screen = read('app/contract.tsx');
+  ok('the contract editor captures a start date and a duration',
+    /testID="contract-start-date"/.test(screen) && /testID="contract-duration-days"/.test(screen),
+    'the columns existed; nothing on any screen ever set them');
+  // THE ONE THIS SECTION SHIPPED GREEN WHILE BROKEN. The first cut imported
+  // DatePickerModal, gave the field a testID and an onPress that set
+  // `startDatePicker` true — and never RENDERED the modal. Every assertion
+  // above passed on a control that could not be operated on any platform.
+  // A capture field is not captured until something listens to its state.
+  ok('…and the start-date field actually OPENS a picker',
+    /setStartDatePicker\(true\)/.test(screen)
+    && /<DatePickerModal[\s\S]{0,400}visible=\{startDatePicker\}/.test(screen),
+    'the state was set and nothing rendered — a dead tap, not a date');
+  // DatePickerModal emits a noon-UTC instant. Reading LOCAL components off it
+  // (toCalendarDayString / toIsoDate) names the NEXT day east of UTC+12, which
+  // on a binding document is a commencement date the GC did not pick.
+  ok('…and stores the day he tapped, not the local day of a UTC instant',
+    /onChange=\{\(iso\) => \{[\s\S]{0,200}iso\.slice\(0, 10\)/.test(screen),
+    'noon UTC read through local components is tomorrow in UTC+13');
+  ok('…and renders the sentence from the shared helper, not its own wording',
+    /contractTimelineSentence\(timeline\)/.test(screen));
+  ok('…and when it cannot state a timeline it says WHICH half is missing',
+    /Add a duration and this contract/.test(screen) && /Add a start date and this contract/.test(screen),
+    'a blocked control that does not say why reads as a broken feature');
+  ok('…and the schedule suggestion shows its basis before the GC accepts it',
+    /timelineSuggestion\.basis/.test(screen),
+    'a one-tap fill whose conversion is hidden is a number the GC did not choose');
+  ok('the homeowner email states the timeline it asks them to counter-sign',
+    /emailTimeline\.completionLabel/.test(screen) && /calendar days/.test(screen));
+  ok('…from the same helper, so email and screen cannot name different days',
+    /const emailTimeline = contractTimeline\(contract\.startDate, contract\.durationDays\)/.test(screen));
+}
+
+// ── 7. The price a GC quoted survives the sheet (QUOTE-PERSIST-1) ────────
+// "Mark proposal sent" wrote one sentence to the touch log and nothing else,
+// so the tier inclusions, the assumptions and the grounding basis were gone
+// the moment the modal closed.
+
+console.log('\nthe quote a GC sent is recoverable (QUOTE-PERSIST-1):');
+
+const tier = (amount: number): ProposalTier => ({
+  key: 'better', label: 'Better', tagline: 'Recommended', amount,
+  inclusions: ['Demo and haul-off', 'Semi-custom cabinets'],
+});
+const proposal = (over: Partial<TieredProposal> = {}): TieredProposal => ({
+  kind: 'tiered_proposal_v1', tiers: [tier(48_000)], recommendedTier: 'better',
+  message: 'Here is our proposal.', assumptions: ['Existing layout retained'],
+  source: 'ai', basis: 'history', groundingRateCount: 12, ...over,
+} as TieredProposal);
+const touch = (body: string, occurredAt: string): LeadTouch =>
+  ({ id: body.slice(0, 6) + occurredAt, kind: 'email', body, occurredAt }) as LeadTouch;
+
+{
+  const body = quoteTouchBody(tier(48_000), proposal());
+  const back = quotedFromTouches([touch(body, '2026-03-03T10:00:00.000Z')]);
+  expect('the amount round-trips through the activity log', back?.amount, 48_000);
+  ok('…the inclusions survive', /Demo and haul-off/.test(back?.detail ?? ''), back?.detail);
+  ok('…the assumptions survive', /Existing layout retained/.test(back?.detail ?? ''), back?.detail);
+  ok('…and the grounding basis is recorded WITH the number it qualifies',
+    /anchored on 12 learned rates/.test(back?.detail ?? ''), back?.detail);
+  ok('a naked AI guess is recorded as one, not as learned rates',
+    /no budget or cost history/.test(quoteTouchBody(tier(48_000), proposal({ basis: 'ai_guess' }))),
+    'a quote must not read three weeks later as better-grounded than it was');
+  ok('the first line stays a human sentence for the timeline',
+    body.split('\n')[0] === 'Sent Instant Bid proposal — Better tier.', body.split('\n')[0]);
+  ok('…with the machine-readable line anchored on its own line',
+    body.split('\n')[1].startsWith(QUOTE_LINE), body.split('\n')[1]);
+}
+{
+  // A hand-typed note that happens to contain a dollar figure is NOT a quote
+  // the GC sent — this is the whole reason the marker is anchored.
+  const notes = [
+    touch('Called — they said $60,000 felt high', '2026-03-04T10:00:00.000Z'),
+    touch('Texted about the tile allowance, $2,500 or so', '2026-03-05T10:00:00.000Z'),
+  ];
+  ok('a hand-typed note with a dollar amount is not read back as a quote',
+    quotedFromTouches(notes) === null, JSON.stringify(quotedFromTouches(notes)));
+  ok('an empty log yields nothing', quotedFromTouches([]) === null && quotedFromTouches(undefined) === null);
+  ok('a $0 quote is not a quote',
+    quotedFromTouches([touch(quoteTouchBody(tier(0), proposal()), '2026-03-03T10:00:00.000Z')]) === null);
+}
+{
+  // The failure that matters most: a re-quote must not read back as the
+  // original price. Order is decided by occurredAt, not by array position.
+  const first = touch(quoteTouchBody(tier(48_000), proposal()), '2026-03-03T10:00:00.000Z');
+  const second = touch(quoteTouchBody(tier(52_500), proposal()), '2026-04-10T10:00:00.000Z');
+  expect('the LATEST quote wins, whatever order the log is in',
+    [quotedFromTouches([second, first])?.amount, quotedFromTouches([first, second])?.amount],
+    [52_500, 52_500]);
+}
+{
+  const modal = read('components/InstantBidProposalModal.tsx');
+  ok('Mark proposal sent writes the whole quote, not a summary sentence',
+    /addLeadTouch\(lead\.id, 'email', quoteTouchBody\(tier, proposal\)\)/.test(modal),
+    'the old body was `Sent Instant Bid proposal — ${tier.label} ${formatMoney(tier.amount)}.`');
+  const lead = read('app/lead-detail.tsx');
+  ok('the lead screen shows what the GC quoted, not only the homeowner’s budget',
+    /testID="lead-quoted-card"/.test(lead) && /quotedFromTouches\(existing\?\.touches\)/.test(lead));
+  ok('…and labels the homeowner’s range as theirs, so the two are not confused',
+    /Budget min \(theirs\)/.test(lead) && /Budget max \(theirs\)/.test(lead));
+  ok('…and says where the number came from rather than implying a stored field',
+    /from your activity log/.test(lead),
+    'Lead has no quotedAmount column; the screen must not pretend otherwise');
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

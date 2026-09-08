@@ -27,6 +27,7 @@ import {
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
+import { neutralInk } from '@/components/ui/ink';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -105,11 +106,17 @@ interface ReviewableItem extends AiPunchItem {
   discarded?: boolean;
 }
 
-const PRIORITY_COLORS: Record<PunchItemPriority, string> = {
-  high: "#C84038",
-  medium: Colors.warningLabel,
-  low: "#9AA3AD",
-};
+// A factory: `low` renders as a chip LABEL on a wash of itself, and the value
+// it carried (#9AA3AD, the dark theme's textSecondary) measured 2.5:1 there on
+// a light screen. `Colors.warningLabel` beside it is a getter, so it also froze
+// to whichever theme was active at import.
+function priorityColors(t: ThemeColors): Record<PunchItemPriority, string> {
+  return {
+    high: t.dangerLabel,
+    medium: t.warningLabel,
+    low: neutralInk(t),
+  };
+}
 
 export default function AiPunchScreen() {
   // AI Punch produces punch-list items — a Business feature (punch_list_closeout).
@@ -135,6 +142,7 @@ export default function AiPunchScreen() {
 
 function AiPunchScreenInner() {
   const { colors: themeColors } = useTheme();
+  const priorityInk = priorityColors(themeColors);
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
@@ -647,7 +655,7 @@ function AiPunchScreenInner() {
                         value={item.editedDescription}
                         onChangeText={t => updateReviewItem(item.id, { editedDescription: t })}
                         placeholder="Description"
-                        placeholderTextColor={"#9AA3AD"}
+                        placeholderTextColor={themeColors.textMuted}
                         multiline
                         editable={!item.saved}
                       />
@@ -657,13 +665,13 @@ function AiPunchScreenInner() {
                           value={item.editedLocation}
                           onChangeText={t => updateReviewItem(item.id, { editedLocation: t })}
                           placeholder="Location"
-                          placeholderTextColor={"#9AA3AD"}
+                          placeholderTextColor={themeColors.textMuted}
                           editable={!item.saved}
                         />
                       </View>
                       <View style={styles.reviewRow}>
-                        <View style={[styles.priorityPill, { backgroundColor: PRIORITY_COLORS[item.editedPriority] + '22' }]}>
-                          <Text style={[styles.priorityText, { color: PRIORITY_COLORS[item.editedPriority] }]}>{item.editedPriority.toUpperCase()}</Text>
+                        <View style={[styles.priorityPill, { backgroundColor: priorityInk[item.editedPriority] + '22' }]}>
+                          <Text style={[styles.priorityText, { color: priorityInk[item.editedPriority] }]}>{item.editedPriority.toUpperCase()}</Text>
                         </View>
                         <Text style={styles.tradeText}>{item.editedTrade}</Text>
                       </View>

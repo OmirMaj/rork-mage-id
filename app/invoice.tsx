@@ -78,7 +78,7 @@ import {
 } from '@/utils/invoiceBilling';
 import { billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { formatMoney } from '@/utils/formatters';
-import { markMilestoneInvoiced } from '@/utils/contractEngine';
+import { markMilestoneInvoiced, markMilestonePaidByInvoice } from '@/utils/contractEngine';
 import {
   reminderEligibility, reminderBlockMessage, reminderSentLabel, dunningStageLabel,
 } from '@/utils/billingFlowCore';
@@ -1013,6 +1013,32 @@ function InvoiceInner() {
       void mintPayLinkFor(existingInvoice, newBalance).catch((err) => {
         console.warn('[Invoice] re-mint after payment failed:', err);
       });
+    }
+
+    // Close the milestone lifecycle. markMilestoneInvoiced wrote 'invoiced'
+    // when this invoice was created; until now NOTHING wrote 'paid', so
+    // computeContractPaid always returned 0 and the two PAID branches on the
+    // contract screen (:1087, :1201) could never render — a GC whose homeowner
+    // had paid the foundation draw still saw it as merely billed, on the screen
+    // whose whole job is telling him where the contract stands
+    // (audit 2026-09-07, built-but-unreachable #7).
+    //
+    // Keyed on `sourceContractId` stored on the invoice at :521, NOT the
+    // `contractId` route param — that param only exists when the GC arrived
+    // from the contract screen's one-tap flow, and a payment is almost always
+    // recorded later, from the invoice list, with no params at all.
+    //
+    // Only when the invoice is fully settled: a partial payment has not paid
+    // the draw. Fire-and-forget, like the re-mint above — the payment is
+    // already recorded, and a failed flip must never roll it back.
+    if (newStatus === 'paid' && existingInvoice.sourceContractId) {
+      void markMilestonePaidByInvoice(existingInvoice.sourceContractId, existingInvoice.id)
+        .then((outcome) => {
+          if (outcome === 'failed' || outcome === 'not_found') {
+            console.warn('[Invoice] milestone paid-flip did not land:', outcome);
+          }
+        })
+        .catch((err) => { console.warn('[Invoice] milestone paid-flip threw:', err); });
     }
 
     setShowPaymentModal(false);

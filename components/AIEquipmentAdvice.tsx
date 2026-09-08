@@ -257,7 +257,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       </Text>
 
       <View style={styles.reconsiderRow}>
-        <ArrowRight size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+        <ArrowRight size={12} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.reconsiderText}>{result.reconsiderWhen}</Text>
       </View>
     </View>

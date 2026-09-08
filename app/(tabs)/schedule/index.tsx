@@ -58,7 +58,6 @@ import {
   formatShortDate,
   getTaskDateRange,
   getStatusLabel,
-  getStatusColor,
   getTaskBorderColor,
   suggestDuration,
   buildScheduleFromTasks,
@@ -91,6 +90,7 @@ import AIScheduleRisk from '@/components/AIScheduleRisk';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface, taskStatusInk, labelOn } from '@/components/ui';
 import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 import DatePickerModal from '@/components/DatePickerModal';
@@ -181,6 +181,21 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const desktopStyles = useThemedStyles(makeDesktopStyles);
+  // useMemo, not a bare call: renderTaskCard below is a useCallback that closes
+  // over this, and a fresh object every render would either go stale (left out
+  // of the deps) or defeat the memo (put in them). themeColors is itself
+  // memoised by ThemeContext, so this changes only when the theme does.
+  const statusInk = useMemo(() => taskStatusInk(themeColors), [themeColors]);
+  // TOTAL, the way `getStatusColor` was. That function had a `default:` arm;
+  // a Record lookup does not, and `task.status` is only required by the type —
+  // TaskInspector still reads `task.status ?? 'not_started'`, and a schedule
+  // persisted before the field existed hydrates without it. `undefined + '14'`
+  // is the string "undefined14", which RN's normalizeColor rejects: an
+  // invisible status chip and a colourless progress bar rather than a grey one.
+  const inkFor = useCallback(
+    (s: ScheduleTask['status'] | undefined) => statusInk[s ?? 'not_started'] ?? statusInk.not_started,
+    [statusInk],
+  );
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
 
@@ -1130,7 +1145,26 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [healthScore]);
 
   const renderTaskCard = useCallback((task: ScheduleTask) => {
-    const statusColor = getStatusColor(task.status);
+    // statusInk, not getStatusColor: `utils/scheduleEngine.ts:getStatusColor`
+    // returns the same four raw signal hues the edit sheet used
+    // ({done:'#34C759', in_progress:'#007AFF', on_hold:'#FF9500',
+    // not_started:'#8E8E93'}), and every consumer on this screen paints them as
+    // 10pt CHIP TEXT on an 8% wash of themselves — #34C759 that way measures
+    // ~2.07:1. Same defect as the edit sheet, on the chips a GC actually reads.
+    //
+    // ONE value drives all four roles here — chip label, chip wash, dot, and
+    // the progress-bar fill — so the ink is what the dot and the bar take too.
+    // That is deliberate but it is a trade, not a free win: the bar and the dot
+    // read as deep green/blue rather than the iOS signal hues they used to.
+    // The alternative — `Colors.statusFills` for the graphics, ink for the
+    // words — means a second table and a per-role proof (that palette's
+    // `not_started` #8E9299 is 3.12:1 on white: over the 3:1 floor a dot has to
+    // clear, under the 4.5:1 a label does, so the two roles genuinely cannot
+    // share one value), and validate-contrast has no check for the graphic
+    // floor yet. Until it does, one AA-clean value beats two half-proved ones.
+    // Hue still follows `utils/scheduleColors.ts:statusColor`, so a Gantt bar
+    // and a chip for the same task agree on WHICH colour, only on how deep.
+    const statusColor = inkFor(task.status);
     const borderColor = getTaskBorderColor(task, projectStartDate, activeSchedule?.workingDaysPerWeek ?? 5);
     const dateRange = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
     const variance = getTaskVariance(task);
@@ -1213,7 +1247,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </View>
       </TouchableOpacity>
     );
-  }, [activeSchedule, projectStartDate, handleProgressUpdate, getTaskVariance]);
+  }, [activeSchedule, projectStartDate, handleProgressUpdate, getTaskVariance, inkFor]);
 
   /**
    * BOARD VIRTUALIZATION.
@@ -1397,7 +1431,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   onPress={() => setTaskDetailModal(task)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.resourceTaskDot, { backgroundColor: getStatusColor(task.status) }]} />
+                  <View style={[styles.resourceTaskDot, { backgroundColor: inkFor(task.status) }]} />
                   <Text style={styles.resourceTaskName} numberOfLines={1}>{task.title}</Text>
                   <Text style={styles.resourceTaskDate}>
                     {dateRange ? formatShortDate(dateRange.start) : `Day ${task.startDay}`}
@@ -1409,7 +1443,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         );
       })}
     </View>
-  ), [crewMap, activeSchedule, projectStartDate]);
+  ), [crewMap, activeSchedule, projectStartDate, inkFor]);
 
   const renderSummary = useCallback(() => {
     if (!activeSchedule) return null;
@@ -1552,7 +1586,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           keyExtractor={item => item.id}
           showsVerticalScrollIndicator={false}
           renderItem={({ item: task }) => {
-            const statusColor = getStatusColor(task.status);
+            // statusInk, not getStatusColor — see renderTaskCard.
+            const statusColor = inkFor(task.status);
             const isSelected = taskDetailModal?.id === task.id;
             return (
               <TouchableOpacity
@@ -1575,7 +1610,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         />
       </View>
     );
-  }, [activeSchedule, filteredTasks, sortedTasks.length, taskDetailModal]);
+  }, [activeSchedule, filteredTasks, sortedTasks.length, taskDetailModal, inkFor]);
 
   const renderDesktopStatusBar = useCallback(() => {
     const completedCount = sortedTasks.filter(t => t.status === 'done').length;
@@ -1638,20 +1673,40 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   <>
                     <Text style={styles.fieldLabel}>Status</Text>
                     <View style={styles.statusChipRow}>
+                      {/* Both states are real text: unselected the hue IS the
+                          label on the sheet, selected it is the fill under one.
+                          The palette this replaced —
+                          {done:'#34C759', in_progress:'#007AFF',
+                           on_hold:'#FF9500', not_started:'#8E8E93'} — failed
+                          BOTH ways, at 2.22 / 4.02 / 2.20 / 3.26:1 each
+                          direction, on a control whose mis-tap silently
+                          rewrites progress to 100 or 0 (see onPress). The inks
+                          are the theme's AA-verified *Label tokens, shared with
+                          TaskInspector so the two schedule surfaces agree, and
+                          the selected label is measured rather than assumed
+                          white. */}
                       {(['not_started', 'in_progress', 'on_hold', 'done'] as ScheduleTask['status'][]).map(s => {
-                        const colors: Record<string, string> = { done: '#34C759', in_progress: '#007AFF', on_hold: '#FF9500', not_started: '#8E8E93' };
                         const labels: Record<string, string> = { done: 'Done', in_progress: 'In Progress', on_hold: 'On Hold', not_started: 'Not Started' };
+                        const ink = statusInk[s];
                         const active = taskDraft.status === s;
+                        // Done and Not started also REWRITE progress. Say so —
+                        // on screen it is only discoverable by watching the
+                        // "Progress — n%" label above change under your thumb.
+                        const alsoSets = s === 'done' ? ' — also sets progress to 100%'
+                          : s === 'not_started' ? ' — also sets progress to 0%' : '';
                         return (
                           <TouchableOpacity
                             key={s}
-                            style={[styles.modalStatusChip, { borderColor: colors[s], backgroundColor: active ? colors[s] : 'transparent' }]}
+                            style={[styles.modalStatusChip, { borderColor: ink, backgroundColor: active ? ink : 'transparent' }]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                            accessibilityLabel={`${labels[s]}${alsoSets}`}
                             onPress={() => {
                               const autoProgress = s === 'done' ? '100' : s === 'not_started' ? '0' : taskDraft.progress;
                               setTaskDraft(p => ({ ...p, status: s, progress: autoProgress }));
                             }}
                           >
-                            <Text style={[styles.modalStatusChipText, { color: active ? '#FFF' : colors[s] }]}>{labels[s]}</Text>
+                            <Text style={[styles.modalStatusChipText, { color: active ? labelOn(ink) : ink }]}>{labels[s]}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -2471,7 +2526,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             <Pressable style={[styles.modalCard, { maxHeight: '85%' }]} onPress={() => undefined}>
               {taskDetailModal && (() => {
                 const task = taskDetailModal;
-                const statusColor = getStatusColor(task.status);
+                // statusInk, not getStatusColor — see renderTaskCard.
+                const statusColor = inkFor(task.status);
                 return (
                   <ScrollView showsVerticalScrollIndicator={false}>
                     <View style={styles.modalHeader}>
@@ -3203,7 +3259,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <Pressable style={[styles.modalCard, { maxHeight: '85%' }]} onPress={() => undefined}>
             {taskDetailModal && (() => {
               const task = taskDetailModal;
-              const statusColor = getStatusColor(task.status);
+              // statusInk, not getStatusColor — see renderTaskCard.
+              const statusColor = inkFor(task.status);
               const dateRange = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
               const preds = getPredecessors(task, sortedTasks);
               const succs = getSuccessors(task.id, sortedTasks);
@@ -3290,7 +3347,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       <Text style={styles.detailDepTitle}>Predecessors</Text>
                       {preds.map(p => (
                         <View key={p.id} style={styles.detailDepRow}>
-                          <View style={[styles.detailDepDot, { backgroundColor: getStatusColor(p.status) }]} />
+                          <View style={[styles.detailDepDot, { backgroundColor: inkFor(p.status) }]} />
                           <Text style={styles.detailDepName} numberOfLines={1}>{p.title}</Text>
                           <Text style={styles.detailDepMeta}>{getDepTypeForDep(task, p.id)}</Text>
                         </View>
@@ -3303,7 +3360,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       <Text style={[styles.detailDepTitle, { color: themeColors.accent }]}>Successors</Text>
                       {succs.map(s => (
                         <View key={s.id} style={styles.detailDepRow}>
-                          <View style={[styles.detailDepDot, { backgroundColor: getStatusColor(s.status) }]} />
+                          <View style={[styles.detailDepDot, { backgroundColor: inkFor(s.status) }]} />
                           <Text style={styles.detailDepName} numberOfLines={1}>{s.title}</Text>
                         </View>
                       ))}
@@ -3534,7 +3591,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   healthScore: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const },
 
   projectPickerRow: { paddingHorizontal: 16, marginTop: 14, marginBottom: 10 },
-  projectPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, minHeight: 46, borderWidth: 1, borderColor: themeColors.line },
+  projectPickerBtn: { ...cardSurface(themeColors, { radius: 'lg', pad: 'none' }), flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 46 },
   projectPickerText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
 
   // Project chips — replaces the picker-button-then-modal flow.
@@ -3572,7 +3629,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
-  topBar: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: themeColors.line },
+  topBar: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   copilotEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
   copilotEntryText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
   copilotBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.full, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: themeColors.accent },
@@ -3641,7 +3698,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   phaseTaskRow: { paddingHorizontal: 16, paddingBottom: 8 },
   phaseHeaderSpaced: { marginTop: 6 },
 
-  taskCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: themeColors.line, gap: 8 },
+  taskCard: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), gap: 8 },
   taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, flexWrap: 'wrap' as const },
   varianceText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
@@ -3675,7 +3732,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   fieldModeSubtitle: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: -4 },
   fieldModeEmpty: { alignItems: 'center', paddingVertical: 40, gap: 10 },
   fieldModeEmptyText: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary },
-  fieldCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 10, borderWidth: 1, borderColor: themeColors.line },
+  fieldCard: { ...cardSurface(themeColors, { radius: 'panel' }), gap: 10 },
   fieldCardTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
   fieldProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fieldProgressTrack: { flex: 1, height: 10, borderRadius: 5, backgroundColor: themeColors.surfaceAlt, overflow: 'hidden' as const },
@@ -3690,7 +3747,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
   resourceContainer: { paddingHorizontal: 16, gap: 12 },
   resourceTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
-  resourceCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, gap: 10, borderWidth: 1, borderColor: themeColors.line },
+  resourceCard: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), gap: 10 },
   resourceCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resourceCrewInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   resourceCrewName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
@@ -3712,7 +3769,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   healthRingOuter: { width: 100, height: 100, borderRadius: 50, borderWidth: 6, alignItems: 'center', justifyContent: 'center' },
   healthRingScore: { fontSize: 30, fontWeight: '800' as const },
   healthRingLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontWeight: '600' as const },
-  summaryStatsRow: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: themeColors.line },
+  summaryStatsRow: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), flexDirection: 'row', justifyContent: 'space-around' },
   summaryStat: { alignItems: 'center' },
   summaryStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text },
   summaryStatLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
@@ -3751,7 +3808,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   saveBaselineBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 20, gap: 8 },
+  modalCard: { ...cardSurface(themeColors, { radius: '2xl', pad: 20, bordered: false }), gap: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   pickerOption: { backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 14, gap: 2, marginTop: 6 },

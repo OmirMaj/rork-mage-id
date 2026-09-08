@@ -227,6 +227,9 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Own router: the outer screen's `router` is not in scope here, and the
+  // sub-profile link on the submitted state needs to push.
+  const router = useRouter();
   const [financials, setFinancials] = useState<PrequalFinancials>(packet.financials);
   const [safety, setSafety] = useState<PrequalSafetyRecord>(packet.safety);
   const [insurance, setInsurance] = useState<PrequalInsurance>(packet.insurance);
@@ -557,12 +560,32 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       {/* Submit footer */}
       <View style={[styles.submitBar, { paddingBottom: 12 + insets.bottom }]}>
         {isSubmitted ? (
-          <View style={styles.submittedChip}>
-            <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
-            <Text style={styles.submittedText}>
-              {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
-            </Text>
-          </View>
+          <>
+            <View style={styles.submittedChip}>
+              <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
+              <Text style={styles.submittedText}>
+                {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
+              </Text>
+            </View>
+            {/* The sub has just handed over insurance, licences and safety
+                history and, until now, got nothing of their own back — they did
+                the GC's paperwork and left. /sub-profile is exactly that
+                something (work history across every GC who hired them, a
+                shareable credential, a referral for their OTHER GCs) and it had
+                ZERO click paths in the product; search only. This and
+                app/claim-crew.tsx are where a tradesperson actually lands
+                (audit 2026-09-07, built-but-unreachable #13). */}
+            <TouchableOpacity
+              style={styles.subProfileLink}
+              onPress={() => router.push('/sub-profile')}
+              accessibilityRole="link"
+              accessibilityLabel="See your own work history and reliability across every contractor who has hired you"
+            >
+              <Text style={styles.subProfileLinkText}>
+                See your work history across every contractor who has hired you
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity
             style={[styles.submitBtn, preview.overall !== 'pass' && styles.submitBtnDisabled]}
@@ -744,6 +767,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.successLight,
   },
   submittedText: { color: t.success, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  subProfileLink: { paddingTop: 10, paddingBottom: 2, alignItems: 'center' as const },
+  subProfileLinkText: { color: t.accentLabel, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, textAlign: 'center' as const },
 
   // Still used by the "Loading…" branch above; the failure branches render
   // components/ErrorState.tsx, which carries its own type + button styles.

@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send, CalendarDays } from 'lucide-react-native';
 import { MageSubmittal } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -105,14 +105,23 @@ function SubmittalScreenInner() {
   // prefill* params come from the floating-mic flow when the GC
   // dictated a submittal at the FAB. They pre-seed the new form so
   // the parsed fields land instantly without a manual re-fill.
-  const { projectId, submittalId, prefillTitle, prefillSpecSection, prefillSubmittedBy, prefillRequiredDate } = useLocalSearchParams<{
+  // Reached from the sidebar (FIELD OPS ▸ Submittals), Tools, universal search
+  // or a deep link there is no projectId, so ToolProjectPicker sets one locally
+  // (field-ticket pattern). A pick outranks the param so a STALE id in the URL
+  // — deleted project, old shared link — can't make the picker inert.
+  const { projectId: paramProjectId, submittalId, prefillTitle, prefillSpecSection, prefillSubmittedBy, prefillRequiredDate } = useLocalSearchParams<{
     projectId: string; submittalId?: string;
     prefillTitle?: string; prefillSpecSection?: string;
     prefillSubmittedBy?: string; prefillRequiredDate?: string;
   }>();
-  const { getProject, getSubmittalsForProject, addSubmittal, updateSubmittal, addReviewCycle, settings } = useProjects();
+  const { getProject, getSubmittalsForProject, addSubmittal, updateSubmittal, addReviewCycle, settings, projects } = useProjects();
+
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingSubmittals = useMemo(() => getSubmittalsForProject(projectId ?? ''), [projectId, getSubmittalsForProject]);
   const existingSubmittal = useMemo(() => submittalId ? existingSubmittals.find(s => s.id === submittalId) : null, [submittalId, existingSubmittals]);
 
@@ -277,17 +286,18 @@ function SubmittalScreenInner() {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Submittals' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Submittals"
+          message="A submittal routes a product spec through the architect and attaches to one project's record."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MageSubmittal size={36} color={themeColors.accent} />}
-          title="No submittal open yet"
-          message="Submittals route product specs through the architect for sign-off, then attach to the project's record. To start one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Submittals inside the project tile grid.',
             'Hit Approval Before Order, attach the cut sheet, and send for review.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

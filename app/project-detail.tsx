@@ -1115,9 +1115,17 @@ export default function ProjectDetailScreen() {
   // shows the loading state, not a "Project not found" flash.
   const deletingRef = useRef(false);
   const handleDelete = useCallback(() => {
+    // NAME THE JOB. This is the most destructive action in the product — no
+    // undo, no trash — and until 2026-09-07 it read "Delete this project and
+    // everything in it?" to a GC running eight of them, on a modal that hides
+    // the screen behind it. "This" is not something you can check before you
+    // tap Delete. project.name is right here; the button that opened this
+    // dialog lives inside the loaded-project branch, so the fallback is only
+    // for the impossible case.
+    const name = project?.name?.trim() || 'this project';
     showAlert(
-      'Delete Project',
-      'Delete this project and everything in it? This permanently removes the project along with all of its invoices, change orders, daily reports, punch items, photos, RFIs, submittals, permits, COIs, warranties, OAC meetings, and field tickets. This cannot be undone.',
+      `Delete ${name}?`,
+      `This permanently removes ${name} and everything in it: invoices, change orders, daily reports, punch items, photos, RFIs, submittals, permits, COIs, warranties, OAC meetings, and field tickets. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1134,7 +1142,7 @@ export default function ProjectDetailScreen() {
         },
       ]
     );
-  }, [id, deleteProject, router]);
+  }, [id, project?.name, deleteProject, router]);
 
   // --- Estimate-dependent hooks ---
   // These must live ABOVE the `if (!project)` early return so they run on

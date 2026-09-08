@@ -35,22 +35,37 @@
 // the Discover tab is clickable on a laptop unless the sidebar names it
 // directly.
 //
-// Pure node:fs — no bundler, no react-native import (those crash bun).
+// SINCE 2026-09-07 this guard also owns the other half of that diagnosis: the
+// five catalogs are down to one source. Every row in the four RENDERED
+// catalogs now declares `feature: FeatureId`, reads its tier gate from
+// utils/featureRegistry, and writes its route literal beside the id only
+// because scripts/validate-feature-search.ts greps those literals. The checks
+// below are what make "beside" safe — a literal that stops matching its
+// registry row fails here — plus the surface-side rules that had no guard at
+// all: project-scoped screens must render the picker, hidden tabs must offer a
+// way out, and the delete-project confirmation must name the job.
+//
+// Pure node:fs plus ONE import: utils/featureRegistry is a pure module (its
+// only imports are utils/featureTiers and a type-only @/types), which is why
+// scripts/validate-project-scoped-screens.ts already imports it under bun. No
+// react-native import — those crash bun.
 // fileURLToPath + join because the repo path contains a space.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
+import { FEATURE_REGISTRY } from '../utils/featureRegistry';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 let failures = 0;
-function ok(name: string, condition: boolean, detail?: string): void {
-  if (condition) { console.log('  PASS  ' + name); return; }
+function ok(name: string, condition: boolean, detail?: string): boolean {
+  if (condition) { console.log('  PASS  ' + name); return true; }
   console.error('  FAIL  ' + name + (detail ? `\n        ${detail}` : ''));
   failures += 1;
+  return false;
 }
 
 console.log('\nnav-coverage validation:');
@@ -122,7 +137,6 @@ const NO_ENTRY_POINT_EXEMPT: Record<string, string> = {
   'accept-invite': 'entered by a collaborator from a tokenized invite email, possibly before they have an account',
   integrations: 'OAuth callback page — Intuit and friends redirect an in-app browser here; it authenticates on a signed state HMAC, not a session',
   'integrations/qbo/callback': 'the QuickBooks half of the same OAuth callback: Intuit redirects to this URL directly, so nothing in the app links it',
-  'sub-profile': 'ORPHAN, knowingly. app/sub-profile.tsx is the supply-side credential for a SUBCONTRACTOR, and a GC who opens it sees an empty profile (it matches the signed-in email against the current workspace ledger, :50-62). The fix is a link from app/claim-crew.tsx and app/prequal-form.tsx where a sub actually lands, plus a settings row gated on the email appearing in a sub record — NOT a sidebar or Tools row. Audit 2026-09-07, navigation-ia. Delete this line when that link exists.',
 };
 
 const DESKTOP_EXEMPT: Record<string, string> = {
@@ -259,6 +273,386 @@ ok('a warranty claim can be created from the warranty screen',
   "app/warranties.tsx ships a 'claimed' DisplayStatus, a Claimed chip and the summary fragment "
   + "'with an open claim'. Until 2026-09-07 contexts/ProjectContext addWarrantyClaim had two "
   + 'callers, both dev seeders, so that bucket was unreachable for every real user.');
+
+
+// ── ONE SOURCE FOR NAVIGATION ───────────────────────────────────────────────
+// The four rendered catalogs and the fields each writes its destination into.
+// A row is any line carrying `feature: '<id>'`; the route literal is the
+// `route:` / `href:` on the SAME line, which is how these tables are written.
+
+interface CatalogRow { file: string; line: number; feature: string; route: string | null }
+
+// `min` is a RATCHET set to today's exact row count, not a comfortable floor.
+// A floor of 45 on a 53-row grid means eight rows can lose their `feature:` id
+// — or vanish — without a word, which is the failure mode this whole file
+// exists for. Adding rows is free; removing one means editing the number in
+// the same commit, on purpose.
+const CATALOGS: { file: string; label: string; min: number }[] = [
+  { file: join('components', 'DesktopSidebar.tsx'), label: 'DesktopSidebar NAV_ITEMS', min: 69 },
+  { file: join('app', '(tabs)', 'discover', 'tools.tsx'), label: 'Discover ▸ Tools grid', min: 53 },
+  { file: join('components', 'summary', 'ToolsSheet.tsx'), label: 'Summary ▸ Tools sheet', min: 11 },
+  { file: join('components', 'CreateMenu.tsx'), label: 'the + New… sheet', min: 22 },
+];
+
+const catalogRows: CatalogRow[] = [];
+for (const { file, label, min } of CATALOGS) {
+  const src = read(file);
+  const rows: CatalogRow[] = [];
+  src.split('\n').forEach((line, i) => {
+    // A commented-out row renders nothing, so it must not count as coverage
+    // either — otherwise `// { feature: 'x', … }` reads as a live door.
+    // (Caught by mutation-testing the uncatalogued ratchet.)
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) return;
+    const f = /\bfeature:\s*'([^']+)'/.exec(line);
+    if (!f) return;
+    const r = /\b(?:route|href):\s*'([^']+)'/.exec(line);
+    rows.push({ file, line: i + 1, feature: f[1], route: r ? r[1] : null });
+  });
+  ok(`${label} renders from the registry (${rows.length} rows)`, rows.length >= min,
+    `${rows.length} rows carry a \`feature:\` id, was ${min}. A row without one is a `
+    + 'destination this file cannot see — which is how /post-bid and /smart-proposal ended '
+    + 'up in one catalog each. If the row was deleted on purpose, lower `min` here in the '
+    + 'same commit.');
+  catalogRows.push(...rows);
+}
+
+const registryById = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
+
+{
+  const unknown = catalogRows.filter(r => !registryById.has(r.feature));
+  ok('every catalog row names a real registry entry', unknown.length === 0,
+    unknown.map(r => `${r.file}:${r.line} → '${r.feature}'`).join('; ')
+    + '\n        FeatureId is derived from the registry, so tsc normally catches this first — '
+    + 'if it reached here, someone widened the type.');
+
+  // The reason the literal is allowed to sit beside the id.
+  const forked = catalogRows.filter(r =>
+    r.route !== null && registryById.get(r.feature) && registryById.get(r.feature)!.route !== r.route);
+  ok('no catalog row disagrees with the registry about where it goes', forked.length === 0,
+    forked.map(r => `${r.file}:${r.line} '${r.feature}' → row says ${r.route}, registry says ${registryById.get(r.feature)!.route}`).join('; ')
+    + '\n        The route literal exists only for scripts/validate-feature-search.ts:68 and its '
+    + 'iOS-reachability grep. Fix the literal, not the registry — the screens navigate by '
+    + 'featureFor(feature).route, so a forked literal misroutes nobody but blinds that guard.');
+}
+
+// The gate must live in exactly one place. A `requires` back on a sidebar row
+// is how /plan-intelligence came to advertise Business on a Pro feature and
+// /client-portal-setup came to advertise nothing on a Pro one.
+{
+  const sidebar = read(join('components', 'DesktopSidebar.tsx'));
+  const navBlock = sidebar.slice(sidebar.indexOf('const NAV_ITEMS'), sidebar.indexOf('const GLOBAL_SECTIONS'));
+  ok('the sidebar keeps no second copy of the tier gate',
+    navBlock.length > 0 && !/\brequires:\s*'/.test(navBlock) && /featureFor\(item\.feature\)\.requires/.test(sidebar),
+    'NAV_ITEMS must carry no `requires:` — read it from featureFor(item.feature).requires.');
+
+  const createMenu = read(join('components', 'CreateMenu.tsx'));
+  const doubleGated = createMenu.split('\n')
+    .map((l, i) => ({ l, i: i + 1 }))
+    .filter(({ l }) => /\bfeature:\s*'/.test(l) && /\btier:\s*'/.test(l));
+  ok('no Create-menu row carries both a registry entry and its own tier chip',
+    doubleGated.length === 0,
+    doubleGated.map(d => `CreateMenu.tsx:${d.i}`).join(', ')
+    + ' — `tier` is only for rows with no registry entry (the param-carrying create routes).');
+  ok('the Create menu reads its chip from the registry',
+    /featureFor\(opt\.feature\)\.requires/.test(createMenu) && /REQUIRED_TIER\[requires\]/.test(createMenu),
+    'lockedTier must resolve the gate through the registry, or the chip goes back to being '
+    + 'a second opinion — Submittal and Sub COI showed NO chip on Business features.');
+
+  // The one invariant CreateMenu documents at length: AI Takeoff is metered,
+  // not tier-locked, and must not paint a Pro chip. That now depends on the
+  // registry row, so pin it here.
+  ok("the registry keeps /takeoff ungated so the Create menu paints no Pro chip",
+    registryById.get('takeoff') !== undefined && registryById.get('takeoff')!.requires === undefined,
+    'app/takeoff.tsx has no canAccess gate — it meters via checkAILimit with a 1-job free '
+    + 'lifetime cap. A `requires` here would paint a lock on a door that is open.');
+}
+
+// ── A rendered chip must name a wall that exists ────────────────────────────
+// The assertion above pins ONE instance of the rule. That is not the rule, and
+// pinning the instance is how the rule got broken next door: /estimate-wizard
+// carried `requires: 'ai_estimate_wizard'` while app/estimate-wizard.tsx has no
+// canAccess gate at all — it is a metered free demo (freeLifetimeCap 2) and
+// app/onboarding.tsx:233 router.replace()s every brand-new FREE user onto it.
+// Harmless while only ⌘K read `requires`; a live defect the moment the four
+// catalogs started reading their chip from here, because "+ New… ▸ Estimate"
+// began painting a Pro lock on the app's activation moment while six other
+// entry points show the same door open.
+//
+// scripts/validate-feature-registry-gates.ts computes exactly this and files it
+// under "entries this guard cannot verify" — printed, never failed on. That was
+// the right call when the registry only fed a search chip; it is the wrong one
+// now that a chip is RENDERED from it, which is why this wave shipped a false
+// Pro badge past a green ship-check. So: a registry row that a rendered catalog
+// names, and that declares `requires`, must be backed by a canAccess() in its
+// own destination screen.
+{
+  const stripComments = (src: string) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  /** Expo Router: '/foo' → app/foo.tsx; '/(tabs)/(home)' → …/index.tsx. */
+  const screenFileFor = (route: string): string | undefined => {
+    const rel = route.replace(/^\//, '').split('?')[0];
+    return [join('app', `${rel}.tsx`), join('app', rel, 'index.tsx')]
+      .find(p => existsSync(join(ROOT, p)));
+  };
+
+  // Rows whose chip is a known lie, with the evidence and the owner. NOT an
+  // exemption list: the assert below FAILS if one is fixed and the line is left
+  // behind, exactly like PENDING_BACK_LINK. Neither entry is in the 2026-09-07
+  // nav wave's file set.
+  const PENDING_CHIP_BACKING: Record<string, string> = {
+    schedule:
+      'the rail\'s "Schedule" row points at app/(tabs)/discover/schedule.tsx, which is the FREE '
+      + 'on-ramp (project list + ScheduleOnRamp) and gates nothing. The schedule_gantt_pdf wall is '
+      + 'one screen later, on app/(tabs)/schedule/index.tsx:219 (Schedule Pro). So a free user sees '
+      + 'a padlock on a screen they can open and use, and never opens it. Fix: drop `requires` from '
+      + 'the `schedule` registry row (the `schedule-pro` row already carries it), then delete this line.',
+  };
+
+  const namedByCatalog = new Set(catalogRows.map(r => r.feature));
+  const unbacked: string[] = [];
+  const pendingFixed: string[] = [];
+
+  for (const entry of FEATURE_REGISTRY) {
+    if (!entry.requires || !namedByCatalog.has(entry.id)) continue;
+    const file = screenFileFor(entry.route);
+    if (!file) continue;                       // validate-feature-search.ts owns this
+    const code = stripComments(read(file));
+    const backed = new RegExp(`canAccess\\(\\s*['"]${entry.requires}['"]`).test(code);
+    if (entry.id in PENDING_CHIP_BACKING) {
+      if (backed) pendingFixed.push(entry.id);
+      continue;
+    }
+    if (!backed) {
+      unbacked.push(
+        `${entry.id} → ${entry.route}: the registry advertises '${entry.requires}', but ${file} `
+        + 'never calls canAccess() with it',
+      );
+    }
+  }
+
+  ok('every rendered tier chip names a wall its destination actually enforces',
+    unbacked.length === 0,
+    `${unbacked.length} chip(s) promise a gate that is not there:\n        `
+    + unbacked.map(u => `• ${u}`).join('\n        ')
+    + '\n        A chip that overstates keeps a subscriber out of a screen they already own; on a '
+    + 'metered free demo it keeps a NEW user out of the activation moment. Drop the `requires` '
+    + '(the wall is somewhere later), or move the gate onto the screen.');
+
+  ok('the pending chip-backing list has not rotted', pendingFixed.length === 0,
+    `${pendingFixed.map(p => `'${p}'`).join(', ')} now enforce(s) the gate the registry claims — `
+    + 'delete the PENDING_CHIP_BACKING entry in the same commit so the list stays a to-do, not a '
+    + 'mute button.');
+}
+
+// Registry entries no rendered catalog names. These are reachable (the orphan
+// checks above prove it) but only from a card, a tile or ⌘K — never from a
+// browsable list. A RATCHET, not an exemption table: the number may fall and
+// never rise, so a new destination cannot be added to the registry alone.
+{
+  const named = new Set(catalogRows.map(r => r.feature));
+  const uncatalogued = FEATURE_REGISTRY.filter(e => !named.has(e.id)).map(e => e.id);
+  const CEILING = 24;
+  ok(`registry entries absent from every browsable catalog: ${uncatalogued.length} (ceiling ${CEILING})`,
+    uncatalogued.length <= CEILING,
+    `now ${uncatalogued.length}: ${uncatalogued.join(', ')}\n        `
+    + 'Add the destination to a catalog (a sidebar row, a Tools row, the Summary sheet or '
+    + 'the Create menu) — or, if it genuinely belongs to search and deep links only, LOWER '
+    + 'the ceiling in the same commit as the removal. The ceiling only ever goes down.');
+  ok('the uncatalogued ceiling is not slack', uncatalogued.length >= CEILING - 2,
+    `only ${uncatalogued.length} of a ceiling of ${CEILING} — drop CEILING to ${uncatalogued.length} `
+    + 'so the ratchet keeps ratcheting.');
+}
+
+// ── Project-scoped registry entries render the picker ───────────────────────
+// featureRegistry's own inclusion rule is "a destination must stand on its own
+// when pushed with no params". `projectScoped: true` is the flag for the rows
+// that satisfy it the hard way. scripts/validate-project-scoped-screens.ts
+// pins the eight screens the 2026-08-03 audit named; this pins the RULE, so
+// the six added on 2026-09-07 (contract, change-order, selections, submittal,
+// oac-meeting, aia-pay-app) and everything after are covered on day one.
+
+console.log('\nproject-scoped registry entries resolve their own project:');
+
+// Two screens satisfy "a pick beats a dead param" by different means and both
+// are correct: most hold the pick in local state (`pickedProjectId ?? param…`),
+// while app/budget-dashboard.tsx pushes it into the URL with router.setParams,
+// which overwrites the stale id outright. Accept either; reject neither by
+// accident.
+const OUTRANKS_STALE = [
+  /pickedProjectId \?\? param(ProjectId|Id|InvoiceId)/,
+  /onPick=\{\(id\) => router\.setParams\(\{ projectId: id \}\)\}/,
+];
+
+// Screens that are in the registry as projectScoped and do NOT yet keep the
+// whole contract. Every line is a live defect with a named owner, not an
+// excuse, and it FAILS the moment the screen is fixed and the line is left
+// behind. None is in the 2026-09-07 nav wave's file set.
+const PENDING_PICKER_CONTRACT: Record<string, { outranks?: string; stale?: string }> = {
+  '/ai-punch': { stale: 'app/ai-punch.tsx:489 renders the picker without staleProjectId — precedence is correct, only the notice is missing.' },
+  '/compare-drawings': { stale: 'app/compare-drawings.tsx renders the picker without staleProjectId — precedence is correct, only the notice is missing.' },
+  '/extract-submittals': { stale: 'app/extract-submittals.tsx renders the picker without staleProjectId — precedence is correct, only the notice is missing.' },
+};
+
+for (const entry of FEATURE_REGISTRY) {
+  if (!entry.projectScoped) continue;
+  const rel = entry.route.replace(/^\//, '');
+  const file = [join('app', rel + '.tsx'), join('app', rel, 'index.tsx')]
+    .find(f => existsSync(join(ROOT, f)));
+  if (!ok(`${entry.route}: screen file exists`, !!file)) continue;
+  const src = read(file!);
+  const pending = PENDING_PICKER_CONTRACT[entry.route];
+
+  ok(`${entry.route}: renders <ToolProjectPicker>`,
+    /<ToolProjectPicker\b/.test(src) && /from '@\/components\/ToolScreenChrome'/.test(src),
+    `utils/featureRegistry marks '${entry.id}' projectScoped, which is a promise that opening it `
+    + 'from the sidebar or ⌘K with no params lands somewhere usable. Use the shared picker.');
+
+  const outranks = OUTRANKS_STALE.some(re => re.test(src));
+  if (pending?.outranks) {
+    ok(`${entry.route}: pending pick-precedence fix is still owed`, !outranks,
+      `it is fixed now — delete the PENDING_PICKER_CONTRACT.outranks entry. On file: ${pending.outranks}`);
+  } else {
+    ok(`${entry.route}: a fresh pick outranks a stale param`, outranks,
+      'must be `pickedProjectId ?? param… ?? \'\'` (or router.setParams, which overwrites the '
+      + 'param) — the other order leaves the picker inert on a dead link, because the bad id '
+      + 'keeps winning');
+  }
+
+  const tellsStale = /staleProjectId/.test(src);
+  if (pending?.stale) {
+    ok(`${entry.route}: pending stale-id notice is still owed`, !tellsStale,
+      `it is handled now — delete the PENDING_PICKER_CONTRACT.stale entry. On file: ${pending.stale}`);
+  } else {
+    ok(`${entry.route}: tells a stale id apart from no id`, tellsStale,
+      'a deleted project or an old shared link arrives WITH an id that resolves to nothing; that '
+      + 'is not the same failure as arriving with none, and it used to render blank');
+  }
+
+  // The picker must be an early RETURN, not a card buried in the loaded tree —
+  // a screen that renders it mid-tree still mounts the rest against an
+  // undefined project. Match the whole `if (!project…) { return (` shape, the
+  // same one scripts/validate-project-scoped-screens.ts:106 pins: a bare
+  // indexOf('if (!project') matched any earlier guard in the file and any
+  // rename that kept the prefix, so it passed on code it should have failed.
+  // (Caught by mutation-testing this assert.)
+  const pickerAt = src.indexOf('<ToolProjectPicker');
+  // `[^)]*!` before the identifier so a compound guard counts too — invoice
+  // and field-ticket open with `if (!invoice || !project)` and
+  // `if (!activeProjectId || !project)`, both correct.
+  const guardRe = /if\s*\([^)]*!\s*[A-Za-z]*[Pp]roject[A-Za-z]*\b[^)]*\)\s*\{\s*\n\s*return\s*\(/g;
+  let m: RegExpExecArray | null, guardAt = -1;
+  while ((m = guardRe.exec(src))) if (m.index < pickerAt && m.index > guardAt) guardAt = m.index;
+  ok(`${entry.route}: the picker is an early return`,
+    guardAt !== -1 && pickerAt - guardAt < 2000,
+    'the no-project branch must return before the screen renders anything against an '
+    + 'undefined project');
+}
+for (const route of Object.keys(PENDING_PICKER_CONTRACT)) {
+  ok(`pending picker-contract entry '${route}' is still project-scoped`,
+    FEATURE_REGISTRY.some(e => e.route === route && e.projectScoped),
+    'it is no longer marked projectScoped in utils/featureRegistry — drop the entry');
+}
+
+// aia-pay-app is invoice-keyed, so "pick a project" is only half the answer.
+{
+  const aia = read(join('app', 'aia-pay-app.tsx'));
+  ok('AIA Pay Apps asks which BILLING PERIOD after which job',
+    /progressInvoices/.test(aia) && /setPickedInvoiceId/.test(aia)
+    && /progressInvoices\.length === 1 \? progressInvoices\[0\]/.test(aia),
+    'a G702 certifies one period against one job. Picking the project is not enough — the '
+    + 'screen must resolve the progress invoice, open straight through when there is exactly '
+    + 'one, and let the GC pick when there are several.');
+  ok('a job with no progress invoice is told WHY, with the next step',
+    /has no progress invoice yet/.test(aia) && /'\/bill-from-estimate'/.test(aia),
+    'a pay application cannot be the first document on a job — say that and offer the invoice, '
+    + 'rather than showing an empty list');
+}
+
+// ── Hidden tabs offer a way out ─────────────────────────────────────────────
+// A tab registered `href: null` is entered by a TAB SWITCH: React Navigation
+// draws no back button and none of the visible tabs lights up. NAV-07 gave
+// five of them components/HiddenTabBackLink; three never got it.
+
+console.log('\nhidden tabs (href: null) have a back affordance:');
+{
+  const tabsLayout = read(join('app', '(tabs)', '_layout.tsx'));
+  const hidden = new Set(
+    [...tabsLayout.matchAll(/<Tabs\.Screen\s+name="([^"]+)"\s+options=\{\{\s*href:\s*null\s*\}\}/g)]
+      .map(m => m[1]),
+  );
+  ok('parsed the unconditionally-hidden tabs out of app/(tabs)/_layout.tsx',
+    hidden.size >= 6, `found ${hidden.size}: ${[...hidden].join(', ')}`);
+
+  // Owed, not excused. Each line dies the moment the link lands — that is what
+  // stops this from becoming the place the fix goes to be forgotten.
+  const PENDING_BACK_LINK: Record<string, string> = {
+    schedule: 'app/(tabs)/schedule/index.tsx — the worst of the three: app/(tabs)/discover/schedule.tsx:42 arrives by router.replace, so the OS back gesture is dead too. Not owned by the 2026-09-07 nav wave.',
+    marketplace: 'app/(tabs)/marketplace/index.tsx — reached from Discover ▸ Tools ▸ Suppliers; wants <HiddenTabBackLink label="Tools" href="/(tabs)/discover/tools" />. Not owned by the 2026-09-07 nav wave.',
+    'construction-ai': 'app/(tabs)/construction-ai/index.tsx — reached from Discover ▸ Tools ▸ Construction AI; wants <HiddenTabBackLink label="Tools" href="/(tabs)/discover/tools" />. Not owned by the 2026-09-07 nav wave.',
+  };
+
+  for (const name of hidden) {
+    const file = [join('app', '(tabs)', name, 'index.tsx'), join('app', '(tabs)', name + '.tsx')]
+      .find(f => existsSync(join(ROOT, f)));
+    if (!file) continue;
+    const has = /<HiddenTabBackLink\b/.test(read(file));
+    if (PENDING_BACK_LINK[name]) {
+      // Stale-pending check: gaining the link must FAIL until the line is gone.
+      ok(`pending back-link for '${name}' is still owed`, !has,
+        `${file} now mounts <HiddenTabBackLink> — delete the PENDING_BACK_LINK entry. `
+        + `Reason on file: ${PENDING_BACK_LINK[name]}`);
+      continue;
+    }
+    ok(`hidden tab '${name}' offers a way out`, has,
+      `${file} is entered as a tab switch, so nothing draws a back control and no tab lights `
+      + 'up. Mount components/HiddenTabBackLink with a label that names where it goes, or add '
+      + 'a PENDING_BACK_LINK entry saying who owes it.');
+  }
+  for (const name of Object.keys(PENDING_BACK_LINK)) {
+    ok(`pending back-link '${name}' is still a hidden tab`, hidden.has(name),
+      'it is no longer registered `href: null` in app/(tabs)/_layout.tsx — drop the entry');
+  }
+}
+
+// ── Materials retired cleanly ───────────────────────────────────────────────
+// The pill came off the Discover strip months ago; the route key and the
+// re-export file it pointed at stayed, so the strip named a destination
+// nothing could reach and a duplicate route stayed registered.
+{
+  const discover = read(join('app', '(tabs)', 'discover', 'index.tsx'));
+  // Match the ROUTE SHAPE, not the word: the comment that records the removal
+  // names the deleted file, and a file-wide search would fail on its own
+  // tombstone. (Caught by mutation-testing this assert.)
+  ok('Discover carries no route to the retired Materials alias',
+    !/['"`]\/?\(tabs\)\/discover\/materials['"`?]/.test(discover),
+    'the `materials` key in handleTabPress pointed at a pill that no longer exists');
+  ok('the app/(tabs)/discover/materials.tsx alias is gone',
+    !existsSync(join(ROOT, 'app', '(tabs)', 'discover', 'materials.tsx')),
+    'it was a one-line re-export of the Materials tab, giving one screen two routes');
+  ok('the Materials tab itself is still reachable',
+    /\/\(tabs\)\/materials/.test(read(join('utils', 'entityResolver.ts')))
+    && FEATURE_REGISTRY.some(e => e.route === '/(tabs)/materials'),
+    'retiring the alias must not orphan the screen — a price-alert notification and ⌘K are '
+    + 'its remaining doors');
+}
+
+// ── The most destructive action names what it destroys ──────────────────────
+{
+  const detail = read(join('app', 'project-detail.tsx'));
+  const at = detail.indexOf('const handleDelete');
+  const block = at === -1 ? '' : detail.slice(at, at + 1400);
+  // TWICE: once in the alert title, once in the body. A single occurrence
+  // passed a version that named the job in the title and still said "this
+  // project and everything in it" underneath — which is the sentence the GC
+  // actually reads before tapping Delete. (Caught by mutation-testing this.)
+  const named = (block.match(/\$\{name\}/g) ?? []).length;
+  ok('Delete Project names the project it is about to delete',
+    /project\?\.name/.test(block) && named >= 2 && !/'Delete Project',/.test(block),
+    `app/project-detail.tsx handleDelete interpolates the name ${named} time(s); it must appear `
+    + 'in the title AND the body. There is no undo and no trash, the modal covers the screen '
+    + 'behind it, and a GC running eight jobs cannot check "this project" against anything.');
+}
 
 // ── Result ──────────────────────────────────────────────────────────────────
 

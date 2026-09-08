@@ -28,6 +28,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { neutralInk } from '@/components/ui/ink';
 
 /**
  * Clarifier opened from Quick Field Update when the parser couldn't
@@ -71,13 +72,19 @@ interface Props {
   onSubmit: (result: ClarifierResult) => void;
 }
 
-const ACTION_CHIPS: { key: ClarifierAction; label: string; Icon: typeof Percent; color: string }[] = [
-  { key: 'update_progress', label: 'Update %',     Icon: Percent,      color: "#FF6A1A" },
-  { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: "#2E7D44" },
-  { key: 'start_task',      label: 'Start',        Icon: Play,         color: "#1565C0" },
-  { key: 'add_note',        label: 'Note',         Icon: StickyNote,   color: "#9AA3AD" },
-  { key: 'log_issue',       label: 'Issue',        Icon: AlertTriangle,color: Colors.warningLabel },
-];
+// A factory: 'Note' is the NEUTRAL chip and carried the DARK theme's
+// textSecondary (#9AA3AD), which is the icon AND the selected label on a light
+// sheet at 2.5:1. `Colors.warningLabel` beside it is a getter that froze to
+// whichever theme was active at import.
+function actionChips(t: ThemeColors): { key: ClarifierAction; label: string; Icon: typeof Percent; color: string }[] {
+  return [
+    { key: 'update_progress', label: 'Update %',     Icon: Percent,      color: "#FF6A1A" },
+    { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: "#2E7D44" },
+    { key: 'start_task',      label: 'Start',        Icon: Play,         color: "#1565C0" },
+    { key: 'add_note',        label: 'Note',         Icon: StickyNote,   color: neutralInk(t) },
+    { key: 'log_issue',       label: 'Issue',        Icon: AlertTriangle,color: t.warningLabel },
+  ];
+}
 
 export default function QuickUpdateClarifier({
   visible,
@@ -191,7 +198,7 @@ export default function QuickUpdateClarifier({
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={onClose}
-              testID="clarifier-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} strokeWidth={1.75} /></TouchableOpacity>
+              testID="clarifier-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           {/* Action chips */}
@@ -203,7 +210,7 @@ export default function QuickUpdateClarifier({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.actionChipsRow}
           >
-            {ACTION_CHIPS.map(({ key, label, Icon, color }) => {
+            {actionChips(themeColors).map(({ key, label, Icon, color }) => {
               const active = action === key;
               return (
                 <TouchableOpacity
@@ -216,7 +223,7 @@ export default function QuickUpdateClarifier({
                   activeOpacity={0.8}
                   testID={`clarifier-action-${key}`}
                 >
-                  <Icon size={14} color={active ? color : "#9AA3AD"} />
+                  <Icon size={14} color={active ? color : themeColors.textMuted} />
                   <Text
                     style={[
                       styles.actionChipLabel,
@@ -241,7 +248,7 @@ export default function QuickUpdateClarifier({
                   onChangeText={(v) => setValueStr(v.replace(/[^0-9]/g, '').slice(0, 3))}
                   keyboardType="number-pad"
                   placeholder="0"
-                  placeholderTextColor={"#9AA3AD"}
+                  placeholderTextColor={themeColors.textMuted}
                   maxLength={3}
                   testID="clarifier-progress-input"
                 />
@@ -264,7 +271,7 @@ export default function QuickUpdateClarifier({
                     ? 'Short description of the issue'
                     : 'What do you want to note?'
                 }
-                placeholderTextColor={"#9AA3AD"}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 testID="clarifier-note-input"
               />
@@ -281,13 +288,13 @@ export default function QuickUpdateClarifier({
             )}
           </View>
           <View style={styles.searchRow}>
-            <Search size={14} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Search size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
               placeholder="Filter tasks"
-              placeholderTextColor={"#9AA3AD"}
+              placeholderTextColor={themeColors.textMuted}
               testID="clarifier-task-filter"
             />
           </View>

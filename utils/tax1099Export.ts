@@ -14,6 +14,19 @@
 // This isn't a tax-prep tool — it's a "give me one CSV my CPA can read"
 // tool. We don't compute TIN matching, we don't file electronically.
 //
+// WHAT THIS EXPORT DOES NOT COVER — MONEY-1099-COV-1 (audit 2026-09-07,
+// "worth doing" #28). The ONLY payment source here is the sub portal, and
+// there is no INSERT path for a sub_submitted_invoice anywhere in the GC app —
+// the sub creates it from their side. A GC who pays his subs by check gets a
+// roster of names all reading "No payments this year" and, believing the Y/N
+// column, under-files. The penalty is per form. Until commitment-level payment
+// entry exists, the honest thing is to SAY so on every row and to surface what
+// the app does know but cannot date: `Commitment.paidToDate` is a running
+// server rollup carrying no payment dates, so it can never be attributed to a
+// tax year — but "your commitments record $42,000 paid to this sub" is a
+// far better thing to hand a CPA than silence. `void opts.commitments` used to
+// sit where that read is now.
+//
 // Audit 2026-09-03 MONEY-F4 fixed three things here:
 //   1. THRESHOLD BY YEAR. P.L. 119-21 §70433 (One Big Beautiful Bill Act, July
 //      2025) amended IRC §6041(a): for payments made after 12/31/2025 the
@@ -43,6 +56,17 @@ export interface ThresholdInfo {
 /** The disclosure that rides with a provisional threshold — screen and CSV alike. */
 export const THRESHOLD_PROVISIONAL_NOTE =
   'indexed figure not yet published — $2,000 floor applied; confirm with your CPA';
+
+/**
+ * What this export counts, stated on every row (MONEY-1099-COV-1).
+ *
+ * On EVERY row, not only the $0 ones: a sub who took two portal invoices and
+ * four checks has a total that is wrong in the same way, and a "Yes" whose
+ * amount is understated still misstates the form. Exported so the screen can
+ * print the same sentence the CSV does.
+ */
+export const COVERAGE_NOTE =
+  'Counts sub-portal invoices marked paid — checks, ACH, cash and anything else recorded outside the portal are not in this figure';
 
 /**
  * Annual 1099-NEC reporting threshold for payments made in `year`.
@@ -80,6 +104,15 @@ export interface Tax1099Row {
   required1099: boolean;        // totalPaid >= threshold
   w9OnFile: boolean;
   notes: string;                // e.g. "TIN missing", "address blank", "below $2,000"
+  /**
+   * Money the app knows was paid to this sub and CANNOT put in a tax year:
+   * the sum of `Commitment.paidToDate` across their commitments
+   * (MONEY-1099-COV-1). Deliberately NOT added to `totalPaid` and NOT allowed
+   * to flip `required1099` — `paidToDate` is a running rollup with no payment
+   * dates on it, and dating money by guessing is the exact failure
+   * `paymentDateOf` exists to prevent. It is disclosed so the CPA can go look.
+   */
+  uncountedCommitmentPaid: number;
 }
 
 /**
@@ -116,8 +149,13 @@ export function cashPaidOf(inv: Pick<SubSubmittedInvoice, 'amount' | 'retentionA
 
 /**
  * Compute totals paid to each subcontractor in the given calendar year from
- * sub-submitted invoices (paid status). The commitments map is held in scope
- * for out-of-portal payments (cash / check / Zelle) once those are recorded.
+ * sub-submitted invoices (paid status).
+ *
+ * `commitments` is read for DISCLOSURE only (MONEY-1099-COV-1): their
+ * `paidToDate` rollups carry no payment dates, so they land in
+ * `uncountedCommitmentPaid` and a note, never in `totalPaid` and never in the
+ * Y/N. Out-of-portal payments (cash / check / Zelle) become countable when
+ * they are recorded as DATED payments — see the header.
  */
 export function buildTax1099Dataset(opts: {
   year: number;
@@ -155,7 +193,18 @@ export function buildTax1099Dataset(opts: {
     totals.set(subId, t);
   }
 
-  void opts.commitments;
+  // What the app knows but cannot date. Keyed by sub so a row can disclose it
+  // beside the number the CPA is about to act on. `paidToDate` is maintained
+  // server-side across the WHOLE commitment, not per payment and with no dates,
+  // so it can never be split into tax years here — see the header.
+  const undated = new Map<string, number>();
+  for (const c of opts.commitments) {
+    const subId = c.subcontractorId;
+    if (!subId) continue;
+    const paid = Math.max(0, c.paidToDate ?? 0);
+    if (paid <= 0) continue;
+    undated.set(subId, (undated.get(subId) ?? 0) + paid);
+  }
 
   const fmt = (n: number) => `$${n.toLocaleString('en-US')}`;
 
@@ -166,12 +215,19 @@ export function buildTax1099Dataset(opts: {
     const t = totals.get(sub.id) ?? { paid: 0, count: 0 };
     const paid = Math.round(t.paid * 100) / 100;
     const required = paid >= threshold;
+    const uncountedCommitmentPaid = Math.round((undated.get(sub.id) ?? 0) * 100) / 100;
     const notes: string[] = [];
     if (required && !sub.taxIdLast4) notes.push('TIN missing — collect from W-9');
     if (required && !sub.address) notes.push('Address missing — required on 1099');
     if (!sub.w9OnFile) notes.push('W-9 not on file');
     if (!required && paid > 0) notes.push(`Below ${fmt(threshold)} (${opts.year} threshold, ${THRESHOLD_CITATION}) — 1099 not required but disclosed`);
-    if (paid <= 0) notes.push('No payments this year');
+    // "No payments this year" was the line eleven subs got while the GC paid
+    // every one of them by check. It now names the source it is speaking for.
+    if (paid <= 0) notes.push(`No sub-portal payments recorded in ${opts.year}`);
+    if (uncountedCommitmentPaid > 0) {
+      notes.push(`Commitments record ${fmt(uncountedCommitmentPaid)} paid to date with no payment dates — not counted above; confirm the year against your books`);
+    }
+    notes.push(COVERAGE_NOTE);
     rows.push({
       subcontractorId: sub.id,
       recipientName: sub.legalName || sub.companyName || sub.contactName || 'UNKNOWN',
@@ -184,6 +240,7 @@ export function buildTax1099Dataset(opts: {
       required1099: required,
       w9OnFile: !!sub.w9OnFile,
       notes: notes.join('; '),
+      uncountedCommitmentPaid,
     });
   }
   // Sort by total paid descending so the highest-volume subs sit at top.
@@ -204,9 +261,14 @@ export function tax1099DatasetToCsv(rows: Tax1099Row[]): string {
     if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
+  // Column ORDER is the contract (see above); the wording of a header cell is
+  // not, and 'Total Paid' alone was silent about the source it summed
+  // (MONEY-1099-COV-1). The undated-commitment column is APPENDED so every
+  // existing position is untouched.
   const header = [
     'Sub ID', 'Recipient Name', 'TIN (last 4)', 'Address',
-    'Total Paid (net of retention held)', 'Payment Count', '1099 Required', 'Threshold Applied', 'W-9 On File', 'Notes',
+    'Total Paid (sub-portal invoices, net of retention held)', 'Payment Count', '1099 Required', 'Threshold Applied', 'W-9 On File', 'Notes',
+    'Commitment Paid To Date (undated — NOT counted)',
   ];
   const lines: string[] = [header.map(csvCell).join(',')];
   for (const r of rows) {
@@ -219,6 +281,7 @@ export function tax1099DatasetToCsv(rows: Tax1099Row[]): string {
         ? `${r.threshold.toFixed(2)} (provisional: ${THRESHOLD_PROVISIONAL_NOTE})`
         : r.threshold.toFixed(2),
       r.w9OnFile ? 'Yes' : 'No', r.notes,
+      r.uncountedCommitmentPaid > 0 ? r.uncountedCommitmentPaid.toFixed(2) : '',
     ].map(csvCell).join(','));
   }
   return lines.join('\n');

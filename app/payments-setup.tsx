@@ -320,16 +320,16 @@ export default function PaymentsSetupScreen() {
           </View>
 
           <TextInput style={styles.finInput} value={finPartner} onChangeText={setFinPartner}
-            placeholder="Partner name (e.g. Wisetack)" placeholderTextColor="#9AA3AD" />
+            placeholder="Partner name (e.g. Wisetack)" placeholderTextColor={themeColors.textMuted} />
           <TextInput style={styles.finInput} value={finUrl} onChangeText={setFinUrl}
-            placeholder="https://partner.com/prequalify" autoCapitalize="none" keyboardType="url" placeholderTextColor="#9AA3AD" />
+            placeholder="https://partner.com/prequalify" autoCapitalize="none" keyboardType="url" placeholderTextColor={themeColors.textMuted} />
           <TextInput style={styles.finInput} value={finRefCode} onChangeText={setFinRefCode}
-            placeholder="Your partner referral code (optional)" autoCapitalize="none" placeholderTextColor="#9AA3AD" />
+            placeholder="Your partner referral code (optional)" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
           <View style={styles.finAprRow}>
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finApr} onChangeText={setFinApr}
-              placeholder="Example APR % (optional)" keyboardType="decimal-pad" placeholderTextColor="#9AA3AD" />
+              placeholder="Example APR % (optional)" keyboardType="decimal-pad" placeholderTextColor={themeColors.textMuted} />
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finTerm} onChangeText={setFinTerm}
-              placeholder="Example term (months)" keyboardType="number-pad" placeholderTextColor="#9AA3AD" />
+              placeholder="Example term (months)" keyboardType="number-pad" placeholderTextColor={themeColors.textMuted} />
           </View>
 
           <TouchableOpacity style={styles.cta} onPress={() => saveFinancing(finEnabled)} testID="financing-save">

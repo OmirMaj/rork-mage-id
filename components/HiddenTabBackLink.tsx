@@ -23,8 +23,26 @@
 //
 // The destination is the surface that actually links to the screen:
 //   subs, equipment                 → Discover ▸ Tools (app/(tabs)/discover/tools.tsx)
-//   materials, estimate             → Discover        (its sub-tab strip)
+//   estimate                        → Discover        (its sub-tab strip)
 //   mage-id-bids                    → Discover        (the marketplace card)
+//   materials                       → Discover        (see below)
+//
+// Materials is the exception and the label is still honest. Its Discover pill
+// was retired when the Estimator absorbed the browser, and on 2026-09-07 the
+// leftovers went too (the dead route key in discover/index.tsx and the
+// app/(tabs)/discover/materials.tsx re-export). So the screen is now reached
+// from ⌘K, the desktop rail and a price-alert notification rather than from
+// Discover — but the control says "Discover" and goes to Discover, which is
+// the rule this component exists to keep. Anywhere-out beats nowhere-out on a
+// tab with no tab button.
+//
+// THREE hidden tabs still have no back affordance at all: schedule,
+// marketplace and construction-ai (app/(tabs)/_layout.tsx registers all three
+// `href: null`). schedule is the worst of them because
+// app/(tabs)/discover/schedule.tsx:42 arrives via router.replace, so the OS
+// back gesture is dead too. scripts/validate-nav-coverage.ts enumerates the
+// hidden tabs and names these three as owed — it fails the moment one of them
+// gains the link and the pending entry is not deleted.
 //
 // Hidden on desktop: DesktopSidebar is the primary nav there and every one of
 // these screens is one click away in it, so a back link would be clutter

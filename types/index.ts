@@ -4238,6 +4238,43 @@ export interface RoadmapFlag {
   severity: 'high' | 'med';
 }
 
+/**
+ * How one inspection came out. `scheduled` is a future visit that has not been
+ * called yet — it is a real row because a scheduled inspection is a date the
+ * schedule depends on, and because the next one being booked must not be able
+ * to erase the last one's result.
+ */
+export type PermitInspectionResult = 'scheduled' | 'passed' | 'failed' | 'cancelled';
+
+/**
+ * ONE inspection on a permit.
+ *
+ * PERMIT-INSPECTION-HISTORY (audit 2026-09-07 "worth doing" #14): Permit
+ * carried a single `inspectionDate` / `inspectionNotes` pair, so booking the
+ * framing inspection overwrote the footing's result AND the correction note
+ * that came with it. A residential job runs 8–15 inspections; a failed
+ * rough-electrical is one of the most common causes of a two-week slip, and it
+ * was the first thing the app forgot. Closeout then cannot assemble a history
+ * that was never retained.
+ */
+export interface PermitInspection {
+  id: string;
+  /** What the jurisdiction calls it — "Footing", "Rough electrical", "Final".
+   *  Free text on purpose: no two building departments use the same list. */
+  name: string;
+  /** Calendar day, 'YYYY-MM-DD'. Never an instant — see utils/calendarDate.ts. */
+  scheduledFor: string;
+  result: PermitInspectionResult;
+  /** The inspector's correction notes. On a failure this is the whole value of
+   *  the record: it is what has to be fixed before the re-inspection. */
+  notes?: string;
+  /** Who called it, when the jurisdiction names the inspector. */
+  inspectorName?: string;
+  /** When this row was written locally. Ordering falls back to it when two
+   *  inspections share a day. */
+  recordedAt: string;
+}
+
 export interface Permit {
   id: string;
   projectId: string;
@@ -4249,13 +4286,43 @@ export interface Permit {
   appliedDate: string;
   approvedDate?: string;
   expiresDate?: string;
+  /** The NEXT / most recent inspection's day. Kept as the denormalised head of
+   *  `inspections` so the countdown, the filters and the card keep working
+   *  unchanged; the history is the source of truth. */
   inspectionDate?: string;
+  /**
+   * Notes for that same head inspection, AND the carrier for the full history.
+   *
+   * The `permits` table has no jsonb column and the app cannot add one from a
+   * client release, so the history rides in this text column behind a sentinel
+   * block — see encodePermitInspectionNotes / decodePermitInspectionNotes in
+   * app/permits.tsx. Everything that DISPLAYS this field must go through the
+   * decoder; the raw string is not user-facing text on its own. When the column
+   * finally lands, the migration reads the block out and this comment goes.
+   */
   inspectionNotes?: string;
+  /**
+   * Every inspection on this permit, newest first. Derived from the encoded
+   * block in `inspectionNotes` on read and re-encoded on write, so it survives
+   * the Supabase round-trip with no schema change.
+   */
+  inspections?: PermitInspection[];
   fee: number;
   notes?: string;
   /** Free-text phase tag — e.g. "Foundation", "Rough-in", "Final". Lets supers see what they're blocking and slice permits by job phase. */
   phase?: string;
-  /** Local file URI of the attached permit scan (issued permit, plan check stamp, inspection card). Optional. */
+  /**
+   * The attached permit scan (issued permit, plan check stamp, inspection
+   * card). Since the 2026-09-07 audit fix this holds the `project-photos`
+   * BUCKET PATH, not a `file://` — a device path meant nothing on the office
+   * desktop or after a reinstall, which is the whole finding. It falls back to
+   * a local URI only when there is no session or Supabase to stage into.
+   *
+   * So it is not a URL: anything that RENDERS or LINKS this must sign it first
+   * (utils/storage.ts resolvePhotoUrls), and anything that hands it outside the
+   * account must not pass it through verbatim — the path's first segment is the
+   * contractor's auth user id.
+   */
   attachmentUri?: string;
   /**
    * IBC Chapter 17 category — only set when `type: 'special_inspection'`.

@@ -343,7 +343,7 @@ export function useUniversalSearch(query: string): UniversalSearchResult {
         ['jurisdiction', p.jurisdiction],
         ['phase', p.phase ?? ''],
         ['notes', p.notes ?? ''],
-        ['inspectionNotes', p.inspectionNotes ?? ''],
+        ['inspectionNotes', permitInspectionSearchText(p.inspectionNotes)],
       ]);
       if (best) {
         raw.push(makeResult(
@@ -620,6 +620,105 @@ function snippet(haystack: string, index: number, matchLen: number): string {
   const prefix = start > 0 ? '…' : '';
   const suffix = end < haystack.length ? '…' : '';
   return prefix + haystack.slice(start, end) + suffix;
+}
+
+/** Everything from this marker on in `Permit.inspectionNotes` is machine text. */
+const PERMIT_MACHINE_MARKER = '[[mage:';
+
+/**
+ * Turn `Permit.inspectionNotes` into text that is safe to match AND safe to
+ * show, because `matchSnippet` is a window straight into whatever haystack we
+ * hand `bestFieldMatch`.
+ *
+ * That column is not display text. `public.permits` has no jsonb column, so the
+ * permits screen stores the whole inspection history as JSON inside it behind a
+ * `[[mage:inspections]]` sentinel (the permitInspectionCodec region in
+ * app/permits.tsx). Feeding the raw column to the matcher meant a GC searching
+ * for a jurisdiction could land inside that JSON and get
+ * `[[mage:inspections]][{"id":"…","scheduledFor":…` printed at them in a result
+ * row.
+ *
+ * We decode rather than drop the field: the history is where the failed
+ * rough-electrical and the correction note that came with it live, and "GFCI"
+ * is exactly the kind of thing a super types into search. Dropping the field
+ * would keep only the head inspection's note and quietly lose every earlier one
+ * — the retention that history was added for in the first place.
+ *
+ * This is a READER, not a second copy of the codec: it only has to turn the
+ * column into prose, so it never re-implements the write side. A block that is
+ * truncated mid-write drops out of search rather than being shown as half a
+ * record, and whatever the marker check misses is caught on the way out by
+ * `stopAtMachineText`.
+ */
+function permitInspectionSearchText(raw: string | undefined): string {
+  const text = (raw ?? '').trim();
+  const marker = text.indexOf(PERMIT_MACHINE_MARKER);
+  // Plain notes — older rows, the seeders, hand edits. Still scrubbed, because
+  // "no marker I recognise" and "no machine text" are not the same statement.
+  if (marker < 0) return stopAtMachineText(text);
+  const notes = text.slice(0, marker).trim();
+  const history = flattenPermitInspections(text.slice(marker));
+  const joined = !history ? notes : notes ? `${notes} · ${history}` : history;
+  return stopAtMachineText(joined);
+}
+
+/**
+ * A JSON object opener, or a namespaced `[[word:` sentinel — the two shapes
+ * that say "a machine wrote this" no matter which machine.
+ *
+ * A sheet reference like `[[A1]]` or `[[3/A5]]`, which a super really does type
+ * into an inspection note, has no colon and is deliberately left alone: the
+ * test is the colon, not the brackets.
+ */
+const MACHINE_TEXT_SHAPE = /\{\s*"|\[\[[^\]\s]*:/;
+
+/**
+ * Cut the string at the first thing that is plainly not prose, whoever wrote
+ * it.
+ *
+ * The marker check above couples this reader to a constant that lives in
+ * app/permits.tsx, and nothing in the build fails when that constant moves. If
+ * the sentinel is renamed, or a second carrier block ever rides in the same
+ * column, the marker stops matching and the raw JSON flows straight back into
+ * `matchSnippet` — the exact bug this helper exists to prevent, quietly
+ * restored by an edit in another file. So the last thing we do is judge the
+ * SHAPE rather than the name. The worst case after a rename is that the
+ * history stops being searchable and a few characters of a dead sentinel show;
+ * the wall of `[{"id":"…` cannot come back.
+ */
+function stopAtMachineText(s: string): string {
+  const m = MACHINE_TEXT_SHAPE.exec(s);
+  return m ? s.slice(0, m.index).trim() : s;
+}
+
+/**
+ * The encoded inspection rows as one line of readable text — "Rough electrical
+ * 2026-06-11 failed GFCI missing in the two bathrooms". Anything that doesn't
+ * parse, or isn't a row-shaped object, contributes nothing rather than being
+ * shown as half a record.
+ */
+function flattenPermitInspections(block: string): string {
+  const jsonStart = block.indexOf(']]');
+  if (jsonStart < 0) return '';
+  const jsonEnd = block.lastIndexOf('[[');
+  const json = block.slice(jsonStart + 2, jsonEnd > jsonStart ? jsonEnd : undefined);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return '';
+  }
+  if (!Array.isArray(parsed)) return '';
+  const rows: string[] = [];
+  for (const row of parsed) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const cells = [r.name, r.scheduledFor, r.result, r.inspectorName, r.notes]
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map(v => v.trim());
+    if (cells.length > 0) rows.push(cells.join(' '));
+  }
+  return rows.join(' · ');
 }
 
 function emptyGrouped(): Record<EntityKind, SearchResult[]> {

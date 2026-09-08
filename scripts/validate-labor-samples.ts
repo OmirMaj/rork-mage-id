@@ -147,7 +147,10 @@ console.log('\njob-cost labor actuals:');
   const jc = computeJobCost({ ...base, timeEntries: shifts, laborRates: { framing: 34 } });
   const labor = jc.byPhase.find(l => l.phase === 'Self-perform labor');
   expect('rated finished shifts land as an ACTUAL Self-perform labor line',
-    labor ? { actual: labor.actual, timeEntries: labor.sources.timeEntries } : null,
+    // `.length`: JobCostLine.sources became id arrays with MONEY-DRILL-1
+    // (audit 2026-09-07) so the phase drill-down can name WHICH records built
+    // the line. The assertion is unchanged — one rated finished shift.
+    labor ? { actual: labor.actual, timeEntries: labor.sources.timeEntries.length } : null,
     { actual: 272, timeEntries: 1 });
   expect('labor actual rolls into the project total', jc.actual, 272);
 

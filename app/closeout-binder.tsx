@@ -567,13 +567,23 @@ export default function CloseoutBinderScreen() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* Back + which project + where the binder stands. NOT a second page
+          title: this row used to also print "The handover packet" in
+          Type.serifHeadline — the same style FeatureHeader below renders
+          "Everything the homeowner gets at the end" in — so the screen opened
+          with two competing serif titles and two eyebrows before any content
+          (2026-09-07 app-experience audit; app/handover.tsx and
+          app/lien-waivers.tsx still have the same stack). FeatureHeader owns
+          the title, and with it the single <h1> web promotion ScreenHeader
+          adds; this row is chrome, so it stays unheaded. The row itself has to
+          stay because the screen hides the nav bar, and deleting it outright —
+          which is what the audit proposed — would leave no way back. */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title} numberOfLines={1}>The handover packet</Text>
+          <Text style={styles.eyebrow} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: statusPill.bg }]}>
           <Text style={[styles.statusPillText, { color: statusPill.color }]}>{statusPill.label}</Text>
@@ -1094,14 +1104,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   loading: { padding: 30, alignItems: 'center', gap: 10 },
   loadingText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
 
+  // Centre-aligned since the title left this row — flex-start was there to top-
+  // align a chevron against a two-line block that no longer exists, and would
+  // now leave the pill and the project name floating at different heights.
   header: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { ...Type.serifHeadline, color: themeColors.text, marginTop: 4 },
-  statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full, marginTop: 6 },
+  statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text },
   emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accentFill },

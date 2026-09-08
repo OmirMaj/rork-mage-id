@@ -61,6 +61,7 @@ const stripComments = (src: string) =>
 
 const contradictions: string[] = [];
 const keyDiffersSameTier: string[] = [];
+const falseLocks: string[] = [];
 const unverifiable: string[] = [];
 const undeclared: string[] = [];
 
@@ -86,7 +87,13 @@ for (const entry of FEATURE_REGISTRY) {
   if (allKeys.includes(entry.requires)) continue;
 
   if (!hardGate) {
-    unverifiable.push(`${entry.id} (${entry.route}) declares '${entry.requires}'; no canAccess() found in the screen`);
+    // NOT "unverifiable". `allKeys` above already accepts a gate written as a
+    // hook, a ternary, anything — this branch means the destination contains no
+    // canAccess call AT ALL, so it gates nothing and the chip is a lie in the
+    // expensive direction: a free user is told to pay for what they already
+    // have. That is how the estimate-wizard false lock reached the app's
+    // activation moment (audit 2026-09-07). It fails.
+    falseLocks.push(`${entry.id} (${entry.route}) advertises '${entry.requires}'; the screen contains no canAccess() at all`);
     continue;
   }
 
@@ -114,6 +121,16 @@ ok(
     `${contradictions.length} contradiction(s) — the chip is the app's promise about what a plan includes:\n` +
     contradictions.map(c => `        • ${c}`).join('\n') +
     `\n\n      Set the registry \`requires\` to the key the screen actually gates on.`,
+);
+
+ok(
+  'no lock chip stands in front of a screen that gates nothing',
+  falseLocks.length === 0,
+  falseLocks.length === 0 ? undefined :
+    `${falseLocks.length} false lock(s) — the chip charges for something the destination gives away:\n` +
+    falseLocks.map(c => `        • ${c}`).join('\n') +
+    `\n\n      Either drop \`requires\` from the registry row, or point it at the` +
+    `\n      screen that actually holds the wall.`,
 );
 
 if (keyDiffersSameTier.length > 0) {

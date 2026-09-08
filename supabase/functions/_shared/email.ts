@@ -505,6 +505,16 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
   const secondaryHtml = opts.secondaryCta ? emailSecondaryButton(opts.secondaryCta.label, opts.secondaryCta.href) : '';
 
   // Header — ink bg, company name on the left, "via MAGE ID" subtitle.
+  //
+  // The right-hand pill exists to say "this came THROUGH MAGE ID" on a
+  // contractor-branded email, where the left side carries the contractor's
+  // name. It used to render unconditionally, so any email with no companyName
+  // — which is every email to the GC himself, and every email from a profile
+  // that has not filled in a company name yet — printed the wordmark on the
+  // left and the same wordmark in a pill on the right. Two identical brands in
+  // one header reads as a template that was never finished. It is now tied to
+  // the same `isCobranded` flag as the "via MAGE ID" subtitle, which is the
+  // condition it always meant (reported from a real inbox, 2026-09-08).
   const companyName = opts.companyName ?? 'MAGE ID';
   const isCobranded = !!opts.companyName && opts.companyName !== 'MAGE ID';
   const headerHtml = `
@@ -516,7 +526,7 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
             ${isCobranded ? `<p style="margin:3px 0 0;font-family:${FONT_STACK};font-size:11px;color:#9AA3AD;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;">via MAGE ID</p>` : ''}
           </td>
           <td align="right" valign="middle">
-            <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${accent};color:#0B0D10;font-family:${FONT_STACK};font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">MAGE&nbsp;ID</span>
+            ${isCobranded ? `<span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${accent};color:#0B0D10;font-family:${FONT_STACK};font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">MAGE&nbsp;ID</span>` : ''}
           </td>
         </tr>
       </table>

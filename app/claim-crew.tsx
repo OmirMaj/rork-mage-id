@@ -50,10 +50,25 @@ export default function ClaimCrewScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Claim profile' }} />
       {state === 'waiting' && <><ActivityIndicator color={Colors.primary} /><Text style={styles.msg}>Confirming your profile…</Text></>}
-      {state === 'done' && <Text style={styles.msg}>You’ve claimed your crew profile. You can now edit it and control your visibility.</Text>}
+      {state === 'done' && (
+        <>
+          <Text style={styles.msg}>You’ve claimed your crew profile. You can now edit it and control your visibility.</Text>
+          {/* /sub-profile had ZERO click paths anywhere in the product — search
+              only — despite being the supply-side referral loop its own header
+              describes: work history across every GC who hired you, and a
+              credential you can hand your OTHER GCs. There is no subcontractor
+              persona in onboarding (utils/onboardingProfile.ts:19), so the door
+              belongs where a tradesperson actually arrives, which is here and
+              on the prequal form — not in GC navigation
+              (audit 2026-09-07, built-but-unreachable #13). */}
+          <Text style={styles.link} onPress={() => router.push('/sub-profile')}>
+            See your work history and reliability across every contractor
+          </Text>
+        </>
+      )}
       {state === 'failed' && <Text style={styles.msg}>This invite link is invalid or already used. Ask the contractor to resend it.</Text>}
       {state !== 'waiting' && (
-        <Text style={styles.link} onPress={() => router.replace('/')}>Go to app</Text>
+        <Text style={styles.linkMuted} onPress={() => router.replace('/')}>Go to app</Text>
       )}
     </View>
   );
@@ -62,5 +77,6 @@ export default function ClaimCrewScreen() {
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, padding: 24, gap: 16 },
   msg: { fontSize: Type.body.fontSize, color: t.text, textAlign: 'center' },
-  link: { fontSize: Type.body.fontSize, color: Colors.primary, fontWeight: '700' },
+  link: { fontSize: Type.body.fontSize, color: Colors.primary, fontWeight: '700', textAlign: 'center' },
+  linkMuted: { fontSize: Type.body.fontSize, color: t.textSecondary, fontWeight: '600' },
 });

@@ -11,8 +11,7 @@ import {
   Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool,
 } from 'lucide-react-native';
 import { MageChangeOrder } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
-import { ToolHeader } from '@/components/ToolScreenChrome';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -100,7 +99,11 @@ function ChangeOrderInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
-  const { projectId, coId, prefillReason, prefillDescription, prefillAmount, prefillScheduleDays } = useLocalSearchParams<{
+  // Reached from the sidebar (FINANCIALS ▸ Change Orders), Tools, universal
+  // search or a deep link there is no projectId, so ToolProjectPicker sets one
+  // locally (field-ticket pattern). A pick outranks the param so a STALE id in
+  // the URL — deleted project, old shared link — can't make the picker inert.
+  const { projectId: paramProjectId, coId, prefillReason, prefillDescription, prefillAmount, prefillScheduleDays } = useLocalSearchParams<{
     projectId: string;
     coId?: string;
     prefillReason?: string;
@@ -110,9 +113,14 @@ function ChangeOrderInner() {
   }>();
   const {
     getProject, getChangeOrdersForProject, getInvoicesForProject, addChangeOrder, updateChangeOrder, contacts,
+    projects,
   } = useProjects();
 
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingCOs = useMemo(() => getChangeOrdersForProject(projectId ?? ''), [projectId, getChangeOrdersForProject]);
   const existingCO = useMemo(() => coId ? existingCOs.find(c => c.id === coId) : null, [coId, existingCOs]);
 
@@ -588,17 +596,18 @@ function ChangeOrderInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Orders" />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Change Orders"
+          message="A change order adjusts an existing contract amount, so it is written against one project."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MageChangeOrder size={36} color={themeColors.accent} />}
-          title="No change order open yet"
-          message="Change orders adjust an existing project's contract amount, so they live inside the project. To start one:"
           steps={[
             'Open the project that needs the change from the Projects tab.',
             'Tap Change Orders inside the project tile grid.',
             'Hit + New to log added scope, the price delta, and approval.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

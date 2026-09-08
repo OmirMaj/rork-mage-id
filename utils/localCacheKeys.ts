@@ -101,6 +101,13 @@ export const DEVICE_SCOPED_KEYS: readonly string[] = [
 export const OFFLINE_WRITE_QUEUE_KEYS: readonly string[] = [
   'mageid_offline_queue',
   'mageid_photo_upload_queue',
+  // A dictation that has not transcribed yet exists NOWHERE else — the words
+  // were never typed and the audio lives only in this queue. It is the same
+  // class as an un-uploaded photo, and it is the exact data loss
+  // utils/audioTranscribeQueue.ts was built to stop: a super dictates 90
+  // seconds in a basement, the magic link he taps to get back in counts as a
+  // re-auth, and the prefix sweep takes the recording with it.
+  'mageid_audio_transcribe_queue',
 ];
 
 /** True if `key` is one this app wrote (under any current or legacy prefix). */

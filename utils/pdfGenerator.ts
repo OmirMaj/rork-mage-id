@@ -5,6 +5,7 @@ import type { CompanyBranding, ContractSignature, Project, ProjectContract, Chan
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
 import { netBalanceDue, effectiveRetentionHeld, pendingRetentionHeld } from './invoiceBilling';
 import { calendarDayStart } from './calendarDate';
+import { contractTimeline, contractTimelineSentence } from './contractTimelineCore';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
@@ -1391,6 +1392,28 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
     <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Warranty</h2>
     <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};white-space:pre-wrap">${escHtml(contract.warrantyText)}</div>` : '';
 
+  // CONTRACT-TIME-1 (audit 2026-09-07). This document printed a contract value
+  // and no dates, while app/contract.tsx renders the completion date on screen
+  // and the counter-signature email states "Timeline: <start> to <completion>"
+  // in the very message asking the homeowner to sign. So both parties agreed to
+  // a timeline that the SEALED artifact — the one a dispute is settled from —
+  // did not contain, and DEFAULT_TERMS clause 7 bound a change of timeline to a
+  // written Change Order against dates the contract never named.
+  //
+  // Read from utils/contractTimelineCore.contractTimeline, the same call the
+  // screen (app/contract.tsx `timeline`) and the email (`emailTimeline`) make
+  // on the same two stored columns — not re-derived here, so the three cannot
+  // state different days.
+  //
+  // Omitted entirely when either half is blank, matching the email: a
+  // half-stated timeline in a signed document is worse than none, and
+  // contractTimeline refuses to build a completion date out of a missing start.
+  const timeline = contractTimeline(contract.startDate, contract.durationDays);
+  const timelineHtml = !timeline ? '' : `
+    <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Timeline</h2>
+    <div style="font-size:14px"><strong>${escHtml(timeline.startLabel)} — ${escHtml(timeline.completionLabel)}</strong> · ${escHtml(timeline.durationDays)} calendar days</div>
+    <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};margin-top:6px">${escHtml(contractTimelineSentence(timeline))}</div>`;
+
   const sealedAt = fmtDate(new Date().toISOString());
 
   const bodyHtml = `
@@ -1402,6 +1425,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
       <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};white-space:pre-wrap">${escHtml(scopeText)}</div>` : ''}
     <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:18px 0 8px">Contract value</h2>
     <div style="font-size:14px"><strong>${escHtml(fmtMoney(Number(contract.contractValue ?? 0)))}</strong></div>
+    ${timelineHtml}
     ${milestonesHtml}
     ${allowancesHtml}
     ${warrantyHtml}

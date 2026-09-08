@@ -509,6 +509,25 @@ export default function BidDetailScreen() {
                 </View>
               ) : null}
             </View>
+            {/* A NAICS code or a solicitation number means this came off a public
+                solicitation feed, and prevailing-wage work almost always carries
+                a weekly certified payroll obligation (WH-347 federally, a state
+                equivalent elsewhere). MAGE does not produce one and is not going
+                to — it is a large build with no bearing on the residential and
+                light-commercial work this product is for. Saying so on the card
+                is the honest half: a GC should learn it here, while he is
+                deciding whether to chase the job, and not after he wins it.
+                Audit 2026-09-07 raised exactly this: winning a public job through
+                this feed pushes his labor into another system, which is the same
+                labor the cost-learning engine needs. */}
+            <View style={styles.payrollNote}>
+              <Shield size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
+              <Text style={styles.payrollNoteText}>
+                Public work usually requires weekly certified payroll (WH-347 or your
+                state&apos;s form). MAGE does not generate it — plan to run payroll
+                for this job in your payroll system.
+              </Text>
+            </View>
           </View>
         ) : null}
 
@@ -745,6 +764,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   reqItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reqLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
   reqValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  payrollNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14 },
+  payrollNoteText: { flex: 1, minWidth: 0, fontSize: Type.footnote.fontSize, lineHeight: 18, color: t.textSecondary },
   certGrid: { gap: 8 },
   certCard: { backgroundColor: t.bg, padding: 12, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
   certShort: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, marginBottom: 2 },

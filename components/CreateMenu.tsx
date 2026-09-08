@@ -15,6 +15,18 @@
 //
 // Each entry: icon + plain-English label + 1-sentence description +
 // optional "Pro" / "Business" tier chip.
+//
+// One of four rendered navigation surfaces; utils/featureRegistry.ts is the
+// source they all name. A row that has a registry entry declares `feature`,
+// and its DESTINATION and TIER CHIP are read from there. This sheet kept its
+// own `tier` field until 2026-09-07 and it had rotted in the direction that
+// costs the most: Submittal, Sub COI (both Business), and Estimate, Photo /
+// markup, Client portal invite, Lien Waiver, Cash Flow setup (all Pro) showed
+// NO chip, so a free tester tapped through and hit a full paywall the chip
+// exists to warn about. `tier` survives only for the rows with no registry
+// entry — the param-carrying create routes (/bill-from-estimate,
+// /scope-sheet, /schedule-wizard?scratch=1, /copilot?capabilityId=…) that are
+// modes of a screen rather than destinations of their own.
 
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
@@ -34,6 +46,8 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { featureFor, type FeatureId } from '@/utils/featureRegistry';
+import { REQUIRED_TIER } from '@/utils/featureTiers';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -47,11 +61,19 @@ interface CreateOption {
   subtitle: string;
   /** Lucide icon. */
   Icon: LucideIcon;
-  /** Route to push when tapped. */
+  /** Route to push when tapped. When `feature` is set this must equal
+   *  featureFor(feature).route — scripts/validate-nav-coverage.ts asserts it,
+   *  and the push itself uses the registry route. The literal stays because
+   *  scripts/validate-feature-search.ts greps this file for route strings to
+   *  prove sidebar destinations are reachable on a phone. */
   href: string;
+  /** The registry row this creates into, when the destination is one. Owns
+   *  the tier chip. */
+  feature?: FeatureId;
   /** Optional category for grouping. */
   category: 'project' | 'money' | 'docs' | 'field' | 'people' | 'tools';
-  /** Optional Pro/Business tier hint. */
+  /** Tier chip for the rows with NO registry entry only. Ignored when
+   *  `feature` is set — that would be the second copy of the gate again. */
   tier?: 'pro' | 'business';
   /** Search keywords beyond the label. */
   keywords?: string[];
@@ -71,50 +93,52 @@ const OPTIONS: CreateOption[] = [
   // Project-level
   { label: 'Start by voice', subtitle: 'Just say the job — MAGE sets it up and drops you inside', Icon: Mic, href: '/copilot?capabilityId=new_project', category: 'project', keywords: ['voice', 'dictate', 'speak', 'talk', 'ai', 'copilot', 'new', 'job'] },
   { label: 'Project', subtitle: 'Start a new job from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
-  { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: Calculator, href: '/estimate-wizard', category: 'project', scoped: true },
+  { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: Calculator, href: '/estimate-wizard', feature: 'estimate-wizard', category: 'project', scoped: true },
   { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: CalendarDays, href: '/schedule-wizard?scratch=1', category: 'project', scoped: true },
-  { label: 'Lead', subtitle: 'Capture a homeowner inquiry — voice or form', Icon: UserPlus, href: '/leads', category: 'project', keywords: ['pipeline', 'sales'] },
+  { label: 'Lead', subtitle: 'Capture a homeowner inquiry — voice or form', Icon: UserPlus, href: '/leads', feature: 'leads', category: 'project', keywords: ['pipeline', 'sales'] },
   { label: 'Lead by voice', subtitle: 'Say what the homeowner told you — MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
 
   // Money
-  { label: 'Quick Quote', subtitle: 'Fast bid for a small job', Icon: Zap, href: '/quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
-  { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: Receipt, href: '/invoice', category: 'money', scoped: true },
-  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', category: 'money', keywords: ['co'], scoped: true, tier: 'pro' },
+  { label: 'Quick Quote', subtitle: 'Fast bid for a small job', Icon: Zap, href: '/quick-quote', feature: 'quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
+  { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: Receipt, href: '/invoice', feature: 'invoice', category: 'money', scoped: true },
+  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', feature: 'change-order', category: 'money', keywords: ['co'], scoped: true },
   { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true, extraParams: { type: 'progress' } },
-  { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
+  { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', feature: 'buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
   { label: 'Scope Sheet', subtitle: 'AI inclusions & exclusions from your estimate', Icon: FileCheck, href: '/scope-sheet', category: 'docs', keywords: ['scope', 'inclusions', 'exclusions', 'clarifications', 'assumptions', 'sow'], scoped: true },
-  { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
+  { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', feature: 'lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
 
   // Documentation
-  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: ClipboardList, href: '/daily-report', category: 'docs', keywords: ['dfr', 'log'], scoped: true },
-  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', category: 'docs', keywords: ['punch list'], scoped: true, tier: 'business' },
-  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', category: 'docs', keywords: ['request for information'], scoped: true, tier: 'business' },
-  { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: FileText, href: '/submittal', category: 'docs', scoped: true },
-  { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: ShoppingCart, href: '/selections', category: 'docs', scoped: true },
-  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', category: 'docs', keywords: ['picture'], scoped: true },
-  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: Layers, href: '/plans', category: 'docs', keywords: ['blueprint'], scoped: true },
-  { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', category: 'docs', scoped: true },
-  { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: Shield, href: '/coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
+  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: ClipboardList, href: '/daily-report', feature: 'daily-report', category: 'docs', keywords: ['dfr', 'log'], scoped: true },
+  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', feature: 'punch-list', category: 'docs', keywords: ['punch list'], scoped: true },
+  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', feature: 'rfi', category: 'docs', keywords: ['request for information'], scoped: true },
+  { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: FileText, href: '/submittal', feature: 'submittal', category: 'docs', scoped: true },
+  { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: ShoppingCart, href: '/selections', feature: 'selections', category: 'docs', scoped: true },
+  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', feature: 'photo-triage', category: 'docs', keywords: ['picture'], scoped: true },
+  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: Layers, href: '/plans', feature: 'plans', category: 'docs', keywords: ['blueprint'], scoped: true },
+  { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', feature: 'permits', category: 'docs', scoped: true },
+  { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: Shield, href: '/coi-vault', feature: 'coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
 
   // People & meetings
-  { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
-  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', category: 'people', scoped: true, param: 'id' },
+  { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', feature: 'oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
+  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', feature: 'client-portal', category: 'people', scoped: true, param: 'id' },
   { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true },
 
   // Closeout
-  { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', category: 'docs', scoped: true },
-  { label: 'Closeout Binder', subtitle: 'The PDF packet you give the homeowner', Icon: BookOpen, href: '/closeout-binder', category: 'docs', scoped: true },
+  { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', feature: 'handover', category: 'docs', scoped: true },
+  { label: 'Closeout Binder', subtitle: 'The PDF packet you give the homeowner', Icon: BookOpen, href: '/closeout-binder', feature: 'closeout-binder', category: 'docs', scoped: true },
 
   // Tools
-  { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', category: 'tools', scoped: true },
+  { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', feature: 'cash-flow', category: 'tools', scoped: true },
   // AI Takeoff is a metered free demo (aiTakeoff freeLifetimeCap=1), NOT a
   // Pro-locked feature — the /takeoff screen has no canAccess gate, it only
   // meters via checkAILimit and gives free users 1 lifetime trial. Every
   // other entry point (the Estimator tab CTAs) routes here ungated, so the
   // Create menu must NOT paint a Pro lock chip on it or the same feature has
   // two contradictory doors. The Pro wall lives one step later, on
-  // "Convert to estimate" (takeoff-estimate.tsx), where it belongs.
-  { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', category: 'tools', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
+  // "Convert to estimate" (takeoff-estimate.tsx), where it belongs. That
+  // invariant now lives where it belongs too: the registry's `takeoff` row
+  // carries no `requires`, and scripts/validate-nav-coverage.ts asserts it.
+  { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', feature: 'takeoff', category: 'tools', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
   { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: MageAIMark as unknown as LucideIcon, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
 ];
 
@@ -147,10 +171,21 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
   // Paywall is the real gate) — the chip just sets expectations so a free
   // tester sees "Business" before tapping instead of hitting a full wall.
   const lockedTier = useCallback((opt: CreateOption): 'pro' | 'business' | null => {
-    if (opt.tier === 'business' && !isBusinessOrAbove) return 'business';
-    if (opt.tier === 'pro' && !isProOrAbove) return 'pro';
+    // Registry first: the chip must name the wall the destination actually
+    // enforces, not a second opinion maintained in this file.
+    const requires = opt.feature ? featureFor(opt.feature).requires : undefined;
+    const needs = requires ? REQUIRED_TIER[requires] : opt.tier;
+    if (needs === 'business' && !isBusinessOrAbove) return 'business';
+    if (needs === 'pro' && !isProOrAbove) return 'pro';
     return null;
   }, [isProOrAbove, isBusinessOrAbove]);
+
+  /** Where a row goes. Registry route wins so a stale literal cannot misroute
+   *  anyone in the window before ship-check next runs. */
+  const hrefFor = useCallback(
+    (opt: CreateOption) => (opt.feature ? featureFor(opt.feature).route : opt.href),
+    [],
+  );
   const [query, setQuery] = useState('');
   // When set, the sheet swaps from the create list to an in-sheet project
   // picker for this scoped option. Swapping content (vs. opening a nested
@@ -192,13 +227,13 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
     handleClose();
     setTimeout(() => {
       router.push({
-        pathname: opt.href as never,
+        pathname: hrefFor(opt) as never,
         // Most screens read `projectId`; a few read `id`. Passing the
         // wrong name re-creates the exact dead-end the picker fixes.
         params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}) },
       } as never);
     }, 280);
-  }, [handleClose, router]);
+  }, [handleClose, router, hrefFor]);
 
   const handleSelect = useCallback((opt: CreateOption) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -244,10 +279,10 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
       if (opt.label === 'Project' && onCreateProject) {
         onCreateProject();
       } else {
-        router.push(opt.href as never);
+        router.push(hrefFor(opt) as never);
       }
     }, 280);
-  }, [handleClose, router, onCreateProject, projects, routeScoped]);
+  }, [handleClose, router, onCreateProject, projects, routeScoped, hrefFor]);
 
   return (
     <Modal

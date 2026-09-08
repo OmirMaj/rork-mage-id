@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image,
 } from 'react-native';
@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
   Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter, MapPin,
+  Camera,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -32,6 +33,8 @@ import { generateUUID } from '@/utils/generateId';
 import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
 import { showAlert } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
+import { burstSummary, captureBurst } from '@/components/PhotoCapture';
+import { nailIt } from '@/components/animations/NailItToast';
 
 // Top-level row IDs (punch items) become Supabase PKs and MUST be UUIDs —
 // the punch_items.id column rejects anything else with "invalid input syntax
@@ -40,6 +43,31 @@ import { formatCalendarDay } from '@/utils/calendarDate';
 function createId(_prefix: string): string {
   return generateUUID();
 }
+
+/**
+ * One frame from a photo walk, waiting for a sentence.
+ *
+ * PUNCH-BURST (audit 2026-09-07 "worth doing" #35). Every camera call in this
+ * app is one-shot, so a twenty-defect walk was twenty round trips through the
+ * app between shots — roughly eighty interactions with a phone in a gloved hand
+ * in direct sun. The super's actual workaround is the phone's own camera roll,
+ * and those photos never reach the punch list.
+ *
+ * The walk splits the job the way it is really done: SHOOT everything in one
+ * pass (the camera re-opens itself after each frame), then stand in the shade
+ * and type one line per photo. Nothing is written to the punch list until a
+ * line exists — a punch item with no description is a row nobody can action.
+ */
+interface WalkShot {
+  id: string;
+  uri: string;
+  description: string;
+  location: string;
+}
+
+/** Frames one walk can hold. Past this the review sheet is a scroll, not a list,
+ *  and the right move is to file these and start another walk. */
+const MAX_WALK_SHOTS = 40;
 
 function getStatusConfig(t: ThemeColors, status: PunchItemStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -96,7 +124,7 @@ function PunchListScreenInner() {
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
   }>();
-  const { projects, getProject, getPunchItemsForProject, addPunchItem, updatePunchItem, deletePunchItem, updateProject, subcontractors } = useProjects();
+  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, deletePunchItem, updateProject, subcontractors } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -122,6 +150,11 @@ function PunchListScreenInner() {
   // the photo annotator's "Add to Punch List" flow. Surfaces in the
   // form as a thumbnail badge so the GC sees what they're attaching.
   const [attachedPhotoUri, setAttachedPhotoUri] = useState<string | undefined>(undefined);
+
+  // Photo walk — the burst-capture path. `walkShots` is a staging area, not the
+  // punch list: nothing here exists as an item until it has a description.
+  const [walkShots, setWalkShots] = useState<WalkShot[]>([]);
+  const [showWalk, setShowWalk] = useState(false);
 
   // When arriving from photo-annotator with a prefill, open the new-item
   // form auto-attached to that photo. Only fires once per mount.
@@ -313,6 +346,108 @@ function PunchListScreenInner() {
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [description, location, assignedSub, dueDate, priority, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri]);
+
+  // ── Photo walk ───────────────────────────────────────────────────────────
+
+  const startPhotoWalk = useCallback(async () => {
+    const remaining = MAX_WALK_SHOTS - walkShots.length;
+    if (remaining <= 0) {
+      showAlert(
+        'That is a full walk',
+        `You have ${MAX_WALK_SHOTS} photos waiting for a description. File those first, then start another walk.`,
+      );
+      setShowWalk(true);
+      return;
+    }
+    // The sheet opens FIRST so the frames are visibly landing behind the
+    // camera and a walk interrupted by a phone call is not a blank screen.
+    setShowWalk(true);
+    const outcome = await captureBurst({
+      remaining,
+      onCaptured: ({ uri }) => {
+        setWalkShots(prev => [...prev, {
+          id: createId('walk'),
+          uri,
+          description: '',
+          // Defects cluster by room, so each frame starts where the last one
+          // was. It is a default the GC can overwrite, never an assertion.
+          location: prev[prev.length - 1]?.location ?? '',
+        }]);
+      },
+    });
+    const note = burstSummary(outcome.captured, outcome.stoppedBy, `${MAX_WALK_SHOTS}-photo`);
+    if (note) {
+      if (outcome.captured > 0) nailIt(note);
+      else showAlert('Camera', note);
+    }
+  }, [walkShots.length]);
+
+  const updateWalkShot = useCallback((id: string, field: 'description' | 'location', value: string) => {
+    setWalkShots(prev => prev.map(w => w.id === id ? { ...w, [field]: value } : w));
+  }, []);
+
+  const discardWalkShot = useCallback((id: string) => {
+    showAlert('Discard this photo?', 'It has not been added to the punch list, so nothing else will remember it.', [
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: () => setWalkShots(prev => prev.filter(w => w.id !== id)) },
+    ]);
+  }, []);
+
+  /** The shots that are ready to become punch items. */
+  const describedWalkShots = useMemo(
+    () => walkShots.filter(w => w.description.trim().length > 0),
+    [walkShots],
+  );
+
+  // A walk files in one gesture, and a gesture on a cold phone can register
+  // twice. The filed rows leave `walkShots` on the next render, not in this
+  // tick, so a second tap inside the same frame would re-read the same
+  // `describedWalkShots` and file every defect a second time — twenty duplicate
+  // punch items, each with its own row in Supabase. Held in a ref because
+  // state cannot stop a double tap it has not re-rendered for yet.
+  const filingWalkRef = useRef(false);
+
+  const fileWalkShots = useCallback(() => {
+    if (describedWalkShots.length === 0) return;
+    if (filingWalkRef.current) return;
+    filingWalkRef.current = true;
+    const now = new Date().toISOString();
+    // addPunchItems, not a loop of addPunchItem: the batch path prepends all N
+    // rows in ONE setState and ONE AsyncStorage write. Looping the single-add
+    // serialises the entire punch list once per photo — forty writes of a
+    // growing array on the phone that just finished a forty-frame walk.
+    addPunchItems(describedWalkShots.map(shot => ({
+      id: createId('punch'),
+      projectId: projectId ?? '',
+      description: shot.description.trim(),
+      location: shot.location.trim(),
+      assignedSub: '',
+      dueDate: '',
+      priority: 'medium' as const,
+      status: 'open' as const,
+      photoUri: shot.uri,
+      createdAt: now,
+      updatedAt: now,
+    })));
+    const filed = describedWalkShots.length;
+    // Only the filed ones leave the sheet. Anything still without a sentence
+    // stays exactly where it is — dropping a photo the GC took to make the
+    // count tidy is the one outcome this whole flow exists to prevent.
+    const filedIds = new Set(describedWalkShots.map(w => w.id));
+    const leftover = walkShots.filter(w => !filedIds.has(w.id));
+    setWalkShots(leftover);
+    if (leftover.length === 0) setShowWalk(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    nailIt(leftover.length === 0
+      ? `${filed} punch item${filed === 1 ? '' : 's'} added.`
+      : `${filed} added. ${leftover.length} photo${leftover.length === 1 ? '' : 's'} still need a line.`);
+  }, [describedWalkShots, walkShots, addPunchItems, projectId]);
+
+  // Released only once the filed shots have actually LEFT `walkShots`. Clearing
+  // it at the end of fileWalkShots would make the latch useless — the second
+  // tap arrives in a later task, by which time the ref is false again and the
+  // closure it fires may still be the pre-commit one.
+  useEffect(() => { filingWalkRef.current = false; }, [walkShots]);
 
   const handleStatusChange = useCallback((item: PunchItem, newStatus: PunchItemStatus) => {
     const updates: Partial<PunchItem> = { status: newStatus };
@@ -684,6 +819,24 @@ function PunchListScreenInner() {
           <Text style={styles.addItemBtnText}>Apply trade template</Text>
         </TouchableOpacity>
 
+        {/* Burst capture. Sits above voice Walk Mode because a photo walk is
+            what a super does first — he shoots the floor, then describes it. */}
+        <TouchableOpacity
+          style={styles.walkBtn}
+          onPress={() => { void startPhotoWalk(); }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Start a photo walk"
+          testID="start-photo-walk"
+        >
+          <Camera size={16} color={"#FFFFFF"} strokeWidth={1.75} />
+          <Text style={styles.walkBtnText}>
+            {walkShots.length > 0
+              ? `Photo walk — ${walkShots.length} waiting for a line`
+              : 'Photo walk — shoot the whole floor'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.walkBtn}
           onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '' } as never })}
@@ -708,6 +861,102 @@ function PunchListScreenInner() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Photo-walk review ────────────────────────────────────────────
+          One row per frame: the photo, one line of what is wrong, and where.
+          Priority, sub and due date are deliberately absent — they are desk
+          decisions, and asking for them here is what turns a five-minute walk
+          back into an hour. Every item files as open / medium and gets sorted
+          later from the list. */}
+      <Modal visible={showWalk} transparent animationType="slide" onRequestClose={() => setShowWalk(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }]}>
+              <View style={styles.formHeader}>
+                <Text style={styles.formTitle}>Photo walk</Text>
+                <TouchableOpacity onPress={() => setShowWalk(false)} accessibilityRole="button" accessibilityLabel="Close photo walk" testID="close-photo-walk">
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {walkShots.length === 0 ? (
+                  <Text style={styles.walkEmpty}>
+                    No frames yet. Tap Shoot more — the camera stays open, so you can walk the whole floor before you type anything.
+                  </Text>
+                ) : null}
+
+                {walkShots.map((shot, idx) => (
+                  <View key={shot.id} style={styles.walkRow}>
+                    <View style={styles.walkRowTop}>
+                      <Image source={{ uri: shot.uri }} style={styles.walkThumb} resizeMode="cover" />
+                      <View style={{ flex: 1, gap: 6 }}>
+                        <View style={styles.walkRowHeader}>
+                          <Text style={styles.walkRowNum}>Photo {idx + 1}</Text>
+                          <TouchableOpacity
+                            onPress={() => discardWalkShot(shot.id)}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Discard photo ${idx + 1}`}
+                          >
+                            <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+                          </TouchableOpacity>
+                        </View>
+                        <TextInput
+                          style={styles.input}
+                          value={shot.description}
+                          onChangeText={v => updateWalkShot(shot.id, 'description', v)}
+                          placeholder="What's wrong here?"
+                          placeholderTextColor={themeColors.textMuted}
+                          testID={`walk-desc-${idx}`}
+                        />
+                        <TextInput
+                          style={styles.input}
+                          value={shot.location}
+                          onChangeText={v => updateWalkShot(shot.id, 'location', v)}
+                          placeholder="Where — e.g. Unit 4B bath"
+                          placeholderTextColor={themeColors.textMuted}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity style={styles.walkShootBtn} onPress={() => { void startPhotoWalk(); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Shoot more photos" testID="walk-shoot-more">
+                <Camera size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
+                <Text style={styles.walkShootBtnText}>Shoot more</Text>
+              </TouchableOpacity>
+
+              {/* A blocked control says WHY. With nothing described the button
+                  names the one thing standing between the walk and the list. */}
+              <TouchableOpacity
+                style={[styles.walkFileBtn, describedWalkShots.length === 0 ? styles.walkFileBtnOff : null]}
+                onPress={fileWalkShots}
+                disabled={describedWalkShots.length === 0}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: describedWalkShots.length === 0 }}
+                accessibilityLabel={describedWalkShots.length === 0
+                  ? 'Add a line to a photo before it can be filed'
+                  : `Add ${describedWalkShots.length} punch items`}
+                testID="file-walk-items"
+              >
+                <Text style={styles.walkFileBtnText}>
+                  {describedWalkShots.length === 0
+                    ? 'Add a line to a photo to file it'
+                    : `Add ${describedWalkShots.length} punch item${describedWalkShots.length === 1 ? '' : 's'}`}
+                </Text>
+              </TouchableOpacity>
+              {walkShots.length > describedWalkShots.length ? (
+                <Text style={styles.walkPending}>
+                  {walkShots.length - describedWalkShots.length} photo{walkShots.length - describedWalkShots.length === 1 ? '' : 's'} still without a line — they stay here until you write one.
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -1251,6 +1500,30 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
   saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center' },
+
+  // ── Photo walk ─────────────────────────────────────────────────────────
+  walkEmpty: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 19, paddingVertical: 12 },
+  walkRow: { marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  walkRowTop: { flexDirection: 'row' as const, gap: 12 },
+  // 96pt: big enough to tell a scuff from a crack without opening it, small
+  // enough that four rows fit above the keyboard.
+  walkThumb: { width: 96, height: 96, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt },
+  walkRowHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
+  walkRowNum: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  walkShootBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
+    minHeight: 46, marginTop: 8, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentSoft,
+  },
+  walkShootBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
+  // accentFill (#BC440C, 5.29:1) is the accent tone white text may sit on;
+  // themeColors.accent behind #fff is 2.87:1 and fails AA.
+  walkFileBtn: {
+    minHeight: 48, marginTop: 8, borderRadius: Tokens.radius.lg,
+    backgroundColor: themeColors.accentFill, alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  walkFileBtnOff: { backgroundColor: themeColors.textMuted },
+  walkFileBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
+  walkPending: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 8, lineHeight: 17 },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   // Near-opaque, not the 0.45 sheet scrim — a photo judged against a
   // half-lit punch list behind it is a photo judged wrong.

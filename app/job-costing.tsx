@@ -44,10 +44,14 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import {
-  computeJobCost, formatMoney, formatMoneyFull, describeVariance,
+  computeJobCost, formatMoney, formatMoneyFull, describeVariance, EQUIPMENT_HOURS_PER_DAY,
   type JobCostLine, type JobCostSummary, type VarianceDisplay,
 } from '@/utils/jobCostEngine';
-import type { Commitment, CommitmentType } from '@/types';
+import type {
+  Commitment, CommitmentType, ChangeOrder, MaterialReceipt, TimeEntry,
+  Equipment, Permit, Subcontractor,
+} from '@/types';
+import { calendarDayStart } from '@/utils/calendarDate';
 import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { Type } from '@/constants/typography';
@@ -90,6 +94,10 @@ function JobCostingInner() {
   const {
     getProject, commitments, changeOrders,
     addCommitment, updateCommitment, deleteCommitment, subcontractors, projects,
+    // MONEY-EQP-1 / MONEY-PMT-1: machine time and permit fees are ACTUAL cost.
+    // Both were captured and posted nowhere, so a self-perform excavation ran
+    // a $450/day machine for six days and read $0 on this screen.
+    equipment, permits,
   } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
@@ -122,13 +130,23 @@ function JobCostingInner() {
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
     // No `invoices`: client payments are revenue, not job cost (MONEY-DEF-1).
-    return computeJobCost({ project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier });
-  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier]);
+    return computeJobCost({
+      project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier,
+      equipment, permits,
+    });
+  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
     [commitments, projectId],
   );
+
+  // Everything the phase drill-down resolves ids against. Same arrays the
+  // engine was handed, so a row can never name a record the summary did not
+  // actually count (MONEY-DRILL-1).
+  const drillRecords: PhaseDrillRecords = useMemo(() => ({
+    commitments, changeOrders, receipts, timeEntries, equipment, permits, subcontractors,
+  }), [commitments, changeOrders, receipts, timeEntries, equipment, permits, subcontractors]);
 
   const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds), [projects, commitments, receipts, laborSamples, seeds]);
   const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
@@ -462,9 +480,11 @@ function JobCostingInner() {
 
         <Text style={styles.footerNote}>
           Budget includes approved change orders. Actual is money you have paid OUT — subcontract
-          and PO payments, snapped supplier receipts, and priced crew hours. Payments your client
-          makes to you are revenue and are counted nowhere on this screen. EAC assumes remaining
-          committed work lands at signed price; uncommitted budget is a floor.
+          and PO payments, snapped supplier receipts, priced crew hours, logged equipment days at
+          each machine&apos;s day rate, and permit fees. Payments your client makes to you are
+          revenue and are counted nowhere on this screen. EAC assumes remaining committed work
+          lands at signed price; uncommitted budget is a floor. Tap any phase to see the records
+          behind it.
         </Text>
       </ScrollView>
 
@@ -493,11 +513,15 @@ function JobCostingInner() {
         }}
       />
 
-      {/* Phase detail modal */}
+      {/* Phase detail modal — MONEY-DRILL-1: the sheet names WHICH records
+          built the line, and opens them. */}
       <PhaseDetailModal
         line={selectedPhase}
         summary={summary}
+        records={drillRecords}
+        projectId={projectId ?? ''}
         onClose={() => setSelectedPhase(null)}
+        onOpenCommitment={setEditingCommitment}
       />
     </View>
   );
@@ -825,15 +849,243 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Phase drill-down modal
 // ─────────────────────────────────────────────────────────────
 
-function PhaseDetailModal({ line, summary, onClose }: {
+/**
+ * The records behind one phase, resolved from the id arrays the engine now
+ * returns (MONEY-DRILL-1). Everything here is already in memory on this
+ * screen — the drill-down is a lookup, not a fetch.
+ */
+// Not exported: app/ files are Expo Router routes, and a route module's public
+// surface is its default export.
+interface PhaseDrillRecords {
+  commitments: Commitment[];
+  changeOrders: ChangeOrder[];
+  receipts: MaterialReceipt[];
+  timeEntries: TimeEntry[];
+  equipment: Equipment[];
+  permits: Permit[];
+  subcontractors: Subcontractor[];
+}
+
+interface DrillRow {
+  id: string;
+  title: string;
+  detail: string;
+  /** Right-hand figure. Omitted where a single record splits across phases and
+   *  no honest per-phase figure exists (see buildPhaseDrill). */
+  amount?: string;
+  onPress?: () => void;
+}
+
+interface DrillGroup {
+  key: string;
+  label: string;
+  rows: DrillRow[];
+  /** Shown under the group when the amounts need a caveat. */
+  note?: string;
+}
+
+/**
+ * 'Sep 4' for any of the five date shapes this sheet formats.
+ *
+ * `calendarDayStart`, NOT `Date.parse` — the fields arrive in BOTH shapes and
+ * a bare parse gets one of them wrong in each direction. `Permit.appliedDate`
+ * and `TimeEntry.date` are bare 'YYYY-MM-DD' (todayCalendarDay /
+ * `toISOString().split('T')[0]`), which `Date.parse` reads as UTC midnight and
+ * `toLocaleDateString` then prints as the PREVIOUS day everywhere west of
+ * Greenwich — a shift logged Sep 4 listed under Sep 3, beside the money it
+ * cost. `ChangeOrder.date` and `EquipmentUtilizationEntry.date` are full
+ * `toISOString()` instants, which a blanket `parseCalendarDay` would read a
+ * day early east of it. calendarDayStart is the helper that does neither.
+ */
+const shortDate = (value?: string): string => {
+  const d = calendarDayStart(value);
+  if (!d) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+/**
+ * Turn one phase's source ids into named, openable rows.
+ *
+ * MONEY-DRILL-1 (audit 2026-09-07, "worth doing" #25): this sheet used to print
+ * "Commitments 3, Material receipts 7" with no tap target, so a PM reading
+ * "Electrical over by $9,200" had to reconcile by hand in another tab — the
+ * work the tool was bought to remove.
+ *
+ * An id with no matching record is DROPPED, not rendered as a blank row: the
+ * record was deleted after the summary was computed, and a row that opens
+ * nothing is worse than one fewer row. The group label therefore counts rows
+ * it can actually show, never `sources.x.length`.
+ *
+ * Material receipts carry no amount on purpose. An unlinked receipt is split
+ * per line across phases by the engine, so this phase holds only SOME of the
+ * document's dollars; printing the document total beside a $3,000 phase would
+ * be a number that reconciles to nothing. Vendor, date and document number
+ * identify the paper — which is the question being asked.
+ */
+function buildPhaseDrill(
+  line: JobCostLine,
+  records: PhaseDrillRecords,
+  open: {
+    commitment: (c: Commitment) => void;
+    changeOrder: (co: ChangeOrder) => void;
+    receipts: () => void;
+    equipment: (equipmentId: string) => void;
+    permits: () => void;
+    crew: () => void;
+  },
+): DrillGroup[] {
+  const groups: DrillGroup[] = [];
+
+  const commitmentRows: DrillRow[] = [];
+  for (const id of line.sources.commitments) {
+    const c = records.commitments.find(x => x.id === id);
+    if (!c) continue;
+    const sub = c.subcontractorId ? records.subcontractors.find(s => s.id === c.subcontractorId) : undefined;
+    const vendor = sub?.companyName ?? c.vendorName ?? '—';
+    const signed = c.amount + (c.changeAmount ?? 0);
+    const paid = Math.max(0, c.paidToDate ?? 0);
+    commitmentRows.push({
+      id,
+      title: `${c.number || '—'} · ${c.description || '(no description)'}`,
+      detail: `${vendor} · ${c.type === 'subcontract' ? 'Subcontract' : 'PO'}`,
+      // Paid FIRST: this sheet's Actual row is the sum of these, and showing
+      // the signed amount alone is what made "Committed" and "Actual paid"
+      // impossible to trace back to a record.
+      amount: `${formatMoneyFull(paid)} paid of ${formatMoneyFull(signed)}`,
+      onPress: () => open.commitment(c),
+    });
+  }
+  if (commitmentRows.length > 0) {
+    groups.push({ key: 'commitments', label: `Commitments (${commitmentRows.length})`, rows: commitmentRows });
+  }
+
+  const coRows: DrillRow[] = [];
+  for (const id of line.sources.changeOrders) {
+    const co = records.changeOrders.find(x => x.id === id);
+    if (!co) continue;
+    coRows.push({
+      id,
+      title: `CO #${co.number} · ${co.description || '(no description)'}`,
+      detail: `Approved · ${shortDate(co.date)}`,
+      amount: formatMoney(co.changeAmount, { sign: true }),
+      onPress: () => open.changeOrder(co),
+    });
+  }
+  if (coRows.length > 0) {
+    groups.push({ key: 'changeOrders', label: `Change orders (${coRows.length})`, rows: coRows, note: 'Change orders move BUDGET, not actual cost.' });
+  }
+
+  const receiptRows: DrillRow[] = [];
+  for (const id of line.sources.receipts) {
+    const rec = records.receipts.find(x => x.id === id);
+    if (!rec) continue;
+    receiptRows.push({
+      id,
+      title: rec.vendor || 'Supplier receipt',
+      detail: [rec.documentNumber, shortDate(rec.receiptDate ?? rec.createdAt)].filter(Boolean).join(' · '),
+      onPress: open.receipts,
+    });
+  }
+  if (receiptRows.length > 0) {
+    groups.push({
+      key: 'receipts',
+      label: `Material receipts (${receiptRows.length})`,
+      rows: receiptRows,
+      note: 'A receipt splitting across categories lands part of its total on more than one phase, so no single figure is shown here.',
+    });
+  }
+
+  const crewRows: DrillRow[] = [];
+  for (const id of line.sources.timeEntries) {
+    const e = records.timeEntries.find(x => x.id === id);
+    if (!e) continue;
+    crewRows.push({
+      id,
+      title: `${e.workerName || 'Crew'} · ${e.trade || 'crew'}`,
+      detail: `${shortDate(e.date)} · ${e.totalHours}h${e.overtimeHours > 0 ? ` (${e.overtimeHours}h OT)` : ''}`,
+      onPress: open.crew,
+    });
+  }
+  if (crewRows.length > 0) {
+    groups.push({ key: 'timeEntries', label: `Crew shifts, self-perform (${crewRows.length})`, rows: crewRows });
+  }
+
+  const equipRows: DrillRow[] = [];
+  for (const id of line.sources.equipment) {
+    const machine = records.equipment.find(m => (m.utilizationLog ?? []).some(u => u.id === id));
+    const entry = machine?.utilizationLog?.find(u => u.id === id);
+    if (!machine || !entry) continue;
+    // Clamped the same way the engine clamps before summing, so the rows foot
+    // to the phase total. A negative hoursUsed contributes $0 there and must
+    // not print a credit here.
+    const hours = Number.isFinite(entry.hoursUsed) ? Math.max(0, entry.hoursUsed) : 0;
+    equipRows.push({
+      id,
+      title: machine.name || `${machine.make} ${machine.model}`.trim(),
+      detail: `${shortDate(entry.date)} · ${hours}h${entry.operatorName ? ` · ${entry.operatorName}` : ''}`,
+      amount: formatMoneyFull((hours / EQUIPMENT_HOURS_PER_DAY) * machine.dailyRate),
+      onPress: () => open.equipment(machine.id),
+    });
+  }
+  if (equipRows.length > 0) {
+    groups.push({
+      key: 'equipment',
+      label: `Equipment days (${equipRows.length})`,
+      rows: equipRows,
+      // The one overlap this stream has, said out loud. Nothing links an
+      // Equipment record to a Commitment, so a rental logged as hours AND
+      // entered as a PO is counted twice and only the GC can see it.
+      note: `Charged at each machine's day rate, ${EQUIPMENT_HOURS_PER_DAY} logged hours to the day. If you also entered a rental invoice as a PO or a receipt, that money is on this job twice — keep the hours or the invoice, not both.`,
+    });
+  }
+
+  const permitRows: DrillRow[] = [];
+  for (const id of line.sources.permits) {
+    const p = records.permits.find(x => x.id === id);
+    if (!p) continue;
+    permitRows.push({
+      id,
+      title: `${p.type.replace(/_/g, ' ')}${p.permitNumber ? ` · ${p.permitNumber}` : ''}`,
+      detail: [p.jurisdiction, shortDate(p.appliedDate)].filter(Boolean).join(' · '),
+      amount: formatMoneyFull(p.fee),
+      onPress: open.permits,
+    });
+  }
+  if (permitRows.length > 0) {
+    groups.push({ key: 'permits', label: `Permit fees (${permitRows.length})`, rows: permitRows });
+  }
+
+  return groups;
+}
+
+function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCommitment }: {
   line: JobCostLine | null;
   summary: JobCostSummary;
+  records: PhaseDrillRecords;
+  projectId: string;
   onClose: () => void;
+  onOpenCommitment: (c: Commitment) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   if (!line) return null;
   const v = describeVariance(line.variance);
+  const groups = buildPhaseDrill(line, records, {
+    commitment: (c) => { onClose(); onOpenCommitment(c); },
+    changeOrder: (co) => { onClose(); router.push({ pathname: '/change-order', params: { projectId, coId: co.id } } as never); },
+    // /material-receipt has no per-receipt route; it opens on the project and
+    // lists them, which is still the right screen to land on.
+    receipts: () => { onClose(); router.push({ pathname: '/material-receipt', params: { projectId } } as never); },
+    equipment: (equipmentId) => { onClose(); router.push({ pathname: '/equipment-detail', params: { equipmentId } } as never); },
+    permits: () => { onClose(); router.push({ pathname: '/permits', params: { projectId } } as never); },
+    // /time-tracking, NOT /crew. These rows ARE TimeEntry records, and
+    // app/crew.tsx is the crew-member directory — it never renders a shift, so
+    // the first cut of this landed a GC on a roster and left him hunting for
+    // the 8 hours he had just tapped. app/time-tracking.tsx owns the same
+    // TIME_ENTRIES_STORAGE_KEY this screen mirrors and takes `projectId`.
+    crew: () => { onClose(); router.push({ pathname: '/time-tracking', params: { projectId } } as never); },
+  });
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -842,7 +1094,10 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <Text style={styles.modalTitle}>{line.phase}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
-          <View style={{ padding: 16 }}>
+          {/* flexShrink so the sheet's own maxHeight:90% squeezes the LIST,
+              not the footer — a phase with 30 receipts used to push Close off
+              the bottom of the screen. */}
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16 }}>
             <DetailRow label="Budget" value={formatMoneyFull(line.budget)} />
             <DetailRow label="Committed" value={formatMoneyFull(line.committed)} />
             <DetailRow label="Actual paid" value={formatMoneyFull(line.actual)} />
@@ -855,16 +1110,43 @@ function PhaseDetailModal({ line, summary, onClose }: {
               bold
             />
             <View style={styles.detailDivider} />
-            <DetailRow label="Commitments" value={`${line.sources.commitments}`} />
-            <DetailRow label="COs contributed" value={`${line.sources.changeOrders}`} />
-            {line.sources.receipts > 0 && <DetailRow label="Material receipts" value={`${line.sources.receipts}`} />}
-            {line.sources.timeEntries > 0 && <DetailRow label="Crew shifts (self-perform)" value={`${line.sources.timeEntries}`} />}
+
+            {groups.length === 0 ? (
+              <Text style={styles.detailNote} testID="phase-drill-empty">
+                Nothing has landed on this phase yet — it is showing its estimate budget alone.
+              </Text>
+            ) : (
+              groups.map(g => (
+                <View key={g.key} style={styles.drillGroup} testID={`phase-drill-${g.key}`}>
+                  <Text style={styles.drillGroupLabel}>{g.label}</Text>
+                  {g.rows.map(row => (
+                    <TouchableOpacity
+                      key={row.id}
+                      style={styles.drillRow}
+                      onPress={row.onPress}
+                      disabled={!row.onPress}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${row.title}. ${row.detail}`}
+                    >
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.drillRowTitle} numberOfLines={1}>{row.title}</Text>
+                        {row.detail ? <Text style={styles.drillRowDetail} numberOfLines={1}>{row.detail}</Text> : null}
+                      </View>
+                      {row.amount ? <Text style={styles.drillRowAmount}>{row.amount}</Text> : null}
+                      {row.onPress ? <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} /> : null}
+                    </TouchableOpacity>
+                  ))}
+                  {g.note ? <Text style={styles.drillGroupNote}>{g.note}</Text> : null}
+                </View>
+              ))
+            )}
 
             <Text style={styles.detailNote}>
               This phase is {((line.budget / Math.max(1, summary.budget)) * 100).toFixed(1)}% of
               the project budget. Burn ratio {(line.burnRatio * 100).toFixed(0)}%.
             </Text>
-          </View>
+          </ScrollView>
 
           <View style={styles.modalFooter}>
             <TouchableOpacity onPress={onClose} style={styles.btnPrimary}>
@@ -1066,6 +1348,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   detailValue: { fontSize: Type.footnote.fontSize, color: t.text, fontVariant: ['tabular-nums'] },
   detailDivider: { height: 1, backgroundColor: t.line, marginVertical: 6 },
   detailNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 14, lineHeight: 15 },
+
+  // Phase drill-down (MONEY-DRILL-1). textSecondary, not textMuted, on the
+  // detail line: this is the vendor/date that identifies the record, not a hint.
+  drillGroup: { marginTop: 14 },
+  drillGroupLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
+  },
+  drillRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 10, minHeight: 44,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.surfaceAlt, marginBottom: 6,
+  },
+  drillRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  drillRowDetail: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
+  drillRowAmount: {
+    fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text,
+    fontVariant: ['tabular-nums'],
+  },
+  drillGroupNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 2 },
 });
 
 // This is exported so other screens can embed a mini job-cost summary if needed.

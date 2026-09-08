@@ -332,7 +332,7 @@ export default function NotificationsInboxScreen() {
           style={styles.headerIconBtn}
           onPress={() => router.push('/notifications-settings' as never)}
           hitSlop={6} accessibilityRole="button" accessibilityLabel="Settings">
-          <Settings size={18} color={"#9AA3AD"} strokeWidth={1.75} />
+          <Settings size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -353,7 +353,7 @@ export default function NotificationsInboxScreen() {
             </View>
           ) : (
             <View style={styles.empty} testID="notifications-empty">
-              <Bell size={40} color={"#9AA3AD"} strokeWidth={1.75} />
+              <Bell size={40} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>You&apos;re all caught up</Text>
               <Text style={styles.emptyBody}>
                 When clients send messages, propose budgets, approve change orders, or subs submit invoices, you&apos;ll see the history here.
@@ -414,7 +414,7 @@ export default function NotificationsInboxScreen() {
                 style={styles.dismissBtn}
                 onPress={(e) => { e.stopPropagation(); feed.dismiss(item.id); }}
                 hitSlop={6} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={"#9AA3AD"} strokeWidth={1.75} />
+                <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </TouchableOpacity>
           );

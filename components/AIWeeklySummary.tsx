@@ -119,7 +119,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             <MageAIMark size={18} color={"#FF6A1A"} />
             <Text style={styles.headerTitle}>Full Project Analysis</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={"#9AA3AD"} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {paywallReason ? (

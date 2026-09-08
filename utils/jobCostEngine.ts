@@ -7,6 +7,8 @@
 //   COMMITTED — signed subs + POs against that budget
 //   ACTUAL    — what the GC has actually paid OUT: commitment.paidToDate
 //               (subs + POs) + snapped material receipts + priced crew hours
+//               + logged equipment days at the machine's day rate
+//               + permit fees
 //   EAC       — projected final cost at completion
 //
 // ACTUAL IS COST, NEVER REVENUE. Money the CLIENT pays the GC is revenue and
@@ -20,14 +22,34 @@
 // agrees with them, and scripts/validate-money-definitions.ts pins the two
 // together so they cannot drift apart again.
 //
+// MONEY-EQP-1 / MONEY-PMT-1 (audit 2026-09-07, "worth doing" #12): equipment
+// utilization and permit fees are both captured (logUtilization writes hours
+// against a projectId; Permit.fee is typed in on every permit) and posted here
+// NOWHERE. A GC self-performing excavation ran a $450/day machine for six days
+// and saw $0 of it in that job's actuals, and every permit he pulled was free.
+// Both omissions understate cost in the direction that makes a bleeding job
+// look healthy, and both flow on into the CPI, the margin alerts and the WIP
+// row. They are additive inputs — omit them and the engine behaves exactly as
+// it did before — and scripts/validate-job-cost.ts pins the arithmetic.
+//
 // EAC (estimate at completion) method — MAGE opinionated default:
 //
-//   EAC = ACTUAL + (COMMITTED - billedAgainstCommitment)
-//                + max(0, BUDGET - COMMITTED)         // uncommitted remainder
+//   EAC = ACTUAL + max(0, COMMITTED - paidAgainstCommitments)
+//                + max(0, BUDGET - COMMITTED - directCost)   // uncommitted
 //
 // Rationale: we know we'll pay out the remaining commitment balance (that
-// work is signed). If budget exceeds what's been committed, we still owe
-// that work to sub-buy (so it acts as a floor).
+// work is signed). If budget exceeds what's been committed AND what we've
+// already paid out of pocket, we still owe that work to sub-buy (so it acts
+// as a floor).
+//
+// EAC-DIRECT-1 (audit 2026-09-07): the uncommitted term used to be
+// `max(0, BUDGET - COMMITTED)` flat, and the remaining-commitment term used
+// the WHOLE actual. Direct cost — receipts, crew hours, equipment, permits —
+// is covered by neither `committed` nor a commitment balance, so it was added
+// on top of the entire budget while also shrinking a sub's remaining contract.
+// A job with $3,000 budgeted for permits and $3,015 paid projected $6,015 and
+// reported "Over by $3,015". The split is arithmetically identical on any
+// phase whose only actual is commitment payments.
 //
 // SIGN CONVENTION — variance = projectedFinal - budget, so POSITIVE = OVER
 // BUDGET and negative = under. If commitments already exceed budget then
@@ -56,6 +78,8 @@ import type {
   ChangeOrder,
   MaterialReceipt,
   TimeEntry,
+  Equipment,
+  Permit,
 } from '@/types';
 import {
   isEligibleLaborEntry, normalizeTradeKey, priceLaborEntry, DEFAULT_OVERTIME_MULTIPLIER,
@@ -69,8 +93,9 @@ export interface JobCostLine {
   budget: number;
   /** Signed subs + POs. */
   committed: number;
-  /** Cost paid out on this phase — commitment payments, material receipts and
-   *  priced crew hours. Never client money in (see header). */
+  /** Cost paid out on this phase — commitment payments, material receipts,
+   *  priced crew hours, equipment days and permit fees. Never client money in
+   *  (see header). */
   actual: number;
   /** Projected final cost using the MAGE EAC method (see header). */
   projectedFinal: number;
@@ -82,10 +107,29 @@ export interface JobCostLine {
    *  landed on a phase carrying no budget, so there is nothing to be on
    *  track against. */
   status: 'on_track' | 'warning' | 'over' | 'unbudgeted';
-  /** How many commitments, change orders, material receipts, and crew time
-   *  entries contributed. There is no `invoices` counter: client invoices are
-   *  revenue and contribute nothing here (MONEY-DEF-1). */
-  sources: { commitments: number; changeOrders: number; receipts: number; timeEntries: number };
+  /**
+   * WHICH records built this line — record ids, not counts.
+   *
+   * MONEY-DRILL-1 (audit 2026-09-07, "worth doing" #25): these were four
+   * integers, so the phase sheet said "Commitments 3, Material receipts 7" and
+   * a PM reading "Electrical over by $9,200" had to go reconcile by hand in
+   * another tab — the work the tool was bought to remove. The loops below
+   * already hold the record, so keeping only its cardinality threw the answer
+   * away. Call sites take `.length` where they want the count.
+   *
+   * There is no `invoices` entry: client invoices are revenue and contribute
+   * nothing here (MONEY-DEF-1). `equipment` holds EquipmentUtilizationEntry
+   * ids (one per logged shift), not Equipment ids — the entry is the thing
+   * that carries the hours and the project.
+   */
+  sources: {
+    commitments: string[];
+    changeOrders: string[];
+    receipts: string[];
+    timeEntries: string[];
+    equipment: string[];
+    permits: string[];
+  };
 }
 
 export interface JobCostSummary {
@@ -95,7 +139,8 @@ export interface JobCostSummary {
   /** Sum of all committed sub/PO amounts (incl. CO revisions). */
   committed: number;
   /** Sum of cost paid out — commitment payments + material receipts +
-   *  priced crew hours. NOT client payments (see header). */
+   *  priced crew hours + equipment days + permit fees. NOT client payments
+   *  (see header). */
   actual: number;
   /** Sum of projected finals. */
   projectedFinal: number;
@@ -117,6 +162,31 @@ export interface JobCostSummary {
 }
 
 const PHASE_UNCATEGORIZED = '(Uncategorized)';
+
+/**
+ * Phase buckets for the two cost streams that carry no phase of their own.
+ *
+ * Plain names on purpose: an estimate whose categories happen to include
+ * "Equipment" or "Permits" merges into that budgeted line rather than opening
+ * a second unbudgeted one beside it. The match is exact and case-sensitive,
+ * like every other phase match in this file — a "permits" line in the estimate
+ * stays its own bucket, which reads as unbudgeted rather than silently
+ * absorbing the fees.
+ */
+const PHASE_EQUIPMENT = 'Equipment';
+const PHASE_PERMITS = 'Permits';
+
+/**
+ * Hours per charged equipment day. components/AIEquipmentAdvice.tsx
+ * `measuredUsage` already converts the same log with `daysUsed = hours / 8`,
+ * and contexts/ProjectContext.getEquipmentCostForProject instead counts LOG
+ * ROWS (`Math.max(daysUsed, 1)`), which bills a full day for a one-hour lift
+ * and two days for two entries on the same date. This engine follows the
+ * hours-based definition: it is the one the rent-vs-buy panel shows the GC,
+ * and cost that disagrees with the panel that justified the machine is worse
+ * than no cost at all. Exported so the guard pins the number, not a copy.
+ */
+export const EQUIPMENT_HOURS_PER_DAY = 8;
 
 /**
  * Pick a phase bucket for a commitment. We prefer an explicit `phase`,
@@ -186,6 +256,17 @@ export interface JobCostInput {
    *  overtimeMultiplier). Overtime hours on a shift are priced at
    *  rate × multiplier; omit for the 1.5× default. */
   overtimeMultiplier?: number;
+  /** MONEY-EQP-1: the GC's machines. Utilization entries logged against THIS
+   *  project are charged at the machine's `dailyRate` into an "Equipment"
+   *  phase line. A machine with no day rate contributes nothing — hours alone
+   *  carry no dollars, and we never invent a rate (the same refusal
+   *  components/AIEquipmentAdvice.tsx makes). Additive — omit for the
+   *  no-equipment behavior. */
+  equipment?: Equipment[];
+  /** MONEY-PMT-1: permits on this project. `fee` is ACTUAL cost — the
+   *  jurisdiction is paid at application — and lands in a "Permits" phase
+   *  line. Additive — omit for the no-permits behavior. */
+  permits?: Permit[];
 }
 
 /**
@@ -194,9 +275,17 @@ export interface JobCostInput {
  * financialReports did, on both the bank-facing WIP tab and the Profit report)
  * report a cost-to-date missing every dollar of materials and self-perform
  * labor, which reads as a fatter margin than the job has (MONEY-DEF-1).
+ *
+ * `equipment` and `permits` joined this list with MONEY-EQP-1 / MONEY-PMT-1.
+ * They are optional like the rest, so a caller that has not been widened still
+ * compiles — and still under-reports by exactly the machine time and permit
+ * spend it does not pass. utils/financialReports.ts and its two screen callers
+ * are the known holdouts (they thread a `costSources` object straight through
+ * to `computeJobCost`, so widening them is a matter of adding the two fields
+ * at the call sites that build it).
  */
 export type JobCostActualSources =
-  Pick<JobCostInput, 'receipts' | 'timeEntries' | 'laborRates' | 'overtimeMultiplier'>;
+  Pick<JobCostInput, 'receipts' | 'timeEntries' | 'laborRates' | 'overtimeMultiplier' | 'equipment' | 'permits'>;
 
 /**
  * Run the cost-to-complete engine on one project's numbers.
@@ -207,7 +296,7 @@ export type JobCostActualSources =
  */
 export function computeJobCost({
   project, commitments, changeOrders, receipts = [], timeEntries = [], laborRates = {},
-  overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER,
+  overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER, equipment = [], permits = [],
 }: JobCostInput): JobCostSummary {
   const projectCommitments = commitments.filter(c => c.projectId === project.id && c.status !== 'draft');
   const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
@@ -215,6 +304,29 @@ export function computeJobCost({
 
   const estimate = project.linkedEstimate ?? null;
   const phases = new Map<string, JobCostLine>();
+  /**
+   * Actual cost on a phase that is NOT a payment against a commitment —
+   * UNLINKED material receipts, priced crew hours, equipment days, permit
+   * fees. A receipt snapped to a commitment is excluded on purpose: it is
+   * delivery against that PO, so it belongs to the commitment balance (see
+   * the receipts loop).
+   *
+   * EAC-DIRECT-1 (audit 2026-09-07, found while wiring MONEY-EQP-1/PMT-1). The
+   * EAC's uncommitted-remainder term is `budget - committed`, and direct cost
+   * reduces neither side of that, so it was added ON TOP of the whole budget:
+   * a job with $3,000 budgeted for permits and $3,015 actually paid projected
+   * $6,015 and reported "Over by $3,015" — money counted twice. Same for every
+   * dollar of materials and self-perform labor MONEY-DEF-1 had just started
+   * counting. A commitment payment never had the bug (it is covered by
+   * `committed`), which is why it survived the original engine unnoticed.
+   *
+   * Tracked per phase, outside JobCostLine — it is an intermediate, not a
+   * number any screen should render.
+   */
+  const directActual = new Map<string, number>();
+  const addDirect = (phase: string, amount: number) => {
+    directActual.set(phase, (directActual.get(phase) ?? 0) + amount);
+  };
 
   // Seed from estimate items — every category that exists in the budget
   // gets a line, even if no commitments / invoices landed on it yet. This
@@ -265,7 +377,7 @@ export function computeJobCost({
     const match = phases.has(phaseKey) ? phaseKey : 'Change Orders';
     const existing = phases.get(match) ?? emptyLine(match);
     existing.budget += co.changeAmount;
-    existing.sources.changeOrders += 1;
+    existing.sources.changeOrders.push(co.id);
     phases.set(match, existing);
   }
 
@@ -285,7 +397,7 @@ export function computeJobCost({
     const existing = phases.get(phase) ?? emptyLine(phase);
     existing.committed += c.amount + (c.changeAmount ?? 0);
     existing.actual += Math.max(0, c.paidToDate ?? 0);
-    existing.sources.commitments += 1;
+    existing.sources.commitments.push(c.id);
     phases.set(phase, existing);
   }
 
@@ -298,8 +410,18 @@ export function computeJobCost({
     if (linked) {
       const phase = commitmentPhase(linked);
       const existing = phases.get(phase) ?? emptyLine(phase);
-      existing.actual += r.lines.reduce((s, l) => s + (l.lineTotal || 0), 0);
-      existing.sources.receipts += 1;
+      const receiptTotal = r.lines.reduce((s, l) => s + (l.lineTotal || 0), 0);
+      existing.actual += receiptTotal;
+      // NOT direct. A receipt SNAPPED to a commitment is material delivered
+      // against that PO, so it buys down the PO's remaining balance exactly
+      // the way a payment does. Calling it direct (the first cut of
+      // EAC-DIRECT-1) left the whole PO standing as remaining exposure AND
+      // subtracted the receipt from the uncommitted budget, which projected a
+      // $10,000 PO with $6,000 of snapped receipts at $16,000 and reported
+      // "over by $6,000" on a job that is exactly on budget — the same
+      // double-count the split was written to remove, pointed the other way.
+      // Only the UNLINKED branch below is direct.
+      existing.sources.receipts.push(r.id);
       phases.set(phase, existing);
     } else {
       for (const line of r.lines) {
@@ -307,7 +429,13 @@ export function computeJobCost({
         const phase = cat && phases.has(cat) ? cat : (cat || PHASE_UNCATEGORIZED);
         const existing = phases.get(phase) ?? emptyLine(phase);
         existing.actual += line.lineTotal || 0;
-        existing.sources.receipts += 1;
+        addDirect(phase, line.lineTotal || 0);
+        // One receipt splitting across three categories names itself on all
+        // three phase lines — the drill-down has to be able to open it from any
+        // of them. Within ONE line the same id can land twice (two lumber lines
+        // in the same category); the finalize pass below dedupes, so the count
+        // the sheet shows is receipts, not receipt-lines.
+        existing.sources.receipts.push(r.id);
         phases.set(phase, existing);
       }
     }
@@ -320,7 +448,7 @@ export function computeJobCost({
   // no-budget behavior as an unbudgeted commitment phase.
   {
     let laborActual = 0;
-    let counted = 0;
+    const countedIds: string[] = [];
     for (const e of timeEntries) {
       if (e.projectId !== project.id || !isEligibleLaborEntry(e)) continue;
       const rate = laborRates[normalizeTradeKey(e.trade)];
@@ -328,15 +456,64 @@ export function computeJobCost({
       // MONEY-F19: overtime is PRICED, not just counted. totalHours × rate
       // booked a 10-hour day at $500 when the crew cost $550.
       laborActual += priceLaborEntry(e, rate, overtimeMultiplier);
-      counted++;
+      countedIds.push(e.id);
     }
     if (laborActual > 0) {
       const phase = 'Self-perform labor';
       const existing = phases.get(phase) ?? emptyLine(phase);
       existing.actual += laborActual;
-      existing.sources.timeEntries += counted;
+      addDirect(phase, laborActual);
+      existing.sources.timeEntries.push(...countedIds);
       phases.set(phase, existing);
     }
+  }
+
+  // Equipment — logged hours on THIS project × the machine's day rate
+  // (MONEY-EQP-1). Charged whether the machine is owned or rented: a rental is
+  // literal cash out, and an owned machine's day rate is the GC's own recovery
+  // figure for fuel, wear and the note. Both are real cost to the job, and
+  // leaving owned machines out is what made a self-perform excavation look
+  // free.
+  //
+  // Refuses the same way components/AIEquipmentAdvice.tsx refuses: a machine
+  // with no day rate contributes ZERO, not a guessed rate. The add form allows
+  // `parseFloat(newDailyRate) || 0` (app/(tabs)/equipment/index.tsx:101), so a
+  // $0 rate is a real state that must produce no dollars rather than silently
+  // price six days at nothing and call it measured.
+  for (const eq of equipment) {
+    const rows = (eq.utilizationLog ?? []).filter(u => u.projectId === project.id);
+    if (rows.length === 0) continue;
+    const rate = Number.isFinite(eq.dailyRate) ? eq.dailyRate : 0;
+    if (rate <= 0) continue;
+    const hours = rows.reduce(
+      (s, u) => s + (Number.isFinite(u.hoursUsed) ? Math.max(0, u.hoursUsed) : 0),
+      0,
+    );
+    const cost = (hours / EQUIPMENT_HOURS_PER_DAY) * rate;
+    if (cost <= 0) continue;
+    const existing = phases.get(PHASE_EQUIPMENT) ?? emptyLine(PHASE_EQUIPMENT);
+    existing.actual += cost;
+    addDirect(PHASE_EQUIPMENT, cost);
+    existing.sources.equipment.push(...rows.map(u => u.id));
+    phases.set(PHASE_EQUIPMENT, existing);
+  }
+
+  // Permit fees — ACTUAL cost the day the application goes in (MONEY-PMT-1).
+  //
+  // Every status counts, denied and expired included: the jurisdiction does not
+  // refund a plan-check fee because it turned the plan down, and a permit that
+  // lapsed was still paid for. Filtering by status would quietly delete money
+  // that already left the account, which is the same class of error as the
+  // omission this fix closes.
+  for (const p of permits) {
+    if (p.projectId !== project.id) continue;
+    const fee = Number.isFinite(p.fee) ? Math.max(0, p.fee) : 0;
+    if (fee <= 0) continue;
+    const existing = phases.get(PHASE_PERMITS) ?? emptyLine(PHASE_PERMITS);
+    existing.actual += fee;
+    addDirect(PHASE_PERMITS, fee);
+    existing.sources.permits.push(p.id);
+    phases.set(PHASE_PERMITS, existing);
   }
 
   // Overcommitted detection — any commitment whose sum exceeds the sum
@@ -365,9 +542,24 @@ export function computeJobCost({
     const committed = Math.max(0, line.committed);
     const budget = Math.max(0, line.budget);
 
-    // MAGE EAC: actual + (committed - actual) + max(0, budget - committed)
-    const remainingCommitted = Math.max(0, committed - actual);
-    const uncommittedRemainder = Math.max(0, budget - committed);
+    // MAGE EAC, split by WHAT the actual paid for (EAC-DIRECT-1):
+    //
+    //   direct    — receipts, crew hours, equipment, permits. Buys down the
+    //               UNCOMMITTED budget, because that work is now done and paid.
+    //   committed — payments against a signed sub/PO. Buys down the remaining
+    //               COMMITMENT balance, which is where it always belonged.
+    //
+    // Charging the whole actual against the commitment balance (the old
+    // `committed - actual`) let a lumber receipt shrink a sub's remaining
+    // contract, and leaving direct cost out of the uncommitted term added it on
+    // top of the full budget. Both terms were wrong in the same direction for
+    // the same reason. On a phase whose only actual is commitment payments —
+    // every phase the original engine had — this is arithmetically identical to
+    // the old formula.
+    const direct = Math.min(actual, Math.max(0, directActual.get(line.phase) ?? 0));
+    const againstCommitment = actual - direct;
+    const remainingCommitted = Math.max(0, committed - againstCommitment);
+    const uncommittedRemainder = Math.max(0, budget - committed - direct);
     const projectedFinal = actual + remainingCommitted + uncommittedRemainder;
     const variance = projectedFinal - budget;
     const burnRatio = budget > 0 ? Math.min(2, actual / budget) : (committed > 0 ? Math.min(2, actual / committed) : 0);
@@ -380,6 +572,19 @@ export function computeJobCost({
       projectedFinal,
       variance,
       burnRatio,
+      // Dedupe once, here, so a caller can read `.length` as a record count and
+      // render the list without a Set of its own. A multi-line receipt pushes
+      // its id per line; nothing else can currently repeat, but the pass costs
+      // nothing and makes ".length is a count of records" a property of the
+      // engine rather than a fact each screen has to re-establish.
+      sources: {
+        commitments: dedupe(line.sources.commitments),
+        changeOrders: dedupe(line.sources.changeOrders),
+        receipts: dedupe(line.sources.receipts),
+        timeEntries: dedupe(line.sources.timeEntries),
+        equipment: dedupe(line.sources.equipment),
+        permits: dedupe(line.sources.permits),
+      },
     };
     byPhase.push({ ...enriched, status: classify(enriched) });
   }
@@ -418,6 +623,11 @@ export function computeJobCost({
   };
 }
 
+/** Order-preserving unique — the drill-down list reads in contribution order. */
+function dedupe(ids: string[]): string[] {
+  return ids.length < 2 ? ids : [...new Set(ids)];
+}
+
 function emptyLine(phase: string): JobCostLine {
   return {
     phase,
@@ -428,7 +638,7 @@ function emptyLine(phase: string): JobCostLine {
     variance: 0,
     burnRatio: 0,
     status: 'on_track',
-    sources: { commitments: 0, changeOrders: 0, receipts: 0, timeEntries: 0 },
+    sources: { commitments: [], changeOrders: [], receipts: [], timeEntries: [], equipment: [], permits: [] },
   };
 }
 

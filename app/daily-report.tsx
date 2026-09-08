@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
@@ -29,7 +28,7 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
-import { FolderOpen, FileSignature } from 'lucide-react-native';
+import { FolderOpen, FileSignature, ChevronRight } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -42,6 +41,7 @@ import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
 import { parseCalendarDay, calendarDayOf, daysUntilCalendarDay, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
+import { burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
 import { nailIt } from '@/components/animations/NailItToast';
@@ -78,6 +78,147 @@ function createId(_prefix: string): string {
 /** One confirm row of the delay scan: the AI's quote + proposal, the user's
  *  confirmed task + days. taskId null = unmatched, user must pick. */
 type DelayRow = { quote: string; deltaDays: number; taskId: string | null };
+
+/** Photos one DFR can carry. Named because three separate places check it. */
+const MAX_DFR_PHOTOS = 10;
+
+/** The weather block a brand-new report starts with. Shared with the draft
+ *  baseline below so "untouched" means the same thing in both places. */
+const EMPTY_DFR_WEATHER: DFRWeather = { temperature: '', conditions: '', wind: '', isManual: true };
+
+/** Ditto for the incident block. */
+const EMPTY_DFR_INCIDENT: IncidentReport = {
+  hasIncident: false,
+  severity: undefined,
+  description: '',
+  peopleInvolved: '',
+  injuriesReported: false,
+  medicalTreatment: false,
+  oshaRecordable: false,
+  correctiveAction: '',
+  reportedBy: '',
+};
+
+// --- BEGIN dfrDraft ---
+// scripts/validate-field-capture.ts extracts everything between these
+// sentinels, transpiles it and runs the REAL functions. This file is an Expo
+// Router route and cannot be imported outside Metro, so the sentinels are the
+// guard's only handle on the shipped code — moving or renaming them fails that
+// guard loudly rather than silently unpinning the draft. Same pattern as the
+// carrySourceDayLabel region below.
+//
+// WHY A DRAFT EXISTS AT ALL (audit 2026-09-07 "worth doing" #9). Every field on
+// this screen lives in component useState, `headerShown` is false, and the back
+// chevron was a bare `router.back()`. A super who spends twenty minutes on a
+// report in a basement and fat-fingers the chevron — or swipes, since the
+// gesture was unguarded too — loses the day with no prompt and no trace. The
+// debounced copy below means the worst case is now the last few seconds of
+// typing, and it survives the app being killed, not just a mis-tap.
+
+/** The DFR fields a user would be furious to lose. Everything else on the
+ *  screen is either derived (totals, day-of-project) or a transient UI mode. */
+interface DfrDraftContent {
+  reportDate: string;
+  weather: DFRWeather;
+  manpower: ManpowerEntry[];
+  workPerformed: string;
+  workProgress: DFRWorkProgress[];
+  materialsDelivered: string[];
+  issuesAndDelays: string;
+  photos: DFRPhoto[];
+  incident: IncidentReport;
+  homeownerSummary: string;
+}
+
+/** A persisted draft. `v` is checked on read so a future shape change discards
+ *  old drafts instead of restoring half a report. */
+interface DfrDraft extends DfrDraftContent {
+  v: 1;
+  savedAt: string;
+}
+
+/**
+ * Where one report's draft lives.
+ *
+ * `mageid_` prefix is load-bearing, not decorative: utils/localCacheKeys.ts
+ * sweeps local storage BY PREFIX on a tenant switch, so a key under a new
+ * prefix would survive sign-out and hand the next contractor on a shared
+ * site-office iPad someone else's half-written report. bun run
+ * test:storage-hygiene fails the build if this drifts.
+ *
+ * Scoped by report as well as project because a super can have yesterday's
+ * draft open and start today's — two live drafts on one job, and one key would
+ * have them overwrite each other. A brand-new report has no id yet, so it uses
+ * the project's single 'new' slot.
+ */
+function dfrDraftKey(projectId: string, reportId: string | null | undefined): string {
+  return `mageid_dfr_draft::${projectId}::${reportId ?? 'new'}`;
+}
+
+/**
+ * A stable string for "what is in this report right now".
+ *
+ * Explicitly ordered rather than JSON.stringify of the whole object: key order
+ * in a spread-built object is an implementation detail, and a signature that
+ * changes when a geo-stamp patch reorders a photo's keys would report a report
+ * as dirty that nobody touched — which turns the leave-guard into a dialog the
+ * user learns to dismiss. Photos compare on id + uri only, so the GPS
+ * coordinates landing a few seconds after the shot do not, on their own, count
+ * as an edit.
+ */
+function dfrDraftSignature(c: DfrDraftContent): string {
+  return JSON.stringify([
+    c.reportDate,
+    [c.weather.temperature ?? '', c.weather.conditions ?? '', c.weather.wind ?? ''],
+    (c.manpower ?? []).map(m => [m.trade, m.company ?? '', m.headcount, m.hoursWorked]),
+    (c.workPerformed ?? '').trim(),
+    (c.workProgress ?? []).map(w => [w.taskId, w.pct]),
+    c.materialsDelivered ?? [],
+    (c.issuesAndDelays ?? '').trim(),
+    (c.photos ?? []).map(p => [p.id, p.uri]),
+    [
+      c.incident?.hasIncident ?? false,
+      c.incident?.severity ?? '',
+      (c.incident?.description ?? '').trim(),
+      (c.incident?.peopleInvolved ?? '').trim(),
+      c.incident?.injuriesReported ?? false,
+      c.incident?.medicalTreatment ?? false,
+      c.incident?.oshaRecordable ?? false,
+      (c.incident?.correctiveAction ?? '').trim(),
+      (c.incident?.reportedBy ?? '').trim(),
+    ],
+    (c.homeownerSummary ?? '').trim(),
+  ]);
+}
+
+/** True when the form has diverged from what is actually saved. */
+function isDfrDirty(current: DfrDraftContent, baselineSignature: string): boolean {
+  return dfrDraftSignature(current) !== baselineSignature;
+}
+
+/**
+ * What the restore prompt says a draft is. Names the clock time when the draft
+ * is from today and the calendar day when it is older, because "2 hours ago"
+ * on a draft found the next morning is the same class of lie DFR-CARRY-LABEL
+ * was: a relative phrase computed from an instant, read as a day.
+ */
+function dfrDraftAgeLabel(savedAt: string, now: Date): string {
+  const t = Date.parse(savedAt);
+  if (!Number.isFinite(t)) return 'earlier';
+  const then = new Date(t);
+  const sameDay = then.getFullYear() === now.getFullYear()
+    && then.getMonth() === now.getMonth()
+    && then.getDate() === now.getDate();
+  return sameDay
+    ? `at ${then.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+    : `on ${then.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`;
+}
+// --- END dfrDraft ---
+
+/** How long the form has to go quiet before the draft is written. Long enough
+ *  that a sentence of typing is one write, short enough that a dropped phone
+ *  costs a few words. */
+const DFR_DRAFT_DEBOUNCE_MS = 900;
 
 // --- BEGIN carrySourceDayLabel ---
 // scripts/validate-calendar-date.ts extracts everything between these
@@ -237,12 +378,31 @@ export default function DailyReportScreen() {
   const existingReport = useMemo(() => reportId ? existingReports.find(r => r.id === reportId) : null, [reportId, existingReports]);
 
   const [weather, setWeather] = useState<DFRWeather>(
-    existingReport?.weather ?? { temperature: '', conditions: '', wind: '', isManual: true }
+    existingReport?.weather ?? EMPTY_DFR_WEATHER
   );
   const [manpower, setManpower] = useState<ManpowerEntry[]>(existingReport?.manpower ?? []);
   // Signature of the roster the schedule prefill last wrote, so a date change
   // can tell an untouched auto-seed from crews the GC typed (see the prefill effect).
   const autoSeedRef = useRef<string | null>(null);
+  /**
+   * What the SCREEN filled in by itself, as opposed to what the super typed.
+   *
+   * DFR-DIRTY-AUTOFILL (review 2026-09-08). Two effects below write fields with
+   * no user action on a brand-new report: the weather auto-fetch (any project
+   * with a location) and the schedule crew prefill (any project with a task
+   * live today). The unsaved-work baseline started out comparing against the
+   * EMPTY report, so within a second of opening a DFR nobody had touched, the
+   * screen was "dirty" — the iOS edge-swipe was disabled, the back chevron
+   * raised "Leave without saving?", and a draft of the app's own guesses was
+   * written to disk and offered back the next morning as "you left this report
+   * part-written", with yesterday's date and yesterday's crew on it. That is
+   * the cry-wolf prompt the draft was built to avoid, plus a restore that hands
+   * back a report the super never wrote.
+   *
+   * So the baseline is "saved report, or failing that whatever the app filled
+   * in on its own". Only what a human changed after that reads as unsaved work.
+   */
+  const [autoFilled, setAutoFilled] = useState<{ weather?: DFRWeather; manpower?: ManpowerEntry[] }>({});
   const [workPerformed, setWorkPerformed] = useState(existingReport?.workPerformed ?? '');
   // Structured per-task progress chips. Each entry pins a task from the
   // project schedule + a percent-complete the GC observed today.
@@ -282,17 +442,7 @@ export default function DailyReportScreen() {
   // the checkAILimit network round-trip (two paid scans for one action).
   const delayScanBusyRef = useRef<boolean>(false);
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
-  const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? {
-    hasIncident: false,
-    severity: undefined,
-    description: '',
-    peopleInvolved: '',
-    injuriesReported: false,
-    medicalTreatment: false,
-    oshaRecordable: false,
-    correctiveAction: '',
-    reportedBy: '',
-  });
+  const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? EMPTY_DFR_INCIDENT);
   const [showManpowerModal, setShowManpowerModal] = useState(false);
   const [mpTrade, setMpTrade] = useState('');
   const [mpCompany, setMpCompany] = useState('');
@@ -310,6 +460,11 @@ export default function DailyReportScreen() {
   // (the most common GC backfill case after a long Saturday). Tap
   // the date in the top bar to open DatePickerModal.
   const [reportDate, setReportDate] = useState<string>(() => new Date().toISOString());
+  // The date a BRAND-NEW report starts on. The unsaved-work baseline below
+  // needs it: `reportDate` is seeded from the clock, so without a fixed
+  // reference a new report would compare its own mount-time date against
+  // nothing and read as edited before the user typed a character.
+  const initialReportDateRef = useRef(reportDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
   // When loading an existing draft, hydrate reportDate from the persisted
   // record. We use a layout-effect pattern via useEffect on the existing
@@ -329,6 +484,16 @@ export default function DailyReportScreen() {
   const stableReportId = useMemo(
     () => existingReport?.id ?? generateUUID(),
     [existingReport?.id],
+  );
+  // Where this report's unsaved-work draft lives. Declared up here (not down
+  // with the rest of the draft machinery) because handleSave has to be able to
+  // clear it: a save navigates away immediately, which cancels the debounced
+  // write's cleanup, so a draft that isn't removed explicitly outlives the
+  // record it was a draft OF — and on the shared 'new' slot it would then be
+  // offered back on top of the next brand-new report.
+  const draftKey = useMemo(
+    () => dfrDraftKey(projectId ?? '', existingReport?.id),
+    [projectId, existingReport?.id],
   );
   // "Save copy to project files" toggle in the Send modal — when on,
   // the rendered HTML report is uploaded as a PDF to the project's
@@ -432,7 +597,12 @@ export default function DailyReportScreen() {
     return { done, total, isReady: done >= 3 };
   }, [weather, manpower, workPerformed, materialsDelivered, photos]);
 
-  const fetchWeather = useCallback(async () => {
+  // `opts.auto` marks the on-mount fetch — a forecast the screen went and got
+  // by itself. The "Auto-fetch" button below passes nothing, because a tap IS
+  // the user's work and must read as an edit. Never wire this straight to
+  // onPress: the press event would arrive as `opts` and `opts.auto` would be
+  // undefined by luck rather than by design.
+  const fetchWeather = useCallback(async (opts?: { auto?: boolean }) => {
     if (!project?.location) return;
     setWeatherLoading(true);
     try {
@@ -444,12 +614,16 @@ export default function DailyReportScreen() {
         const data = await response.json();
         const current = data?.current_condition?.[0];
         if (current) {
-          setWeather({
+          const fetched: DFRWeather = {
             temperature: `${current.temp_F}°F / ${current.temp_C}°C`,
             conditions: current.weatherDesc?.[0]?.value ?? 'Unknown',
             wind: `${current.windspeedMiles} mph ${current.winddir16Point}`,
             isManual: false,
-          });
+          };
+          setWeather(fetched);
+          // Fold an unattended fetch into the unsaved-work baseline, or the
+          // screen reports itself as edited before the super has typed a word.
+          if (opts?.auto === true) setAutoFilled(p => ({ ...p, weather: fetched }));
           console.log('[DFR] Weather fetched successfully');
         }
       }
@@ -463,7 +637,7 @@ export default function DailyReportScreen() {
 
   useEffect(() => {
     if (!existingReport && project?.location) {
-      void fetchWeather();
+      void fetchWeather({ auto: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -530,6 +704,10 @@ export default function DailyReportScreen() {
     }));
     autoSeedRef.current = JSON.stringify(seeded);
     setManpower(seeded);
+    setAutoFilled(p => ({ ...p, manpower: seeded }));
+    // Same reason as the weather fetch: a roster the schedule wrote is not the
+    // super's work, and counting it as unsaved changes makes an untouched
+    // screen prompt on the way out.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportDate]);
 
@@ -594,78 +772,86 @@ export default function DailyReportScreen() {
   }, [materialsDelivered]);
 
   const handlePickPhoto = useCallback(async () => {
-    if (photos.length >= 10) {
-      showAlert('Limit Reached', 'Maximum 10 photos per report.');
+    const remaining = MAX_DFR_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      showAlert('Limit Reached', `Maximum ${MAX_DFR_PHOTOS} photos per report.`);
       return;
     }
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-        allowsMultipleSelection: false,
-      });
-      if (!result.canceled && result.assets[0]) {
-        // Library photos may have been taken anywhere / any time \u2014 we don't
-        // pretend the *current* GPS reading represents where the picture was
-        // taken. Geo-stamp only on camera capture, where "now" is correct.
-        const photo: DFRPhoto = {
-          id: createId('photo'),
-          uri: result.assets[0].uri,
-          timestamp: new Date().toISOString(),
-        };
-        setPhotos(prev => [...prev, photo]);
-        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    } catch (err) {
-      console.log('[DFR] Photo pick error:', err);
-    }
+    // One dialog, N photos. `allowsMultipleSelection: false` used to make a GC
+    // re-open the library once per shot for pictures he had already taken.
+    const picked = await pickPhotoBatch({ remaining });
+    if (picked.length === 0) return;
+    // Library photos may have been taken anywhere / any time — we don't
+    // pretend the *current* GPS reading represents where the picture was
+    // taken. Geo-stamp only on camera capture, where "now" is correct.
+    const takenAt = new Date().toISOString();
+    setPhotos(prev => [...prev, ...picked.map((a): DFRPhoto => ({
+      id: createId('photo'),
+      uri: a.uri,
+      timestamp: takenAt,
+    }))]);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [photos.length]);
 
+  /**
+   * Attach GPS to a photo that is ALREADY on screen.
+   *
+   * DFR-PHOTO-BLOCK (audit 2026-09-07 "worth doing" #10): this used to be
+   * `const stamp = await stampPhotoLocation();` on the line directly beneath a
+   * comment claiming the stamp ran in parallel "so it never blocks the photo".
+   * It blocked. Worst case is ~4.5 s of nothing per shot — a 3 s fix race plus
+   * a 1.5 s reverse-geocode — and that worst case is the NORMAL case in the
+   * below-grade parking structure the super is standing in, because that is
+   * exactly where the fix never lands and both timeouts run to the end. No
+   * spinner, no photo, four and a half seconds, per shot, times twenty.
+   *
+   * Now the photo goes into state first and the coordinates are patched onto
+   * it by id whenever (if ever) they arrive. A photo the user deleted while the
+   * fix was still running is simply not found by the map, so a late stamp can
+   * never resurrect it. A report submitted inside those few seconds saves
+   * without coordinates — the same outcome as a fix that times out, which is
+   * already the documented contract of stampPhotoLocation.
+   */
+  const stampPhotoById = useCallback((photoId: string) => {
+    void stampPhotoLocation()
+      .then(stamp => {
+        if (!stamp) return;
+        setPhotos(prev => prev.map(p => p.id === photoId ? {
+          ...p,
+          latitude: stamp.latitude,
+          longitude: stamp.longitude,
+          locationAccuracyMeters: stamp.accuracyMeters,
+          locationLabel: stamp.label,
+        } : p));
+      })
+      .catch(() => {/* stampPhotoLocation already swallows; belt and braces */});
+  }, []);
+
   const handleTakePhoto = useCallback(async () => {
-    if (photos.length >= 10) {
-      showAlert('Limit Reached', 'Maximum 10 photos per report.');
+    const remaining = MAX_DFR_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      showAlert('Limit Reached', `Maximum ${MAX_DFR_PHOTOS} photos per report.`);
       return;
     }
-    try {
-      let result: ImagePicker.ImagePickerResult;
-      if (Platform.OS === 'web') {
-        // Camera capture is not supported on web — use image library instead.
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.7,
-        });
-      } else {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) {
-          showAlert('Permission Required', 'Camera access is needed to take photos.');
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          quality: 0.7,
-        });
-      }
-      if (!result.canceled && result.assets[0]) {
-        // Fire the GPS stamp in parallel \u2014 it has its own 3s timeout, so it
-        // never blocks the photo from showing up in the report.
-        const stamp = await stampPhotoLocation();
-        const photo: DFRPhoto = {
-          id: createId('photo'),
-          uri: result.assets[0].uri,
-          timestamp: new Date().toISOString(),
-          ...(stamp ? {
-            latitude: stamp.latitude,
-            longitude: stamp.longitude,
-            locationAccuracyMeters: stamp.accuracyMeters,
-            locationLabel: stamp.label,
-          } : null),
-        };
-        setPhotos(prev => [...prev, photo]);
-        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    } catch (err) {
-      console.log('[DFR] Camera error:', err);
+    // Burst: the camera re-opens after every shot until the super backs out or
+    // the report is full. Each frame lands in the report the moment it is
+    // taken, so a dropped phone mid-walk costs one photo, not the walk.
+    const outcome = await captureBurst({
+      remaining,
+      onCaptured: ({ uri }) => {
+        const photoId = createId('photo');
+        setPhotos(prev => [...prev, { id: photoId, uri, timestamp: new Date().toISOString() }]);
+        stampPhotoById(photoId);
+      },
+    });
+    const note = burstSummary(outcome.captured, outcome.stoppedBy, `${MAX_DFR_PHOTOS}-photo`);
+    if (note) {
+      // Something the super did not choose ended the run — say so. A toast
+      // when frames landed, a dialog when none did and the reason is fixable.
+      if (outcome.captured > 0) nailIt(note);
+      else showAlert('Camera', note);
     }
-  }, [photos.length]);
+  }, [photos.length, stampPhotoById]);
 
   const handleRemovePhoto = useCallback((id: string) => {
     setPhotos(prev => prev.filter(p => p.id !== id));
@@ -1178,8 +1364,12 @@ export default function DailyReportScreen() {
         nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
       }
     }
+    // The record is on disk, so the unsaved-work draft has nothing left to
+    // protect. Cleared here rather than left to the debounced effect below,
+    // whose timer is cancelled by the navigation on the next line.
+    void AsyncStorage.removeItem(draftKey).catch(() => {});
     if (!silent) router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, draftKey]);
 
   // ─── The record lands before anything is delivered ───────────────────────
   //
@@ -1254,10 +1444,11 @@ export default function DailyReportScreen() {
       updatedAt: now,
     };
     addDailyReport(report);
+    void AsyncStorage.removeItem(draftKey).catch(() => {});
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     nailIt('Logged as a no-work day. The record has no gap.');
     router.back();
-  }, [projectId, reportDate, weather, stableReportId, addDailyReport, router]);
+  }, [projectId, reportDate, weather, stableReportId, addDailyReport, router, draftKey]);
 
   // Only offer it on a brand-new report the user has not started filling in —
   // once anything is entered, the day plainly had something on it.
@@ -1418,6 +1609,182 @@ export default function DailyReportScreen() {
   // which does, is the dep that carries it).
   }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, isFree, router, stableReportId]);
 
+
+  // ─── Unsaved-work guard: a dirty check and a debounced draft ──────────────
+  //
+  // DFR-BACK-LOSS (audit 2026-09-07 "worth doing" #9). Every field on this
+  // screen lives in component useState and `headerShown` is false, so the back
+  // chevron was a bare router.back() and the iOS edge-swipe had nothing in
+  // front of it either. Twenty minutes of work in a basement, one fat-fingered
+  // tap, gone — silently, with no prompt and nothing on disk to go back to.
+  //
+  // Two independent protections, because they fail differently: the prompt
+  // catches a mis-tap, and the draft catches everything the prompt can't (the
+  // app being killed in the background, a crash, a battery death).
+
+  /** The report as it exists RIGHT NOW in the form. */
+  const draftContent = useMemo<DfrDraftContent>(() => ({
+    reportDate, weather, manpower, workPerformed, workProgress,
+    materialsDelivered, issuesAndDelays, photos, incident, homeownerSummary,
+  }), [reportDate, weather, manpower, workPerformed, workProgress,
+    materialsDelivered, issuesAndDelays, photos, incident, homeownerSummary]);
+
+  /**
+   * The report as it exists on disk. Derived from `existingReport` rather than
+   * snapshotted from state at mount: the reportDate hydration effect runs AFTER
+   * the first render, so a mount-time snapshot would compare an empty date
+   * against a hydrated one and report every saved report as dirty the instant
+   * it opened. A save updates existingReport, which re-derives this, which is
+   * what makes the form clean again.
+   *
+   * `autoFilled` is the second fallback for the two fields the screen writes on
+   * its own (weather auto-fetch, schedule crew prefill) — see DFR-DIRTY-AUTOFILL
+   * above. Without it a brand-new report is dirty a second after it opens, with
+   * nobody having touched it.
+   */
+  const savedSignature = useMemo(() => dfrDraftSignature({
+    reportDate: existingReport?.date ?? initialReportDateRef.current,
+    weather: existingReport?.weather ?? autoFilled.weather ?? EMPTY_DFR_WEATHER,
+    manpower: existingReport?.manpower ?? autoFilled.manpower ?? [],
+    workPerformed: existingReport?.workPerformed ?? '',
+    workProgress: existingReport?.workProgress ?? [],
+    materialsDelivered: existingReport?.materialsDelivered ?? [],
+    issuesAndDelays: existingReport?.issuesAndDelays ?? '',
+    photos: existingReport?.photos ?? [],
+    incident: existingReport?.incident ?? EMPTY_DFR_INCIDENT,
+    homeownerSummary: existingReport?.homeownerSummary ?? '',
+  }), [existingReport, autoFilled]);
+
+  const isDirty = useMemo(
+    () => isDfrDirty(draftContent, savedSignature),
+    [draftContent, savedSignature],
+  );
+
+  /**
+   * Whether the screen knows enough about what is SAVED to judge what is
+   * unsaved.
+   *
+   * ProjectContext hydrates from AsyncStorage through react-query, so there is
+   * a window on a cold start where `projectId` is set and the report list is
+   * still empty. Drafting through that window is actively harmful: the form
+   * fields are seeded from `existingReport` at mount and do not re-seed, so a
+   * report arriving late would leave a BLANK form sitting against a populated
+   * baseline — reported as dirty, autosaved as an empty draft over the real
+   * one, and offered back on the next open. Waiting costs nothing; the window
+   * is milliseconds and nobody has typed yet.
+   *
+   * A `reportId` naming a report that no longer exists never becomes ready, so
+   * that screen behaves exactly as it did before this shipped.
+   */
+  const draftReady = !!project && (!reportId || !!existingReport);
+
+  // Debounced write. Clean form → the draft is REMOVED, so a saved report never
+  // leaves a stale restore offer behind for the next person to open it.
+  useEffect(() => {
+    if (!projectId || !draftReady) return;
+    if (existingReport?.status === 'sent') return; // locked; nothing to draft
+    const t = setTimeout(() => {
+      if (isDirty) {
+        const draft: DfrDraft = { v: 1, savedAt: new Date().toISOString(), ...draftContent };
+        void AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(err => {
+          console.warn('[DFR] draft write failed:', err);
+        });
+      } else {
+        void AsyncStorage.removeItem(draftKey).catch(() => {});
+      }
+    }, DFR_DRAFT_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [draftKey, isDirty, draftContent, projectId, draftReady, existingReport?.status]);
+
+  // Offer a recovered draft, once per report. Held in a ref rather than state
+  // so a re-render mid-prompt cannot ask twice.
+  const draftOfferedForRef = useRef<string | null>(null);
+  const savedSignatureRef = useRef(savedSignature);
+  savedSignatureRef.current = savedSignature;
+  useEffect(() => {
+    if (!projectId || !draftReady) return;
+    if (draftOfferedForRef.current === draftKey) return;
+    draftOfferedForRef.current = draftKey;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(draftKey);
+        if (!raw || cancelled) return;
+        const draft = JSON.parse(raw) as DfrDraft;
+        // A draft written by an older shape is discarded, not half-restored.
+        if (!draft || draft.v !== 1) { void AsyncStorage.removeItem(draftKey).catch(() => {}); return; }
+        // A draft that matches what is already saved is not a recovery, it is
+        // noise — drop it silently rather than making the user answer for it.
+        if (dfrDraftSignature(draft) === savedSignatureRef.current) {
+          void AsyncStorage.removeItem(draftKey).catch(() => {});
+          return;
+        }
+        showAlert(
+          'Unsaved report found',
+          `You left this report part-written ${dfrDraftAgeLabel(draft.savedAt, new Date())}. Pick it back up, or start fresh?`,
+          [
+            {
+              text: 'Start fresh',
+              style: 'destructive',
+              onPress: () => { void AsyncStorage.removeItem(draftKey).catch(() => {}); },
+            },
+            {
+              text: 'Restore',
+              onPress: () => {
+                setReportDate(draft.reportDate);
+                setWeather(draft.weather);
+                setManpower(draft.manpower ?? []);
+                setWorkPerformed(draft.workPerformed ?? '');
+                setWorkProgress(draft.workProgress ?? []);
+                setMaterialsDelivered(draft.materialsDelivered ?? []);
+                setIssuesAndDelays(draft.issuesAndDelays ?? '');
+                setPhotos(draft.photos ?? []);
+                setIncident(draft.incident ?? EMPTY_DFR_INCIDENT);
+                setHomeownerSummary(draft.homeownerSummary ?? '');
+                nailIt('Restored your unsaved report.');
+              },
+            },
+          ],
+        );
+      } catch (err) {
+        // A draft we cannot read is one we cannot honestly offer.
+        console.warn('[DFR] draft read failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [draftKey, projectId, draftReady]);
+
+  /**
+   * The guarded exit. Three options and no default destruction: "Keep editing"
+   * is the cancel, "Save draft" is what the super almost always means, and
+   * "Discard" is the only path that throws work away and it says so.
+   */
+  const handleBack = useCallback(() => {
+    if (!isDirty) { router.back(); return; }
+    showAlert(
+      'Leave without saving?',
+      "This report isn't on the project yet. Save it as a draft and you can finish it from Daily Reports whenever you're back at a desk.",
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            void AsyncStorage.removeItem(draftKey).catch(() => {});
+            router.back();
+          },
+        },
+        {
+          text: 'Save draft',
+          onPress: () => {
+            void AsyncStorage.removeItem(draftKey).catch(() => {});
+            handleSave('draft');
+          },
+        },
+      ],
+    );
+  }, [isDirty, draftKey, router, handleSave]);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -1443,7 +1810,11 @@ export default function DailyReportScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ headerShown: false }} />
+      {/* gestureEnabled tracks the dirty flag: with no header, the iOS
+          edge-swipe is a second unguarded exit, and it dismisses the screen
+          without ever reaching the back handler below. Disabling it while
+          there is unsaved work routes every exit through the one prompt. */}
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: !isDirty }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Custom top bar: back arrow on the left, "Daily Report" + date
             stacked in the middle, Save Draft (text link) + Submit Report
@@ -1452,11 +1823,12 @@ export default function DailyReportScreen() {
             buried in two buttons of similar weight at the bottom. */}
         <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={handleBack}
             style={styles.topBarBack}
             accessibilityRole="button"
-            accessibilityLabel="Back"
+            accessibilityLabel={isDirty ? 'Back — this report has unsaved changes' : 'Back'}
             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            testID="dfr-back"
           >
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -1786,7 +2158,7 @@ export default function DailyReportScreen() {
               {!isLocked && (
                 <TouchableOpacity
                   style={styles.refreshBtn}
-                  onPress={fetchWeather}
+                  onPress={() => { void fetchWeather(); }}
                   activeOpacity={0.7}
                   disabled={weatherLoading}
                 >
@@ -2077,6 +2449,24 @@ export default function DailyReportScreen() {
             <Text style={leakStyles.helperText}>
               Scans today&apos;s notes against the estimate scope and prior change orders. Flags work you haven&apos;t billed — priced from your own cost history.
             </Text>
+
+            {/* The only persistent door to /profit-leak-history in the product.
+                Every other entry is conditional — universal search, a Brain
+                drill-in, and a Morning Brief row that appears only when an
+                unconverted flag already exists — so the screen that answers
+                "did any of these flags ever turn into money" was unreachable
+                from the screen that CREATES the flags (audit 2026-09-07,
+                built-but-unreachable #12). */}
+            <TouchableOpacity
+              style={leakStyles.historyLink}
+              onPress={() => router.push('/profit-leak-history')}
+              testID="leak-history-link"
+              accessibilityRole="link"
+              accessibilityLabel="See every past leak flag and whether it became a change order"
+            >
+              <Text style={leakStyles.historyLinkText}>Past flags — what became a change order</Text>
+              <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[leakStyles.scanBtn, leakScanning && leakStyles.scanBtnDisabled]}
@@ -3040,6 +3430,11 @@ const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({
   staleHint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, marginBottom: 4 },
   itemRowStale: { opacity: 0.5 },
   itemDescStale: { color: themeColors.textMuted },
+  historyLink: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    paddingVertical: 8, marginBottom: 6,
+  },
+  historyLinkText: { flex: 1, minWidth: 0, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
 });
 
 const makeDcStyles = (themeColors: ThemeColors) => StyleSheet.create({

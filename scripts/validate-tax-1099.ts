@@ -14,9 +14,9 @@
 
 import {
   buildTax1099Dataset, tax1099DatasetToCsv, thresholdForYear, thresholdInfoForYear, cashPaidOf, paymentDateOf,
-  THRESHOLD_PROVISIONAL_NOTE,
+  THRESHOLD_PROVISIONAL_NOTE, COVERAGE_NOTE,
 } from '../utils/tax1099Export';
-import type { Subcontractor, SubSubmittedInvoice } from '../types';
+import type { Subcontractor, SubSubmittedInvoice, Commitment } from '../types';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,8 +38,15 @@ const inv = (over: Partial<SubSubmittedInvoice>): SubSubmittedInvoice => ({
   amount: 0, status: 'paid', createdAt: '2026-06-01T12:00:00.000Z', ...over,
 } as SubSubmittedInvoice);
 
-const build = (year: number, invoices: SubSubmittedInvoice[], subs = [sub('s1')]) =>
-  buildTax1099Dataset({ year, subcontractors: subs, commitments: [], subSubmittedInvoices: invoices });
+const build = (year: number, invoices: SubSubmittedInvoice[], subs = [sub('s1')], commitments: Commitment[] = []) =>
+  buildTax1099Dataset({ year, subcontractors: subs, commitments, subSubmittedInvoices: invoices });
+
+/** A signed sub with a server-maintained paidToDate rollup — no payment dates. */
+const commitment = (id: string, subcontractorId: string, paidToDate: number): Commitment => ({
+  id, projectId: 'p1', number: 'SC-1', type: 'subcontract', subcontractorId,
+  description: 'Framing', amount: paidToDate, paidToDate, status: 'active',
+  signedDate: '2026-01-01', createdAt: '2026-01-01', updatedAt: '2026-01-01',
+} as unknown as Commitment);
 
 console.log('\n1099-NEC export (MONEY-F4):');
 
@@ -133,9 +140,68 @@ ok('2030 is still provisional (the flag does not expire on its own)', thresholdI
   ok('a sub with no payments is still on the roster', rows.some(r => r.subcontractorId === 's3' && r.totalPaid === 0));
   ok('a required sub with no TIN is flagged', /TIN missing/.test(rows.find(r => r.subcontractorId === 's2')?.notes ?? ''));
   const csv = tax1099DatasetToCsv(rows);
+  // MONEY-1099-COV-1 widened this header cell to name its source; the
+  // net-of-retention and Threshold Applied disclosures both still ride on it.
   ok('CSV header states the total is net of retention and carries the threshold column',
-    csv.split('\n')[0].includes('Total Paid (net of retention held)') && csv.split('\n')[0].includes('Threshold Applied'));
+    csv.split('\n')[0].includes('net of retention held') && csv.split('\n')[0].includes('Threshold Applied'));
   ok('CSV rows carry the 2,000.00 threshold', csv.split('\n').slice(1).every(l => l.includes('2000.00')));
+}
+
+// ── the export states what it does NOT cover (MONEY-1099-COV-1) ─────────────
+// Audit 2026-09-07 #28: the only payment source is the sub portal, and there
+// is no INSERT path for a sub_submitted_invoice in the GC app. A GC who pays
+// by check got eleven names reading "No payments this year" and under-filed.
+// The penalty is per form, so until commitment-level payment entry exists the
+// copy has to say what it is speaking for.
+
+console.log('\ncoverage is stated, not implied (MONEY-1099-COV-1):');
+{
+  const rows = build(2026, []);
+  ok('a sub with nothing in the portal is not told "no payments this year"',
+    !/No payments this year/.test(rows[0].notes), rows[0].notes);
+  ok('…it names the source it is speaking for, and the year',
+    /No sub-portal payments recorded in 2026/.test(rows[0].notes), rows[0].notes);
+  ok('…and the row carries the coverage disclosure', rows[0].notes.includes(COVERAGE_NOTE), rows[0].notes);
+  ok('the disclosure names the payment kinds it misses',
+    /checks?/i.test(COVERAGE_NOTE) && /ACH/i.test(COVERAGE_NOTE) && /cash/i.test(COVERAGE_NOTE), COVERAGE_NOTE);
+
+  // On EVERY row, not only the empty ones: an understated "Yes" misstates the
+  // form just as surely as a wrong "No".
+  const paidRows = build(2026, [inv({ id: 'a', amount: 9_000, paidOn: '2026-03-01' })]);
+  ok('a sub who IS over the threshold gets the same disclosure',
+    paidRows[0].required1099 === true && paidRows[0].notes.includes(COVERAGE_NOTE), paidRows[0].notes);
+}
+{
+  // The one thing the app does know about check payments: the commitment
+  // rollup. It has no dates, so it is disclosed — never counted, never
+  // allowed to flip the Y/N.
+  const rows = build(2026, [], [sub('s1')], [commitment('c1', 's1', 42_000), commitment('c2', 's1', 8_000)]);
+  ok('commitment paidToDate is surfaced as undated money', rows[0].uncountedCommitmentPaid === 50_000,
+    String(rows[0].uncountedCommitmentPaid));
+  ok('…and is NOT added to Total Paid', rows[0].totalPaid === 0, String(rows[0].totalPaid));
+  ok('…and does NOT flip 1099 Required (undated money has no tax year)', rows[0].required1099 === false);
+  ok('…and the note tells the CPA where to look',
+    /Commitments record \$50,000 paid to date with no payment dates/.test(rows[0].notes), rows[0].notes);
+  ok('another sub’s commitment does not land on this row',
+    build(2026, [], [sub('s1'), sub('s2')], [commitment('c1', 's2', 9_000)])
+      .find(r => r.subcontractorId === 's1')?.uncountedCommitmentPaid === 0);
+  ok('a commitment with no subcontractorId is skipped, not attributed to someone',
+    build(2026, [], [sub('s1')], [{ ...commitment('c9', 's1', 5_000), subcontractorId: undefined } as Commitment])[0]
+      .uncountedCommitmentPaid === 0);
+}
+{
+  const rows = build(2026, [inv({ id: 'a', amount: 3_000, paidOn: '2026-02-01' })], [sub('s1')], [commitment('c1', 's1', 12_500)]);
+  const csv = tax1099DatasetToCsv(rows);
+  const header = csv.split('\n')[0];
+  ok('the CSV Total Paid header names the portal as its source',
+    header.includes('Total Paid (sub-portal invoices, net of retention held)'), header);
+  ok('…and the undated commitment money gets its own APPENDED column',
+    header.endsWith('Commitment Paid To Date (undated — NOT counted)'), header);
+  ok('…with the existing nine columns still in their original positions',
+    header.split(',').slice(0, 4).join(',') === 'Sub ID,Recipient Name,TIN (last 4),Address'
+    && header.split('","').length > 1 || header.startsWith('Sub ID,Recipient Name,TIN (last 4),Address,'), header);
+  ok('…and the value lands in that column', csv.split('\n')[1].trimEnd().endsWith('12500.00'), csv.split('\n')[1]);
+  ok('the coverage sentence reaches the CSV', csv.includes(COVERAGE_NOTE));
 }
 
 console.log(`\nvalidate-tax-1099: ${pass} passed, ${fail} failed\n`);

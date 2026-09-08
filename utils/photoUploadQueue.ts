@@ -150,6 +150,47 @@ export async function clearPhotoUploadQueue(): Promise<void> {
   for (const t of cleared) void discardPendingCopy(t);
 }
 
+/**
+ * Un-queue a photo the user removed before it ever uploaded.
+ *
+ * Without this, attaching a photo and then removing it before saving left the
+ * bytes in the queue: the flush uploaded them anyway, to a storagePath no row
+ * ever references, in the contractor's own folder, forever. Nothing deletes it
+ * because nothing knows it exists. One orphan per attach-then-remove — and a
+ * safety incident, where the reporter is deciding what belongs in an OSHA
+ * record, is exactly where people attach and then think better of it
+ * (audit 2026-09-07, review 2026-09-08).
+ *
+ * Keyed on `photoId`, not the queue-entry id: the caller is a screen holding a
+ * photo row, and a requeue mints a new entry id for the same photo. Removes
+ * every entry for that photo, so a retried task cannot survive the cancel.
+ *
+ * Same lock as clearPhotoUploadQueue and the flush's write-back, so a flush in
+ * flight cannot read the queue before the removal and write its snapshot back
+ * after it. Returns how many entries went, so a caller can tell "cancelled"
+ * from "already uploaded — nothing to cancel".
+ *
+ * Best-effort by design: if the bytes have already reached the bucket this is a
+ * no-op, because the task is gone from the queue. Cancelling an upload that has
+ * ALREADY landed is a different job (a storage delete keyed on the row), and
+ * pretending this call does that would be worse than not offering it.
+ */
+export async function cancelPhotoUpload(photoId: string): Promise<number> {
+  if (!photoId) return 0;
+  const removed = await withQueueLock(async () => {
+    const current = await getPhotoUploadQueue();
+    const gone = current.filter(t => t.photoId === photoId);
+    if (gone.length === 0) return gone;
+    const kept = current.filter(t => t.photoId !== photoId);
+    if (kept.length === 0) await AsyncStorage.removeItem(PHOTO_QUEUE_KEY);
+    else await AsyncStorage.setItem(PHOTO_QUEUE_KEY, JSON.stringify(kept));
+    return gone;
+  });
+  // Outside the lock: unlinking is filesystem work and must not hold the queue.
+  for (const t of removed) void discardPendingCopy(t);
+  return removed.length;
+}
+
 // Same lock discipline for AuthContext's marker-less keep path: keep only the
 // tasks queued by `userId`, drop (and unlink) the rest. `dropUntagged: false`
 // spares a task with no `userId` at all — see RetainOptions in

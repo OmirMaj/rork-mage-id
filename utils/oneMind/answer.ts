@@ -40,6 +40,10 @@ export interface OneMindAnswer {
   usedAI: boolean;
   errorKind?: string;
   fromCache?: boolean;
+  /** The model hit its output ceiling and stopped mid-thought rather than
+   *  finishing. The answer text already carries a plain-English note saying so
+   *  — this flag exists so a surface can style or act on it too. */
+  truncated?: boolean;
 }
 
 const COLD_START_ANSWER =
@@ -97,7 +101,13 @@ export async function askOneMind(
   const prompt = composeOneMindPrompt({ question, turns, blocks, scopeLabel });
 
   try {
-    const res = await mageAI({ prompt, tier: 'smart', maxTokens: 700, feature: 'askMage' });
+    // 700 tokens is ~525 words, and a multi-part answer ("two draft change
+    // orders … CO#3 is") ran straight past it and stopped MID-SENTENCE, which
+    // the screen then rendered as if it were the whole answer (founder report,
+    // 2026-09-07). Raised to 1600 — still well under the relay's 24k cap and
+    // still one metered call — and, more importantly, truncation is no longer
+    // silent: see the MAX_TOKENS branch below.
+    const res = await mageAI({ prompt, tier: 'smart', maxTokens: 1600, feature: 'askMage' });
     const text = typeof res.data === 'string' && res.data.trim()
       ? res.data.trim()
       : (res.raw?.trim() || '');
@@ -107,8 +117,18 @@ export async function askOneMind(
       // stripCitations only removes RECOGNIZED refs, so a fully-stripped
       // answer can never lose non-citation brackets.
       const display = stripCitations(text, blocks);
+      // AN ANSWER THAT STOPPED IS NOT AN ANSWER. Gemini reports finishReason
+      // MAX_TOKENS when it hit the ceiling rather than finishing its thought;
+      // rendering that as ordinary prose tells the GC "CO#3 is" and lets him
+      // believe that is all there was. The standing rule is that an absent fact
+      // beats an invented one, and a sentence cut in half is worse than both.
+      const truncated = res.finishReason === 'MAX_TOKENS';
+      const body = display || text;
       return {
-        answer: display || text,
+        answer: truncated
+          ? `${body}\n\n— That is as far as MAGE got before running out of room. Ask a narrower question (one job, or one thing) and it can finish the thought.`
+          : body,
+        truncated,
         citations: toCitations(blocks, refs),
         scope,
         usedAI: !res.fromCache,

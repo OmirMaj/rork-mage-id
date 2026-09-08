@@ -13,6 +13,7 @@ import {
 } from 'lucide-react-native';
 import { MagePayApp } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -82,15 +83,60 @@ function AIAPayAppScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
-  const { invoiceId } = useLocalSearchParams<{ invoiceId: string }>();
+  // This screen is INVOICE-keyed: a G702/G703 certifies one billing period, and
+  // the period is the progress invoice. Opened from the sidebar (FINANCIALS ▸
+  // AIA Pay Apps), Tools or universal search there is no invoiceId, and until
+  // 2026-09-07 that produced a card telling a GC with three live jobs to go
+  // find an invoice himself. Now it resolves in two steps — pick the project,
+  // then pick the period — and `projectId` is accepted as a param because
+  // app/client-outbox.tsx:182 already links here with one.
+  const { invoiceId: paramInvoiceId, projectId: paramProjectId } = useLocalSearchParams<{
+    invoiceId?: string; projectId?: string;
+  }>();
   const {
-    invoices, getProject, getChangeOrdersForProject, settings,
+    invoices, getProject, getChangeOrdersForProject, settings, projects,
     addAIAPayApp, getAIAPayAppsForProject,
   } = useProjects();
 
   const { user } = useAuth();
-  const invoice = useMemo(() => invoices.find(i => i.id === invoiceId), [invoices, invoiceId]);
-  const project = useMemo(() => (invoice ? getProject(invoice.projectId) : undefined), [invoice, getProject]);
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const [pickedInvoiceId, setPickedInvoiceId] = useState<string | null>(null);
+  // Set by "Different project" on the period chooser — without it a projectId
+  // in the URL would pin the screen to one job forever.
+  const [forceProjectPick, setForceProjectPick] = useState(false);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
+
+  /** The project's billing periods, newest first. */
+  const progressInvoices = useMemo(
+    () => invoices
+      .filter(i => i.projectId === projectId && i.type === 'progress')
+      .sort((a, b) => b.number - a.number),
+    [invoices, projectId],
+  );
+
+  const invoice = useMemo(() => {
+    const named = pickedInvoiceId ?? paramInvoiceId;
+    if (named) {
+      const hit = invoices.find(i => i.id === named);
+      if (hit) return hit;
+    }
+    // No period named. One progress invoice on the job is not a choice, so
+    // don't make the GC tap it — open straight into the pay app.
+    return progressInvoices.length === 1 ? progressInvoices[0] : undefined;
+  }, [invoices, paramInvoiceId, pickedInvoiceId, progressInvoices]);
+
+  const project = useMemo(
+    () => (invoice ? getProject(invoice.projectId) : (projectId ? getProject(projectId) : undefined)),
+    [invoice, projectId, getProject],
+  );
+  /** The URL named a project (or an invoice) that no longer exists. */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
+
+  const pickProject = useCallback((id: string) => {
+    setPickedProjectId(id);
+    setPickedInvoiceId(null);
+    setForceProjectPick(false);
+  }, []);
   const approvedCOs = useMemo(() =>
     (invoice && project ? getChangeOrdersForProject(project.id).filter(co => co.status === 'approved') : []),
     [invoice, project, getChangeOrdersForProject]);
@@ -494,22 +540,91 @@ function AIAPayAppScreenInner() {
     }
   }, [app, settings?.branding, handleSave]);
 
-  if (!invoice || !project) {
+  // Step 1 — which job.
+  if (!project || forceProjectPick) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="AIA Pay Apps"
+          message="A G702 / G703 certifies one billing period against one job's schedule of values."
+          projects={projects}
+          onPick={pickProject}
+          staleProjectId={staleProjectId}
           icon={<MagePayApp size={36} color={themeColors.accent} />}
-          title="No AIA pay app open yet"
-          message="AIA pay applications (G702 / G703) bill against an existing progress invoice. To start one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Inside that project, create a Progress Invoice from your estimate or schedule of values.',
-            'On the invoice, tap Generate AIA Pay App to fill G702/G703 and route for sign-off.',
+            'Come back here (or tap Generate AIA Pay App on the invoice) to fill G702/G703 and route it for sign-off.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
+      </View>
+    );
+  }
+
+  // Step 2 — which billing period. Only reachable with 0 or 2+ progress
+  // invoices; exactly one resolves above without asking.
+  if (!invoice) {
+    return (
+      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
+        <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
+        <ScrollView contentContainerStyle={styles.periodPickContent} showsVerticalScrollIndicator={false}>
+          {progressInvoices.length === 0 ? (
+            // The blocked case, said plainly: this is not "nothing here", it is
+            // "there is no period to certify". A G702 is a certificate ABOUT a
+            // progress invoice — it cannot be the first document on a job.
+            <EmptyState
+              icon={<MagePayApp size={36} color={themeColors.accent} />}
+              title={`${project.name} has no progress invoice yet`}
+              message="A pay application certifies a billing period, and the period is a progress invoice — MAGE fills G702/G703 from that invoice's schedule of values, so there is nothing to certify until one exists."
+              actionLabel="Create a progress invoice"
+              onAction={() => router.push({
+                pathname: '/bill-from-estimate' as never,
+                params: { projectId: project.id, type: 'progress' } as never,
+              })}
+            />
+          ) : (
+            <>
+              <Text style={styles.periodPickLead}>
+                {project.name} has {progressInvoices.length} progress invoices. A pay
+                application certifies one period — pick the one you are billing.
+              </Text>
+              <Text style={styles.periodPickTitle}>Pick a billing period</Text>
+              {progressInvoices.map(inv => (
+                <TouchableOpacity
+                  key={inv.id}
+                  style={styles.periodPickRow}
+                  onPress={() => setPickedInvoiceId(inv.id)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Invoice ${inv.number}, ${formatMoney(inv.totalDue)}, issued ${inv.issueDate}`}
+                  testID={`aia-pick-invoice-${inv.id}`}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.periodPickRowTitle} numberOfLines={1}>
+                      Invoice #{inv.number} · {formatMoney(inv.totalDue)}
+                    </Text>
+                    <Text style={styles.periodPickRowMeta} numberOfLines={1}>
+                      Issued {inv.issueDate}
+                      {typeof inv.progressPercent === 'number' ? ` · ${inv.progressPercent}% complete` : ''}
+                    </Text>
+                  </View>
+                  <MagePayApp size={18} color={themeColors.accent} />
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+          <TouchableOpacity
+            style={styles.periodPickAlt}
+            onPress={() => setForceProjectPick(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Pick a different project"
+            testID="aia-pick-other-project"
+          >
+            <Text style={styles.periodPickAltText}>Different project</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
     );
   }
@@ -1044,6 +1159,22 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   container: { flex: 1, backgroundColor: themeColors.bg },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: themeColors.bg },
+
+  // Step-2 chooser: "which billing period". Deliberately the same rhythm as
+  // ToolProjectPicker's rows (components/ToolScreenChrome.tsx) — it is the
+  // second half of one decision, not a different kind of screen.
+  periodPickContent: { padding: 16, paddingBottom: 48 },
+  periodPickLead: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 19, marginBottom: 16 },
+  periodPickTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 10 },
+  periodPickRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: themeColors.line, padding: 14, marginBottom: 8,
+  },
+  periodPickRowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  periodPickRowMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 },
+  periodPickAlt: { alignItems: 'center' as const, paddingVertical: 12, marginTop: 4 },
+  periodPickAltText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted },
 
   // Audit-2026-05-21 (#28.1) — locked-period banner styles. Amber accent

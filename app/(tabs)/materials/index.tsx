@@ -240,14 +240,24 @@ export default function MaterialsScreen() {
 
   const ListHeader = useMemo(() => (
     <View>
-      {/* NAV-07 (runtime audit 2026-09-06). This component renders at two
-          routes: /(tabs)/materials, a tab registered href:null (a tab switch,
-          which creates no back button and lights no tab), and
-          /(tabs)/discover/materials, a push inside the Discover stack whose
-          navigator has headerShown:false (so it draws no back button either).
-          Both arrive from Discover's sub-tab strip, so one labelled control
-          serves both. See components/HiddenTabBackLink.tsx for why it pushes a
-          named destination instead of calling router.back(). */}
+      {/* NAV-07 (runtime audit 2026-09-06). One route now: /(tabs)/materials,
+          a tab registered href:null. The Discover-stack alias this comment used
+          to describe was deleted on 2026-09-07 along with Discover's Materials
+          pill, because the Estimator absorbed the browser. That leaves exactly
+          two ways in — universal search (⌘K), and a price-alert notification
+          (utils/entityResolver.ts:236 resolves a priceAlert ref to this route)
+          — and both are a TAB SWITCH, so React Navigation draws no back button
+          and none of the four visible tabs lights up. Without this control the
+          screen has no way out.
+          It is a phone control on purpose: HiddenTabBackLink returns null on
+          desktop, where the sidebar is always on screen. Do not add "the
+          desktop rail" to the list of ways in — components/DesktopSidebar.tsx
+          hardcodes its destination list and has no Materials item at all, so
+          on a laptop this screen is search-only.
+          Discover is not where the user came from any more, but it is a real
+          place one tap away and the label says so; see
+          components/HiddenTabBackLink.tsx for why it pushes a named
+          destination instead of calling router.back(). */}
       <HiddenTabBackLink
         label="Discover"
         href="/(tabs)/discover"
