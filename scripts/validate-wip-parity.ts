@@ -23,17 +23,31 @@
 // fallback branch cannot be added to a number without also being added to the
 // explanation the GC shows his surety.
 //
-// AXES 2 AND 3 ARE STILL OPEN, and this guard deliberately does NOT assert
-// them, because they do not agree yet and a guard that pinned today's answer
-// would certify the divergence as correct. The remaining gap is the COST-AT-
-// COMPLETION denominator: computeWIPReport divides by jobCostEngine's
-// `projectedFinal` while utils/wip.ts divides by `deriveEstimatedCost`. They
-// coincide on a job running to budget and part on one that is not — $520k of
-// signed subs against a $400k estimate reports 50% vs 65% complete and $55,000
-// vs $137,500 underbilled, for the same job, on the same day. Closing it means
-// making computeWIPReport a thin adapter over utils/wip.ts (audit "Do next"
-// #2), which lives in utils/financialReports.ts. When that lands, add the
-// percent-complete and underbilling parity assertions here.
+// AXES 2 AND 3 ARE CLOSED ON THE COST DENOMINATOR, and the parity is pinned by
+// scripts/validate-money-basis-parity.ts rather than here: computeWIPReport now
+// calls `deriveEstimatedCostWithSource` (utils/financialReports.ts:180-191) like
+// utils/wip.ts does, and BOTH pass the `costIncurred` floor. That guard owns the
+// call-site completeness check, because the failure mode it exists for is wiring
+// the floor into some call sites and not others — which is exactly what happened
+// on 2026-09-10 and left the two schedules 27 margin points apart.
+//
+// WHAT IS STILL OPEN, and deliberately NOT asserted here (2026-09-11 audit):
+//
+//   * THE CONTRACT AXIS. utils/wip.ts:397-405 takes the contract baseline from
+//     `payApps[0]?.originalContractSum` first; utils/estimateCommit.ts:183-185
+//     takes `linkedEstimate.grandTotal`. A job with a saved pay application
+//     reads $700,000 on /wip-report and $550,000 on /reports — 15.6 margin
+//     points — and a target-budget-only job reads $900,000 against $0. This is
+//     a FIFTH axis nobody enumerated, on the revenue side, and the four axes
+//     named above are structurally blind to it.
+//   * BILLED-TO-DATE. computeWIPReport's signature takes no pay apps at all
+//     (utils/financialReports.ts:126-132) and billedToDate is invoices-only
+//     (:149-150), so a job billed entirely through AIA progress billing reports
+//     $0 billed on /reports and invents underbilling equal to earned revenue.
+//
+// Both are wrong numbers on a bank document. Neither is pinned yet because
+// neither agrees, and a guard that pinned today's answer would certify the
+// divergence as correct. When they are closed, assert them here.
 //
 // Run via: bun run test:wip-parity
 

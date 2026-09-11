@@ -385,22 +385,33 @@ function WipReportScreenInner() {
     // targetBudget: contract from AIA/CO/targetBudget, cost from the estimate.
     const contract = deriveOriginalContractWithSource(project, cos, payApps);
     const approvedChangeOrders = sumApprovedChangeOrders(cos);
+    // Cost-to-date first: it is the third FLOOR under cost-at-completion, so it
+    // has to exist before the derive runs.
+    const auto = suggestCostToDateWithSource(commitments, receipts);
+    const override = overrideInForce(costOverrides, project.id);
+    const costToDate = override ? override.value : auto.value;
     // Pass the CO figures so the COST budget grows with them too. Without
     // this the revenue side gains the change order and the cost side does
     // not, which reports every CO at 100% margin.
     const cost = deriveEstimatedCostWithSource(project, commitments, {
       approvedChangeOrders,
       originalContract: contract.value,
+      // The incurred floor — max(estimate, signed commitments, cost paid out).
+      // utils/financialReports.ts passes this at BOTH its call sites; this
+      // screen was the third and was missed when the floor landed on
+      // 2026-09-10, so /reports floored an overrun job at its real cost while
+      // /wip-report kept reporting the estimate. Two bank-facing schedules,
+      // same job, margins 27 points apart — the exact divergence the floor was
+      // added to close, re-created by fixing two call sites out of three.
+      costIncurred: costToDate,
     });
-    const auto = suggestCostToDateWithSource(commitments, receipts);
-    const override = overrideInForce(costOverrides, project.id);
 
     return {
       input: {
         originalContract: contract.value,
         approvedChangeOrders,
         totalEstimatedCost: cost.value,
-        costToDate: override ? override.value : auto.value,
+        costToDate,
         billedToDate: suggestBilledToDate(invoices, payApps),
       },
       sources: {

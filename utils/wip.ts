@@ -708,19 +708,25 @@ function topUpForChangeOrders(
 /**
  * COST ALREADY SPENT IS A FLOOR THIS DEFINITION DOES NOT ENFORCE, SO IT SAYS SO.
  *
- * `deriveEstimatedCostWithSource` takes max(estimate, signed commitments) and
- * stops there — direct actual cost (material receipts, crew hours, equipment
- * days, permit fees) is deliberately not a third candidate; the reason is on
- * that function. The consequence is a job that has already burned more than its
- * estimate still reports the estimate as its cost at completion, and therefore
- * reports a profit it has spent its way out of. That understates cost on a
- * document a lender underwrites, which is the dangerous direction to be wrong.
+ * HISTORY, because the sentence outlived the defect. This note was written when
+ * `deriveEstimatedCostWithSource` took max(estimate, signed commitments) and
+ * stopped there, so a job that had already burned more than its estimate still
+ * reported the estimate as its cost at completion — a profit it had spent its
+ * way out of, on a document a lender underwrites.
  *
- * Raising the number needs a third branch of `WipSource`, and that type is
- * pinned exactly by scripts/validate-wip-parity.ts (see this wave's handoff for
- * the edit). Until that lands, the figure does not move and the sentence tells
- * the reader the one thing that makes it safe to read: what he has already
- * spent is larger than what the report says the job will cost.
+ * The third branch LANDED: `'cost_incurred'` is a WipSource (:212) and the floor
+ * is applied at :631-639. The figure now moves. This sentence stays because the
+ * floor only raises cost at completion when the caller PASSES `costIncurred`,
+ * and a caller that forgets it silently gets the old behaviour — /wip-report was
+ * exactly that caller until 2026-09-11. scripts/validate-money-basis-parity.ts
+ * now owns the call-site completeness check.
+ *
+ * KNOWN CONSEQUENCE, not yet fixed (2026-09-11 audit): once the floor binds,
+ * EAC == costToDate on an overrun job, so `percentComplete` is 1.0 BY
+ * CONSTRUCTION and `costToComplete` and `backlog` are 0. The engine forecasts
+ * that an overrun job will incur no further cost. Closing that needs a
+ * per-period estimated-cost-to-complete the user can actually enter, which the
+ * product does not have anywhere.
  *
  * COST on both sides — `costIncurred` is money paid out, never money billed.
  */

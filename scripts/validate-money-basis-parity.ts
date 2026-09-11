@@ -556,5 +556,35 @@ console.log('\nthe definition returns both candidates, always:');
     topped.estimateBasis, topped.value);
 }
 
+// ── every caller feeds the incurred floor, not just most of them ───────────
+//
+// `deriveEstimatedCostWithSource` takes cost-already-paid-out as the third
+// floor under cost-at-completion. A caller that omits it silently reports the
+// ESTIMATE for a job that has burned past it — a profit the job has already
+// spent its way out of, on a document a bank underwrites.
+//
+// There are three call sites, and on 2026-09-10 the floor was wired into two of
+// them. /reports floored an overrun job at its real cost while /wip-report kept
+// reporting the estimate: two bank-facing schedules, same job, margins 27 points
+// apart — the exact divergence the floor had just been added to CLOSE, recreated
+// by a partial wiring. An optional parameter that some callers pass is a
+// divergence generator, and this is the second time in one day that shape has
+// bitten in this repo.
+{
+  const CALLERS = [
+    'app/wip-report.tsx',
+    'utils/financialReports.ts',
+  ];
+  for (const rel of CALLERS) {
+    const src = readFileSync(join(ROOT, rel), 'utf8');
+    const calls = [...src.matchAll(/deriveEstimatedCostWithSource\(/g)].length;
+    const fed = [...src.matchAll(/costIncurred:/g)].length;
+    ok(`${rel}: every deriveEstimatedCostWithSource call feeds costIncurred`,
+      calls > 0 && fed >= calls,
+      `${calls} call(s), ${fed} costIncurred. A call that omits it reports the estimate ` +
+      'for an overrun job, and disagrees with the sibling schedule that does pass it.');
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
