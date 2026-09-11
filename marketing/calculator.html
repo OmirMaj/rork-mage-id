@@ -99,7 +99,12 @@
   .cta a.cta-primary{background:var(--amber);color:#fff}
   .cta a.cta-secondary{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.25);margin-top:10px;font-weight:600}
   /* Site nav — matches the ink/amber brand, sized for this light page */
-  .sitenav{max-width:580px;margin:0 auto 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  /* The nav is wider than the 580px calculator column on purpose: it now
+     carries the same six destinations as every other page, and they do
+     not fit in the content width. Below 820px they collapse to the
+     Start-free button and the footer nav — which lists all six — takes
+     over, same threshold the homepage uses. */
+  .sitenav{max-width:960px;margin:0 auto 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .sitenav .brand{display:flex;align-items:center;gap:8px;text-decoration:none}
   .sitenav .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
   .sitenav .brand span{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy);text-transform:uppercase}
@@ -108,7 +113,7 @@
   .sitenav .nav-r a:hover{color:var(--navy)}
   .sitenav .nav-r a.start{color:var(--amber);border:1px solid rgba(255,106,26,0.5);border-radius:999px;padding:6px 14px}
   .sitenav .nav-r a.start:hover{background:var(--amber);color:#fff}
-  @media(max-width:480px){.sitenav .nav-r a:not(.start){display:none}}
+  @media(max-width:820px){.sitenav{max-width:580px}.sitenav .nav-r a:not(.start){display:none}}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
   .foot a{color:var(--muted)}
   .footnav{max-width:580px;margin:24px auto 0;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center}
@@ -120,10 +125,17 @@
 <body>
 <nav class="sitenav" aria-label="Primary">
   <a href="/" class="brand"><span class="dot"></span><span>MAGE ID</span></a>
+  <!-- Third of the site's three primary navs, and the thinnest — it had no
+       Features, no Compare and no Support at all, so a visitor who landed here
+       from search could not reach two thirds of the site. Same six
+       destinations as every other page now. -->
   <div class="nav-r">
     <a href="/playbook.html">How it works</a>
+    <a href="/features/">Features</a>
+    <a href="/compare/">Compare</a>
     <a href="/pricing.html">Pricing</a>
     <a href="/demo.html">Demo</a>
+    <a href="/support.html">Support</a>
     <a href="https://app.mageid.app" class="start">Start free</a>
   </div>
 </nav>
@@ -186,6 +198,7 @@
   <nav class="footnav" aria-label="Footer">
     <a href="/">Home</a>
     <a href="/playbook.html">How it works</a>
+    <a href="/features/">Features</a>
     <a href="/demo.html">Demo</a>
     <a href="/compare/">Compare</a>
     <a href="/pricing.html">Pricing</a>
@@ -193,6 +206,29 @@
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
   </nav>
+
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
   <p class="foot">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
 </div>
 

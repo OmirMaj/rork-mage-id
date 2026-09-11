@@ -78,7 +78,7 @@ import ScenariosModal from '@/components/schedule/ScenariosModal';
 import { getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
 import { parseCalendarDay, toCalendarDayString, todayCalendarDay } from '@/utils/calendarDate';
 import {
-  resolveScheduleAnchor,
+  resolveScheduleAnchor, startDayNumberFor,
   UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_PREVIEW_NOTE, UNDATED_SCHEDULE_TITLE,
 } from '@/utils/scheduleOps';
 import {
@@ -97,8 +97,7 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { runCpm } from '@/utils/cpm';
-import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
+import { runCpm, stampCriticalPath } from '@/utils/cpm';
 import { showAlert } from '@/utils/alert';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
@@ -319,11 +318,30 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     return new Date(base.getFullYear(), base.getMonth(), base.getDate(), 12, 0, 0, 0);
   }, [scheduleAnchor]);
 
+  /** True when a picked date falls before Day 1 of the schedule. */
+  const beforeProjectStart = useCallback((picked: Date): boolean => {
+    const a = new Date(picked.getFullYear(), picked.getMonth(), picked.getDate()).getTime();
+    const b = new Date(
+      projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate(),
+    ).getTime();
+    return a < b;
+  }, [projectStartDate]);
+
   /**
    * Convert an ISO datetime string (noon UTC, from DatePickerModal) to a
-   * 1-indexed startDay offset from projectStartDate. Returns null for invalid
-   * input. Clears dependencies when an explicit date is set, matching the
-   * existing startDateOverride behaviour in handleSaveTask.
+   * 1-indexed startDay — a WORKING ORDINAL, see "THE TWO DAY-NUMBER SCALES" in
+   * utils/cpm.ts. Returns null for invalid input or a date before Day 1.
+   * Clears dependencies when an explicit date is set, matching the existing
+   * startDateOverride behaviour in handleSaveTask.
+   *
+   * This used to divide the raw millisecond gap, which is a CALENDAR offset.
+   * The engine reads `startDay` as a working ordinal and expands it across
+   * weekends, so a calendar offset scheduled the task LATER than the day the
+   * user picked, and the error grew with distance from the project start:
+   * measured on a 5-day week from Mon 2026-03-02, picking Mon Mar 16 stored 15
+   * and the engine planned Fri Mar 20. `startDayNumberFor` is the shared helper
+   * GridPane's date cell already uses (and it pushes a weekend pick forward to
+   * the next working day rather than rolling it back to Friday).
    */
   const isoToStartDay = useCallback((iso: string): number | null => {
     if (!iso) return null;
@@ -332,11 +350,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (!scheduleAnchor.dated) return null;
     const picked = new Date(iso);
     if (Number.isNaN(picked.getTime())) return null;
-    const ms = picked.getTime() - projectStartDate.getTime();
-    const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
-    if (dayOffset < 1) return null;
-    return dayOffset;
-  }, [projectStartDate, scheduleAnchor.dated]);
+    if (beforeProjectStart(picked)) return null;
+    return startDayNumberFor(
+      projectStartDate, picked,
+      activeSchedule?.workingDaysPerWeek ?? 5,
+      activeSchedule?.nonWorkingDates,
+    );
+  }, [projectStartDate, scheduleAnchor.dated, beforeProjectStart, activeSchedule]);
 
   /**
    * When a What-If scenario is selected, the Gantt reads from that scenario's
@@ -557,16 +577,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       showAlert('No schedule', 'Add at least one task before setting a project start date.');
       return;
     }
-    // First explicit anchor on a dateless schedule: its startDay values are
-    // raw working-day ordinals, so re-map them onto the calendar before the
-    // CPM mode flip — otherwise every multi-day chain silently inflates (the
-    // finish-jump bug). Mirrors schedule-pro's settings Apply handler.
-    const tasks = !activeSchedule.startDate
-      ? rebaseRawToCalendar(
-          activeSchedule.tasks, isoYYYYMMDD,
-          activeSchedule.workingDaysPerWeek, activeSchedule.nonWorkingDates,
-        )
-      : activeSchedule.tasks;
+    // No re-mapping on the first anchor any more. `rebaseRawToCalendar` existed
+    // because the CPM engine read `startDay` as a CALENDAR index, so assigning
+    // an anchor reinterpreted every stored working-day ordinal and inflated
+    // each multi-day chain (the finish-jump bug). Since 2026-09-11 the engine
+    // converts at its own `pins` line, so `startDay` means the same thing on
+    // both sides of the flip and re-mapping DOUBLE-converts — and this handler
+    // persists the result through `updateProject`. Measured on
+    // A(10)->B(10)->C(5) at ordinals 1/11/21, 5-day week from Mon 2026-03-02:
+    // 1,11,21 → 1,15,29, finish Fri Apr 3 → Wed Apr 15. Mirrors schedule-pro
+    // and components/schedule/mobile/MobileScheduleScreen.tsx.
+    const tasks = activeSchedule.tasks;
     // Refresh the duration scalars against the new anchor so the modal /
     // summary read engine-true numbers immediately, not on the next edit.
     const cpmRes = runCpm(tasks, {
@@ -613,10 +634,19 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions).tasks;
     // Step 2: derive accurate scalar fields via the canonical builder.
     const cpmResult = runCpm(reflowed, cpmOptions);
+    // Stamp the LIVE critical path onto the rows we are about to persist.
+    // `isCriticalPath` is read directly by the client portal, the schedule PDF,
+    // the printable one-pager and the "On critical path" line in the calendar
+    // invite — and until Schedule Pro started stamping it, the only thing that
+    // ever wrote it was the AI generator at creation time. A schedule edited
+    // only on mobile therefore shipped a language model's guess to the client
+    // for the life of the job. Schedule Pro does this on its persist paths;
+    // this is the mobile sink, and every mobile edit funnels through here.
+    const stamped = stampCriticalPath(reflowed, cpmResult);
     const built = buildScheduleFromTasks(
       activeSchedule.name ?? selectedProject.name ?? 'Schedule',
       selectedProject.id,
-      reflowed,
+      stamped,
       activeSchedule.baseline ?? null,
       { criticalPathDays: cpmResult.projectFinish },
     );
@@ -624,7 +654,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     // take built's freshly-derived scalars. saveSchedule preserves startDate.
     const merged: typeof activeSchedule = {
       ...activeSchedule,
-      tasks: reflowed,
+      tasks: stamped,
       totalDurationDays: built.totalDurationDays,
       criticalPathDays: built.criticalPathDays,
       healthScore: built.healthScore,
@@ -666,13 +696,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       }
       const picked = new Date(rawStartDate + 'T12:00:00');
       if (Number.isNaN(picked.getTime())) { showAlert('Invalid start date'); return; }
-      const ms = picked.getTime() - projectStartDate.getTime();
-      const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
-      if (dayOffset < 1) {
+      if (beforeProjectStart(picked)) {
         showAlert('Start date too early', `Pick a date on or after the project start (${projectStartDate.toLocaleDateString()}).`);
         return;
       }
-      startDayFromDate = dayOffset;
+      // Same WORKING-ORDINAL conversion as isoToStartDay above — see its note.
+      startDayFromDate = startDayNumberFor(
+        projectStartDate, picked,
+        activeSchedule?.workingDaysPerWeek ?? 5,
+        activeSchedule?.nonWorkingDates,
+      );
     }
 
     if (editing) {
@@ -784,7 +817,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks, beforeProjectStart]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);

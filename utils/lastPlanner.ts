@@ -28,7 +28,7 @@
 import type { ScheduleTask } from '@/types';
 // The same working-day predicate the CPM engine uses, so the lookahead and the
 // Gantt cannot disagree about which days count.
-import { isWorkingDay } from '@/utils/cpm';
+import { isWorkingDay, runCpm } from '@/utils/cpm';
 
 // ── Constraint log (the "make ready" list) ──────────────────────────────────
 export type ConstraintCategory =
@@ -134,22 +134,25 @@ export interface TaskWindowCalendar {
  * Calendar window of a task. Null when the project has no schedule start date.
  *
  * THE TWO FIELDS HAVE DIFFERENT UNITS, which is what made this wrong:
- *   • `startDay`     is a CALENDAR day index once a start date exists
- *                    (utils/scheduleRebase converts working-day ordinals to
- *                    calendar indices at the moment one is assigned).
- *   • `durationDays` is a WORKING-day COUNT and stays one — scheduleRebase
- *                    passes durations through untouched.
+ *   • `startDay`     is a WORKING-day ORDINAL — "the Nth day of work" — which
+ *                    is what every writer in the app stores (scheduleAI's
+ *                    generator, scheduleEngine.recalculateStartDays, the grid's
+ *                    date cell via scheduleOps.scheduleDayNumberFor).
+ *   • `durationDays` is a WORKING-day COUNT.
  *
- * So `startMs` was always right and `endMs` was always wrong: it added
- * (dur - 1) CALENDAR days. utils/cpm computes the same finish with
- *     walkWorkingDays(es, dur - 1, 1, ...)
- * — a WORKING-day walk — so a 10-day task finished 2 days early here, a 20-day
- * task 4 days early, and the error compounded with duration.
+ * So `endMs` was wrong because it added (dur - 1) CALENDAR days, and `startMs`
+ * was wrong because it read the ordinal as a calendar offset. utils/cpm walks
+ * the finish with `walkWorkingDays(es, dur - 1, 1, ...)`, so a 10-day task
+ * finished 2 days early here, a 20-day task 4 days early, and a task pinned to
+ * the 11th working day started ~4 days early on top.
  *
- * That matters most where this is used: the Last Planner lookahead is the
- * screen a superintendent commits next week's crews from. Tasks ended early,
- * and tasks whose real window reached into the horizon were filtered out of it
- * entirely by the `win.endMs < thisMondayMs` overlap test.
+ * `scheduledStartDay` (a CALENDAR index, normally `cpm.es`) overrides the
+ * stored pin. Prefer it: the pin is where the task was AUTHORED, the CPM early
+ * start is where it is SCHEDULED, and they diverge the moment anything upstream
+ * changes. The Last Planner lookahead is the screen a superintendent commits
+ * next week's crews from — planning it off the pin while the Pro scheduler
+ * plans off CPM means the two boards disagree about what happens next week.
+ * {@link buildScheduledStartDays} produces the map.
  *
  * Default workingDaysPerWeek is 7 (every day works), matching cpm's own
  * `?? 7`, so omitting the calendar reproduces the previous arithmetic exactly
@@ -159,13 +162,24 @@ export function taskWindow(
   task: ScheduleTask,
   projectStartDate?: string | null,
   calendar?: TaskWindowCalendar,
+  scheduledStartDay?: number,
 ): { startMs: number; endMs: number } | null {
   if (!projectStartDate) return null;
   const base = new Date(projectStartDate);
   if (isNaN(base.getTime())) return null;
 
   const baseMs = atUtcMidnight(base);
-  const startDayIndex = Math.max(1, task.startDay || 1);
+  const startDayIndex = scheduledStartDay != null
+    ? Math.max(1, Math.round(scheduledStartDay))
+    // LEGACY FALLBACK — reads `startDay` as a CALENDAR offset. That is not what
+    // the field holds (every writer in the app stores a WORKING ordinal), but
+    // utils/crossProjectLoad.ts and utils/judges/capacityLoad.ts deliberately
+    // stay on it: their day grid is shared across projects and their guard pins
+    // five edge semantics to it (see crossProjectLoad's header note, decided
+    // 2026-09-11). Every Last Planner caller — buildLookahead,
+    // buildWeeklyWorkPlan and app/last-planner.tsx's own startLabelFor — passes
+    // `scheduledStartDay`, so this branch never runs on that screen.
+    : Math.max(1, task.startDay || 1);
   const startMs = baseMs + (startDayIndex - 1) * DAY_MS;
   const dur = Math.max(1, task.durationDays || 1);
 
@@ -195,6 +209,31 @@ export function taskWindow(
     return { startMs, endMs: startMs + (dur - 1) * DAY_MS };
   }
   return { startMs, endMs: baseMs + (dayIndex - 1) * DAY_MS };
+}
+
+/**
+ * CPM early start (a CALENDAR index) per task id, for feeding
+ * {@link taskWindow}'s `scheduledStartDay`. One engine run for the whole set.
+ *
+ * Returns an empty map when there is no schedule start date (the engine's
+ * raw-day mode gives day numbers that are not calendar indices) or when the
+ * network has a cycle (perTask comes back empty and every caller should fall
+ * back to the stored pin rather than collapse the board to day 1).
+ */
+export function buildScheduledStartDays(
+  tasks: ScheduleTask[],
+  projectStartDate?: string | null,
+  calendar?: TaskWindowCalendar,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!projectStartDate || tasks.length === 0) return out;
+  const res = runCpm(tasks, {
+    scheduleStartDate: projectStartDate.slice(0, 10),
+    workingDaysPerWeek: calendar?.workingDaysPerWeek,
+    nonWorkingDates: calendar?.nonWorkingDates,
+  });
+  res.perTask.forEach((r, id) => out.set(id, r.es));
+  return out;
 }
 
 // ── Readiness ────────────────────────────────────────────────────────────────
@@ -252,12 +291,15 @@ export function buildLookahead(
     return { weeks: [], hasSchedule: false, totalTasks: 0, constrainedCount: 0 };
   }
 
+  // Plan against where CPM SCHEDULES each task, not where it was pinned.
+  const scheduledEs = buildScheduledStartDays(tasks, projectStartDate, opts?.calendar);
+
   const entries: LookaheadEntry[] = [];
   let constrainedCount = 0;
   for (const task of tasks) {
     if (!isWorkTask(task)) continue;
     if (task.status === 'done' || (task.progress ?? 0) >= 100) continue;
-    const win = taskWindow(task, projectStartDate, opts?.calendar);
+    const win = taskWindow(task, projectStartDate, opts?.calendar, scheduledEs.get(task.id));
     if (!win) continue;
     // Include if the task's window overlaps [thisMonday, horizonEnd].
     if (win.endMs < thisMondayMs || win.startMs > horizonEndMs) continue;
@@ -286,7 +328,10 @@ export function buildLookahead(
     .map(([weekStart, es]) => ({
       weekStart,
       weeksOut: weeksBetween(thisMonday, weekStart),
-      entries: es.sort((a, b) => (a.task.startDay || 0) - (b.task.startDay || 0)),
+      entries: es.sort((a, b) => (
+        (scheduledEs.get(a.task.id) ?? a.task.startDay ?? 0)
+        - (scheduledEs.get(b.task.id) ?? b.task.startDay ?? 0)
+      )),
     }))
     .sort((a, b) => a.weeksOut - b.weeksOut);
 
@@ -317,10 +362,12 @@ export function buildWeeklyWorkPlan(
   const commitFor = (taskId: string) =>
     commitments.find(c => c.taskId === taskId && c.weekStart === weekStart);
 
+  const scheduledEs = buildScheduledStartDays(tasks, projectStartDate, calendar);
+
   const out: WwpEntry[] = [];
   for (const task of tasks) {
     if (!isWorkTask(task)) continue;
-    const win = taskWindow(task, projectStartDate, calendar);
+    const win = taskWindow(task, projectStartDate, calendar, scheduledEs.get(task.id));
     // Active this week = window overlaps the week. If no schedule dates, include
     // anything explicitly committed to this week so the feature still works.
     const active = win ? (win.startMs <= weekEndMs && win.endMs >= weekStartMs) : false;

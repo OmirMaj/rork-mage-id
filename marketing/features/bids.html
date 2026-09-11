@@ -24,43 +24,17 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
   <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
   <style>
-    /* Captioned placeholder for phone slots that don't have a real amber
-       screenshot yet. Flat ink panel + hairline border, opaque so it fully
-       covers the shared .screenshot.phone::after fallback. Keeps the same
-       DOM slot: drop a real <img> in and delete the .phone-ph div. */
-    .screenshot.phone > .phone-ph {
-      position: absolute;
-      inset: 8px;
-      z-index: 1;
-      border-radius: 36px;
-      background: #14181D;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      text-align: center;
-      padding: 40px 26px;
-    }
-    .phone-ph .phone-ph-cap {
-      font-family: var(--ff-mono);
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--fog);
-      line-height: 1.6;
-    }
-    .phone-ph .phone-ph-tag {
-      font-family: var(--ff-mono);
-      font-size: 9px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--amber);
-      border: 1px solid rgba(255, 106, 26, 0.5);
-      border-radius: 999px;
-      padding: 4px 11px;
-    }
+    /* PLACEHOLDER FRAMES REMOVED.
+       This page carried "Preview coming" boxes where a screenshot should be —
+       16 of them across four feature pages. An empty frame that promises an
+       image is a stronger signal of an unfinished product than no frame at
+       all, and one of them sat on the DCMA claim itself, so the page selling
+       the feature could not show it. The frames are gone; where a real capture
+       exists it is embedded instead. A .feature-row that lost its visual half
+       becomes single-column rather than leaving a dead gutter. Put a frame
+       back only with a real image in it. */
+    .feature-row.solo { grid-template-columns: 1fr; }
+    .feature-row.solo p, .feature-row.solo ul { max-width: 72ch; }
   </style>
 </head>
 <body>
@@ -110,7 +84,7 @@
 
     <section class="section-alt">
       <div class="wrap-wide">
-        <div class="feature-row reverse">
+        <div class="feature-row reverse solo">
           <div>
             <h2>Filters that actually match how you bid.</h2>
             <p>
@@ -126,13 +100,12 @@
               <li>Response deadline filters (next 7 / 14 / 30 days)</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="Filter panel · NAICS + set-aside"><div class="phone-ph"><span class="phone-ph-cap">Filter panel · NAICS + set-aside</span><span class="phone-ph-tag">Preview coming</span></div></div>
         </div>
       </div>
     </section>
 
     <section class="section wrap-wide">
-      <div class="feature-row">
+      <div class="feature-row solo">
         <div>
           <h2>Save searches, get notified.</h2>
           <p>
@@ -146,14 +119,13 @@
             <li>"Similar to this" recommendations</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Saved search · Push alerts"><div class="phone-ph"><span class="phone-ph-cap">Saved search · Push alerts</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
     <section class="section-alt">
       <div class="wrap-wide">
         <h2 class="section-heading">From bid feed to pay app, same app.</h2>
-        <p class="section-sub">What sets MAGE ID apart is the handoff — a saved bid becomes a project with one tap. Estimate, schedule, AIA billing, all already set up.</p>
+        <p class="section-sub">What sets MAGE ID apart is the handoff — a saved bid becomes a project with one tap. Estimate, schedule, AIA-style billing, all already set up.</p>
         <div class="feature-list">
           <div class="feature-list-item">
             <div class="fli-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7z"/></svg></div>
@@ -184,7 +156,7 @@
     </section>
 
     <section class="section wrap-wide">
-      <div class="feature-row reverse">
+      <div class="feature-row reverse solo">
         <div>
           <h2>State & local opportunities coming.</h2>
           <p>
@@ -199,7 +171,6 @@
             <li>Public school district and municipal opportunities</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Coming soon · Multi-source feed"><div class="phone-ph"><span class="phone-ph-cap">Coming soon · Multi-source feed</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -242,6 +213,42 @@
       </div>
       <div class="footer-bottom">© <script>document.write(new Date().getFullYear())</script> MAGE ID. Built for general contractors.</div>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+        <!-- STANDING AIA NOTICE — on every page that mentions AIA.
+           The generated document already carries this (utils/aiaBilling.ts:937)
+           and app/aia-pay-app.tsx shows it on first use; the site did not, which
+           left the GC to discover on their first submitted draw that they were
+           not holding an official form. "AIA-style" is the industry convention
+           — Contractor Foreman's own pricing page labels the feature "AIA Style
+           Invoicing (G702 and G703)" — so the hedge costs nothing and reads as
+           more expert to the one person who can tell the difference. -->
+      <p class="aia-notice" style="max-width:900px;margin:18px auto 0;font-size:12px;line-height:1.6;opacity:.62;text-align:center;">
+        MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are
+        registered trademarks of The American Institute of Architects, which is not affiliated with and
+        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract
+        Documents &mdash; check with yours before you submit.
+      </p>
   </footer>
   <script src="/nav-mobile.js" defer></script>
   <script src="/motion.js" defer></script>

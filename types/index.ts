@@ -4790,10 +4790,35 @@ export interface PortalState {
 export interface WipRowInput {
   originalContract: number;
   approvedChangeOrders: number;
-  totalEstimatedCost: number;
+  totalEstimatedCost: number;    // DERIVED cost at completion (see utils/wip)
   costToDate: number;            // auto-suggested, user-editable
   billedToDate: number;          // single billing source (pay-apps OR invoices)
-  percentCompleteOverride?: number; // optional manual 0..1
+  /**
+   * ESTIMATED COST TO COMPLETE — what the person running the job says is still
+   * left to spend, entered per project and frozen onto the period snapshot.
+   *
+   * When present it REPLACES the derived forecast: cost at completion becomes
+   * `costToDate + estimatedCostToComplete`. That is the CPA definition and it
+   * is the only thing that stops an overrun job reporting 100% complete by
+   * construction (utils/wip.computeWipRow carries the full reasoning). Absent
+   * means the GC has not revised his forecast and `totalEstimatedCost` stands.
+   *
+   * COST, never revenue. Zero is a legitimate entry ("nothing left to spend");
+   * negative is rejected by the engine.
+   */
+  estimatedCostToComplete?: number;
+  /**
+   * Retainage the OWNER is holding out of `billedToDate` — a receivable, and
+   * the figure a surety asks for separately from ordinary receivables. Derived
+   * from the SAME billing branch as billedToDate (utils/wip.suggestBillingsWithSource),
+   * so the two reconcile on the page.
+   *
+   * OPTIONAL because periods frozen before 2026-09-11 do not carry it. Absent
+   * means NOT RECORDED, never zero — an export that prints $0 for it is
+   * asserting a contract has no retention, which is the opposite of the truth
+   * on most of them.
+   */
+  retainageHeld?: number;
 }
 
 // Fully computed WIP row (all derived, no NaN — engine guards divide-by-zero).
@@ -4813,6 +4838,18 @@ export interface WipRow {
   // booked immediately rather than pro-rated by percent complete. When true,
   // profitToDate already carries the full provisioned loss and the screen warns.
   anticipatedLoss?: boolean;
+  /**
+   * The cost at completion this row was ACTUALLY struck against — the derived
+   * `input.totalEstimatedCost`, or `costToDate + estimatedCostToComplete` when
+   * the GC has entered a cost to complete.
+   *
+   * OPTIONAL only because snapshot rows frozen before the ETC input shipped do
+   * not have it; every row `computeWipRow` produces carries it. Read it through
+   * `utils/wip.wipRowCostAtCompletion`, never directly — a reader that prints
+   * `input.totalEstimatedCost` beside this row's margin prints a denominator
+   * the margin was not measured with.
+   */
+  estimatedCostAtCompletion?: number;
 }
 
 // Portfolio roll-up across many WIP rows.
@@ -4826,6 +4863,54 @@ export interface WipPortfolio {
   underbilling: number;
   backlog: number;
   weightedMarginPct: number;     // (revised − cost) / revised across the portfolio
+  /**
+   * Σ retainage the owners are holding across the book. A receivable, reported
+   * separately from ordinary receivables because it is the contractor's most
+   * illiquid asset. Optional: periods frozen before 2026-09-11 lack it.
+   */
+  retainageHeld?: number;
+  /**
+   * WHAT THE WEIGHTED MARGIN NETS AWAY. `weightedMarginPct` sums across jobs —
+   * correct for a WIP total row — so a $200,000 forecast loss beside $200,000
+   * of profit prints 0% with nothing naming the loss. These three exist so the
+   * headline can never stand alone (ASC 605-35-25-46: the provision is booked
+   * per contract and may not be offset against profitable ones).
+   *
+   * All optional: a period frozen before 2026-09-11 carries none of them, and
+   * absent must read as NOT RECORDED rather than "no loss jobs".
+   */
+  lossJobCount?: number;
+  /** Σ of the forecast loss on loss jobs, as a POSITIVE number. */
+  totalForecastLoss?: number;
+  /**
+   * Provision for loss on uncompleted contracts — the accrual a CPA posts:
+   * Σ over loss jobs of the forecast loss NOT yet run through cost. Positive.
+   */
+  lossProvision?: number;
+  /**
+   * JOBS WITH NO COST BASIS AT ALL, excluded from `weightedMarginPct` above
+   * (audit 2026-09-11, F14 — closed on the adversarial re-review).
+   *
+   * `deriveOriginalContract` falls back to a target budget and then a GMP cap
+   * for the REVENUE side, while `deriveEstimatedCost` deliberately excludes
+   * both and returns 0 with basis 'none'. So a job set up with only a target
+   * budget — which is what the portal budget-proposal flow creates, and the
+   * budget can be set by the CLIENT — gets a contract and no cost, and reports
+   * estGrossProfit == the whole contract at a 100% margin. Measured on a
+   * $900,000 target-budget job: estGrossProfit $900,000, estGrossMarginPct 1.0,
+   * and computeWipPortfolio returned weightedMarginPct 1.0 for the book.
+   *
+   * A contract with no cost basis has no measurable margin, so it contributes
+   * to neither side of the weighted margin and is COUNTED here instead. The
+   * strip, the CSV and the PDF all say how many there are; suppressing the
+   * figure without saying it was suppressed would be its own quiet lie.
+   *
+   * Optional: a period frozen before this landed carries no count, and absent
+   * must read as NOT RECORDED rather than "none".
+   */
+  noCostBasisCount?: number;
+  /** Σ revised contract on those jobs — the revenue the margin cannot speak for. */
+  noCostBasisContract?: number;
 }
 
 // Profit-fade watch output (badges + human-readable reasons).
@@ -4842,6 +4927,21 @@ export interface WipSnapshotRow {
   projectName: string;
   input: WipRowInput;
   output: WipRow;
+  /**
+   * THE FADE FLAGS AS THEY STOOD WHEN THIS PERIOD WAS FROZEN (audit
+   * 2026-09-11, F8 part 2 — closed on the adversarial re-review).
+   *
+   * Profit fade is the surety's central diagnostic, and it reached NO export:
+   * `flagWipRow` fired on screen, the reason rendered inside a drill-in modal,
+   * and the snapshot carried nothing — so the CSV and the PDF a bank actually
+   * reads could not answer "has this job faded?" at all. Recomputing at export
+   * time is not the same thing: it would compare today's book against today's
+   * prior period, not the comparison the period was struck with.
+   *
+   * Optional because every period frozen before this landed has none, and a
+   * reader must treat absent as NOT RECORDED — never as "no flags fired".
+   */
+  flags?: WipFlags;
 }
 
 // A point-in-time WIP snapshot. Live WIP is computed on the fly; only these

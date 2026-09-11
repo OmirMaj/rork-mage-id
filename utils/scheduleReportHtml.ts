@@ -106,11 +106,17 @@ function headerHtml(model: ScheduleReportModel): string {
   const v = h.forecastVarianceDays;
   const vTxt = v != null ? ` (${v > 0 ? '+' : ''}${v}d)` : '';
   const vClass = v != null && v > 0 ? ' style="color:#C2260F"' : '';
+  // "Data date" was the label here, filled from the report's own generation
+  // date. A data date is a scheduling INPUT (work left of it is actual, work
+  // right of it is forecast) and this engine deliberately does not have one —
+  // types/index.ts states the rule outright: "the plan stays the plan until you
+  // say so". Printing a fabricated one told a client, a lender or a sub that
+  // the forecast was statused as of that day when it is the as-planned network.
   return `<div class="R">
   <div class="hd">
     <div><div class="eb">MAGE Schedule · PM Status Report</div><h3 class="t">${esc(h.projectName)}</h3>
       ${sub ? `<div class="s">${sub}</div>` : ''}</div>
-    <div class="meta"><div>Report: <b>${esc(h.reportDateIso)}</b> · Data date: <b>${esc(h.dataDateIso)}</b></div>
+    <div class="meta"><div>Report: <b>${esc(h.reportDateIso)}</b> · Printed: <b>${esc(h.dataDateIso)}</b></div>
       <div>Start: <b>${esc(h.startIso)}</b> · Contract finish: <b>${blFin}</b> · Forecast: <b${vClass}>${esc(h.forecastFinishIso)}${vTxt}</b></div>
       <div>${h.taskCount} tasks · ${h.phaseCount} phases · ${h.spanDays}-day span</div></div>
   </div>`;

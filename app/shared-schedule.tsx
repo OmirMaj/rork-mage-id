@@ -32,9 +32,9 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import InteractiveGantt from '@/components/schedule/InteractiveGantt';
-import { runCpm } from '@/utils/cpm';
+import { runCpm, calendarDayToDate } from '@/utils/cpm';
 import {
-  decodeShareToken, tasksFromSharePayload,
+  decodeShareToken, tasksFromSharePayload, cpmOptionsFromSharePayload,
   composeSubReply, buildMailtoUrl, buildSmsUrl,
   type SubConfirmAction,
   type SharedSchedulePayload,
@@ -84,7 +84,17 @@ export default function SharedScheduleScreen() {
 
   const payload = inlinePayload ?? snapshotPayload;
   const tasks = useMemo(() => payload ? tasksFromSharePayload(payload) : [], [payload]);
-  const cpm = useMemo(() => runCpm(tasks), [tasks]);
+  // Run the engine on the SENDER's calendar, with the schedule's start date so
+  // anchors resolve. `runCpm(tasks)` with no options defaulted to a 7-day week
+  // (A(10d)->B(5d) finished on index 10 instead of 12) and, with no
+  // scheduleStartDate, isoToDay returned null so every must-start-on /
+  // finish-no-later anchor was silently dropped. The recipient is the one
+  // person who cannot ask the GC why their copy disagrees.
+  const cpmOptions = useMemo(
+    () => (payload ? cpmOptionsFromSharePayload(payload) : {}),
+    [payload],
+  );
+  const cpm = useMemo(() => runCpm(tasks, cpmOptions), [tasks, cpmOptions]);
   // UX-F2: the payload carries the schedule's calendar day ('YYYY-MM-DD';
   // older tokens carry a full instant, which parseCalendarDay truncates to its
   // date part). new Date() of the bare form is UTC midnight — the homeowner
@@ -140,11 +150,20 @@ export default function SharedScheduleScreen() {
   // The if-payload-missing branch is the entire JSX leaf; we can't
   // early-return out of the hook list.
 
+  // Dates come from the ENGINE (calendar indices → plain date adds), so the
+  // recipient's dates are the scheduled ones, on the sender's calendar. This
+  // used to render task.startDay through addWorkingDays with a hard-coded 5 —
+  // self-consistent for a 5-day project, wrong for a 6- or 7-day one, and blind
+  // to any dependency that had moved the task since it was pinned.
   const taskDateRange = useCallback((task: ScheduleTask): string => {
-    const start = addWorkingDays(projectStartDate, task.startDay - 1, 5);
-    const end = addWorkingDays(projectStartDate, task.startDay + task.durationDays - 2, 5);
-    return `${formatShortDate(start)} → ${formatShortDate(end)}`;
-  }, [projectStartDate]);
+    const row = cpm.perTask.get(task.id);
+    if (!row) {
+      const start = addWorkingDays(projectStartDate, task.startDay - 1, cpmOptions.workingDaysPerWeek ?? 5, cpmOptions.nonWorkingDates);
+      const end = addWorkingDays(start, Math.max(0, task.durationDays - 1), cpmOptions.workingDaysPerWeek ?? 5, cpmOptions.nonWorkingDates);
+      return `${formatShortDate(start)} → ${formatShortDate(end)}`;
+    }
+    return `${formatShortDate(calendarDayToDate(projectStartDate, row.es))} → ${formatShortDate(calendarDayToDate(projectStartDate, row.ef))}`;
+  }, [projectStartDate, cpm, cpmOptions]);
 
   const sendReply = useCallback(async (
     task: ScheduleTask,
@@ -252,7 +271,7 @@ export default function SharedScheduleScreen() {
           <Text style={styles.sub}>
             {isSubMode
               ? `${subTasks.length} task${subTasks.length === 1 ? '' : 's'} for you`
-              : `Read-only · ${tasks.length} tasks · finish day ${cpm.projectFinish}`}
+              : `Read-only · ${tasks.length} tasks · finishes ${formatShortDate(calendarDayToDate(projectStartDate, cpm.projectFinish))}`}
           </Text>
         </View>
         <View style={styles.lockBadge}>
@@ -398,6 +417,8 @@ export default function SharedScheduleScreen() {
             tasks={tasks}
             cpm={cpm}
             projectStartDate={projectStartDate}
+            workingDaysPerWeek={cpmOptions.workingDaysPerWeek}
+            nonWorkingDates={cpmOptions.nonWorkingDates}
             onEdit={() => { /* locked */ }}
           />
         </View>

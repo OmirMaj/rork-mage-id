@@ -22,7 +22,7 @@ import type { Route } from 'expo-router';
 import type {
   Project, RFI, Invoice, ChangeOrder, Commitment, Lead, DailyFieldReport,
   Permit, Certification, Submittal, PunchItem, HomeownerBidResponse,
-  MaterialReceipt,
+  MaterialReceipt, SavedAIAPayApp,
 } from '@/types';
 import { computeLivingEstimate, type LivingEstimateSnapshot } from '@/utils/livingEstimate';
 import { computeMarginRisk, type MarginRiskScore } from '@/utils/marginRiskScore';
@@ -84,6 +84,12 @@ export interface OneMindBundle {
   punchItems: PunchItem[];
   expiringCertifications: (Certification & { status: 'expiring' | 'expired' })[];
   bidResponses: HomeownerBidResponse[];
+  /**
+   * Saved AIA pay applications. `buildPipelineHorizon` needs them to see what a
+   * GC billing through G702/G703 has already billed — without them its backlog
+   * is overstated by the whole of it. Optional so existing callers compile.
+   */
+  aiaPayApps?: SavedAIAPayApp[];
   /** Judges-assembly parity; reserved for cost-book fact blocks (v1.1). */
   receipts?: MaterialReceipt[];
   laborSamples?: CostSample[];
@@ -669,7 +675,7 @@ export async function assembleFactBlocks(
         blocks.push(pipelineHorizonFacts(buildPipelineHorizon({
           leads: bundle.leads, projects: bundle.projects, invoices: bundle.invoices,
           changeOrders: bundle.changeOrders, commitments: bundle.commitments,
-          bidResponses: bundle.bidResponses, now,
+          bidResponses: bundle.bidResponses, aiaPayApps: bundle.aiaPayApps, now,
         })));
       } catch { /* additive */ }
       try {

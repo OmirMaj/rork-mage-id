@@ -32,7 +32,6 @@ import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
 import DatePickerModal from '@/components/DatePickerModal';
 import { parseCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
-import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import {
   resolveScheduleAnchor, startDayNumberFor,
   UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
@@ -272,23 +271,32 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   /**
    * Give an undated schedule a real anchor — the fix the banner offers.
    *
-   * Mirrors app/(tabs)/schedule/index.tsx setProjectStartDate exactly: a
-   * schedule with no startDate ran CPM in RAW-day mode, so its stored
-   * `startDay` values are working-day ORDINALS. Assigning an anchor flips the
-   * engine into calendar mode, where the same integers mean calendar days —
-   * every multi-day chain inflates (the finish-jump bug, 33 → 43 live on a
-   * 20-task schedule). rebaseRawToCalendar re-maps them first so the plan's
-   * shape survives; the scalars are then refreshed against the new anchor so
-   * the header does not read a stale finish until the next edit.
+   * Mirrors app/(tabs)/schedule/index.tsx setProjectStartDate exactly.
+   *
+   * There used to be a `rebaseRawToCalendar` call here. It existed because the
+   * CPM engine read `ScheduleTask.startDay` as a CALENDAR index: assigning the
+   * first anchor flipped the engine out of raw-day mode and every stored
+   * working-day ordinal silently reinterpreted as a calendar day, inflating
+   * each multi-day chain (the finish-jump bug, 33 → 43 live on a 20-task
+   * schedule).
+   *
+   * 2026-09-11: the engine now converts at its own `pins` line — `startDay` is
+   * a WORKING ORDINAL on both sides of the flip, so there is nothing to
+   * re-map. Re-mapping anyway DOUBLE-converts, and this screen writes the
+   * result through `updateProject`, so the corruption is persisted rather than
+   * merely displayed. Measured on A(10)->B(10)->C(5) authored at ordinals
+   * 1/11/21, 5-day week from Mon 2026-03-02: startDays 1,11,21 became 1,15,29
+   * and the finish moved Fri Apr 3 → Wed Apr 15.
+   *
+   * The scalars are still refreshed against the new anchor so the header does
+   * not read a stale finish until the next edit.
    */
   const applyStartDate = useCallback((pickedIso: string) => {
     if (!selectedProject || !activeSchedule) return;
     const day = parseCalendarDay(pickedIso);
     if (!day) { showAlert('Invalid date', 'Pick a day from the calendar.'); return; }
     const iso = toCalendarDayString(day);
-    const nextTasks = activeSchedule.startDate
-      ? activeSchedule.tasks
-      : rebaseRawToCalendar(activeSchedule.tasks, iso, activeSchedule.workingDaysPerWeek, activeSchedule.nonWorkingDates);
+    const nextTasks = activeSchedule.tasks;
     const cpm = runCpm(nextTasks, {
       scheduleStartDate: iso,
       workingDaysPerWeek: activeSchedule.workingDaysPerWeek,

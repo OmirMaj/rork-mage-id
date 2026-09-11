@@ -29,6 +29,47 @@
 
 import type { Project, Commitment } from '@/types';
 
+/**
+ * A closed job's project status. Lives here because THREE engines need the
+ * same predicate and they were disagreeing about it: utils/costDatabase
+ * filtered to closed work, utils/estimateCalibration did not, so the price
+ * book and the calibrator answered "what is your bid bias" from two different
+ * populations and could contradict each other on the same account.
+ */
+export const isClosedProject = (p: Project): boolean =>
+  p.status === 'completed' || p.status === 'closed';
+
+/**
+ * How much of a commitment must be paid before paid-to-date is treated as the
+ * COMPLETED cost of that scope rather than a progress payment.
+ *
+ * THE FAILURE THIS EXISTS TO STOP. `hasActual` is literally `actual > 0`, and
+ * the cost book preferred `actual` over `committed` with no proximity test at
+ * all. So ONE mobilization deposit on a closed job replaced the contract sum
+ * as the learned cost: a $12,000 roofing sub over 30 SQ (a true $400/SQ) with
+ * a single 10% deposit paid taught the book $40.00/SQ, stamped the sample
+ * "actual", and the Cost Database screen printed, in green with a downward
+ * arrow, "You bid this ~90% over actual cost" — a 10x error presented as good
+ * news, and the headline Bid-accuracy KPI read 10% on an account whose
+ * estimating was perfect.
+ *
+ * Retention is the mild, common version of the same thing: a GC typically
+ * closes a job in his own system before the final retention release, so the
+ * cash paid is short of the cost by the retention percentage. The COST of that
+ * scope is the contract sum; what has been released is a cash-flow fact.
+ * Below this ratio we fall back to the signed commitment, which for a closed
+ * job IS what the scope cost, and label the sample "signed" so the screen
+ * never calls it a payment.
+ *
+ * 0.95 is a judgement call, not a standard: retainage is negotiated per
+ * contract (it lives in the owner–contractor agreement, not in any general
+ * condition that fixes a percentage), and 5% is the most common figure a
+ * residential GC will meet. Set high enough that a normal retention hold still
+ * reads as settled once released, low enough that a progress payment never
+ * masquerades as a final cost.
+ */
+export const SETTLED_PAYMENT_RATIO = 0.95;
+
 export interface EstimateLineActual {
   materialId: string;
   name: string;
@@ -64,6 +105,45 @@ export interface EstimateLineActual {
   actualUnit: number | null;
   hasCommitment: boolean;
   hasActual: boolean;
+  /**
+   * Approved sub change-order dollars inside `committed` for this line
+   * (`commitment.changeAmount`, allocated the same way as the base amount).
+   *
+   * WHY IT IS BROKEN OUT. `committed` is the full contract value and that is
+   * correct for variance and job costing. It is NOT usable as a unit-rate
+   * numerator: the denominator is still the ORIGINAL estimate quantity, so a
+   * change order that bought MORE SCOPE at exactly the right price reads as a
+   * price increase. A 5,000 SF painting line bid at $2.00 with a $4,000 CO for
+   * 2,000 more SF at the same $2.00 taught the cost book $2.80/SF and printed
+   * "You bid this ~40% under actual cost" in red, pushing the next bid up 40%
+   * on a trade that was priced correctly. This is exactly the SCOPE term
+   * utils/varianceDecomposition.ts names as the moat's central flaw, and
+   * outlier rejection cannot see it (it needs 4 samples; this happens on one).
+   * utils/costDatabase excludes a line carrying these dollars from the learned
+   * rate; the line is still shown, and still counts for variance.
+   */
+  changeOrderAmount: number;
+  /**
+   * True when any commitment attributed to this line is ALSO attributed to
+   * another estimate line — a package buyout split bid-proportionally.
+   *
+   * The split carries no information about the lines' relative unit prices: it
+   * reproduces the estimator's own guess times one shared scalar. Two framing
+   * lines (1,000 SF @ $5 and 500 SF @ $12) against one $13,200 commitment both
+   * come back at a ratio of exactly 1.200000, and the book then learns $8.80/SF
+   * with a ±45% "spread" manufactured entirely from those two guesses. Correct
+   * fixes are a per-line schedule of values on the Commitment (not modelled
+   * today) or excluding these from the rate — utils/costDatabase does the
+   * latter.
+   */
+  fromSharedCommitment: boolean;
+  /**
+   * True when paid-to-date has substantially settled the committed amount
+   * (>= SETTLED_PAYMENT_RATIO), i.e. `actual` is a completed cost rather than
+   * a progress payment. Callers that learn a COST from this line must gate on
+   * this, not on `hasActual` (which is only `actual > 0`).
+   */
+  settled: boolean;
 }
 
 export interface TradeRollup {
@@ -130,6 +210,10 @@ export function computeEstimateActuals(
   const itemById = new Map(estimate.items.map(it => [it.materialId, it]));
   const committedByItem = new Map<string, number>();
   const actualByItem = new Map<string, number>();
+  // Rate-learning provenance, per line — see the field docs on
+  // EstimateLineActual.changeOrderAmount / .fromSharedCommitment.
+  const changeByItem = new Map<string, number>();
+  const sharedItems = new Set<string>();
 
   let untracedCommitted = 0;
   let untracedActual = 0;
@@ -141,7 +225,8 @@ export function computeEstimateActuals(
   );
 
   for (const c of projectCommitments) {
-    const committedAmt = (c.amount || 0) + (c.changeAmount || 0);
+    const changeAmt = c.changeAmount || 0;
+    const committedAmt = (c.amount || 0) + changeAmt;
     const actualAmt = Math.max(0, c.paidToDate || 0);
     const links = (c.linkedEstimateItems || []).filter(id => itemById.has(id));
     // Allocate on COST, not sell. Markup is per-item, so weighting by
@@ -165,6 +250,8 @@ export function computeEstimateActuals(
       const share = itemCost(id) / weightTotal;
       committedByItem.set(id, (committedByItem.get(id) || 0) + committedAmt * share);
       actualByItem.set(id, (actualByItem.get(id) || 0) + actualAmt * share);
+      if (changeAmt !== 0) changeByItem.set(id, (changeByItem.get(id) || 0) + changeAmt * share);
+      if (links.length > 1) sharedItems.add(id);
     }
   }
 
@@ -197,6 +284,31 @@ export function computeEstimateActuals(
       actualUnit: qty > 0 && actual > 0 ? actual / qty : null,
       hasCommitment: committed > 0,
       hasActual: actual > 0,
+      changeOrderAmount: changeByItem.get(it.materialId) || 0,
+      fromSharedCommitment: sharedItems.has(it.materialId),
+      // A payment only proves a COST once it has substantially settled what was
+      // signed. Below that it is a deposit or a progress draw (see
+      // SETTLED_PAYMENT_RATIO).
+      //
+      // AND THERE IS NO "PAYMENT WITHOUT A CONTRACT SUM" CASE HERE. This used
+      // to read `: actual > 0` for committed <= 0, on the reasoning that with
+      // nothing committed there is nothing to compare against so the payment
+      // stands on its own. That reasoning does not survive reading where
+      // `actual` comes from: every dollar in it is a commitment's paidToDate
+      // (see the allocation loop above — there is no other source). So
+      // committed <= 0 never means "an untracked direct expense"; it means the
+      // commitment's amount is blank, or a deductive change order cancelled it
+      // out. Both are holes in the record, and the old branch turned a hole
+      // into proof: a closed 30 SQ roofing job bid at $400/SQ with an
+      // amount-less commitment carrying $1,200 paid learned $40/SQ, basis
+      // 'actual', bidBias -0.90, and drove the headline Bid-accuracy KPI to
+      // 10% — byte-identical to the mobilization-deposit bug this flag was
+      // added to stop, reached by the one door it left open. No contract sum,
+      // no settlement. (costDatabase then declines the line as rate evidence
+      // rather than falling back to the raw payment — see the `cost` ladder
+      // there, which no longer has an "unsettled and uncommitted" branch that
+      // can return dollars.)
+      settled: committed > 0 && actual >= committed * SETTLED_PAYMENT_RATIO,
     };
   });
 

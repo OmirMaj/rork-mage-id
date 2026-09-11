@@ -5,6 +5,9 @@ import type {
   WipRowInput, WipRow, WipPortfolio, WipSnapshotRow, WipFlags, WipPeriod,
   Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project, MaterialReceipt,
 } from '@/types';
+// Pure money math — utils/invoiceBilling.ts has no React Native imports, so the
+// bun validators that import this module keep running.
+import { pendingRetentionHeld } from '@/utils/invoiceBilling';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE WIP TERMS — one definition each (app-experience audit 2026-09-07, "Do
@@ -54,6 +57,34 @@ import type {
 // both schedules route through it. Fixing the phase-matching inside the engine
 // is still worth doing for the Job Costing screen, but it is not what makes
 // these two reports foot — one definition is.
+//
+// AXES 5, 6 AND 7 — THE THREE NOBODY HAD ENUMERATED (audit 2026-09-11):
+//
+//   5. THE CONTRACT. This engine ran a seven-branch chain (pay-app contract
+//      sum, CO snapshot, target budget, GMP cap, estimate); computeWIPReport
+//      ran `effectiveEstimateTotal`, which is the linked estimate's grandTotal
+//      and nothing else. A job with a saved pay application read $700,000 /
+//      42.9% margin here and $550,000 / 27.3% there; a target-budget-only job
+//      read $900,000 against $0. That is the REVENUE side of a surety
+//      document, and none of the four axes above could see it.
+//   6. BILLED TO DATE. computeWIPReport never took pay applications at all, so
+//      a GC billing through the flagship AIA progress billing read
+//      $350,000 billed on /wip-report and $0 on the /reports WIP tab — which
+//      then invented underbilling equal to the whole of earned revenue.
+//   7. THE PERCENT-COMPLETE FALLBACK. computeWIPReport fell back to the
+//      AVERAGE TASK PROGRESS of the project schedule whenever it had no cost
+//      picture, so a job with two tasks at 40% and 60% and no cost data read
+//      50% complete, $250,000 earned and $250,000 unbilled on /reports while
+//      /wip-report read 0% and $0. Schedule-basis revenue recognition, on a
+//      document that names itself cost-to-cost — and the divergence most
+//      likely to hit a NEW account (no cost yet, a schedule already built).
+//
+// All three are settled here now: `deriveOriginalContractWithSource`,
+// `suggestBillingsWithSource` and `computeWipRow`'s own zero-cost guard are the
+// single definitions, and utils/financialReports calls them instead of holding
+// its own opinion. Schedule progress is still READ on both screens — as a
+// DIAGNOSTIC (flagWipRow's `evm` divergence flag), never as a revenue basis.
+// scripts/validate-wip-parity.ts asserts all three axes across the two engines.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -66,6 +97,59 @@ import type {
  */
 export function isWipBilling(invoice: Pick<Invoice, 'status'>): boolean {
   return invoice.status !== 'draft';
+}
+
+/**
+ * DEFINITION 1b — a SAVED AIA PAY APPLICATION is a billing once it has been
+ * issued to the owner.
+ *
+ * `portalState.status` is the only lifecycle a pay app has: draft | sent |
+ * recalled. `undefined` reads as SENT, which is not a shortcut — PortalState's
+ * own field doc says items predating the portal feature are treated as sent by
+ * the snapshot filter, and reading them as drafts here would blank the billings
+ * of every account that has been on MAGE longer than the portal has.
+ */
+export function payAppPortalStatus(app: SavedAIAPayApp): 'draft' | 'sent' | 'recalled' {
+  return app.portalState?.status ?? 'sent';
+}
+
+/**
+ * The pay applications that count as billings on a WIP schedule.
+ *
+ * A RECALLED application is always out: the GC withdrew it from the client, so
+ * its cumulative "Total Completed and Stored" is not billed, the same way a
+ * draft invoice is not billed (definition 1).
+ *
+ * A DRAFT is out ONLY WHEN THIS PROJECT ACTUALLY USES THE PORTAL, and that
+ * condition is the whole of the care in this function. On the invoice side the
+ * GC sets `status` himself, so `draft` means what it says. A pay app has no
+ * such control: app/aia-pay-app.tsx stamps `{ status: 'draft' }` on EVERY save,
+ * and "Generate PDF" — the actual act of issuing a G702 to an owner for most of
+ * this product's users — routes through the same save. So excluding every draft
+ * outright would report $0 billed, and therefore underbilling equal to the whole
+ * of earned revenue, for every GC who mails or emails his pay applications. That
+ * is a worse wrong number than the one it fixes, in the same column, on the same
+ * bank document.
+ *
+ * The signal that separates the two worlds is whether ANY application on this
+ * project has ever left through the portal. If one has, the portal IS this job's
+ * issuing channel and a draft is genuinely unissued — so a G702 saved but never
+ * sent stops inflating billed-to-date. If none has, the GC issues outside MAGE
+ * and every surviving application counts. (A `recalled` app proves the portal
+ * was used, because recall requires a prior send.)
+ */
+export function wipBillablePayApps(payApps: SavedAIAPayApp[]): SavedAIAPayApp[] {
+  const portalIsTheChannel = payApps.some((a) => {
+    const status = payAppPortalStatus(a);
+    return status === 'sent' || status === 'recalled'
+      || a.portalState?.sentAt != null || (a.portalState?.sentVersion ?? 0) > 0;
+  });
+  return payApps.filter((a) => {
+    const status = payAppPortalStatus(a);
+    if (status === 'recalled') return false;
+    if (status === 'draft' && portalIsTheChannel) return false;
+    return true;
+  });
 }
 
 /**
@@ -109,31 +193,92 @@ export function sumSignedCommitmentValue(commitments: Commitment[]): number {
     .reduce((sum, c) => sum + (c.amount ?? 0) + (c.changeAmount ?? 0), 0);
 }
 
+/**
+ * THE ONE TEST for whether a typed cost to complete is a usable forecast.
+ *
+ * Two engines apply the ETC — computeWipRow below (the /wip-report row) and
+ * deriveEstimatedCostWithSource (which is what utils/financialReports.ts's two
+ * report builders derive their cost at completion from). They must not each
+ * carry their own copy of "what counts", because a job the one accepts and the
+ * other rejects is two cost-at-completion figures on one job again, which is
+ * the whole subject of this module.
+ *
+ * ZERO IS A FORECAST. "Nothing left to spend" is a real thing for a GC to say
+ * about a job at closeout, and rejecting it would silently restore the derived
+ * figure on the one job where he said the opposite. Negative is not: a cost to
+ * complete below zero is not a forecast, and neither is NaN or Infinity.
+ */
+export function isUsableWipEtc(etc: number | null | undefined): etc is number {
+  return typeof etc === 'number' && Number.isFinite(etc) && etc >= 0;
+}
+
 /** Clamp with NaN → lo, so divide-by-zero never leaks a NaN downstream. */
 export function clamp(n: number, lo: number, hi: number): number {
   if (Number.isNaN(n)) return lo;
   return Math.min(hi, Math.max(lo, n));
 }
 
-/** Turn explicit inputs into a fully computed WIP row. */
+/**
+ * Turn explicit inputs into a fully computed WIP row.
+ *
+ * THE ESTIMATED COST TO COMPLETE, AND WHY IT IS THE INPUT THAT MATTERS MOST
+ * (audit 2026-09-11, the top finding in this area).
+ *
+ * Cost at completion used to be a pure derivation: max(estimate, signed
+ * commitments, cost already paid out). The third floor is correct and it has to
+ * be there — a job cannot finish for less than what it has already cost — but
+ * once it binds, EAC == costToDate, so `costToDate / EAC` is exactly 1.0 BY
+ * CONSTRUCTION and `costToComplete` and `backlog` are 0. Measured: a $550,000
+ * contract with $620,000 incurred reported 100% complete, the FULL $550,000
+ * earned, $0 left to spend and $0 of backlog — on both schedules. The engine
+ * was forecasting that every overrun job would incur no further cost, on the
+ * document a bank and a surety underwrite, and the job might be 60% built.
+ *
+ * Under cost-to-cost, cost incurred passing the estimate is the signal that the
+ * FORECAST is stale, not that the job is finished. The fix is the input every
+ * CPA-prepared WIP has and this product did not: an estimated cost to complete,
+ * entered per period by the person actually running the job. Surety-issued WIP
+ * templates name it as a required column and name inaccurate cost-to-complete
+ * estimates as the first failure that sinks construction accounting.
+ *
+ * So when `estimatedCostToComplete` is present:
+ *     EAC = costToDate + ETC          (the CPA definition)
+ *     costToComplete = ETC            (what the GC actually said is left)
+ * and when it is absent the derived `totalEstimatedCost` stands, exactly as
+ * before. `estimatedCostAtCompletion` on the output is the figure the row was
+ * actually struck against, so an export never prints a denominator the margin
+ * beside it was not measured with.
+ */
 export function computeWipRow(input: WipRowInput): WipRow {
   const {
     originalContract, approvedChangeOrders, totalEstimatedCost,
-    costToDate, billedToDate, percentCompleteOverride,
+    costToDate, billedToDate, estimatedCostToComplete,
   } = input;
 
   const revisedContract = originalContract + approvedChangeOrders;
 
-  const percentComplete = percentCompleteOverride != null
-    ? clamp(percentCompleteOverride, 0, 1)
-    : (totalEstimatedCost === 0 ? 0 : clamp(costToDate / totalEstimatedCost, 0, 1));
+  // A typed ETC REPLACES the derived forecast rather than flooring it: the
+  // whole point is that the GC can say the job will cost MORE than it has so
+  // far, and also that it will cost LESS than a stale estimate says. Negative
+  // and non-finite are rejected (a cost to complete below zero is not a
+  // forecast) and fall back to the derivation rather than poisoning the row.
+  const etcEntered = isUsableWipEtc(estimatedCostToComplete);
+  const estimatedCostAtCompletion = etcEntered
+    ? costToDate + estimatedCostToComplete
+    : totalEstimatedCost;
+
+  const percentComplete = estimatedCostAtCompletion === 0
+    ? 0
+    : clamp(costToDate / estimatedCostAtCompletion, 0, 1);
 
   const earnedRevenue = revisedContract * percentComplete;
   const overbilling = Math.max(0, billedToDate - earnedRevenue);
   const underbilling = Math.max(0, earnedRevenue - billedToDate);
-  const estGrossProfit = revisedContract - totalEstimatedCost;
+  const estGrossProfit = revisedContract - estimatedCostAtCompletion;
   const estGrossMarginPct = revisedContract === 0 ? 0 : estGrossProfit / revisedContract;
-  const costToComplete = Math.max(0, totalEstimatedCost - costToDate);
+  const costToComplete = etcEntered
+    ? estimatedCostToComplete
+    : Math.max(0, estimatedCostAtCompletion - costToDate);
   const backlog = revisedContract - earnedRevenue;
 
   // Profit-to-date. GAAP (ASC 606 / 605-35) requires the FULL anticipated loss
@@ -149,29 +294,111 @@ export function computeWipRow(input: WipRowInput): WipRow {
   return {
     revisedContract, percentComplete, earnedRevenue, overbilling, underbilling,
     estGrossProfit, estGrossMarginPct, profitToDate, costToComplete, backlog,
-    anticipatedLoss,
+    anticipatedLoss, estimatedCostAtCompletion,
   };
 }
 
-/** Sum a set of snapshot rows into a portfolio roll-up with weighted margin. */
+/**
+ * The cost at completion a row was actually struck against.
+ *
+ * A snapshot frozen before the ETC input shipped has no `estimatedCostAtCompletion`
+ * on its output — the field is declared optional for exactly that reason — so
+ * every reader falls back to the input's derived figure, which IS what those
+ * rows were computed with. Printing the input blindly on a NEW row would print
+ * a denominator the margin beside it was not measured with, which is why this
+ * is one function rather than a `??` repeated at seven call sites.
+ */
+export function wipRowCostAtCompletion(row: WipSnapshotRow): number {
+  return row.output.estimatedCostAtCompletion ?? row.input.totalEstimatedCost;
+}
+
+/**
+ * Does this row have ANY cost basis — a forecast, a commitment, or a dollar
+ * actually spent?
+ *
+ * A job set up with only a target budget or a GMP cap gets a CONTRACT (those
+ * are revenue fallbacks in deriveOriginalContract) and NO COST
+ * (deriveEstimatedCost deliberately excludes both), so computeWipRow returns
+ * estGrossProfit == the entire contract at a 100% margin. Measured on a
+ * $900,000 target-budget job with no estimate: estGrossProfit $900,000,
+ * estGrossMarginPct 1.0, and the portfolio's weightedMarginPct 1.0 — a
+ * fabricated hundred-percent margin pulling the number a lender reads as the
+ * verdict, on a job whose "contract" may be a homeowner's proposed budget
+ * (ProjectTargetBudget can carry setBy: 'client').
+ *
+ * A contract with no cost basis has no measurable margin, so the roll-up
+ * excludes it from both sides of the weighted margin and counts it instead.
+ * `costToDate > 0` keeps a job whose only cost signal is money already spent —
+ * that IS a basis, and it is the one the incurred floor is built on.
+ */
+export function wipRowHasCostBasis(row: WipSnapshotRow): boolean {
+  return wipRowCostAtCompletion(row) > 0 || row.input.costToDate > 0;
+}
+
+/**
+ * Sum a set of snapshot rows into a portfolio roll-up with weighted margin.
+ *
+ * THE LOSS FIGURES ARE NOT DECORATION (audit 2026-09-11). `weightedMarginPct`
+ * NETS: a $1,000,000 job at $800,000 of cost beside a $300,000 job at $500,000
+ * returns 0%, and the Portfolio strip printed "Weighted margin 0%" over a book
+ * carrying a $200,000 forecast loss with nothing naming it. A WIP total row DOES
+ * sum across jobs — that is correct and it stays — but ASC 605-35-25-46 requires
+ * the provision for an onerous contract to be booked per contract, and it cannot
+ * be offset against profitable ones. So the roll-up now also carries the count,
+ * the total forecast loss, and the provision a CPA actually posts, and the
+ * weighted margin is never allowed to stand alone.
+ */
 export function computeWipPortfolio(rows: WipSnapshotRow[]): WipPortfolio {
   const acc: WipPortfolio = {
     revisedContract: 0, totalEstimatedCost: 0, costToDate: 0, earnedRevenue: 0,
     billedToDate: 0, overbilling: 0, underbilling: 0, backlog: 0, weightedMarginPct: 0,
+    retainageHeld: 0, lossJobCount: 0, totalForecastLoss: 0, lossProvision: 0,
+    noCostBasisCount: 0, noCostBasisContract: 0,
   };
+  // The weighted margin runs over MEASURABLE jobs only — see wipRowHasCostBasis.
+  // The column totals above it still sum the whole book, because a WIP total row
+  // does; it is the RATIO that a costless job corrupts, by adding contract to
+  // the numerator and nothing to the denominator.
+  let marginContract = 0;
+  let marginCost = 0;
   for (const r of rows) {
     acc.revisedContract += r.output.revisedContract;
-    acc.totalEstimatedCost += r.input.totalEstimatedCost;
+    if (wipRowHasCostBasis(r)) {
+      marginContract += r.output.revisedContract;
+      marginCost += wipRowCostAtCompletion(r);
+    } else {
+      acc.noCostBasisCount = (acc.noCostBasisCount ?? 0) + 1;
+      acc.noCostBasisContract = (acc.noCostBasisContract ?? 0) + r.output.revisedContract;
+    }
+    // The cost the ROW was struck against, not the derivation it started from —
+    // otherwise a portfolio carrying one ETC-revised job sums a denominator
+    // none of its own margins were measured with.
+    acc.totalEstimatedCost += wipRowCostAtCompletion(r);
     acc.costToDate += r.input.costToDate;
     acc.earnedRevenue += r.output.earnedRevenue;
     acc.billedToDate += r.input.billedToDate;
     acc.overbilling += r.output.overbilling;
     acc.underbilling += r.output.underbilling;
     acc.backlog += r.output.backlog;
+    // Legacy snapshots predate the retainage column; absent means "not
+    // recorded", and adding 0 for them is the only honest sum available.
+    acc.retainageHeld = (acc.retainageHeld ?? 0) + (r.input.retainageHeld ?? 0);
+    if (r.output.estGrossProfit < 0) {
+      acc.lossJobCount = (acc.lossJobCount ?? 0) + 1;
+      acc.totalForecastLoss = (acc.totalForecastLoss ?? 0) - r.output.estGrossProfit;
+      // The accrual: the part of the forecast loss NOT yet run through cost.
+      // (earned − cost) is the loss already incurred; the forecast loss is the
+      // whole of it; the difference is what must be provided for now. Floored
+      // at 0 because a job whose incurred loss already exceeds the forecast
+      // needs no further provision — it needs a new forecast.
+      const incurredLoss = r.output.earnedRevenue - r.input.costToDate;
+      acc.lossProvision = (acc.lossProvision ?? 0)
+        + Math.max(0, incurredLoss - r.output.estGrossProfit);
+    }
   }
-  acc.weightedMarginPct = acc.revisedContract === 0
+  acc.weightedMarginPct = marginContract === 0
     ? 0
-    : (acc.revisedContract - acc.totalEstimatedCost) / acc.revisedContract;
+    : (marginContract - marginCost) / marginContract;
   return acc;
 }
 
@@ -209,6 +436,7 @@ export type WipSource =
   | 'signed_commitments'
   | 'commitments_and_receipts'
   | 'cost_incurred'
+  | 'cost_to_complete_entered'
   | 'none';
 
 /** A derived WIP figure and the branch it came from. */
@@ -223,7 +451,7 @@ export interface WipDerived {
  * the figure so the schedule can say where each number came from.
  */
 export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
-  pay_app_contract_sum: 'Original contract sum on a saved AIA pay application',
+  pay_app_contract_sum: 'Original contract sum on your LATEST saved AIA pay application',
   estimate_grand_total: 'Linked estimate — grand total (priced)',
   change_order_snapshot: 'Reconstructed from a change order’s contract snapshot',
   target_budget: 'Target budget you entered in project setup',
@@ -235,8 +463,81 @@ export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
     'Subs paid to date plus material receipts — self-performed labor NOT included, so this is a lower bound',
   cost_incurred:
     'Cost you have already paid out on this job — more than the estimate or the commitments, so it sets the floor',
+  cost_to_complete_entered:
+    'Cost to date plus the cost to complete YOU entered — your own forecast for this period, not a figure MAGE derived',
   none: 'No source on file — enter this figure yourself',
 };
+
+/**
+ * THE ESTIMATED-COST-TO-COMPLETE STORE, AND WHY ITS SHAPE LIVES IN THE ENGINE.
+ *
+ * The ETC is typed on /wip-report and stored per user in AsyncStorage (there is
+ * no server column yet — see the notFixed entry and the handoff). It began as
+ * three private helpers inside app/wip-report.tsx, and that is precisely why
+ * /reports could not see it: the flagship screen forecast an $800,000 cost at
+ * completion while the /reports WIP tab, its CSV and its PDF forecast $620,000
+ * on the same job in the same session, because the second screen had no way to
+ * reach the map. A storage key that only one screen knows how to build is a
+ * second definition of the number it holds.
+ *
+ * So the key, the entry shape and the parser are HERE, and both screens read
+ * them. The prefix is `mageid_` so utils/localCacheKeys.ts's tenant sweep takes
+ * it on a user switch (test:storage-hygiene fails the build otherwise).
+ */
+export const WIP_ETC_STORAGE_PREFIX = 'mageid_wip_cost_to_complete';
+
+/**
+ * One project's typed cost to complete. COST still to be spent — never revenue,
+ * never cost already incurred. `updatedAt` is an INSTANT, kept for the same
+ * reason the cost-to-date override map keeps one: it is what a future server
+ * merge compares on, so the rows are already shaped for it.
+ */
+export interface WipEtcEntry {
+  value: number;
+  updatedAt: string;
+}
+
+/** Per-user key. Falls back to the bare prefix only when there is no user id. */
+export function wipEtcStorageKey(userId: string | undefined): string {
+  return userId ? `${WIP_ETC_STORAGE_PREFIX}_${userId}` : WIP_ETC_STORAGE_PREFIX;
+}
+
+/** Instant stamped on an entry that predates `updatedAt` — always the loser. */
+export const WIP_ETC_LEGACY_STAMP = '1970-01-01T00:00:00.000Z';
+
+/** Parse a stored ETC map, dropping anything that is not a usable forecast. */
+export function normalizeWipEtcMap(raw: unknown): Record<string, WipEtcEntry> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, WipEtcEntry> = {};
+  for (const [projectId, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (entry && typeof entry === 'object') {
+      const e = entry as Partial<WipEtcEntry>;
+      // `>= 0` not `> 0`: zero is a legitimate forecast ("nothing left to
+      // spend") and dropping it would silently restore the derived figure on
+      // the one job where the GC has said the opposite.
+      if (typeof e.value === 'number' && Number.isFinite(e.value) && e.value >= 0) {
+        out[projectId] = {
+          value: e.value,
+          updatedAt: typeof e.updatedAt === 'string' ? e.updatedAt : WIP_ETC_LEGACY_STAMP,
+        };
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The map both report builders take: project id → cost to complete.
+ *
+ * A plain `Record<string, number>` rather than the entry shape, because the
+ * engines have no business with sync stamps and a narrower parameter cannot be
+ * fed a half-parsed object by a future caller.
+ */
+export function wipEtcValueMap(entries: Record<string, WipEtcEntry>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [projectId, e] of Object.entries(entries)) out[projectId] = e.value;
+  return out;
+}
 
 /**
  * Cost-to-date is the one input on this schedule a GC types over, because the
@@ -319,6 +620,111 @@ export type WipSnapshotRowWithSources = WipSnapshotRow & { sources?: WipRowSourc
 export type WipPeriodWithSources = Omit<WipPeriod, 'rows'> & { rows: WipSnapshotRowWithSources[] };
 
 /**
+ * WHAT THE WIP SCREEN IS ACTUALLY SHOWING — a pure selector, not a ternary
+ * scattered through JSX (adversarial review 2026-09-11).
+ *
+ * The defect it encodes: tapping a saved or locked period chip changed
+ * `selectedPeriodId`, which fed the Export buttons and NOTHING else. The
+ * Portfolio strip and the Projects list stayed hardwired to today's live rows,
+ * so a GC tapped the locked "2026-03-31" chip, read today's revised contract, today's
+ * underbilling and today's weighted margin, pressed Export PDF and mailed
+ * March.
+ *
+ * The fix lived in the screen as `const viewingFrozen = selectedPeriod !== null`
+ * plus two more ternaries, and every guard on it was a REGEX over the source
+ * text. Setting `viewingFrozen = false` restored the whole defect with all four
+ * WIP validators green, because the strings the regexes match were all still
+ * there. So the decision is a function the validators can call, and they assert
+ * what it RETURNS.
+ *
+ * `viewingFrozen` is the one flag the screen branches on: it blocks the
+ * cost-to-date and cost-to-complete edits (the period is the document), blocks
+ * Save (which builds from today's book), and suppresses the schedule-divergence
+ * check (measured against TODAY's schedule, which a frozen row must not be
+ * compared to).
+ */
+export function selectWipDisplayPeriod<R extends WipSnapshotRowWithSources, P extends WipPortfolio>(
+  selectedPeriodId: string | null,
+  periods: WipPeriodWithSources[],
+  liveRows: R[],
+  livePortfolio: P,
+): {
+  period: WipPeriodWithSources | null;
+  rows: WipSnapshotRowWithSources[];
+  portfolio: WipPortfolio;
+  viewingFrozen: boolean;
+} {
+  const period = selectedPeriodId
+    ? periods.find((p) => p.id === selectedPeriodId) ?? null
+    : null;
+  return {
+    period,
+    rows: period ? period.rows : liveRows,
+    portfolio: period ? period.portfolioTotals : livePortfolio,
+    // A chip pointing at a period that is no longer in the list (deleted on
+    // another device, or not yet hydrated) is NOT "frozen" — it falls back to
+    // the live book, and the flag has to agree with the rows beside it or the
+    // screen locks editing on figures that are today's.
+    viewingFrozen: period !== null,
+  };
+}
+
+/**
+ * The estimated-cost-to-complete reducer, extracted from the /wip-report
+ * drill-in so it can be tested by behaviour (adversarial review 2026-09-11).
+ *
+ * It lived inside `commitDrillEtc`, a useCallback, and the only guard on the
+ * top finding's whole fix was a regex over the surrounding source — inserting
+ * an early `return` at the top of that callback made the entire cost-to-complete
+ * input record NOTHING, with all four WIP validators still green.
+ *
+ * The rules, all of which have a reason:
+ *   • EMPTY means "use MAGE's forecast" and REMOVES the entry. There is no
+ *     server row to resurrect, so a plain delete is enough (unlike the
+ *     cost-to-date override, which needs a tombstone).
+ *   • "0" is a deliberate zero, not empty: a job with nothing left to spend is
+ *     a real answer, and it is the one that makes percent complete read 100%
+ *     honestly.
+ *   • Unparseable text ("1.2.3") is not an instruction — record nothing and
+ *     leave the previous forecast standing.
+ *   • Negative is not a forecast; same treatment.
+ *   • An unchanged value returns the SAME OBJECT, because this fires on blur
+ *     AND on close and a re-stamped `updatedAt` on every open/close would beat
+ *     a real edit from another device in any future last-write-wins merge. The
+ *     compare is rounded because the input is seeded with Math.round of the
+ *     stored figure.
+ */
+export function applyWipEtcEntry(
+  prev: Record<string, WipEtcEntry>,
+  projectId: string,
+  text: string,
+  nowIso: string,
+): Record<string, WipEtcEntry> {
+  // A MINUS SIGN IS CAUGHT BEFORE THE STRIP, not after it. The strip removes
+  // everything but digits and dots — which is what lets a GC type "$180,000" —
+  // and it also removed the minus, so "-5000" parsed as 5000 and the `typed < 0`
+  // guard below could never fire. Recording the OPPOSITE of what the user typed,
+  // silently, into the figure the whole schedule is measured against, is worse
+  // than recording nothing. (Found by the behaviour guard that replaced this
+  // path's source-shape regex — adversarial review 2026-09-11.)
+  if (/-/.test(text)) return prev;
+  const cleaned = text.replace(/[^0-9.]/g, '');
+  const typed = Number(cleaned);
+  const emptied = !/[0-9]/.test(cleaned);
+  if (!emptied && !Number.isFinite(typed)) return prev;
+  const current = prev[projectId];
+  if (emptied) {
+    if (!current) return prev;
+    const next = { ...prev };
+    delete next[projectId];
+    return next;
+  }
+  if (typed < 0) return prev;
+  if (current && Math.round(current.value) === Math.round(typed)) return prev;
+  return { ...prev, [projectId]: { value: typed, updatedAt: nowIso } };
+}
+
+/**
  * What the export prints when a row predates source tracking. Saying "not
  * recorded" is the honest answer; picking the most likely branch would put a
  * guess in front of a banker in the same typeface as a fact.
@@ -399,9 +805,69 @@ export function deriveOriginalContractWithSource(
   changeOrders: ChangeOrder[],
   payApps: SavedAIAPayApp[],
 ): WipDerived {
-  const fromPayApp = payApps[0]?.originalContractSum;
-  if (typeof fromPayApp === 'number' && fromPayApp > 0) {
-    return { value: fromPayApp, source: 'pay_app_contract_sum' };
+  // THE PAY-APP BRANCH IS THE TOP OF THE CHAIN, SO IT IS THE ONE THAT HAS TO BE
+  // DEFENSIVE (audit 2026-09-11). It used to read `payApps[0].originalContractSum`
+  // and trust it. Three things were wrong with that:
+  //
+  //   • [0] IS NOT "THE LATEST". It happens to be, because
+  //     getAIAPayAppsForProject sorts descending — but this module is pure and
+  //     takes an array from any caller, and a future caller passing an
+  //     unsorted array would put application #1's contract sum on a bank
+  //     document. Reduce to the highest applicationNumber, the way
+  //     suggestBilledToDate already does.
+  //   • AN APPLICATION THAT IS NOT A BILLING IS NOT A CONTRACT EITHER. This
+  //     branch originally filtered `recalled` only, and reasoned about recall
+  //     at length while ignoring the DRAFT rule the billings branch right
+  //     beside it applies (`wipBillablePayApps`). A mid-edit draft re-seeded
+  //     at a different contract sum is not a certificate, and on a portal job
+  //     it could otherwise become the "latest" application and put a figure
+  //     the client has never seen on a surety schedule. The two branches now
+  //     read the same population, which is the only defensible answer: a
+  //     recalled application is withdrawn, and a draft on a project that issues
+  //     through the portal has not been certified to anyone.
+  //
+  //     (A GC who issues OUTSIDE the portal keeps every draft, here as in the
+  //     billings — `wipBillablePayApps` owns that distinction and the reason
+  //     for it, and duplicating a second rule here is how the two drifted.)
+  //   • ONE CONTRACT HAS ONE ORIGINAL SUM, AND THE LATEST CERTIFICATE IS THE
+  //     ONE THAT SAYS WHAT IT IS. An earlier pass here invented a third rule:
+  //     if the surviving applications disagreed about the sum by more than a
+  //     dollar, the whole branch was abandoned, the estimate chain answered
+  //     instead, and the export printed a `pay_app_contract_conflict` source
+  //     label warning the reader to "check the G702s". That was wrong, and it
+  //     was wrong on the ORDINARY case rather than a rare one:
+  //     `seedAIAPayApplicationFromInvoice` (utils/aiaBilling.ts) re-derives
+  //     `originalContractSum` from `effectiveEstimateTotal(project)` on EVERY
+  //     new application, so two saved certificates disagree whenever the
+  //     estimate moved between them — a re-price, a committed change order.
+  //     Measured: apps #1 $550,000 and #2 $700,000 with the estimate now at
+  //     $600,000 returned $600,000, so the $700,000 the GC actually certified
+  //     to the owner on the latest G702 came off a surety document by
+  //     $100,000, under a source cell alarming the reader about a job with
+  //     nothing wrong with it.
+  //
+  //     The defensible tie-break is the one the audit actually asked for:
+  //     reduce to the HIGHEST applicationNumber and take its sum. That is the
+  //     sum most recently certified to the owner, and it is the figure the
+  //     owner is holding a copy of. A disagreement among the earlier
+  //     applications is real information, so it is DISCLOSED rather than acted
+  //     on — see `payAppContractHistoryNote`, which is the same shape as
+  //     `contractVsEstimateNote` below and for the same reason.
+  //
+  // What this deliberately does NOT do is override a pay-app contract sum that
+  // merely DISAGREES WITH THE ESTIMATE. A signed contract differing from the
+  // estimate that priced it is the ordinary case — negotiation, allowances,
+  // value engineering — and preferring the estimate there would put a wrong
+  // contract on the schedule for the common case in order to catch a rare one.
+  // The disagreement is disclosed instead, on the surface that can still see
+  // the estimate: see `contractVsEstimateNote`.
+  const contractApps = wipBillablePayApps(payApps).filter(
+    (a) => typeof a.originalContractSum === 'number' && a.originalContractSum > 0,
+  );
+  if (contractApps.length > 0) {
+    const latest = contractApps.reduce((a, b) =>
+      (b.applicationNumber ?? 0) >= (a.applicationNumber ?? 0) ? b : a);
+    return { value: latest.originalContractSum, source: 'pay_app_contract_sum' };
   }
   // MONEY-F10. A change order's originalContractValue is NOT the original
   // contract: app/change-order.tsx stamps it as
@@ -548,7 +1014,17 @@ export function deriveEstimatedCost(
    * same way their REVENUE is added to revisedContract. Omit only when you
    * genuinely want the original-scope cost (e.g. a baseline comparison).
    */
-  opts?: { approvedChangeOrders?: number; originalContract?: number },
+  /**
+   * The full option set of `deriveEstimatedCostWithSource`, deliberately — this
+   * is a thin wrapper over it and a narrower type here is how a caller ends up
+   * with a different cost at completion from the two report builders. It was
+   * missing `costIncurred`, and hooks/useWeekClose.ts (the only hand-built WIP
+   * row left in the repo) could therefore not pass the floor even though both
+   * WIP schedules do: on an overrun job it reported the ESTIMATE as cost at
+   * completion and the Friday Close's "$X unbilled" stopped agreeing with the
+   * WIP screen it was built to agree with.
+   */
+  opts?: Parameters<typeof deriveEstimatedCostWithSource>[2],
 ): number {
   return deriveEstimatedCostWithSource(project, commitments, opts).value;
 }
@@ -571,15 +1047,47 @@ export interface WipEstimatedCost extends WipDerived {
    * already cost.
    */
   incurredFloor: number;
-  /** Which candidate `value` is. 'none' = no cost basis on file at all. */
-  basis: 'estimate' | 'commitments' | 'incurred' | 'none';
+  /**
+   * Which candidate `value` is. 'none' = no cost basis on file at all.
+   * 'entered' = the GC's own cost to complete, which REPLACES all three
+   * candidates rather than joining the max (see `estimatedCostToComplete`).
+   */
+  basis: 'estimate' | 'commitments' | 'incurred' | 'entered' | 'none';
 }
 
 /** deriveEstimatedCost, plus which branch supplied the cost base. */
 export function deriveEstimatedCostWithSource(
   project: Pick<Project, 'linkedEstimate' | 'estimate'> | null | undefined,
   commitments: Commitment[],
-  opts?: { approvedChangeOrders?: number; originalContract?: number; costIncurred?: number },
+  opts?: {
+    approvedChangeOrders?: number;
+    originalContract?: number;
+    costIncurred?: number;
+    /**
+     * THE GC's OWN COST TO COMPLETE, and the reason this parameter lives HERE
+     * rather than only inside computeWipRow (adversarial review 2026-09-11).
+     *
+     * The ETC shipped as an argument to computeWipRow alone — which is the
+     * /wip-report engine. utils/financialReports.computeWIPReport and
+     * computeProfitReport derive their cost at completion from THIS function
+     * and never saw it, so a GC who entered "$180,000 left to spend" on the
+     * flagship screen got EAC $800,000 / 77.5% / $426,250 earned there and EAC
+     * $620,000 / 100% / $550,000 earned on /reports, its CSV and its PDF. Two
+     * bank-facing WIP schedules, one job, one session — which is the exact
+     * defect the whole parity effort exists to close, re-created on a new axis
+     * by putting the fix one level too low.
+     *
+     * So the ETC is part of the ONE cost-at-completion definition, not a
+     * property of one screen's row builder. When it is present and valid it
+     * REPLACES the three-candidate max entirely:
+     *     EAC = cost incurred + cost to complete
+     * which is the CPA definition, and the whole point is that the GC can say
+     * the job will cost MORE than a stale estimate says (or less). Negative and
+     * non-finite are rejected — a cost to complete below zero is not a forecast
+     * — and fall through to the derivation rather than poisoning the row.
+     */
+    estimatedCostToComplete?: number;
+  },
 ): WipEstimatedCost {
   // Which branch supplied the base matters: the commitments floor already
   // contains CO cost (c.changeAmount is the sub-side CO revision), so adding a
@@ -600,7 +1108,10 @@ export function deriveEstimatedCostWithSource(
     base = fromLegacy; baseIsOriginalScope = true; source = 'legacy_estimate_grand_total';
   }
 
-  if (base === 0 && committedFloor === 0) {
+  const enteredEtc = opts?.estimatedCostToComplete;
+  const etcEntered = isUsableWipEtc(enteredEtc);
+
+  if (base === 0 && committedFloor === 0 && !etcEntered) {
     return { value: 0, source: 'none', estimateBasis: 0, committedFloor: 0, incurredFloor: 0, basis: 'none' };
   }
 
@@ -622,6 +1133,22 @@ export function deriveEstimatedCostWithSource(
   // A max can never double count, which is why all three candidates can stand
   // side by side: whichever is largest is the one that binds.
   const incurredFloor = Math.max(0, opts?.costIncurred ?? 0);
+
+  // THE ENTERED FORECAST OUTRANKS ALL THREE DERIVED CANDIDATES. It is not a
+  // fourth floor in the max: a max could only ever raise the figure, and half
+  // the value of the input is a GC saying a stale estimate is too HIGH. It is
+  // also the only candidate that is not MAGE's opinion, so the source it
+  // returns names the person who typed it.
+  if (etcEntered) {
+    return {
+      value: incurredFloor + enteredEtc,
+      source: 'cost_to_complete_entered',
+      estimateBasis,
+      committedFloor,
+      incurredFloor,
+      basis: 'entered',
+    };
+  }
 
   const winner = Math.max(estimateBasis, committedFloor, incurredFloor);
 
@@ -721,20 +1248,100 @@ function topUpForChangeOrders(
  * exactly that caller until 2026-09-11. scripts/validate-money-basis-parity.ts
  * now owns the call-site completeness check.
  *
- * KNOWN CONSEQUENCE, not yet fixed (2026-09-11 audit): once the floor binds,
- * EAC == costToDate on an overrun job, so `percentComplete` is 1.0 BY
- * CONSTRUCTION and `costToComplete` and `backlog` are 0. The engine forecasts
- * that an overrun job will incur no further cost. Closing that needs a
- * per-period estimated-cost-to-complete the user can actually enter, which the
- * product does not have anywhere.
+ * THE CONSEQUENCE THE FLOOR CREATES, AND WHAT CLOSES IT (2026-09-11 audit).
+ * Once the floor binds, EAC == costToDate on an overrun job, so
+ * `percentComplete` is 1.0 BY CONSTRUCTION and `costToComplete` and `backlog`
+ * are 0 — the engine forecasting that an overrun job will incur no further
+ * cost. That is now closed by the per-period ESTIMATED COST TO COMPLETE the GC
+ * enters on the drill-in (`WipRowInput.estimatedCostToComplete`, applied in
+ * computeWipRow): with an ETC on the row, EAC = costToDate + ETC and the floor
+ * stops being the answer. This sentence still fires when there is NO ETC yet,
+ * which is the state in which the number really is overstated, and it is now
+ * the prompt to enter one.
  *
  * COST on both sides — `costIncurred` is money paid out, never money billed.
  */
 function overspentNote(costAtCompletion: number, costIncurred?: number): string {
   if (costIncurred == null || costIncurred <= costAtCompletion) return '';
   return ` You have already recorded ${wipMoney(costIncurred)} of cost on this job — MORE than the `
-    + 'cost at completion above, so the margin here is overstated. Update the estimate to what the '
-    + 'job now costs before anyone underwrites it.';
+    + 'cost at completion above, so the margin here is overstated. Enter what is still left to spend '
+    + '(cost to complete) on this job, or update the estimate, before anyone underwrites it.';
+}
+
+/**
+ * How far out of step a pay application's original contract sum is from the
+ * estimate that priced the job — disclosed, never acted on.
+ *
+ * `deriveOriginalContractWithSource` takes the pay-app contract sum first and
+ * keeps taking it even when the estimate disagrees, because a signed contract
+ * differing from the estimate is ORDINARY: negotiation, allowances, value
+ * engineering. Overriding it would put a wrong contract on the schedule for the
+ * common case to catch a rare one. What it must not do is stay silent — a
+ * $1,400,000 "contract" that sits $300,000 off the only estimate on the job is
+ * the thing a surety asks about, and the GC could not see it from inside the
+ * product.
+ *
+ * REVENUE on both sides. Returns '' unless the pay-app branch actually won and
+ * the gap is material (2% of the contract, with a $500 floor so a rounding
+ * difference on a small job does not raise an alarm).
+ *
+ * NOT reachable from the export: a frozen snapshot row carries the contract and
+ * its source, never the estimate it might be compared against. This is the live
+ * drill-in's sentence, and persisting the estimate onto the snapshot so the PDF
+ * footnote can print it too is a follow-up, not a silent omission.
+ */
+export function contractVsEstimateNote(
+  contract: WipDerived,
+  estimateGrandTotal: number | null | undefined,
+): string {
+  if (contract.source !== 'pay_app_contract_sum') return '';
+  if (typeof estimateGrandTotal !== 'number' || !(estimateGrandTotal > 0)) return '';
+  const gap = contract.value - estimateGrandTotal;
+  const material = Math.max(500, Math.abs(contract.value) * 0.02);
+  if (Math.abs(gap) <= material) return '';
+  return `This contract figure comes off your saved pay application and sits ${wipMoney(Math.abs(gap))} `
+    + `${gap > 0 ? 'ABOVE' : 'BELOW'} the ${wipMoney(estimateGrandTotal)} your estimate prices this job at. `
+    + 'MAGE uses the pay application, because that is the sum you certified to the owner — but if the '
+    + 'pay app was seeded from the wrong contract, every figure on this row is measured against it.';
+}
+
+/**
+ * Your saved pay applications disagree with each other about the original
+ * contract sum — disclosed, never acted on.
+ *
+ * `deriveOriginalContractWithSource` takes the sum off the LATEST certificate,
+ * because that is the one most recently certified to the owner and the one the
+ * owner is holding a copy of. It must not abandon the branch when an earlier
+ * application disagrees: `seedAIAPayApplicationFromInvoice` re-derives
+ * `originalContractSum` from the estimate as it stands on the day each
+ * application is created, so two saved certificates disagree whenever the
+ * estimate moved between them — an ordinary re-price, a committed change order.
+ * An earlier pass here fell through to the estimate chain on exactly that, and
+ * knocked $100,000 off a certified contract on a job with nothing wrong with it.
+ *
+ * What the disagreement IS is a reason to look at the G702s, so it is said in
+ * words on the drill-in, the same way `contractVsEstimateNote` is.
+ *
+ * REVENUE on both sides. Returns '' unless two BILLABLE applications carrying a
+ * contract sum differ by more than a dollar (rounding is not a disagreement).
+ */
+export function payAppContractHistoryNote(payApps: SavedAIAPayApp[]): string {
+  const contractApps = wipBillablePayApps(payApps).filter(
+    (a) => typeof a.originalContractSum === 'number' && a.originalContractSum > 0,
+  );
+  if (contractApps.length < 2) return '';
+  const sums = contractApps.map((a) => a.originalContractSum);
+  const lo = Math.min(...sums);
+  const hi = Math.max(...sums);
+  if (hi - lo <= 1) return '';
+  const latest = contractApps.reduce((a, b) =>
+    (b.applicationNumber ?? 0) >= (a.applicationNumber ?? 0) ? b : a);
+  return `Your saved pay applications do not agree about the original contract sum — they range from `
+    + `${wipMoney(lo)} to ${wipMoney(hi)}. MAGE uses ${wipMoney(latest.originalContractSum)}, off `
+    + `application #${latest.applicationNumber ?? '?'}, because that is the sum most recently `
+    + 'certified to the owner. A new application re-reads the contract sum off your estimate, so this '
+    + 'usually just means the estimate moved between applications — but check the G702s before anyone '
+    + 'underwrites this row.';
 }
 
 /**
@@ -745,6 +1352,17 @@ function overspentNote(costAtCompletion: number, costIncurred?: number): string 
  * rather than passing a 0 that would read as "nothing spent".
  */
 export function describeCostBasis(cost: WipEstimatedCost, costIncurred?: number): string {
+  // The GC's own forecast, which replaced all three derived candidates. No
+  // overspend note: "you have spent more than the cost at completion" is
+  // meaningless against a figure the reader just built out of what he has spent
+  // plus what he says is left.
+  if (cost.basis === 'entered') {
+    const etc = Math.max(0, cost.value - cost.incurredFloor);
+    return `Cost basis: YOUR cost to complete, ${wipMoney(etc)}, on top of the `
+      + `${wipMoney(cost.incurredFloor)} this job has already cost — ${wipMoney(cost.value)} at `
+      + 'completion. That is your forecast for this period, not a figure MAGE derived, and every '
+      + 'percentage, earned-revenue and margin figure on this row is measured against it.';
+  }
   if (cost.basis === 'none') {
     return 'Cost basis: nothing on file. Give this job an estimate with a cost line, or type its '
       + 'cost-to-date, before you hand these figures to anyone.';
@@ -797,6 +1415,7 @@ export function describePortfolioCostBasis(
   const onEstimate = costs.filter((c) => c.basis === 'estimate');
   const onCommitments = costs.filter((c) => c.basis === 'commitments');
   const onNothing = costs.filter((c) => c.basis === 'none');
+  const onEntered = costs.filter((c) => c.basis === 'entered');
   const total = costs.reduce((sum, c) => sum + c.value, 0);
   // The roll-up's own overspend check. Per-project overspends can hide inside a
   // portfolio total, so this only fires when the BOOK is spent past its own
@@ -818,7 +1437,12 @@ export function describePortfolioCostBasis(
       + 'each already above the estimate\'s own cost line. Self-performed work is not in that figure.'
       + overspent;
   }
+  if (onEntered.length === costs.length) {
+    return `Cost basis: YOUR own cost to complete on all ${jobs(costs.length)}, ${wipMoney(total)} at `
+      + 'completion. These are your forecasts for this period, not figures MAGE derived.';
+  }
   const parts: string[] = [];
+  if (onEntered.length > 0) parts.push(`your own cost to complete on ${jobs(onEntered.length)}`);
   if (onEstimate.length > 0) parts.push(`estimate cost on ${jobs(onEstimate.length)}`);
   if (onCommitments.length > 0) {
     parts.push(`signed commitments, already above estimate, on ${jobs(onCommitments.length)}`);
@@ -840,25 +1464,124 @@ export function describePortfolioCostBasis(
  * retainage held) AND silently depends on every historical app being saved.
  * Both failure modes understate billings and flip an overbilled job to
  * apparent underbilling on a bank/CPA-facing schedule. The invoices fallback
- * sums totalDue (gross), keeping both billing sources on the same gross basis.
+ * sums totalDue NET OF SALES TAX — gross of retainage, like the G703 figure,
+ * but on the same tax-free contract basis (see `suggestBillingsWithSource`,
+ * which owns the branch and the reason).
  *
  * DRAFTS ARE NOT BILLINGS (audit 2026-09-07, "Do next" #2 axis 1). This summed
  * every invoice regardless of status while utils/financialReports.ts — the
  * OTHER WIP schedule, one sidebar row away — already excluded them, so an
  * unsent draft inflated billed-to-date here and the two reports handed a bank
  * two different underbilling figures for the same job. The population is
- * `isWipBilling` above, so neither engine gets to hold its own opinion.
+ * `isWipBilling` above, so neither engine gets to hold its own opinion — and
+ * as of 2026-09-11 the PAY-APP branch has a population too (`wipBillablePayApps`),
+ * because that half had no status test at all and it is the branch that wins.
  */
 export function suggestBilledToDate(
   invoices: Invoice[],
   payApps: SavedAIAPayApp[],
 ): number {
-  if (payApps.length > 0) {
-    const latest = payApps.reduce((a, b) =>
+  return suggestBillingsWithSource(invoices, payApps).billedToDate;
+}
+
+/**
+ * Retainage the OWNER is holding out of what has been billed — a receivable,
+ * and the most illiquid asset a contractor owns.
+ *
+ * It is asked for by name on every surety submission, reported separately from
+ * ordinary receivables, and until 2026-09-11 it appeared nowhere on the flagship
+ * WIP schedule: not on screen, not in the CSV, not in the PDF. The /reports tab
+ * had it and the document that actually leaves the building did not. It is also
+ * the usual explanation for a COMPLETED job still showing underbilling, which
+ * the schedule could not say because it did not hold the figure.
+ *
+ * Same branch as billed-to-date, deliberately — see `suggestBillingsWithSource`.
+ */
+export function suggestRetainageHeld(
+  invoices: Invoice[],
+  payApps: SavedAIAPayApp[],
+): number {
+  return suggestBillingsWithSource(invoices, payApps).retainageHeld;
+}
+
+/** Which billing population answered, and what it holds. */
+export interface WipBillings {
+  /** CONTRACT billings to date, gross of retainage, exclusive of sales tax. */
+  billedToDate: number;
+  /** Retainage still held out of those billings. A receivable, not revenue. */
+  retainageHeld: number;
+  /** 'pay_apps' | 'invoices' | 'none' — which half of the branch answered. */
+  basis: 'pay_apps' | 'invoices' | 'none';
+}
+
+/**
+ * Billed-to-date AND the retainage held inside it, from ONE branch decision.
+ *
+ * Two figures, one function, because they have to come off the same population:
+ * billings from the pay applications and retainage from the invoices would
+ * report a retainage a bank cannot reconcile to any billing on the page.
+ *
+ * SALES TAX IS NOT CONTRACT REVENUE (audit 2026-09-11). The invoice branch
+ * summed `totalDue`, which is `subtotal + taxAmount` (app/invoice.tsx), while
+ * the pay-app branch takes G703 "Total Completed and Stored to Date", which is
+ * tax-free — and earned revenue is struck against a contract value derived from
+ * estimate totals and pay-app contract sums, all of them tax-free. So in a
+ * jurisdiction that taxes a contractor's sales the invoice branch reported
+ * billings on a different basis from the contract they were compared against:
+ * $300,000 of work at 8.25% read $324,750 billed, which understates underbilling
+ * or flips an underbilled job to apparent overbilling.
+ *
+ * `subtotal` is the WORK VALUE, and it is deliberately the same field
+ * utils/invoiceBilling.effectiveRetentionHeld measures retainage against — so
+ * the billings and the retainage disclosed beside them come off one basis
+ * rather than two. (Not `totalDue − taxAmount`, which is the same arithmetic
+ * but is the shape scripts/validate-money-outstanding.ts forbids outside
+ * invoiceBilling, for the good reason that gross-totalDue arithmetic scattered
+ * across the app is how MONEY-F5 happened.) A legacy row that never stored a
+ * subtotal falls back to `totalDue`: it is the only figure such a row has, and
+ * `taxRate` defaults to 0, so on almost every real row the two are equal.
+ *
+ * RETAINAGE IS NOT NETTED OUT of either branch and that is deliberate: both are
+ * GROSS of retainage (`pendingRetentionHeld` is disclosed beside them, not
+ * subtracted), which keeps billed-to-date on the same basis as the cumulative
+ * G703 figure it may be compared against.
+ */
+export function suggestBillingsWithSource(
+  invoices: Invoice[],
+  payApps: SavedAIAPayApp[],
+): WipBillings {
+  // DRAFT AND RECALLED PAY APPS ARE NOT BILLINGS. Axis 1 closed this for
+  // invoices and left the PREFERRED branch untouched, so a G702 saved but never
+  // sent — or recalled from the client — still set billed-to-date on both
+  // schedules. See `wipBillablePayApps` for why "draft" needs a condition here
+  // and does not on the invoice side.
+  const billable = wipBillablePayApps(payApps);
+  if (billable.length > 0) {
+    const latest = billable.reduce((a, b) =>
       (b.applicationNumber ?? 0) >= (a.applicationNumber ?? 0) ? b : a);
-    return latest.totals?.totalCompletedAndStored ?? 0;
+    return {
+      billedToDate: latest.totals?.totalCompletedAndStored ?? 0,
+      // Cumulative retainage on the same certificate, so the two figures
+      // reconcile to each other on the G703 the owner already holds.
+      retainageHeld: latest.totals?.totalRetainage ?? 0,
+      basis: 'pay_apps',
+    };
   }
-  return invoices.filter(isWipBilling).reduce((sum, i) => sum + (i.totalDue ?? 0), 0);
+  const issued = invoices.filter(isWipBilling);
+  if (issued.length === 0) {
+    return { billedToDate: 0, retainageHeld: 0, basis: 'none' };
+  }
+  return {
+    billedToDate: issued.reduce(
+      (sum, i) => sum + (Number.isFinite(i.subtotal) ? i.subtotal : (i.totalDue ?? 0)),
+      0,
+    ),
+    // MONEY-05's helper: retainage on the VALUE OF THE WORK, net of releases —
+    // never the stored column, which on legacy rows was computed on the
+    // tax-inclusive total.
+    retainageHeld: issued.reduce((sum, i) => sum + pendingRetentionHeld(i), 0),
+    basis: 'invoices',
+  };
 }
 
 // Thresholds for the profit-fade watch. Exported so the screen can reference

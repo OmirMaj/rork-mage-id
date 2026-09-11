@@ -64,7 +64,7 @@ import type { ScheduleTemplate, TemplateTask } from '@/constants/scheduleTemplat
 import TaskRowDrag, { type TaskDragHandle } from '@/components/schedule/TaskRowDrag';
 import PredecessorPicker, { type PredecessorLink } from '@/components/schedule/PredecessorPicker';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
-import { runCpm } from '@/utils/cpm';
+import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { generateUUID } from '@/utils/generateId';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
@@ -513,7 +513,16 @@ export default function ScheduleWizardScreen() {
         title: t.name.trim() || 'Untitled task',
         phase: t.phase,
         durationDays: t.duration,
-        startDay: t.startDay,
+        // `t.startDay` is the preview's CALENDAR INDEX (cpm.es). ScheduleTask
+        // .startDay is a WORKING ORDINAL — see "THE TWO DAY-NUMBER SCALES" in
+        // utils/cpm.ts — so it has to be converted, once, here. Persisting the
+        // calendar index made the engine re-expand it across every weekend it
+        // already contained on the next run: measured, the shipped
+        // kitchen-remodel template previewed 29 days and saved 39.
+        startDay: calendarIndexToWorkingOrdinal(t.startDay, {
+          scheduleStartDate: isoStart,
+          workingDaysPerWeek: WIZARD_WORKING_DAYS_PER_WEEK,
+        }),
         dependencies: deps,
         dependencyLinks,
         crew: '',

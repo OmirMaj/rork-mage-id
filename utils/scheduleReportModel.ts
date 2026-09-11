@@ -1,5 +1,8 @@
 import type { Project, ScheduleTask, ScheduleBaseline } from '@/types';
-import type { CpmResult } from '@/utils/cpm';
+import {
+  workingOrdinalToCalendarIndex, workingDaysBetween,
+  type CpmResult, type DayScaleOptions,
+} from '@/utils/cpm';
 
 const MS_DAY = 86400000;
 
@@ -64,17 +67,53 @@ function isoShort(startIso: string, dayNumber: number): string {
   d.setDate(d.getDate() + Math.max(0, dayNumber - 1));
   return d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
 }
-function finishDay(t: ScheduleTask): number { return (t.startDay ?? 1) + Math.max(1, t.durationDays || 1) - 1; }
+// ---------------------------------------------------------------------------
+// ONE CLOCK FOR THE WHOLE REPORT
+// ---------------------------------------------------------------------------
+// Every day number in this file is a CALENDAR INDEX (day 1 = startDateIso, every
+// calendar day consumes an index) — because `dayCursor` is one, `isoAddDays` /
+// `isoShort` render one, and everything on `cpm.perTask` is one.
+//
+// This file used to mix two scales inside a single document. `ganttRows` read
+// cpm.es/ef (calendar) while the Critical Path table, the 3-week lookahead and
+// the milestone list read `t.startDay` / `finishDay(t)` (WORKING ordinals), so
+// the SAME TASK printed different dates in two tables of the same PDF. And
+// `finishDay(t) = startDay + durationDays - 1` added a working-day duration to a
+// number then compared against the calendar `dayCursor`, so a 20-working-day
+// task starting day 1 on a 5-day week was called overdue from calendar day 21 —
+// six days early. (utils/crossProjectLoad.ts:32-35 documents the same class of
+// bug as one this repo had already fixed elsewhere.)
+//
+// `taskWindow` below is the single accessor. It prefers the engine and falls
+// back to converting the stored working ordinal, never to mixing the two.
+interface TaskWindow { es: number; ef: number }
 
-export function scheduleSpi(tasks: ScheduleTask[], dayCursor: number): number {
+function makeTaskWindow(cpm: CpmResult, scale: DayScaleOptions) {
+  return (t: ScheduleTask): TaskWindow => {
+    const ct = cpm.perTask.get(t.id);
+    if (ct) return { es: ct.es, ef: ct.ef };
+    const es = workingOrdinalToCalendarIndex(t.startDay ?? 1, scale);
+    const ef = workingOrdinalToCalendarIndex((t.startDay ?? 1) + Math.max(1, t.durationDays || 1) - 1, scale);
+    return { es, ef };
+  };
+}
+
+export function scheduleSpi(
+  tasks: ScheduleTask[],
+  dayCursor: number,
+  windowOf?: (t: ScheduleTask) => TaskWindow,
+): number {
   let earned = 0, planned = 0;
   for (const t of tasks) {
     if (t.isSummary || t.isMilestone) continue;
     const dur = Math.max(1, t.durationDays || 1);
     earned += dur * Math.max(0, Math.min(100, t.progress ?? 0)) / 100;
-    const start = t.startDay ?? 1;
-    const end = start + dur - 1;
-    const frac = dayCursor >= end ? 1 : dayCursor < start ? 0 : (dayCursor - start + 1) / dur;
+    // `dayCursor` is a CALENDAR index, so the window it is compared against has
+    // to be one too. The planned fraction is then the calendar-elapsed share of
+    // the task's calendar span — the same basis on both sides of the ratio.
+    const w = windowOf ? windowOf(t) : { es: t.startDay ?? 1, ef: (t.startDay ?? 1) + dur - 1 };
+    const span = Math.max(1, w.ef - w.es + 1);
+    const frac = dayCursor >= w.ef ? 1 : dayCursor < w.es ? 0 : (dayCursor - w.es + 1) / span;
     planned += dur * frac;
   }
   return planned > 0 ? earned / planned : 1;
@@ -82,7 +121,11 @@ export function scheduleSpi(tasks: ScheduleTask[], dayCursor: number): number {
 
 export function detectRisks(
   tasks: ScheduleTask[], cpm: CpmResult, dayCursor: number,
+  /** Baseline finish per task, already on the CALENDAR scale. */
   baselineEndById: Map<string, number>,
+  windowOf: (t: ScheduleTask) => TaskWindow,
+  /** Working-day gap between two calendar indices, for honest variance text. */
+  slipDays: (fromDay: number, toDay: number) => number,
 ): ScheduleReportModel['risks'] {
   const out: ScheduleReportModel['risks'] = [];
   for (const t of tasks) {
@@ -90,13 +133,17 @@ export function detectRisks(
     const done = t.status === 'done' || (t.progress ?? 0) >= 100;
     const ct = cpm.perTask.get(t.id);
     const tf = ct?.totalFloat ?? 0;
-    if (!done && finishDay(t) < dayCursor) out.push({ kind: 'overdue', severity: 'hi', text: `${t.title} — overdue, ${t.progress ?? 0}%` });
+    const w = windowOf(t);
+    if (!done && w.ef < dayCursor) out.push({ kind: 'overdue', severity: 'hi', text: `${t.title} — overdue, ${t.progress ?? 0}%` });
     else if (!done && tf <= 0 && !t.isMilestone) out.push({ kind: 'zero_float', severity: 'hi', text: `${t.title} — 0 float (drives finish)` });
     else if (!done && tf > 0 && tf <= 2 && !t.isMilestone) out.push({ kind: 'low_float', severity: 'md', text: `${t.title} — only ${tf}d float` });
     if (!done && !t.isMilestone && !(t.crew || '').trim() && !t.assignedSubName) out.push({ kind: 'unstaffed', severity: 'lo', text: `${t.title} — no crew assigned` });
     const blEnd = baselineEndById.get(t.id);
-    if (blEnd != null && finishDay(t) - blEnd >= 2) out.push({ kind: 'behind', severity: 'md', text: `${t.title} — +${finishDay(t) - blEnd}d vs baseline` });
-    if (!done && t.isMilestone && /inspect/i.test(t.title) && (t.startDay ?? 1) >= dayCursor && (t.startDay ?? 1) <= dayCursor + 21) out.push({ kind: 'inspection', severity: 'md', text: `${t.title} — upcoming inspection, book ahead` });
+    if (blEnd != null) {
+      const slip = slipDays(blEnd, w.ef);
+      if (slip >= 2) out.push({ kind: 'behind', severity: 'md', text: `${t.title} — +${slip}d vs baseline` });
+    }
+    if (!done && t.isMilestone && /inspect/i.test(t.title) && w.es >= dayCursor && w.es <= dayCursor + 21) out.push({ kind: 'inspection', severity: 'md', text: `${t.title} — upcoming inspection, book ahead` });
   }
   return out.slice(0, 10);
 }
@@ -123,14 +170,35 @@ export function assembleScheduleReport(input: {
   const baseMs = startOfDayMs(new Date(startDateIso + 'T00:00:00'));
   const dayCursor = Math.max(1, Math.round((startOfDayMs(reportDate) - baseMs) / MS_DAY) + 1);
 
+  // The project calendar, taken off the project itself so the (not-owned-here)
+  // call site needs no change. Without it every conversion below degrades to
+  // the identity, which is exactly the 7-day-week case where the two scales
+  // genuinely coincide.
+  const scale: DayScaleOptions = {
+    scheduleStartDate: startDateIso,
+    workingDaysPerWeek: project.schedule?.workingDaysPerWeek,
+    nonWorkingDates: project.schedule?.nonWorkingDates ?? nonWorkingDates,
+  };
+  const windowOf = makeTaskWindow(cpm, scale);
+  const toCalendar = (workingOrdinal: number) => workingOrdinalToCalendarIndex(workingOrdinal, scale);
+  /** Variance between two CALENDAR indices, expressed in working days. */
+  const slipDays = (fromDay: number, toDay: number) => workingDaysBetween(fromDay, toDay, scale);
+
+  // Baseline rows persist WORKING ordinals (captureBaseline writes startDay and
+  // a raw startDay + dur - 1). Lift them onto the calendar scale ONCE, here, so
+  // every comparison below is calendar-vs-calendar. Subtracting a raw baseline
+  // endDay from the calendar-aware cpm.projectFinish is the phantom-slip bug
+  // schedule-pro fixed for its own KPI (see the comment at app/schedule-pro.tsx
+  // around baselineFinishDayWorkingScale); the report was still doing it.
   const baselineEndById = new Map<string, number>();
-  if (baseline?.tasks?.length) for (const b of baseline.tasks) baselineEndById.set(b.id, b.endDay);
-  else for (const t of tasks) if (t.baselineEndDay != null) baselineEndById.set(t.id, t.baselineEndDay);
+  if (baseline?.tasks?.length) for (const b of baseline.tasks) baselineEndById.set(b.id, toCalendar(b.endDay));
+  else for (const t of tasks) if (t.baselineEndDay != null) baselineEndById.set(t.id, toCalendar(t.baselineEndDay));
 
   const baselineFinishDay = baselineEndById.size ? Math.max(...baselineEndById.values()) : null;
   const forecastFinishDay = cpm.projectFinish;
   const totalDays = Math.max(1, forecastFinishDay, baselineFinishDay ?? 1);
-  const forecastVarianceDays = baselineFinishDay != null ? forecastFinishDay - baselineFinishDay : null;
+  // In WORKING days, like every other variance the app reports.
+  const forecastVarianceDays = baselineFinishDay != null ? slipDays(baselineFinishDay, forecastFinishDay) : null;
 
   const real = tasks.filter((t) => !t.isSummary);
   const totalDur = real.reduce((s, t) => s + Math.max(1, t.durationDays || 1), 0);
@@ -139,21 +207,26 @@ export function assembleScheduleReport(input: {
 
   const ganttRows: ReportGanttRow[] = tasks.map((t, i) => {
     const ct = cpm.perTask.get(t.id);
-    const es = ct?.es ?? t.startDay ?? 1;
-    const ef = ct?.ef ?? finishDay(t);
+    const { es, ef } = windowOf(t);
     const dur = Math.max(1, t.durationDays || 1);
     const blEnd = baselineEndById.get(t.id) ?? null;
-    const blStart = baseline?.tasks?.find((b) => b.id === t.id)?.startDay ?? t.baselineStartDay ?? null;
+    const rawBlStart = baseline?.tasks?.find((b) => b.id === t.id)?.startDay ?? t.baselineStartDay ?? null;
+    const blStart = rawBlStart != null ? toCalendar(rawBlStart) : null;
     return {
       index: i + 1, title: t.title || 'Untitled', phase: t.phase || 'General', crew: t.crew || (t.assignedSubName ?? ''),
       startIso: isoShort(startDateIso, es), finishIso: isoShort(startDateIso, ef),
       baselineFinishIso: blEnd != null ? isoShort(startDateIso, blEnd) : null,
-      deltaDays: blEnd != null ? ef - blEnd : null,
+      // Working days, both operands on the calendar scale. `ef - blEnd` mixed a
+      // calendar EF with a raw working endDay, so the Slippages list and
+      // behindCount fabricated variance per task on an unchanged schedule.
+      deltaDays: blEnd != null ? slipDays(blEnd, ef) : null,
       totalFloat: ct?.totalFloat ?? 0, freeFloat: ct?.freeFloat ?? 0,
       percent: Math.max(0, Math.min(100, t.progress ?? 0)),
       predecessors: (t.dependencies ?? []).map((id) => tasks.findIndex((x) => x.id === id) + 1).filter((n) => n > 0).join(', '),
       isCritical: !!ct?.isCritical && t.status !== 'done', isSummary: !!t.isSummary, isMilestone: !!t.isMilestone || dur === 0,
-      bar: { leftPct: ((es - 1) / totalDays) * 100, widthPct: Math.max(0.4, (dur / totalDays) * 100) },
+      // The bar axis is calendar days wide (totalDays is cpm.projectFinish), so
+      // the width has to be the CALENDAR span, not the working duration.
+      bar: { leftPct: ((es - 1) / totalDays) * 100, widthPct: Math.max(0.4, ((ef - es + 1) / totalDays) * 100) },
       baselineBar: blStart != null && blEnd != null ? { leftPct: ((blStart - 1) / totalDays) * 100, widthPct: Math.max(0.4, ((blEnd - blStart + 1) / totalDays) * 100) } : null,
     };
   });
@@ -169,29 +242,29 @@ export function assembleScheduleReport(input: {
   const criticalPath = cpm.criticalPath
     .map((id) => tasks.find((t) => t.id === id))
     .filter((t): t is ScheduleTask => !!t && !t.isSummary)
-    .map((t) => ({ id: t.id, title: t.title || 'Untitled', startIso: isoShort(startDateIso, t.startDay ?? 1), finishIso: isoShort(startDateIso, finishDay(t)), isMilestone: !!t.isMilestone }));
+    .map((t) => { const w = windowOf(t); return { id: t.id, title: t.title || 'Untitled', startIso: isoShort(startDateIso, w.es), finishIso: isoShort(startDateIso, w.ef), isMilestone: !!t.isMilestone }; });
 
   const lookahead = [0, 1, 2].map((w) => {
     const lo = dayCursor + w * 7, hi = lo + 6;
     const items = real
-      .filter((t) => { const s = t.startDay ?? 1; const e = finishDay(t); return s <= hi && e >= lo; })
+      .filter((t) => { const w = windowOf(t); return w.es <= hi && w.ef >= lo; })
       .slice(0, 6)
-      .map((t) => ({ title: t.title || 'Untitled', crew: t.crew || (t.assignedSubName ?? ''), startIso: isoShort(startDateIso, t.startDay ?? 1), finishIso: isoShort(startDateIso, finishDay(t)), isMilestone: !!t.isMilestone }));
+      .map((t) => { const w = windowOf(t); return { title: t.title || 'Untitled', crew: t.crew || (t.assignedSubName ?? ''), startIso: isoShort(startDateIso, w.es), finishIso: isoShort(startDateIso, w.ef), isMilestone: !!t.isMilestone }; });
     return { weekLabel: w === 0 ? 'This week' : w === 1 ? 'Next week' : '+2 weeks', items };
   });
 
   const milestones = tasks
-    .filter((t) => (t.isMilestone || (t.durationDays || 0) === 0) && finishDay(t) >= dayCursor)
+    .filter((t) => (t.isMilestone || (t.durationDays || 0) === 0) && windowOf(t).ef >= dayCursor)
     .slice(0, 8)
-    .map((t) => { const blEnd = baselineEndById.get(t.id) ?? null; const v = blEnd != null ? finishDay(t) - blEnd : null; return { title: t.title || 'Milestone', dateIso: isoShort(startDateIso, finishDay(t)), varianceDays: v, onTime: v == null || v <= 0 }; });
+    .map((t) => { const w = windowOf(t); const blEnd = baselineEndById.get(t.id) ?? null; const v = blEnd != null ? slipDays(blEnd, w.ef) : null; return { title: t.title || 'Milestone', dateIso: isoShort(startDateIso, w.ef), varianceDays: v, onTime: v == null || v <= 0 }; });
 
   const slippages = ganttRows.filter((r) => (r.deltaDays ?? 0) > 0).sort((a, b) => (b.deltaDays ?? 0) - (a.deltaDays ?? 0)).slice(0, 8).map((r) => ({ title: r.title, deltaDays: r.deltaDays ?? 0 }));
 
   const minTotalFloat = real.length ? Math.min(...real.map((t) => cpm.perTask.get(t.id)?.totalFloat ?? 0)) : 0;
-  const overdueCount = real.filter((t) => (t.status !== 'done' && (t.progress ?? 0) < 100) && finishDay(t) < dayCursor).length;
+  const overdueCount = real.filter((t) => (t.status !== 'done' && (t.progress ?? 0) < 100) && windowOf(t).ef < dayCursor).length;
   const unstaffedCount = real.filter((t) => !t.isMilestone && !(t.crew || '').trim() && !t.assignedSubName && (t.status !== 'done')).length;
   const behindCount = ganttRows.filter((r) => (r.deltaDays ?? 0) > 0).length;
-  const spi = scheduleSpi(tasks, dayCursor);
+  const spi = scheduleSpi(tasks, dayCursor, windowOf);
 
   const spanEndMs = baseMs + (totalDays - 1) * MS_DAY;
   const closures = (nonWorkingDates ?? [])
@@ -209,6 +282,14 @@ export function assembleScheduleReport(input: {
       projectName: project.name, location: project.location || '', company: company?.name ?? null,
       client: project.primaryContact?.name ?? null,
       reportDateIso: reportDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+      // NOT a data date. A data date is a scheduling INPUT — the line left of
+      // which work is actual and right of which it is forecast — and this engine
+      // deliberately has none (types/index.ts documents the decision: progress is
+      // read-only to CPM, "the plan stays the plan until you say so"). Printing
+      // the report's own generation date under a "Data date" heading advertised
+      // a capability the schedule does not have, to the one audience least able
+      // to check. Kept on the model as the printed-on date; the HTML labels it
+      // as such.
       dataDateIso: reportDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
       startIso: new Date(startDateIso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
       forecastFinishIso: isoAddDays(startDateIso, forecastFinishDay),
@@ -220,7 +301,7 @@ export function assembleScheduleReport(input: {
       svDays: forecastVarianceDays != null ? -forecastVarianceDays : null,
       criticalCount: criticalPath.length, minTotalFloat, behindCount, overdueCount, unstaffedCount,
     },
-    criticalPath, risks: detectRisks(tasks, cpm, dayCursor, baselineEndById),
+    criticalPath, risks: detectRisks(tasks, cpm, dayCursor, baselineEndById, windowOf, slipDays),
     lookahead, milestones, ganttRows, slippages, phaseProgress, weatherClosures,
   };
 }

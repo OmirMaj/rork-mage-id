@@ -10,6 +10,7 @@ import {
   escHtml, fmtMoney, fmtDate, PDF_PALETTE,
 } from './pdfDesign';
 import type { WIPReport, ARAgingReport , ProfitRow } from './financialReports';
+import { wipRowEarned, wipRowOverbilled, wipRowCostToComplete, wipReportRowHasCostBasis, profitRowHasCostBasis } from './financialReports';
 import { describePortfolioCostBasis, type WipEstimatedCost } from './wip';
 
 /**
@@ -43,47 +44,121 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
     { label: 'Projects',    value: String(report.rows.length) },
   ];
 
-  const rows = report.rows.map(r => [
-    `<div style="font-weight:700">${escHtml(r.projectName)}</div><div style="font-size:10px;color:${PDF_PALETTE.textMuted};text-transform:capitalize">${escHtml(r.status.replace('_',' '))}</div>`,
-    `<span class="num">${fmtMoney(r.contractValue)}</span>`,
-    `<span class="num">${fmtMoney(r.approvedChangeOrders)}</span>`,
-    `<span class="num" style="font-weight:700">${fmtMoney(r.revisedContract)}</span>`,
-    `<span class="num">${r.percentComplete.toFixed(0)}%</span>`,
-    `<span class="num">${fmtMoney(r.billedToDate)}</span>`,
-    `<span class="num">${fmtMoney(r.paidToDate)}</span>`,
-    `<span class="num">${fmtMoney(r.retainageHeld)}</span>`,
-    `<span class="num">${fmtMoney(r.estimatedFinalCost)}</span>`,
-    `<span class="num" style="color:${r.projectedProfit >= 0 ? PDF_PALETTE.success : PDF_PALETTE.error};font-weight:700">${fmtMoney(r.projectedProfit)}</span>`,
-    `<span class="num" style="color:${r.projectedMargin >= 10 ? PDF_PALETTE.success : r.projectedMargin >= 0 ? PDF_PALETTE.warning : PDF_PALETTE.error};font-weight:700">${r.projectedMargin.toFixed(1)}%</span>`,
-  ]);
+  // WHAT THIS TABLE USED TO LEAVE OUT (audit 2026-09-11). It printed contract,
+  // approved COs, revised contract and retainage — and NO cost to date, NO
+  // earned revenue, NO over/under billing and NO cost to complete. Those four
+  // are what an underwriter reads: earned revenue ties the schedule to the
+  // income statement, over/under billing says whether the contractor is
+  // financing his client, and the cost-to-date / cost-to-complete pair is how
+  // profit fade is detected. `unbilled` was computed and rendered nowhere at
+  // all. Every figure below already existed on the row.
+  //
+  // Over/(under) is ONE signed column PER ROW, the way a CPA-prepared WIP prints
+  // it: positive is billed ahead of earned, parenthesised is the contractor's
+  // own money in the job.
+  //
+  // THE TOTAL OF THAT COLUMN IS NOT A SUM (adversarial review 2026-09-11). It
+  // was `overbilled − unbilled` across the book, which NETS billings in excess
+  // of costs — a LIABILITY, money the owner has advanced — against costs in
+  // excess of billings, an ASSET. That is the same offsetting this module's own
+  // loss-provision disclosure refuses under ASC 605-35-25-46, applied to the two
+  // figures a lender reads first: a book $550,000 overbilled beside $50,000
+  // underbilled printed "$500,000", and a symmetric $300,000/$300,000 book
+  // printed "$0" — "exactly on billing" over a $300,000 liability and a
+  // $300,000 asset. Both sides are therefore printed, both positive, in the one
+  // footer cell, and neither is allowed to cancel the other. (The CSV has always
+  // kept them as two separate totals.)
+  //
+  // The Paid column was removed from this table in the same 2026-09-11 change
+  // that added the four above, on the argument that cash collected is a
+  // receivable figure and fifteen columns is unreadable. Restored: the spec
+  // asked for additions, dropping a shipped column from a bank document was
+  // nobody's request, and a downstream reader comparing last month's PDF to
+  // this one would find a column simply gone. It is labelled and disclosed as
+  // CASH — tax-inclusive, unlike every contract figure beside it.
+  const overUnderCell = (v: number): string => {
+    const color = v < 0 ? PDF_PALETTE.warning : PDF_PALETTE.text2;
+    const text = v < 0 ? `(${fmtMoney(Math.abs(v))})` : fmtMoney(v);
+    return `<span class="num" style="color:${color}">${text}</span>`;
+  };
+  const rows = report.rows.map(r => {
+    const earned = wipRowEarned(r);
+    const ctc = wipRowCostToComplete(r);
+    const overUnder = wipRowOverbilled(r) - r.unbilled;
+    const measurable = wipReportRowHasCostBasis(r);
+    return [
+      `<div style="font-weight:700">${escHtml(r.projectName)}</div><div style="font-size:10px;color:${PDF_PALETTE.textMuted};text-transform:capitalize">${escHtml(r.status.replace('_',' '))}</div>`,
+      `<span class="num">${fmtMoney(r.contractValue)}</span>`,
+      `<span class="num">${fmtMoney(r.approvedChangeOrders)}</span>`,
+      `<span class="num" style="font-weight:700">${fmtMoney(r.revisedContract)}</span>`,
+      // A row that cannot say what it has cost prints an em dash, not $0 — a
+      // zero here reads as "this job has cost nothing", which a reader would
+      // total. Same rule as the CSV.
+      r.costToDate == null ? '—' : `<span class="num">${fmtMoney(r.costToDate)}</span>`,
+      `<span class="num">${fmtMoney(r.estimatedFinalCost)}</span>`,
+      ctc == null ? '—' : `<span class="num">${fmtMoney(ctc)}</span>`,
+      `<span class="num">${r.percentComplete.toFixed(0)}%</span>`,
+      `<span class="num">${fmtMoney(earned)}</span>`,
+      `<span class="num">${fmtMoney(r.billedToDate)}</span>`,
+      `<span class="num">${fmtMoney(r.paidToDate)}</span>`,
+      overUnderCell(overUnder),
+      `<span class="num">${fmtMoney(r.retainageHeld)}</span>`,
+      // A CONTRACT WITH NO COST BASIS HAS NO MEASURABLE MARGIN (F14). Its
+      // "projected profit" is the entire contract and its margin is 100%,
+      // because the contract chain falls back to a target budget while the
+      // cost chain deliberately does not. An em dash, the same rule Cost to
+      // Date follows two columns over; the disclosure below the table names
+      // the jobs so the suppression is not silent.
+      measurable
+        ? `<span class="num" style="color:${r.projectedProfit >= 0 ? PDF_PALETTE.success : PDF_PALETTE.error};font-weight:700">${fmtMoney(r.projectedProfit)}</span>`
+        : '—',
+      measurable
+        ? `<span class="num" style="color:${r.projectedMargin >= 10 ? PDF_PALETTE.success : r.projectedMargin >= 0 ? PDF_PALETTE.warning : PDF_PALETTE.error};font-weight:700">${r.projectedMargin.toFixed(1)}%</span>`
+        : '—',
+    ];
+  });
 
   const totalsRow = [
     `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">PORTFOLIO</div>`,
     `<span class="num">${fmtMoney(report.totals.contractValue)}</span>`,
     `<span class="num">${fmtMoney(report.totals.approvedChangeOrders)}</span>`,
     `<span class="num">${fmtMoney(report.totals.revisedContract)}</span>`,
+    `<span class="num">${fmtMoney(report.totals.costToDate)}</span>`,
+    `<span class="num">${fmtMoney(report.totals.estimatedFinalCost)}</span>`,
+    `<span class="num">${fmtMoney(Math.max(0, report.totals.estimatedFinalCost - report.totals.costToDate))}</span>`,
     '—',
+    `<span class="num">${fmtMoney(report.totals.earnedRevenue)}</span>`,
     `<span class="num">${fmtMoney(report.totals.billedToDate)}</span>`,
     `<span class="num">${fmtMoney(report.totals.paidToDate)}</span>`,
+    // BOTH SIDES, NEITHER NETTED — see the note above the row builder.
+    `<span class="num">${fmtMoney(report.totals.overbilled)} over</span>`
+      + `<br/><span class="num" style="color:${PDF_PALETTE.warning}">`
+      + `(${fmtMoney(report.totals.unbilled)}) under</span>`,
     `<span class="num">${fmtMoney(report.totals.retainageHeld)}</span>`,
-    `<span class="num">${fmtMoney(report.totals.estimatedFinalCost)}</span>`,
-    `<span class="num" style="color:${report.totals.projectedProfit >= 0 ? PDF_PALETTE.success : PDF_PALETTE.error};font-weight:800">${fmtMoney(report.totals.projectedProfit)}</span>`,
+    // Σ over MEASURABLE jobs, matching the cells above it and the margin beside
+    // it — the whole-book sum silently re-admitted every costless job's
+    // contract as pure profit into the figure a reader totals by eye.
+    `<span class="num" style="color:${report.totals.measurableProjectedProfit >= 0 ? PDF_PALETTE.success : PDF_PALETTE.error};font-weight:800">${fmtMoney(report.totals.measurableProjectedProfit)}</span>`,
     `<span class="num" style="font-weight:800">${report.totals.projectedMargin.toFixed(1)}%</span>`,
   ];
 
   const tableHtml = pdfTable(
     [
-      { header: 'Project', width: '17%' },
-      { header: 'Contract',          align: 'right', width: '8%' },
-      { header: 'Approved COs',      align: 'right', width: '8%' },
-      { header: 'Revised',           align: 'right', width: '9%' },
-      { header: '% Complete',        align: 'right', width: '7%' },
-      { header: 'Billed',            align: 'right', width: '8%' },
-      { header: 'Paid',              align: 'right', width: '8%' },
-      { header: 'Retainage',         align: 'right', width: '8%' },
-      { header: 'Est. Final Cost',   align: 'right', width: '9%' },
-      { header: 'Profit',            align: 'right', width: '9%' },
-      { header: 'Margin',            align: 'right', width: '6%' },
+      { header: 'Project', width: '13%' },
+      { header: 'Contract',          align: 'right', width: '6%' },
+      { header: 'Approved COs',      align: 'right', width: '6%' },
+      { header: 'Revised',           align: 'right', width: '6%' },
+      { header: 'Cost to Date',      align: 'right', width: '6%' },
+      { header: 'Est. Final Cost',   align: 'right', width: '6%' },
+      { header: 'Cost to Complete',  align: 'right', width: '6%' },
+      { header: '% Complete',        align: 'right', width: '5%' },
+      { header: 'Earned Rev.',       align: 'right', width: '7%' },
+      { header: 'Billed',            align: 'right', width: '7%' },
+      { header: 'Paid',              align: 'right', width: '6%' },
+      { header: 'Over/(Under)',      align: 'right', width: '8%' },
+      { header: 'Retainage',         align: 'right', width: '6%' },
+      { header: 'Profit',            align: 'right', width: '7%' },
+      { header: 'Margin',            align: 'right', width: '5%' },
     ],
     [...rows, totalsRow],
   );
@@ -102,14 +177,34 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
     <div style="margin-top:14px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2};line-height:1.6">
       <strong style="color:${PDF_PALETTE.ink}">Methodology.</strong>
       Revised Contract = Original Contract + Approved Change Orders.
-      % Complete = Cost to Date ÷ Estimated Final Cost — or, on a job with no cost recorded yet,
-      the average progress across its schedule tasks, which is what a 0% on a job holding signed
-      subcontracts means.
-      Estimated Final Cost = the greater of your estimate's cost before markup (grown by the cost of
-      approved change orders) and the total you have signed in subcontracts and POs. Cost you have
-      already paid out is NOT added to it, so a job that has overspent its estimate reads its
-      estimate here until that estimate is updated.
+      % Complete = Cost to Date ÷ Estimated Final Cost. On a job with no cost recorded yet it is 0%,
+      which means UNMEASURED, not "not started" — this schedule recognises revenue on cost only, and
+      never substitutes schedule progress for it.
+      Estimated Final Cost = the greatest of your estimate's cost before markup (grown by the cost of
+      approved change orders), the total you have signed in subcontracts and POs, and the cost you
+      have already paid out — a job cannot finish for less than what it has already cost. Where a
+      cost to complete has been entered on a job in the WIP schedule, that replaces the forecast
+      outright: Estimated Final Cost = Cost to Date + Cost to Complete, and every percentage, earned
+      revenue and margin figure on that row is measured against it.
+      Earned Revenue = Revised Contract × % Complete. Over/(Under) = Billed − Earned; a parenthesised
+      figure is work performed and not yet billed, which is the contractor's own money in the job.
+      The PORTFOLIO line reports both sides separately and does not net them: billings in excess of
+      costs is a liability and costs in excess of billings is an asset, and a single netted figure
+      would report a book that is $300,000 over on one job and $300,000 under on another as exactly
+      on billing.
+      Retainage is money the owner is holding out of the billings shown and is a receivable, not
+      revenue. Paid is CASH collected against issued invoices — it is tax-inclusive, unlike every
+      contract figure on this schedule, so it is disclosed here and never compared against them or
+      used in any figure derived from them.
       Projected Profit = Revised Contract − Estimated Final Cost.
+      ${report.totals.noCostBasisCount > 0
+        ? escHtml(`${report.totals.noCostBasisCount} contract`
+            + `${report.totals.noCostBasisCount === 1 ? '' : 's'} on this schedule, totalling `
+            + `${fmtMoney(report.totals.noCostBasisContract)}, carry a contract value with no cost `
+            + 'estimate, no signed subcontract or PO and nothing spent. A contract with no cost '
+            + 'basis has no measurable margin, so their profit and margin cells are blank and they '
+            + 'are excluded from the PORTFOLIO profit and margin rather than reported at 100%.')
+        : ''}
       ${escHtml(costBasisNote(report.rows))}
     </div>
     ${pdfFooter(branding, undefined, disclaimer)}
@@ -125,12 +220,27 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
 
 // ─── Profit PDF ──────────────────────────────────────────────────────
 
+/**
+ * THE PROFIT PDF APPLIES THE SAME NO-COST-BASIS SUPPRESSION AS THE WIP PDF
+ * (F14, adversarial review 2026-09-11).
+ *
+ * A job carrying a contract and no cost — a target budget or a GMP cap with no
+ * estimate, no signed commitment and nothing spent — reports its ENTIRE
+ * contract as profit at a 100% margin. The WIP schedule beside it prints an em
+ * dash for both and names the exclusion; this document printed the fabricated
+ * figure, in green, with a health dot.
+ *
+ * `noCostBasisCount` / `noCostBasisRevenue` come straight off computeProfitReport
+ * so the page, the screen and the WIP tab all exclude the same rows.
+ */
 function buildProfitHtml(
   rows: ProfitRow[],
   totalRevenue: number,
   totalProfit: number,
   weightedMargin: number,
   branding: CompanyBranding,
+  noCostBasisCount = 0,
+  noCostBasisRevenue = 0,
 ): string {
   const meta = [
     { label: 'Report type', value: 'Profit & Margin' },
@@ -139,16 +249,24 @@ function buildProfitHtml(
   ];
 
   const tableRows = rows.map(r => {
-    const dot = r.health === 'green'  ? PDF_PALETTE.success
-              : r.health === 'yellow' ? PDF_PALETTE.warning
-              :                         PDF_PALETTE.error;
+    const measurable = profitRowHasCostBasis(r);
+    // No cost basis → no health verdict either. A green dot on a job whose
+    // "margin" is its whole contract is the same fabrication as the figure.
+    const dot = !measurable            ? PDF_PALETTE.textMuted
+              : r.health === 'green'   ? PDF_PALETTE.success
+              : r.health === 'yellow'  ? PDF_PALETTE.warning
+              :                          PDF_PALETTE.error;
     return [
       `<div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:4px;background:${dot};display:inline-block"></span><div><div style="font-weight:700">${escHtml(r.projectName)}</div><div style="font-size:10px;color:${PDF_PALETTE.textMuted};text-transform:capitalize">${escHtml(r.status.replace('_',' '))}</div></div></div>`,
       `<span class="num">${fmtMoney(r.revenue)}</span>`,
       `<span class="num">${fmtMoney(r.costToDate)}</span>`,
       `<span class="num">${fmtMoney(r.estimatedFinalCost)}</span>`,
-      `<span class="num" style="color:${r.projectedProfit >= 0 ? PDF_PALETTE.success : PDF_PALETTE.error};font-weight:700">${fmtMoney(r.projectedProfit)}</span>`,
-      `<span class="num" style="color:${dot};font-weight:800">${r.projectedMargin.toFixed(1)}%</span>`,
+      measurable
+        ? `<span class="num" style="color:${r.projectedProfit >= 0 ? PDF_PALETTE.success : PDF_PALETTE.error};font-weight:700">${fmtMoney(r.projectedProfit)}</span>`
+        : '<span class="num">—</span>',
+      measurable
+        ? `<span class="num" style="color:${dot};font-weight:800">${r.projectedMargin.toFixed(1)}%</span>`
+        : '<span class="num">—</span>',
     ];
   });
 
@@ -157,9 +275,20 @@ function buildProfitHtml(
     `<span class="num">${fmtMoney(totalRevenue)}</span>`,
     '—',
     '—',
+    // Both struck on the MEASURABLE subset, matching the cells above them.
     `<span class="num" style="color:${totalProfit >= 0 ? PDF_PALETTE.success : PDF_PALETTE.error};font-weight:800">${fmtMoney(totalProfit)}</span>`,
     `<span class="num" style="font-weight:800">${weightedMargin.toFixed(1)}%</span>`,
   ];
+
+  // Suppressing a figure without saying it was suppressed is its own quiet lie.
+  const noBasisHtml = noCostBasisCount > 0
+    ? `<div style="margin-top:14px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2};line-height:1.6">
+        <strong style="color:${PDF_PALETTE.ink}">No cost basis — ${noCostBasisCount} project${noCostBasisCount === 1 ? '' : 's'} totalling ${fmtMoney(noCostBasisRevenue)}.</strong>
+        ${noCostBasisCount === 1 ? 'It carries' : 'They carry'} a contract value with no cost estimate, no signed subcontract or PO, and nothing spent.
+        A contract with no cost basis has no measurable margin, so ${noCostBasisCount === 1 ? 'it is' : 'they are'} shown with an em dash and excluded from the
+        PORTFOLIO profit and margin above rather than reported at 100%.
+      </div>`
+    : '';
 
   const tableHtml = pdfTable(
     [
@@ -182,6 +311,7 @@ function buildProfitHtml(
       meta,
     })}
     ${tableHtml}
+    ${noBasisHtml}
     <div style="margin-top:14px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2};line-height:1.6">
       <strong style="color:${PDF_PALETTE.ink}">Health bands.</strong>
       <span style="color:${PDF_PALETTE.success};font-weight:700">●</span> ≥12% margin (green) ·
@@ -308,8 +438,15 @@ export async function shareProfitReport(
   totalProfit: number,
   weightedMargin: number,
   branding: CompanyBranding,
+  /** From computeProfitReport — the rows the profit and margin above exclude. */
+  noCostBasisCount = 0,
+  noCostBasisRevenue = 0,
 ): Promise<void> {
-  await shareHtml(buildProfitHtml(rows, totalRevenue, totalProfit, weightedMargin, branding), 'Profit Report');
+  await shareHtml(
+    buildProfitHtml(rows, totalRevenue, totalProfit, weightedMargin, branding,
+      noCostBasisCount, noCostBasisRevenue),
+    'Profit Report',
+  );
 }
 
 export async function shareARAgingReport(report: ARAgingReport, branding: CompanyBranding): Promise<void> {

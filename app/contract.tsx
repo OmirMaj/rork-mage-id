@@ -43,6 +43,7 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
   milestoneBillability, milestoneBlockMessage, deriveMilestoneInvoiceLine, milestoneInvoiceNote,
+  contractBilledToDate, attributableContractBilling,
   type MilestoneBillability,
 } from '@/utils/billingFlowCore';
 import { generateUUID } from '@/utils/generateId';
@@ -118,7 +119,7 @@ function ContractScreenInner() {
   // (field-ticket pattern). A pick outranks the param so a STALE id in the URL
   // — deleted project, old shared link — can't make the picker inert.
   const { projectId: paramProjectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
-  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject } = useProjects();
+  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject, getChangeOrdersForProject } = useProjects();
   // The converted_to_contract snapshot was building its cost book from closed
   // jobs ALONE — no receipts, no self-perform labor, no seeds — so it graded
   // itself against a thinner book than the wizard that produced the estimate.
@@ -211,12 +212,47 @@ function ContractScreenInner() {
     return map;
   }, [projectInvoices]);
 
+  // ONE CONTRACT, ONE BILLED-TO-DATE — the direction this screen owns
+  // (MONEY-LEDGER-1, audit 2026-09-11). /bill-from-estimate was taught to see
+  // milestone billing; without this, THIS screen still could not see
+  // schedule-of-values billing, so a GC who billed the whole SOV there and
+  // then tapped "Create invoice" on the four milestones every contract is
+  // seeded with invoiced 200% of the contract. Pre-tax and excluding change
+  // orders — see `contractBilledToDate`.
+  const billedOnContract = useMemo(
+    () => contractBilledToDate(projectInvoices),
+    [projectInvoices],
+  );
+  // WHAT THE CEILING REFUSES ON is narrower than what the line above SHOWS
+  // (audit 2026-09-11, review round 3). `contractBilledToDate` counts every
+  // non-draft, non-change-order line — the right figure to print, the wrong
+  // one to block on: three milestones billed plus one $500 quick invoice
+  // refused the legitimate final draw on a $130,052 contract, saying the
+  // contract had been invoiced in full when 25% of it had not. A quick
+  // invoice records no mode on the row, so those dollars are unattributable BY
+  // CONSTRUCTION — the same thing app/bill-from-estimate.tsx's reconciliation
+  // banner says about them, on the same dollars. It warns; this must not block.
+  const attributableBilled = useMemo(
+    () => attributableContractBilling(projectInvoices),
+    [projectInvoices],
+  );
+  // Memoised, like every other derivation on this screen. It was inline at
+  // render, re-filtering and re-sorting the project's whole change-order list
+  // on every keystroke in the contract-value field.
+  const approvedChangeOrders = useMemo(
+    () => (projectId ? getChangeOrdersForProject(projectId) : [])
+      .filter(co => co.status === 'approved')
+      .sort((a, b) => a.number - b.number),
+    [projectId, getChangeOrdersForProject],
+  );
+
   const billabilityFor = useCallback((m: PaymentMilestone): MilestoneBillability => milestoneBillability({
     milestone: m,
     contractValue: contract?.contractValue ?? 0,
     contractStatus: contract?.status,
     linkedInvoiceIds: invoicesByMilestone.get(m.id),
-  }), [contract?.contractValue, contract?.status, invoicesByMilestone]);
+    contractBilledToDate: attributableBilled,
+  }), [contract?.contractValue, contract?.status, invoicesByMilestone, attributableBilled]);
 
   // Open the invoice editor pre-filled from this milestone. We do NOT flip the
   // milestone here — the invoice screen flips it once addInvoice() actually
@@ -227,7 +263,7 @@ function ContractScreenInner() {
     if (!bill.billable) {
       showAlert(
         'Can’t bill this milestone',
-        milestoneBlockMessage(bill.reason!),
+        milestoneBlockMessage(bill.reason!, bill.ceiling, bill.amount),
         bill.existingInvoiceId
           ? [
               { text: 'Close', style: 'cancel' },
@@ -601,7 +637,28 @@ function ContractScreenInner() {
 
   const isLocked = contract.status === 'sent' || contract.status === 'signed';
   const totalScheduled = contract.paymentSchedule.reduce((s, m) => s + (m.amount ?? 0), 0);
+  // MEASURED AGAINST THE ORIGINAL CONTRACT SUM, DELIBERATELY (MONEY-CONTRACT-1,
+  // audit 2026-09-11).
+  //
+  // The audit asked for this and the revised milestones to be measured against
+  // the REVISED sum. Following that would create the very defect the rest of
+  // this wave removes. The payment schedule divides the ORIGINAL agreement;
+  // an approved change order is billed on its OWN ledger — /bill-from-estimate
+  // renders a row per approved CO keyed `co:<id>` and
+  // utils/changeOrderBilling.changeOrderBillingState tracks its billed-through.
+  // Growing the milestones by the CO would bill every change order twice: once
+  // inside the enlarged milestone and once on its own row. It would also put
+  // every signed contract carrying a CO permanently into the mismatch banner
+  // and disable Sign & send.
+  //
+  // What WAS missing is that the screen said nothing about change orders at
+  // all, so a GC reading "Contract value $131,502" here had no way to
+  // reconcile it with the $151,502 his reports showed. The revised-contract
+  // card below states it, names each CO, and says where they bill.
   const scheduleMatchesValue = Math.abs(totalScheduled - contract.contractValue) < 1;
+
+  const approvedCoTotal = approvedChangeOrders.reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
+  const revisedContractSum = contract.contractValue + approvedCoTotal;
 
   // CONTRACT-TIME-1: the two columns that existed, round-tripped, and were
   // read by nothing. `timeline` is non-null only when BOTH halves are set —
@@ -674,6 +731,45 @@ function ContractScreenInner() {
               placeholderTextColor={themeColors.textMuted}
             />
           </View>
+
+          {/* THE REVISED CONTRACT SUM (MONEY-CONTRACT-1). Before this, the
+              contract screen contained no reference to change orders at all,
+              so the figure a GC read here stopped tracking the job the day the
+              first CO was approved — while every report, the portal and the
+              AIA certificate moved. The AIA G701 form itself recites the
+              original sum, the net of previously authorised change orders and
+              the resulting sum; this says the same three things about the
+              agreement the GC is actually holding. */}
+          {approvedChangeOrders.length > 0 && (
+            <View style={styles.revisedCard} testID="revised-contract-sum">
+              <View style={styles.revisedRow}>
+                <Text style={styles.revisedLabel}>Original contract</Text>
+                <Text style={styles.revisedValue}>{formatMoney(contract.contractValue)}</Text>
+              </View>
+              {approvedChangeOrders.map(co => (
+                <View key={co.id} style={styles.revisedRow}>
+                  <Text style={styles.revisedCoLabel} numberOfLines={1}>
+                    CO #{co.number}{co.description ? ` — ${co.description}` : ''}
+                  </Text>
+                  <Text style={[
+                    styles.revisedValue,
+                    { color: co.changeAmount >= 0 ? themeColors.text : themeColors.success },
+                  ]}>
+                    {co.changeAmount >= 0 ? '+' : ''}{formatMoney(co.changeAmount)}
+                  </Text>
+                </View>
+              ))}
+              <View style={[styles.revisedRow, styles.revisedRowTotal]}>
+                <Text style={styles.revisedLabelTotal}>Current contract sum</Text>
+                <Text style={styles.revisedValueTotal}>{formatMoney(revisedContractSum)}</Text>
+              </View>
+              <Text style={styles.revisedCaption}>
+                The payment schedule below still divides the original contract. Approved change
+                orders are billed on their own lines in Bill from Estimate, so the milestones do
+                not grow — that would bill each change order twice.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Timeline — CONTRACT-TIME-1. Several states require a start date and
@@ -813,6 +909,22 @@ function ContractScreenInner() {
               />
             );
           })}
+
+          {/* What the OTHER ledger has already drawn on this contract
+              (MONEY-LEDGER-1). Without this line the cross-ledger refusal on a
+              milestone row arrives with no explanation on screen — the GC has
+              no way to see that /bill-from-estimate already billed the work. */}
+          {billedOnContract > 0.005 && (
+            <View style={styles.scheduleTotalRow}>
+              <Text style={styles.scheduleTotalLabel}>Already invoiced on this contract</Text>
+              <Text style={styles.scheduleTotalValue} testID="contract-billed-to-date">
+                {formatMoney(billedOnContract)}
+                {contract.contractValue > 0
+                  ? ` · ${formatMoney(Math.max(0, contract.contractValue - billedOnContract))} left`
+                  : ''}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.scheduleTotalRow}>
             <Text style={styles.scheduleTotalLabel}>Total scheduled</Text>
@@ -1474,6 +1586,30 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   scheduleTotalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
   scheduleTotalValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text },
   // Mismatch banner — its own row, amber tint, real "this is wrong" affordance
+  // MONEY-CONTRACT-1 — the revised-contract card.
+  revisedCard: {
+    marginTop: 14,
+    borderRadius: Tokens.radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: themeColors.line,
+    backgroundColor: themeColors.bg,
+    padding: 12,
+    gap: 6,
+  },
+  revisedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  revisedRowTotal: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: themeColors.line,
+    paddingTop: 8,
+    marginTop: 2,
+  },
+  revisedLabel: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
+  revisedCoLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
+  revisedValue: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '600' as const },
+  revisedLabelTotal: { fontSize: Type.subhead.fontSize, color: themeColors.text, fontWeight: '700' as const },
+  revisedValueTotal: { fontSize: Type.subhead.fontSize, color: themeColors.text, fontWeight: '800' as const },
+  revisedCaption: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 4 },
+
   scheduleMismatchBanner: {
     flexDirection: 'row',
     alignItems: 'center',

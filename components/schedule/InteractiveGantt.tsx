@@ -52,7 +52,11 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
-import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
+import {
+  wouldCreateCycle, workingOrdinalToCalendarIndex, calendarIndexToWorkingOrdinal,
+  workingDaysInSpan, type CpmResult, type DayScaleOptions,
+} from '@/utils/cpm';
+import { toCalendarDayString } from '@/utils/calendarDate';
 import { colorForTask as canonicalColorForTask, statusColorForTask, statusColor, statusLabel, STATUS_KEYS, barLabelColorFor, type GanttColorMode } from '@/utils/scheduleColors';
 import { useGanttColorMode } from '@/hooks/useGanttColorMode';
 import { useBarLabel } from '@/utils/useBarLabel';
@@ -123,6 +127,18 @@ export interface InteractiveGanttProps {
   onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
   /** Reorder — move a task up (-1) or down (+1) in array position. */
   onReorder?: (id: string, delta: number) => void;
+  /**
+   * The project calendar. The timeline AXIS is a plain calendar-day axis (see
+   * headerTicks) and so is everything `cpm` returns, but `task.startDay` and
+   * `task.durationDays` are WORKING-scale — so converting between them needs
+   * to know which days are working days.
+   *
+   * Defaults to 5 (Mon-Fri), which is both schedule-pro's own default and what
+   * the weekend tint has always assumed. Pass the real value wherever the
+   * project can be on a 6- or 7-day week or carries closures.
+   */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +198,22 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask, onAddTaskAtDay, onDeleteTask, onOutline, onReorder } = props;
+  // The WORKING-ordinal ↔ CALENDAR-index scale for this timeline. Every bar,
+  // every gutter date and every drag commit converts through this and only
+  // this. Before it existed the bars were drawn at `(task.startDay - 1) *
+  // pxPerDay` — a working ordinal laid on a calendar axis — so a bar sat ~2
+  // calendar days left of its true position per weekend it spanned, while the
+  // today line (a raw calendar count) sat where it belonged. By working-week 8
+  // the bars were ~16 calendar days left of where today implied, which reads to
+  // a GC as "we are ahead".
+  const dayScale = useMemo<DayScaleOptions>(() => ({
+    workingDaysPerWeek: props.workingDaysPerWeek ?? 5,
+    scheduleStartDate: toCalendarDayString(projectStartDate),
+    nonWorkingDates: props.nonWorkingDates,
+  }), [props.workingDaysPerWeek, props.nonWorkingDates, projectStartDate]);
+  const toCal = useCallback((ordinal: number) => workingOrdinalToCalendarIndex(ordinal, dayScale), [dayScale]);
+  const toOrdinal = useCallback((calendarIndex: number) => calendarIndexToWorkingOrdinal(calendarIndex, dayScale), [dayScale]);
+  const workingSpan = useCallback((from: number, to: number) => workingDaysInSpan(from, to, dayScale), [dayScale]);
   const isPhone = mode === 'phone';
 
   // Bar-fill color mode — persisted, defaults to 'status' (progress signal).
@@ -297,13 +329,19 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 
   // --- Hover / drag state --------------------------------------------------
   const [hoverTaskId, setHoverTaskId] = useState<string | null>(null);
+  // Drag lives in CALENDAR space because the pixels do: one pxPerDay step is
+  // one calendar column, weekends included (they are tinted, not skipped). The
+  // commit converts back to the stored working scale exactly once, in endDrag.
   const [dragState, setDragState] = useState<{
     taskId: string;
     mode: 'move' | 'resize';
-    originalStart: number;
+    originalCalStart: number;
+    originalCalSpan: number;
+    currentCalStart: number;
+    currentCalSpan: number;
+    /** The task's stored values at grab time, for a byte-identical no-op commit. */
+    originalStartDay: number;
     originalDuration: number;
-    currentStart: number;
-    currentDuration: number;
     pointerX: number;
     pointerY: number;
   } | null>(null);
@@ -331,20 +369,44 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       // undefined and `undefined * pxPerDay` produces NaN bar geometry.
       const taskStartDay = task.startDay ?? 1;
       const taskDuration = task.durationDays ?? 1;
-      const startDay = isDragging ? dragState.currentStart : taskStartDay;
-      const duration = isDragging ? dragState.currentDuration : taskDuration;
-      const isMilestone = task.isMilestone || duration === 0;
       const cpmRow = cpm.perTask.get(task.id);
+      // Geometry is CALENDAR: the axis is (headerTicks) and so are cpm.es/ef.
+      // The bar's left edge is where CPM SCHEDULED the task, not where it was
+      // authored — a task whose predecessor grew used to keep its bar exactly
+      // where it was while its grid row moved, which read as "the Gantt is out
+      // of date" in the default split layout.
+      const baseCalStart = cpmRow?.es ?? toCal(taskStartDay);
+      const baseCalEnd = cpmRow?.ef
+        ?? toCal(taskStartDay + Math.max(0, taskDuration - 1));
+      const calStart = isDragging ? dragState.currentCalStart : baseCalStart;
+      const calSpan = isDragging
+        ? dragState.currentCalSpan
+        : Math.max(0, baseCalEnd - baseCalStart + 1);
+      // The DURATION LABEL stays in working days — that is the unit the user
+      // typed and the unit durationDays stores.
+      const duration = isDragging ? workingSpan(calStart, calStart + calSpan - 1) : taskDuration;
+      const isMilestone = task.isMilestone || duration === 0;
       const isCritical = !!cpmRow?.isCritical;
-      const x = (startDay - 1) * pxPerDay;
+      const x = (calStart - 1) * pxPerDay;
       const w = Math.max(
         isMilestone ? 0 : MIN_BAR_PX_WIDTH,
-        duration * pxPerDay,
+        (isMilestone ? 0 : calSpan) * pxPerDay,
       );
       const y = HEADER_HEIGHT + index * ROW_HEIGHT + BAR_VERTICAL_PADDING;
-      return { task, index, startDay, duration, isMilestone, isCritical, x, y, w, cpmRow };
+      // The scheduled position expressed back on the STORED working-ordinal
+      // scale. The as-built variance badge compares `actualStartDay` /
+      // `actualEndDay` (working ordinals, "same basis as startDay" —
+      // types/index.ts) against the plan, and with no baseline captured its
+      // fallback used the authored PIN. On a dependency-driven row that pin is
+      // usually still 1 while the bar sits weeks to the right, so the badge
+      // read "+21d late" on a task that finished exactly when the engine said.
+      const planStartOrdinal = cpmRow ? toOrdinal(cpmRow.es) : taskStartDay;
+      const planEndOrdinal = cpmRow
+        ? toOrdinal(cpmRow.ef)
+        : taskStartDay + Math.max(0, taskDuration - 1);
+      return { task, index, startDay: calStart, duration, isMilestone, isCritical, x, y, w, cpmRow, calStart, calEnd: calStart + Math.max(0, calSpan - 1), planStartOrdinal, planEndOrdinal };
     });
-  }, [tasks, dragState, cpm, pxPerDay]);
+  }, [tasks, dragState, cpm, pxPerDay, toCal, toOrdinal, workingSpan]);
 
   // Quick lookup for dependency drawing.
   const barById = useMemo(() => {
@@ -435,27 +497,30 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // We use a PanResponder per-bar (bound via onStartShouldSetResponder pattern
   // in the child). For perf it's one object per bar; that's fine because we
   // never have thousands of tasks on screen.
-  const startPointer = useRef<{ x: number; y: number; startDay: number; duration: number } | null>(null);
+  const startPointer = useRef<{ x: number; y: number; calStart: number; calSpan: number } | null>(null);
 
   const beginDrag = useCallback((task: ScheduleTask, mode: 'move' | 'resize', evt: any) => {
     const { pageX, pageY } = evt.nativeEvent;
-    startPointer.current = {
-      x: pageX,
-      y: pageY,
-      startDay: task.startDay,
-      duration: task.durationDays,
-    };
+    const cpmRow = cpm.perTask.get(task.id);
+    const calStart = cpmRow?.es ?? toCal(task.startDay ?? 1);
+    const calEnd = cpmRow?.ef ?? toCal((task.startDay ?? 1) + Math.max(0, (task.durationDays ?? 1) - 1));
+    const calSpan = task.isMilestone || (task.durationDays ?? 1) === 0
+      ? 0
+      : Math.max(1, calEnd - calStart + 1);
+    startPointer.current = { x: pageX, y: pageY, calStart, calSpan };
     setDragState({
       taskId: task.id,
       mode,
-      originalStart: task.startDay,
+      originalCalStart: calStart,
+      originalCalSpan: calSpan,
+      currentCalStart: calStart,
+      currentCalSpan: calSpan,
+      originalStartDay: task.startDay,
       originalDuration: task.durationDays,
-      currentStart: task.startDay,
-      currentDuration: task.durationDays,
       pointerX: pageX,
       pointerY: pageY,
     });
-  }, []);
+  }, [cpm, toCal]);
 
   const updateDrag = useCallback((evt: any) => {
     if (!startPointer.current) return;
@@ -465,12 +530,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     setDragState(prev => {
       if (!prev) return prev;
       if (prev.mode === 'move') {
-        const nextStart = Math.max(1, startPointer.current!.startDay + deltaDays);
-        return { ...prev, currentStart: nextStart, pointerX: pageX, pointerY: pageY };
+        const nextStart = Math.max(1, startPointer.current!.calStart + deltaDays);
+        return { ...prev, currentCalStart: nextStart, pointerX: pageX, pointerY: pageY };
       }
-      // resize — only duration changes; clamp at 0 (milestone) min
-      const nextDuration = Math.max(0, startPointer.current!.duration + deltaDays);
-      return { ...prev, currentDuration: nextDuration, pointerX: pageX, pointerY: pageY };
+      // resize — only the span changes; clamp at 0 (milestone) min
+      const nextSpan = Math.max(0, startPointer.current!.calSpan + deltaDays);
+      return { ...prev, currentCalSpan: nextSpan, pointerX: pageX, pointerY: pageY };
     });
   }, [pxPerDay]);
 
@@ -478,12 +543,24 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     setDragState(prev => {
       if (!prev) return null;
       const patch: Partial<ScheduleTask> = {};
-      if (prev.mode === 'move' && prev.currentStart !== prev.originalStart) {
-        patch.startDay = prev.currentStart;
-      } else if (prev.mode === 'resize' && prev.currentDuration !== prev.originalDuration) {
-        patch.durationDays = prev.currentDuration;
-        if (prev.currentDuration === 0) patch.isMilestone = true;
-        else if (prev.originalDuration === 0 && prev.currentDuration > 0) patch.isMilestone = false;
+      if (prev.mode === 'move' && prev.currentCalStart !== prev.originalCalStart) {
+        // Back to the stored WORKING-ordinal scale. Dropping a bar on a
+        // Saturday snaps it to the ordinal of the working day the calendar
+        // actually offers, rather than inventing a weekend ordinal.
+        const nextStartDay = toOrdinal(prev.currentCalStart);
+        if (nextStartDay !== prev.originalStartDay) patch.startDay = nextStartDay;
+      } else if (prev.mode === 'resize' && prev.currentCalSpan !== prev.originalCalSpan) {
+        // A pixel width is a CALENDAR span; durationDays is a WORKING count.
+        // Writing the pixel span straight onto durationDays added the weekend
+        // to the duration every time a bar was stretched across one.
+        const nextDuration = prev.currentCalSpan === 0
+          ? 0
+          : workingSpan(prev.currentCalStart, prev.currentCalStart + prev.currentCalSpan - 1);
+        if (nextDuration !== prev.originalDuration) {
+          patch.durationDays = nextDuration;
+          if (nextDuration === 0) patch.isMilestone = true;
+          else if (prev.originalDuration === 0) patch.isMilestone = false;
+        }
       }
       if (Object.keys(patch).length > 0) {
         onEdit(prev.taskId, patch);
@@ -491,7 +568,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       return null;
     });
     startPointer.current = null;
-  }, [onEdit]);
+  }, [onEdit, toOrdinal, workingSpan]);
 
   // --- Phase 4: drag-to-create dependencies -------------------------------
   // Hit-test: given pointer coords in timeline-local space, return the id of
@@ -613,29 +690,40 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   }, [pendingLink, tasks, onDependencyCreate, onEdit]);
 
   // --- Phase 5: as-built quick actions ------------------------------------
+  // `todayDayNumber` is a CALENDAR index (days since projectStartDate) but
+  // `actualStartDay`/`actualEndDay` are WORKING ORDINALS — "1-indexed, same
+  // basis as startDay" (types/index.ts), which is also the basis
+  // `baselineStartDay` uses and the one reflowFromActuals subtracts against.
+  // Writing the calendar number straight in made this component store two
+  // different scales in ONE field: logStartToday wrote a calendar index while
+  // logFinishToday's retro-start fallback wrote `task.startDay`, an ordinal.
+  const todayOrdinal = useMemo(() => toOrdinal(Math.max(1, todayDayNumber)), [toOrdinal, todayDayNumber]);
+
   const logStartToday = useCallback((task: ScheduleTask) => {
     const now = new Date();
     onEdit(task.id, {
-      actualStartDay: todayDayNumber,
+      actualStartDay: todayOrdinal,
       actualStartDate: now.toISOString(),
       status: task.status === 'not_started' ? 'in_progress' : task.status,
     });
-  }, [onEdit, todayDayNumber]);
+  }, [onEdit, todayOrdinal]);
 
   const logFinishToday = useCallback((task: ScheduleTask) => {
     const now = new Date();
     const patch: Partial<ScheduleTask> = {
-      actualEndDay: todayDayNumber,
+      actualEndDay: todayOrdinal,
       actualEndDate: now.toISOString(),
       status: 'done',
       progress: 100,
     };
     if (task.actualStartDay == null) {
+      // `task.startDay` is already a working ordinal — the same scale
+      // `todayOrdinal` is on, which is the whole point of the conversion above.
       patch.actualStartDay = task.startDay;
       patch.actualStartDate = now.toISOString();
     }
     onEdit(task.id, patch);
-  }, [onEdit, todayDayNumber]);
+  }, [onEdit, todayOrdinal]);
 
   // One PanResponder for the whole timeline body. We decide move vs resize
   // based on where the gesture started relative to the bar's right edge.
@@ -666,15 +754,21 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   }, [pxPerDay, onAddTaskAtDay]);
 
   // --- Last milestone ID (project completion = red diamond) ----------------
+  // Ordered by where the ENGINE puts each milestone, not by the authored pin.
+  // Every other piece of geometry in this component is now on the calendar
+  // scale, and the sibling renderer (utils/printableGanttHtml.ts) already picks
+  // the completion diamond by `cpmRow(t)?.es` — comparing raw `startDay`
+  // ordinals here meant the two charts could paint the red diamond on
+  // different milestones for the same schedule.
   const lastMilestoneId = useMemo(() => {
     return tasks
       .filter(t => t.isMilestone || t.durationDays === 0)
       .reduce<{ id: string; day: number } | null>((latest, t) => {
-        const day = t.startDay ?? 0;
+        const day = cpm.perTask.get(t.id)?.es ?? toCal(t.startDay ?? 1);
         if (!latest || day > latest.day) return { id: t.id, day };
         return latest;
       }, null)?.id ?? null;
-  }, [tasks]);
+  }, [tasks, cpm, toCal]);
 
   // --- Dependency paths (Task 3 restyle) ----------------------------------------
   // ALL dependency arrows are drawn at all times so the task logic is visible
@@ -1060,12 +1154,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 </View>
               );
             }
-            // Compact date label — "Mar 20 → Mar 24" style. startDay is a
-            // 1-indexed offset from projectStartDate (Day 1), durationDays is
-            // the count, so end is start + duration - 1.
+            // Compact date label — "Mar 20 → Mar 24" style. Rendered from the
+            // CPM row, which is the same thing the bar to the right is drawn
+            // from. `addDays(projectStartDate, t.startDay - 1)` was a raw
+            // CALENDAR add on a WORKING ordinal, so this gutter printed a THIRD
+            // date for the same task — different from both the bar and the grid.
             const durationDays = t.durationDays ?? 0;
-            const start = addDays(projectStartDate, t.startDay - 1);
-            const end = addDays(projectStartDate, t.startDay + durationDays - 2);
+            const gutterCpm = cpm.perTask.get(t.id);
+            const startIdx = gutterCpm?.es ?? toCal(t.startDay);
+            const endIdx = gutterCpm?.ef ?? toCal(t.startDay + Math.max(0, durationDays - 1));
+            const start = addDays(projectStartDate, startIdx - 1);
+            const end = addDays(projectStartDate, endIdx - 1);
             const dateRange = durationDays > 0
               ? `${fmtShort(start)} → ${fmtShort(end)}`
               : fmtShort(start);
@@ -1356,9 +1455,20 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 pointerEvents="none"
               >
                 {bars.map(bar => {
-                  const bStart = bar.task.baselineStartDay;
-                  const bEnd = bar.task.baselineEndDay;
-                  if (bStart == null || bEnd == null) return null;
+                  // baselineStartDay/baselineEndDay are WORKING ORDINALS —
+                  // captureBaseline (utils/scheduleOps.ts) writes `t.startDay`
+                  // and `t.startDay + duration - 1` straight in. The axis under
+                  // them is CALENDAR, so they have to be lifted exactly like
+                  // every other stored day number. Drawing them raw made a
+                  // freshly captured, completely unchanged baseline render as a
+                  // large slip: measured on A(10)->B(5)->C(5) from Mon Mar 2 on
+                  // a 5-day week, C's ghost sat SIX calendar columns left of
+                  // its own bar on a schedule that had not moved.
+                  const bStartOrd = bar.task.baselineStartDay;
+                  const bEndOrd = bar.task.baselineEndDay;
+                  if (bStartOrd == null || bEndOrd == null) return null;
+                  const bStart = toCal(bStartOrd);
+                  const bEnd = toCal(bEndOrd);
                   const bx = (bStart - 1) * pxPerDay;
                   const bw = Math.max(MIN_BAR_PX_WIDTH, (bEnd - bStart + 1) * pxPerDay);
                   return (
@@ -1376,9 +1486,18 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 
                 {/* --- Actual overlay bars (Phase 5) --- */}
                 {bars.map(bar => {
-                  const aStart = bar.task.actualStartDay;
-                  const aEnd = bar.task.actualEndDay ?? todayDayNumber;
-                  if (aStart == null) return null;
+                  // Same lift as the baseline ghosts. `actualStartDay` /
+                  // `actualEndDay` are WORKING ORDINALS ("1-indexed, same basis
+                  // as startDay" — types/index.ts), while `todayDayNumber` is a
+                  // raw CALENDAR count off projectStartDate, so the open-ended
+                  // fallback is already on the axis and must NOT be lifted
+                  // again.
+                  const aStartOrd = bar.task.actualStartDay;
+                  if (aStartOrd == null) return null;
+                  const aStart = toCal(aStartOrd);
+                  const aEnd = bar.task.actualEndDay != null
+                    ? toCal(bar.task.actualEndDay)
+                    : todayDayNumber;
                   const ax = (aStart - 1) * pxPerDay;
                   const aw = Math.max(MIN_BAR_PX_WIDTH, (aEnd - aStart + 1) * pxPerDay);
                   const finished = bar.task.actualEndDay != null;
@@ -1624,15 +1743,15 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
               {dragState && (() => {
                 const bar = barById.get(dragState.taskId);
                 if (!bar) return null;
-                const origX = (dragState.originalStart - 1) * pxPerDay;
+                const origX = (dragState.originalCalStart - 1) * pxPerDay;
                 const origW = Math.max(
                   MIN_BAR_PX_WIDTH,
-                  Math.max(0, dragState.originalDuration) * pxPerDay,
+                  Math.max(0, dragState.originalCalSpan) * pxPerDay,
                 );
                 // Skip rendering if the bar hasn't actually moved yet — would
                 // just sit underneath the live bar and read as a stuck pixel.
-                const moved = dragState.currentStart !== dragState.originalStart
-                  || dragState.currentDuration !== dragState.originalDuration;
+                const moved = dragState.currentCalStart !== dragState.originalCalStart
+                  || dragState.currentCalSpan !== dragState.originalCalSpan;
                 if (!moved) return null;
                 return (
                   <View
@@ -1658,19 +1777,19 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   drawn at the SNAPPED DROP SLOT while the user is dragging.
                   Complements the grey origin ghost above — the origin ghost
                   shows "where it was", this shows "exactly where it will land".
-                  Reuses dragState.currentStart / currentDuration which are
+                  Reuses dragState.currentCalStart / currentCalSpan which are
                   already snapped (Math.round(dx / pxPerDay)) — no new date math. --- */}
               {dragState && (() => {
                 const bar = barById.get(dragState.taskId);
                 if (!bar) return null;
-                const moved = dragState.currentStart !== dragState.originalStart
-                  || dragState.currentDuration !== dragState.originalDuration;
+                const moved = dragState.currentCalStart !== dragState.originalCalStart
+                  || dragState.currentCalSpan !== dragState.originalCalSpan;
                 if (!moved) return null;
                 // Destination position — snapped values already stored in dragState.
-                const destX = (dragState.currentStart - 1) * pxPerDay;
+                const destX = (dragState.currentCalStart - 1) * pxPerDay;
                 const destW = Math.max(
                   MIN_BAR_PX_WIDTH,
-                  Math.max(0, dragState.currentDuration) * pxPerDay,
+                  Math.max(0, dragState.currentCalSpan) * pxPerDay,
                 );
                 return (
                   <View
@@ -1703,11 +1822,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const bar = barById.get(hoverTaskId);
                 if (!bar) return null;
                 const t = bar.task;
-                const startDate = addDays(projectStartDate, t.startDay - 1);
-                const finishDate = addDays(
-                  projectStartDate,
-                  t.startDay + Math.max(0, t.durationDays - 1) - 1,
-                );
+                // Same CPM row the bar is drawn from — the hover card used to
+                // repeat the gutter's raw-calendar-add-on-a-working-ordinal.
+                const startDate = addDays(projectStartDate, bar.calStart - 1);
+                const finishDate = addDays(projectStartDate, bar.calEnd - 1);
                 const cardWidth = 268;
                 const tipX = Math.max(4, Math.min(timelineWidth - cardWidth - 4, bar.x));
                 // Float above the bar; if too close to the timeline header, drop below.
@@ -1787,13 +1905,19 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
               {dragState && dragState.taskId !== focusedTaskId && (() => {
                 const bar = barById.get(dragState.taskId);
                 if (!bar) return null;
-                const startDate = addDays(projectStartDate, dragState.currentStart - 1);
+                // currentCalStart/currentCalSpan are CALENDAR, so these are plain
+                // date adds — the same arithmetic the axis under the bar uses.
+                const startDate = addDays(projectStartDate, dragState.currentCalStart - 1);
                 const finishDate = addDays(
                   projectStartDate,
-                  dragState.currentStart + Math.max(0, dragState.currentDuration - 1) - 1,
+                  dragState.currentCalStart + Math.max(0, dragState.currentCalSpan - 1) - 1,
                 );
-                const deltaStart = dragState.currentStart - dragState.originalStart;
-                const deltaDur = dragState.currentDuration - dragState.originalDuration;
+                const deltaStart = dragState.currentCalStart - dragState.originalCalStart;
+                // Duration is reported in WORKING days — the unit that gets stored.
+                const deltaDur = workingSpan(
+                  dragState.currentCalStart,
+                  dragState.currentCalStart + Math.max(0, dragState.currentCalSpan - 1),
+                ) - dragState.originalDuration;
                 const tipX = Math.max(4, Math.min(timelineWidth - 220, bar.x));
                 const tipY = Math.max(HEADER_HEIGHT + 4, bar.y - 44);
                 return (
@@ -1820,14 +1944,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
               {dragState && focusedTaskId != null && dragState.taskId === focusedTaskId && (() => {
                 const bar = barById.get(dragState.taskId);
                 if (!bar || bar.isMilestone || bar.task.isSummary) return null;
-                const startDate = addDays(projectStartDate, dragState.currentStart - 1);
+                const startDate = addDays(projectStartDate, dragState.currentCalStart - 1);
                 const finishDate = addDays(
                   projectStartDate,
-                  dragState.currentStart + Math.max(0, dragState.currentDuration - 1) - 1,
+                  dragState.currentCalStart + Math.max(0, dragState.currentCalSpan - 1) - 1,
                 );
                 const startLabel = fmtShort(startDate);
                 const endLabel = fmtShort(finishDate);
-                const dur = Math.max(0, dragState.currentDuration);
+                const dur = dragState.currentCalSpan === 0 ? 0 : workingSpan(
+                  dragState.currentCalStart,
+                  dragState.currentCalStart + dragState.currentCalSpan - 1,
+                );
                 // Estimate pill width at ~11px/char. Clamp so right edge doesn't clip.
                 const pillW = (startLabel + endLabel + ` · ${dur}d`).length * 7 + 16;
                 const clampedLeft = Math.max(4, Math.min(timelineWidth - pillW - 4, bar.x));
@@ -1889,6 +2016,9 @@ interface BarViewProps {
     y: number;
     w: number;
     cpmRow: ReturnType<CpmResult['perTask']['get']>;
+    /** Scheduled start/finish on the stored WORKING-ordinal scale. */
+    planStartOrdinal: number;
+    planEndOrdinal: number;
   };
   /** How to color the bar fill: by STATUS (default) or by TRADE. */
   colorMode: GanttColorMode;
@@ -2000,8 +2130,12 @@ function BarView({
   // --- Variance calc for as-built badge (Phase 5) ------------------------
   // Compare actual dates to baseline (if present) or planned (as fallback).
   // +N = late, -N = early.
-  const baseStart = bar.task.baselineStartDay ?? bar.task.startDay;
-  const baseEnd = bar.task.baselineEndDay ?? (bar.task.startDay + Math.max(0, bar.task.durationDays - 1));
+  // All four operands are WORKING ORDINALS on the same basis, so the
+  // subtraction below is a working-day count — the unit the label claims.
+  // With no baseline the comparison falls back to the SCHEDULED plan (what the
+  // bar above actually shows), not the authored pin it used to read.
+  const baseStart = bar.task.baselineStartDay ?? bar.planStartOrdinal;
+  const baseEnd = bar.task.baselineEndDay ?? bar.planEndOrdinal;
   const aStart = bar.task.actualStartDay;
   const aEnd = bar.task.actualEndDay;
   let varianceLabel: string | null = null;

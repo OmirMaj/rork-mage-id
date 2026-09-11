@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Financials — Estimates, AIA, Cash Flow, Earned Value | MAGE ID</title>
   <link rel="canonical" href="https://mageid.app/features/financials.html" />
-  <meta name="description" content="Estimates, invoices, AIA pay applications, change orders, cash flow forecasts, earned value metrics, and AI-powered payment predictions — complete project financial management for general contractors." />
+  <meta name="description" content="Estimates, invoices, AIA-style pay applications, change orders, cash flow forecasts, earned value metrics, and AI-powered payment predictions — complete project financial management for general contractors." />
   <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Financials — Estimates, AIA, Cash Flow, Earned Value | MAGE ID" />
-  <meta property="og:description" content="Estimates, invoices, AIA pay apps, change orders, cash flow, earned value — complete project financial management." />
+  <meta property="og:description" content="Estimates, invoices, AIA-style pay apps, change orders, cash flow, earned value — complete project financial management." />
   <meta property="og:url" content="https://mageid.app/features/financials.html" />
   <meta property="og:site_name" content="MAGE ID" />
   <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
@@ -24,43 +24,43 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
   <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
   <style>
-    /* Captioned placeholder for phone slots that don't have a real amber
-       screenshot yet. Flat ink panel + hairline border, opaque so it fully
-       covers the shared .screenshot.phone::after fallback. Keeps the same
-       DOM slot: drop a real <img> in and delete the .phone-ph div. */
-    .screenshot.phone > .phone-ph {
-      position: absolute;
-      inset: 8px;
-      z-index: 1;
-      border-radius: 36px;
-      background: #14181D;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      text-align: center;
-      padding: 40px 26px;
-    }
-    .phone-ph .phone-ph-cap {
+    /* Tier chips. Every SECTION on this page names the plan its feature is
+       actually gated to, read off utils/featureTiers.ts, plus the three
+       reports inside the Reports list — which do not share a gate: WIP is
+       Business (wip_reporting) while Profit-by-project and A/R aging are open
+       to everyone, because app/reports.tsx gates only the WIP tab and lands
+       sub-Business users on Profit.
+       These were wrong once in the direction that costs the buyer nothing but
+       costs us the sale twice: Profit and A/R were chipped Business/Pro when
+       they are free. The rule is that the chip names REQUIRED_TIER for the
+       key that actually gates the screen, and scripts/validate-marketing-
+       claims.ts checks each one against that table. */
+    .tier-chip {
+      display: inline-block;
       font-family: var(--ff-mono);
-      font-size: 11px;
-      letter-spacing: 0.12em;
+      font-size: 10px;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--fog);
-      line-height: 1.6;
-    }
-    .phone-ph .phone-ph-tag {
-      font-family: var(--ff-mono);
-      font-size: 9px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--amber);
-      border: 1px solid rgba(255, 106, 26, 0.5);
       border-radius: 999px;
-      padding: 4px 11px;
+      padding: 2px 8px;
+      margin-left: 6px;
+      vertical-align: 1px;
+      white-space: nowrap;
     }
+    .tier-chip-pro { color: var(--amber); border: 1px solid rgba(255, 106, 26, 0.5); }
+    .tier-chip-biz { color: #9AA3AD; border: 1px solid rgba(154, 163, 173, 0.45); }
+    .tier-chip-free { color: #7FB88A; border: 1px solid rgba(127, 184, 138, 0.45); }
+    /* PLACEHOLDER FRAMES REMOVED.
+       This page carried "Preview coming" boxes where a screenshot should be —
+       16 of them across four feature pages. An empty frame that promises an
+       image is a stronger signal of an unfinished product than no frame at
+       all, and one of them sat on the DCMA claim itself, so the page selling
+       the feature could not show it. The frames are gone; where a real capture
+       exists it is embedded instead. A .feature-row that lost its visual half
+       becomes single-column rather than leaving a dead gutter. Put a frame
+       back only with a real image in it. */
+    .feature-row.solo { grid-template-columns: 1fr; }
+    .feature-row.solo p, .feature-row.solo ul { max-width: 72ch; }
   </style>
 </head>
 <body>
@@ -83,7 +83,7 @@
       <span class="eyebrow">Financials</span>
       <h1>Construction financials that work the way builders actually&nbsp;build.</h1>
       <p>
-        Bank-ready WIP. Live profit margin. AIA pay apps. AR aging. Open-book mode for the
+        Bank-ready WIP. Live profit margin. AIA-style pay apps. AR aging. Open-book mode for the
         homeowners who want to see every dollar. All from a phone you already carry — no
         $12,000-a-year back-office subscription required.
       </p>
@@ -91,8 +91,8 @@
       <!-- Savings stats strip -->
       <div class="hero-stats">
         <div class="hero-stat">
-          <div class="hero-stat-value">90%+</div>
-          <div class="hero-stat-label">cheaper than enterprise PM software</div>
+          <div class="hero-stat-value">$29</div>
+          <div class="hero-stat-label">a month for AIA-style pay apps &mdash; against Knowify&rsquo;s $99 for one user and Contractor Foreman&rsquo;s $105 for three, their published rates in September 2026</div>
         </div>
         <div class="hero-stat">
           <div class="hero-stat-value">5&nbsp;min</div>
@@ -107,7 +107,7 @@
 
     <!-- Reports hub -->
     <section class="section wrap-wide" id="reports">
-      <div class="feature-row">
+      <div class="feature-row solo">
         <div>
           <div class="section-title" style="text-align: left; margin-bottom: 8px;">Reports</div>
           <h2>Bank-ready PDFs in three taps.</h2>
@@ -117,15 +117,14 @@
             CSV to paste straight into QuickBooks or Excel.
           </p>
           <ul>
-            <li><strong>WIP report</strong> — contract, change orders, % complete, billed, paid, retainage, EAC, projected profit, margin per project. PDF + CSV.</li>
-            <li><strong>Profit by project</strong> — running margin across the whole portfolio with green / yellow / red health bands.</li>
-            <li><strong>A/R aging</strong> — open invoices bucketed 0–30 / 31–60 / 61–90 / 90+. Worst-aged first.</li>
+            <li><strong>WIP report</strong> <span class="tier-chip tier-chip-biz">Business &middot; $79</span> &mdash; contract, change orders, % complete, billed, paid, retainage, EAC, projected profit, margin per project. PDF + CSV. When a job goes upside down the full anticipated loss is booked immediately rather than spread across the remaining percent complete &mdash; the treatment ASC&nbsp;605-35 requires for construction-type contracts, and the one a surety underwriter checks for.</li>
+            <li><strong>Profit by project</strong> <span class="tier-chip tier-chip-free">Free</span> &mdash; running margin across the whole portfolio with green / yellow / red health bands.</li>
+            <li><strong>A/R aging</strong> <span class="tier-chip tier-chip-free">Free</span> &mdash; open invoices bucketed 0&ndash;30 / 31&ndash;60 / 61&ndash;90 / 90+. Worst-aged first.</li>
             <li>One-click PDF export, branded with your company.</li>
             <li>One-click CSV copy for accounting handoff.</li>
             <li>Auto-recompute every time a commitment, invoice, or CO changes.</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Reports · WIP · Profit · A/R"><div class="phone-ph"><span class="phone-ph-cap">Reports · WIP · Profit · A/R</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -134,7 +133,7 @@
       <div class="wrap-wide">
         <div class="feature-row reverse">
           <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Open Book / GMP</div>
+            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Open Book / GMP <span class="tier-chip tier-chip-pro">Pro &middot; $29</span></div>
             <h2>The transparency homeowners actually want.</h2>
             <p>
               Flip a project into <strong>Open Book</strong> mode and the homeowner sees every
@@ -161,17 +160,20 @@
     <section class="section wrap-wide" id="estimates">
       <div class="feature-row">
         <div>
-          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Estimates</div>
+          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Estimates <span class="tier-chip tier-chip-pro">Pro &middot; $29</span></div>
           <h2>AI-assisted takeoffs, editable line items.</h2>
           <p>
-            Start from plans, notes, or a photo — the AI drafts a takeoff. You edit, add, remove.
-            Material prices pull from live supplier data in nine major metros so your numbers
-            stay honest.
+            Start from plans, notes, or a photo &mdash; the AI drafts a takeoff. You edit, add, remove.
+            Day one, material prices come off a regional cost index: ten regional factors and twenty
+            metro adjustments, so a Bay Area bid is not priced off a Tulsa number. It is a starting
+            point and we say so on the screen. From the first receipt onward it is <em>your</em>
+            numbers &mdash; snap a supply-house invoice and those unit prices go straight into a price
+            book only you can see, the same day, without waiting for the job to close.
           </p>
           <ul>
             <li>AI takeoff from plans, notes, or voice description</li>
             <li>Line items with quantity, unit, unit price, and total</li>
-            <li>Live material pricing from local suppliers</li>
+            <li>Regional cost factors on day one; your own supply-house invoices from the first receipt</li>
             <li>Labor, equipment, overhead, and profit rows</li>
             <li>Schedule of values (SOV) auto-generated from estimate</li>
             <li>Side-by-side comparison of bid vs. as-built costs</li>
@@ -184,9 +186,9 @@
     <!-- AIA -->
     <section class="section-alt" id="aia">
       <div class="wrap-wide">
-        <div class="feature-row reverse">
+        <div class="feature-row reverse solo">
           <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">AIA Pay Applications</div>
+            <div class="section-title" style="text-align: left; margin-bottom: 8px;">AIA-style Pay Applications <span class="tier-chip tier-chip-pro">Pro &middot; $29</span></div>
             <h2>G702 & G703, one tap away.</h2>
             <p>
               Progress billing that actually looks like what the architect expects. Retainage,
@@ -194,25 +196,24 @@
               straight to the client portal for owner signature.
             </p>
             <ul>
-              <li>AIA G702 summary auto-filled from schedule of values</li>
-              <li>AIA G703 line-item continuation sheet</li>
+              <li>AIA-style G702 summary auto-filled from schedule of values</li>
+              <li>AIA-style G703 line-item continuation sheet</li>
               <li>Retainage (standard or variable per line) handled automatically</li>
               <li>Stored materials separate from work-in-place</li>
               <li>Prior billing totals carried forward</li>
-              <li>PDF export with authentic AIA form layout</li>
+              <li>PDF export in the G702 format &mdash; all nine lines: original contract sum, net change by change orders, contract sum to date, total completed and stored to date, retainage split across completed work (5a) and stored material (5b), total earned less retainage, less previous certificates, current payment due, balance to finish &mdash; plus the G703 continuation sheet and the change-order summary</li>
               <li>Owner e-signature via client portal</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="AIA G702 · Pay App"><div class="phone-ph"><span class="phone-ph-cap">AIA G702 · Pay App</span><span class="phone-ph-tag">Preview coming</span></div></div>
         </div>
       </div>
     </section>
 
     <!-- Invoices -->
     <section class="section wrap-wide">
-      <div class="feature-row">
+      <div class="feature-row solo">
         <div>
-          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Invoices</div>
+          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Invoices <span class="tier-chip tier-chip-pro">Pro &middot; $29</span></div>
           <h2>Simple invoices, Stripe-ready payments.</h2>
           <p>
             Not every project needs AIA. Simple invoices for smaller projects, time-and-materials
@@ -227,16 +228,15 @@
             <li>Aging report: 0-30 / 31-60 / 61-90 / 90+ buckets</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Invoice · Line items + Pay link"><div class="phone-ph"><span class="phone-ph-cap">Invoice · Line items + Pay link</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
     <!-- Change Orders -->
     <section class="section-alt" id="change-orders">
       <div class="wrap-wide">
-        <div class="feature-row reverse">
+        <div class="feature-row reverse solo">
           <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Change Orders</div>
+            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Change Orders <span class="tier-chip tier-chip-pro">Pro &middot; $29</span></div>
             <h2>Portal-approved change orders. No PDF ping-pong.</h2>
             <p>
               Draft the CO with line items and schedule impact. Send to the owner through the
@@ -252,7 +252,6 @@
               <li>Running total shown on the main project dashboard</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="Change Order · E-signature"><div class="phone-ph"><span class="phone-ph-cap">Change Order · E-signature</span><span class="phone-ph-tag">Preview coming</span></div></div>
         </div>
       </div>
     </section>
@@ -261,7 +260,7 @@
     <section class="section wrap-wide" id="cashflow">
       <div class="feature-row">
         <div>
-          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Cash Flow Forecast</div>
+          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Cash Flow Forecast <span class="tier-chip tier-chip-pro">Pro &middot; $29</span></div>
           <h2>Know what's coming in vs. going out.</h2>
           <p>
             Weekly inflow/outflow projections derived from scheduled invoices, material
@@ -285,7 +284,7 @@
       <div class="wrap-wide">
         <div class="feature-row reverse">
           <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Earned Value Management</div>
+            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Earned Value Management <span class="tier-chip tier-chip-biz">Business &middot; $79</span></div>
             <h2>PV, EV, AC, CPI, SPI — the full EVM panel.</h2>
             <p>
               Classic earned value metrics calculated continuously from your schedule and
@@ -308,9 +307,9 @@
 
     <!-- Payment Predictions -->
     <section class="section wrap-wide" id="predictions">
-      <div class="feature-row">
+      <div class="feature-row solo">
         <div>
-          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Payment Predictions <span class="badge badge-pro">Pro</span></div>
+          <div class="section-title" style="text-align: left; margin-bottom: 8px;">Payment Predictions <span class="tier-chip tier-chip-pro">Pro &middot; $29</span></div>
           <h2>The AI knows which client pays late.</h2>
           <p>
             Based on payment history across the platform and your own records, the model predicts
@@ -325,7 +324,6 @@
             <li>Integrated with cash flow forecast for realistic projections</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Payment Prediction · AI forecast"><div class="phone-ph"><span class="phone-ph-cap">Payment Prediction · AI forecast</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -418,7 +416,20 @@
     <section class="wrap-wide">
       <div class="cta-band">
         <h2>Tight books, smooth projects.</h2>
-        <p>Start free and import your first project's financials.</p>
+        <p>
+          <strong>What sits where.</strong> AIA-style G702/G703 pay applications, job costing, change
+          orders, invoicing, A/R aging, the client portal, cash flow and lien waivers are all on
+          <strong>Pro, $29/mo</strong>. The WIP schedule, the portfolio margin board, Cost X-Ray and
+          QuickBooks Online sync are on <strong>Business, $79/mo</strong>.
+        </p>
+        <p>
+          Why the split: a WIP schedule is the report your surety and your bank read, and the number
+          only means anything once every commitment, receipt and pay application is in the system.
+          It is a bigger shop's tool and it is priced like one. For comparison, Knowify's cheapest plan
+          that includes AIA-style billing is $99/mo for one user and does <em>not</em> include WIP &mdash;
+          WIP starts on Knowify Advanced at $329/mo billed annually. Both prices are their published
+          rates, checked September 2026; verify them before you buy.
+        </p>
         <a class="btn btn-primary" href="https://app.mageid.app">Start free</a>
       </div>
     </section>
@@ -454,6 +465,42 @@
       </div>
       <div class="footer-bottom">© <script>document.write(new Date().getFullYear())</script> MAGE ID. Built for general contractors.</div>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+        <!-- STANDING AIA NOTICE — on every page that mentions AIA.
+           The generated document already carries this (utils/aiaBilling.ts:937)
+           and app/aia-pay-app.tsx shows it on first use; the site did not, which
+           left the GC to discover on their first submitted draw that they were
+           not holding an official form. "AIA-style" is the industry convention
+           — Contractor Foreman's own pricing page labels the feature "AIA Style
+           Invoicing (G702 and G703)" — so the hedge costs nothing and reads as
+           more expert to the one person who can tell the difference. -->
+      <p class="aia-notice" style="max-width:900px;margin:18px auto 0;font-size:12px;line-height:1.6;opacity:.62;text-align:center;">
+        MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are
+        registered trademarks of The American Institute of Architects, which is not affiliated with and
+        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract
+        Documents &mdash; check with yours before you submit.
+      </p>
   </footer>
   <script src="/nav-mobile.js" defer></script>
   <script src="/motion.js" defer></script>

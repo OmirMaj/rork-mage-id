@@ -75,8 +75,66 @@ const NON_PRODUCTION_MARKERS: [RegExp, string][] = [
   [/\b(placeholder|changeme|your[-_]?key|xxx+|todo)\b/i, 'a placeholder, not a credential'],
 ];
 
-/** Var names whose whole purpose is to hold a non-production value. */
+/**
+ * Var names whose whole purpose is to hold a non-production value.
+ *
+ * THIS EXEMPTION IS ONLY SOUND IF THE VARIABLE CANNOT BE READ BY A RELEASE
+ * BUILD, so it is no longer applied on the name alone — see
+ * releaseReachableEnvVars() below and the assertion that uses it.
+ *
+ * Found 2026-09-11, in this file: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY` was
+ * exempted here because of its name, and was SIMULTANEOUSLY the release
+ * fallback for ios, android and Platform.select's `default` branch. So the one
+ * variable this script told you it was safe to put a sandbox key in was a
+ * production credential path on three platforms, and this script would not have
+ * looked at it. Nothing was broken in practice — the variable happened to hold
+ * the live `appl_` key — but the check was passing on a NAME while the RISK
+ * lived in a ROLE, which is the same shape as the `rcb_sb_` miss that caused
+ * this file to exist.
+ */
 const INTENTIONALLY_NON_PRODUCTION = /(_TEST_|_SANDBOX_|_DEV_)/;
+
+/**
+ * Every EXPO_PUBLIC_* variable a RELEASE build can actually read, derived from
+ * the source rather than assumed from naming.
+ *
+ * Parses getRCApiKey, deletes the `if (__DEV__) { … }` block, and returns the
+ * variables named in what is left. That residue is by definition the release
+ * path. Returns null if the shape is no longer recognisable, and the caller
+ * FAILS rather than silently checking nothing — a parser that quietly matches
+ * zero variables would turn this whole file green.
+ */
+function releaseReachableEnvVars(src: string): Set<string> | null {
+  const fnStart = src.indexOf('function getRCApiKey(');
+  if (fnStart < 0) return null;
+
+  // Brace-match the function body so a nested object literal cannot end it early.
+  const bodyStart = src.indexOf('{', fnStart);
+  if (bodyStart < 0) return null;
+  let depth = 0;
+  let bodyEnd = -1;
+  for (let i = bodyStart; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') { depth--; if (depth === 0) { bodyEnd = i; break; } }
+  }
+  if (bodyEnd < 0) return null;
+  let body = src.slice(bodyStart, bodyEnd + 1);
+
+  // Excise the dev-only block. A test credential is CORRECT in there.
+  const devStart = body.indexOf('if (__DEV__) {');
+  if (devStart < 0) return null;
+  depth = 0;
+  let devEnd = -1;
+  for (let i = body.indexOf('{', devStart); i < body.length; i++) {
+    if (body[i] === '{') depth++;
+    else if (body[i] === '}') { depth--; if (depth === 0) { devEnd = i; break; } }
+  }
+  if (devEnd < 0) return null;
+  body = body.slice(0, devStart) + body.slice(devEnd + 1);
+
+  const found = body.match(/EXPO_PUBLIC_[A-Z0-9_]+/g) ?? [];
+  return new Set(found);
+}
 
 console.log('\nrelease profiles carry no sandbox credentials:');
 
@@ -95,11 +153,39 @@ if (existsSync(easPath)) {
     'If a profile was renamed, rename it here too or this check silently covers nothing.');
 
   const offenders: string[] = [];
+
+  // ── which vars can a release build actually read? ──────────────────────────
+  const rcSrc = readFileSync(join(ROOT, 'contexts', 'SubscriptionContext.tsx'), 'utf8');
+  const reachable = releaseReachableEnvVars(rcSrc);
+
+  ok('the release key path in SubscriptionContext is still parseable',
+    reachable !== null && reachable.size > 0,
+    'releaseReachableEnvVars could not find getRCApiKey, its body, or its __DEV__ block. ' +
+    'It therefore knows of NO release-reachable variable, which would make the name-based ' +
+    'exemption below unconditional again and turn this file green by accident. Fix the parser ' +
+    'to match the new shape rather than deleting this assertion.');
+
+  const releaseReachable = reachable ?? new Set<string>();
+
+  // The rule the 2026-09-11 hole broke: a variable whose NAME promises a
+  // non-production value must not be on a production code path. If it is, one
+  // of the two has to change — rename the variable, or stop reading it in
+  // release. Do not "fix" this by widening INTENTIONALLY_NON_PRODUCTION.
+  const misnamed = [...releaseReachable].filter(v => INTENTIONALLY_NON_PRODUCTION.test(v));
+  ok('no variable named test/sandbox/dev is readable by a release build',
+    misnamed.length === 0,
+    misnamed.join(', ') + ' — reachable from getRCApiKey OUTSIDE its __DEV__ block. ' +
+    'A name that says "not for real money" on a path that takes real money is how a sandbox ' +
+    'credential ships while every check stays green.');
+
   for (const profile of RELEASE_PROFILES) {
     const env = build[profile]?.env ?? {};
     for (const [name, value] of Object.entries(env)) {
       if (typeof value !== 'string' || !value) continue;
-      if (INTENTIONALLY_NON_PRODUCTION.test(name)) continue;
+      // Exempt a non-production-NAMED var only when a release build genuinely
+      // cannot read it. If the source says otherwise, the name is a lie and the
+      // value gets scanned like any other production credential.
+      if (INTENTIONALLY_NON_PRODUCTION.test(name) && !releaseReachable.has(name)) continue;
       for (const [marker, meaning] of NON_PRODUCTION_MARKERS) {
         if (marker.test(value)) {
           offenders.push(`${profile}.env.${name} = "${value.slice(0, 10)}…" — ${meaning}`);

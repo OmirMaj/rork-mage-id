@@ -15,11 +15,18 @@ export interface TakeoffPricing {
   rate: number | null;
   /** quantity × rate, or null when unmatched. */
   amount: number | null;
-  /** ± variability band as a fraction, for the low/high range. */
+  /** ± variability band as a fraction, for the low/high range. NULL when the
+   *  entry has no OBSERVED spread — see the note in priceTakeoff. */
   variability: number | null;
-  /** Low/high amount from the variability band, for an honest range. */
+  /** Low/high amount from the variability band, for an honest range. Both null
+   *  when there is no observed spread; render no range at all then, never
+   *  "$X–$X". */
   low: number | null;
   high: number | null;
+  /** Whether the entry's spread is a measurement (mirrors
+   *  CostBookEntry.spreadMeaningful). Exposed so a caller can keep showing the
+   *  job count / confidence sentence when it suppresses the range. */
+  spreadMeaningful: boolean;
   confidence: CostBookEntry['confidence'] | 'no_history';
 }
 
@@ -45,20 +52,36 @@ export function priceTakeoff(
       variability: null,
       low: null,
       high: null,
+      spreadMeaningful: false,
       confidence: 'no_history',
     };
   }
   const rate = entry.suggestedRate;
   const amount = quantity * rate;
-  const band = Math.max(0, entry.variability);
+  // THE BAND IS ONLY HONEST WHEN THE SPREAD WAS OBSERVED.
+  //
+  // `Math.max(0, entry.variability)` printed a range for two kinds of entry
+  // that have no measured spread at all: a single sample (variability is
+  // exactly 0, so the "range" collapsed to $X–$X and claimed a precision
+  // nobody measured), and an entry whose every sample carries a price the GC
+  // STATED — two seeds at $4 and $6, or clocked hours at one typed rate —
+  // which manufactures a real-looking ±20% band out of typed numbers.
+  // CostBookEntry.spreadMeaningful is the engine's own answer to that
+  // question; the `?? > 0` fallback keeps a caller holding a pre-flag entry
+  // behaving exactly as before. app/cost-database, utils/takeoffPricing and
+  // components/estimate/RateProvenanceChip read the same flag, so all four
+  // surfaces now agree about whether a spread is real.
+  const hasSpread = (entry.spreadMeaningful ?? (entry.variability > 0)) && entry.variability > 0;
+  const band = hasSpread ? Math.max(0, entry.variability) : 0;
   return {
     matched: true,
     entry,
     rate,
     amount,
-    variability: band,
-    low: amount * (1 - band),
-    high: amount * (1 + band),
+    variability: hasSpread ? band : null,
+    low: hasSpread ? amount * (1 - band) : null,
+    high: hasSpread ? amount * (1 + band) : null,
+    spreadMeaningful: hasSpread,
     confidence: entry.confidence,
   };
 }

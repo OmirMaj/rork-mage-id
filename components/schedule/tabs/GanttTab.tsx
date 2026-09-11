@@ -127,6 +127,8 @@ export function GanttTab({
           tasks={tasks as ScheduleTask[]}
           cpm={cpm}
           projectStartDate={projectStartDate}
+          workingDaysPerWeek={workingDaysPerWeek}
+          nonWorkingDates={nonWorkingDates}
           onEdit={onEdit}
           onDeleteTask={onDeleteTask}
           onOutline={onOutline}
@@ -176,6 +178,8 @@ export function GanttTab({
             tasks={tasks as ScheduleTask[]}
             cpm={cpm}
             projectStartDate={projectStartDate}
+            workingDaysPerWeek={workingDaysPerWeek}
+            nonWorkingDates={nonWorkingDates}
             onEdit={onEdit}
             onDeleteTask={onDeleteTask}
             onOutline={onOutline}
@@ -221,6 +225,8 @@ export function GanttTab({
             tasks={tasks as ScheduleTask[]}
             cpm={cpm}
             projectStartDate={projectStartDate}
+            workingDaysPerWeek={workingDaysPerWeek}
+            nonWorkingDates={nonWorkingDates}
             onEdit={onEdit}
             onDeleteTask={onDeleteTask}
             onOutline={onOutline}

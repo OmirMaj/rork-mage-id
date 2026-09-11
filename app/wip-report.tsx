@@ -5,7 +5,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, TrendingUp, Lock, FileSpreadsheet, X, AlertTriangle, HelpCircle } from 'lucide-react-native';
+import { ChevronLeft, TrendingUp, Lock, FileSpreadsheet, X, AlertTriangle, HelpCircle, CalendarDays } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -23,13 +23,18 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useWip } from '@/contexts/WipContext';
 import {
   computeWipRow, computeWipPortfolio, flagWipRow,
-  suggestBilledToDate, sumApprovedChangeOrders, isWipReportableProject,
+  suggestBillingsWithSource, sumApprovedChangeOrders, isWipReportableProject,
   deriveOriginalContractWithSource, deriveEstimatedCostWithSource,
   suggestCostToDateWithSource, WIP_SOURCE_LABELS, wipSourceLabel,
-  describeCostBasis, describePortfolioCostBasis,
+  describeCostBasis, describePortfolioCostBasis, contractVsEstimateNote,
+  payAppContractHistoryNote,
+  selectWipDisplayPeriod, applyWipEtcEntry,
+  normalizeWipEtcMap, wipEtcStorageKey,
   type WipRowSources, type WipSnapshotRowWithSources, type WipPeriodWithSources,
-  type WipEstimatedCost,
+  type WipEstimatedCost, type WipEtcEntry,
 } from '@/utils/wip';
+import DatePickerModal from '@/components/DatePickerModal';
+import { todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import { FeatureExplainerSheet } from '@/components/FeatureExplainerSheet';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { wipPeriodToCSV, shareWipPeriodPdf } from '@/utils/wipExport';
@@ -44,6 +49,11 @@ function money(n: number): string {
 }
 function pct(n: number): string {
   return `${(n * 100).toFixed(0)}%`;
+}
+/** 0..1, NaN-safe — a schedule with a corrupt progress must not poison a flag. */
+function clampPct(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(1, Math.max(0, n));
 }
 
 // Per-project cost-to-date overrides. Tenant-namespaced by user id so switching
@@ -66,6 +76,36 @@ const WIP_COST_OVERRIDES_TABLE = 'wip_cost_overrides';
 function costOverridesKey(userId: string | undefined): string {
   return userId ? `${WIP_COST_OVERRIDES_KEY}_${userId}` : WIP_COST_OVERRIDES_KEY;
 }
+
+// ── ESTIMATED COST TO COMPLETE ──────────────────────────────────────────────
+//
+// The input a CPA-prepared WIP is built on and this product did not have
+// anywhere (audit 2026-09-11, the top finding in this area). Without it, the
+// incurred floor under cost-at-completion makes an overrun job report EXACTLY
+// 100% complete, the full contract earned, $0 left to spend and $0 of backlog —
+// by construction, on both bank-facing schedules, while the job may be 60%
+// built. Surety WIP templates name "the estimated cost to complete, updated by
+// the person actually running the job" as a required column.
+//
+// Tenant-namespaced by user id like the cost overrides beside it, and under the
+// `mageid_` prefix so utils/localCacheKeys.ts's tenant sweep covers it without
+// a list to maintain.
+//
+// DEVICE-LOCAL, AND THE SCREEN SAYS SO. The cost-to-date override syncs through
+// public.wip_cost_overrides; that table has no column for a cost to complete and
+// adding one is a migration this wave does not own. So an ETC typed on the
+// laptop is not visible on the phone, and the drill-in states that in words
+// rather than letting a GC assume otherwise — the same failure the override
+// sync was built to close, and the same disclosure it uses while a write is
+// pending. What it is NOT is lost: the ETC is frozen onto the period snapshot,
+// and periods DO sync, so the document that leaves the building carries it.
+// The key, the entry shape and the parser now live in utils/wip.ts
+// (WIP_ETC_STORAGE_PREFIX / WipEtcEntry / normalizeWipEtcMap). They were three
+// private helpers here, and that is exactly why the /reports WIP and Profit
+// tabs could not see the forecast: a storage key only one screen knows how to
+// build is a second definition of the number it holds. app/reports.tsx reads
+// the same map through the same three, and computeWIPReport / computeProfit-
+// Report take it as a parameter.
 
 /**
  * One project's typed cost-to-date. `value` is COST incurred, not revenue.
@@ -184,6 +224,7 @@ function WipReportScreenInner() {
     getCommitmentsForProject,
     getInvoicesForProject,
     getAIAPayAppsForProject,
+    settings,
   } = useProjects();
   const { periods, addPeriod, lockPeriod } = useWip();
   const { getReceiptsForProject } = useMaterialReceipts();
@@ -197,6 +238,10 @@ function WipReportScreenInner() {
   // Gate persistence on hydration so the initial empty state doesn't clobber
   // cached overrides before they load in.
   const overridesHydratedRef = useRef(false);
+  // Per-project estimated cost to complete. Same hydrate-then-persist shape as
+  // the overrides above; no server leg yet (see utils/wip.WIP_ETC_STORAGE_PREFIX).
+  const [etcMap, setEtcMap] = useState<Record<string, WipEtcEntry>>({});
+  const etcHydratedRef = useRef(false);
 
   // Push one override to the server through the offline queue — never a direct
   // supabase.from().upsert, so an override typed in a basement with no signal
@@ -341,12 +386,41 @@ function WipReportScreenInner() {
     void AsyncStorage.setItem(costOverridesKey(userId), JSON.stringify(costOverrides))
       .catch(() => { /* non-fatal cache write */ });
   }, [costOverrides, userId]);
+
+  // Cost-to-complete: clear on tenant switch, then read this device's map.
+  useEffect(() => {
+    let cancelled = false;
+    etcHydratedRef.current = false;
+    setEtcMap({});
+    (async () => {
+      let loaded: Record<string, WipEtcEntry> = {};
+      try {
+        const raw = await AsyncStorage.getItem(wipEtcStorageKey(userId));
+        if (raw) loaded = normalizeWipEtcMap(JSON.parse(raw));
+      } catch { /* fresh install / bad cache → no forecasts on this device */ }
+      if (cancelled) return;
+      // Anything typed while the read was in flight is NEWER than everything it
+      // is carrying — same last-writer hazard the override hydrate guards.
+      setEtcMap((typedWhileLoading) => ({ ...loaded, ...typedWhileLoading }));
+      etcHydratedRef.current = true;
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!etcHydratedRef.current) return;
+    void AsyncStorage.setItem(wipEtcStorageKey(userId), JSON.stringify(etcMap))
+      .catch(() => { /* non-fatal cache write */ });
+  }, [etcMap, userId]);
   const [drillProjectId, setDrillProjectId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   // Controlled buffer for the drill-in cost-to-date field so a typed-but-not-
   // blurred value is captured on close (uncontrolled defaultValue + onEndEditing
   // silently dropped edits when the user tapped X without dismissing the keyboard).
   const [drillCostText, setDrillCostText] = useState<string>('');
+  // Controlled buffer for the cost-to-complete field, same shape and same
+  // reason as the cost-to-date one above.
+  const [drillEtcText, setDrillEtcText] = useState<string>('');
 
   // Audit 2026-09-07 ("Do next" #2, axis 4). This was `() => projects` — every
   // project, CLOSED ones included — while utils/financialReports.computeWIPReport,
@@ -373,6 +447,8 @@ function WipReportScreenInner() {
     override: CostOverride | undefined;
     /** Both cost-at-completion candidates, so the screen can name the basis. */
     cost: WipEstimatedCost;
+    /** The GC's own forecast of what is LEFT to spend, when he has entered one. */
+    etc: WipEtcEntry | undefined;
   } => {
     const cos = getChangeOrdersForProject(project.id);
     const commitments = getCommitmentsForProject(project.id);
@@ -404,7 +480,25 @@ function WipReportScreenInner() {
       // same job, margins 27 points apart — the exact divergence the floor was
       // added to close, re-created by fixing two call sites out of three.
       costIncurred: costToDate,
+      // DELIBERATELY NOT `estimatedCostToComplete` — the one call site in the
+      // app that leaves it off. This derivation is what MAGE would forecast on
+      // its own, and the drill-in prints it as "MAGE's own figure was X; clear
+      // the cost-to-complete box to go back to it". Feeding the ETC in here
+      // would make that sentence quote the GC's own number back at him as the
+      // alternative to itself. computeWipRow applies the ETC to the row, off
+      // the same `isUsableWipEtc` test the derivation uses, so the two can
+      // never disagree about whether one was entered.
     });
+
+    // Billed-to-date AND the retainage held inside it, from one branch decision
+    // (pay apps or issued invoices) so the two reconcile on the page. Retainage
+    // was absent from this schedule entirely — on screen, in the CSV and in the
+    // PDF — while the sibling /reports tab carried it.
+    const billings = suggestBillingsWithSource(invoices, payApps);
+    // A typed cost to complete REPLACES the derived forecast inside
+    // computeWipRow. It is the only thing that stops an overrun job reporting
+    // 100% complete by construction.
+    const etc = etcMap[project.id];
 
     return {
       input: {
@@ -412,11 +506,18 @@ function WipReportScreenInner() {
         approvedChangeOrders,
         totalEstimatedCost: cost.value,
         costToDate,
-        billedToDate: suggestBilledToDate(invoices, payApps),
+        billedToDate: billings.billedToDate,
+        retainageHeld: billings.retainageHeld,
+        estimatedCostToComplete: etc?.value,
       },
       sources: {
         originalContract: contract.source,
-        totalEstimatedCost: cost.source,
+        // When the GC has said what is left to spend, the cost at completion is
+        // HIS forecast, not a derivation — and the Source cell on a bank
+        // document must say which. Naming the estimate branch here while the
+        // number came from cost-to-date + a typed figure is exactly the class
+        // of quiet mislabel the provenance layer exists to prevent.
+        totalEstimatedCost: etc ? 'cost_to_complete_entered' : cost.source,
         // A typed figure that has not reached the server yet says so. That is
         // the disclosure the whole finding was missing: the number changed
         // between two devices and nothing told anyone.
@@ -427,8 +528,9 @@ function WipReportScreenInner() {
       auto,
       override,
       cost,
+      etc,
     };
-  }, [costOverrides, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject]);
+  }, [costOverrides, etcMap, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject]);
 
   const buildInput = useCallback(
     (project: Project): WipRowInput => buildRow(project).input,
@@ -447,6 +549,29 @@ function WipReportScreenInner() {
   );
 
   const portfolio = useMemo(() => computeWipPortfolio(liveRows), [liveRows]);
+
+  // SCHEDULE PERCENT, AS A DIAGNOSTIC — never as a revenue basis.
+  //
+  // flagWipRow's third argument has existed since the engine shipped and NO
+  // caller ever passed it, so `scheduleDivergence` could not fire and its
+  // threshold constant was dead. It is the one flag that does not need two
+  // locked periods to say something: a job 40% through its cost and 75% through
+  // its schedule (or the reverse) is the earliest signal a WIP schedule can
+  // give. The other WIP schedule used this same average to RECOGNISE REVENUE
+  // when it had no cost data, which is what it must not be used for (axis 7);
+  // read as a cross-check against the cost basis, it is exactly right.
+  //
+  // `progress` is 0-100 on a schedule task; flagWipRow wants 0-1.
+  const schedulePercentByProject = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const p of activeProjects) {
+      const tasks = p.schedule?.tasks ?? [];
+      if (tasks.length === 0) continue;
+      const avg = tasks.reduce((sum, t) => sum + (t.progress ?? 0), 0) / tasks.length;
+      out.set(p.id, clampPct(avg / 100));
+    }
+    return out;
+  }, [activeProjects]);
 
   // The cost basis behind the weighted margin in the hero above. The provenance
   // panel this screen already had is excellent and it is one tap down, inside a
@@ -467,12 +592,119 @@ function WipReportScreenInner() {
   );
   const portfolioBases = useMemo(() => [...costBases.values()], [costBases]);
 
-  // Prior locked period, for the profit-fade watch.
-  const priorPeriod = useMemo(
-    () => periods.filter((p) => p.lockedAt)
-      .sort((a, b) => b.periodEndDate.localeCompare(a.periodEndDate))[0],
+  // ONE NOTION OF "LATEST PERIOD", USED EVERYWHERE (audit 2026-09-11, M8).
+  // `priorPeriod` sorted by periodEndDate while `lockTarget` and `handleLock`
+  // took `periods[0]` — INSERTION order, which is a cloud list ordered by
+  // created_at with local-only offline periods prepended in front of it. Two
+  // different answers to "the latest period" in one screen, coinciding only
+  // because there was no way to save a period dated anything but today. The
+  // period-end picker below makes them diverge, so both read this list now.
+  // Tie-break on createdAt so two periods saved for the same period end keep a
+  // stable order rather than depending on Array.prototype.sort's stability
+  // across a list that was assembled from two sources.
+  const periodsByEnd = useMemo(
+    () => [...periods].sort((a, b) =>
+      b.periodEndDate.localeCompare(a.periodEndDate)
+      || b.createdAt.localeCompare(a.createdAt)),
     [periods],
   );
+
+  // Prior locked period, for the profit-fade watch.
+  const priorPeriod = useMemo(
+    () => periodsByEnd.find((p) => p.lockedAt),
+    [periodsByEnd],
+  );
+
+  // WHAT THE SCREEN IS ACTUALLY SHOWING (audit 2026-09-11). Tapping a saved or
+  // locked period chip changed `selectedPeriodId`, which fed the Export buttons
+  // and NOTHING else: the Portfolio strip and the Projects list stayed hardwired
+  // to today's live rows. So a GC tapped the locked "2026-03-31" chip, read today's revised
+  // contract, today's underbilling and today's weighted margin, pressed Export
+  // PDF and mailed March. The document that left was internally consistent and
+  // self-labelling — which is why this is not a wrong number on a bank page —
+  // but the sender was looking at figures that were not in it.
+  //
+  // The decision itself is `utils/wip.selectWipDisplayPeriod` rather than three
+  // ternaries here, because every guard on this fix was a REGEX over this
+  // file's source: setting `viewingFrozen = false` restored the whole defect
+  // with all four WIP validators green, since the strings they match were still
+  // present. scripts/validate-wip.ts now calls the selector and asserts what it
+  // RETURNS.
+  const { period: selectedPeriod, rows: displayRows, portfolio: displayPortfolio, viewingFrozen } =
+    useMemo(
+      () => selectWipDisplayPeriod(selectedPeriodId, periods, liveRows, portfolio),
+      [selectedPeriodId, periods, liveRows, portfolio],
+    );
+  // Fade is measured against the period BEFORE the one on screen, not against
+  // the newest locked period in the book — otherwise a frozen March row would
+  // be compared to June and flagged for a fade that happened after it.
+  const comparisonPeriod = useMemo(() => {
+    if (!selectedPeriod) return priorPeriod;
+    return periodsByEnd.find((p) =>
+      p.id !== selectedPeriod.id
+      && (p.periodEndDate < selectedPeriod.periodEndDate
+        || (p.periodEndDate === selectedPeriod.periodEndDate && p.createdAt < selectedPeriod.createdAt)));
+  }, [selectedPeriod, priorPeriod, periodsByEnd]);
+
+  /**
+   * THE FADE FLAGS, FROZEN ONTO THE ROWS A SAVE AND AN EXPORT CARRY (F8 part 2,
+   * audit 2026-09-11).
+   *
+   * Profit fade is the surety's central diagnostic and it reached NO export:
+   * `flagWipRow` fired in the list and the reason rendered inside a per-project
+   * modal, while `WipSnapshotRow` carried nothing — so the CSV and the PDF a
+   * bank actually reads could not answer "has this job faded?" at all.
+   * Recomputing at export time would not be the same thing: it would compare
+   * today's book against today's prior period, not the comparison the period
+   * was struck with. So the flags are attached HERE, once, and travel with the
+   * row into the snapshot and into both exports.
+   *
+   * Built off `liveRows` rather than inside it because the comparison period is
+   * derived further down (it depends on which chip is selected), and because
+   * scripts/validate-wip-provenance.ts pins liveRows' exact
+   * `const { input, sources } = buildRow(p)` shape.
+   */
+  const liveRowsWithFlags: WipSnapshotRowWithSources[] = useMemo(
+    () => liveRows.map((r) => {
+      const prior = comparisonPeriod?.rows.find((pr) => pr.projectId === r.projectId)?.output;
+      const sched = schedulePercentByProject.get(r.projectId);
+      return {
+        ...r,
+        flags: flagWipRow(r.output, prior, sched == null ? undefined : { schedulePercent: sched }),
+      };
+    }),
+    [liveRows, comparisonPeriod, schedulePercentByProject],
+  );
+
+  /**
+   * WHAT THE FADE FLAGS ARE MEASURED AGAINST, SAID OUT LOUD (F8 part 1).
+   *
+   * `flagWipRow` compares this period's margin to a PRIOR period's. With no
+   * prior period every fade and billing-swing flag is silently dead — which is
+   * every new account, and every GC who has not saved twice — and the screen
+   * showed no flags and no explanation, so an empty flag column read as "no
+   * fade" rather than "not measured".
+   *
+   * It also states whether the comparison period is LOCKED. The comparison used
+   * to require `lockedAt`; it now takes the period immediately before the one on
+   * screen whether or not it is locked, because on a frozen March row the newest
+   * locked period in the book can be June and comparing March to June flags a
+   * fade that happened after it. An unlocked prior period is a real basis but a
+   * softer one — it can still be edited — so the sentence names it rather than
+   * letting the reader assume both ends are frozen.
+   */
+  const fadeBasisNote = useMemo(() => {
+    if (!comparisonPeriod) {
+      return periods.length === 0
+        ? 'Profit fade is not being measured: it compares this period against a saved one, and you '
+          + 'have not saved a period yet. Save this one to start the comparison.'
+        : 'Profit fade is not being measured on this view: there is no saved period dated before it.';
+    }
+    return `Profit fade is measured against your ${comparisonPeriod.periodEndDate} period`
+      + (comparisonPeriod.lockedAt
+        ? `, locked ${comparisonPeriod.lockedAt.slice(0, 10)}.`
+        : ' — which is SAVED but not locked, so it can still be edited underneath this comparison.');
+  }, [comparisonPeriod, periods.length]);
 
   const [explainerOpen, setExplainerOpen] = useState(false);
 
@@ -481,7 +713,34 @@ function WipReportScreenInner() {
   const drillInput = drillRow?.input ?? null;
   const drillOutput = drillInput ? computeWipRow(drillInput) : null;
   const drillPriorRow = priorPeriod?.rows.find((r) => r.projectId === drillProjectId)?.output;
-  const drillFlags = drillOutput ? flagWipRow(drillOutput, drillPriorRow) : null;
+  const drillFlags = drillOutput
+    ? flagWipRow(drillOutput, drillPriorRow, (() => {
+      const sched = drillProjectId ? schedulePercentByProject.get(drillProjectId) : undefined;
+      return sched == null ? undefined : { schedulePercent: sched };
+    })())
+    : null;
+  // A pay-app contract sum well off the estimate is disclosed, never acted on.
+  // Computed once — it is a sentence, and the modal re-renders on every
+  // keystroke in the two money fields above it.
+  const drillContractNote = drillRow && drillInput
+    ? contractVsEstimateNote(
+      { value: drillInput.originalContract, source: drillRow.sources.originalContract },
+      drillProject?.linkedEstimate?.grandTotal ?? drillProject?.estimate?.grandTotal,
+    )
+    : '';
+  /**
+   * …and the OTHER disagreement: two saved certificates that do not agree with
+   * each other about the original contract sum. The engine takes the LATEST
+   * one, because that is the sum most recently certified to the owner — it
+   * deliberately does NOT abandon the branch, which an earlier pass did and
+   * which knocked $100,000 off a certified contract on an ordinary job (a new
+   * application re-reads the sum off the estimate, so any re-price makes two
+   * applications disagree). The disagreement is a reason to look at the G702s,
+   * so it is said here rather than acted on.
+   */
+  const drillPayAppNote = drillProjectId
+    ? payAppContractHistoryNote(getAIAPayAppsForProject(drillProjectId))
+    : '';
 
   // Open the drill modal and seed the controlled cost buffer from the current
   // (override-or-suggested) cost-to-date so the field starts at the live value.
@@ -489,8 +748,39 @@ function WipReportScreenInner() {
     const proj = activeProjects.find((p) => p.id === projectId);
     const seeded = proj ? buildInput(proj).costToDate : 0;
     setDrillCostText(String(Math.round(seeded)));
+    // The ETC box starts EMPTY unless one has been entered, and the derived
+    // figure shows as the placeholder instead. Seeding it with the derivation
+    // would turn MAGE's own forecast into "entered by you" the moment the sheet
+    // is opened and closed — the exact lie the cost-to-date field was fixed for
+    // (a Source cell on a bank document claiming the GC typed a number he never
+    // saw).
+    const existing = proj ? etcMap[proj.id] : undefined;
+    setDrillEtcText(existing ? String(Math.round(existing.value)) : '');
     setDrillProjectId(projectId);
-  }, [activeProjects, buildInput]);
+  }, [activeProjects, buildInput, etcMap]);
+
+  /**
+   * Commit the typed cost to complete. Idempotent for the same reason
+   * commitDrillCost is: it fires on blur AND on close, twice with the same text
+   * on a normal close.
+   *
+   * An EMPTY box means "use MAGE's forecast" and removes the entry — there is
+   * no server row to resurrect, so a plain delete is enough here (unlike the
+   * cost-to-date override, which needs a tombstone). Typing "0" still records a
+   * deliberate zero: a job with nothing left to spend is a real answer, and it
+   * is the one that makes percent complete read 100% honestly.
+   */
+  //
+  // The rules live in `utils/wip.applyWipEtcEntry` — a pure reducer the
+  // validators call directly — because the only guard on the top finding's
+  // entire fix used to be a regex over this file: inserting an early `return`
+  // here made the cost-to-complete input record NOTHING with every validator
+  // still green.
+  const commitDrillEtc = useCallback(() => {
+    if (!drillProjectId) return;
+    const now = new Date().toISOString();
+    setEtcMap((prev) => applyWipEtcEntry(prev, drillProjectId, drillEtcText, now));
+  }, [drillProjectId, drillEtcText]);
 
   // Commit the typed cost-to-date into the per-project override and push it to
   // the server. Called on blur AND on close so an edit isn't lost if the
@@ -550,31 +840,87 @@ function WipReportScreenInner() {
 
   const closeDrill = useCallback(() => {
     commitDrillCost();
+    commitDrillEtc();
     Keyboard.dismiss();
     setDrillProjectId(null);
-  }, [commitDrillCost]);
+  }, [commitDrillCost, commitDrillEtc]);
 
   const hasRows = liveRows.length > 0;
 
+  // A WIP SCHEDULE IS "AS OF" A PERIOD END, AND IT IS PREPARED AFTER IT.
+  //
+  // This used to stamp `new Date().toISOString().slice(0, 10)` with no picker
+  // anywhere, so there was no way to produce a March 31 WIP on April 10 — which
+  // is when every monthly close actually happens — and `toISOString()` is UTC,
+  // so a save at 5pm Pacific on the 31st dated the period to the 1st of the
+  // next month. Both are closed here: the day comes from LOCAL components
+  // (utils/calendarDate, which exists because this idiom has bitten this repo
+  // repeatedly) and the GC picks it.
+  //
+  // The default is the one a contractor almost always wants: inside the first
+  // two weeks of a month, the close being worked on is the PRIOR month end.
+  const defaultPeriodEnd = useCallback((now: Date = new Date()): string => {
+    if (now.getDate() <= 14) {
+      // Day 0 of this month is the last day of the previous one.
+      return toCalendarDayString(new Date(now.getFullYear(), now.getMonth(), 0));
+    }
+    return todayCalendarDay(now);
+  }, []);
+
+  const [periodEndDraft, setPeriodEndDraft] = useState<string>(() => defaultPeriodEnd());
+  const [periodDateOpen, setPeriodDateOpen] = useState(false);
+
   const handleSnapshot = useCallback(() => {
+    // Save builds a snapshot from TODAY'S book. With a frozen period on screen
+    // it would freeze figures the reader is not looking at, dated a period end
+    // whose picker is hidden — the same "the control does something other than
+    // what the screen shows" defect this wave is closing one row up.
+    if (viewingFrozen) {
+      showAlert(
+        'You are reading a saved period',
+        'Save period snapshots your CURRENT figures. Tap Live first, check the period end, then save.',
+      );
+      return;
+    }
     if (liveRows.length === 0) { showAlert('Nothing to save yet', NOTHING_TO_REPORT); return; }
-    const periodEndDate = new Date().toISOString().slice(0, 10);
-    addPeriod({ periodEndDate, rows: liveRows, portfolioTotals: portfolio });
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Was "Lock it to freeze for CPA/bank review." — which recommended bank
-    // review of a period the app has not checked. Cost-to-date here is subs
-    // paid plus material receipts, a LOWER bound, so the one thing to do before
-    // handing it out is top it up with self-performed labour.
-    showAlert(
-      'Period saved',
-      `WIP snapshot for ${periodEndDate} created. Check cost-to-date on each project before you `
-      + 'lock it — the automatic figure counts subs paid and material receipts only, so your own '
-      + 'crews are not in it yet.',
-    );
-  }, [addPeriod, liveRows, portfolio]);
+    const periodEndDate = periodEndDraft;
+    const duplicate = periods.find((p) => p.periodEndDate === periodEndDate);
+    const save = () => {
+      addPeriod({ periodEndDate, rows: liveRowsWithFlags, portfolioTotals: portfolio });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Was "Lock it to freeze for CPA/bank review." — which recommended bank
+      // review of a period the app has not checked. Cost-to-date here is subs
+      // paid plus material receipts, a LOWER bound, so the one thing to do
+      // before handing it out is top it up with self-performed labour.
+      //
+      // The second sentence is new and it is the honest one: the figures frozen
+      // here are TODAY'S, labelled with the period end you picked. MAGE does
+      // not restate history — it has no as-of ledger to restate from — and a
+      // schedule dated 3/31 that quietly contains ten days of April cost is the
+      // kind of thing a CPA finds later.
+      showAlert(
+        'Period saved',
+        `WIP snapshot dated ${periodEndDate} created. These are your figures AS THEY STAND TODAY, `
+        + 'labelled with that period end — MAGE does not restate a closed month, so save the period '
+        + 'as close to the date as you can. Check cost-to-date and cost-to-complete on each project '
+        + 'before you lock it: the automatic cost figure counts subs paid and material receipts only, '
+        + 'so your own crews are not in it yet.',
+      );
+    };
+    if (duplicate) {
+      showAlert(
+        'Another period already ends there',
+        `You already have a ${periodEndDate} snapshot${duplicate.lockedAt ? ', and it is locked' : ''}. `
+        + 'Saving a second one leaves two documents claiming the same period end.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Save anyway', onPress: save }],
+      );
+      return;
+    }
+    save();
+  }, [addPeriod, liveRows, liveRowsWithFlags, portfolio, periodEndDraft, periods, viewingFrozen]);
 
   const handleLock = useCallback(() => {
-    const target = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periods[0];
+    const target = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periodsByEnd[0];
     if (!target) {
       // Two different prerequisites, and sending a GC with no projects to the
       // Save button — which refuses for the same reason — is a loop.
@@ -594,22 +940,26 @@ function WipReportScreenInner() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Lock', style: 'destructive', onPress: () => { lockPeriod(target.id); void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } },
     ]);
-  }, [selectedPeriodId, periods, lockPeriod, liveRows]);
+  }, [selectedPeriodId, periods, periodsByEnd, lockPeriod, liveRows]);
 
   const exportPeriod = useMemo((): WipPeriodWithSources | null => {
     if (selectedPeriodId) return periods.find((p) => p.id === selectedPeriodId) ?? null;
-    // Fall back to a live (unsaved) period shape for export.
+    // Fall back to a live (unsaved) period shape for export. The period end is
+    // the one the GC picked for the save — the export and the snapshot must not
+    // be able to disagree about what day this schedule is "as of" — and it is a
+    // LOCAL calendar day, never `toISOString()`, which names tomorrow from
+    // early evening anywhere west of Greenwich.
     return {
-      id: 'live', periodEndDate: new Date().toISOString().slice(0, 10),
-      createdAt: new Date().toISOString(), rows: liveRows, portfolioTotals: portfolio,
+      id: 'live', periodEndDate: periodEndDraft,
+      createdAt: new Date().toISOString(), rows: liveRowsWithFlags, portfolioTotals: portfolio,
     };
-  }, [selectedPeriodId, periods, liveRows, portfolio]);
+  }, [selectedPeriodId, periods, liveRowsWithFlags, portfolio, periodEndDraft]);
 
   // What the two button pairs would actually act on, so their appearance and
   // their behaviour are read off the same thing. `lockTarget` mirrors
   // handleLock's own selection; Live exports the live rows, a chip exports the
   // saved period.
-  const lockTarget = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periods[0];
+  const lockTarget = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periodsByEnd[0];
   const canExport = (exportPeriod?.rows.length ?? 0) > 0;
 
   // LOCK IS BLOCKED FOR ITS OWN REASON, NOT FOR THE EXPORT ONE. This button is
@@ -632,8 +982,14 @@ function WipReportScreenInner() {
   // Every reason in force, deduped and in the order the buttons sit in. The
   // empty-account case produces one line (all four controls share it); a
   // populated account with no saved period produces only Lock's.
+  // Save has its own prerequisite too, and while a frozen period is on screen it
+  // is not "you have no projects" — it is "you are reading a document".
+  const saveBlockedReason = viewingFrozen
+    ? 'Save period snapshots your CURRENT figures. Tap Live first, check the period end, then save.'
+    : hasRows ? null : NOTHING_TO_REPORT;
+
   const blockedNotes = [...new Set([
-    ...(hasRows ? [] : [NOTHING_TO_REPORT]),
+    ...(saveBlockedReason ? [saveBlockedReason] : []),
     ...(lockBlockedReason ? [lockBlockedReason] : []),
     ...(canExport ? [] : [NOTHING_TO_REPORT]),
   ])];
@@ -641,7 +997,10 @@ function WipReportScreenInner() {
   const handleExportCsv = useCallback(async () => {
     if (!exportPeriod) return;
     if (exportPeriod.rows.length === 0) { showAlert('Nothing to export yet', NOTHING_TO_REPORT); return; }
-    const csv = wipPeriodToCSV(exportPeriod);
+    // TODAY, so an UNSAVED export dated to a picked period end says on the
+    // document that its figures are current-state rather than restated. The
+    // Save alert has always said it; Export never passed through the alert.
+    const csv = wipPeriodToCSV(exportPeriod, todayCalendarDay());
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(ok ? 'CSV copied' : 'Copy failed', ok ? 'Paste into Excel / QuickBooks / Sage.' : 'Could not copy CSV.');
@@ -650,9 +1009,15 @@ function WipReportScreenInner() {
   const handleExportPdf = useCallback(async () => {
     if (!exportPeriod) return;
     if (exportPeriod.rows.length === 0) { showAlert('Nothing to export yet', NOTHING_TO_REPORT); return; }
-    try { await shareWipPeriodPdf(exportPeriod, 'MAGE ID'); }
+    // THE CONTRACTOR'S NAME, NOT THE VENDOR'S. This passed the literal 'MAGE ID',
+    // so the H1 of the page a GC emails his banker read "MAGE ID —
+    // Work-In-Progress Schedule". A WIP schedule is a statement of the
+    // CONTRACTOR's financial position; the software's name on it is the first
+    // thing a bonding agent sees and it is the wrong company. app/reports.tsx
+    // has always done this correctly and `settings` was one destructure away.
+    try { await shareWipPeriodPdf(exportPeriod, settings?.branding?.companyName || 'MAGE ID', todayCalendarDay()); }
     catch { showAlert('Export failed', 'Could not generate the WIP PDF.'); }
-  }, [exportPeriod]);
+  }, [exportPeriod, settings]);
 
   return (
     <View style={styles.container}>
@@ -709,9 +1074,15 @@ function WipReportScreenInner() {
               not as an empty account — and the screen's own "No active
               projects." sat two cards BELOW them, after the reader had already
               taken the headline strip for the answer. */}
-          {!hasRows ? (
+          {/* `displayRows`, not `hasRows`: with a frozen period selected the
+              card shows THAT period, and a book whose only projects have since
+              closed must still be able to render the March schedule it froze. */}
+          {/* F8 part 1: an empty flag column used to read as "no fade" when it
+              in fact meant "not measured". */}
+          <Text style={styles.muted} testID="wip-fade-basis">{fadeBasisNote}</Text>
+          {displayRows.length === 0 ? (
             <>
-              <Text style={styles.emptyTitle}>No active projects</Text>
+              <Text style={styles.emptyTitle}>{hasRows ? 'Nothing on this period' : 'No active projects'}</Text>
               <Text style={styles.muted}>
                 A WIP schedule compares what you have EARNED on each job against what you have
                 BILLED for it, so it needs a job to read. To put one on here:
@@ -727,19 +1098,85 @@ function WipReportScreenInner() {
             </>
           ) : (
             <>
-              <Row label="Revised contract" value={money(portfolio.revisedContract)} styles={styles} />
-              <Row label="Earned revenue" value={money(portfolio.earnedRevenue)} styles={styles} />
-              <Row label="Billed to date" value={money(portfolio.billedToDate)} styles={styles} />
-              <Row label="Overbilling" value={money(portfolio.overbilling)} styles={styles} />
-              <Row label="Underbilling" value={money(portfolio.underbilling)} styles={styles} />
-              <Row label="Backlog" value={money(portfolio.backlog)} styles={styles} />
-              <Row label="Weighted margin" value={pct(portfolio.weightedMarginPct)} styles={styles} />
+              {/* WHAT PERIOD THESE FIGURES ARE. A frozen period and today's live
+                  book used to render identically, so the only way to know which
+                  you were reading was to remember which chip you had tapped. */}
+              {viewingFrozen && selectedPeriod ? (
+                <Text style={styles.frozenBanner} testID="wip-frozen-banner">
+                  Frozen snapshot — as of {selectedPeriod.periodEndDate}
+                  {selectedPeriod.lockedAt
+                    ? `, locked ${selectedPeriod.lockedAt.slice(0, 10)} and no longer editable`
+                    : ', saved but not locked'}.
+                  {' '}These are the figures as they were saved, not today&apos;s. Tap Live for today.
+                </Text>
+              ) : null}
+              <Row label="Revised contract" value={money(displayPortfolio.revisedContract)} styles={styles} />
+              <Row label="Earned revenue" value={money(displayPortfolio.earnedRevenue)} styles={styles} />
+              <Row label="Billed to date" value={money(displayPortfolio.billedToDate)} styles={styles} />
+              <Row label="Overbilling" value={money(displayPortfolio.overbilling)} styles={styles} />
+              <Row label="Underbilling" value={money(displayPortfolio.underbilling)} styles={styles} />
+              {/* Retainage held is a RECEIVABLE and the most illiquid asset a
+                  contractor owns; a surety asks for it separately from ordinary
+                  receivables and this schedule did not carry it at all. Absent
+                  on a period frozen before it shipped — which reads "not
+                  recorded", never $0. */}
+              <Row
+                label="Retainage held"
+                value={displayPortfolio.retainageHeld == null
+                  ? 'Not recorded on this period'
+                  : money(displayPortfolio.retainageHeld)}
+                styles={styles} />
+              <Row label="Backlog" value={money(displayPortfolio.backlog)} styles={styles} />
+              <Row label="Weighted margin" value={pct(displayPortfolio.weightedMarginPct)} styles={styles} />
+              {/* THE WEIGHTED MARGIN NETS. A $200,000 forecast loss beside
+                  $200,000 of profit prints 0%, and until now nothing under it
+                  said a job was underwater — the only place the app admitted it
+                  was inside a per-project drill-in. ASC 605-35-25-46 books the
+                  provision per contract and forbids offsetting it against a
+                  profitable one, so the headline may not stand alone. */}
+              {(displayPortfolio.lossJobCount ?? 0) > 0 ? (
+                <Text style={styles.lossLine} testID="wip-loss-provision">
+                  {displayPortfolio.lossJobCount} job
+                  {displayPortfolio.lossJobCount === 1 ? ' is' : 's are'} forecast to finish at a LOSS,
+                  {' '}totalling {money(displayPortfolio.totalForecastLoss ?? 0)}. The margin above nets
+                  that against your profitable jobs. Provision to book now:
+                  {' '}{money(displayPortfolio.lossProvision ?? 0)} — the part of the loss you have not
+                  yet spent. GAAP takes the whole loss in the period it becomes evident.
+                </Text>
+              ) : null}
+              {/* …AND WHAT THE MARGIN COULD NOT MEASURE AT ALL. A job set up
+                  with only a target budget or a GMP cap carries a contract and
+                  no cost, so it is excluded from BOTH sides of the weighted
+                  margin above — and both exports name the exclusion while the
+                  one surface a GC actually reads did not. `describeCostBasis`
+                  below does say "no cost on file for N jobs", but it does not
+                  say the margin above it was measured on a subset, which is the
+                  thing a reader has to know before quoting the number. */}
+              {(displayPortfolio.noCostBasisCount ?? 0) > 0 ? (
+                <Text style={styles.basisLine} testID="wip-no-cost-basis">
+                  Measured across {displayRows.length - (displayPortfolio.noCostBasisCount ?? 0)} of
+                  {' '}{displayRows.length} jobs. {displayPortfolio.noCostBasisCount} job
+                  {displayPortfolio.noCostBasisCount === 1 ? '' : 's'} worth
+                  {' '}{money(displayPortfolio.noCostBasisContract ?? 0)} of contract
+                  {displayPortfolio.noCostBasisCount === 1 ? ' has' : ' have'} no cost estimate, no
+                  signed commitment and nothing spent, so
+                  {displayPortfolio.noCostBasisCount === 1 ? ' it has' : ' they have'} no measurable
+                  margin and {displayPortfolio.noCostBasisCount === 1 ? 'is' : 'are'} excluded from the
+                  figure above.
+                </Text>
+              ) : null}
               {/* The margin above is the one figure on this screen a lender
                   reads as a verdict, and it never said what cost it was
                   measured against. Same sentence /reports prints, from the same
-                  helper, so the two schedules explain themselves identically. */}
+                  helper, so the two schedules explain themselves identically.
+                  A frozen period cannot recompute the candidates — they are not
+                  persisted — so it says where its provenance IS, rather than
+                  explaining today's book above yesterday's numbers. */}
               <Text style={styles.basisLine} testID="wip-cost-basis">
-                {describePortfolioCostBasis(portfolioBases, portfolio.costToDate)}
+                {viewingFrozen
+                  ? 'Cost basis: recorded per project on this frozen period — it prints beside every '
+                    + 'figure on this period\u2019s CSV and PDF export.'
+                  : describePortfolioCostBasis(portfolioBases, portfolio.costToDate)}
               </Text>
             </>
           )}
@@ -754,7 +1191,7 @@ function WipReportScreenInner() {
               onPress={() => setSelectedPeriodId(null)}>
               <Text style={styles.periodChipText}>Live</Text>
             </TouchableOpacity>
-            {periods.map((p) => (
+            {periodsByEnd.map((p) => (
               <TouchableOpacity key={p.id}
                 style={[styles.periodChip, selectedPeriodId === p.id && styles.periodChipActive]}
                 onPress={() => setSelectedPeriodId(p.id)}>
@@ -763,17 +1200,36 @@ function WipReportScreenInner() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+          {/* PERIOD END — pickable, and defaulted to the close a contractor is
+              actually working on. Every monthly close happens days after the
+              month ends; before this there was no way to produce a March 31 WIP
+              on April 10, and the stamp was UTC, so an evening save west of
+              Greenwich dated the period to the following month. */}
+          {!viewingFrozen ? (
+            <TouchableOpacity
+              style={styles.periodEndRow}
+              onPress={() => setPeriodDateOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Period end ${periodEndDraft}. Change it.`}
+              testID="wip-period-end"
+            >
+              <CalendarDays size={14} color={themeColors.textSecondary} strokeWidth={2} />
+              <Text style={styles.periodEndText}>
+                Period end <Text style={styles.periodEndValue}>{periodEndDraft}</Text> — tap to change
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           {/* All four read as unavailable with nothing on the schedule, the
               note below them carries the reason, and each handler refuses and
               explains as well — so a platform that lets the press through
               cannot produce an all-zero bank document. */}
           <View style={styles.actionRow}>
             <TouchableOpacity
-              style={[styles.actionBtn, !hasRows && styles.actionBtnBlocked]}
+              style={[styles.actionBtn, (!hasRows || viewingFrozen) && styles.actionBtnBlocked]}
               onPress={handleSnapshot}
               accessibilityRole="button"
-              accessibilityState={{ disabled: !hasRows }}
-              accessibilityHint={!hasRows ? NOTHING_TO_REPORT : undefined}
+              accessibilityState={{ disabled: !hasRows || viewingFrozen }}
+              accessibilityHint={saveBlockedReason ?? undefined}
             >
               <Text style={styles.actionBtnText}>Save period</Text>
             </TouchableOpacity>
@@ -842,17 +1298,44 @@ function WipReportScreenInner() {
               carries work in progress only.
             </Text>
           ) : null}
-          {liveRows.length === 0 ? (
-            <Text style={styles.muted}>No active projects.</Text>
-          ) : liveRows.map((r) => {
-            const prior = priorPeriod?.rows.find((pr) => pr.projectId === r.projectId)?.output;
-            const flags = flagWipRow(r.output, prior);
-            const rowCost = costBases.get(r.projectId);
-            const flagged = flags.profitFade || flags.billingSwing || flags.scheduleDivergence;
+          {displayRows.length === 0 ? (
+            <Text style={styles.muted}>{viewingFrozen ? 'This period has no projects on it.' : 'No active projects.'}</Text>
+          ) : displayRows.map((r) => {
+            const prior = comparisonPeriod?.rows.find((pr) => pr.projectId === r.projectId)?.output;
+            // The schedule cross-check only means anything against TODAY's
+            // schedule, so it is passed for live rows only — a frozen March row
+            // compared to June's progress would flag a divergence that did not
+            // exist in March.
+            const evm = viewingFrozen
+              ? undefined
+              : (() => {
+                const sched = schedulePercentByProject.get(r.projectId);
+                return sched == null ? undefined : { schedulePercent: sched };
+              })();
+            const flags = flagWipRow(r.output, prior, evm);
+            const rowCost = viewingFrozen ? undefined : costBases.get(r.projectId);
+            // A LOSS JOB IS THE FLAG. `anticipatedLoss` was excluded from this
+            // expression, so the one condition the engine treats as an
+            // accounting event — the full ASC 605-35 provision — was the one
+            // condition the list did not mark, and the only place it appeared
+            // was inside a per-project modal the GC reading the list never
+            // opens.
+            const flagged = r.output.anticipatedLoss
+              || flags.profitFade || flags.billingSwing || flags.scheduleDivergence;
             return (
-              <TouchableOpacity key={r.projectId} style={styles.projectRow} onPress={() => openDrill(r.projectId)}>
+              <TouchableOpacity
+                key={r.projectId}
+                style={styles.projectRow}
+                disabled={viewingFrozen}
+                accessibilityRole={viewingFrozen ? undefined : 'button'}
+                onPress={() => openDrill(r.projectId)}>
                 <View style={{ flex: 1 }}>
+                  <View style={styles.projectNameRow}>
                   <Text style={styles.projectName}>{r.projectName}</Text>
+                  {r.output.anticipatedLoss ? (
+                    <Text style={styles.lossTag} testID="wip-loss-tag">LOSS JOB</Text>
+                  ) : null}
+                </View>
                   <Text style={styles.muted}>{pct(r.output.percentComplete)} complete · {money(r.output.earnedRevenue)} earned</Text>
                   {/* A cost-to-date that came off another device used to be
                       indistinguishable from one typed here and from the
@@ -878,8 +1361,19 @@ function WipReportScreenInner() {
                   </Text>
                 </View>
                 {flagged ? <AlertTriangle size={16} color={themeColors.danger} strokeWidth={2} /> : null}
-                <Text style={r.output.overbilling > 0 ? styles.over : styles.under}>
-                  {r.output.overbilling > 0 ? `Over ${money(r.output.overbilling)}` : `Under ${money(r.output.underbilling)}`}
+                {/* "Under $0" asserted a job was exactly on billing when
+                    NOTHING had been billed at all — the ternary branched on
+                    overbilling alone, so every unbilled job on a fresh account
+                    read as a measurement. An em dash is the honest cell. */}
+                <Text style={
+                  r.output.overbilling > 0 ? styles.over
+                    : r.output.underbilling > 0 ? styles.under : styles.muted
+                }>
+                  {r.output.overbilling > 0
+                    ? `Over ${money(r.output.overbilling)}`
+                    : r.output.underbilling > 0
+                      ? `Under ${money(r.output.underbilling)}`
+                      : '—'}
                 </Text>
               </TouchableOpacity>
             );
@@ -920,16 +1414,57 @@ function WipReportScreenInner() {
                       {' '}({money(drillRow.auto.value)}).
                     </Text>
                   ) : null}
+
+                  {/* ESTIMATED COST TO COMPLETE — the input a CPA-prepared WIP
+                      is built on, and the only thing that stops an overrun job
+                      reporting 100% complete by construction. With it entered,
+                      cost at completion = cost to date + this figure, and
+                      percent complete, earned revenue, backlog and margin all
+                      follow from a forecast the person running the job made
+                      rather than from an estimate that has been overtaken. */}
+                  <Text style={styles.muted}>Cost to complete — what is still left to spend on this job</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={drillEtcText}
+                    onChangeText={setDrillEtcText}
+                    placeholder={String(Math.round(drillOutput.costToComplete))}
+                    placeholderTextColor={themeColors.textMuted}
+                    onEndEditing={commitDrillEtc}
+                    testID="wip-etc-input"
+                  />
+                  <Text style={styles.muted}>
+                    {drillRow?.etc
+                      ? 'Entered by you — cost at completion is your cost-to-date plus this figure. '
+                        + 'Clear the box to go back to MAGE\u2019s own forecast. This forecast is saved '
+                        + 'on THIS device only; it is frozen into any period you save, and periods do '
+                        + 'sync, but your other devices show the derived figure until you re-enter it.'
+                      : drillInput.costToDate > drillInput.totalEstimatedCost
+                        ? 'This job has already cost MORE than the cost at completion above, so percent '
+                          + 'complete reads 100% and backlog reads $0 whatever is actually left to do. '
+                          + 'Type what is still left to spend and every figure here is measured against '
+                          + 'your forecast instead.'
+                        : 'Leave blank and MAGE forecasts it as cost at completion minus cost to date. '
+                          + 'A surety asks for this figure by name, updated by whoever is running the job.'}
+                  </Text>
                   <Row label="Revised contract" value={money(drillOutput.revisedContract)} styles={styles} />
                   <Row label="% complete" value={pct(drillOutput.percentComplete)} styles={styles} />
                   <Row label="Earned revenue" value={money(drillOutput.earnedRevenue)} styles={styles} />
                   <Row label="Overbilling" value={money(drillOutput.overbilling)} styles={styles} />
                   <Row label="Underbilling" value={money(drillOutput.underbilling)} styles={styles} />
+                  <Row
+                    label="Cost at completion"
+                    value={money(drillOutput.estimatedCostAtCompletion ?? drillInput.totalEstimatedCost)}
+                    styles={styles} />
                   <Row label="Est gross profit" value={money(drillOutput.estGrossProfit)} styles={styles} />
                   <Row label="Est gross margin" value={pct(drillOutput.estGrossMarginPct)} styles={styles} />
                   <Row label="Profit to date" value={money(drillOutput.profitToDate)} styles={styles} />
                   <Row label="Cost to complete" value={money(drillOutput.costToComplete)} styles={styles} />
                   <Row label="Backlog" value={money(drillOutput.backlog)} styles={styles} />
+                  <Row
+                    label="Retainage held by owner"
+                    value={drillInput.retainageHeld == null ? 'Not recorded' : money(drillInput.retainageHeld)}
+                    styles={styles} />
 
                   {/* Where each number came from. A banker's first question is
                       "what is this contract figure?" and until now the answer
@@ -950,16 +1485,39 @@ function WipReportScreenInner() {
                             ? `, less ${money(Math.abs(drillInput.approvedChangeOrders))} of approved deductive change orders`
                             : ''}
                       </Text>
+                      {/* A pay-app contract sum that sits well off the estimate
+                          is the thing a surety asks about, and the GC could not
+                          see it from inside the product. Disclosed, never acted
+                          on — a signed contract differing from the estimate that
+                          priced it is ordinary. */}
+                      {drillContractNote ? (
+                        <Text style={styles.sourceLine} testID="wip-contract-conflict">{drillContractNote}</Text>
+                      ) : null}
+                      {drillPayAppNote ? (
+                        <Text style={styles.sourceLine} testID="wip-payapp-history">{drillPayAppNote}</Text>
+                      ) : null}
                       <Text style={styles.sourceLine}>
-                        Cost budget {money(drillInput.totalEstimatedCost)} —{' '}
+                        Cost budget {money(drillOutput.estimatedCostAtCompletion ?? drillInput.totalEstimatedCost)} —{' '}
                         {WIP_SOURCE_LABELS[drillRow.sources.totalEstimatedCost]}
                       </Text>
                       {/* Which of the two candidates that branch actually was,
                           and what the other one holds. Naming the branch alone
                           still left "why is this $131,502 when I have signed
                           $42,200 of subs" unanswered. */}
+                      {/* With a cost to complete entered, the DERIVED basis is no
+                          longer what the row was struck against — printing
+                          "Cost basis: your estimate's cost before markup,
+                          $131,502" beside a margin measured against the GC's own
+                          forecast would explain a number the page is not showing.
+                          Say what actually drove it, and keep the derivation
+                          visible as the figure his forecast replaced. */}
                       <Text style={styles.sourceLine}>
-                        {describeCostBasis(drillRow.cost, drillInput.costToDate)}
+                        {drillRow.etc
+                          ? `Cost basis: the ${money(drillInput.costToDate)} this job has cost so far plus `
+                            + `the ${money(drillRow.etc.value)} you said is still left to spend — your own `
+                            + `forecast for this period. MAGE\u2019s own figure was `
+                            + `${money(drillRow.cost.value)}; clear the cost-to-complete box to go back to it.`
+                          : describeCostBasis(drillRow.cost, drillInput.costToDate)}
                       </Text>
                       <Text style={styles.sourceLine}>
                         {drillRow.override
@@ -1009,6 +1567,24 @@ function WipReportScreenInner() {
           </ScrollView>
         </View>
       </Modal>
+
+      <DatePickerModal
+        visible={periodDateOpen}
+        value={periodEndDraft}
+        title="Period end"
+        // A WIP period end is very often in the PAST (the close you are
+        // preparing) and occasionally today; a future one is a schedule nobody
+        // has lived through yet, so the picker's default past-only range is
+        // exactly right here.
+        onClose={() => setPeriodDateOpen(false)}
+        onChange={(iso) => {
+          // The picker returns noon UTC of the picked day, so the leading ten
+          // characters ARE that calendar day. Re-deriving it through a local
+          // Date would reintroduce the timezone shift this replaced.
+          setPeriodEndDraft(iso.slice(0, 10));
+          setPeriodDateOpen(false);
+        }}
+      />
     </View>
   );
 }
@@ -1054,6 +1630,29 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   basisLine: {
     fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16,
     marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line,
+  },
+  frozenBanner: {
+    fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16,
+    marginBottom: 8, padding: 8, borderRadius: Tokens.radius.sm,
+    backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
+  },
+  lossLine: {
+    fontSize: Type.caption2.fontSize, color: t.danger, lineHeight: 16,
+    marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line,
+  },
+  periodEndRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
+  },
+  periodEndText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
+  periodEndValue: { color: t.text, fontWeight: '700' as const },
+  projectNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const },
+  // A word, not a colour. A bare red triangle is decoded by hue alone, which is
+  // the one thing that does not survive a screenshot or a monochrome print —
+  // and "loss job" is the single most consequential word on this schedule.
+  lossTag: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.danger,
+    borderWidth: 1, borderColor: t.danger, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' as const,
   },
   // Reads as unavailable; the note below it carries the reason.
   actionBtnBlocked: { opacity: 0.45 },

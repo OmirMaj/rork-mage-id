@@ -11,16 +11,55 @@
 //   - title, phase, crew, notes, isMilestone, isSummary, parentId,
 //     outlineLevel, collapsed, anchorType/anchorDate, deadline, resourceIds
 //
-// Call this BEFORE running CPM so the summary's own startDay/durationDays
-// reflect what its children are actually doing. CPM treats summaries as
-// ordinary nodes after that — their dependencies still flow through.
+// SCALE: everything here is WORKING ORDINALS. `startDay` is the Nth working
+// day and `durationDays` is a working-day count, so `ks + kd - 1` really is the
+// child's finishing ordinal and the rolled duration really is a working-day
+// span. That is why the summary's own bar comes out the same length as its
+// children's once CPM re-expands it against the calendar.
+//
+// WHERE TO CALL IT. The default (no `scheduled` map) runs BEFORE CPM off each
+// child's AUTHORED pin. That is fine for a freshly-authored outline, but the
+// pin is not where a child is SCHEDULED the moment anything upstream changes —
+// so a summary over a dependency-pushed child spanned the wrong window
+// entirely. Pass `scheduled` (from a first CPM run) and the rollup spans the
+// children's real ES/EF instead; the caller then runs CPM a second time on the
+// result. The engine is cheap enough to run twice and that is the only shape
+// that stays right as the plan moves.
 //
 // If a summary has no children (e.g. newly inserted), we leave its own
 // fields alone so the user isn't surprised by a 0-duration summary.
 
 import type { ScheduleTask } from '@/types';
+import { calendarIndexToWorkingOrdinal, type DayScaleOptions } from '@/utils/cpm';
 
-export function computeSummaryRollup(tasks: ScheduleTask[]): ScheduleTask[] {
+export interface SummaryRollupOpts {
+  /**
+   * CPM early start / early finish per task id, as CALENDAR INDICES — i.e. a
+   * `cpm.perTask` from a first pass. Converted back to working ordinals here,
+   * because that is the scale `startDay` and `durationDays` are stored on.
+   */
+  scheduled?: Map<string, { es: number; ef: number }>;
+  /** The project calendar, needed for that conversion. */
+  scale?: DayScaleOptions;
+}
+
+export function computeSummaryRollup(
+  tasks: ScheduleTask[],
+  opts: SummaryRollupOpts = {},
+): ScheduleTask[] {
+  // A child's [start, end] on the WORKING-ORDINAL scale — from the schedule
+  // when we have it, from the authored pin otherwise.
+  const windowOf = (k: ScheduleTask): { start: number; end: number } => {
+    const sched = opts.scheduled?.get(k.id);
+    if (sched) {
+      const start = calendarIndexToWorkingOrdinal(sched.es, opts.scale ?? {});
+      const end = calendarIndexToWorkingOrdinal(sched.ef, opts.scale ?? {});
+      return { start, end: Math.max(start, end) };
+    }
+    const ks = Math.max(1, k.startDay || 1);
+    const kd = Math.max(0, k.durationDays || 0);
+    return { start: ks, end: kd === 0 ? ks : ks + kd - 1 };
+  };
   // Build parent→children index once.
   const childrenByParent = new Map<string, ScheduleTask[]>();
   for (const t of tasks) {
@@ -54,9 +93,8 @@ export function computeSummaryRollup(tasks: ScheduleTask[]): ScheduleTask[] {
     let totalDur = 0;
     let weightedProgress = 0;
     for (const k of resolved) {
-      const ks = Math.max(1, k.startDay || 1);
+      const { start: ks, end: kEnd } = windowOf(k);
       const kd = Math.max(0, k.durationDays || 0);
-      const kEnd = kd === 0 ? ks : ks + kd - 1;
       if (ks < minStart) minStart = ks;
       if (kEnd > maxEnd) maxEnd = kEnd;
       totalDur += kd;

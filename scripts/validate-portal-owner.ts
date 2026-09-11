@@ -532,10 +532,22 @@ const portalHtml = read('marketing/portal/index.html');
     /inv\.retentionAmount - retentionReleased/.test(portalHtml) && /Retainage held/.test(portalHtml));
   ok('…and never subtracts the ORIGINAL withholding',
     !/fmtMoney\(inv\.retentionAmount, \{dec:2\}\)/.test(portalHtml));
+  // 2026-09-11 (AIA wave): these two used to pin the literal expressions
+  // `var aiaPaid = !!a.paidAt;` / `var canPay = !aiaPaid && !!a.payLinkUrl &&
+  // due > 0;`. The BEHAVIOUR they protect — a pay app the webhook stamped
+  // paidAt is Paid and never payable — is unchanged and now strictly stronger:
+  // both render sites go through one `aiaCanPay`, which also refuses a period
+  // whose INVOICE is settled (the second live Pay button for one obligation)
+  // and a link minted for an amount that is no longer what is owed (MONEY-F2,
+  // the guard the invoice button had and this one did not). Pinning the old
+  // source text would have kept the guard green only for the broken version.
+  // scripts/validate-invoice-billing.ts LIFTS these functions out of the page
+  // and executes them; what is checked here is that both sites call them.
   ok('portal AIA card shows Paid for a pay app with paidAt instead of a Pay button',
-    /var aiaPaid = !!a\.paidAt;/.test(portalHtml) && /var canPay = !aiaPaid && !!a\.payLinkUrl && due > 0;/.test(portalHtml));
+    /var aiaPaid = aiaIsPaid\(a\);/.test(portalHtml) && /var canPay = aiaCanPay\(a\);/.test(portalHtml)
+    && /function aiaIsPaid\(a\) \{[\s\S]{0,200}!!a\.paidAt/.test(portalHtml));
   ok('portal AIA drawer footer shows Paid for a pay app with paidAt',
-    /var aiaCanPay = !aiaPaid && !!a\.payLinkUrl && aiaDue > 0;/.test(portalHtml) && /Paid ' \+ fmtDate\(a\.paidAt\)/.test(portalHtml));
+    /var aiaCanPayNow = aiaCanPay\(a\);/.test(portalHtml) && /Paid ' \+ fmtDate\(a\.paidAt\)/.test(portalHtml));
 }
 ok('portal/index.html loaded', portalHtml.length > 0);
 

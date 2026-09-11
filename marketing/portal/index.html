@@ -4221,6 +4221,58 @@
     }).join('');
   }
 
+  // ── ONE BILLING PERIOD IS ONE OBLIGATION ───────────────────────────────────
+  // A G702 and the progress invoice it certifies are the same money. Paying
+  // the INVOICE credits it and clears the invoice's own pay link, but nothing
+  // on the server clears the AIA side (stripe-webhook creditInvoice updates
+  // only `invoices`), so a bookkeeper who paid the invoice was left looking at
+  // a live Pay button for the same period — and the two links need not even
+  // have been minted for the same amount. The snapshot builder now withholds
+  // payLinkUrl in that case.
+  //
+  // WHAT THIS PAGE-LEVEL GATE IS AND IS NOT (corrected 2026-09-11). It was
+  // claimed to protect portals still running an OLD CACHED snapshot. It does
+  // not, and cannot: `invoiceId` and `payLinkAmount` are fields the SAME change
+  // added to the AIA snapshot row, so a snapshot published before the fix
+  // carries neither — aiaIsPaid short-circuits to false and aiaCanPay returns
+  // early on the missing amount. And any snapshot published AFTER the fix has
+  // already had payLinkUrl withheld by the builder, on the identical definition
+  // of settled (the row's own `invoice.balance` IS invoiceOutstanding). So this
+  // gate cannot presently change an outcome in either direction.
+  //
+  // It is kept anyway, as the page's own statement of the rule rather than as
+  // protection: the copy below ("Settled with invoice") is chosen HERE, and the
+  // builder is free to stop suppressing payLinkUrl — for a partially paid
+  // period, say — without the portal starting to offer a second Pay button for
+  // money already collected. It is a redundant check, and it is documented as
+  // one instead of being sold as a safety net it is not.
+  var SETTLED_INVOICE_IDS = {};
+  function noteSettledInvoices(invs) {
+    SETTLED_INVOICE_IDS = {};
+    (invs || []).forEach(function (i) {
+      var bal = typeof i.balance === 'number' ? i.balance : (i.total || 0) - (i.amountPaid || 0);
+      if (i.id && bal <= 0.01) SETTLED_INVOICE_IDS[i.id] = true;
+    });
+  }
+
+  /** Is this pay application settled — by its own paid_at, or by its invoice? */
+  function aiaIsPaid(a) {
+    return !!a.paidAt || !!(a.invoiceId && SETTLED_INVOICE_IDS[a.invoiceId]);
+  }
+
+  /** May the portal offer to collect money for this pay application?
+   *  MONEY-F2: a Stripe Payment Link charges the ONE amount it was minted for
+   *  every time it is opened, so a link whose minted amount no longer equals
+   *  what is owed must not be shown. A snapshot that predates payLinkAmount
+   *  carries none — trust the builder's own suppression in that case rather
+   *  than hiding every legitimate button on an older portal. */
+  function aiaCanPay(a) {
+    var due = a.currentPaymentDue || 0;
+    if (aiaIsPaid(a) || !a.payLinkUrl || due <= 0) return false;
+    if (a.payLinkAmount == null) return true;
+    return Math.abs(a.payLinkAmount - due) <= 0.01;
+  }
+
   function renderAIA(apps) {
     if (!apps || !apps.length) return emptyState('No pay applications shared yet.');
     return apps.map(function (a) {
@@ -4235,8 +4287,8 @@
       var due = a.currentPaymentDue || 0;
       // MONEY-F2: a pay app the Stripe webhook stamped `paidAt` is settled —
       // show that, never a second Pay button.
-      var aiaPaid = !!a.paidAt;
-      var canPay = !aiaPaid && !!a.payLinkUrl && due > 0;
+      var aiaPaid = aiaIsPaid(a);
+      var canPay = aiaCanPay(a);
       return (
         '<div class="aia-card' + (aiaPaid ? ' paid' : '') + '" data-aia="'+esc(a.id)+'" data-item-id="'+esc(a.id)+'">' +
           '<div class="row-main">' +
@@ -4277,7 +4329,8 @@
                   icn(ICONS.dollar, 14) + ' Pay ' + fmtMoney(due) +
                 '</button>'
               : aiaPaid
-                ? '<span class="pill pill-success">' + icn(ICONS.check, 12) + ' Paid ' + fmtDate(a.paidAt) + '</span>'
+                ? '<span class="pill pill-success">' + icn(ICONS.check, 12) +
+                    (a.paidAt ? ' Paid ' + fmtDate(a.paidAt) : ' Settled with invoice') + '</span>'
                 : '') +
           '</div>' +
           '<div class="aia-progress-ring">' +
@@ -4751,16 +4804,17 @@
     var aiaDue = a.currentPaymentDue || 0;
     // MONEY-F2: `paidAt` (stamped by the Stripe webhook) wins over any link
     // that may still be on the record — a paid application shows Paid.
-    var aiaPaid = !!a.paidAt;
-    var aiaCanPay = !aiaPaid && !!a.payLinkUrl && aiaDue > 0;
+    var aiaPaid = aiaIsPaid(a);
+    var aiaCanPayNow = aiaCanPay(a);
     var footerHtml =
-      (aiaCanPay
+      (aiaCanPayNow
         ? '<a class="drawer-btn drawer-btn-primary" href="'+esc(a.payLinkUrl)+'" target="_blank" rel="noopener">' +
             icn(ICONS.dollar, 16) + ' Pay ' + fmtMoney(aiaDue) +
           '</a>'
         : aiaPaid
           ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
-              icn(ICONS.check, 16) + ' Paid ' + fmtDate(a.paidAt) +
+              icn(ICONS.check, 16) +
+              (a.paidAt ? ' Paid ' + fmtDate(a.paidAt) : ' Settled — this period was paid on the invoice') +
             '</button>'
           : '') +
       '<button class="drawer-btn drawer-btn-secondary" id="aia-print">' +
@@ -6053,6 +6107,10 @@
       addSection('invoices', 'dollar', t('invoicesSectionTitle'), t('invoicesSectionSubtitle'), sections.invoices.length, renderInvoices(sections.invoices));
     }
     if (sections.aiaPayApps && sections.aiaPayApps.length) {
+      // Must run BEFORE renderAIA and before any drawer opens — it is what
+      // tells the pay-app cards which periods have already been settled
+      // through the invoice list.
+      noteSettledInvoices(sections.invoices);
       addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {

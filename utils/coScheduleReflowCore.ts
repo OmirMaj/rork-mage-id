@@ -76,7 +76,7 @@ import type {
   ScheduleAuditEntry,
   ScheduleTask,
 } from '@/types';
-import { runCpm, type CpmResult, type RunCpmOptions } from '@/utils/cpm';
+import { runCpm, calendarIndexToWorkingOrdinal, workingDaysBetween, type CpmResult, type RunCpmOptions } from '@/utils/cpm';
 import { resolveCalendarForTask } from '@/utils/scheduleResourceCalendars';
 import { captureBaseline } from '@/utils/scheduleOps';
 
@@ -480,7 +480,14 @@ export function planCoScheduleReflow(
     const b = before.perTask.get(t.id);
     const a = after.perTask.get(t.id);
     if (!b || !a) continue;
-    const delta = a.es - b.es;
+    // `es` is a CALENDAR INDEX but `startDay` is a WORKING ORDINAL (see "THE
+    // TWO DAY-NUMBER SCALES" in utils/cpm.ts), so the delta has to be measured
+    // on the scale it is about to be ADDED to. Subtracting raw calendar
+    // indices and adding the result to an ordinal counted every weekend the
+    // push crossed as an extra work day: on the shipped fixture a two-working-
+    // day slip across a weekend wrote day 8 where the plan said day 10.
+    const delta = calendarIndexToWorkingOrdinal(a.es, options)
+      - calendarIndexToWorkingOrdinal(b.es, options);
     if (delta === 0) continue;
     shifts.push({
       id: t.id,
@@ -501,7 +508,13 @@ export function planCoScheduleReflow(
     if (b.isCritical && !a.isCritical) noLongerCritical.push({ id: t.id, title: t.title });
   }
 
-  const finishDeltaDays = after.projectFinish - before.projectFinish;
+  // `projectFinish` is a CALENDAR INDEX, but the number this reports is read as
+  // "the CO pushes the finish N days" against an `impactDays` the user entered
+  // in WORKING days. Subtracting the indices raw counted the weekend the slip
+  // crossed: a finish moving Fri 9 Jan → Mon 12 Jan reported "+3 days" for one
+  // day of work. Both operands are on the calendar, so difference them there
+  // and express the answer in working days.
+  const finishDeltaDays = workingDaysBetween(before.projectFinish, after.projectFinish, options);
   const willCaptureBaseline = (schedule.baselines?.length ?? 0) === 0;
 
   return {

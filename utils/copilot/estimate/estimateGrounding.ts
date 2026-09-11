@@ -8,6 +8,7 @@ import type { Project, Commitment, MaterialReceipt } from '@/types';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
+import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -50,7 +51,13 @@ export async function buildEstimateGrounding(c: CopilotContext): Promise<Groundi
       if (e.provenance === 'seeded') {
         facts.push(`${cap(e.trade)}: $${e.suggestedRate.toFixed(2)}/${e.unit} is a rate the contractor SET THEMSELVES — self-reported, not measured on any job here. Price from it, but never call it their history or cite a job count for it.`);
       } else {
-        facts.push(`${cap(e.trade)} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'}).`);
+        // …AND A BOOK NOBODY HAS PAID YET IS NOT A MEASURED ONE. Every sample
+        // behind an 'earned'/'contracted' entry is a signed sub or PO with no
+        // payment against it (utils/costDatabase earnedBasis). Real evidence,
+        // different in kind from a paid cost — and "runs $X on your jobs" is
+        // exactly the sentence a model paraphrases into "you paid this".
+        const basis = e.earnedBasis === 'contracted' ? CONTRACTED_NOTE : '';
+        facts.push(`${cap(e.trade)} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'}${basis}).`);
       }
     }
     const cal = computeCalibration({ projects, commitments });

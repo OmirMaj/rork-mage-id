@@ -27,7 +27,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { buildTax1099Dataset, tax1099DatasetToCsv, thresholdInfoForYear, THRESHOLD_PROVISIONAL_NOTE, COVERAGE_NOTE, type Tax1099Row } from '@/utils/tax1099Export';
+import {
+  buildTax1099Dataset, tax1099DatasetToCsv, thresholdInfoForYear, THRESHOLD_PROVISIONAL_NOTE,
+  gcRecordedSubPaymentsFromReceipts, coverageNoteFor,
+  COVERAGE_NOTE, COVERAGE_NOTE_WITH_RECORDED_BILLS, type Tax1099Row,
+} from '@/utils/tax1099Export';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import type { SubSubmittedInvoice } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -61,7 +66,8 @@ const COMMITMENT_NOTE_TAIL = 'confirm the year against your books';
 function notesForScreen(notes: string): string {
   return notes
     .split('; ')
-    .filter(n => n !== COVERAGE_NOTE && !n.startsWith(COMMITMENT_NOTE_PREFIX) && n !== COMMITMENT_NOTE_TAIL)
+    .filter(n => n !== COVERAGE_NOTE && n !== COVERAGE_NOTE_WITH_RECORDED_BILLS
+      && !n.startsWith(COMMITMENT_NOTE_PREFIX) && n !== COMMITMENT_NOTE_TAIL)
     .join('; ');
 }
 
@@ -74,6 +80,14 @@ export default function Tax1099ExportScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { subcontractors, commitments } = useProjects();
+  // MONEY-1099-GC-1 (audit 2026-09-11). `sub_submitted_invoices` has no GC
+  // INSERT path — the sub creates that row from inside a portal he has to log
+  // into — so for the residential norm (the framer texts a photo of an invoice
+  // and gets a check) this export returned $0 and printed "1099 Required: No"
+  // on a deliverable with an IRS deadline and a per-form penalty. A bill the GC
+  // recorded against a SUBCONTRACT commitment is the one dated, attributable
+  // record of that payment the app holds, and it is what this passes.
+  const { receipts } = useMaterialReceipts();
 
   // Default to last calendar year — the year a CPA usually asks for in
   // January / February. User can pick another year via chips.
@@ -141,8 +155,14 @@ export default function Tax1099ExportScreen() {
       subcontractors,
       commitments,
       subSubmittedInvoices: subInvoices,
+      // ALWAYS PASSED, even when it is empty. An omitted argument means "this
+      // run never looked", and the engine words its own "no payments this
+      // year" note differently for the two cases. Passing the array — empty or
+      // not — is what makes the note say "and no bills recorded against a
+      // subcontract either", which is the sentence a CPA needs.
+      gcRecordedPayments: gcRecordedSubPaymentsFromReceipts(receipts, commitments),
     });
-  }, [year, subcontractors, commitments, subInvoices]);
+  }, [year, subcontractors, commitments, subInvoices, receipts]);
 
   const totals = useMemo(() => {
     const required1099 = rows.filter(r => r.required1099);
@@ -270,7 +290,11 @@ export default function Tax1099ExportScreen() {
                 so the screen and the export cannot drift. */}
             <View style={styles.coverageCard}>
               <Text style={styles.coverageTitle}>What this counts</Text>
-              <Text style={styles.coverageBody} testID="coverage-note">{COVERAGE_NOTE}.</Text>
+              {/* Derived from the ROWS, not from what this screen believes it
+                  passed, so the sentence and the numbers cannot disagree —
+                  `coverageNoteFor` widens it only when bills were actually
+                  counted. */}
+              <Text style={styles.coverageBody} testID="coverage-note">{coverageNoteFor(rows)}.</Text>
             </View>
 
             {(totals.missingTin > 0 || totals.missingW9 > 0 || totals.missingAddress > 0) && (

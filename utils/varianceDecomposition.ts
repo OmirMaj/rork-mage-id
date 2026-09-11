@@ -13,12 +13,26 @@
 //
 // A FULL causal decomposition would join each cost line to its change orders and
 // the jobsite's weather-delay log. That linkage does not exist per-line today
-// (untraced CO dollars are already excluded upstream by estimateActuals'
-// tracing; weather lives at the schedule level), and bolting it on blind would
-// put the financial core at risk. So this is the correct first layer that the
-// data DOES support: robust outlier rejection. Price and productivity vary
-// CONTINUOUSLY (kept); scope/weather blowouts land as DISCRETE outliers against
-// the trade's other jobs (rejected from the rate, still shown to the GC).
+// (weather lives at the schedule level), and bolting it on blind would put the
+// financial core at risk. So this is the correct first layer that the data DOES
+// support: robust outlier rejection. Price and productivity vary CONTINUOUSLY
+// (kept); weather blowouts land as DISCRETE outliers against the trade's other
+// jobs (rejected from the rate, still shown to the GC).
+//
+// THE SCOPE TERM IS NO LONGER LEFT TO THIS LAYER — and it never could have been
+// handled here. This header used to say untraced CO dollars were "already
+// excluded upstream by estimateActuals' tracing". That was true of an untraced
+// COMMITMENT and false of `changeAmount` on a traced one: estimateActuals adds
+// c.changeAmount into the committed total while the denominator stays the
+// ORIGINAL estimate quantity, so a change order that bought 2,000 more SF of
+// painting at exactly the bid $2.00/SF taught the book $2.80/SF and the screen
+// printed "You bid this ~40% under actual cost" in red. Nor could outlier
+// rejection have saved it: that needs ROBUST_MIN_SAMPLES (4) and this happens
+// on ONE job. So estimateActuals now reports the CO dollars per line
+// (changeOrderAmount) and costDatabase excludes those samples from the rate
+// outright — a discrete, causal exclusion rather than a statistical guess.
+// Same for a package price split across estimate lines (fromSharedCommitment),
+// where the quantity cancels algebraically.
 //
 // Median/MAD, not mean/stdev, precisely because the mean is what a blowout
 // poisons — the median shrugs it off, so we can measure "how far is this sample

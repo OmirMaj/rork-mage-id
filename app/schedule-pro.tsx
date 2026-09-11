@@ -80,7 +80,7 @@ import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
 import { PlanZoneEditor } from '@/components/schedule/mobile/PlanZoneEditor';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
-import { runCpm, workingDaysBetween, type CpmResult } from '@/utils/cpm';
+import { runCpm, workingDaysBetween, dateToCalendarDay, stampCriticalPath, type CpmResult } from '@/utils/cpm';
 import {
   emptyHistory,
   pushHistory,
@@ -101,7 +101,6 @@ import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@
 import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
@@ -310,14 +309,35 @@ function ScheduleProScreenInner() {
   // Summary rollup — derive summary-row dates/progress from their children
   // before running CPM. This keeps the WBS tree honest: editing a child
   // auto-updates the summary's span, the same way MS Project's outline does.
-  const rolledTasks = useMemo(() => computeSummaryRollup(workingTasks), [workingTasks]);
+  //
+  // TWO PASSES. The first CPM run tells us where each CHILD is actually
+  // scheduled; the rollup spans that rather than the child's authored pin (a
+  // summary over a task its predecessor had pushed used to span the wrong
+  // window entirely); the live `cpm` below then runs on the rolled result. The
+  // engine is O(V+E) over a few dozen rows, so the second run is free next to
+  // the render it feeds.
+  const summaryScale = useMemo(() => ({
+    scheduleStartDate: scheduleStartIso,
+    workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+    nonWorkingDates: project?.schedule?.nonWorkingDates,
+  }), [scheduleStartIso, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates]);
+
   // v2.2c — per-task calendar map for tasks with resourceIds that resolve
   // to a non-project calendar. Tasks not in the map fall back to the
   // project-level workingDaysPerWeek + nonWorkingDates inside runCpm.
+  //
+  // Built from `workingTasks`, NOT from `rolledTasks`, for two reasons: the
+  // rollup only rewrites summary rows' derived dates (the id set and every
+  // `resourceIds` are identical), and the LOCATING pass below needs the map
+  // too. Deriving it from the rolled list made that impossible without a
+  // render cycle, so the first pass ran calendar-blind and a task on a
+  // Mon-Sat resource calendar got located on the project's Mon-Fri one —
+  // then the summary bar was rolled onto that wrong window while the child
+  // bar beside it was drawn on the right one (2026-09-11 review).
   const taskCalendars = useMemo(() => {
     if (!project?.schedule) return undefined;
     const map = new Map<string, { workingDaysPerWeek: number; closures: string[] }>();
-    for (const task of rolledTasks) {
+    for (const task of workingTasks) {
       if (!task.resourceIds || task.resourceIds.length === 0) continue;
       const resolved = resolveCalendarForTask(task, project.schedule);
       // Only add when it differs from project default — keeps map small
@@ -330,7 +350,26 @@ function ScheduleProScreenInner() {
       }
     }
     return map.size > 0 ? map : undefined;
-  }, [rolledTasks, project?.schedule]);
+  }, [workingTasks, project?.schedule]);
+
+  const rolledTasks = useMemo(() => {
+    const hasSummary = workingTasks.some(t => t.isSummary);
+    if (!hasSummary) return computeSummaryRollup(workingTasks);
+    const firstPass = runCpm(workingTasks, {
+      scheduleStartDate: scheduleStartIso,
+      criticalFloatThresholdDays,
+      workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project?.schedule?.nonWorkingDates,
+      taskCalendars,
+    });
+    // A cycle makes perTask empty; fall back to the authored pins rather than
+    // rolling every summary onto day 1.
+    if (firstPass.perTask.size === 0) return computeSummaryRollup(workingTasks);
+    return computeSummaryRollup(workingTasks, {
+      scheduled: firstPass.perTask,
+      scale: summaryScale,
+    });
+  }, [workingTasks, scheduleStartIso, criticalFloatThresholdDays, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates, summaryScale, taskCalendars]);
 
   const cpm: CpmResult = useMemo(
     () => runCpm(rolledTasks, {
@@ -459,8 +498,18 @@ function ScheduleProScreenInner() {
   // Schedule health score — pure compute over current tasks + cpm.
   // Cheap to recompute on every edit.
   const healthScore = useMemo(
-    () => computeScheduleHealthScore({ tasks: rolledTasks, cpm }),
-    [rolledTasks, cpm],
+    () => computeScheduleHealthScore({
+      tasks: rolledTasks,
+      cpm,
+      // CPLI (DCMA #13) needs this to put the working-ordinal baseline and the
+      // calendar-index forecast on one scale.
+      calendar: {
+        scheduleStartDate: scheduleStartIso,
+        workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+        nonWorkingDates: project?.schedule?.nonWorkingDates,
+      },
+    }),
+    [rolledTasks, cpm, scheduleStartIso, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates],
   );
 
   // Earned-value snapshot — turns the linked-estimate per-task carry into
@@ -534,11 +583,14 @@ function ScheduleProScreenInner() {
 
   const workingDaysPerWeek = project?.schedule?.workingDaysPerWeek ?? 5;
 
-  const todayDayNumber = useMemo(() => {
-    const ms = Date.now() - projectStartDate.getTime();
-    const days = Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(1, days);
-  }, [projectStartDate]);
+  // Today as a CALENDAR day index — day 1 is projectStartDate and every calendar
+  // day advances it by one. This is the right scale: it is what the Gantt axis,
+  // the printable one-pager's axis and every cpm.es/ef are on. (It reads as a
+  // defect next to a bar drawn from a WORKING ordinal, which is what the Gantt
+  // used to do — the fix belonged on the bars, not here.)
+  const todayDayNumber = useMemo(() => (
+    Math.max(1, dateToCalendarDay(projectStartDate, new Date()))
+  ), [projectStartDate]);
 
   /**
    * Debounced persist. Every keystroke-level edit lands in workingTasks;
@@ -562,14 +614,28 @@ function ScheduleProScreenInner() {
   // before unmount could be lost (audit bug #7). Sync useEffect lives
   // alongside the baselinesRef sync above.
   const workingTasksRef = React.useRef<ScheduleTask[]>([]);
+  // Ref-mirror of the live CPM result. The debounced persist below fires up to
+  // 500ms after the edit that scheduled it, and the closure that fires is the
+  // one that existed when the LAST call was made — i.e. before React re-rendered
+  // with the new `cpm`. Reading the ref inside the timer means the flags we
+  // persist are the ones the engine computed for the tasks we are persisting.
+  const cpmRef = React.useRef<CpmResult | null>(null);
+  useEffect(() => { cpmRef.current = cpm; }, [cpm]);
   const schedulePersist = useCallback((tasks: ScheduleTask[]) => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => {
       if (!project) return;
+      // Stamp the ENGINE's critical path onto the rows we are about to write.
+      // ScheduleTask.isCriticalPath is what the client portal, the schedule PDF,
+      // the .ics invite and the AI risk reasoning all read, and nothing in this
+      // screen ever refreshed it — it stayed whatever the AI generator or a
+      // template guessed at creation. See stampCriticalPath in utils/cpm.ts.
+      const liveCpm = cpmRef.current;
+      const stamped = liveCpm ? stampCriticalPath(tasks, liveCpm) : tasks;
       const newSchedule = buildScheduleFromTasks(
         project.schedule?.name ?? project.name ?? 'Schedule',
         project.id,
-        tasks,
+        stamped,
         project.schedule?.baseline ?? null,
         { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
       );
@@ -612,10 +678,14 @@ function ScheduleProScreenInner() {
         // narrow audit-bug-#7 race where a final keystroke between the
         // last debounce timer and unmount could be lost.
         if (project) {
+          const liveCpm = cpmRef.current;
+          const stampedOnUnmount = liveCpm
+            ? stampCriticalPath(workingTasksRef.current, liveCpm)
+            : workingTasksRef.current;
           const newSchedule = buildScheduleFromTasks(
             project.schedule?.name ?? project.name ?? 'Schedule',
             project.id,
-            workingTasksRef.current,
+            stampedOnUnmount,
             project.schedule?.baseline ?? null,
             { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
           );
@@ -1254,7 +1324,13 @@ function ScheduleProScreenInner() {
     // Compare against rolledTasks — the same snapshot the leveled map came
     // from — so summary rows (whose startDay is a derived min-of-children) do
     // not register phantom shifts against the raw working array.
-    const summary = leveled ? summarizeLeveling(rolledTasks, leveled) : null;
+    // Pass the engine's conflicts too — they carry the WHY (resource,
+    // counterpart task, working days delayed, float consumed, whether the
+    // finish moves). Dropping them left the preview printing a bare
+    // "Day 12 → 19" for a decision the superintendent has to approve.
+    const summary = leveled
+      ? summarizeLeveling(rolledTasks, leveled, leveledResult.conflicts)
+      : null;
     if (!leveled || !summary || summary.shiftedCount === 0) {
       // Leveling only resolves crew / subcontractor scheduling conflicts. Be
       // honest instead of claiming "every crew is within capacity" — a Workload
@@ -1264,7 +1340,14 @@ function ScheduleProScreenInner() {
       if (Platform.OS === 'web') window.alert?.(msg); else showAlert('Fix overloads', msg);
       return;
     }
-    setLevelingPreview({ summary, leveled, finishDelta: leveledResult.projectFinish - cpm.projectFinish });
+    // `leveledResult.projectFinish` is the UNLEVELLED finish — runCpm fixes it at
+    // step 4 and levels at step 9 — so this delta used to be structurally zero
+    // for every possible input and the modal printed "finish unchanged" in every
+    // case, including the reproduced one (three 5-day tasks on one crew) where
+    // applying moved the finish from day 5 to day 19. `leveledProjectFinish` is
+    // the forward pass re-run on the levelled startDays.
+    const postLevelFinish = leveledResult.leveledProjectFinish ?? leveledResult.projectFinish;
+    setLevelingPreview({ summary, leveled, finishDelta: postLevelFinish - cpm.projectFinish });
   }, [rolledTasks, scheduleStartIso, criticalFloatThresholdDays, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates, taskCalendars, cpm.projectFinish]);
 
   const applyLeveling = useCallback(() => {
@@ -1386,13 +1469,19 @@ function ScheduleProScreenInner() {
         cpm,
         baseline,
         paperSize,
+        // The PDF mixes calendar indices (cpm) with working ordinals (the
+        // baseline snapshot); without the calendar it cannot lift one onto
+        // the other and the baseline ghost bar drifts left by every weekend.
+        workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+        nonWorkingDates: project?.schedule?.nonWorkingDates,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (Platform.OS === 'web') window.alert?.(`PDF export failed: ${msg}`);
       else showAlert('PDF export failed', msg);
     }
-  }, [project?.name, project?.schedule?.startDate, rolledTasks, cpm]);
+  }, [project?.name, project?.schedule?.startDate, project?.schedule?.workingDaysPerWeek,
+      project?.schedule?.nonWorkingDates, rolledTasks, cpm]);
 
   // Paper-size picker → baseline picker → export. Keeps the dialog stack
   // shallow on mobile (Alert can't nest deeply) by routing through a
@@ -1463,7 +1552,14 @@ function ScheduleProScreenInner() {
       project.name ?? 'Schedule',
       projectStartDate,
       workingTasks,
-      { projectId: project.id },
+      {
+        projectId: project.id,
+        // Ship the calendar. Without it the viewer ran CPM on a 7-day week and
+        // showed the client a different critical path and different dates from
+        // the ones on this screen.
+        workingDaysPerWeek: project.schedule?.workingDaysPerWeek,
+        nonWorkingDates: project.schedule?.nonWorkingDates,
+      },
     );
     // v2.4 (audit Item 6) — Try inline first; on oversize, write a
     // server-side snapshot and use the short row-id token instead.
@@ -1540,10 +1636,20 @@ function ScheduleProScreenInner() {
       // diamonds, red critical path, today line) — not a plain table. Feed the
       // SAME rolledTasks the on-screen Gantt draws (summary spans are rolled up
       // at render, not persisted) so the printout matches the screen.
+      // Feed the LIVE CPM rows: they supply both the bar geometry (the print's
+      // axis is calendar days, and es/ef are the only calendar-scale dates we
+      // have) and the red critical bars. Without them the printout drew bars
+      // from working-scale startDays on a calendar axis and coloured them from
+      // task.isCriticalPath — a flag the AI generator writes and nothing
+      // refreshes — so the client's copy showed a guessed critical path.
+      const cpmRowsForPrint = new Map(
+        [...cpm.perTask.entries()].map(([id, r]) => [id, { es: r.es, ef: r.ef, isCritical: r.isCritical }]),
+      );
       const html = buildPrintableGanttHtml(rolledTasks, {
         projectName: project?.name ?? 'Schedule',
         todayDayNumber,
         totalDays: cpm.projectFinish,
+        cpmByTaskId: cpmRowsForPrint,
       });
       // Print.printAsync has the same web shim as printToFileAsync — it calls
       // window.print() and ignores `html`, so on web this printed the scheduler
@@ -1552,7 +1658,7 @@ function ScheduleProScreenInner() {
     } catch (e) {
       console.error('AirPrint failed', e);
     }
-  }, [project?.name, rolledTasks, todayDayNumber, cpm.projectFinish]);
+  }, [project?.name, rolledTasks, todayDayNumber, cpm.projectFinish, cpm.perTask]);
 
   // -------------------------------------------------------------------------
   // Undo / Redo (Phase 4 preview — works today for grid edits)
@@ -2104,6 +2210,7 @@ function ScheduleProScreenInner() {
       <CriticalPathPanel
         visible={showCriticalPath}
         explanation={buildCriticalPathExplanation(cpm, rolledTasks)}
+        projectStartDate={projectStartDate}
         onClose={() => setShowCriticalPath(false)}
       />
 
@@ -2124,6 +2231,7 @@ function ScheduleProScreenInner() {
         onClose={() => setShowBaselineManager(false)}
         baselines={namedBaselines}
         workingTasks={workingTasks}
+        dayScale={summaryScale}
         activeBaselineId={namedBaselines.length > 0 ? namedBaselines[namedBaselines.length - 1].id : null}
         onBaselinesChange={(next) => {
           baselinesRef.current = next;
@@ -2155,25 +2263,29 @@ function ScheduleProScreenInner() {
           if (!project) return;
           const prevStart = project.schedule?.startDate;
           const nextStart = patch.startDate ?? prevStart;
-          // First explicit anchor on a raw-day schedule: its startDay values
-          // are working-day ordinals, so re-map them onto the calendar or the
-          // CPM mode flip would silently inflate every multi-day chain (the
-          // finish-jump bug). Runs through commit() = one undoable step.
-          if (!prevStart && nextStart && workingTasks.length > 0) {
-            const rebased = rebaseRawToCalendar(
-              workingTasks, nextStart, patch.workingDaysPerWeek,
-              project.schedule?.nonWorkingDates,
-            );
-            if (rebased !== workingTasks) {
-              const moved = rebased.filter((t, i) => t.startDay !== workingTasks[i].startDay).length;
-              commit(() => rebased);
-              writeAudit({
-                user: user?.email ?? user?.name ?? 'anonymous',
-                kind: 'reflow',
-                summary: `Set start date ${nextStart} — re-anchored ${moved} task(s) onto the working-day calendar`,
-              });
-            }
-          }
+          // NO rebaseRawToCalendar here any more, and that is the fix, not an
+          // omission.
+          //
+          // That helper existed to survive the CPM "mode flip": a schedule with
+          // no startDate ran the engine in raw-day mode where startDay is a
+          // working-day ordinal, and the moment a startDate appeared the engine
+          // re-read those same numbers as CALENDAR indices — the 2026-07-12
+          // finish-jump bug. Its compensation was to rewrite every startDay from
+          // ordinal to calendar index at the transition.
+          //
+          // The engine no longer misreads them: forwardPass converts the stored
+          // working ordinal to a calendar index itself, in both modes (the
+          // converter is the identity with no startDate). So the ordinals now
+          // survive the transition untouched — and re-mapping them first would
+          // make the engine convert an already-converted number. Measured on
+          // A(10)->B(10)->C(5) chained at ordinals 1/11/21 from Mon 2026-03-02
+          // on a 5-day week: without the rebase the finish is Fri Apr 3, exactly
+          // as it was before this change; WITH it the finish inflates to Wed
+          // Apr 15, twelve calendar days late.
+          //
+          // See handoff notes — the same call still needs removing from
+          // app/(tabs)/schedule/index.tsx and
+          // components/schedule/mobile/MobileScheduleScreen.tsx.
           // Eager ref write: the rebase commit above schedules a debounced
           // persist whose closure may predate the updateProject below —
           // without this it would write the OLD (undefined) anchor back.

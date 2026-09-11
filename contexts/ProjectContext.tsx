@@ -1951,8 +1951,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // MONEY-F1: the data columns hydrate through the pure, round-trip-
               // tested mapper — snapshot_totals → totals (this used to be dropped,
               // so the second pay app of a project crashed on priorAIA.totals and
-              // WIP read $0 billed), plus pay_link_* / paid_at read defensively
-              // until migration 20260904100100 lands. utils/projectContextPure.ts.
+              // WIP read $0 billed), plus pay_link_* / paid_at, which ARE real
+              // columns (migration 20260904100100, applied) and are read here but
+              // written only by create-payment-link and the Stripe webhook — see
+              // savedToAiaRow's comment for why the app must not write them.
+              // The certificate fields with no columns of their own (PERIOD FROM,
+              // line 5b's rate, AMOUNT CERTIFIED, the notary jurat) come back
+              // through the same mapper, out of the snapshot_totals sidecar.
+              // utils/projectContextPure.ts.
               ...aiaRowToSaved(r),
               // portal_state MUST be read back. It is written on insert and on every
               // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
@@ -4666,9 +4672,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // MONEY-F1: data columns come from the round-trip-tested pure writer —
     // `snapshot_totals: a.totals`. The old `a.snapshotTotals` never existed, so
     // every saved pay app wrote NULL and lost its totals on the next launch.
-    // TODO(20260904100100): send pay_link_url / pay_link_id / pay_link_amount
-    // once the migration is applied — an unknown column makes PostgREST reject
-    // the WHOLE upsert, and the offline queue would retry it forever.
+    // The pay-link columns are deliberately NOT written from here — see
+    // savedToAiaRow's own comment for why that is now a correctness choice
+    // rather than a pending migration.
     ...savedToAiaRow(a, userId),
     // Spread, not `?? null`. PostgREST writes only the keys present in the
     // payload, so omitting an undefined portalState PRESERVES the server value.
@@ -4683,14 +4689,79 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       ...app,
       portalState: app.portalState ?? initialPortalState('aia_pay_app', app.projectId),
     };
-    const dedup = aiaPayApps.filter(a => !(a.projectId === finalApp.projectId && a.applicationNumber === finalApp.applicationNumber));
+    // DE-DUPE ON WHAT THE RECORD *IS*, NOT ON A NUMBER DERIVED FROM IT.
+    //
+    // This used to key on (projectId, applicationNumber) — which agreed with
+    // the screen's own identity only until app/aia-pay-app.tsx moved that
+    // identity onto `invoiceId` (so a reopen updates the certificate it
+    // reopened) and, in the same change, made APPLICATION NO. a field the GC
+    // is actively invited to edit. The two keys then disagreed: typing a
+    // number another saved pay app already held DELETED that record from local
+    // state while the new one kept its own id, and since the write is an
+    // upsert of the NEW id nothing removed the other row on the server — so it
+    // came back on the next refetch as a duplicate application number, and
+    // (getAIAPayAppsForProject sorting applicationNumber DESC) could become
+    // payApps[0], the WIP report's contract baseline.
+    //
+    // `id` first: a re-save of a record we already hold is the same record.
+    // `invoiceId` next: one billing period is one certificate. applicationNumber
+    // remains ONLY for legacy rows that predate invoiceId, so a record written
+    // before the screen was invoice-keyed still replaces itself rather than
+    // doubling.
+    const sameRecord = (a: SavedAIAPayApp) => {
+      if (a.projectId !== finalApp.projectId) return false;
+      if (a.id === finalApp.id) return true;
+      if (finalApp.invoiceId && a.invoiceId) return a.invoiceId === finalApp.invoiceId;
+      if (!a.invoiceId && !finalApp.invoiceId) return a.applicationNumber === finalApp.applicationNumber;
+      return false;
+    };
+    const dedup = aiaPayApps.filter(a => !sameRecord(a));
     const updated = [finalApp, ...dedup];
     setAiaPayApps(updated);
     saveAiaPayAppsMutation.mutate(updated);
-    // Upsert: app screen always saves as new ID per draft so insert is correct;
-    // if the user re-saves the same id (rare), the table PK guards from dupes
-    // and Supabase will return a 409 we ignore.
-    if (canSync && userId) void supabaseWrite('aia_pay_apps', 'insert', aiaPayAppToRow(finalApp));
+    // A DISPLACED RECORD MUST LEAVE THE SERVER TOO. The legacy branch above can
+    // drop a row whose id is NOT finalApp.id (a pre-invoiceId record at the
+    // same application number). Dropping it only from local state left it on
+    // aia_pay_apps, where the next server-first load brought it back as a
+    // second certificate for one period — the duplicate this de-dupe exists to
+    // prevent, reintroduced by the de-dupe itself.
+    const displaced = aiaPayApps.filter(a => sameRecord(a) && a.id !== finalApp.id);
+    if (canSync && userId) {
+      displaced.forEach(a => { void supabaseWrite('aia_pay_apps', 'delete', { id: a.id }); });
+    }
+    // UPSERT, not insert.
+    //
+    // The old comment here said the screen "always saves as new ID per draft so
+    // insert is correct", and accepted that a re-save of the same id returns a
+    // 409 "we ignore". Neither half held. buildSavedRecord reuses the existing
+    // record's id precisely so a re-save UPDATES the certificate, so the second
+    // save of any pay application WAS that case. utils/offlineQueue's own
+    // 'upsert' branch spells the consequence out: "a plain insert on an
+    // existing PK fails with a duplicate-key violation … so the edit would
+    // silently never reach the server (and the server-first load would then
+    // revert it locally)." Both of the queue's insert paths agree — the direct
+    // write drops it as a non-network failure, and a queued re-send reads a
+    // `_pkey` 23505 as "already landed" (isAlreadyLandedInsert) and discards
+    // it as SUCCESS. So the corrected certificate lived on one device only,
+    // and the next server-first load reverted it there too.
+    //
+    // Not literally silent, and the difference matters when reading a bug
+    // report: the direct path does raise a generic "Couldn't save
+    // (aia_pay_apps)" toast and a Sentry event. What it cannot do is tell the
+    // GC that the figure he just corrected on a signed certificate is not the
+    // figure the portal is showing his owner.
+    //
+    // Upsert is the correct semantic for a row this user owns and is editing.
+    // It cannot clobber someone else's row — aia_pay_apps is user-scoped by RLS
+    // (policy aia_pay_apps_owner_all, migration 20260518120000) — and the
+    // DB-level freeze trigger (migration 20260728120000) still rejects any
+    // update to a CERTIFIED application's financial columns (raising
+    // check_violation, which the queue classifies non-transient and therefore
+    // does NOT retry forever), so this widens the write path without widening
+    // what may be rewritten. addAIAPayApp is the only upsert writer of this
+    // table; the portal send/recall path writes portal_state through 'update',
+    // which the trigger permits by design.
+    if (canSync && userId) void supabaseWrite('aia_pay_apps', 'upsert', aiaPayAppToRow(finalApp));
     return finalApp;
   }, [aiaPayApps, saveAiaPayAppsMutation, canSync, userId, aiaPayAppToRow, initialPortalState]);
 

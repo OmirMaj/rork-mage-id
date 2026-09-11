@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>MAGE ID — A brain for your business | Construction intelligence for contractors</title>
+  <title>AIA-style G702/G703, WIP and real CPM float at $29/mo — MAGE ID</title>
   <link rel="canonical" href="https://mageid.app/" />
-  <meta name="description" content="MAGE is construction intelligence that learns your real numbers and grades its own predictions on your jobs — it prices hidden conditions from a photo, builds schedules that explain themselves, and briefs you every morning. One flat price, subs free." />
+  <meta name="description" content="AIA-style G702/G703 pay applications, a bank-ready WIP schedule and a critical path with real total and free float - $29/mo flat, unlimited free field seats. The cheapest published plan we found with AIA-style progress billing is $105 for three users. Then it learns your real costs and prices the next job off them." />
   <meta name="theme-color" content="#0c0b09" />
 
   <meta property="og:type" content="website" />
@@ -113,7 +113,10 @@
   .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
   .brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:700;letter-spacing:.22em;font-size:15px}
   .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--amber);box-shadow:0 0 14px var(--amber)}
-  .navlinks{display:none;gap:30px;font-size:14px;color:var(--muted)}
+  /* gap trimmed from 30px when the nav went from four links to the shared
+     six, so the row still fits beside the brand and CTA at the 820px
+     breakpoint where it appears. */
+  .navlinks{display:none;gap:20px;font-size:14px;color:var(--muted)}
   .navlinks a:hover{color:var(--bone)}
   .navcta{font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;padding:9px 16px;border:1px solid var(--amber);color:var(--amber-lift);border-radius:7px;transition:.2s}
   .navcta:hover{background:var(--amber);color:#140d05}
@@ -525,27 +528,52 @@
 
   <nav class="nav"><div class="wrap">
     <span class="brand"><span class="dot"></span>MAGE&nbsp;ID</span>
-    <span class="navlinks"><a href="/brain/">The brain</a><a href="/costs/">Price Index</a><a href="#compare">Compare</a><a href="#pricing">Pricing</a></span>
+    <!-- ONE NAV, EVERYWHERE. The site ran three different primary navs: this
+         one ("The brain / Price Index / Compare / Pricing"), the six-item
+         nav-inner on the other 25 pages, and a third on calculator.html with
+         no Features, Compare or Support at all. Moving between two pages made
+         it read as an unfinished site. All three now carry the same six
+         destinations, in the same order.
+         "The brain" is still the homepage's story — it is a section anchor
+         below and a page at /brain/, linked from the footer. "Price Index"
+         came out of primary nav because the endpoint behind it returns
+         {"minimumContributors":5,"rows":[]} — it is honestly empty until five
+         contributors exist, and an empty page is not a second-position nav
+         item. It is linked from the cost-learning section instead. -->
+    <span class="navlinks"><a href="/playbook.html">How it works</a><a href="/features/">Features</a><a href="/compare/">Compare</a><a href="/pricing.html">Pricing</a><a href="/demo.html">Demo</a><a href="/support.html">Support</a></span>
     <a class="navcta" href="https://app.mageid.app">Start free</a>
   </div></nav>
 
   <!-- HERO — brain-forward -->
   <section class="hero"><div class="wrap">
     <div class="rv in">
-      <span class="eyebrow">Construction intelligence</span>
+      <span class="eyebrow">AIA-style G702/G703 &middot; WIP schedule &middot; real CPM float &middot; $29/mo</span>
       <h1>A <span class="amb">brain</span> for your business. It gets smarter every job.</h1>
-      <p class="sub">MAGE <b>sees</b> what your tape measure can't, <b>remembers</b> the true cost of every job you finish, and <b>plans</b> the work like your best PM — then tells you why. <span class="em">Software stores your business. A brain runs it with you.</span></p>
+      <p class="sub">It does the three documents that decide whether you get paid &mdash; an <b>AIA-style G702/G703</b> pay application, a <b>WIP schedule</b> your banker will read, and a critical path with real <b>total and free float</b> &mdash; and then it remembers what every job actually cost you and prices the next one off that. <span class="em">The cheapest published plan we could find with AIA-style progress billing is $105 a month for three users. This is $29.</span> <a href="/proof.html" style="color:inherit;text-decoration:underline">Don&rsquo;t take our word for it &mdash; we have no reviews; check the document instead.</a></p>
       <div class="cta-row">
         <a class="btn primary" href="https://app.mageid.app">Start free — subs are free too</a>
         <a class="btn ghost" href="#brain">Meet the brain</a>
       </div>
-      <p class="microcta">No card to start · Pro $29/mo · First bid priced in minutes</p>
+      <!-- "Pro $29/mo" on its own read as "tap here and buy Pro". You can't
+           yet: the web till is on a sandbox payment key and the iPhone app is
+           in TestFlight, not the App Store. The free plan IS fully live, so
+           the CTA above is honest — this line just has to stop implying the
+           other half. -->
+      <p class="microcta">No card to start &middot; First bid priced in minutes &middot; <a href="/pricing.html" style="color:inherit;text-decoration:underline">Pro $29/mo &mdash; switched on by us, not self-serve yet</a></p>
     </div>
-    <div class="chartcard rv in" aria-hidden="true">
-      <div class="ch-top"><span class="ch-t">It learns · estimate accuracy on your jobs</span><span class="ch-v" id="accV">+0%</span></div>
-      <canvas id="accChart" width="520" height="200"></canvas>
+    <!-- aria-hidden moved off the card and onto the canvas alone. The card was
+         wholly hidden from assistive tech back when its only content was a
+         decorative curve and an invented "+38%" counter. It now carries real
+         prose and two links, and a focusable link inside an aria-hidden
+         subtree is both an a11y violation and, here, a way to hide the honest
+         part of the claim from the readers most likely to need it. The canvas
+         is the only decorative element, so it is the only thing hidden. -->
+    <div class="chartcard rv in">
+      <div class="ch-top"><span class="ch-t">Your price book · built from your own closed jobs</span><span class="ch-v" id="accV">0 closed jobs</span></div>
+      <canvas id="accChart" width="520" height="200" aria-hidden="true"></canvas>
       <div class="ch-x"><span>JOB 1</span><span>JOB 15</span><span>JOB 30</span><span>JOB 50</span></div>
-      <p class="ch-note">Every finished job trains your numbers. By job 50, MAGE prices like <b>your best estimator on their best day</b> — automatically.</p>
+      <p class="ch-note">Illustration, not a measurement. Every job you close writes its real unit costs into a price book only you can see &mdash; your subs, your supply house, your market. Yours reads <b>zero</b> until you close your first one, and we would rather show you zero than somebody else's curve. <b>We will not publish an accuracy number until we have enough closed jobs to earn one</b> &mdash; and when we do it goes on the <a href="/brain/">Track Record</a> page with the misses included.</p>
+      <p class="ch-note">Your book is private and always will be. If you want to see what other builders are paying, the <a href="/costs/">MAGE Price Index</a> is the opt-in version &mdash; a trade only appears there once five independent contractors have contributed real paid rates, and we won't publish a number below that threshold or invent one to look populated. It is empty today. Contributing is off by default.</p>
     </div>
   </div></section>
 
@@ -789,9 +817,17 @@
       <details open><summary>Do I have to throw out the tools I use now?</summary><p>No. Start with estimating and the learning engine — the part nobody else has. Keep what works, and let MAGE quietly take over pricing, job costing, and scheduling as it earns its place.</p></details>
       <details><summary>How does it actually "learn my costs"?</summary><p>Every job you finish feeds your <b>real</b> numbers back into your catalog — automatically. No spreadsheets to maintain. Job #50 prices off 49 jobs of truth, not a generic price book.</p></details>
       <details><summary>Is my cost data private?</summary><p>Yes. Your numbers are yours. The brain learns <b>your</b> business — it never hands your hard-won costs to the contractor down the street.</p></details>
-      <details><summary>Do my subs really use it for free?</summary><p>Yes. Subs join your projects free — you pay one flat price. No per-seat games.</p></details>
+      <!-- This answer was TRUE of the pricing model and FALSE of the app:
+             components/collaborators/CollaboratorsManager asked the Pro tier
+             gate before it looked at the role, so a free-tier GC inviting a sub
+             as Field was bounced to the paywall and could not add anybody. The
+             server would have allowed it. The client is fixed and
+             scripts/validate-collaborator-invite.ts now evaluates the shipped
+             gate expression for every tier × role pair, so this answer cannot
+             silently go false again. -->
+        <details><summary>Do my subs really use it for free?</summary><p>Yes, and so does your whole crew. Field seats — subs, foremen, anyone who works the job rather than the books — are unlimited and free on every plan including Free, permanently. Office seats, the ones that can see margin, are included two on Pro and five on Business. That is the whole rule; there is no other seat math and no per-seat fee at any tier. <a href="/pricing.html">The seat allowance in full.</a></p></details>
       <details><summary>Does it work on my phone, on the jobsite?</summary><p>It's built for the field first: price hidden conditions from a photo, build a schedule by voice, and update the job from the truck.</p></details>
-      <details><summary>What does it cost to start?</summary><p>Free to try, no card. Pro is <b>$29/mo</b> — less than one mispriced bathroom, forever.</p></details>
+      <details><summary>What does it cost to start?</summary><p>Free to try, no card, on the web today. Pro is <b>$29/mo</b> and Business <b>$79/mo</b> — but they are not self-serve yet: our payment processor is still in sandbox and the iPhone app is in TestFlight rather than the App Store, so you email us and we switch the plan on, usually the same day. <a href="/pricing.html">The prices are published anyway</a>, so you can plan and compare.</p></details>
     </div>
   </div></section>
 
@@ -821,7 +857,35 @@
       <a href="/brain/">The brain</a><a href="/costs/">Price Index</a><a href="/widget/">Website widget</a><a href="/features/">Features</a><a href="/compare/">Compare</a><a href="/pricing.html">Pricing</a><a href="/playbook.html">Playbook</a><a href="/support.html">Support</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a>
     </span>
     <span>© 2026 MAGE ID · <a href="https://mageid.app/" style="color:inherit">mageid.app</a></span>
-  </div></footer>
+  </div>      <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+        <p class="aia-notice" style="max-width:900px;margin:18px auto 0;font-size:12px;line-height:1.6;opacity:.62;text-align:center;">
+        MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are
+        registered trademarks of The American Institute of Architects, which is not affiliated with and
+        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract
+        Documents &mdash; check with yours before you submit.
+      </p>
+  </footer>
 
 </div>
 
@@ -983,7 +1047,19 @@
       ctx.strokeStyle=grad(); ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
       var e=P[last]; ctx.beginPath(); ctx.arc(e.x,e.y,4.5,0,7); ctx.fillStyle='#f59a3b'; ctx.fill();
       ctx.beginPath(); ctx.arc(e.x,e.y,8,0,7); ctx.strokeStyle='rgba(245,154,59,.35)'; ctx.lineWidth=2; ctx.stroke();
-      if(accV) accV.textContent='+'+Math.round(k*38)+'%'; }
+      /* The value label used to count up to '+38%' — an invented accuracy
+         figure with nothing behind it (no customers, no measurement, and the
+         page's other example figures at the prediction ledger carry an explicit
+         "Example figures" label while this one carried none). The CANVAS is
+         the decorative part and is the only thing marked aria-hidden — the
+         card around it is not, because it now carries real prose and two
+         links. (This comment said "the card is aria-hidden" while the very
+         same change moved aria-hidden off the card and onto the canvas. A
+         comment that describes the code it was written to explain, wrongly,
+         is its own defect.) The curve stays as an illustration of the SHAPE
+         of learning; the number is gone and the label is now the literal
+         truth of a new account. Do not reintroduce a percentage here without
+         a published, graded sample behind it. */ }
     if(rm){ draw(1); }
     else{ var start=null; function step(ts){ if(!start)start=ts; var prog=Math.min(1,(ts-start)/1600);
         draw(1-Math.pow(1-prog,3)); if(prog<1) requestAnimationFrame(step); }

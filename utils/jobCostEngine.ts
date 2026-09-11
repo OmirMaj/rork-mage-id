@@ -80,11 +80,15 @@ import type {
   TimeEntry,
   Equipment,
   Permit,
+  LinkedEstimateItem,
 } from '@/types';
 import {
   isEligibleLaborEntry, normalizeTradeKey, priceLaborEntry, DEFAULT_OVERTIME_MULTIPLIER,
   type LaborRateMap,
 } from '@/utils/laborSamples';
+// The contract value the CO cost ratio is measured against — the same
+// definition every other money surface uses (JOBCOST-CO-COST-1).
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 export interface JobCostLine {
   /** Grouping key — phase name or '(uncategorized)'. */
@@ -155,6 +159,24 @@ export interface JobCostSummary {
   byPhase: JobCostLine[];
   /** Top three phases by variance magnitude. */
   biggestVariances: JobCostLine[];
+  /**
+   * Per-phase projected overage the PROJECT headline does not carry — i.e.
+   * `Σ byPhase.projectedFinal − projectedFinal`, floored at zero.
+   *
+   * WHY A SCREEN MUST RENDER THIS (audit 2026-09-11, review round 3). The
+   * headline takes the uncommitted floor ONCE over the whole job (see the
+   * totals block), so genuinely unbudgeted spend is absorbed by the job's
+   * remaining uncommitted budget until that budget runs out. The phase rows
+   * and `biggestVariances` still show it — correctly, because it IS spend the
+   * estimate never priced — and a screen that prints both without a word
+   * between them gives the GC two answers to "am I over" in one render. That
+   * is the two-screens-disagree defect moved inside a single screen.
+   *
+   * Zero on the ordinary job. When it is not zero the screen owes the reader
+   * one sentence: this much of what the rows below show is being absorbed by
+   * budget that has not been committed yet.
+   */
+  absorbedVariance: number;
   /** Commitments that exceed their linked estimate items. */
   overcommittedCommitments: Commitment[];
   /** Engine signature for reports / telemetry. */
@@ -258,6 +280,152 @@ function commitmentPhase(c: Commitment): string {
   return PHASE_UNCATEGORIZED;
 }
 
+/** Case- and space-folded name, for the vendor ↔ supplier compare. */
+function foldName(s: string | null | undefined): string {
+  return (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Cost basis of one estimate line — `unitPrice × quantity`, the same basis the
+ *  phase budgets are seeded from. NEVER `lineTotal`, which is marked up. */
+function itemCost(i: LinkedEstimateItem): number {
+  return (i.unitPrice ?? 0) * (i.quantity ?? 0);
+}
+
+/**
+ * The estimate items a commitment BOUGHT OUT, so its committed cost can net
+ * against their budget instead of landing beside it (JOBCOST-PHASE-1).
+ *
+ * FOUR signals, strongest first. Each is a LINK between the two records, not a
+ * guess from a string — the string compare is what failed.
+ *
+ *  1. `linkedEstimateItems`. The explicit link, and the same one the
+ *     overcommitted check further down this file trusts. If the GC said which
+ *     lines this subcontract covers, that is the answer and it is taken whole.
+ *  2. `subcontractorId` → the sub's `companyName`, matched against the estimate
+ *     line's `supplier`. This is the only structured link the commitment
+ *     EDITOR writes for a subcontract (app/job-costing.tsx sets
+ *     `subcontractorId` on a subcontract and `vendorName` only on a purchase
+ *     order), so without it none of the others can fire on a subcontract a
+ *     user actually created — which is what the first cut of this fix shipped.
+ *     It needs the roster, so it is live only where the caller passes
+ *     `subcontractors`; see the note on that input.
+ *  3. `csiDivision`. A classification both records carry, matched exactly
+ *     after trimming. '26' is '26' whoever typed it.
+ *  4. `vendorName` ↔ `LinkedEstimateItem.supplier`. The estimator named the
+ *     vendor when he priced the line and the GC then signed that vendor — the
+ *     same scope. Case- and space-insensitive, and DELIBERATELY exact after
+ *     that: a substring match would let 'Alder' claim 'Alder Mechanical' and
+ *     'Alder Electric' both. Live for purchase orders.
+ *
+ * Signals are NOT combined. The first one that returns anything wins, because
+ * a weaker signal agreeing adds nothing and a weaker signal disagreeing would
+ * quietly widen what a commitment is allowed to claim.
+ *
+ * AN INFERRED SIGNAL MAY NOT OVER-CLAIM (audit 2026-09-11, review round 2).
+ * `csiDivision` and the two name compares are MANY-to-one: __tests__/fixtures/
+ * world.ts alone carries two division-'12' lines, cabinets ($41,250) and
+ * countertops ($8,064). A $19,900 cabinetry PO took BOTH budgets, and the
+ * countertop subcontract signed later at exactly its estimate then read
+ * "Unbudgeted — $8,064 over" on a job that was on budget: the fabricated
+ * overrun this function exists to remove, moved one row down.
+ *
+ * So an inferred claim is capped by what the commitment is actually worth.
+ * Candidates are considered LARGEST first; the first is always taken — buying
+ * a $41,250 scope out for $19,900 is a good day, not an over-claim — and each
+ * one after that only while the running total stays inside `commitmentValue`.
+ * An EXPLICIT `linkedEstimateItems` is exempt: the GC named those lines.
+ *
+ * `claimed` carries ids already taken by an earlier commitment, so one
+ * estimate line can only ever net against one commitment.
+ */
+function matchEstimateItems(
+  c: Commitment,
+  items: readonly LinkedEstimateItem[],
+  claimed: ReadonlySet<string>,
+  subsById: ReadonlyMap<string, string>,
+): LinkedEstimateItem[] {
+  const free = items.filter(i => !!i.materialId && !claimed.has(i.materialId));
+  if (free.length === 0) return [];
+
+  const linked = c.linkedEstimateItems ?? [];
+  if (linked.length > 0) {
+    const byLink = free.filter(i => linked.includes(i.materialId));
+    // Explicit — no cap. The GC named these lines.
+    if (byLink.length > 0) return byLink;
+  }
+
+  const inferred = (): LinkedEstimateItem[] => {
+    const subName = c.subcontractorId ? subsById.get(c.subcontractorId) : undefined;
+    if (subName) {
+      const bySub = free.filter(i => foldName(i.supplier) === subName);
+      if (bySub.length > 0) return bySub;
+    }
+    const csi = c.csiDivision?.trim();
+    if (csi) {
+      const byCsi = free.filter(i => (i.csiDivision ?? '').trim() === csi);
+      if (byCsi.length > 0) return byCsi;
+    }
+    const vendor = foldName(c.vendorName);
+    if (vendor) {
+      const byVendor = free.filter(i => foldName(i.supplier) === vendor);
+      if (byVendor.length > 0) return byVendor;
+    }
+    return [];
+  };
+
+  const candidates = inferred();
+  if (candidates.length <= 1) return candidates;
+
+  const budgetForClaim = Math.max(0, commitmentValue(c));
+  const sorted = [...candidates].sort((a, b) => itemCost(b) - itemCost(a));
+  const out: LinkedEstimateItem[] = [];
+  let running = 0;
+  for (const item of sorted) {
+    const cost = Math.max(0, itemCost(item));
+    if (out.length === 0) { out.push(item); running = cost; continue; }
+    if (running + cost > budgetForClaim + 0.005) continue;
+    out.push(item);
+    running += cost;
+  }
+  return out;
+}
+
+/**
+ * The job's own cost ratio, for converting a change order's PRICE into a cost
+ * budget (JOBCOST-CO-COST-1). Deliberately the same convention — and the same
+ * fallback — as `topUpForChangeOrders` in utils/wip.ts, so the two screens a
+ * Business subscriber can open side by side cannot disagree about the same CO.
+ *
+ * A ChangeOrder carries no cost field (its lineItems hold unitPrice/total,
+ * which are PRICED), so CO cost can only be estimated. Assuming a CO carries
+ * the same margin as the base contract is the standard WIP convention.
+ *
+ * NO CONTRACT BASIS ⇒ 1.0, never 0: cost equals revenue, zero margin on the
+ * CO. That UNDERSTATES profit, which is the correct direction to be wrong on a
+ * number a surety or a lender may end up reading.
+ *
+ * THE RATIO IS NOT CAPPED AT 1, and it used to be (audit 2026-09-11, review
+ * round 2). A cap looked prudent — "a cost budget above the contract means the
+ * job is priced at a loss, don't gross the CO up by that loss" — but it is the
+ * one thing this function must not do, because `topUpForChangeOrders` has no
+ * cap and the whole reason this function exists is that the two must agree.
+ * Measured on a job with a $120,000 cost basis sold at $100,000 and a $50,000
+ * approved CO: capped, /job-costing entered the CO at $50,000 while
+ * /wip-report entered it at $60,000 — two screens a Business subscriber can
+ * open side by side, disagreeing about one change order, which is the defect
+ * class this change was made to close. The uncapped answer is also the more
+ * defensible one: the convention is that a CO carries the SAME margin as the
+ * base contract, and if the base contract is underwater then so is the CO.
+ */
+function changeOrderCostRatio(project: Project, phases: ReadonlyMap<string, JobCostLine>): number {
+  const contract = effectiveEstimateTotal(project);
+  if (!Number.isFinite(contract) || contract <= 0) return 1;
+  let costBudget = 0;
+  for (const line of phases.values()) costBudget += line.budget;
+  if (!Number.isFinite(costBudget) || costBudget <= 0) return 1;
+  return costBudget / contract;
+}
+
 /**
  * Classify a phase by how its actual + projected stack up.
  * - over:       projectedFinal exceeds a real budget by more than 2%
@@ -327,6 +495,38 @@ export interface JobCostInput {
    *  jurisdiction is paid at application — and lands in a "Permits" phase
    *  line. Additive — omit for the no-permits behavior. */
   permits?: Permit[];
+  /**
+   * The GC's subcontractor roster, used ONLY to turn a commitment's
+   * `subcontractorId` into a company name for the buyout match in
+   * `matchEstimateItems`.
+   *
+   * It is here because `subcontractorId` is the one structured link the
+   * commitment editor writes for a SUBCONTRACT (app/job-costing.tsx writes
+   * `vendorName` only for purchase orders and writes neither `csiDivision`
+   * nor `linkedEstimateItems` at all), so without the roster the buyout match
+   * can only fire on purchase orders and on seeded data. Additive and
+   * optional: omit it and the other three signals behave exactly as before.
+   *
+   * WHO PASSES IT. app/job-costing.tsx — the screen this whole fix is about —
+   * passes the roster off `useProjects()`; MONEY-PHASE-WIRED-1 in
+   * scripts/validate-money-definitions.ts fails the build if it stops. It is
+   * also part of `JobCostActualSources`, so any caller that threads a
+   * `costSources` bundle (utils/financialReports.ts and its two screens)
+   * carries it for free the moment those screens put it in the bundle.
+   *
+   * STILL UNWIRED, and measured rather than hand-waved: utils/marginRiskScore
+   * .ts, utils/livingEstimate.ts and utils/portalSnapshot.ts each build their
+   * own argument object and none of the three receives a roster from its own
+   * callers (eleven call sites between them). On a project whose subcontracts
+   * were created in-app and whose estimate categorises subs by trade rather
+   * than by sub, those three read a cost EAC that ABSORBS an overrun the
+   * /job-costing screen shows: on a $57,200 estimate with a $40,000 electrical
+   * subcontract against a $22,600 electrical line, wired reports +$17,400 and
+   * unwired reports $0. Understating an overrun is the conservative direction
+   * for a margin ALERT and the wrong one for a bank document — see
+   * docs/audits/2026-09-11-handoff-money-to-wip.md.
+   */
+  subcontractors?: { id: string; companyName?: string }[];
 }
 
 /**
@@ -345,7 +545,9 @@ export interface JobCostInput {
  * at the call sites that build it).
  */
 export type JobCostActualSources =
-  Pick<JobCostInput, 'receipts' | 'timeEntries' | 'laborRates' | 'overtimeMultiplier' | 'equipment' | 'permits'>;
+  Pick<JobCostInput,
+    'receipts' | 'timeEntries' | 'laborRates' | 'overtimeMultiplier' | 'equipment' | 'permits'
+    | 'subcontractors'>;
 
 /**
  * Run the cost-to-complete engine on one project's numbers.
@@ -357,13 +559,47 @@ export type JobCostActualSources =
 export function computeJobCost({
   project, commitments, changeOrders, receipts = [], timeEntries = [], laborRates = {},
   overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER, equipment = [], permits = [],
+  subcontractors = [],
 }: JobCostInput): JobCostSummary {
   const projectCommitments = commitments.filter(c => c.projectId === project.id && c.status !== 'draft');
   const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
   const projectReceipts = receipts.filter(r => r.projectId === project.id);
 
   const estimate = project.linkedEstimate ?? null;
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // PHASE BUCKETS ARE KEYED CASE-INSENSITIVELY (JOBCOST-PHASE-1, audit
+  // 2026-09-11).
+  //
+  // Both sides of the join used to `.trim()` and neither lowercased, and the
+  // two sides are written by different hands:
+  //   • estimate items carry `category` — title-case for materials
+  //     ('Electrical', constants/materials.ts) and LOWERCASE for assemblies
+  //     ('electrical', constants/assemblies.ts), so ONE estimate can contain
+  //     both spellings of one trade;
+  //   • `Commitment.phase` is free text the GC types, with the placeholder
+  //     'Electrical' (app/job-costing.tsx).
+  // A case difference split one trade into two rows: a budget with nothing
+  // committed beside an "Unbudgeted" commitment with no budget — and the
+  // project EAC summed both, reporting an overrun exactly the size of the
+  // scope the GC had bought out.
+  //
+  // The map is keyed by the folded key; the LINE keeps the first display label
+  // it was seen under, so the drill-down still reads the way the GC wrote it.
+  // ───────────────────────────────────────────────────────────────────────────
+  const phaseKey = (label: string): string => label.trim().toLowerCase();
   const phases = new Map<string, JobCostLine>();
+  /** The bucket for `label`, created on first sight. Returns the STORED line —
+   *  callers mutate it in place, so no `.set` is needed afterwards. */
+  const bucket = (label: string): JobCostLine => {
+    const key = phaseKey(label);
+    const existing = phases.get(key);
+    if (existing) return existing;
+    const made = emptyLine(label.trim() || PHASE_UNCATEGORIZED);
+    phases.set(key, made);
+    return made;
+  };
+  const hasPhase = (label: string): boolean => phases.has(phaseKey(label));
   /**
    * Actual cost on a phase that is NOT a payment against a commitment —
    * UNLINKED material receipts, priced crew hours, equipment days, permit
@@ -385,7 +621,12 @@ export function computeJobCost({
    */
   const directActual = new Map<string, number>();
   const addDirect = (phase: string, amount: number) => {
-    directActual.set(phase, (directActual.get(phase) ?? 0) + amount);
+    // Folded key — the same key `phases` uses. Keyed by raw label, 'Electrical'
+    // and 'electrical' kept separate direct-cost tallies while sharing one
+    // budget line, so the finalize pass below read only one of them and the
+    // other dollar was charged against the commitment balance instead.
+    const key = phaseKey(phase);
+    directActual.set(key, (directActual.get(key) ?? 0) + amount);
   };
 
   // Seed from estimate items — every category that exists in the budget
@@ -394,7 +635,7 @@ export function computeJobCost({
   if (estimate) {
     for (const item of estimate.items) {
       const phase = item.category?.trim() || PHASE_UNCATEGORIZED;
-      const existing = phases.get(phase) ?? emptyLine(phase);
+      const existing = bucket(phase);
       // COST, not sell. `lineTotal` is the MARKED-UP figure —
       // app/(tabs)/estimate/full.tsx:933 computes it as
       //     base * (1 + markup / 100) * quantity
@@ -412,7 +653,6 @@ export function computeJobCost({
       // exactly — which is the same cost basis utils/wip.deriveEstimatedCost
       // uses. One definition of cost across the app.
       existing.budget += (item.unitPrice ?? 0) * (item.quantity ?? 0);
-      phases.set(phase, existing);
     }
   } else if (project.estimate) {
     // Legacy estimate — one catch-all bucket.
@@ -422,23 +662,122 @@ export function computeJobCost({
     // overhead, contingency, tax — so its grandTotal is cost + tax, not
     // cost + margin. There is no markup to strip, and it is the same call
     // utils/wip.deriveEstimatedCost makes for the legacy shape.
-    phases.set('Budget', {
-      ...emptyLine('Budget'),
-      budget: project.estimate.grandTotal,
-    });
+    bucket('Budget').budget += project.estimate.grandTotal;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // BUYOUT MOVES THE BUDGET (JOBCOST-PHASE-1, audit 2026-09-11).
+  //
+  // Awarding a subcontract at the estimated price is a NEUTRAL event: committed
+  // cost REPLACES estimated cost. It does not add to it. That is the first
+  // thing any PM checks after buyout, and /job-costing failed it.
+  //
+  // The reason is that the two sides are bucketed by different vocabularies.
+  // An estimate line for a sub is categorised by the estimator — the shipped
+  // material catalogue writes 'subcontractor' for exactly these lines
+  // (__tests__/fixtures/world.ts mirrors the real shape) — while the signed
+  // subcontract is tagged with the TRADE, because the field on the commitment
+  // form is labelled Phase and its placeholder is 'Electrical'. Case folding
+  // (above) cannot reconcile 'subcontractor' with 'Electrical'; nothing can,
+  // from the strings alone.
+  //
+  // What CAN reconcile them is the link between the two records, and three of
+  // those already exist on the data:
+  //   1. `Commitment.linkedEstimateItems` — the explicit link the commitment
+  //      form writes, and the same one the overcommitted check below trusts.
+  //   2. `csiDivision` on both sides — a real classification, not free text.
+  //   3. the commitment's `vendorName` against the estimate line's `supplier`
+  //      — the estimate literally names the sub who went on to sign.
+  // Each item may be claimed ONCE (first claimant in commitment order wins),
+  // so two subs cannot both net against the same budget line.
+  //
+  // The budget MOVES to the commitment's own phase rather than the commitment
+  // moving to the estimate's: 'Electrical — budget 22,600, committed 22,600,
+  // on track' is the row a GC can act on, where 'subcontractor — 41,000' is
+  // not. Project totals are unaffected by which side moves; the double count
+  // is what is removed.
+  //
+  // A commitment that matches nothing still behaves exactly as before — its
+  // phase reads Unbudgeted, which is the honest answer for scope the estimate
+  // never priced.
+  // ───────────────────────────────────────────────────────────────────────────
+  /** Folded phase key → how many commitments landed in it, and how many of
+   *  those the engine could RESOLVE to the estimate lines they bought out.
+   *  Read by the project total at the bottom: an overrun on a phase whose
+   *  commitments were all resolved is a real overrun on identified scope; on a
+   *  phase where the join failed, the phase's budget and its commitment are
+   *  simply two records that happen to share a name. */
+  const phaseCommitmentCount = new Map<string, number>();
+  const phaseResolvedCount = new Map<string, number>();
+  for (const c of projectCommitments) {
+    const k = phaseKey(commitmentPhase(c));
+    phaseCommitmentCount.set(k, (phaseCommitmentCount.get(k) ?? 0) + 1);
+  }
+  if (estimate) {
+    const claimed = new Set<string>();
+    // id → folded company name, for the `subcontractorId` signal.
+    const subsById = new Map<string, string>();
+    for (const sub of subcontractors) {
+      const name = foldName(sub.companyName);
+      if (sub.id && name) subsById.set(sub.id, name);
+    }
+    // Deterministic order so the same world always produces the same buckets.
+    const ordered = [...projectCommitments].sort((a, b) =>
+      (a.signedDate || '').localeCompare(b.signedDate || '') || a.id.localeCompare(b.id));
+    for (const c of ordered) {
+      const target = commitmentPhase(c);
+      const matches = matchEstimateItems(c, estimate.items, claimed, subsById);
+      if (matches.length === 0) continue;
+      const tk = phaseKey(target);
+      phaseResolvedCount.set(tk, (phaseResolvedCount.get(tk) ?? 0) + 1);
+      for (const item of matches) {
+        const from = bucket(item.category?.trim() || PHASE_UNCATEGORIZED);
+        const cost = (item.unitPrice ?? 0) * (item.quantity ?? 0);
+        if (cost <= 0) { claimed.add(item.materialId); continue; }
+        if (phaseKey(from.phase) === phaseKey(target)) { claimed.add(item.materialId); continue; }
+        from.budget -= cost;
+        bucket(target).budget += cost;
+        claimed.add(item.materialId);
+      }
+    }
+    // A bucket the buyout emptied of budget, commitments and actuals is noise
+    // on the sheet — it existed only to hold the estimate line that has now
+    // moved. Drop it rather than print 'subcontractor — $0 everything'.
+    for (const [key, line] of [...phases.entries()]) {
+      if (Math.abs(line.budget) < 0.005 && line.committed === 0 && line.actual === 0
+        && line.sources.commitments.length === 0 && line.sources.changeOrders.length === 0
+        && line.sources.receipts.length === 0) {
+        phases.delete(key);
+      }
+    }
   }
 
   // Change orders bump budget at the phase level. COs don't carry phase
   // data directly either — we use the CO description as a best-effort tag
   // and, if it doesn't map to an existing phase, we drop it into a
   // 'Change Orders' bucket so PMs can see the new work.
+  //
+  // THE CO GOES IN AT COST, NOT AT PRICE (JOBCOST-CO-COST-1, audit
+  // 2026-09-11). `co.changeAmount` is what the OWNER is charged; this is a
+  // cost budget, seeded above from `unitPrice × quantity` for exactly that
+  // reason. Adding the priced figure mixed the two bases in one number and put
+  // /job-costing's cost-at-completion a full CO margin above the one
+  // /wip-report and /reports compute (utils/wip.topUpForChangeOrders).
+  //
+  // It never moved the headline variance — `uncommittedRemainder` rises by the
+  // identical dollar, so `variance = projectedFinal − budget` is unchanged, and
+  // a CO whose description is not verbatim a phase name lands in its own
+  // 'Change Orders' bucket whose variance is exactly $0. What it did was
+  // inflate cost-EAC by the CO's margin, i.e. UNDERSTATE projected profit. That
+  // is the conservative direction, which is why this is a parity fix and not an
+  // over-budget-job-looks-healthy fix — do not describe it as one.
+  const coCostRatio = changeOrderCostRatio(project, phases);
   for (const co of projectCOs) {
-    const phaseKey = co.description?.trim() || 'Change Orders';
-    const match = phases.has(phaseKey) ? phaseKey : 'Change Orders';
-    const existing = phases.get(match) ?? emptyLine(match);
-    existing.budget += co.changeAmount;
+    const coPhaseLabel = co.description?.trim() || 'Change Orders';
+    const match = hasPhase(coPhaseLabel) ? coPhaseLabel : 'Change Orders';
+    const existing = bucket(match);
+    existing.budget += co.changeAmount * coCostRatio;
     existing.sources.changeOrders.push(co.id);
-    phases.set(match, existing);
   }
 
   // Commitments — signed subs/POs push into their phase, and what has been
@@ -453,12 +792,10 @@ export function computeJobCost({
   // and "on track to finish under budget". Two screens in one app answered
   // "what has this job cost me" with incompatible arithmetic.
   for (const c of projectCommitments) {
-    const phase = commitmentPhase(c);
-    const existing = phases.get(phase) ?? emptyLine(phase);
+    const existing = bucket(commitmentPhase(c));
     existing.committed += commitmentValue(c);
     existing.actual += commitmentPaidToDate(c);
     existing.sources.commitments.push(c.id);
-    phases.set(phase, existing);
   }
 
   // Material receipts — snapped supplier invoices count as ACTUAL material
@@ -468,8 +805,7 @@ export function computeJobCost({
   for (const r of projectReceipts) {
     const linked = r.commitmentId ? projectCommitments.find(c => c.id === r.commitmentId) : undefined;
     if (linked) {
-      const phase = commitmentPhase(linked);
-      const existing = phases.get(phase) ?? emptyLine(phase);
+      const existing = bucket(commitmentPhase(linked));
       const receiptTotal = r.lines.reduce((s, l) => s + (l.lineTotal || 0), 0);
       existing.actual += receiptTotal;
       // NOT direct. A receipt SNAPPED to a commitment is material delivered
@@ -482,12 +818,11 @@ export function computeJobCost({
       // double-count the split was written to remove, pointed the other way.
       // Only the UNLINKED branch below is direct.
       existing.sources.receipts.push(r.id);
-      phases.set(phase, existing);
     } else {
       for (const line of r.lines) {
         const cat = (line.category || '').trim();
-        const phase = cat && phases.has(cat) ? cat : (cat || PHASE_UNCATEGORIZED);
-        const existing = phases.get(phase) ?? emptyLine(phase);
+        const phase = cat || PHASE_UNCATEGORIZED;
+        const existing = bucket(phase);
         existing.actual += line.lineTotal || 0;
         addDirect(phase, line.lineTotal || 0);
         // One receipt splitting across three categories names itself on all
@@ -496,7 +831,6 @@ export function computeJobCost({
         // in the same category); the finalize pass below dedupes, so the count
         // the sheet shows is receipts, not receipt-lines.
         existing.sources.receipts.push(r.id);
-        phases.set(phase, existing);
       }
     }
   }
@@ -520,11 +854,10 @@ export function computeJobCost({
     }
     if (laborActual > 0) {
       const phase = 'Self-perform labor';
-      const existing = phases.get(phase) ?? emptyLine(phase);
+      const existing = bucket(phase);
       existing.actual += laborActual;
       addDirect(phase, laborActual);
       existing.sources.timeEntries.push(...countedIds);
-      phases.set(phase, existing);
     }
   }
 
@@ -551,11 +884,10 @@ export function computeJobCost({
     );
     const cost = (hours / EQUIPMENT_HOURS_PER_DAY) * rate;
     if (cost <= 0) continue;
-    const existing = phases.get(PHASE_EQUIPMENT) ?? emptyLine(PHASE_EQUIPMENT);
+    const existing = bucket(PHASE_EQUIPMENT);
     existing.actual += cost;
     addDirect(PHASE_EQUIPMENT, cost);
     existing.sources.equipment.push(...rows.map(u => u.id));
-    phases.set(PHASE_EQUIPMENT, existing);
   }
 
   // Permit fees — ACTUAL cost the day the application goes in (MONEY-PMT-1).
@@ -569,11 +901,10 @@ export function computeJobCost({
     if (p.projectId !== project.id) continue;
     const fee = Number.isFinite(p.fee) ? Math.max(0, p.fee) : 0;
     if (fee <= 0) continue;
-    const existing = phases.get(PHASE_PERMITS) ?? emptyLine(PHASE_PERMITS);
+    const existing = bucket(PHASE_PERMITS);
     existing.actual += fee;
     addDirect(PHASE_PERMITS, fee);
     existing.sources.permits.push(p.id);
-    phases.set(PHASE_PERMITS, existing);
   }
 
   // Overcommitted detection — any commitment whose sum exceeds the sum
@@ -597,6 +928,17 @@ export function computeJobCost({
 
   // Finalize each phase — compute projectedFinal + variance + status.
   const byPhase: JobCostLine[] = [];
+  /** Σ per-phase direct cost, after the per-phase clamp. Feeds the PROJECT
+   *  uncommitted term below — see the block above the totals. */
+  let sumDirect = 0;
+  /** Σ per-phase remaining commitment balance. Same. */
+  let sumRemainingCommitted = 0;
+  /** Σ of the spend that exceeded a budget the engine can vouch for. See the
+   *  project-total block for why this is not simply "every phase with a
+   *  budget": a $3,600 lighting line and a $22,600 electrical subcontract can
+   *  share a bucket by coincidence, and calling the difference an overrun is
+   *  the fabricated-overrun bug in miniature. */
+  let sumIdentifiedOverrun = 0;
   for (const line of phases.values()) {
     const actual = Math.max(0, line.actual);
     const committed = Math.max(0, line.committed);
@@ -616,10 +958,24 @@ export function computeJobCost({
     // the same reason. On a phase whose only actual is commitment payments —
     // every phase the original engine had — this is arithmetically identical to
     // the old formula.
-    const direct = Math.min(actual, Math.max(0, directActual.get(line.phase) ?? 0));
+    const direct = Math.min(actual, Math.max(0, directActual.get(phaseKey(line.phase)) ?? 0));
     const againstCommitment = actual - direct;
     const remainingCommitted = Math.max(0, committed - againstCommitment);
     const uncommittedRemainder = Math.max(0, budget - committed - direct);
+    sumDirect += direct;
+    sumRemainingCommitted += remainingCommitted;
+    // A phase's overrun counts at project level only when the engine can vouch
+    // for the pairing: the phase has a real budget, and EVERY commitment in it
+    // was resolved to the estimate lines it bought out (a phase with no
+    // commitments at all — pure receipts, crew hours — qualifies on its
+    // category alone). Where the join failed, the budget beside the commitment
+    // is not that commitment's budget and the difference is not an overrun.
+    const pk = phaseKey(line.phase);
+    const inPhase = phaseCommitmentCount.get(pk) ?? 0;
+    const resolvedHere = phaseResolvedCount.get(pk) ?? 0;
+    if (budget > 0 && resolvedHere === inPhase) {
+      sumIdentifiedOverrun += Math.max(0, committed + direct - budget);
+    }
     const projectedFinal = actual + remainingCommitted + uncommittedRemainder;
     const variance = projectedFinal - budget;
     const burnRatio = budget > 0 ? Math.min(2, actual / budget) : (committed > 0 ? Math.min(2, actual / committed) : 0);
@@ -651,11 +1007,78 @@ export function computeJobCost({
 
   byPhase.sort((a, b) => b.budget - a.budget);
 
-  // Totals.
+  // ───────────────────────────────────────────────────────────────────────────
+  // THE UNCOMMITTED FLOOR IS A PROJECT TERM, NOT A SUM OF PHASE TERMS
+  // (JOBCOST-PHASE-1, audit 2026-09-11, review round 2).
+  //
+  // `totalProjected` used to be `Σ byPhase.projectedFinal`, and that sum is
+  // where /job-costing's fabricated overrun actually came from. Each phase
+  // carries `max(0, budget − committed − direct)` as its own floor, so a
+  // commitment sitting in a DIFFERENT bucket from the budget it bought out
+  // adds its whole value on top of a budget that was never reduced: the
+  // estimate's "subcontractor $41,000, committed $0" row kept its full floor
+  // while "Electrical — Unbudgeted, committed $22,600" added $22,600 beside
+  // it. Budget $131,502 + a $22,600 buyout printed "Projected $154,102 —
+  // $22,600 OVER" on a job that was exactly on budget.
+  //
+  // `matchEstimateItems` above repairs the ROWS when it can find a link. It
+  // cannot always, and the reason is structural: app/job-costing.tsx's
+  // commitment editor gives a subcontract a `subcontractorId` and a phase name
+  // the GC types, and writes neither `csiDivision` nor `linkedEstimateItems`.
+  // On a project with no subcontractor roster, or a sub the estimate never
+  // named, there is no link to find. The ROWS stay honest then ("this trade
+  // has commitments the estimate never priced" is a true statement) — but the
+  // HEADLINE must not double count, because whether two records could be
+  // JOINED is a fact about the app, not about the job.
+  //
+  // So the headline is the SMALLER of two readings, and it can therefore only
+  // ever shrink a fabricated overrun, never invent one:
+  //
+  //   perPhase      = Σ byPhase.projectedFinal              (the old answer)
+  //   projectLevel  = actual
+  //                 + Σ remaining commitment balances
+  //                 + max(0, totalBudget − totalCommitted − totalDirect)
+  //                 + Σ overrun on phases that HAVE a budget
+  //
+  // projectLevel takes the uncommitted floor ONCE over the whole job, so a
+  // neutral buyout is neutral wherever it is bucketed. The last term is what
+  // keeps it from being a blunt instrument: a phase whose budget the engine can
+  // VOUCH FOR, committed past that budget, is a real overrun on identified
+  // scope and it survives — /job-costing still reports the $1,200 sub change
+  // order on a plumbing subcontract signed above its estimate.
+  //
+  // "Vouch for" is narrower than "has a budget", and the difference matters. A
+  // trade bucket can hold a $3,600 lighting line while the $22,600 electrical
+  // SUBCONTRACT's budget sits under the estimator's 'subcontractor' category:
+  // budget is non-zero, committed is 6× it, and none of that gap is an
+  // overrun. So the term counts a phase only when every commitment in it was
+  // resolved to the estimate lines it bought out (or when it holds no
+  // commitments at all, and its budget is being measured against receipts and
+  // crew hours filed under the same category). Everything else is named in the
+  // drill-down and left out of the headline.
+  //
+  // WHAT THIS TRADES AWAY, stated plainly: genuinely unbudgeted spend — a
+  // permit fee on an estimate with no permits line — is now absorbed by the
+  // job's remaining uncommitted budget instead of adding to the projected
+  // final, until the job runs out of that budget. That is the same absorption
+  // any PM does mentally with contingency, it is bounded (once
+  // totalCommitted + direct reaches totalBudget the third term is zero and
+  // every further dollar lands on the headline), and it is the price of not
+  // fabricating an overrun on every commitment whose phase string the GC typed
+  // differently from his estimator.
+  //
+  // CONSEQUENCE TO KNOW: `summary.projectedFinal` is no longer Σ
+  // `byPhase.projectedFinal`. Do not re-derive the headline by summing the
+  // rows — that re-derivation is the bug.
+  // ───────────────────────────────────────────────────────────────────────────
   const totalBudget = byPhase.reduce((s, p) => s + p.budget, 0);
   const totalCommitted = byPhase.reduce((s, p) => s + p.committed, 0);
   const totalActual = byPhase.reduce((s, p) => s + p.actual, 0);
-  const totalProjected = byPhase.reduce((s, p) => s + p.projectedFinal, 0);
+  const perPhaseProjected = byPhase.reduce((s, p) => s + p.projectedFinal, 0);
+  const projectLevelProjected = totalActual + sumRemainingCommitted
+    + Math.max(0, totalBudget - totalCommitted - sumDirect)
+    + sumIdentifiedOverrun;
+  const totalProjected = Math.min(perPhaseProjected, projectLevelProjected);
 
   const biggestVariances = [...byPhase]
     .filter(p => Math.abs(p.variance) > 1)
@@ -678,6 +1101,10 @@ export function computeJobCost({
     spendPercent: totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0,
     byPhase,
     biggestVariances,
+    // What the rows show and the headline does not — see the field doc. The
+    // screen owes the reader a sentence when this is non-zero; leaving it
+    // implicit is the "two answers in one render" defect.
+    absorbedVariance: Math.max(0, Math.round((perPhaseProjected - totalProjected) * 100) / 100),
     overcommittedCommitments: overcommitted,
     method: 'mage_committed_plus_uncommitted',
   };

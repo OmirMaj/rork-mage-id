@@ -144,7 +144,7 @@ function BusinessInner() {
   const { isDesktop } = useResponsiveLayout();
 
   const { projects } = useCoreData();
-  const { invoices, changeOrders, commitments } = useFinancialsData();
+  const { invoices, changeOrders, commitments, aiaPayApps } = useFinancialsData();
   const { dailyReports } = useFieldData();
   const { leads } = usePreconData();
   const { bidResponses } = useBidResponsesPortfolio();
@@ -159,8 +159,8 @@ function BusinessInner() {
   );
 
   const pipeline = useMemo(
-    () => buildPipelineHorizon({ leads, projects, invoices, changeOrders, commitments, bidResponses, now }),
-    [leads, projects, invoices, changeOrders, commitments, bidResponses, now],
+    () => buildPipelineHorizon({ leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now }),
+    [leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now],
   );
 
   const clientBook = useMemo(

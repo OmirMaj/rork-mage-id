@@ -9,6 +9,7 @@ import { getLanguageMeta } from '@/utils/portalLanguages';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 import { resolveScheduleAnchor, scheduleDayNumberFor } from '@/utils/scheduleOps';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
@@ -710,17 +711,40 @@ export async function analyzeChangeOrderImpact(
           .filter(e => descWords.includes(e.trade.toLowerCase()) || lineItems.some(li => li.name.toLowerCase().includes(e.trade.toLowerCase())))
           .slice(0, 4);
         if (relatedEntries.length > 0) {
-          const anyEarned = relatedEntries.some(e => e.provenance !== 'seeded');
-          const anySeeded = relatedEntries.some(e => e.provenance === 'seeded');
+          // MEASURED MEANS "A JOB IS BEHIND IT", NOT "NOTHING WAS SEEDED".
+          // This read `provenance === 'earned'`, so a set of only MIXED
+          // entries — a seed the contractor typed PLUS closed jobs that
+          // corrected it — pushed the seed chip alone and never "your cost
+          // history", although those entries do have measured jobs behind
+          // them. jobCount is the honest test: it counts distinct projects
+          // among the non-seed samples that actually teach the rate, and it is
+          // 0 for the one 'earned' case that has nothing measured (an
+          // unfiled receipt, projectId '').
+          const anyEarned = relatedEntries.some(e => (e.jobCount ?? 0) >= 1);
+          // A 'mixed' rate is PART stated. It used to take the earned branch
+          // and push only 'your cost history', so a number the contractor half
+          // invented was cited to him as measurement.
+          const anySeeded = relatedEntries.some(e => e.provenance !== 'earned');
           costBlock = 'YOUR OWN RATES (flag line items more than 25% off these):\n'
-            + relatedEntries.map(e =>
+            + relatedEntries.map(e => {
               // A seeded row has exactly one stated sample; printing
               // "(1 samples, low confidence)" would dress a claim up as
               // evidence. Name it instead.
-              e.provenance === 'seeded'
-                ? `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (SELF-REPORTED — the GC set this rate themselves; nothing here has measured it. Do not call it their cost history.)`
-                : `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${e.sampleCount} samples, ${e.confidence} confidence)`,
-            ).join('\n');
+              if (e.provenance === 'seeded') {
+                return `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (SELF-REPORTED — the GC set this rate themselves; nothing here has measured it. Do not call it their cost history.)`;
+              }
+              // EVIDENCE IS COUNTED IN JOBS, NEVER IN SAMPLES. sampleCount
+              // (costDatabase) is ss.length — it includes the seed and any
+              // sample rejected as an outlier or disqualified as unit-rate
+              // evidence, so it OVERSTATES what was measured every time it is
+              // shown to the model as proof. jobCount is the measured count.
+              const jobs = `${e.jobCount} measured job${e.jobCount === 1 ? '' : 's'}`;
+              const basis = e.earnedBasis === 'contracted' ? CONTRACTED_NOTE : '';
+              if (e.provenance === 'mixed') {
+                return `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${jobs}${basis}, ${e.confidence} confidence — STARTED FROM A RATE THE GC SET HIMSELF and partly corrected by those jobs. Do not present it as measured history alone.)`;
+              }
+              return `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${jobs}${basis}, ${e.confidence} confidence)`;
+            }).join('\n');
           // Two distinct grounding chips so the UI never labels a stated rate
           // as measured history.
           if (anyEarned) groundingSources.push('your cost history');

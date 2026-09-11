@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>MAGE ID vs. enterprise construction software — built for builders, not back offices</title>
   <link rel="canonical" href="https://mageid.app/features/vs-competitors.html" />
-  <meta name="description" content="MAGE ID delivers WIP, profit, AR aging, AIA pay apps, and AI cost forecasting — at a fraction of the price of enterprise PM platforms. Built mobile-first for the residential and small-commercial GC." />
+  <meta name="description" content="MAGE ID delivers WIP, profit, AR aging, AIA-style pay apps, and AI cost forecasting — at a fraction of the price of enterprise PM platforms. Built mobile-first for the residential and small-commercial GC." />
   <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
@@ -217,8 +217,12 @@
               <td class="compare-no">Trade does this manually, then re-checks before buyout</td>
             </tr>
             <tr>
-              <td class="compare-row-feature">DCMA 14-point Schedule Health</td>
-              <td class="col-mage compare-yes">Live scoring against the federal DCMA 14-point assessment — surfaces float, missing logic, lag/lead misuse</td>
+              <!-- Was "DCMA 14-point Schedule Health". utils/scheduleHealthScore.ts
+                   runs ten of the fourteen; the precise claim is more impressive
+                   to the one buyer who can tell. Pinned by
+                   scripts/validate-marketing-claims.ts against the code. -->
+              <td class="compare-row-feature">Schedule health, scored against the DCMA assessment</td>
+              <td class="col-mage compare-yes">Ten of the fourteen federal DCMA checks run in full on your own schedule &mdash; logic, leads, lags, relationship types, hard constraints, negative float, high duration, invalid dates, resources and CPLI. Missed tasks runs as a labelled proxy; high float, the critical path test and BEI do not run. <a href="/features/scheduling.html#dcma">Which ten, which proxy, and which three we don&rsquo;t run</a></td>
               <td class="compare-no">Available only in P6 / Asta Powerproject (enterprise tier)</td>
             </tr>
             <tr>
@@ -232,7 +236,7 @@
               <td class="compare-no">No fit scoring, no response-time KPI surfaced on the lead card</td>
             </tr>
             <tr>
-              <td class="compare-row-feature">AIA G702/G703 pay app generator</td>
+              <td class="compare-row-feature">AIA-style G702/G703 pay app generator</td>
               <td class="col-mage compare-yes">One screen — schedule of values, retainage math, change-order roll-up, e-sign export</td>
               <td class="compare-partial">Available in mid-tier PM software (priced per seat) — usually a separate module</td>
             </tr>
@@ -248,7 +252,18 @@
             </tr>
             <tr>
               <td class="compare-row-feature">Sign-up</td>
-              <td class="col-mage compare-yes">Self-serve App Store install. Paying in 90 seconds.</td>
+              <!-- This cell used to read "Self-serve App Store install. Paying
+                   in 90 seconds." Both halves were false: an iTunes lookup on
+                   id 6762229238 and on bundle com.mageid.app each return
+                   resultCount 0, and the web till is still on a sandbox
+                   payment key, so nobody has ever been charged on any channel.
+                   Replacing it with a bare "open it in a browser and start"
+                   would have swapped one false distribution claim for another,
+                   so the cell now says exactly what each path can do today.
+                   Restore a purchase claim only when the App Store listing is
+                   live or scripts/validate-release-keys.ts passes on a release
+                   build — not before. -->
+              <td class="col-mage compare-yes">Free plan is self-serve today &mdash; open app.mageid.app in a browser and run your first project, no download and no sales call. Paid plans are not self-serve yet: the iPhone app is in TestFlight rather than the App Store and our payment processor is still in sandbox, so <a href="/access.html">you email us and we switch your plan on</a>, usually the same day. We would rather tell you that than sell you a button that doesn't work.</td>
               <td class="compare-no">Custom-quote sales process. Multi-step form, sales call, contract.</td>
             </tr>
             <tr>
@@ -280,10 +295,17 @@
       </p>
     </section>
 
-    <!-- Stop renting eight tools — the stack-of-point-tools comparison -->
-    <section class="section wrap-wide">
+    <!-- Stop renting eight tools — the stack-of-point-tools comparison.
+         THIS IS THE CANONICAL STACK TOTAL FOR THE WHOLE SITE. pricing.html and
+         features/vs-other-tools.html used to compute their own ($360–920 and
+         $360–910 respectively) against this page's $396–703 / $549 midpoint;
+         three totals for one argument is how a reader starts checking your
+         arithmetic instead of reading your pitch. Both of those pages now link
+         to #stack instead of restating a figure, so this table is the only
+         place the number can change. -->
+    <section class="section wrap-wide" id="stack">
       <h2 class="section-heading">Stop renting eight tools.</h2>
-      <p class="section-sub">Most GCs end up paying for a stack of point-tools — a CRM here, an estimator there, a scheduler, a doc-storage app, a punch-list app — because no single legacy product handles it all without a five-figure sales cycle. Here's what that pile actually costs.</p>
+      <p class="section-sub">Most GCs end up paying for a stack of point-tools — a CRM here, an estimator there, a scheduler, a doc-storage app, a punch-list app — because no single legacy product handles it all without a five-figure sales cycle. Here's what that pile actually costs. This is the only stack total on the site; the pricing page and the other comparison pages link here rather than quoting a number of their own.</p>
 
       <div class="compare-card">
         <table class="compare-table">
@@ -339,7 +361,7 @@
               <td>Live portal, six languages, open-book mode</td>
             </tr>
             <tr>
-              <td class="compare-row-feature">AIA pay app + invoicing</td>
+              <td class="compare-row-feature">AIA-style pay app + invoicing</td>
               <td class="compare-no">Priced per seat<sup>1</sup></td>
               <td class="col-mage compare-yes">Included</td>
               <td>G702 / G703 + Stripe Connect, all built-in</td>
@@ -390,13 +412,13 @@
             <tr style="background: #FFF6E8;">
               <td class="compare-row-feature col-mage" style="font-size: 15px;"><strong>MAGE ID Pro</strong> — owner-operator GC</td>
               <td class="col-mage compare-yes" style="font-size: 15px;">$29</td>
-              <td class="col-mage compare-yes" style="font-size: 15px;">$348</td>
+              <td class="col-mage compare-yes" style="font-size: 15px;">$348 month-to-month<br><span style="font-size:13px;">less on the <a href="/pricing.html#annual">annual plan</a></span></td>
               <td class="compare-yes" style="font-size: 15px;"><strong>+$520/mo · +$6,240/yr</strong></td>
             </tr>
             <tr style="background: #FFEEDE;">
               <td class="compare-row-feature col-mage" style="font-size: 15px;"><strong>MAGE ID Business</strong> — small team, advanced AI</td>
               <td class="col-mage compare-yes" style="font-size: 15px;">$79</td>
-              <td class="col-mage compare-yes" style="font-size: 15px;">$948</td>
+              <td class="col-mage compare-yes" style="font-size: 15px;">$948 month-to-month<br><span style="font-size:13px;">less on the <a href="/pricing.html#annual">annual plan</a></span></td>
               <td class="compare-yes" style="font-size: 15px;"><strong>+$470/mo · +$5,640/yr</strong></td>
             </tr>
           </tbody>
@@ -417,7 +439,7 @@
         <p style="margin: 0 0 8px 0;"><strong>Notes:</strong></p>
         <p style="margin: 0 0 6px 0;"><sup>1</sup> Category price ranges from publicly-listed pricing on the leading point-tool vendors as of Q2 2026. CRM (Pipedrive Pro / Salesforce Essentials), estimating (STACK / Buildxact), scheduling (Microsoft Project / Smartsheet), doc storage (Dropbox Business / Google Workspace), field ops + punch + portal + pay apps (various trade-specific tools).</p>
         <p style="margin: 0 0 6px 0;"><sup>2</sup> Legacy all-in-one PM platform pricing reflects publicly-discussed quotes in industry buyer guides ($400 entry, $900+ for full financials with AR / WIP / pay app modules).</p>
-        <p style="margin: 0;"><sup>3</sup> "Stack" baseline is the midpoint of the eight-category total ($549/mo). Annual MAGE ID prices assume month-to-month App Store pricing — no contract, no annual hike committed for the life of your subscription. Add-on fees (implementation, training, premium support) are excluded from both columns; legacy platforms typically add $1,500–$5,000 in year 1.</p>
+        <p style="margin: 0;"><sup>3</sup> "Stack" baseline is the midpoint of the eight-category total ($549/mo). MAGE ID annual figures are the month-to-month price &times; 12 and are labelled as such; the annual plans are described on the <a href="/pricing.html#annual">pricing page</a>, which withholds the yearly dollar figure until the store listing settles it &mdash; that page explains why. No contract, no annual hike. Add-on fees (implementation, training, premium support) are excluded from both columns; legacy platforms typically add $1,500–$5,000 in year 1.</p>
       </div>
     </section>
 
@@ -504,7 +526,7 @@
           <tbody>
             <tr>
               <td class="compare-row-feature">Annual price (single GC)</td>
-              <td class="col-mage compare-yes">~$348 / yr (Pro)</td>
+              <td class="col-mage compare-yes">$348/yr month-to-month &middot; less on the <a href="/pricing.html#annual">annual plan</a></td>
               <td class="compare-no">$6,000 – $12,000 / yr<sup>1</sup></td>
             </tr>
             <tr>
@@ -523,7 +545,7 @@
               <td class="compare-no">Basic — auto-scheduling at most. Most financial tracking still manual<sup>2</sup></td>
             </tr>
             <tr>
-              <td class="compare-row-feature">AIA G702 / G703 pay apps</td>
+              <td class="compare-row-feature">AIA-style G702 / G703 pay apps</td>
               <td class="col-mage compare-yes">Native — full SOV editing, retainage, prior-billings, owner e-sign via portal</td>
               <td class="compare-yes">Yes (often a separate add-on)</td>
             </tr>
@@ -549,7 +571,7 @@
             </tr>
             <tr>
               <td class="compare-row-feature">Live client portal</td>
-              <td class="col-mage compare-yes">Schedule, photos, RFIs, AIA pay apps, CO approvals, messaging — one passcode-protected URL</td>
+              <td class="col-mage compare-yes">Schedule, photos, RFIs, AIA-style pay apps, CO approvals, messaging — one passcode-protected URL</td>
               <td class="compare-yes">Yes (often gated behind enterprise tier)</td>
             </tr>
             <tr>
@@ -589,7 +611,7 @@
             </tr>
             <tr>
               <td class="compare-row-feature">Lien waivers</td>
-              <td class="col-mage compare-yes">All 4 types (conditional / unconditional × partial / final). PDF generation + state disclaimer.</td>
+              <td class="col-mage compare-yes">All 4 types (conditional / unconditional &times; partial / final). PDF generation with the state disclaimer, sent to the sub for signature through a link they do not need an account to open. Included on Pro at $29/mo.</td>
               <td class="compare-partial">Often a separate paid add-on (Levelset, etc.)</td>
             </tr>
             <tr>
@@ -681,11 +703,11 @@
           </div>
           <div class="feature-list-item">
             <div class="fli-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
-            <div><h4>Standard 1099 / W-9 vendor compliance</h4><p>Enterprise-grade vendor compliance hub. We track sub commitments + payments today; year-end 1099 generation is queued.</p></div>
+            <div><h4>Standard 1099 / W-9 vendor compliance</h4><p>Enterprise-grade vendor compliance hub with W-9 collection workflows and state-level filing. We track sub commitments and payments and generate the year-end 1099-NEC export (included on Free); the automated W-9 chase and multi-state filing is theirs.</p></div>
           </div>
           <div class="feature-list-item">
             <div class="fli-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.4 4.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L12.6 19.5"/></svg></div>
-            <div><h4>Lien waiver auto-generation</h4><p>Conditional / unconditional / partial / final by state. On the roadmap — high-priority for 2026.</p></div>
+            <div><h4>Deeper subcontract administration</h4><p>Two-tier sub-to-sub commitment chains, joint-check agreements, and automated retainage release schedules across a portfolio. We generate and route the waivers (see the table above &mdash; all four types shipped, on Pro) but the multi-tier commitment structure underneath is theirs.</p></div>
           </div>
           <div class="feature-list-item">
             <div class="fli-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M3 21h18M5 21V8l7-4 7 4v13"/><path d="M10 21v-5h4v5"/></svg></div>
@@ -699,7 +721,7 @@
     <section class="wrap-wide">
       <div class="cta-band">
         <h2>Stop paying enterprise prices for back-office software.</h2>
-        <p>Five minutes to your first WIP report. Free to start; $29/mo Pro when you're ready.</p>
+        <p>Free to start. AIA-style pay apps, job costing, change orders, lien waivers, the client portal and cash flow are on <strong>Pro at $29/mo</strong>; the WIP schedule, the margin board and Cost X-Ray are on <strong>Business at $79/mo</strong>. The cheapest Knowify plan that includes a WIP schedule is $329/mo annual.</p>
         <a class="btn btn-primary" href="https://app.mageid.app">Start free</a>
       </div>
     </section>
@@ -734,6 +756,42 @@
       </div>
       <p class="legal">© MAGE ID. Build it. Bill it. Track every dollar.</p>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+        <!-- STANDING AIA NOTICE — on every page that mentions AIA.
+           The generated document already carries this (utils/aiaBilling.ts:937)
+           and app/aia-pay-app.tsx shows it on first use; the site did not, which
+           left the GC to discover on their first submitted draw that they were
+           not holding an official form. "AIA-style" is the industry convention
+           — Contractor Foreman's own pricing page labels the feature "AIA Style
+           Invoicing (G702 and G703)" — so the hedge costs nothing and reads as
+           more expert to the one person who can tell the difference. -->
+      <p class="aia-notice" style="max-width:900px;margin:18px auto 0;font-size:12px;line-height:1.6;opacity:.62;text-align:center;">
+        MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are
+        registered trademarks of The American Institute of Architects, which is not affiliated with and
+        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract
+        Documents &mdash; check with yours before you submit.
+      </p>
   </footer>
   <script src="/nav-mobile.js" defer></script>
   <script src="/motion.js" defer></script>

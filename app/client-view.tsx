@@ -39,7 +39,7 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
 import { linkState } from '@/utils/portalLinkExpiry';
-import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { resolveContractSum, getPaidToDate, getInvoicedToDate } from '@/utils/projectFinancials';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import {
   buildOwnerDecisions, summarizeOwnerDecisions, buildCOConsentRecord, buildCOAuditDetail,
@@ -799,10 +799,38 @@ export default function ClientViewScreen() {
 
   const financingEnabledForPortal = isFinancingAvailable(settings);
 
-  // Budget metrics
-  const contractValue = effectiveEstimateTotal(project);
-  const invoicedTotal = invoices.reduce((s, i) => s + i.totalDue, 0);
-  const paidTotal = invoices.reduce((s, i) => s + i.amountPaid, 0);
+  // Budget metrics.
+  //
+  // MONEY-CONTRACT-1 (audit 2026-09-11). This screen already HAS the signed
+  // contract — `contractQ` fetches it above and the Documents list links the
+  // homeowner straight to the executed PDF. It nonetheless printed
+  // `effectiveEstimateTotal(project)` as "Original Contract", so a GC who
+  // signed at a negotiated number showed the owner the ESTIMATE on the same
+  // page as the agreement carrying a different one. Of every surface with this
+  // bug this is the one the CLIENT reads, which is why it was fixed first.
+  //
+  // WHAT SNAPSHOT MODE CAN AND CANNOT SAY. `contractQ` is keyed to
+  // `localProject` and disabled without one, so an ANON portal visitor — the
+  // only reader who matters here — never fetches a contract at all and
+  // `resolveContractSum` always answers 'estimate'. The first cut of this fix
+  // therefore printed "no signed agreement is on file for this project yet" on
+  // the very page whose Documents list carries the signed PDF. The caption
+  // below distinguishes the three states: signed contract in hand, no contract
+  // on file, and could-not-check. It never asserts an absence it did not
+  // verify. Carrying the contract sum into the published snapshot
+  // (utils/portalSnapshot.ts) is what makes the anon view print the real
+  // figure; that file belongs to the AIA wave and is in the handoff.
+  const contractSum = resolveContractSum(project, contractQ.data);
+  const contractValue = contractSum.value;
+  /** True when this render COULD have seen a contract and found none. */
+  const contractWasChecked = !isSnapshotMode && !!localProject?.id && !contractQ.isPending;
+  // MONEY-PAID-DRAFT-1: through the shared definitions, not re-derived here.
+  // These two reduces used to be inline and unfiltered, so this screen counted
+  // payments logged against DRAFT invoices as money collected while
+  // utils/portalSnapshot.ts (the web portal, same homeowner) did not — two
+  // views of one job disagreeing about "Paid to date".
+  const invoicedTotal = getInvoicedToDate(invoices);
+  const paidTotal = getPaidToDate(invoices);
   const approvedCOs = changeOrders.filter(c => c.status === 'approved');
   const coTotal = approvedCOs.reduce((s, c) => s + c.changeAmount, 0);
   const revisedContract = contractValue + coTotal;
@@ -1212,6 +1240,15 @@ export default function ClientViewScreen() {
                   <Text style={styles.budgetValueTotal}>{formatMoney(revisedContract)}</Text>
                 </View>
                 <Text style={styles.budgetCaption}>Projected final cost — your contract plus any change orders you&apos;ve approved.</Text>
+                {/* Name the source. A contract figure that cannot say where it
+                    came from is what MONEY-CONTRACT-1 was. */}
+                <Text style={styles.budgetCaption} testID="contract-sum-source">
+                  {contractSum.source === 'signed_contract'
+                    ? 'Original Contract is the sum on your signed agreement.'
+                    : contractWasChecked
+                      ? 'Original Contract is the accepted estimate total — no signed agreement is on file for this project yet.'
+                      : 'Original Contract is the accepted estimate total. If you have signed an agreement, the sum on it is the one that governs — open it under Documents.'}
+                </Text>
 
                 <View style={styles.budgetRow}>
                   <Text style={styles.budgetLabel}>Total Invoiced</Text>

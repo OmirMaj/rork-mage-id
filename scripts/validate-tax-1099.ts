@@ -14,9 +14,11 @@
 
 import {
   buildTax1099Dataset, tax1099DatasetToCsv, thresholdForYear, thresholdInfoForYear, cashPaidOf, paymentDateOf,
-  THRESHOLD_PROVISIONAL_NOTE, COVERAGE_NOTE,
+  THRESHOLD_PROVISIONAL_NOTE, COVERAGE_NOTE, COVERAGE_NOTE_WITH_RECORDED_BILLS, coverageNoteFor,
+  gcRecordedSubPaymentsFromReceipts,
+  type GcRecordedSubPayment,
 } from '../utils/tax1099Export';
-import type { Subcontractor, SubSubmittedInvoice, Commitment } from '../types';
+import type { Subcontractor, SubSubmittedInvoice, Commitment, MaterialReceipt } from '../types';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,8 +40,9 @@ const inv = (over: Partial<SubSubmittedInvoice>): SubSubmittedInvoice => ({
   amount: 0, status: 'paid', createdAt: '2026-06-01T12:00:00.000Z', ...over,
 } as SubSubmittedInvoice);
 
-const build = (year: number, invoices: SubSubmittedInvoice[], subs = [sub('s1')], commitments: Commitment[] = []) =>
-  buildTax1099Dataset({ year, subcontractors: subs, commitments, subSubmittedInvoices: invoices });
+const build = (year: number, invoices: SubSubmittedInvoice[], subs = [sub('s1')], commitments: Commitment[] = [],
+  gcRecordedPayments: GcRecordedSubPayment[] = []) =>
+  buildTax1099Dataset({ year, subcontractors: subs, commitments, subSubmittedInvoices: invoices, gcRecordedPayments });
 
 /** A signed sub with a server-maintained paidToDate rollup — no payment dates. */
 const commitment = (id: string, subcontractorId: string, paidToDate: number): Commitment => ({
@@ -193,15 +196,178 @@ console.log('\ncoverage is stated, not implied (MONEY-1099-COV-1):');
   const rows = build(2026, [inv({ id: 'a', amount: 3_000, paidOn: '2026-02-01' })], [sub('s1')], [commitment('c1', 's1', 12_500)]);
   const csv = tax1099DatasetToCsv(rows);
   const header = csv.split('\n')[0];
-  ok('the CSV Total Paid header names the portal as its source',
-    header.includes('Total Paid (sub-portal invoices, net of retention held)'), header);
-  ok('…and the undated commitment money gets its own APPENDED column',
-    header.endsWith('Commitment Paid To Date (undated — NOT counted)'), header);
+  // THE HEADER DESCRIBES THE DATA, NOT THE FEATURE (audit 2026-09-11, review
+  // round 2). MONEY-1099-GC-1 CAN widen the population this column sums, but
+  // only for a caller that passes `gcRecordedPayments`. This export did not,
+  // so the header must still say "sub-portal invoices" — the first cut renamed
+  // it unconditionally and told a CPA, in writing, that the column counted
+  // bills the screen never fetched. The widened header is asserted separately
+  // below, against a dataset that actually contains them.
+  // The Total Paid header cell contains a comma and is therefore QUOTED, so a
+  // bare split(',') shreds it — parse the row the way a CSV reader would.
+  const cells = (line: string): string[] =>
+    (line.match(/("([^"]|"")*"|[^,]*)(,|$)/g) ?? [])
+      .map(c => c.replace(/,$/, ''))
+      .filter((_, i, a) => i < a.length - 1 || a[i] !== '')
+      .map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"'));
+  const headerCells = cells(header);
+  ok('the CSV Total Paid header names the ONE source this export actually summed',
+    headerCells[4] === 'Total Paid (sub-portal invoices, net of retention held)', header);
+  ok('…and the undated commitment money gets its own column, after the original nine',
+    headerCells[10] === 'Commitment Paid To Date (undated — NOT counted)', header);
+  ok('…and the GC-recorded slice is APPENDED after it, disturbing no position',
+    headerCells[11] === 'Of which: bills you recorded (document date basis)', header);
   ok('…with the existing nine columns still in their original positions',
     header.split(',').slice(0, 4).join(',') === 'Sub ID,Recipient Name,TIN (last 4),Address'
     && header.split('","').length > 1 || header.startsWith('Sub ID,Recipient Name,TIN (last 4),Address,'), header);
-  ok('…and the value lands in that column', csv.split('\n')[1].trimEnd().endsWith('12500.00'), csv.split('\n')[1]);
+  ok('…and the value lands in that column',
+    csv.split('\n')[1].trimEnd().split(',').slice(-2)[0] === '12500.00', csv.split('\n')[1]);
   ok('the coverage sentence reaches the CSV', csv.includes(COVERAGE_NOTE));
+}
+
+// ── MONEY-1099-GC-1: the sub paid by CHECK ───────────────────────────────────
+//
+// The residential norm: the framer texts a photo of an invoice and gets a
+// check. There is no sub_submitted_invoices row, and `Commitment.paidToDate` is
+// written only by the trigger on that table, so it is $0 too. Before this fix
+// the export printed "1099 Required: No" for a sub the GC paid $30,000.
+console.log('\na sub paid by check (MONEY-1099-GC-1):');
+{
+  const receipt = (over: Partial<MaterialReceipt>): MaterialReceipt => ({
+    id: 'r1', projectId: 'p1', vendor: 'Northline Electric', lines: [],
+    subtotal: 0, total: 0, status: 'reviewed',
+    createdAt: '2026-06-01T12:00:00.000Z', updatedAt: '2026-06-01T12:00:00.000Z',
+    ...over,
+  } as MaterialReceipt);
+  const subcontract = commitment('c1', 's1', 0);
+  const po = { ...commitment('c2', 's1', 0), id: 'c2', type: 'purchase_order' } as Commitment;
+
+  const bills = gcRecordedSubPaymentsFromReceipts(
+    [
+      receipt({ id: 'r1', commitmentId: 'c1', total: 18_000, receiptDate: '2026-03-14' }),
+      receipt({ id: 'r2', commitmentId: 'c1', total: 12_000, receiptDate: '2026-09-02' }),
+      // A PURCHASE ORDER is a supplier, not a 1099-NEC recipient.
+      receipt({ id: 'r3', commitmentId: 'c2', total: 9_000, receiptDate: '2026-04-01' }),
+      // Unlinked: material, not a sub payment.
+      receipt({ id: 'r4', total: 5_000, receiptDate: '2026-04-01' }),
+      // Different year.
+      receipt({ id: 'r5', commitmentId: 'c1', total: 7_000, receiptDate: '2025-12-30' }),
+    ],
+    [subcontract, po],
+  );
+  ok('only subcontract-linked receipts become sub payments', bills.length === 3, JSON.stringify(bills));
+  ok('…and a purchase order does not', !bills.some(b => b.amount === 9_000));
+  ok('…and an unlinked receipt does not', !bills.some(b => b.amount === 5_000));
+
+  const before = build(2026, [], [sub('s1')], [subcontract]);
+  ok('BEFORE: a check-paid sub reports $0', before[0].totalPaid === 0, String(before[0].totalPaid));
+  ok('BEFORE: …and the Y/N column says No', before[0].required1099 === false);
+
+  const after = build(2026, [], [sub('s1')], [subcontract], bills);
+  ok('AFTER: the two 2026 bills are counted', after[0].totalPaid === 30_000, String(after[0].totalPaid));
+  ok('AFTER: …the 2025 bill is not', !after.some(r => r.totalPaid === 37_000));
+  ok('AFTER: …and the Y/N column now says Yes', after[0].required1099 === true);
+  ok('…the basis is broken out rather than blended away', after[0].gcRecordedPaid === 30_000);
+  ok('…and the row says the tax year came from the DOCUMENT date',
+    /DATE ON THE DOCUMENT/.test(after[0].notes), after[0].notes);
+  ok('…and it reaches the CSV in its own column',
+    tax1099DatasetToCsv(after).split('\n')[1].trimEnd().endsWith('30000.00'),
+    tax1099DatasetToCsv(after).split('\n')[1]);
+
+  // Retention held on a GC-recorded bill is not money the sub received.
+  const held = build(2026, [], [sub('s1')], [subcontract],
+    [{ subcontractorId: 's1', amount: 10_000, retentionHeld: 1_000, date: '2026-05-01' }]);
+  ok('retention held on a GC-recorded bill is netted off, like a portal invoice',
+    held[0].totalPaid === 9_000, String(held[0].totalPaid));
+
+  // An omitted argument must reproduce the old behaviour EXACTLY.
+  const omitted = buildTax1099Dataset({
+    year: 2026, subcontractors: [sub('s1')], commitments: [subcontract],
+    subSubmittedInvoices: [inv({ id: 'a', amount: 3_000, paidOn: '2026-02-01' })],
+  });
+  ok('omitting gcRecordedPayments reproduces the portal-only figure',
+    omitted[0].totalPaid === 3_000 && omitted[0].gcRecordedPaid === 0, JSON.stringify(omitted[0]));
+
+  // ── EVERY STRING MUST BE TRUE OF THE RUN THAT PRODUCED IT ──────────────
+  //
+  // The first cut of MONEY-1099-GC-1 rewrote COVERAGE_NOTE, the CSV header and
+  // the "nothing this year" note to describe GC-recorded bills as counted —
+  // while app/tax-1099-export.tsx, the screen a CPA opens, was deliberately
+  // left unwired. The live export then asserted in writing that it counted
+  // bills recorded against a subcontract AND printed "no bills recorded
+  // against a subcontract either" for a sub who had them. On a deliverable
+  // with an IRS deadline that is worse than the narrow sentence it replaced.
+  //
+  // So the wording is derived from the DATA, and both worlds are pinned here.
+  // `build` above always passes an array, so use the raw builder to model a
+  // caller that has not been widened — which is every screen today.
+  const noBills = buildTax1099Dataset({
+    year: 2026, subcontractors: [sub('s1')], commitments: [subcontract], subSubmittedInvoices: [],
+  });
+  ok('an export built WITHOUT recorded bills does not claim to have looked for them',
+    /No sub-portal payments recorded in 2026$/.test(noBills[0].notes)
+    || noBills[0].notes.split('; ').includes('No sub-portal payments recorded in 2026'),
+    noBills[0].notes);
+  ok('…and its coverage sentence is the narrow one', coverageNoteFor(noBills) === COVERAGE_NOTE);
+  ok('…and COVERAGE_NOTE itself still describes only portal invoices',
+    /^Counts sub-portal invoices marked paid —/.test(COVERAGE_NOTE), COVERAGE_NOTE);
+
+  const withBillsButNone = buildTax1099Dataset({
+    year: 2026, subcontractors: [sub('s1')], commitments: [subcontract],
+    subSubmittedInvoices: [], gcRecordedPayments: [],
+  });
+  ok('an export that DID look and found none says so',
+    withBillsButNone[0].notes.split('; ')
+      .includes('No sub-portal payments recorded in 2026, and no bills recorded against a subcontract either'),
+    withBillsButNone[0].notes);
+
+  ok('the widened coverage sentence appears only where bills were actually counted',
+    coverageNoteFor(after) === COVERAGE_NOTE_WITH_RECORDED_BILLS
+    && /bills you recorded against a subcontract/.test(COVERAGE_NOTE_WITH_RECORDED_BILLS));
+  const widened = tax1099DatasetToCsv(after).split('\n')[0];
+  ok('…and so does the widened CSV column heading',
+    widened.includes('Total Paid (portal invoices + bills you recorded, net of retention held)'), widened);
+  const narrow = tax1099DatasetToCsv(noBills).split('\n')[0];
+  ok('…while an export with none keeps the heading it always had',
+    narrow.includes('Total Paid (sub-portal invoices, net of retention held)'), narrow);
+
+  // ── THE SCREEN. UNCONDITIONALLY. ──────────────────────────────────────
+  //
+  // This block used to be `const wired = /gcRecordedPayments/.test(screen)`
+  // followed by a ternary that asserted one thing when wired and its opposite
+  // when not. It passed in BOTH worlds by construction — a consistency check
+  // dressed as a coverage check — while the whole engine above it sat
+  // unreachable from the only screen a user can open, and the shipped export
+  // still returned $0 for every check-paid sub. A guard that cannot fail for
+  // the defect it is named after certifies the defect.
+  //
+  // Source-level, because bun cannot import a .tsx.
+  const screenSrc = readFileSync(join(ROOT, 'app/tax-1099-export.tsx'), 'utf8');
+  const screen = screenSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok('the 1099 screen PASSES gc-recorded bills to the engine',
+    /gcRecordedPayments:\s*gcRecordedSubPaymentsFromReceipts\(/.test(screen),
+    'app/tax-1099-export.tsx called buildTax1099Dataset without gcRecordedPayments, so the '
+    + 'blocker carve-out was written and never reached: $0 and "1099 Required: No" for every '
+    + 'check-paid sub');
+  ok('…from the material receipts it actually holds, not an empty literal',
+    /useMaterialReceipts\(\)/.test(screen)
+    && /gcRecordedSubPaymentsFromReceipts\(receipts, commitments\)/.test(screen),
+    screen.match(/gcRecordedSubPaymentsFromReceipts\([^)]*\)/)?.[0] ?? 'no call found');
+  ok('…and renders the coverage sentence DERIVED from the rows, never a bare constant',
+    /testID="coverage-note">\{coverageNoteFor\(rows\)\}/.test(screen),
+    'the screen must render coverageNoteFor(rows) so the sentence and the numbers agree');
+  ok('…and the receipts it passes are a dependency of the memo that builds the rows',
+    /\}, \[year, subcontractors, commitments, subInvoices, receipts\]\);/.test(screen),
+    'a stale memo would show yesterday\u2019s dataset after a bill is recorded');
+
+  // Now that the screen IS wired, rendered copy elsewhere may reference the
+  // 1099 — but only because the export actually produces it. This assertion
+  // exists so the pairing stays true if the wiring is ever pulled.
+  const receiptCopy = readFileSync(join(ROOT, 'app/material-receipt.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok('…and no other screen promises a 1099 outcome the export does not produce',
+    /gcRecordedPayments:/.test(screen) || !/1099/.test(receiptCopy),
+    'app/material-receipt.tsx claimed a linked sub bill "lands in the 1099 export"');
 }
 
 console.log(`\nvalidate-tax-1099: ${pass} passed, ${fail} failed\n`);

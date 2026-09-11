@@ -28,6 +28,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
+import { calendarDayToDate } from '@/utils/cpm';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -44,11 +45,16 @@ interface TaskInspectorProps {
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
 }
 
+/**
+ * Render one of the engine's CALENDAR INDICES (es/ef/ls/lf) as a date. Routed
+ * through the shared converter so this panel, the grid and the Gantt cannot
+ * drift apart — the previous local copy was correct, but "correct and separate"
+ * is how the grid ended up a fortnight out from the engine in the first place.
+ */
 function dayToDate(startDate: Date, day: number): string {
   if (!Number.isFinite(day)) return '—';
-  const d = new Date(startDate);
-  d.setDate(d.getDate() + day - 1);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return calendarDayToDate(startDate, day)
+    .toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 // Labels only — the four INKS come from `taskStatusInk(themeColors)` at render
@@ -184,6 +190,12 @@ export default function TaskInspector({
           <Row label="Early finish" value={cpmRow ? dayToDate(projectStartDate, cpmRow.ef) : '—'} />
           <Row label="Late start"   value={cpmRow ? dayToDate(projectStartDate, cpmRow.ls) : '—'} />
           <Row label="Late finish"  value={cpmRow ? dayToDate(projectStartDate, cpmRow.lf) : '—'} />
+          {/* Both floats are WORKING days on the task's own calendar, so these
+              two rows can be read against each other — free float ≤ total float
+              is a CPM invariant, and this is the pair where a P6 user checks it.
+              They used to be raw calendar-index subtractions computed
+              independently, so the same row could read "Total float 0d / Free
+              float 2d", which is not a state CPM can be in. */}
           <Row label="Total float"  value={cpmRow ? `${cpmRow.totalFloat}d` : '—'}
             valueColor={cpmRow?.isCritical ? "#C84038" : themeColors.text} />
           <Row label="Free float"   value={cpmRow ? `${cpmRow.freeFloat}d` : '—'} />

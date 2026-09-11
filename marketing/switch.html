@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Switching to MAGE ID — what moves, what doesn’t</title>
+  <link rel="canonical" href="https://mageid.app/switch.html" />
+  <meta name="description" content="Leaving Buildertrend, JobTread, Knowify or a stack of spreadsheets. Exactly what imports in fifteen minutes, what deliberately does not, how to get your data out of your current tool — and how to get it out of ours." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Switching to MAGE ID — what moves, what doesn’t" />
+  <meta property="og:description" content="Leaving Buildertrend, JobTread, Knowify or a stack of spreadsheets. Exactly what imports in fifteen minutes, what deliberately does not, how to get your data out of your current tool — and how to get it out of ours." />
+  <meta property="og:url" content="https://mageid.app/switch.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+  <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
+  <style>
+    /* Same prose shell as support.html / terms.html — these four pages are
+       read, not skimmed, so they get a measure and a serif heading rather than
+       the marketing grid. */
+    .legal { max-width: 760px; margin: 0 auto; padding: 140px 24px 100px; }
+    .legal h1 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-weight: 500; font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 14px; color: var(--cream); }
+    .legal .updated { color: #9AA3AD; font-size: 13px; margin: 0 0 36px; font-family: "JetBrains Mono", monospace; letter-spacing: 0.06em; }
+    .legal h2 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-weight: 600; font-size: 1.35rem; margin: 40px 0 10px; color: var(--cream); letter-spacing: -0.015em; }
+    .legal h3 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-weight: 600; font-size: 1.08rem; margin: 26px 0 8px; color: var(--cream); }
+    .legal p, .legal li { font-size: 15.5px; line-height: 1.72; color: #9AA3AD; }
+    .legal p { margin: 0 0 14px; }
+    .legal strong { color: var(--cream); font-weight: 600; }
+    .legal ul, .legal ol { padding-left: 20px; margin: 0 0 16px; }
+    .legal li { margin-bottom: 9px; }
+    .legal a { color: #FF6A1A; text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+    .legal a:hover { border-bottom-color: #FF6A1A; }
+    .legal hr { border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 40px 0; }
+    .callout {
+      background: rgba(255, 106, 26, 0.06);
+      border: 1px solid rgba(255, 106, 26, 0.22);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin: 26px 0;
+    }
+    .callout p:last-child { margin-bottom: 0; }
+    .quiet {
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin: 26px 0;
+    }
+    .quiet p:last-child { margin-bottom: 0; }
+    .cta-inline {
+      display: inline-block; margin-top: 8px; padding: 13px 22px; border-radius: 999px;
+      background: #FF6A1A; color: #0B0D10; font-weight: 700; font-size: 14.5px;
+      border-bottom: none;
+    }
+    .cta-inline:hover { border-bottom: none; opacity: 0.92; }
+    .footnote { font-size: 13px; line-height: 1.6; color: #7C858F; }
+    .log-entry { border-top: 1px solid rgba(255,255,255,0.07); padding: 18px 0 4px; }
+    .log-date { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.06em; color: #FF6A1A; display: block; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand" aria-label="MAGE ID home">
+        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" />
+        <span>MAGE&nbsp;ID</span>
+      </a>
+      <nav class="links" aria-label="Primary">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/compare/">Compare</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="legal">
+    <!-- WHY THIS PAGE EXISTS
+         Two pages promised "we set up your cost database and import your
+         active pipeline in a 15-minute call" and neither explained what
+         actually moves, what doesn't, or how long a job in flight takes. The
+         machinery behind that promise is real and was going unmentioned:
+         app/import-pipeline.tsx (paste a column → reviewable leads),
+         app/cost-seed.tsx + utils/costSeedCore.ts (seed the price book, tagged
+         as a claim rather than a measurement), app/schedule-import.tsx (.xlsx
+         and MS Project XML), utils/dataImport.ts (projects, contacts, subs).
+         Every capability claimed below maps to one of those. Do not add a row
+         to "what comes across" that no code backs. -->
+    <h1>Switching from Buildertrend, JobTread, Knowify &mdash; or from a stack of spreadsheets.</h1>
+    <p class="updated">What moves, what doesn&rsquo;t, and how long it takes &mdash; before you commit to anything</p>
+
+    <p>Nobody switches project software mid-job unless it is easy, and most &ldquo;migration&rdquo;
+    promises quietly mean &ldquo;we will help you retype it&rdquo;. So here is the honest version, including
+    the part where we tell you not to migrate.</p>
+
+    <h2>Don&rsquo;t migrate. Start the next job.</h2>
+    <p>The fastest switch isn&rsquo;t a switch. Finish your live jobs where they are, and run the next
+    one you win in MAGE ID. You will know inside one job cycle, you will not have re-keyed anything,
+    and if it isn&rsquo;t for you, you have lost nothing. Most people who try to move everything at
+    once give up in week two &mdash; in any tool, not just this one.</p>
+
+    <h2>What comes across in about fifteen minutes</h2>
+    <ul>
+      <li><strong>Your pipeline.</strong> Copy a column of client names out of a spreadsheet, Notes, or an email and paste it. They land as leads <em>for review</em> &mdash; you delete the junk before anything is created, so a messy paste never silently makes junk records.</li>
+      <li><strong>Your contacts and subs.</strong> Same paste, and projects, contacts and subcontractors can also come in as a structured import.</li>
+      <li><strong>Your price book.</strong> Paste the rates you already know, or type them, so your day-one estimate isn&rsquo;t a beginner&rsquo;s. <strong>Important, and the part we won&rsquo;t bend on:</strong> a rate you tell us is stored as a <em>claim</em>, not a measurement. It is tagged as seeded, it does not count toward your closed-job count &mdash; a seeded book still honestly reads &ldquo;0 closed jobs&rdquo; &mdash; and the first real job you finish outweighs it immediately. We will not let the app pretend you have closed jobs here that you haven&rsquo;t.</li>
+      <li><strong>An existing schedule.</strong> .xlsx and MS Project XML (MSPDI) import directly. The Excel path shows you the detected column mapping and a live preview before it commits; the MS Project path is fully deterministic. Your current tasks are baselined first, so the import is undoable. Pro tier.</li>
+    </ul>
+
+    <h2>What doesn&rsquo;t come across</h2>
+    <div class="quiet">
+      <p><strong>Historical job-cost detail from another platform.</strong> Nobody&rsquo;s export is
+      shaped like anyone else&rsquo;s import, and a half-imported cost history is worse than none
+      &mdash; it quietly poisons the numbers your estimator learns from, which is the one thing in
+      this product that has to stay clean. Keep the old PDFs. Start the learning here from zero, on
+      purpose.</p>
+      <p><strong>Open pay applications mid-draw.</strong> Finish the draw schedule where it started.
+      Carrying prior-billing totals across two systems by hand is how a G702 ends up disagreeing
+      with itself.</p>
+      <p>We would rather tell you both of those now than after you have paid.</p>
+    </div>
+
+    <h2>Getting your data out of where you are</h2>
+    <p>Useful regardless of what you buy next, and the person reading this has usually already
+    decided to leave:</p>
+    <ul>
+      <li><strong>Buildertrend</strong> &mdash; exports are per-module rather than one archive; pull Financials, Schedule, Daily Logs and Documents separately, and pull them before your renewal date rather than after.</li>
+      <li><strong>JobTread</strong> &mdash; list views export to CSV; do the customer, job and cost-item lists, and download document attachments separately since they don&rsquo;t come with the CSV.</li>
+      <li><strong>Knowify</strong> &mdash; reports export to CSV/Excel; the job-costing and time reports are the ones worth keeping.</li>
+      <li><strong>Spreadsheets</strong> &mdash; you are already done; paste the client column and the rate column and you are most of the way in.</li>
+      <li>Whichever you are on, take the export while the subscription is still live. Every vendor&rsquo;s access ends with the billing period, ours included.</li>
+    </ul>
+    <p class="footnote">Those are descriptions of other vendors&rsquo; published export features, not
+    instructions we can guarantee &mdash; their products change. Check with them. Buildertrend,
+    JobTread and Knowify are trademarks of their respective owners and none is affiliated with
+    MAGE ID.</p>
+
+    <h2>And getting out of here</h2>
+    <div class="callout">
+      <p><strong>Settings &rarr; Data Export.</strong> One file with every project (and the estimate
+      and revision history on it), invoice, change order, daily report, punch item, photo, RFI,
+      submittal, warranty, contact and subcontractor you have. JSON or CSV, human-readable, no ticket
+      and nobody to ask.</p>
+      <p><strong>Do it on your first day, before you trust us with anything.</strong> That is what it
+      is for, and it is the reason the export was built before the paywall was. If you can prove you
+      can leave, the rest of the decision gets a lot smaller.</p>
+    </div>
+
+    <p><a class="cta-inline" href="https://app.mageid.app">Start the next job here &mdash; free &rarr;</a></p>
+    <p class="footnote">The free plan is live on the web right now, no card. Paid plans aren&rsquo;t
+    self-serve yet &mdash; the iPhone app is in TestFlight rather than the App Store and our payment
+    processor is still in sandbox, so you <a href="/access.html">email us</a> and we switch Pro or
+    Business on, usually the same day. <a href="/pricing.html">The prices</a> are published either way.</p>
+  
+    <section class="wrap" style="max-width:820px;margin:0 auto 40px;">
+      <h2 id="ap">If you are leaving a tool that did accounts payable</h2>
+      <p>Say so before you move, because this is the one gap that sends people back. There is no payables ledger here: no vendor aging, no pay-when-paid, no check run, no batch payment file, and no way to originate a bill a sub did not submit. MAGE ID never moves money.</p>
+      <p style="margin-top:12px;">What does come across is the job-cost half. A sub&rsquo;s paper bill or a supply-house invoice is photographed, read, checked with you and posted as a cost against the right job and cost code (Business tier). Subs on a portal submit invoices to you and you approve or reject with notes. QuickBooks Online bills land in a review queue you approve line by line. When you pay it, you record the check number or ACH trace, so paid-versus-owed ties out to your bank and your 1099s are real &mdash; and a &ldquo;paid&rdquo; with no reference is flagged as unreconciled rather than quietly closing the balance.</p>
+      <p style="margin-top:12px;">If you need real AP, keep QuickBooks and connect it. <a href="/pricing.html#ap">The same answer, in full, on the pricing page.</a></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="/assets/logo-mark-light.png" width="32" height="32" alt="" />
+        <span>MAGE&nbsp;ID</span>
+      </div>
+      <nav class="footer-nav">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/compare/">Compare</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+        <a href="/who-built-this.html">Who built this</a>
+        <a href="/proof.html">Proof</a>
+        <a href="/switch.html">Switching</a>
+        <a href="/changelog.html">Changelog</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+      </nav>
+      <p class="footer-copy">New product, no reviews yet, and we say so &mdash; <a href="/proof.html">here is what we have instead</a>.</p>
+      <p class="footer-copy">&copy; MAGE&nbsp;ID. Built for builders.</p>
+    </div>
+          <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+    </footer>
+  <script src="/nav-mobile.js" defer></script>
+  <script src="/motion.js" defer></script>
+</body>
+</html>

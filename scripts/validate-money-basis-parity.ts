@@ -36,11 +36,12 @@
 //      Lock / Export must refuse and say why — a WIP schedule of zeros is read
 //      by a surety as a sworn statement of position.
 //
-// NOT WIRED INTO ship-check YET. This file needs a package.json entry; the exact
-// text is in the wave's handoff notes. scripts/validate-guard-coverage.ts will
-// fail until it is added, which is the intended way to notice.
+// WIRED INTO ship-check as `test:money-basis-parity` (package.json). This
+// header used to say it was not, which stopped being true when the entry
+// landed; a guard that misreports its own coverage is the class of thing this
+// file exists to catch.
 //
-// Run via: bun run scripts/validate-money-basis-parity.ts
+// Run via: bun run test:money-basis-parity
 
 import {
   deriveEstimatedCostWithSource,
@@ -48,7 +49,12 @@ import {
   describeCostBasis,
   describePortfolioCostBasis,
   computeWipRow,
+  computeWipPortfolio,
+  selectWipDisplayPeriod,
+  applyWipEtcEntry,
   type WipEstimatedCost,
+  type WipSnapshotRowWithSources,
+  type WipPeriodWithSources,
 } from '../utils/wip';
 import { computeWIPReport, computeProfitReport } from '../utils/financialReports';
 import type { Project, Commitment, LinkedEstimate } from '../types';
@@ -458,13 +464,111 @@ console.log('\nboth screens actually render it, and neither prints a bare margin
   // Revised Contract" for two audits after MONEY-F13 made it cost-based.
   ok('the PDF methodology states the cost-based percent complete',
     /% Complete = Cost to Date ÷ Estimated Final Cost/.test(PDF));
-  ok('…and the fallback it actually takes when no cost is recorded',
-    /average progress across its schedule tasks/.test(PDF),
-    'computeWIPReport falls back to schedule progress; the banker is told the cost formula only');
-  ok('…and the max-of-two cost at completion',
-    /the greater of your estimate's cost before markup/.test(PDF));
-  ok('…and that cost already paid out is not part of it',
-    /Cost you have\s+already paid out is NOT added to it/.test(PDF));
+  // AXIS 7. The schedule fallback is GONE from the engine, so the sentence that
+  // described it would now be a lie on a bank document. What the methodology
+  // has to say instead is that 0% means UNMEASURED — a reader who takes it as
+  // "not started" on a job holding signed subcontracts has been misled by the
+  // page rather than by the data.
+  ok('…and no longer describes a schedule-progress fallback the engine dropped',
+    !/average progress across its schedule tasks/.test(PDF),
+    'computeWIPReport no longer substitutes schedule progress; the methodology must not claim it does');
+  ok('…and says what a 0% actually means',
+    /it is 0%,\s*\n?\s*which means UNMEASURED/.test(PDF));
+  ok('…and the max-of-THREE cost at completion, including the incurred floor',
+    /the greatest of your estimate's cost before markup/.test(PDF)
+    && /cost you\s+have already paid out/.test(PDF));
+  // The old sentence said cost already paid out is NOT part of it, which stopped
+  // being true when the incurred floor landed on 2026-09-10 and stayed on the
+  // page for a day. A methodology block that describes arithmetic the code no
+  // longer does is its own defect.
+  ok('…and the retired claim that paid-out cost is excluded is gone',
+    !/already paid out is NOT added to it/.test(PDF),
+    'the incurred floor has been live since 2026-09-10; the page must not deny it');
+  // PINNED TO THE PARAMETER, NOT TO THE PROSE (adversarial review 2026-09-11).
+  // This sentence was TRUE of utils/wip.computeWipRow and FALSE of the engine
+  // behind this PDF: computeWIPReport had no cost-to-complete parameter at all,
+  // so the block described a methodology the document could not perform, on a
+  // page a bank reads. The prose and the capability are asserted together so
+  // neither can drift from the other again — remove the parameter and the
+  // sentence goes red, keep the parameter and drop the sentence and it goes red
+  // too.
+  ok('…and it names the cost-to-complete override',
+    /Estimated Final Cost =\s*\n?\s*Cost to Date \+ Cost to Complete/.test(PDF));
+  ok('…and the engine behind the page can actually do that',
+    /costToCompleteByProject: Record<string, number> = \{\}/.test(FIN)
+    && /estimatedCostToComplete: costToCompleteByProject\[project\.id\]/.test(FIN),
+    'the sentence describes utils/wip.computeWipRow; computeWIPReport must read an ETC too');
+  ok('…and BOTH builders read it, not just the WIP tab',
+    (FIN.match(/estimatedCostToComplete: costToCompleteByProject\[project\.id\]/g) ?? []).length === 2,
+    'the Profit tab is the one every free and Pro user lands on');
+
+  // THE OVER/(UNDER) TOTAL IS NOT A NET (adversarial review 2026-09-11). It was
+  // `overbilled − unbilled` across the book, which offsets a LIABILITY (billings
+  // in excess of costs) against an ASSET (costs in excess of billings) — the same
+  // offsetting the loss-provision disclosure on this very page refuses under ASC
+  // 605-35-25-46. A $300,000-over / $300,000-under book printed "$0".
+  ok('the PORTFOLIO over/(under) cell prints both sides, netting neither',
+    !/overUnderCell\(report\.totals\.overbilled - report\.totals\.unbilled\)/.test(PDF)
+    && /fmtMoney\(report\.totals\.overbilled\)\} over/.test(PDF)
+    && /fmtMoney\(report\.totals\.unbilled\)\}\) under/.test(PDF));
+  ok('…and the methodology says why', /does not net them/.test(PDF));
+
+  // THE PAID COLUMN WAS DROPPED FROM A BANK DOCUMENT and restored. The spec
+  // asked for four columns to be ADDED; removing a shipped one was nobody's
+  // request, and a reader comparing last month's PDF to this one would find a
+  // column simply gone.
+  // Count, not presence: the A/R aging table further down this same file also
+  // has a "Paid" header, so `includes` stayed true with the WIP column deleted.
+  ok('the /reports WIP PDF still prints "Paid"',
+    (PDF.match(/header: 'Paid',/g) ?? []).length === 2,
+    'one on the WIP table, one on A/R aging');
+  ok('…on the row and on the total',
+    /fmtMoney\(r\.paidToDate\)/.test(PDF) && /fmtMoney\(report\.totals\.paidToDate\)/.test(PDF));
+  ok('…and the methodology states it is CASH, tax-inclusive',
+    /Paid is CASH collected against issued invoices/.test(PDF)
+    && /tax-inclusive, unlike every\s*\n?\s*contract figure/.test(PDF));
+
+  // F14: A CONTRACT WITH NO COST BASIS PRINTS NO MARGIN. Both engines fall back
+  // to a target budget for REVENUE and deliberately not for COST, so such a job
+  // reported its entire contract as profit at 100%.
+  ok('a job with no cost basis prints an em dash for profit and margin',
+    /const measurable = wipReportRowHasCostBasis\(r\);/.test(PDF)
+    && (PDF.match(/measurable\s*\n?\s*\?/g) ?? []).length >= 2);
+  ok('…the PORTFOLIO profit sums only the measurable jobs',
+    /fmtMoney\(report\.totals\.measurableProjectedProfit\)/.test(PDF));
+  ok('…and the page names the ones it excluded',
+    /carry a contract value with no cost `/.test(PDF)
+    || /noCostBasisCount > 0/.test(PDF));
+  // The four columns the export dropped. Each is a figure an underwriter reads,
+  // and every one of them was already on the row being iterated.
+  //
+  // A HEADER IS NOT A VALUE (adversarial review 2026-09-11). These four used to
+  // be asserted as `header: 'Earned Rev.'` and nothing more, so replacing the
+  // row cell with an em dash left an empty column under a correct heading with
+  // every guard green. Pin the expression that fills the cell as well as the
+  // heading above it.
+  const rowCell: [string, RegExp][] = [
+    ['Cost to Date', /r\.costToDate == null \? '—' : `<span class="num">\$\{fmtMoney\(r\.costToDate\)\}/],
+    ['Cost to Complete', /const ctc = wipRowCostToComplete\(r\);/],
+    ['Earned Rev.', /const earned = wipRowEarned\(r\);/],
+    ['Over/(Under)', /const overUnder = wipRowOverbilled\(r\) - r\.unbilled;/],
+  ];
+  for (const [col, valueRe] of rowCell) {
+    ok(`the /reports WIP PDF prints "${col}"`, PDF.includes(`header: '${col}'`), col);
+    ok(`…and actually renders a value into it`, valueRe.test(PDF), col);
+  }
+  // …and the three derived ones reach the row array rather than being computed
+  // and dropped, which is the shape the column set was in before this pass.
+  for (const expr of ['fmtMoney(earned)', 'overUnderCell(overUnder)']) {
+    ok(`…"${expr}" is in the row array`, PDF.includes(expr), expr);
+  }
+  ok('…and the cost-to-complete cell reads ctc, not a recomputation',
+    /ctc == null \? '—' : `<span class="num">\$\{fmtMoney\(ctc\)\}/.test(PDF));
+  // The PORTFOLIO row's over/under is NOT netted — both sides print — and that
+  // one was already pinned; keep it beside its row-level siblings.
+  ok('…while the PORTFOLIO row prints both sides rather than a net figure',
+    /fmtMoney\(report\.totals\.overbilled\)\} over/.test(PDF)
+    && /fmtMoney\(report\.totals\.unbilled\)\}\) under/.test(PDF));
 }
 
 // ── 3. AN EMPTY SCHEDULE IS NOT A BANK DOCUMENT ─────────────────────────────
@@ -489,8 +593,13 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
     /if \(exportPeriod\.rows\.length === 0\) \{ showAlert\('Nothing to export yet', NOTHING_TO_REPORT\); return; \}/.test(WIP_SCREEN));
   ok('Export PDF refuses',
     (WIP_SCREEN.match(/if \(exportPeriod\.rows\.length === 0\)/g) ?? []).length === 2);
+  // `displayRows`, not `hasRows`: the Portfolio card follows the period chip
+  // now, so a frozen period must be able to render on a book whose projects
+  // have since closed — and an empty one must still say so rather than print
+  // seven zeros above two Export buttons.
   ok('the zeros themselves are replaced by an explanation, not printed above the buttons',
-    /\{!hasRows \? \(/.test(WIP_SCREEN) && /No active projects<\/Text>/.test(WIP_SCREEN));
+    /\{displayRows\.length === 0 \? \(/.test(WIP_SCREEN)
+    && /'No active projects'\}<\/Text>/.test(WIP_SCREEN));
   ok('…and the blocked buttons say why, visibly',
     /testID="wip-export-blocked"/.test(WIP_SCREEN));
   ok('…and read as unavailable', /actionBtnBlocked/.test(WIP_SCREEN));
@@ -526,7 +635,15 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
   ok('the snapshot alert no longer invites CPA/bank review unprompted',
     !/Lock it to freeze for CPA\/bank review/.test(withoutComments(WIP_SCREEN)));
   ok('…it asks the GC to top up cost-to-date first',
-    /Check cost-to-date on each project before you/.test(WIP_SCREEN));
+    /Check cost-to-date and cost-to-complete on each project/.test(WIP_SCREEN));
+  // AND IT SAYS WHAT THE SNAPSHOT ACTUALLY IS. Every figure frozen into a
+  // period is derived from CURRENT context state — MAGE holds no as-of ledger
+  // to restate a closed month from — so a period dated 3/31 saved on 4/10
+  // contains ten days of April. Now that the date is pickable, saying so is the
+  // difference between a labelling convenience and a misdated document.
+  ok('…and admits the figures are current-state, not restated to the period end',
+    /AS THEY STAND TODAY/.test(WIP_SCREEN)
+    && /does not restate a closed month/.test(WIP_SCREEN));
 }
 
 // ── The shape of the contract, so a widening cannot go unnoticed ────────────
@@ -584,6 +701,302 @@ console.log('\nthe definition returns both candidates, always:');
       `${calls} call(s), ${fed} costIncurred. A call that omits it reports the estimate ` +
       'for an overrun job, and disagrees with the sibling schedule that does pass it.');
   }
+}
+
+// ── THE SAME CHECK ONE LEVEL UP: THE REPORT BUILDERS' OWN CALL SITES ────────
+//
+// `costSources` is the argument computeProfitReport's own doc says, in these
+// words, "paints a bleeding job green" if omitted — and app/reports.tsx omitted
+// it at BOTH call sites, on the tab (Profit) that every free and Pro user lands
+// on by default. Cost-to-date there was subcontract payments and nothing else:
+// no materials, no self-perform labour, no machine time, no permit fees, while
+// app/job-costing.tsx had wired all six for two audits.
+//
+// scripts/validate-money-definitions.ts already measures bare-vs-wired and
+// proves the two differ by $25,600 on its fixture — the repo knew the
+// difference and the screen shipped bare. Nothing pinned the CALL SITE. This
+// does, the same way the incurred floor above is pinned, because a wired
+// argument that some callers pass is what produced the last two divergences in
+// this area.
+console.log('\nthe report builders are called with everything they take:');
+{
+  const REPORTS = read('app/reports.tsx');
+  const calls = [...REPORTS.matchAll(/compute(?:WIP|Profit)Report\(/g)].length;
+  ok('app/reports.tsx calls both report builders', calls === 2, `${calls} call(s)`);
+  const wired = [...REPORTS.matchAll(/commitments,\s*costSources,\s*aiaPayApps,\s*etcEntries\)/g)].length;
+  ok('…and every one of them is handed costSources, the pay apps AND the cost-to-complete map',
+    wired === calls, `${wired} of ${calls} calls wired`);
+  // THE ETC MAP HAS TO BE READ, not just passed. It lives in AsyncStorage under
+  // utils/wip.wipEtcStorageKey — the same key /wip-report writes — and an
+  // `etcEntries` initialised and never hydrated would satisfy the regex above
+  // while every /reports figure stayed on the derived forecast, which is the
+  // divergence this argument exists to close.
+  ok('…and the cost-to-complete map is hydrated from the shared key',
+    /AsyncStorage\.getItem\(wipEtcStorageKey\(userId\)\)/.test(REPORTS)
+    && /wipEtcValueMap\(normalizeWipEtcMap\(JSON\.parse\(raw\)\)\)/.test(REPORTS),
+    'a passed-but-never-loaded map is an empty map, and an empty map is the old behaviour');
+  // …AND RE-READ ON FOCUS. Hydrating once per mount meant a cost to complete
+  // typed on /wip-report was not reflected here until this screen remounted —
+  // two engines fed different maps in one session, which is the same
+  // two-schedules-disagree state the map exists to close.
+  ok('…and re-read whenever the screen is focused, not once per mount',
+    /useFocusEffect\(loadEtc\)/.test(REPORTS) && /useFocusEffect/.test(REPORTS),
+    'an ETC typed on /wip-report must reach this tab without a remount');
+  // A `costSources` built from an empty literal would satisfy the regex above
+  // and change nothing, so pin what it is built FROM. These are the six fields
+  // JobCostActualSources carries; app/job-costing.tsx passes the same set.
+  for (const field of ['receipts', 'timeEntries', 'laborRates', 'overtimeMultiplier', 'equipment', 'permits']) {
+    ok(`…and costSources actually carries ${field}`,
+      new RegExp(`const costSources = useMemo\\(\\(\\) => \\(\\{[^}]*\\b${field}\\b`).test(REPORTS));
+  }
+  ok('…from the hooks that hold them, not from empty arrays',
+    /useMaterialReceipts\(\)/.test(REPORTS)
+    && /useTimeEntriesMirror\(\)/.test(REPORTS)
+    && /useLaborRates\(\)/.test(REPORTS),
+    'the receipts, crew hours and rates must come from the same hooks /job-costing uses');
+}
+
+// ── THE FLAGSHIP SCREEN SHOWS WHAT IT EXPORTS, AND SAYS WHOSE IT IS ─────────
+console.log('\nthe WIP screen renders the period it would export:');
+{
+  const WIP_SCREEN = read('app/wip-report.tsx');
+
+  // A locked period chip changed `selectedPeriodId`, which fed the Export
+  // buttons and nothing else. A GC tapped the locked "2026-03-31" chip, read today's revised
+  // contract, today's underbilling and today's weighted margin, pressed Export
+  // PDF and mailed March.
+  // BEHAVIOUR, NOT SOURCE SHAPE (adversarial review 2026-09-11). This used to be
+  // two regexes over the screen's text, and `const viewingFrozen = false`
+  // restored the whole defect with every one of them still matching. The
+  // decision now lives in a pure selector the validator CALLS.
+  {
+    const rowOf = (id: string, contract: number): WipSnapshotRowWithSources => {
+      const input = {
+        originalContract: contract, approvedChangeOrders: 0, totalEstimatedCost: contract * 0.8,
+        costToDate: contract * 0.4, billedToDate: contract * 0.3,
+      };
+      return { projectId: id, projectName: id, input, output: computeWipRow(input) };
+    };
+    const liveRows = [rowOf('live', 1_000_000)];
+    const livePortfolio = computeWipPortfolio(liveRows);
+    const marchRows = [rowOf('march', 400_000)];
+    const march: WipPeriodWithSources = {
+      id: 'per-march', periodEndDate: '2026-03-31', createdAt: '2026-04-01T00:00:00.000Z',
+      lockedAt: '2026-04-01T00:00:00.000Z',
+      rows: marchRows, portfolioTotals: computeWipPortfolio(marchRows),
+    };
+
+    const live = selectWipDisplayPeriod(null, [march], liveRows, livePortfolio);
+    ok('with no chip selected the screen shows the LIVE book',
+      live.rows === liveRows && live.portfolio === livePortfolio && live.viewingFrozen === false);
+
+    const frozen = selectWipDisplayPeriod('per-march', [march], liveRows, livePortfolio);
+    ok('the Portfolio card renders the SELECTED period, not always the live rows',
+      frozen.portfolio.revisedContract === 400_000
+      && frozen.portfolio.revisedContract !== livePortfolio.revisedContract,
+      `got ${frozen.portfolio.revisedContract}`);
+    ok('…and so does the project list',
+      frozen.rows.length === 1 && frozen.rows[0].projectId === 'march');
+    ok('…and the screen knows it is frozen, which is what blocks Save and the edits',
+      frozen.viewingFrozen === true && frozen.period?.id === 'per-march');
+    // A chip pointing at a period that is not in the list falls back to live —
+    // and must NOT report itself frozen, or the screen locks editing on figures
+    // that are today's.
+    const stale = selectWipDisplayPeriod('gone', [march], liveRows, livePortfolio);
+    ok('…while a chip whose period is gone falls back to live, unfrozen',
+      stale.rows === liveRows && stale.viewingFrozen === false);
+  }
+  // …and the screen actually routes through it rather than keeping a second copy.
+  ok('the screen takes its display period from the shared selector',
+    /selectWipDisplayPeriod\(selectedPeriodId, periods, liveRows, portfolio\)/.test(WIP_SCREEN)
+    && /value=\{money\(displayPortfolio\.revisedContract\)\}/.test(WIP_SCREEN)
+    && /\) : displayRows\.map\(\(r\) => \{/.test(WIP_SCREEN));
+
+  // THE COST-TO-COMPLETE COMMIT PATH, BY BEHAVIOUR. Inserting an early `return`
+  // at the top of `commitDrillEtc` made the top finding's entire fix inert with
+  // every guard green, because the guards only matched the surrounding source.
+  {
+    const NOW = '2026-09-11T12:00:00.000Z';
+    const empty = {} as Record<string, { value: number; updatedAt: string }>;
+    ok('typing a cost to complete records it',
+      applyWipEtcEntry(empty, 'p1', '180000', NOW).p1?.value === 180_000);
+    ok('…with the currency furniture a GC types stripped',
+      applyWipEtcEntry(empty, 'p1', '$180,000', NOW).p1?.value === 180_000);
+    ok('…and ZERO is a deliberate forecast, not an empty box',
+      applyWipEtcEntry(empty, 'p1', '0', NOW).p1?.value === 0);
+    ok('clearing the box removes the entry so MAGE\u2019s forecast stands again',
+      applyWipEtcEntry({ p1: { value: 5, updatedAt: NOW } }, 'p1', '', NOW).p1 === undefined);
+    ok('…unparseable text records nothing and leaves the previous forecast',
+      applyWipEtcEntry({ p1: { value: 5, updatedAt: NOW } }, 'p1', '1.2.3', NOW).p1?.value === 5);
+    ok('…a negative cost to complete is not a forecast',
+      applyWipEtcEntry(empty, 'p1', '-5', NOW).p1 === undefined,
+      'the minus is stripped before parsing, so "-5" must not become 5 either');
+    ok('…and an unchanged value does not re-stamp updatedAt',
+      applyWipEtcEntry({ p1: { value: 180_000.4, updatedAt: 'old' } }, 'p1', '180000', NOW)
+        .p1.updatedAt === 'old');
+    ok('…while a real edit does',
+      applyWipEtcEntry({ p1: { value: 180_000, updatedAt: 'old' } }, 'p1', '190000', NOW)
+        .p1.updatedAt === NOW);
+    ok('…and other projects are untouched',
+      applyWipEtcEntry({ p2: { value: 7, updatedAt: 'old' } }, 'p1', '9', NOW).p2.value === 7);
+  }
+  ok('the drill-in commit routes through that reducer',
+    /applyWipEtcEntry\(prev, drillProjectId, drillEtcText, now\)/.test(WIP_SCREEN));
+  // …AND THAT CALL IS REACHABLE. The assertion above is a PRESENCE test, and a
+  // presence test cannot see an early return placed above the call it looks for.
+  //
+  // Found 2026-09-11 by mutation, after a review pass had flagged it and a
+  // remediation pass had claimed to close it. Inserting `if (drillProjectId)
+  // return;` at the top of commitDrillEtc — inverting the guard clause, so the
+  // handler no-ops for every real project — makes the estimated-cost-to-complete
+  // box record NOTHING, which is the whole of the top WIP blocker: without an
+  // ETC the engine floors cost-at-completion at cost-to-date, every overrun job
+  // reports exactly 100% complete with $0 backlog BY CONSTRUCTION, and the
+  // schedule forecasts that a job already over budget will incur no further
+  // cost. All four WIP validators stayed at 100% through that mutation.
+  //
+  // So pin the SHAPE of the handler, not the presence of a string in it: one
+  // guard clause, and it is the negated one. Anything else — a second return, or
+  // a positive test on the id — fails here.
+  {
+    const start = WIP_SCREEN.indexOf('const commitDrillEtc = useCallback(() => {');
+    const body = start < 0 ? '' : WIP_SCREEN.slice(start, WIP_SCREEN.indexOf('}, [', start));
+    const returns = [...body.matchAll(/\breturn\b/g)].length;
+    ok('…and nothing short-circuits the commit before it runs',
+      start >= 0 && returns === 1 && /if \(!drillProjectId\) return;/.test(body),
+      start < 0
+        ? 'commitDrillEtc not found — if it was renamed, re-point this assertion rather than deleting it'
+        : `${returns} return statement(s) in commitDrillEtc; expected exactly one, the !drillProjectId guard. ` +
+          'An extra return makes the ETC box silently record nothing and every WIP guard stays green.');
+  }
+  ok('…and a frozen period says so on screen rather than looking like today',
+    /testID="wip-frozen-banner"/.test(WIP_SCREEN)
+    && /Frozen snapshot — as of/.test(WIP_SCREEN));
+  // A frozen row's cost-to-date must not be editable: the period is the
+  // document, and the drill-in writes an override.
+  ok('…and a frozen row cannot be edited from the list',
+    /disabled=\{viewingFrozen\}/.test(WIP_SCREEN));
+  // Save builds from TODAY'S book, so with a frozen period on screen it would
+  // freeze figures the reader is not looking at — the same class of defect as
+  // an Export button that sends a period the screen is not showing.
+  ok('…and Save refuses while a saved period is being read, for its own reason',
+    /const saveBlockedReason = viewingFrozen/.test(WIP_SCREEN)
+    && /accessibilityHint=\{saveBlockedReason \?\? undefined\}/.test(WIP_SCREEN));
+
+  // ONE NOTION OF "THE LATEST PERIOD". `lockTarget`/`handleLock` took
+  // periods[0] — insertion order, local-only offline periods prepended in front
+  // of a cloud list ordered by created_at — while the fade comparison sorted by
+  // periodEndDate. They coincided only because there was no date picker.
+  ok('there is one sorted period list and Lock reads it',
+    /const periodsByEnd = useMemo\(/.test(WIP_SCREEN)
+    && (WIP_SCREEN.match(/periodsByEnd\[0\]/g) ?? []).length === 2,
+    'handleLock and lockTarget must both take the latest period by PERIOD END');
+  ok('…and periods[0] is gone from both of them',
+    !/= selectedPeriodId \? periods\.find\(\(p\) => p\.id === selectedPeriodId\) : periods\[0\]/
+      .test(withoutComments(WIP_SCREEN)));
+  ok('…and the chips render in that order too',
+    /\{periodsByEnd\.map\(\(p\) => \(/.test(WIP_SCREEN));
+
+  // THE PERIOD END IS PICKABLE AND LOCAL. `toISOString().slice(0,10)` is UTC:
+  // a save at 5pm Pacific on the 31st dated the period to the 1st of the next
+  // month, and there was no way to date a March close on April 10 at all.
+  ok('the period end is picked, not stamped',
+    /testID="wip-period-end"/.test(WIP_SCREEN) && /<DatePickerModal/.test(WIP_SCREEN));
+  ok('…and it defaults to the close a contractor is actually working on',
+    /const defaultPeriodEnd = useCallback/.test(WIP_SCREEN)
+    && /now\.getDate\(\) <= 14/.test(WIP_SCREEN));
+  ok('…from LOCAL calendar components, never the UTC day',
+    !/new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(withoutComments(WIP_SCREEN))
+    && /todayCalendarDay|toCalendarDayString/.test(WIP_SCREEN),
+    'toISOString() names TOMORROW from early evening anywhere west of Greenwich');
+  ok('…and the export is dated the same day the save would be',
+    /id: 'live', periodEndDate: periodEndDraft,/.test(WIP_SCREEN));
+
+  // THE PDF IS HEADED WITH THE CONTRACTOR'S NAME. It passed the literal
+  // 'MAGE ID', so the H1 of the page a GC emails his banker named the software.
+  ok('the exported WIP PDF is headed with the CONTRACTOR, not the vendor',
+    /shareWipPeriodPdf\(exportPeriod, settings\?\.branding\?\.companyName \|\| 'MAGE ID'/.test(WIP_SCREEN),
+    "app/reports.tsx has always read settings.branding.companyName; this passed the string 'MAGE ID'");
+
+  // THE LIVE EXPORT SAYS WHAT DAY ITS FIGURES ARE FROM (adversarial review
+  // 2026-09-11). `defaultPeriodEnd` backdates the period end by up to fourteen
+  // days inside the first fortnight of a month — which is the day a GC closing
+  // his books wants — and `exportPeriod` stamps it onto the LIVE period, so a
+  // PDF headed "As of 2026-08-31" left the building carrying September 11
+  // figures. MAGE has no as-of ledger and cannot restate them, so the document
+  // has to say so; the honest sentence existed only in the Save alert, which
+  // neither export passes through.
+  ok('both live exports are handed TODAY, so the document can disclose the backdating',
+    /wipPeriodToCSV\(exportPeriod, todayCalendarDay\(\)\)/.test(WIP_SCREEN)
+    && /shareWipPeriodPdf\(exportPeriod, [^)]*, todayCalendarDay\(\)\)/.test(WIP_SCREEN),
+    'without it the PDF prints a period end up to 14 days before the figures it carries');
+
+  // PROFIT FADE REACHES THE EXPORTS, AND THE SCREEN SAYS WHEN IT IS NOT BEING
+  // MEASURED (F8 parts 1 and 2). An empty flag column used to read as "no
+  // fade" when it meant "not measured" — every new account, and every GC who
+  // has not saved twice.
+  ok('the SAVED period carries the flags the row was struck with',
+    /addPeriod\(\{ periodEndDate, rows: liveRowsWithFlags, portfolioTotals: portfolio \}\)/.test(WIP_SCREEN)
+    && /flags: flagWipRow\(r\.output, prior,/.test(WIP_SCREEN),
+    'recomputing at export time compares today\'s book, not the comparison the period was struck with');
+  ok('…and the LIVE export carries them too',
+    /createdAt: new Date\(\)\.toISOString\(\), rows: liveRowsWithFlags/.test(WIP_SCREEN));
+  ok('…and the screen states what fade is measured against, or that it is not',
+    /testID="wip-fade-basis"/.test(WIP_SCREEN)
+    && /Profit fade is not being measured/.test(WIP_SCREEN)
+    && /Profit fade is measured against/.test(WIP_SCREEN));
+  ok('…including whether the comparison period is locked or merely saved',
+    /SAVED but not locked/.test(WIP_SCREEN),
+    'the comparison no longer requires lockedAt, and an unlocked prior period can still be edited');
+
+  // A LOSS JOB IS MARKED ON THE LIST. `flagged` excluded anticipatedLoss, so
+  // the one condition the engine treats as an accounting event was the one the
+  // list did not mark.
+  ok('a loss job is flagged on the project list',
+    /const flagged = r\.output\.anticipatedLoss/.test(WIP_SCREEN));
+  ok('…and labelled in words, not by a bare red triangle',
+    /testID="wip-loss-tag"/.test(WIP_SCREEN) && /LOSS JOB<\/Text>/.test(WIP_SCREEN));
+  ok('…and the portfolio headline discloses the provision it nets away',
+    /testID="wip-loss-provision"/.test(WIP_SCREEN)
+    && /Provision to book now/.test(WIP_SCREEN));
+
+  // THE COST TO COMPLETE — the input that stops an overrun job reading 100%.
+  ok('the drill-in takes an estimated cost to complete',
+    /testID="wip-etc-input"/.test(WIP_SCREEN)
+    && /estimatedCostToComplete: etc\?\.value/.test(WIP_SCREEN));
+  ok('…and the Source cell says the GC entered it, not that MAGE derived it',
+    /totalEstimatedCost: etc \? 'cost_to_complete_entered' : cost\.source/.test(WIP_SCREEN));
+  ok('…and the box starts EMPTY, so opening the sheet cannot record a forecast',
+    /setDrillEtcText\(existing \? String\(Math\.round\(existing\.value\)\) : ''\)/.test(WIP_SCREEN));
+  // With an ETC in force the DERIVED basis is no longer what the row was struck
+  // against, so printing describeCostBasis beside it would explain a number the
+  // page is not showing — the exact failure the provenance layer exists for.
+  ok('…and the basis sentence names the forecast when one is in force',
+    /\{drillRow\.etc\s*\n?\s*\? `Cost basis: the \$\{money\(drillInput\.costToDate\)\}/.test(WIP_SCREEN)
+    && /: describeCostBasis\(drillRow\.cost, drillInput\.costToDate\)/.test(WIP_SCREEN));
+  ok('…and the screen admits the forecast is device-local',
+    /saved\s*\n?\s*.{0,20}on THIS device only/.test(WIP_SCREEN)
+    || /on THIS device only/.test(WIP_SCREEN));
+
+  // RETAINAGE reaches the schedule at all.
+  ok('retainage held is carried onto the row and rendered',
+    /retainageHeld: billings\.retainageHeld/.test(WIP_SCREEN)
+    && /label="Retainage held"/.test(WIP_SCREEN)
+    && /label="Retainage held by owner"/.test(WIP_SCREEN),
+    'the portfolio strip AND the per-project drill-in both have to carry it');
+  // A period frozen before the column existed must read "not recorded", never
+  // $0 — a zero asserts the owner is holding nothing back, which is the
+  // opposite of the truth on most contracts.
+  ok('…and a period that predates the column says so rather than printing $0',
+    /'Not recorded on this period'/.test(WIP_SCREEN) && /'Not recorded'/.test(WIP_SCREEN));
+
+  // The schedule cross-check finally has a caller.
+  ok('flagWipRow is given the schedule percent it has always taken',
+    /flagWipRow\(r\.output, prior, evm\)/.test(WIP_SCREEN)
+    && /const schedulePercentByProject = useMemo/.test(WIP_SCREEN),
+    'the evm argument had no three-argument caller, so scheduleDivergence could never fire');
+  ok('…but only against TODAY\u2019s schedule, never a frozen row',
+    /const evm = viewingFrozen\s*\n?\s*\? undefined/.test(WIP_SCREEN));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

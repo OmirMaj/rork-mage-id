@@ -12,9 +12,17 @@
 // ---------------
 // 1. Every write goes through `onEdit(taskId, patch)` — the parent owns state.
 //    The grid itself never mutates tasks; it just proposes edits.
-// 2. On every edit, the parent re-runs `runCpm(tasks)` and passes the result
-//    back as `cpm`. We render Start/Finish/Float from that result, not from
-//    raw task fields, so Start and Finish are ALWAYS in sync with the math.
+// 2. Start/Finish/Float come from a CPM result, never from raw task fields,
+//    so a row can never contradict the math. The parent MAY hand its own
+//    `cpm` down (preferred — it is the same object the Gantt beside us draws
+//    from, and the only one carrying per-resource `taskCalendars`). When it
+//    does not, we run the engine ourselves through `runCpmForCalendar`, which
+//    forces the project calendar in. Calling bare `runCpm(tasks)` here is a
+//    BUG, not a shortcut: it returns raw WORKING ORDINALS which this file then
+//    renders as CALENDAR days. Measured 2026-09-11 on A(10)->B(5)->C(5),
+//    5-day week from Mon Mar 2: the grid printed Mar 11 / Mar 16 / Sat Mar 21
+//    against an engine (and a Gantt bar) saying Mar 13 / Mar 20 / Mar 27, and
+//    `workingDaysInSpan(es, ef)` read 8 / 3 / 4 for tasks of 10 / 5 / 5 days.
 // 3. Predecessor edits are validated by the PredecessorPicker UI; existing
 //    out-of-order links (legal DAG after move-up/down) are always preserved.
 // 4. Actual-start / actual-finish columns exist but are rendered faded until
@@ -42,11 +50,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, TaskStatus, AnchorType } from '@/types';
 import {
-  runCpm, formatFloat,
+  runCpmForCalendar, formatFloat, calendarDayToDate, dateToCalendarDay, calendarIndexToWorkingOrdinal,
   type CpmResult, type CpmTaskResult,
 } from '@/utils/cpm';
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
+import { toCalendarDayString } from '@/utils/calendarDate';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { parsePastedRows } from '@/utils/pasteRows';
@@ -215,6 +224,13 @@ export interface GridPaneProps {
    */
   nonWorkingDates?: string[];
   /**
+   * The parent's CPM result, when it has one. Optional so the existing tab
+   * shells keep working, but strongly preferred: it is the same result the
+   * Gantt draws its bars from, and the only one carrying per-resource
+   * `taskCalendars`. Every day number on it (es/ef/ls/lf) is a CALENDAR INDEX.
+   */
+  cpm?: CpmResult;
+  /**
    * Split-view mode. The gantt on the right already shows Start / Finish /
    * Float visually, so repeating them as text columns makes the layout feel
    * cramped and forces users to hunt for the same data twice. When
@@ -270,6 +286,7 @@ export interface GridPaneProps {
 
 export default function GridPane({
   tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates,
+  cpm: cpmFromParent,
   onEdit, onAddTask, onAddTasks, onDeleteTask, onOutline, onReorder, focusedTaskId,
   selectedIds, onSelectionChange,
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
@@ -355,10 +372,18 @@ export default function GridPane({
     () => visibleColumns.reduce((s, c) => s + c.width, 0),
     [visibleColumns],
   );
-  // Re-run CPM on every render. It's fast (< 1ms for a few hundred tasks) and
-  // keeps the grid's derived columns honest. If profiling ever shows this as
-  // a bottleneck, memoize on a tasks signature.
-  const cpm: CpmResult = useMemo(() => runCpm(tasks), [tasks]);
+  // Prefer the parent's CPM result — it is the exact object the Gantt pane
+  // beside us renders from, so grid and bars cannot disagree, and it is the
+  // only one that knows about per-resource `taskCalendars`. Falling back to our
+  // own run keeps the existing tab shells (ListTab, GanttTab) working; that run
+  // MUST go through `runCpmForCalendar` so es/ef come back as CALENDAR indices,
+  // which is the scale `renderCalendarDate` below renders. It is fast (< 1ms
+  // for a few hundred tasks); memoized on the calendar inputs as well as tasks.
+  const ownCpm: CpmResult = useMemo(
+    () => runCpmForCalendar(tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates),
+    [tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates],
+  );
+  const cpm: CpmResult = cpmFromParent ?? ownCpm;
 
   // Which cell is currently being edited. `null` means read-only mode.
   const [editing, setEditing] = useState<{ row: number; col: ColumnKey } | null>(null);
@@ -550,18 +575,44 @@ export default function GridPane({
   // hit the TDZ on `dateToDayNumber`.)
   // -------------------------------------------------------------------------
 
-  const renderDate = useCallback((dayNumber: number): string => {
-    if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
-    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek, nonWorkingDates);
-    return formatShortDate(d);
-  }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
-
+  // renderIso takes a WORKING ORDINAL (task.startDay and friends) — the scale
+  // addWorkingDays is the matching renderer for. Only the no-CPM fallbacks use
+  // it now; every value the engine returns goes through renderCalendar* below.
   const renderIso = useCallback((dayNumber: number): string => {
     const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek, nonWorkingDates);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
 
-  // The exact inverse of renderDate/renderIso. It used to walk days itself and
+  // …and these take a CALENDAR INDEX, which is what every value on `cpmRow`
+  // (es/ef/ls/lf) is, because `cpm` above is a calendar-aware run. The two
+  // renderers must stay paired with their own scale: put a calendar index
+  // through `renderIso` and it prints late by every weekend the task spans (on
+  // A(10)->B(5)->C(5) from Mon Mar 2, A's EF of index 12 renders as Tue Mar 17
+  // instead of Fri Mar 13, and the gap grows down the chain); put a working
+  // ordinal through `renderCalendarDate` and it prints early by the same
+  // amount, which is what shipped between 2026-09-07 and 2026-09-11 while this
+  // component ran `runCpm(tasks)` with no calendar — C finished on a Saturday
+  // on a Mon-Fri job.
+  const renderCalendarDate = useCallback((calendarIndex: number): string => {
+    if (!Number.isFinite(calendarIndex) || calendarIndex < 1) return '—';
+    return formatShortDate(calendarDayToDate(projectStartDate, calendarIndex));
+  }, [projectStartDate]);
+
+  const renderCalendarIso = useCallback((calendarIndex: number): string => {
+    const d = calendarDayToDate(projectStartDate, Math.max(1, calendarIndex));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [projectStartDate]);
+
+  /** The stored working ordinal that corresponds to a CPM calendar index. */
+  const calendarToOrdinal = useCallback((calendarIndex: number): number => (
+    calendarIndexToWorkingOrdinal(calendarIndex, {
+      workingDaysPerWeek,
+      scheduleStartDate: toCalendarDayString(projectStartDate),
+      nonWorkingDates,
+    })
+  ), [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
+
+  // The exact inverse of renderIso. It used to walk days itself and
   // skip only Sat/Sun, which disagreed with `addWorkingDays` the moment a
   // closure existed (and floored raw ms on a 7-day week, losing a day across a
   // fall-back DST boundary). `scheduleDayNumberFor` is the shared implementation.
@@ -596,16 +647,23 @@ export default function GridPane({
       case 'duration': seed = String(task.durationDays ?? 0); break;
       case 'progress': seed = String(task.progress ?? 0); break;
       case 'crew':     seed = task.crew ?? ''; break;
-      case 'start':    seed = renderIso(task.startDay); break;
-      case 'finish':   seed = renderIso(
-        cpmAtBegin?.ef ?? (task.startDay + Math.max(1, task.durationDays ?? 1) - 1),
-      ); break;
-      case 'deadline': seed = task.deadline ?? renderIso(cpmAtBegin?.ef ?? task.startDay); break;
+      // Seed the editor with the date the cell is SHOWING. Seeding from the
+      // authored pin while the cell rendered the scheduled date meant clicking
+      // "Mar 16" opened an editor saying "Mar 12" whenever a predecessor had
+      // pushed the task — the picker disagreed with the row it came out of.
+      case 'start':    seed = cpmAtBegin
+        ? renderCalendarIso(cpmAtBegin.es)
+        : renderIso(task.startDay); break;
+      case 'finish':   seed = cpmAtBegin
+        ? renderCalendarIso(cpmAtBegin.ef)
+        : renderIso(task.startDay + Math.max(1, task.durationDays ?? 1) - 1); break;
+      case 'deadline': seed = task.deadline
+        ?? (cpmAtBegin ? renderCalendarIso(cpmAtBegin.ef) : renderIso(task.startDay)); break;
     }
     setDraft(seed);
     setCellError(null);
     setEditing({ row, col });
-  }, [tasks, renderIso, cpm, idToWbsMap, idToRowLabel]);
+  }, [tasks, renderIso, renderCalendarIso, cpm, idToWbsMap, idToRowLabel]);
 
   // After an insert, focus the new row's name cell once it appears in `tasks`.
   useEffect(() => {
@@ -632,6 +690,11 @@ export default function GridPane({
     if (!editing) return false;
     const task = tasks[editing.row];
     if (!task) { cancelEdit(); return false; }
+
+    // The CPM row this cell was rendered from. The date cells display SCHEDULED
+    // dates (calendar indices), so every comparison below has to be against the
+    // same thing the user was looking at.
+    const cpmRowAtCommit = cpm.perTask.get(task.id);
 
     const patch: Partial<ScheduleTask> = {};
 
@@ -668,7 +731,13 @@ export default function GridPane({
         const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
         if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
         const newStartDay = dateToDayNumber(picked);
-        if (newStartDay === task.startDay) break;
+        // Compare against the ordinal the cell was DISPLAYING (the scheduled
+        // start), not the authored pin — otherwise re-committing an unchanged
+        // seed on a dependency-pushed task writes a pin the user never typed.
+        const shownOrdinal = cpmRowAtCommit
+          ? calendarToOrdinal(cpmRowAtCommit.es)
+          : task.startDay;
+        if (newStartDay === shownOrdinal) break;
         patch.startDay = newStartDay;
         break;
       }
@@ -679,7 +748,15 @@ export default function GridPane({
         const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
         if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
         const newFinishDay = dateToDayNumber(picked);
-        const newDuration = newFinishDay - task.startDay + 1;
+        // Duration is measured from where the task is SCHEDULED to start, not
+        // from its authored pin. Both operands are working ordinals, so the
+        // difference is a working-day count — which is what durationDays is.
+        // Measuring from task.startDay on a dependency-pushed task inflated the
+        // duration by the whole push the moment anyone touched the Finish cell.
+        const startOrdinal = cpmRowAtCommit
+          ? calendarToOrdinal(cpmRowAtCommit.es)
+          : task.startDay;
+        const newDuration = newFinishDay - startOrdinal + 1;
         if (newDuration < 1) {
           setCellError('Finish date must be on or after Start');
           return false;
@@ -705,7 +782,7 @@ export default function GridPane({
     setDraft('');
     setCellError(null);
     return true;
-  }, [editing, draft, tasks, onEdit, cancelEdit, dateToDayNumber]);
+  }, [editing, draft, tasks, onEdit, cancelEdit, dateToDayNumber, cpm, calendarToOrdinal]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation (web). iPad/mobile rely on tap-to-edit + blur.
@@ -947,7 +1024,7 @@ export default function GridPane({
         display = <Text style={[styles.cellText, styles.cellTextMono]}>{task.durationDays}d</Text>;
         break;
       case 'start': {
-        const label = cpmRow ? renderDate(cpmRow.es) : '—';
+        const label = cpmRow ? renderCalendarDate(cpmRow.es) : '—';
         const hasAnchor = task.anchorType && task.anchorType !== 'none';
         if (Platform.OS === 'web' && !compact && cpmRow) {
           return (
@@ -1004,7 +1081,7 @@ export default function GridPane({
         break;
       }
       case 'finish': {
-        const label = cpmRow ? renderDate(cpmRow.ef) : '—';
+        const label = cpmRow ? renderCalendarDate(cpmRow.ef) : '—';
         if (Platform.OS === 'web' && !compact && cpmRow) {
           return (
             <TouchableOpacity
@@ -1069,12 +1146,26 @@ export default function GridPane({
         const deadlineDay = (() => {
           const parsed = Date.parse(task.deadline + 'T00:00:00');
           if (!Number.isFinite(parsed)) return null;
-          const d = new Date(parsed);
-          return Math.floor((d.getTime() - projectStartDate.getTime()) / 86400000) + 1;
+          // dateToCalendarDay, not a raw millisecond divide: `projectStartDate`
+          // is not guaranteed to be at local midnight, and a DST boundary
+          // inside the span shaves an hour and floors to the day before.
+          return dateToCalendarDay(projectStartDate, new Date(parsed));
         })();
-        const ef = cpmRow?.ef ?? (task.startDay + Math.max(0, task.durationDays - 1));
-        const variance = deadlineDay != null ? ef - deadlineDay : 0;
-        const label = deadlineDay != null
+        // `deadlineDay` is a CALENDAR index (a raw date delta), so the finish it
+        // is measured against has to be one too — cpmRow.ef, and only cpmRow.ef,
+        // and only because `cpm` above is now a CALENDAR-aware run. The old
+        // fallback compared it against `startDay + duration - 1`, a WORKING
+        // ordinal, and even after that was removed the cell stayed wrong while
+        // the engine ran in raw-day mode: measured on a 10-day task from Mon
+        // Mar 2 with a deadline of Fri Mar 13 — its true finish — the cell read
+        // "2d early" (ef 10 against a deadlineDay of 12) and now reads "on
+        // time". The variance is in CALENDAR days, which is the right unit for
+        // a due date: the client's deadline does not skip your weekends.
+        // With no CPM row (the engine bailed on a cycle) there is no honest
+        // variance to state, so state the date.
+        const ef = cpmRow?.ef ?? null;
+        const variance = deadlineDay != null && ef != null ? ef - deadlineDay : 0;
+        const label = deadlineDay != null && ef != null
           ? (variance > 0 ? `${variance}d late` : variance < 0 ? `${-variance}d early` : 'on time')
           : task.deadline;
         const color = variance > 0 ? themeColors.danger : variance < 0 ? themeColors.success : themeColors.textSecondary;

@@ -28,9 +28,24 @@ import type { Project, ScheduleTask } from '@/types';
 // which calendar days are workdays.
 import { isWorkingDay } from '@/utils/cpm';
 // Canonical task-window math (working-day aware). Its header documents why a
-// private calendar-day copy is wrong: durations are WORKING-day counts while
-// startDay is a CALENDAR index, so spanning one as the other ends a 20-day task
-// four days early. capacityLoad had that bug and it flipped a signal.
+// private calendar-day copy is wrong: durations are WORKING-day counts and so
+// is `startDay`, so spanning one as a calendar offset ends a 20-day task four
+// days early. capacityLoad had that bug and it flipped a signal.
+//
+// WHY THIS STAYS ON `task.startDay` (decided 2026-09-11, not an oversight).
+// utils/lastPlanner's lookahead and weekly plan were moved onto the CPM early
+// start, so this detector and the board it badges sit on different bases for a
+// dependency-driven plan that has not been reflowed. Moving this one too was
+// tried and reverted: cross-project clash keys are a shared UTC-midnight day
+// grid, and scripts/validate-cross-project-load.ts pins five edge semantics to
+// that grid — a fractional `startDay` still meeting a whole one, and two spans
+// that touch only on a closed day NOT clashing. Re-dating every task through
+// the engine floors the fractional key and slides every fixture, so honouring
+// it means re-authoring those cases on a new basis, inside a feature this
+// change is not about. The pin is also the only thing this detector can see of
+// another project, and every persist path in Schedule Pro reflows before
+// writing, so the two agree on real data. Revisit together with
+// utils/judges/capacityLoad.ts, which is on the same basis for the same reason.
 import { taskWindow, type TaskWindowCalendar } from '@/utils/lastPlanner';
 // The repo's single answer to "does this task put anyone on site at all" —
 // it is false for a done task and for a 0-day milestone (an event, not work).

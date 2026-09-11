@@ -40,7 +40,8 @@ import {
   normalizeExtraction, receiptLinesTotal, reconcile, receiptToCostSamples,
 } from '@/utils/materialReceipt';
 import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
-import type { MaterialReceipt, MaterialReceiptLine } from '@/types';
+import { matchCommitmentByVendor } from '@/utils/scanRouting';
+import type { Commitment, MaterialReceipt, MaterialReceiptLine } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
@@ -69,7 +70,7 @@ function MaterialReceiptInner() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const params = useLocalSearchParams<{ projectId?: string; commitmentId?: string }>();
-  const { projects, getProject, getCommitmentsForProject } = useProjects();
+  const { projects, getProject, getCommitmentsForProject, subcontractors } = useProjects();
   const { tier } = useSubscription();
   const { addReceipt, getReceiptsForProject } = useMaterialReceipts();
 
@@ -84,10 +85,46 @@ function MaterialReceiptInner() {
   const [saved, setSaved] = useState(false);
 
   const project = projectId ? getProject(projectId) : null;
-  const poCommitments = useMemo(
-    () => (projectId ? getCommitmentsForProject(projectId).filter(c => c.type === 'purchase_order') : []),
+  // ───────────────────────────────────────────────────────────────────────────
+  // SUBCONTRACTS BELONG IN THIS PICKER TOO (MONEY-AP-1, audit 2026-09-11).
+  //
+  // The picker was filtered to `type === 'purchase_order'` and labelled
+  // "Link to PO", so a subcontract could never be chosen — and utils/
+  // scanRouting.ts routes EVERY scanned invoice to this screen, supplier or
+  // sub alike. The result was that a GC who scanned his electrician's bill
+  // (the natural thing to do, and the only AP path the product has) produced
+  // an UNLINKED receipt, which utils/jobCostEngine books as DIRECT cost: the
+  // bill bought down the uncommitted budget while the full subcontract still
+  // stood as remaining exposure, so the projected final overstated by the
+  // whole invoice. Linking it instead buys down the commitment exactly the way
+  // a payment does — jobCostEngine's linked branch already does this correctly
+  // and explains why in its own comment.
+  //
+  // Draft commitments are excluded: `computeJobCost` filters them out of the
+  // project's commitments, so a receipt linked to one would resolve to no
+  // commitment there and silently fall back to direct cost — the bug, with a
+  // chip on it saying it was fixed.
+  // ───────────────────────────────────────────────────────────────────────────
+  const linkableCommitments = useMemo(
+    () => (projectId
+      ? getCommitmentsForProject(projectId).filter(c => c.status !== 'draft'
+        && (c.type === 'purchase_order' || c.type === 'subcontract'))
+      : []),
     [projectId, getCommitmentsForProject],
   );
+  const linkedCommitment = useMemo(
+    () => linkableCommitments.find(c => c.id === commitmentId),
+    [linkableCommitments, commitmentId],
+  );
+  /** Who a commitment is WITH. app/job-costing.tsx's editor writes
+   *  `vendorName` only for purchase orders and `subcontractorId` only for
+   *  subcontracts, so reading `vendorName` alone left every real subcontract
+   *  chip nameless — "SC-01" with no clue whose bill it is. */
+  const counterpartyOf = useCallback((c: Commitment): string => {
+    if (c.vendorName?.trim()) return c.vendorName.trim();
+    const sub = c.subcontractorId ? subcontractors.find(x => x.id === c.subcontractorId) : undefined;
+    return sub?.companyName?.trim() || '';
+  }, [subcontractors]);
   const existing = useMemo(
     () => (projectId ? getReceiptsForProject(projectId) : []),
     [projectId, getReceiptsForProject],
@@ -127,7 +164,21 @@ function MaterialReceiptInner() {
     try {
       const { data } = await analyzeReceipt({ photoUrls: [imageUri], projectName: project?.name });
       await recordAIUsage('smart', 'photoAnalysis');
-      const normalized = normalizeExtraction(data, { projectId, commitmentId, imageUri });
+      // MONEY-AP-1 / F9. Default the link from the vendor the extraction read,
+      // when exactly one open PO or subcontract is with that vendor. Widening
+      // the picker only helps a GC who notices a chip; app/scan.tsx passes no
+      // commitmentId and the picker defaults to None, so without this the
+      // scanned sub bill is still booked as unlinked direct cost — counted
+      // once against the budget and again as the subcontract's remaining
+      // exposure. An explicit route param always wins; the match is exact and
+      // refuses to guess between two vendors of the same name
+      // (utils/scanRouting.matchCommitmentByVendor).
+      const autoLink = commitmentId ?? matchCommitmentByVendor(
+        data?.vendor,
+        linkableCommitments.map(c => ({ id: c.id, counterparty: counterpartyOf(c) })),
+      );
+      if (autoLink && autoLink !== commitmentId) setCommitmentId(autoLink);
+      const normalized = normalizeExtraction(data, { projectId, commitmentId: autoLink, imageUri });
       if (normalized.lines.length === 0) {
         setError("MAGE couldn't read any line items — make sure the whole invoice is in frame and legible, then retry.");
         setDraft(null);
@@ -139,7 +190,7 @@ function MaterialReceiptInner() {
     } finally {
       setBusy(false);
     }
-  }, [imageUri, busy, projectId, commitmentId, tier, router, project?.name]);
+  }, [imageUri, busy, projectId, commitmentId, tier, router, project?.name, linkableCommitments, counterpartyOf]);
 
   // ── Draft edits ──────────────────────────────────────────────
   const patchDraft = useCallback((updates: Partial<MaterialReceipt>) => {
@@ -283,20 +334,38 @@ function MaterialReceiptInner() {
               </View>
             </View>
 
-            {/* PO link */}
-            {poCommitments.length > 0 && (
+            {/* Commitment link — POs AND subcontracts (MONEY-AP-1). */}
+            {linkableCommitments.length > 0 && (
               <View style={styles.pickerWrap}>
-                <Text style={styles.pickerLabel}>Link to PO (optional)</Text>
+                <Text style={styles.pickerLabel}>Bill against a PO or subcontract (optional)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   <TouchableOpacity onPress={() => setCommitmentId(undefined)} style={[styles.chip, !commitmentId && styles.chipOn]}>
                     <Text style={[styles.chipText, !commitmentId && styles.chipTextOn]}>None</Text>
                   </TouchableOpacity>
-                  {poCommitments.map(c => (
-                    <TouchableOpacity key={c.id} onPress={() => setCommitmentId(c.id)} style={[styles.chip, commitmentId === c.id && styles.chipOn]}>
-                      <Text style={[styles.chipText, commitmentId === c.id && styles.chipTextOn]} numberOfLines={1}>{c.number || c.description || 'PO'}</Text>
+                  {linkableCommitments.map(c => (
+                    <TouchableOpacity key={c.id} onPress={() => setCommitmentId(c.id)} style={[styles.chip, commitmentId === c.id && styles.chipOn]} testID={`commitment-chip-${c.id}`}>
+                      <Text style={[styles.chipText, commitmentId === c.id && styles.chipTextOn]} numberOfLines={1}>
+                        {c.number || c.description || (c.type === 'subcontract' ? 'Subcontract' : 'PO')}
+                        {counterpartyOf(c) ? ` · ${counterpartyOf(c)}` : ''}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+                {/* Say what the link DOES and NOTHING MORE.
+                    An earlier draft of this string promised that a linked sub
+                    bill "lands in the 1099 export" — the engine can count it
+                    (utils/tax1099Export.gcRecordedSubPaymentsFromReceipts) but
+                    app/tax-1099-export.tsx does not pass it yet, so the
+                    sentence was false on the only path a user can take. A
+                    screen may only claim what the code it triggers actually
+                    does. `Commitment.paidToDate` is likewise untouched: it is
+                    maintained by a server trigger on sub-submitted invoices and
+                    must not be written from the client (types/index.ts). */}
+                <Text style={styles.pickerHelp}>
+                  {linkedCommitment
+                    ? `Counts against ${linkedCommitment.number || (linkedCommitment.type === 'subcontract' ? 'this subcontract' : 'this PO')} in job costing instead of as separate material cost, so the same dollars are not counted twice.`
+                    : 'Unlinked, this counts as direct material cost — on a job where the vendor already has a PO or subcontract, the same dollars are then counted twice.'}
+                </Text>
               </View>
             )}
 
@@ -388,6 +457,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   pickerWrap: { marginBottom: 14 },
   pickerLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const, marginBottom: 6 },
+  pickerHelp: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface, maxWidth: 180 },
   chipOn: { backgroundColor: t.accent + '1A', borderColor: t.accent },
   chipText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const },

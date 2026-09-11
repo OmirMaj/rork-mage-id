@@ -31,40 +31,67 @@
 // the floor into some call sites and not others — which is exactly what happened
 // on 2026-09-10 and left the two schedules 27 margin points apart.
 //
-// WHAT IS STILL OPEN, and deliberately NOT asserted here (2026-09-11 audit):
+// AXES 5, 6 AND 7 ARE CLOSED AND ASSERTED BELOW (2026-09-11 audit). All three
+// were live divergences the four axes above were structurally blind to:
 //
-//   * THE CONTRACT AXIS. utils/wip.ts:397-405 takes the contract baseline from
-//     `payApps[0]?.originalContractSum` first; utils/estimateCommit.ts:183-185
-//     takes `linkedEstimate.grandTotal`. A job with a saved pay application
-//     reads $700,000 on /wip-report and $550,000 on /reports — 15.6 margin
-//     points — and a target-budget-only job reads $900,000 against $0. This is
-//     a FIFTH axis nobody enumerated, on the revenue side, and the four axes
-//     named above are structurally blind to it.
-//   * BILLED-TO-DATE. computeWIPReport's signature takes no pay apps at all
-//     (utils/financialReports.ts:126-132) and billedToDate is invoices-only
-//     (:149-150), so a job billed entirely through AIA progress billing reports
-//     $0 billed on /reports and invents underbilling equal to earned revenue.
+//   5. THE CONTRACT. utils/wip.ts took the baseline from the latest pay
+//      application's `originalContractSum`; computeWIPReport ran
+//      `effectiveEstimateTotal`, the linked estimate's grandTotal and nothing
+//      else. Measured before the fix: a job with a saved pay application read
+//      $700,000 / 42.9% margin on /wip-report and $550,000 / 27.3% on
+//      /reports; a target-budget-only job read $900,000 against $0. That is
+//      the REVENUE side of a surety document.
+//   6. BILLED TO DATE. computeWIPReport's signature took no pay apps at all
+//      and billedToDate was invoices-only, so a job billed entirely through
+//      AIA progress billing reported $0 billed on /reports and invented
+//      underbilling equal to the whole of earned revenue.
+//   7. THE PERCENT-COMPLETE FALLBACK. With no cost recorded, computeWIPReport
+//      fell back to the average task progress of the project's SCHEDULE — a
+//      third basis, and schedule-basis revenue recognition on a document that
+//      names itself cost-to-cost.
 //
-// Both are wrong numbers on a bank document. Neither is pinned yet because
-// neither agrees, and a guard that pinned today's answer would certify the
-// divergence as correct. When they are closed, assert them here.
+//   8. THE ENTERED COST TO COMPLETE (added on the adversarial re-review of the
+//      same day). The ETC — the input that stops an overrun job reporting 100%
+//      complete — landed as an argument to computeWipRow alone, which is the
+//      /wip-report engine. computeWIPReport and computeProfitReport derive
+//      their cost at completion from deriveEstimatedCostWithSource and could
+//      not see it, so a GC who entered "$180,000 left to spend" got EAC
+//      $800,000 / 77.5% / $426,250 earned / a $250,000 forecast loss on the
+//      flagship screen and EAC $620,000 / 100% / $550,000 earned / a $70,000
+//      loss on /reports, in its CSV and in its PDF. This guard was structurally
+//      blind to it: `grep -c estimatedCostToComplete` over this file returned
+//      ZERO, so the entire feature could be switched off (`const etcEntered =
+//      false && …`) with wip-parity and money-basis-parity both green.
+//
+// Each is now one definition in utils/wip.ts that computeWIPReport calls, and
+// each is asserted here ACROSS BOTH ENGINES on the same fixture. The call-site
+// completeness check at the bottom is the other half: an optional positional
+// parameter that some callers pass is a divergence generator, and that shape
+// has split these two schedules twice in this repo already.
 //
 // Run via: bun run test:wip-parity
 
 import {
   isWipBilling,
   isWipReportableProject,
+  computeWipRow,
+  deriveEstimatedCostWithSource as deriveEac,
   suggestBilledToDate,
+  suggestRetainageHeld,
   suggestCostToDate,
   suggestCostToDateWithSource,
   deriveOriginalContract,
   deriveOriginalContractWithSource,
   deriveEstimatedCost,
   deriveEstimatedCostWithSource,
+  computeWipPortfolio,
+  wipRowHasCostBasis,
   WIP_SOURCE_LABELS,
   type WipSource,
 } from '../utils/wip';
-import { computeWIPReport } from '../utils/financialReports';
+import {
+  computeWIPReport, computeProfitReport, wipReportToCSV, profitRowHasCostBasis,
+} from '../utils/financialReports';
 import type {
   Project, Invoice, Commitment, ChangeOrder, SavedAIAPayApp, MaterialReceipt,
 } from '../types';
@@ -319,7 +346,18 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
     new Set(Object.values(WIP_SOURCE_LABELS)).size,
     Object.keys(WIP_SOURCE_LABELS).length);
   const mustSay: [WipSource, RegExp][] = [
-    ['pay_app_contract_sum', /pay application/i],
+    // The pay-app branch has to name the LATEST application. There is no
+    // `pay_app_contract_conflict` source any more: an earlier pass abandoned
+    // the whole branch whenever two saved certificates disagreed about the
+    // original contract sum, which is the ORDINARY case (a new application
+    // re-reads the sum off the estimate, so any re-price makes two of them
+    // disagree) and which knocked $100,000 off a certified contract. The
+    // disagreement is disclosed in words instead —
+    // utils/wip.payAppContractHistoryNote, pinned in scripts/validate-wip.ts.
+    ['pay_app_contract_sum', /LATEST saved AIA pay application/],
+    // And the ETC branch has to say the GC entered it, because on that branch
+    // the cost at completion is his forecast rather than anything MAGE derived.
+    ['cost_to_complete_entered', /cost to complete YOU entered/],
     ['estimate_grand_total', /grand total/i],
     ['change_order_snapshot', /change order/i],
     ['target_budget', /target budget/i],
@@ -354,6 +392,385 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
     /WIP_SOURCE_LABELS\[/.test(screen), true);
   eq('…and names what cost-to-date does NOT include',
     /Self-performed labor is NOT included/.test(screen), true);
+}
+
+// ── AXES 5, 6 AND 7 — CONTRACT, BILLINGS, PERCENT COMPLETE ──────────────────
+//
+// One fixture, both engines, every figure compared. This is the block that
+// fails if either file grows a second opinion again.
+console.log('\naxes 5-7 — the contract, the billings and the percent complete:');
+{
+  // A job billed entirely through AIA progress billing, whose pay application
+  // certifies a $700,000 contract against a $550,000 estimate — the exact shape
+  // that read two different contracts and two different billings.
+  const PAY_APPS = [{
+    id: 'pa1', projectId: 'p1', applicationNumber: 2, originalContractSum: 700_000,
+    totals: { totalCompletedAndStored: 350_000, totalRetainage: 35_000 },
+  }] as unknown as SavedAIAPayApp[];
+  const P = project();
+  const COMMITS = [commitment(160_000)];
+
+  const tab = computeWIPReport([P], [], [], COMMITS, {}, PAY_APPS).rows[0];
+
+  // /wip-report's side of the same figures, from the engine the screen calls.
+  const contract = deriveOriginalContractWithSource(P, [], PAY_APPS);
+  const eac = deriveEac(P, COMMITS, {
+    approvedChangeOrders: 0, originalContract: contract.value, costIncurred: tab.costToDate ?? 0,
+  });
+  const flagship = computeWipRow({
+    originalContract: contract.value,
+    approvedChangeOrders: 0,
+    totalEstimatedCost: eac.value,
+    costToDate: tab.costToDate ?? 0,
+    billedToDate: suggestBilledToDate([], PAY_APPS),
+  });
+
+  close('AXIS 5 — both schedules read the SAME contract', tab.contractValue, contract.value);
+  close('…and it is the certified pay-app sum, not the estimate', tab.contractValue, 700_000);
+  close('…so revised contract agrees too', tab.revisedContract, flagship.revisedContract);
+  eq('…and /reports records which branch produced it', tab.contractSource, 'pay_app_contract_sum');
+  // The number the old code produced, stated so the regression is legible.
+  close('…the estimate grand total, which /reports used to print, is $550,000',
+    P.linkedEstimate?.grandTotal ?? 0, 550_000);
+
+  close('AXIS 6 — both schedules read the SAME billed-to-date',
+    tab.billedToDate, flagship.revisedContract > 0 ? suggestBilledToDate([], PAY_APPS) : 0);
+  close('…and it is the cumulative G703 figure, not $0', tab.billedToDate, 350_000);
+  close('…retainage held comes off the same certificate',
+    tab.retainageHeld, suggestRetainageHeld([], PAY_APPS));
+  close('…which is $35,000, not the $0 an invoice-only read would give',
+    tab.retainageHeld, 35_000);
+
+  close('AXIS 3/5 — percent complete agrees',
+    tab.percentComplete / 100, flagship.percentComplete);
+  close('…and so does earned revenue',
+    (tab.revisedContract * tab.percentComplete) / 100, flagship.earnedRevenue);
+  close('…and cost at completion', tab.estimatedFinalCost, eac.value);
+
+  // AXIS 7 — a job with a SCHEDULE and no cost recorded must read 0%, not the
+  // average task progress. Two tasks at 40% and 60% used to report 50%
+  // complete, $250,000 earned and $250,000 unbilled on /reports while
+  // /wip-report reported 0% and $0 for the same job.
+  const scheduled = project({
+    id: 'p1',
+    schedule: { tasks: [{ progress: 40 }, { progress: 60 }] },
+  } as unknown as Partial<Project>);
+  const noCost = computeWIPReport([scheduled], [], [], [], {}, []).rows[0];
+  close('AXIS 7 — no cost recorded reads 0% complete, never schedule progress',
+    noCost.percentComplete, 0);
+  close('…so it earns nothing rather than half the contract', noCost.earnedRevenue ?? 0, 0);
+  close('…and invents no underbilling', noCost.unbilled, 0);
+  close('…where the schedule average it used to print was 50%',
+    (40 + 60) / 2, 50);
+  close('…and the flagship engine agrees, from the same zero-cost guard',
+    computeWipRow({
+      originalContract: 550_000, approvedChangeOrders: 0,
+      totalEstimatedCost: 0, costToDate: 0, billedToDate: 0,
+    }).percentComplete, 0);
+
+  // A RECALLED application must not set either figure on either schedule.
+  const recalled = [
+    PAY_APPS[0],
+    {
+      id: 'pa2', projectId: 'p1', applicationNumber: 3, originalContractSum: 900_000,
+      totals: { totalCompletedAndStored: 500_000, totalRetainage: 50_000 },
+      portalState: { status: 'recalled' },
+    },
+  ] as unknown as SavedAIAPayApp[];
+  const withRecall = computeWIPReport([P], [], [], COMMITS, {}, recalled).rows[0];
+  close('a recalled application sets neither the contract…', withRecall.contractValue, 700_000);
+  close('…nor the billings', withRecall.billedToDate, 350_000);
+}
+
+console.log('\naxis 8 — the entered cost to complete, on BOTH engines:');
+{
+  // The exact overrun shape the ETC exists for: $620,000 already spent against
+  // a $400,000 estimate on a $550,000 contract. The incurred floor makes
+  // costToDate / EAC exactly 1.0 BY CONSTRUCTION, so the row reports 100%
+  // complete, the whole contract earned and $0 of backlog — on a job that may
+  // be 60% built. The GC says $180,000 is left to spend.
+  const P = project();
+  const SPENT = [commitment(620_000)];
+  const ETC = 180_000;
+
+  const bare = computeWIPReport([P], [], [], SPENT, {}, [], {}).rows[0];
+  close('WITHOUT an ETC an overrun job reads 100% complete', bare.percentComplete, 100);
+  close('…and earns the whole contract', bare.earnedRevenue ?? 0, bare.revisedContract);
+
+  const tab = computeWIPReport([P], [], [], SPENT, {}, [], { p1: ETC }).rows[0];
+  const prof = computeProfitReport([P], [], [], SPENT, {}, [], { p1: ETC }).rows[0];
+  const flagship = computeWipRow({
+    originalContract: bare.contractValue,
+    approvedChangeOrders: 0,
+    totalEstimatedCost: bare.estimatedFinalCost,
+    costToDate: tab.costToDate ?? 0,
+    billedToDate: tab.billedToDate,
+    estimatedCostToComplete: ETC,
+  });
+
+  close('AXIS 8 — both schedules read the SAME cost at completion',
+    tab.estimatedFinalCost, flagship.estimatedCostAtCompletion ?? 0);
+  close('…which is cost to date + the entered cost to complete',
+    tab.estimatedFinalCost, (tab.costToDate ?? 0) + ETC);
+  close('…and it MOVED off the pre-ETC figure', bare.estimatedFinalCost, 620_000);
+  close('…percent complete agrees', tab.percentComplete / 100, flagship.percentComplete);
+  close('…and is no longer 100%', tab.percentComplete, 77.5, 0.01);
+  close('…earned revenue agrees', tab.earnedRevenue ?? 0, flagship.earnedRevenue);
+  close('…forecast profit agrees',
+    tab.projectedProfit, flagship.estGrossProfit);
+  close('…and the PROFIT TAB, which every free and Pro user lands on, agrees too',
+    prof.estimatedFinalCost, flagship.estimatedCostAtCompletion ?? 0);
+  close('…including its projected profit', prof.projectedProfit, flagship.estGrossProfit);
+  eq('…and /reports records that the figure is the GC\'s own forecast',
+    tab.costAtCompletion?.source, 'cost_to_complete_entered');
+  eq('…under a basis that is not one of the three derived candidates',
+    tab.costAtCompletion?.basis, 'entered');
+
+  // ZERO IS A FORECAST, on both engines. "Nothing left to spend" is a real
+  // answer at closeout and dropping it would silently restore the derivation.
+  const zero = computeWIPReport([P], [], [], SPENT, {}, [], { p1: 0 }).rows[0];
+  close('a ZERO cost to complete is honoured, not treated as absent',
+    zero.estimatedFinalCost, zero.costToDate ?? 0);
+  // NEGATIVE IS NOT. It falls through to the derivation rather than poisoning
+  // the row — again identically on both engines.
+  const neg = computeWIPReport([P], [], [], SPENT, {}, [], { p1: -5_000 }).rows[0];
+  close('a NEGATIVE one is rejected and the derivation stands',
+    neg.estimatedFinalCost, bare.estimatedFinalCost);
+  close('…and the flagship engine rejects it the same way',
+    computeWipRow({
+      originalContract: bare.contractValue, approvedChangeOrders: 0,
+      totalEstimatedCost: bare.estimatedFinalCost, costToDate: tab.costToDate ?? 0,
+      billedToDate: 0, estimatedCostToComplete: -5_000,
+    }).estimatedCostAtCompletion ?? 0, bare.estimatedFinalCost);
+}
+
+// ── THE PROFIT TAB USES WHAT IT IS GIVEN ────────────────────────────────────
+//
+// computeProfitReport takes `payApps` and `costToCompleteByProject` and was
+// pinned by NOTHING: replacing its contract call with
+// `deriveOriginalContractWithSource(project, projectCOs, [])` survived twelve
+// guards, because the only checks that existed were a source-level regex saying
+// app/reports.tsx PASSES the argument and a set of assertions on the WIP tab.
+// Axis 5 on the tab every free and Pro user lands on was entirely unasserted.
+console.log('\nthe Profit tab reads the same contract and the same forecast:');
+{
+  const PAY_APPS = [{
+    id: 'pa1', projectId: 'p1', applicationNumber: 2, originalContractSum: 700_000,
+    totals: { totalCompletedAndStored: 350_000, totalRetainage: 35_000 },
+  }] as unknown as SavedAIAPayApp[];
+  const P = project();
+  const COMMITS = [commitment(160_000)];
+
+  const wipTab = computeWIPReport([P], [], [], COMMITS, {}, PAY_APPS, {}).rows[0];
+  const profTab = computeProfitReport([P], [], [], COMMITS, {}, PAY_APPS, {}).rows[0];
+  close('the Profit tab reads the certified pay-app contract, not the estimate',
+    profTab.revenue, 700_000);
+  close('…the same revised contract the WIP tab prints', profTab.revenue, wipTab.revisedContract);
+  close('…and the same cost at completion', profTab.estimatedFinalCost, wipTab.estimatedFinalCost);
+  close('…and therefore the same projected profit',
+    profTab.projectedProfit, wipTab.projectedProfit);
+  // The estimate figure the old code produced, stated so the regression reads.
+  close('…where the estimate grand total it used to report is $550,000',
+    P.linkedEstimate?.grandTotal ?? 0, 550_000);
+}
+
+// ── A JOB WITH NO COST BASIS DOES NOT REPORT A 100% MARGIN (F14) ────────────
+//
+// Both engines fall back to a target budget for REVENUE and deliberately not
+// for COST, so a job set up with only a budget carries a contract and no cost
+// and reports its whole contract as gross profit. The two must suppress it the
+// same way, or one document says 100% and the other says nothing.
+console.log('\na contract with no cost basis is unmeasurable on both:');
+{
+  const budgetOnly = project({
+    id: 'p1', linkedEstimate: undefined, estimate: undefined,
+    targetBudget: { amount: 900_000, setBy: 'client' },
+  } as unknown as Partial<Project>);
+  const tab = computeWIPReport([budgetOnly], [], [], [], {}, [], {});
+  close('the row still carries the contract', tab.rows[0].revisedContract, 900_000);
+  close('…and no cost', tab.rows[0].estimatedFinalCost, 0);
+  eq('…so /reports excludes it from the portfolio margin',
+    tab.totals.projectedMargin, 0);
+  eq('…and counts it', tab.totals.noCostBasisCount, 1);
+  close('…and reports the contract it cannot speak for', tab.totals.noCostBasisContract, 900_000);
+  eq('…and the flagship roll-up agrees it is unmeasurable',
+    wipRowHasCostBasis({
+      projectId: 'p1', projectName: 'x',
+      input: {
+        originalContract: 900_000, approvedChangeOrders: 0, totalEstimatedCost: 0,
+        costToDate: 0, billedToDate: 0,
+      },
+      output: computeWipRow({
+        originalContract: 900_000, approvedChangeOrders: 0, totalEstimatedCost: 0,
+        costToDate: 0, billedToDate: 0,
+      }),
+    }), false);
+  const portfolio = computeWipPortfolio([{
+    projectId: 'p1', projectName: 'x',
+    input: {
+      originalContract: 900_000, approvedChangeOrders: 0, totalEstimatedCost: 0,
+      costToDate: 0, billedToDate: 0,
+    },
+    output: computeWipRow({
+      originalContract: 900_000, approvedChangeOrders: 0, totalEstimatedCost: 0,
+      costToDate: 0, billedToDate: 0,
+    }),
+  }]);
+  close('…so its weighted margin is 0, not the 100% it used to print',
+    portfolio.weightedMarginPct, 0);
+  eq('…and it says how many jobs it could not measure', portfolio.noCostBasisCount, 1);
+
+  // AND THE DOCUMENT THAT LEAVES THE BUILDING. Suppressing the fabricated
+  // margin in the engine while the CSV still printed `r.projectedMargin` would
+  // put "100.0" on the page a bank reads with every arithmetic assertion above
+  // still green — which is exactly what happened until this was measured.
+  const csv = wipReportToCSV(tab).split('\n');
+  const head = csv[0].split(',');
+  eq('the /reports CSV prints NOTHING for its projected profit',
+    csv[1].split(',')[head.indexOf('Projected Profit')], '');
+  eq('…and nothing for its margin, never 100.0',
+    csv[1].split(',')[head.indexOf('Projected Margin %')], '');
+  eq('…and a memo line names what it excluded',
+    csv.some((l) => l.startsWith('"NO COST BASIS')), true);
+  // A MEASURABLE job must still print both, or the suppression has eaten the
+  // whole column.
+  const measurableCsv = wipReportToCSV(
+    computeWIPReport([project()], [], [], [commitment(160_000)], {}, [], {}),
+  ).split('\n');
+  const mHead = measurableCsv[0].split(',');
+  eq('a job WITH a cost basis still prints its margin',
+    measurableCsv[1].split(',')[mHead.indexOf('Projected Margin %')] !== '', true);
+  eq('…and no memo line is added to a fully measurable book',
+    measurableCsv.some((l) => l.startsWith('"NO COST BASIS')), false);
+
+  // ── THE PROFIT TAB IS THE THIRD SURFACE, AND IT HAD NO EXCLUSION AT ALL
+  // (adversarial review 2026-09-11). computeProfitReport's weighted margin ran
+  // over every row, so a $1,000,000/$800,000 job beside the $900,000
+  // target-budget job above rolled up to $1,100,000 of profit at a 57.9%
+  // margin, against the $200,000 / 20% the WIP tab one chip away was printing.
+  // Profit is the tab every free and Pro user LANDS ON — the WIP tab is
+  // Business-gated — so it is the version of this defect most users would meet.
+  const real = project({ id: 'p9' } as unknown as Partial<Project>);
+  const book = [real, budgetOnly];
+  const wipTab = computeWIPReport(book, [], [], [], {}, [], {});
+  const profitTabBook = computeProfitReport(book, [], [], [], {}, [], {});
+  close('the Profit tab reports the SAME profit as the WIP tab',
+    profitTabBook.totalProfit, wipTab.totals.measurableProjectedProfit);
+  close('…and the SAME weighted margin',
+    profitTabBook.weightedMargin, wipTab.totals.projectedMargin);
+  eq('…and counts the same unmeasurable jobs',
+    profitTabBook.noCostBasisCount, wipTab.totals.noCostBasisCount);
+  close('…and the same revenue it cannot speak for',
+    profitTabBook.noCostBasisRevenue, wipTab.totals.noCostBasisContract);
+  eq('…and never the netted total that included the fabricated margin',
+    profitTabBook.totalProfit === profitTabBook.rows.reduce((sum, r) => sum + r.projectedProfit, 0),
+    false);
+  eq('…while the unmeasurable ROW is still on the list, flagged as unmeasurable',
+    profitTabBook.rows.some((r) => r.projectId === 'p1' && !profitRowHasCostBasis(r)), true);
+  eq('…and the measurable one is not', profitRowHasCostBasis(
+    profitTabBook.rows.find((r) => r.projectId === 'p9') as never), true);
+  // A fully measurable book excludes nothing, or the filter has eaten the tab.
+  const allMeasurable = computeProfitReport([real], [], [], [], {}, [], {});
+  eq('a fully measurable book excludes nothing', allMeasurable.noCostBasisCount, 0);
+  close('…and its revenue is its measurable revenue',
+    allMeasurable.measurableRevenue, allMeasurable.totalRevenue);
+
+  // ── AND THE SCREEN READS THE SAME FIELD ITS OWN CSV AND PDF DO. The F14 fix
+  // landed on the /reports EXPORTS and not on the /reports SCREEN: line 346
+  // rendered `report.totals.projectedProfit` ($1,100,000) beside a 20% margin
+  // struck on the measurable subset, while wipReportToCSV and the PDF both
+  // rendered `measurableProjectedProfit` ($200,000). Two numbers for one book
+  // on one screen is the exact defect this file exists to close. A source
+  // check because bun cannot render a .tsx.
+  const SCREEN = readFileSync(join(ROOT, 'app', 'reports.tsx'), 'utf8');
+  eq('the /reports portfolio stat reads measurableProjectedProfit',
+    /value=\{formatMoney\(report\.totals\.measurableProjectedProfit\)\}/.test(SCREEN), true);
+  eq('…and the whole-book projectedProfit is not rendered anywhere on it',
+    /formatMoney\(report\.totals\.projectedProfit\)/.test(SCREEN), false);
+  eq('…the per-row margin pill and profit are gated on wipReportRowHasCostBasis',
+    (SCREEN.match(/wipReportRowHasCostBasis\(r\)/g) ?? []).length >= 3, true);
+  eq('…the Profit tab gates the same two on profitRowHasCostBasis',
+    (SCREEN.match(/profitRowHasCostBasis\(r\)/g) ?? []).length >= 3, true);
+  eq('…the Profit hero is struck on measurableRevenue, not the whole book',
+    /formatMoney\(profit\.measurableRevenue\)/.test(SCREEN)
+      && !/formatMoney\(profit\.totalRevenue\)/.test(SCREEN), true);
+  eq('…and both tabs name the jobs they excluded',
+    /noCostBasisCount > 0/.test(SCREEN) && /profit\.noCostBasisCount > 0/.test(SCREEN), true);
+  eq('…and the Profit PDF is handed the exclusion so it can say so too',
+    /profit\.noCostBasisCount, profit\.noCostBasisRevenue\)/.test(SCREEN), true);
+}
+
+// ── THE OTHER TWO WIP-ROW PRODUCERS ARE WIRED TOO ───────────────────────────
+//
+// hooks/useWeekClose.ts is the last hand-built WIP row in the repo, and
+// utils/portfolio/pipelineHorizon.ts is the last four-argument
+// computeWIPReport. Both were left behind by the pass that gave the two
+// schedules one cost-at-completion and one billings basis:
+//
+//   • useWeekClose built its row from deriveEstimatedCost with NEITHER the
+//     `costIncurred` floor NOR an `estimatedCostToComplete`, so on an overrun
+//     job it produced a THIRD cost at completion and the Friday Close's
+//     "$X unbilled" stopped agreeing with the WIP screen it was explicitly
+//     built to agree with.
+//   • pipelineHorizon passed no pay apps, and its ONE use of the report is
+//     Σ max(0, revisedContract − billedToDate) — so for a GC billing through
+//     G702/G703 the backlog was overstated by everything already billed.
+//     (costSources and the ETC map are deliberately NOT threaded there: neither
+//     the contract nor the billings derive from them, so they cannot move that
+//     file's only output.)
+//
+// Source checks, because both live behind React context.
+{
+  const WEEK_CLOSE = readFileSync(join(ROOT, 'hooks', 'useWeekClose.ts'), 'utf8');
+  eq('the Friday Close passes the cost-incurred floor',
+    /costIncurred: costToDate,/.test(WEEK_CLOSE), true);
+  eq('…and the GC\u2019s own cost to complete, from the shared map',
+    (WEEK_CLOSE.match(/estimatedCostToComplete: etcByProject\[p\.id\]/g) ?? []).length, 2);
+  eq('…hydrated from the same key both schedules read',
+    /AsyncStorage\.getItem\(wipEtcStorageKey\(user\?\.id\)\)/.test(WEEK_CLOSE)
+      && /wipEtcValueMap\(normalizeWipEtcMap\(JSON\.parse\(raw\)\)\)/.test(WEEK_CLOSE), true);
+  eq('…and costToDate is computed once and reused, not derived twice',
+    (WEEK_CLOSE.match(/costToDate: suggestCostToDate\(/g) ?? []).length, 0);
+
+  const HORIZON = readFileSync(join(ROOT, 'utils', 'portfolio', 'pipelineHorizon.ts'), 'utf8');
+  eq('the pipeline horizon passes the pay applications',
+    /computeWIPReport\(projects, invoices, changeOrders, commitments, \{\}, aiaPayApps \?\? \[\]\)/
+      .test(HORIZON), true);
+  const BUSINESS = readFileSync(join(ROOT, 'app', 'business.tsx'), 'utf8');
+  eq('…and its production caller supplies them',
+    /buildPipelineHorizon\(\{[^}]*aiaPayApps[^}]*\}\)/.test(BUSINESS), true);
+  const FACTS = readFileSync(join(ROOT, 'utils', 'oneMind', 'factBlocks.ts'), 'utf8');
+  eq('…and so does the One Mind fact bundle',
+    /aiaPayApps: bundle\.aiaPayApps/.test(FACTS), true);
+  const ASK = readFileSync(join(ROOT, 'app', 'ask.tsx'), 'utf8');
+  eq('…which is fed them by the screen that builds it',
+    /^\s*aiaPayApps,$/m.test(ASK), true);
+}
+
+// ── EVERY PRODUCTION CALL SITE PASSES THE PAY APPS ──────────────────────────
+//
+// `payApps` is optional and positional, exactly like `costSources` before it —
+// and the last two divergences in this area were both a parameter wired into
+// some call sites and not others, both times leaving two screens in
+// disagreement about one job while everything still typechecked. A source-level
+// check, because bun cannot import a .tsx screen and the defect lives in the
+// screen.
+{
+  const REPORTS = readFileSync(join(ROOT, 'app', 'reports.tsx'), 'utf8');
+  const calls = [...REPORTS.matchAll(/compute(?:WIP|Profit)Report\(/g)].length;
+  const fed = [...REPORTS.matchAll(/costSources, aiaPayApps, etcEntries\)/g)].length;
+  eq('app/reports.tsx calls both report builders', calls, 2);
+  eq('…and every one of them is handed the cost sources, the pay apps AND the ETC map',
+    fed >= calls, true);
+  // A map that is passed but never loaded is an empty map, which is the old
+  // behaviour with the guard satisfied.
+  eq('…and the ETC map is hydrated from the key /wip-report writes',
+    /AsyncStorage\.getItem\(wipEtcStorageKey\(userId\)\)/.test(REPORTS), true);
+  // The pay apps have to come from the context, not from an empty literal that
+  // would satisfy the regex above and report $0 billed on every AIA job.
+  eq('…and the pay apps come from the project context',
+    /aiaPayApps,\s*\n\s*\} = useProjects\(\)/.test(REPORTS)
+    || /\baiaPayApps\b[\s\S]{0,400}?= useProjects\(\)/.test(REPORTS), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -467,6 +467,16 @@ export interface PortalSnapshot {
       // MONEY-F2: omitted once the pay app is paid (`paidAt` set by the
       // Stripe webhook), so a paid application never shows Pay again.
       payLinkUrl?: string;
+      /** Dollars the link above was minted for. The portal page re-checks it
+       *  against what is owed, so a CACHED snapshot published before the
+       *  server-side guard existed still cannot offer a stale amount. */
+      payLinkAmount?: number;
+      /** The invoice this certificate certifies. One billing period is one
+       *  obligation: the portal uses this to refuse a Pay button on a pay
+       *  application whose invoice is already settled, even when a stale
+       *  aia_pay_apps row still carries a live link (the Stripe webhook's
+       *  creditInvoice does not clear the AIA side). */
+      invoiceId?: string;
       paidAt?: string;
       lines: {
         itemNo: string; description: string;
@@ -598,6 +608,33 @@ export function scheduleWorkComplete(project: Project): number | null {
   const p = computeProjectProgress(project);
   if (!p.hasSchedule) return null;
   return Math.max(0, Math.min(100, p.pct));
+}
+
+/**
+ * WHEN was this invoice actually paid — as recorded, never as guessed.
+ *
+ * An `Invoice` has no paid-date column; the only evidence is `payments[]`. Two
+ * things were wrong with reading it inline:
+ *
+ *  1. `payments[payments.length - 1]` is the LAST ELEMENT, not the latest
+ *     date. Payments are appended in entry order, so a bookkeeper who back-
+ *     enters a cheque received on the 3rd after recording a card payment on
+ *     the 14th made the certificate say "Paid the 3rd".
+ *  2. Falling back to `issueDate` when there are no payments at all invents a
+ *     payment date out of a billing date, on a client-facing document.
+ *
+ * Returns undefined when nothing was recorded. The portal has honest copy for
+ * that ("Settled with invoice"), which is only reachable while this stays
+ * undefined — see the paidAt comment in the AIA section below.
+ */
+export function latestPaymentDate(
+  invoice: Pick<Invoice, 'payments'> | undefined,
+): string | undefined {
+  const dates = (invoice?.payments ?? [])
+    .map(p => p?.date)
+    .filter((d): d is string => typeof d === 'string' && d !== '')
+    .sort();
+  return dates.length ? dates[dates.length - 1] : undefined;
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
@@ -772,10 +809,50 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     const visibleAIA = aiaPayApps.filter(a => isShared(a.portalState));
     if (visibleAIA.length) {
       const sorted = [...visibleAIA].sort((a, b) => b.applicationNumber - a.applicationNumber);
+      // The invoice a pay application certifies. One billing period is ONE
+      // obligation, however many documents describe it.
+      const invoiceById = new Map(invoices.map(i => [i.id, i]));
       sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => renderSerialized(a, (app) => {
         // `paidAt` is hydrated from aia_pay_apps.paid_at by the context mapper
         // (MONEY-F1/F16); read defensively so an older local record is just "unpaid".
         const paidAt = (app as SavedAIAPayApp & { paidAt?: string }).paidAt || undefined;
+        const due = app.totals.currentPaymentDue;
+        // MONEY-F2 (AIA half) — the guard the invoice button has had since
+        // MONEY-F2 was opened, and the AIA button never got. A Stripe Payment
+        // Link charges the ONE amount it was minted for, every time it is
+        // opened, so a link whose minted amount no longer equals what is owed
+        // keeps collecting the old figure. A link with no recorded amount is
+        // hidden, full stop — and that IS a dead end, not a temporary one: a
+        // record carrying a payLinkUrl is locked in app/aia-pay-app.tsx, which
+        // refuses to save, so there is no re-save that would regenerate it.
+        // Only rows minted before create-payment-link wrote pay_link_amount
+        // (or while migration 20260904100100 was unapplied, when that PATCH
+        // failed non-fatally) can be in this state. The screen names the state
+        // rather than leaving an unpayable card unexplained; hiding the button
+        // stays correct either way, because a Payment Link charges the one
+        // amount it was minted for and this row cannot say what that was.
+        const amountStillMatches = app.payLinkAmount != null
+          && Math.abs(app.payLinkAmount - due) <= 0.01;
+        // THE SECOND PAY BUTTON. Paying the INVOICE credits it and nulls the
+        // invoice's own pay link, but nothing on the server clears the AIA
+        // side (stripe-webhook creditInvoice touches only `invoices`), so a
+        // bookkeeper who paid the invoice was left looking at a live Pay
+        // button for the same money — and the two links need not even be for
+        // the same amount. A certificate and the invoice it certifies are one
+        // obligation, so the portal refuses to offer payment for a period
+        // whose invoice is settled, whatever the AIA row still says.
+        //
+        // The server half now exists too — stripe-webhook's creditInvoice
+        // stamps paid_at, nulls the AIA pay_link_* columns and deactivates the
+        // Stripe link for every unpaid pay app on the invoice. This check
+        // stays, and matters: a snapshot published or emailed BEFORE the
+        // payment carries the pre-payment AIA row, and the portal renders
+        // whatever it was handed.
+        const sourceInvoice = app.invoiceId ? invoiceById.get(app.invoiceId) : undefined;
+        const sourceInvoiceSettled = !!sourceInvoice && invoiceOutstanding(sourceInvoice) <= 0.01;
+        const payLinkUrl = paidAt || sourceInvoiceSettled || due <= 0 || !amountStillMatches
+          ? undefined
+          : app.payLinkUrl;
         return {
         id: app.id,
         applicationNumber: app.applicationNumber,
@@ -793,9 +870,25 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         totalEarnedLessRetainage: app.totals.totalEarnedLessRetainage,
         balanceToFinish: app.totals.balanceToFinish,
         percentComplete: app.totals.percentComplete,
-        // MONEY-F2: a paid pay app must not carry a live Pay button.
-        payLinkUrl: paidAt ? undefined : app.payLinkUrl,
-        paidAt,
+        payLinkUrl,
+        payLinkAmount: app.payLinkAmount,
+        invoiceId: app.invoiceId,
+        // A period whose INVOICE was paid is settled even though the AIA row
+        // carries no paid_at of its own. Say so, rather than leaving the card
+        // looking merely unpayable.
+        //
+        // NEVER INVENT A PAYMENT DATE (review 2026-09-11). This used to fall
+        // back to the invoice's ISSUE date when the invoice was settled with no
+        // recorded payments — an invoice marked paid by hand, or one whose
+        // payments predate the payments[] array — so a client-facing
+        // certificate printed "Paid March 3" naming the day the GC BILLED him.
+        // A fabricated date on a document a bank reads is worse than no date,
+        // and the portal already has honest copy for the no-date case:
+        // `aiaIsPaid` is true from the invoice's own balance, so the card reads
+        // "Settled with invoice" and the drawer "Settled — this period was paid
+        // on the invoice". Leaving this undefined is what makes that copy
+        // reachable; before the fix it was dead code.
+        paidAt: paidAt ?? (sourceInvoiceSettled ? latestPaymentDate(sourceInvoice) : undefined),
         lines: app.lines.map(l => ({
           itemNo: l.itemNo,
           description: l.description,
@@ -1138,11 +1231,20 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       photos: !!portal.showPhotos,
       schedule: !!portal.showSchedule,
     };
+    // A GC-entered period start BEATS the derived one. derivePayAppPeriods
+    // infers the window as "the day after the previous application's period
+    // end" because SavedAIAPayApp used to have no periodFrom at all; it does
+    // now, and a date the contractor actually set is evidence where the
+    // inference is a guess.
+    const storedFromById = new Map(
+      aiaPayApps.map(a => [a.id, (a as SavedAIAPayApp & { periodFrom?: string }).periodFrom]),
+    );
     for (const app of sections.aiaPayApps) {
       const window = periodById.get(app.id);
-      app.periodFrom = window?.periodFrom;
+      const periodFrom = storedFromById.get(app.id) || window?.periodFrom;
+      app.periodFrom = periodFrom;
       app.narrative = buildPeriodNarrative({
-        periodFrom: window?.periodFrom,
+        periodFrom,
         periodTo: window?.periodTo ?? app.periodTo,
         // Deliberately the SNAPSHOT rows, not the raw domain objects: the
         // narrative can only ever see what the homeowner can already see.

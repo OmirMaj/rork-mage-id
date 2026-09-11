@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Who built this — MAGE ID</title>
+  <link rel="canonical" href="https://mageid.app/who-built-this.html" />
+  <meta name="description" content="One person built MAGE ID. A letter from the founder on solo-founder risk, and the four mechanisms that answer it: one-click data export, month to month, a dated public changelog, and a written 90-day wind-down notice." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Who built this — MAGE ID" />
+  <meta property="og:description" content="One person built MAGE ID. A letter from the founder on solo-founder risk, and the four mechanisms that answer it: one-click data export, month to month, a dated public changelog, and a written 90-day wind-down notice." />
+  <meta property="og:url" content="https://mageid.app/who-built-this.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+  <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
+  <style>
+    /* Same prose shell as support.html / terms.html — these four pages are
+       read, not skimmed, so they get a measure and a serif heading rather than
+       the marketing grid. */
+    .legal { max-width: 760px; margin: 0 auto; padding: 140px 24px 100px; }
+    .legal h1 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-weight: 500; font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 14px; color: var(--cream); }
+    .legal .updated { color: #9AA3AD; font-size: 13px; margin: 0 0 36px; font-family: "JetBrains Mono", monospace; letter-spacing: 0.06em; }
+    .legal h2 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-weight: 600; font-size: 1.35rem; margin: 40px 0 10px; color: var(--cream); letter-spacing: -0.015em; }
+    .legal h3 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-weight: 600; font-size: 1.08rem; margin: 26px 0 8px; color: var(--cream); }
+    .legal p, .legal li { font-size: 15.5px; line-height: 1.72; color: #9AA3AD; }
+    .legal p { margin: 0 0 14px; }
+    .legal strong { color: var(--cream); font-weight: 600; }
+    .legal ul, .legal ol { padding-left: 20px; margin: 0 0 16px; }
+    .legal li { margin-bottom: 9px; }
+    .legal a { color: #FF6A1A; text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+    .legal a:hover { border-bottom-color: #FF6A1A; }
+    .legal hr { border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 40px 0; }
+    .callout {
+      background: rgba(255, 106, 26, 0.06);
+      border: 1px solid rgba(255, 106, 26, 0.22);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin: 26px 0;
+    }
+    .callout p:last-child { margin-bottom: 0; }
+    .quiet {
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin: 26px 0;
+    }
+    .quiet p:last-child { margin-bottom: 0; }
+    .cta-inline {
+      display: inline-block; margin-top: 8px; padding: 13px 22px; border-radius: 999px;
+      background: #FF6A1A; color: #0B0D10; font-weight: 700; font-size: 14.5px;
+      border-bottom: none;
+    }
+    .cta-inline:hover { border-bottom: none; opacity: 0.92; }
+    .footnote { font-size: 13px; line-height: 1.6; color: #7C858F; }
+    .log-entry { border-top: 1px solid rgba(255,255,255,0.07); padding: 18px 0 4px; }
+    .log-date { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.06em; color: #FF6A1A; display: block; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand" aria-label="MAGE ID home">
+        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" />
+        <span>MAGE&nbsp;ID</span>
+      </a>
+      <nav class="links" aria-label="Primary">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/compare/">Compare</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="legal">
+    <!-- WHY THIS PAGE EXISTS
+         The site had no about page, no founder name and no company story. In a
+         category where CoConstruct's users were folded into Buildertrend and
+         where reviewers name vendor abandonment as their reason for switching,
+         an anonymous one-person vendor reads as maximum risk — and the
+         objection never gets raised out loud, it gets acted on by closing the
+         tab. So it is answered here, in first person, with mechanisms rather
+         than reassurance, because reassurance is what an abandoning vendor
+         also offers.
+         Every mechanism named below is checkable in the product today. Do not
+         add one that isn't. -->
+    <h1>One person built this. Here&rsquo;s why that should worry you less than the alternative.</h1>
+    <p class="updated">A letter from the founder &middot; last revised 11 September 2026</p>
+
+    <p>My name is Omir. I wrote every line of MAGE ID. There is no support org, no sales team and no
+    investors. You should know that before you put your job costs in it, so let me take the fear head
+    on rather than wait for you to think it in the parking lot.</p>
+
+    <p><strong>The fear is: he disappears, and my jobs are locked in a dead app.</strong></p>
+
+    <p>It is the right fear. It is one of the most-cited reasons contractors in this industry change
+    software, and it usually doesn&rsquo;t happen the way people picture it. It rarely happens because a
+    founder quits. It happens because a company gets bought and its product is folded into the
+    acquirer&rsquo;s &mdash; ask anyone who was on CoConstruct. It happens because a board decides the
+    small-contractor segment isn&rsquo;t where the growth is, and support quietly becomes a form. Every
+    product on your shortlist has an acquirer or a board. I have neither. Nobody can sell this out
+    from under you, because there is nobody to sell it.</p>
+
+    <p>That is an argument, though, and arguments are cheap. Here is what I actually do about it, all
+    of it verifiable on day one, before you trust me with anything.</p>
+
+    <h2>You can leave any day, with everything</h2>
+    <p>Settings &rarr; Data Export produces one file containing every project, estimate, invoice,
+    change order, daily report, punch item, photo, RFI and contact you have. Human-readable. No
+    ticket, no retention call, no &ldquo;export is available on request&rdquo;. I built the export before I
+    built the paywall, deliberately. <strong>Try it on your first day, on a project with nothing in
+    it</strong> &mdash; that is exactly what it is there for. If it doesn&rsquo;t do what I just said,
+    you have learned everything you need to know about the rest of this page.</p>
+
+    <h2>Nothing is hostage</h2>
+    <p>Month to month. No annual contract, no implementation fee, no minimum term. Cancelling is the
+    one place I have to describe the present rather than the plan: because the card processor is
+    still in sandbox and the app is not in the App Store yet, plans are switched on and off by hand
+    today &mdash; email <a href="mailto:help@mageid.app">help@mageid.app</a> and it stops that month.
+    Once the store listing is live, you cancel it from your device&rsquo;s Subscriptions settings like
+    any other app subscription, which is also what the in-app FAQ will tell you. Either way, nothing
+    is deleted when you stop paying &mdash; paid features go read-only on your existing data and the
+    export keeps working.</p>
+
+    <h2>You can see whether I&rsquo;m still here</h2>
+    <p>The <a href="/changelog.html">changelog</a> is dated and public. If it goes quiet for a month,
+    that tells you more than any support SLA would, and it is supposed to.</p>
+
+    <h2>If I ever wind this down</h2>
+    <p>I will publish 90 days&rsquo; notice and a final export, and I will say so on this page first.
+    Writing that down is the point &mdash; it is the promise you get to hold me to.</p>
+
+    <h2>What you get in exchange for betting on one person</h2>
+    <p>The email you send goes to the person who wrote the code. Not a tier, not a queue, and there
+    is no customer-success manager to be assigned to you because there is nobody in between. The most
+    recent example is not a testimonial and I am not going to dress it up as one: an internal audit
+    of the financial engines caught the WIP schedule counting draft invoices as billed &mdash; which
+    understates underbilling, which is precisely the number a lender reads &mdash; and it was fixed
+    the same week, because there was nobody to route it through. I have no customer quotes to put
+    here yet, and this page is not going to invent one.</p>
+
+    <div class="callout">
+      <p><strong>And the part most founder letters leave out.</strong> Right now you cannot buy this
+      with a credit card. The iPhone app is in TestFlight rather than the App Store, and our payment
+      processor is still in sandbox, so the paid plans are switched on by hand after you email us.
+      The free plan is fully live on the web. I would rather you read that here than discover it at a
+      checkout page that spins.</p>
+    </div>
+
+    <p>I would rather you decided this with the real numbers in front of you than find out later.
+    That is the whole reason this page exists.</p>
+
+    <p>&mdash; Omir &middot; <a href="mailto:help@mageid.app">help@mageid.app</a></p>
+
+    <p><a class="cta-inline" href="https://app.mageid.app">Try the export before you trust the app &rarr;</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="/assets/logo-mark-light.png" width="32" height="32" alt="" />
+        <span>MAGE&nbsp;ID</span>
+      </div>
+      <nav class="footer-nav">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/compare/">Compare</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+        <a href="/who-built-this.html">Who built this</a>
+        <a href="/proof.html">Proof</a>
+        <a href="/switch.html">Switching</a>
+        <a href="/changelog.html">Changelog</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+      </nav>
+      <p class="footer-copy">New product, no reviews yet, and we say so &mdash; <a href="/proof.html">here is what we have instead</a>.</p>
+      <p class="footer-copy">&copy; MAGE&nbsp;ID. Built for builders.</p>
+    </div>
+          <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+    </footer>
+  <script src="/nav-mobile.js" defer></script>
+  <script src="/motion.js" defer></script>
+</body>
+</html>

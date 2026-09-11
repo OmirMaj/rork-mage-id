@@ -109,6 +109,21 @@ const NOT_STORAGE_KEYS = new Map<string, string>([
   // imports no storage API at all; the _PREFIX in the const name is what
   // KEY_CONST_RE looks for. Added 2026-09-08.
   ['Commitments record ', 'app/tax-1099-export.tsx — the first words of a notes SENTENCE, never a storage key'],
+  // MILESTONE_BILL_KEY_PREFIX. The exact twin of the `co:` entry above, and
+  // added for the same reason: it namespaces a contract payment milestone's
+  // INVOICE LINE ITEM id so a bare milestone id cannot collide with a
+  // LinkedEstimateItem.materialId (both are UUIDs off generateUUID).
+  // utils/billingFlowCore.ts imports nothing but ./invoiceBilling — no storage
+  // API at all — but the _KEY_PREFIX const name is what KEY_CONST_RE looks
+  // for. Added 2026-09-11 (MONEY-LEDGER-1).
+  ['milestone:', 'utils/billingFlowCore.ts — an invoice LINE-ITEM id prefix, never a storage key'],
+  // GENERIC_TRADE_KEY. normalizeTradeKey's sink for un-named trades — '',
+  // 'crew', 'general' and 'labor' all fold onto it (utils/laborSamples
+  // GENERIC_TRADES), and selfPerformSamples refuses it on the receipt side so a
+  // blank-trade receipt cannot teach a rate. utils/costDatabase.ts imports only
+  // types and pure utils — no storage API of any kind — but the _KEY in the
+  // const name is what KEY_CONST_RE looks for. Added 2026-09-11.
+  ['general', 'utils/costDatabase.ts — normalizeTradeKey\'s generic TRADE bucket, never a storage key'],
 ]);
 
 const discovered = new Map<string, string>(); // key -> first file that writes it

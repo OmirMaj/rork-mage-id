@@ -134,11 +134,22 @@ function JobCostingInner() {
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
     // No `invoices`: client payments are revenue, not job cost (MONEY-DEF-1).
+    //
+    // `subcontractors` IS load-bearing (JOBCOST-PHASE-1, audit 2026-09-11).
+    // The commitment editor on this very screen writes `subcontractorId` for a
+    // subcontract and leaves `vendorName` undefined, so the roster is the ONLY
+    // signal that can join an in-app subcontract to the estimate line it
+    // bought out. Without it the engine cannot resolve the buyout and the rows
+    // read "Electrical — Unbudgeted, $22,600 committed" beside an untouched
+    // "subcontractor — $22,600 budgeted, $0 committed", while the headline
+    // absorbs the difference — measured on a $57,200 estimate with a $40,000
+    // electrical subcontract against a $22,600 electrical line: passing the
+    // roster reports +$17,400 over, omitting it reports $0.
     return computeJobCost({
       project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier,
-      equipment, permits,
+      equipment, permits, subcontractors,
     });
-  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits]);
+  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
@@ -411,6 +422,22 @@ function JobCostingInner() {
         {summary.biggestVariances.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Biggest variances</Text>
+            {/* JOBCOST-PHASE-1 (audit 2026-09-11). The headline takes the
+                uncommitted floor ONCE over the whole job, so spend the
+                estimate never priced is absorbed by budget that has not been
+                committed yet — until the job runs out of it. The rows below
+                still show that spend, correctly. Printing both with nothing
+                between them is two answers to "am I over" in one render, which
+                is the defect this wave removed BETWEEN screens; it may not
+                come back inside one. */}
+            {summary.absorbedVariance > 1 && (
+              <Text style={styles.varianceAbsorbed} testID="absorbed-variance">
+                {formatMoney(summary.absorbedVariance)} of what these rows show is spend your
+                estimate did not price. The headline above absorbs it into budget you have not
+                committed yet, so it is not counted as an overrun — it will be if the rest of the
+                job commits in full.
+              </Text>
+            )}
             {summary.biggestVariances.map(p => (
               <TouchableOpacity key={p.phase} style={styles.varianceRow} onPress={() => setSelectedPhase(p)}>
                 <View style={{ flex: 1 }}>
@@ -531,13 +558,24 @@ function JobCostingInner() {
           )}
         </View>
 
+        {/* JOBCOST-CO-COST-1 and JOBCOST-PHASE-1 both changed what these two
+            sentences describe, so both sentences changed with them. The old
+            copy said "Budget includes approved change orders" (they now enter
+            at cost, not at the price the owner signed) and "uncommitted budget
+            is a floor" (it is now ONE floor over the whole job, not one per
+            phase). A footer that describes the previous arithmetic is worse
+            than no footer. */}
         <Text style={styles.footerNote}>
-          Budget includes approved change orders. Actual is money you have paid OUT — subcontract
-          and PO payments, snapped supplier receipts, priced crew hours, logged equipment days at
-          each machine&apos;s day rate, and permit fees. Payments your client makes to you are
-          revenue and are counted nowhere on this screen. EAC assumes remaining committed work
-          lands at signed price; uncommitted budget is a floor. Tap any phase to see the records
-          behind it.
+          Budget includes approved change orders at their estimated COST — a change order&apos;s
+          dollar value is a sell price, and this is a cost budget, so it enters at that price times
+          this job&apos;s own cost ratio (the same convention the WIP report uses). Actual is money
+          you have paid OUT — subcontract and PO payments, snapped supplier receipts, priced crew
+          hours, logged equipment days at each machine&apos;s day rate, and permit fees. Payments
+          your client makes to you are revenue and are counted nowhere on this screen. EAC assumes
+          remaining committed work lands at signed price, and takes the uncommitted budget as a
+          floor ONCE across the whole job — so buying out a trade at its estimate changes nothing,
+          and spend your estimate never priced is absorbed by budget still uncommitted rather than
+          reported as an overrun. Tap any phase to see the records behind it.
         </Text>
       </ScrollView>
 
@@ -1313,6 +1351,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   varianceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
   varianceSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
+  // JOBCOST-PHASE-1 — what the rows show and the headline does not.
+  varianceAbsorbed: {
+    fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginBottom: 8,
+  },
   varianceDelta: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Phase bar

@@ -1,82 +1,108 @@
-// scripts/validate-startdate-rebase.ts — pure-fn validator for utils/scheduleRebase.ts.
+// scripts/validate-startdate-rebase.ts — the RETIREMENT guard for what used to
+// be utils/scheduleRebase.ts.
 //
-// rebaseRawToCalendar maps raw working-day ordinals onto calendar day indices
-// when a dateless schedule first gets an explicit start date. Day 1 = the
-// start date. 2026-01-05 is a Monday; 2026-01-03 is a Saturday.
-import { rebaseRawToCalendar } from '../utils/scheduleRebase';
+// History. Schedules created without a `startDate` ran the CPM engine in
+// raw-day mode. Their stored `ScheduleTask.startDay` values were working-day
+// ORDINALS ("the Nth day of work"). Assigning the first start date flipped the
+// engine into calendar mode, where — at the time — the engine read those same
+// integers as CALENDAR day indices, so every multi-day chain silently inflated:
+// the finish-day jump bug, 33 → 43 on a real 20-task schedule (2026-07-12).
+//
+// `rebaseRawToCalendar` was the compensation: it re-mapped ordinal N onto the
+// calendar index of the Nth working day, at the moment of the flip.
+//
+// 2026-09-11 removed the cause. `forwardPass` now converts at its `pins` line
+// (`workingOrdinalToCalendarIndex`), so `startDay` means a working ordinal on
+// BOTH sides of the flip and there is nothing left to re-map. Re-mapping anyway
+// DOUBLE-converts — and the two surfaces that still called it
+// (components/schedule/mobile/MobileScheduleScreen.tsx and
+// app/(tabs)/schedule/index.tsx) wrote the result straight through
+// `updateProject`, so it was persisted corruption reachable from two shipped
+// screens, not a display artefact.
+//
+// Measured before removal, on A(10)->B(10)->C(5) authored at ordinals 1/11/21,
+// 5-day week from Mon 2026-03-02:
+//     startDays before rebase : 1,11,21
+//     startDays after  rebase : 1,15,29   <- what those screens persisted
+//     finish without rebase   : Fri Apr 03 2026   (schedule-pro, correct)
+//     finish with    rebase   : Wed Apr 15 2026
+//
+// So this file no longer tests the helper — the helper is gone. It asserts the
+// helper STAYS gone, and it re-proves the property the helper used to fake:
+// setting the first start date must not move the plan.
+
+import { runCpm, calendarDayToDate } from '../utils/cpm';
 import type { ScheduleTask } from '../types';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 
+const ROOT = join(__dirname, '..');
 let pass = 0, fail = 0;
-function eq<T>(n: string, got: T, want: T) {
-  const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (ok) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n, '\n   got ', JSON.stringify(got), '\n   want', JSON.stringify(want)); }
+function ok(name: string, cond: boolean, detail?: unknown) {
+  if (cond) { pass++; console.log('  ✓', name); }
+  else { fail++; console.log('  ✗', name, detail === undefined ? '' : `\n      ${JSON.stringify(detail)}`); }
 }
-const T = (id: string, startDay: number, durationDays = 1): ScheduleTask => ({ id, title: id.toUpperCase(), phase: '', startDay, durationDays, progress: 0, crew: '', dependencies: [], notes: '', status: 'not_started' } as ScheduleTask);
-const days = (ts: ScheduleTask[]) => ts.map(t => t.startDay);
-
-// 7-day week, no closures → every day works → identity (same array ref back).
-{
-  const tasks = [T('a', 1), T('b', 6), T('c', 14)];
-  const out = rebaseRawToCalendar(tasks, '2026-01-05', 7);
-  eq('wdpw=7 no closures → identity days', days(out), [1, 6, 14]);
-  eq('wdpw=7 identity returns the SAME array (commit no-op)', out === tasks, true);
+function eq<T>(name: string, actual: T, expected: T) {
+  ok(name, JSON.stringify(actual) === JSON.stringify(expected), { actual, expected });
 }
 
-// 5-day week starting Monday: ordinals 1-5 = Mon-Fri (days 1-5), ordinal 6
-// skips the weekend to the next Monday (day 8), and so on.
+console.log('\nstart-date rebase: retired');
+
+// ── 1. The helper is gone and nothing re-introduces it ──────────────────────
 {
-  const tasks = [1, 2, 5, 6, 7, 10].map((d, i) => T(`t${i}`, d));
-  const out = rebaseRawToCalendar(tasks, '2026-01-05', 5);
-  eq('wdpw=5 Monday start maps 1,2,5,6,7,10 → 1,2,5,8,9,12', days(out), [1, 2, 5, 8, 9, 12]);
+  ok('utils/scheduleRebase.ts no longer exists', !existsSync(join(ROOT, 'utils', 'scheduleRebase.ts')));
+  for (const rel of [
+    'app/schedule-pro.tsx',
+    'app/(tabs)/schedule/index.tsx',
+    'components/schedule/mobile/MobileScheduleScreen.tsx',
+  ]) {
+    const src = readFileSync(join(ROOT, rel), 'utf8');
+    ok(`${rel} does not re-map startDay when the first anchor is set`,
+      !/rebaseRawToCalendar\s*\(/.test(src) && !/scheduleRebase/.test(src.replace(/\/\/[^\n]*/g, '')));
+  }
 }
 
-// 5-day week starting Saturday: days 1-2 are the weekend, so ordinal 1 is
-// day 3 (Monday); ordinal 6 crosses the next weekend to day 10.
+// ── 2. The property the helper used to fake now holds on its own ────────────
+// Setting the first start date must not move the plan. This is the ACTUAL
+// regression test: it fails if anyone re-introduces a conversion at the flip,
+// and it fails if the engine stops converting at `pins`.
 {
-  const tasks = [T('a', 1), T('b', 5), T('c', 6)];
-  const out = rebaseRawToCalendar(tasks, '2026-01-03', 5);
-  eq('wdpw=5 Saturday start maps 1,5,6 → 3,7,10', days(out), [3, 7, 10]);
-}
+  const T = (id: string, dur: number, startDay: number, deps: string[] = []): ScheduleTask => ({
+    id, title: id, durationDays: dur, startDay, dependencies: deps, status: 'not_started',
+  } as unknown as ScheduleTask);
 
-// Closures push ordinals past the closed day: Tue 2026-01-06 closed → the
-// 2nd working day is Wednesday (day 3); ordinal 5 lands on Monday (day 8).
-{
-  const tasks = [T('a', 1), T('b', 2), T('c', 5)];
-  const out = rebaseRawToCalendar(tasks, '2026-01-05', 5, ['2026-01-06']);
-  eq('closure on day 2 maps 1,2,5 → 1,3,8', days(out), [1, 3, 8]);
-}
+  // Authored undated: A 10 working days, then B 10, then C 5 — pinned at the
+  // ordinals the raw-day engine handed back (1, 11, 21).
+  const tasks = [T('A', 10, 1), T('B', 10, 11, ['A']), T('C', 5, 21, ['B'])];
 
-// Same raw day → same calendar day (parallel tasks stay parallel).
-{
-  const out = rebaseRawToCalendar([T('a', 6), T('b', 6)], '2026-01-05', 5);
-  eq('duplicate raw days stay equal', days(out), [8, 8]);
-}
+  // Undated (raw-day mode): the two scales coincide, so the finish is ordinal 25.
+  const raw = runCpm(tasks);
+  eq('undated, the plan is 25 working days long', raw.projectFinish, 25);
 
-// Durations and other fields pass through untouched; only startDay changes.
-{
-  const src = T('a', 6, 4);
-  const out = rebaseRawToCalendar([src], '2026-01-05', 5)[0];
-  eq('durationDays preserved', out.durationDays, 4);
-  eq('title/status preserved', [out.title, out.status], ['A', 'not_started']);
-  eq('source task not mutated', src.startDay, 6);
-}
+  // Now anchor it on Mon 2026-03-02, 5-day week. 25 working days from Mon Mar 2
+  // is Fri Apr 3 — the SAME plan, laid on a calendar.
+  const ISO = '2026-03-02';
+  const START = new Date(2026, 2, 2);
+  const dated = runCpm(tasks, { scheduleStartDate: ISO, workingDaysPerWeek: 5 });
+  eq('anchoring it does not change its shape — 25 working days, finishing Fri Apr 3',
+    calendarDayToDate(START, dated.projectFinish).toDateString(),
+    new Date(2026, 3, 3).toDateString());
+  eq('  …and no task moved off its authored working day',
+    tasks.map(t => t.startDay), [1, 11, 21]);
 
-// Garbage start date → identity (engine is permissive → mapping is identity).
-{
-  const tasks = [T('a', 6)];
-  eq('unparseable startDate → unchanged', rebaseRawToCalendar(tasks, 'not-a-date', 5) === tasks, true);
-}
-
-// Empty input → same array back.
-{
-  const empty: ScheduleTask[] = [];
-  eq('empty tasks → same array', rebaseRawToCalendar(empty, '2026-01-05', 5) === empty, true);
-}
-
-// Zero / negative / fractional startDay clamps to ordinal 1.
-{
-  const out = rebaseRawToCalendar([T('a', 0), T('b', -3)], '2026-01-03', 5);
-  eq('non-positive startDay clamps to ordinal 1', days(out), [3, 3]);
+  // What the old helper did, inlined: ordinal N → calendar index of the Nth
+  // working day. Feeding THAT to the (now converting) engine is the bug.
+  const rebased = tasks.map(t => ({
+    ...t,
+    startDay: t.id === 'A' ? 1 : t.id === 'B' ? 15 : 29,   // 1,11,21 → 1,15,29
+  }));
+  const doubled = runCpm(rebased, { scheduleStartDate: ISO, workingDaysPerWeek: 5 });
+  eq('double-converting inflates the finish to Wed Apr 15 — which is why it was removed',
+    calendarDayToDate(START, doubled.projectFinish).toDateString(),
+    new Date(2026, 3, 15).toDateString());
+  ok('  …and that really is a regression, not a rounding difference',
+    doubled.projectFinish > dated.projectFinish + 5,
+    { dated: dated.projectFinish, doubled: doubled.projectFinish });
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

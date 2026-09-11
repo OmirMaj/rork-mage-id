@@ -16,10 +16,12 @@
 // All amounts in USD. All return shapes are PURE so the screen can
 // memoize them and the PDF builders can serialize them as-is.
 
-import type { Project, Invoice, ChangeOrder, Commitment } from '@/types';
+import type { Project, Invoice, ChangeOrder, Commitment, SavedAIAPayApp } from '@/types';
 import { computeJobCost, type JobCostActualSources } from './jobCostEngine';
-import { deriveEstimatedCostWithSource, type WipEstimatedCost } from '@/utils/wip';
-import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import {
+  deriveEstimatedCostWithSource, deriveOriginalContractWithSource,
+  suggestBillingsWithSource, type WipEstimatedCost, type WipSource,
+} from '@/utils/wip';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
 // ─── WIP ─────────────────────────────────────────────────────────────
@@ -30,11 +32,31 @@ export interface WIPRow {
   contractValue: number;        // original signed contract (linked estimate grand total or estimate.grandTotal)
   approvedChangeOrders: number; // sum of approved CO change amounts
   revisedContract: number;      // contractValue + approvedChangeOrders
-  percentComplete: number;      // 0–100, cost basis (job actual / EAC) like utils/wip.ts; schedule progress when no cost yet
-  billedToDate: number;         // sum of every invoice's totalDue (issued amount)
-  paidToDate: number;           // sum of every invoice's amountPaid
-  unbilled: number;             // revisedContract * %complete - billed (≥ 0)
-  retainageHeld: number;        // sum of (retentionAmount - retentionReleased) on every invoice
+  percentComplete: number;      // 0–100, COST basis only (job actual ÷ EAC), exactly as utils/wip.ts does; 0 when no cost is recorded
+  billedToDate: number;         // utils/wip.suggestBillingsWithSource — pay apps or issued invoices, tax-free
+  /**
+   * CASH collected against issued INVOICES. Tax-INCLUSIVE, unlike every other
+   * money column on this row — see the note at the call site. Never feeds the
+   * contract-basis arithmetic.
+   */
+  paidToDate: number;
+  /**
+   * EARNED REVENUE — revisedContract × percentComplete. Computed since
+   * MONEY-F13 and rendered nowhere until 2026-09-11: without it a banker
+   * cannot tie this schedule to an income statement, which is the first thing
+   * he does with it.
+   *
+   * OPTIONAL for the same reason `costToDate` is — scripts/
+   * validate-compose-week-close.ts builds synthetic WIPRows by hand — but
+   * unlike cost-to-date it is DERIVABLE from two fields that are required, so
+   * absence is not unknown: read it through `wipRowEarned` below, never with a
+   * bare `?? 0`, which would print $0 earned on a half-built job.
+   */
+  earnedRevenue?: number;
+  unbilled: number;             // earned - billed, ≥ 0 (UNDERbilling)
+  /** billed - earned, ≥ 0 (the other side of it). Derivable — see `wipRowOverbilled`. */
+  overbilled?: number;
+  retainageHeld: number;        // retention still held out of the billings above
   estimatedFinalCost: number;   // utils/wip.deriveEstimatedCostWithSource — the ONE cost-at-completion
   /**
    * COST already paid out on this job (job-cost engine `actual`) — never a
@@ -53,6 +75,12 @@ export interface WIPRow {
   projectedMargin: number;      // projectedProfit / revisedContract * 100
   status: Project['status'];
   /**
+   * Which branch of utils/wip.deriveOriginalContractWithSource produced
+   * `contractValue`. Optional only because scripts/validate-compose-week-close.ts
+   * builds synthetic WIPRows by hand; every row this module produces carries it.
+   */
+  contractSource?: WipSource;
+  /**
    * Which cost basis produced `estimatedFinalCost`, so the screen and the PDF
    * can name it instead of printing an unexplained figure above an Export
    * button. OPTIONAL only because scripts/validate-compose-week-close.ts builds
@@ -70,11 +98,77 @@ export interface WIPReport {
     revisedContract: number;
     billedToDate: number;
     paidToDate: number;
+    earnedRevenue: number;
+    unbilled: number;
+    overbilled: number;
     retainageHeld: number;
+    /** COST already paid out across the book — never a billing. */
+    costToDate: number;
     estimatedFinalCost: number;
     projectedProfit: number;
     projectedMargin: number;
+    /**
+     * Sum of projected profit over jobs that HAVE a cost basis, and the count
+     * and contract value of the jobs that do not (F14). `projectedMargin` above
+     * is struck on the measurable subset; these three are what let an export
+     * say so instead of suppressing the difference silently.
+     */
+    measurableProjectedProfit: number;
+    noCostBasisCount: number;
+    noCostBasisContract: number;
   };
+}
+
+/**
+ * Earned revenue on one WIP row, derived when the row does not carry it.
+ *
+ * One function so the screen, the CSV and the PDF cannot end up printing three
+ * earned-revenue figures for one job — which is the whole subject of this
+ * module's parity work, one level down.
+ */
+export function wipRowEarned(r: WIPRow): number {
+  return r.earnedRevenue ?? (r.revisedContract * r.percentComplete) / 100;
+}
+
+/** Overbilling on one WIP row — billed beyond earned, never negative. */
+export function wipRowOverbilled(r: WIPRow): number {
+  return r.overbilled ?? Math.max(0, r.billedToDate - wipRowEarned(r));
+}
+
+/**
+ * Does this row have any cost basis at all?
+ *
+ * F14 (audit 2026-09-11). `deriveOriginalContract` falls back to a target
+ * budget and then a GMP cap for REVENUE, while `deriveEstimatedCost`
+ * deliberately excludes both — so a job set up with only a target budget (which
+ * is what the portal budget-proposal flow creates, and the budget can be set by
+ * the CLIENT) gets a contract and NO cost, and this row then reports
+ * projectedProfit == the whole contract at a 100% margin. Measured: a $900,000
+ * target-budget job returned projectedProfit $900,000 / projectedMargin 100.
+ *
+ * A contract with no cost basis has no measurable margin. The exports print an
+ * empty cell for its profit and margin, the totals exclude it, and both name
+ * the exclusion — the same rule utils/wip.wipRowHasCostBasis applies on the
+ * flagship schedule, so the two documents agree about which jobs are
+ * unmeasurable as well as about the jobs that are not.
+ */
+export function wipReportRowHasCostBasis(r: WIPRow): boolean {
+  return r.estimatedFinalCost > 0 || (r.costToDate ?? 0) > 0;
+}
+
+/**
+ * The same question for a Profit-tab row. Separate function only because
+ * ProfitRow's cost-to-date is required where WIPRow's is optional; the RULE is
+ * identical on purpose, so the two tabs of one screen agree about which jobs
+ * are unmeasurable as well as about the ones that are not.
+ */
+export function profitRowHasCostBasis(r: Pick<ProfitRow, 'estimatedFinalCost' | 'costToDate'>): boolean {
+  return r.estimatedFinalCost > 0 || (r.costToDate ?? 0) > 0;
+}
+
+/** Cost still to spend, or null when the row cannot say what it has cost. */
+export function wipRowCostToComplete(r: WIPRow): number | null {
+  return r.costToDate == null ? null : Math.max(0, r.estimatedFinalCost - r.costToDate);
 }
 
 // MONEY-DEF-1 (audit 2026-09-07): both reports below call the job-cost engine,
@@ -111,54 +205,149 @@ export interface WIPReport {
 //
 // WHICH MEANS THE UNDERSTATEMENT THAT REMAINS IS ENTIRELY AT THE CALL SITES.
 // A caller that omits the argument gets subs-and-POs only, and the omission
-// compiles silently because the parameter is optional and positional. As of
-// this pass the callers still passing nothing are app/reports.tsx (the WIP tab
-// and the Profit tab) and utils/portfolio/pipelineHorizon.ts — so those three
-// reports understate cost-to-date by exactly the materials, self-perform
-// labour, machine time and permit fees the engine now counts, and overstate
-// margin by the same. Fixing them is a matter of building the object from the
-// context data the screen already holds; nothing in this file can do it,
-// because the receipts, time entries, equipment and permits live in React
-// context and never reach a pure module on their own.
+// compiles silently because the parameter is optional and positional. app/
+// reports.tsx was that caller on BOTH tabs until 2026-09-11 — and Profit is the
+// tab every free and Pro user lands on, so the paragraph above ("an omitted
+// argument paints a bleeding job green") described the shipped product. It is
+// wired now, from the same hooks app/job-costing.tsx uses, and scripts/
+// validate-money-basis-parity.ts pins the call sites so it cannot quietly come
+// undone.
+//
+// THE ONE CALLER STILL PASSING NOTHING, DESCRIBED HONESTLY (adversarial review
+// 2026-09-11). utils/portfolio/pipelineHorizon.ts:124 calls
+// `computeWIPReport(projects, invoices, changeOrders, commitments)` — four
+// arguments, so no cost sources, no pay applications and no cost-to-complete
+// map. The earlier version of this paragraph said only that it omits
+// `costSources`, which understated the blast radius badly: the CONTRACT basis
+// and the BILLINGS basis both changed underneath it in the same pass.
+// Measured on a target-budget-only job carrying one sent $300,000 + 8.25%
+// invoice:
+//     contract      0 (effectiveEstimateTotal) → 900,000 (target_budget)
+//     billed  324,750 (invoice totalDue)       → 300,000 (subtotal, tax-free)
+//     remainingToBill$   0                     → 600,000
+// That is its headline figure moving by six hundred thousand dollars, with no
+// test of its own and no disclosure. It is a forecasting surface rather than a
+// bank document and it is not this wave's file, so it is HANDED OFF with those
+// numbers rather than quietly accepted; scripts/validate-money-basis-parity.ts's
+// call-site block is the pattern for wiring it.
+//
+// And it is not the only other WIP-row producer. hooks/useWeekClose.ts:163
+// builds a `computeWipRow` by hand from `deriveOriginalContract`,
+// `deriveEstimatedCost`, `suggestCostToDate` and `suggestBilledToDate` — so it
+// inherits every change above, and it passes NEITHER the `costIncurred` floor
+// NOR an `estimatedCostToComplete`. It is therefore a third answer to "cost at
+// completion" on an overrun job. Also handed off.
 export function computeWIPReport(
   projects: Project[],
   invoices: Invoice[],
   changeOrders: ChangeOrder[],
   commitments: Commitment[],
   costSources: JobCostActualSources = {},
+  /**
+   * SAVED AIA PAY APPLICATIONS — axis 6 (audit 2026-09-11).
+   *
+   * This report had no pay-app parameter AT ALL and billedToDate was
+   * invoices-only, so a GC billing through MAGE's flagship AIA progress billing
+   * read $350,000 billed on /wip-report and $0 here, in its CSV and in its PDF —
+   * and therefore underbilling equal to the whole of earned revenue. A wrong
+   * number on a bank document, on the feature the $29-vs-$99 pitch rests on.
+   *
+   * Defaulted to `[]` rather than made required so a caller that has not been
+   * wired yet still compiles — but unlike `costSources`, an omission here is
+   * PINNED: scripts/validate-wip-parity.ts asserts every production call site
+   * passes it, because "optional parameter some callers pass" is the exact shape
+   * that has split these two schedules twice already.
+   */
+  payApps: SavedAIAPayApp[] = [],
+  /**
+   * PER-PROJECT ESTIMATED COST TO COMPLETE — project id → cost still to spend.
+   *
+   * The input that stops an overrun job reporting 100% complete. It shipped on
+   * 2026-09-11 reaching computeWipRow only, which is the /wip-report engine —
+   * so a GC who entered "$180,000 left to spend" saw EAC $800,000 / 77.5% /
+   * $426,250 earned / a $250,000 forecast loss there, and EAC $620,000 / 100% /
+   * $550,000 earned / a $70,000 loss HERE, in this report's CSV and in its PDF.
+   * Two bank-facing WIP schedules disagreeing about cost at completion, percent
+   * complete, earned revenue and forecast profit on one job in one session is
+   * the exact defect the parity work exists to close; putting the ETC one level
+   * too low re-created it on a new axis.
+   *
+   * It is applied through the SHARED derivation (utils/wip.deriveEstimatedCost-
+   * WithSource's `estimatedCostToComplete`), not re-implemented here, so the
+   * two engines cannot round it differently or disagree about what a negative
+   * value means. Both screens read one AsyncStorage map through
+   * utils/wip.wipEtcStorageKey — see the note there about why the key's shape
+   * is engine-side.
+   *
+   * Defaulted to `{}`: a caller that has not been wired gets the derived
+   * forecast, exactly what it got before. app/reports.tsx IS wired, and
+   * scripts/validate-wip-parity.ts pins both the call site and the cross-engine
+   * agreement — the ETC axis was invisible to that guard until this landed
+   * (`grep -c estimatedCostToComplete scripts/validate-wip-parity.ts` was 0
+   * while the whole feature could be switched off with the guard still green).
+   */
+  costToCompleteByProject: Record<string, number> = {},
 ): WIPReport {
   const rows: WIPRow[] = [];
   for (const project of projects) {
     if (project.status === 'closed') continue;
 
-    const contractValue = effectiveEstimateTotal(project);
     const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
     const approvedChangeOrders = projectCOs.reduce((s, co) => s + co.changeAmount, 0);
+    const projectPayApps = payApps.filter(a => a.projectId === project.id);
+    // THE CONTRACT — ONE DEFINITION, SHARED WITH app/wip-report.tsx (axis 5,
+    // audit 2026-09-11). This was `effectiveEstimateTotal(project)`, the linked
+    // estimate's grandTotal and nothing else, while the other bank-facing WIP
+    // schedule ran deriveOriginalContract's full chain. A job with a saved pay
+    // application read $700,000 / 42.9% margin there and $550,000 / 27.3% here;
+    // a job set up with only a target budget read $900,000 against $0. That is
+    // the REVENUE side of a surety document, it was never one of the four axes
+    // the parity work enumerated, and it is closed the same way every other axis
+    // was: by deleting this file's second opinion.
+    const contract = deriveOriginalContractWithSource(project, projectCOs, projectPayApps);
+    const contractValue = contract.value;
     const revisedContract = contractValue + approvedChangeOrders;
 
     const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
-    // DRAFTS ARE NOT BILLINGS. This summed every invoice regardless of status,
-    // so an unsent draft counted as billed — on a report that goes to a BANK or
-    // a SURETY. Overstating billings understates underbilling (or invents
-    // overbilling), which is precisely the number a lender reads to judge
-    // whether a job is being financed by its own client.
+    // BILLED TO DATE AND RETAINAGE HELD — ONE DEFINITION, ONE BRANCH
+    // (utils/wip.suggestBillingsWithSource). It decides pay-apps-or-invoices,
+    // drops drafts and recalled applications, keeps both sources on the same
+    // tax-free contract basis, and hands back the retainage sitting inside the
+    // billings it chose. This file used to sum invoice `totalDue` itself, which
+    // (a) could not see a pay application at all and (b) carried sales tax into
+    // a figure compared against a tax-free contract.
     //
     // A draft is a document the client has never seen. Everything else — sent,
     // partially_paid, paid, overdue — has genuinely been billed.
     const billedInvoices = projectInvoices.filter(inv => inv.status !== 'draft');
-    const billedToDate = billedInvoices.reduce((s, inv) => s + (inv.totalDue || 0), 0);
+    const billings = suggestBillingsWithSource(projectInvoices, projectPayApps);
+    const billedToDate = billings.billedToDate;
+    // PAID TO DATE IS CASH, AND IT IS ON A DIFFERENT BASIS FROM EVERYTHING ELSE
+    // ON THIS ROW — stated rather than left implicit (money-wave handoff
+    // 2026-09-11 §1). Two reasons, both deliberate:
+    //
+    //   • It is tax-INCLUSIVE. `amountPaid` is money that actually arrived, and
+    //     the client paid the tax with it, while the contract, earned revenue
+    //     and billed-to-date above are all pre-tax contract figures. It is
+    //     therefore never used in the contract-basis arithmetic: percent
+    //     complete, earned revenue and over/under billing derive from
+    //     `billedToDate`, and nothing here derives from this. Grossing the
+    //     contract up to meet it would corrupt a schedule to make one column
+    //     comparable; the honest answer is that this column is collections.
+    //   • It has no pay-app equivalent that is both cumulative and reliable, so
+    //     it stays on the invoice population. On a pay-app-billed job it
+    //     reports only what came in through invoices, which is what MAGE can
+    //     actually see.
+    //
+    // The CSV and the PDF both label it as cash collected for that reason, and
+    // the PDF's methodology block says where it lives.
     const paidToDate = billedInvoices.reduce((s, inv) => s + (inv.amountPaid || 0), 0);
-    // Retention is only withheld from money actually billed, so it follows the
-    // same population — a draft withholds nothing.
     // MONEY-05: the withholding is the percentage of the work value, via the
     // shared helper — not the stored column, which on legacy rows is retainage
     // computed on the tax-inclusive total. A WIP report that held one figure
     // while the A/R aging on the same screen collected against another does not
     // foot for the banker reading both.
-    const retainageHeld = billedInvoices.reduce(
-      (s, inv) => s + pendingRetentionHeld(inv),
-      0,
-    );
+    const retainageHeld = billings.retainageHeld;
 
     const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
     // COST AT COMPLETION — ONE DEFINITION, SHARED WITH app/wip-report.tsx
@@ -188,6 +377,10 @@ export function computeWIPReport(
       // without it a job that has burned past its estimate reports the estimate
       // and a profit it has already spent its way out of.
       costIncurred: job.actual,
+      // …and when the GC has said what is LEFT to spend, that replaces the
+      // forecast entirely: EAC = cost to date + cost to complete. See the
+      // parameter's doc above for what this being absent used to cost.
+      estimatedCostToComplete: costToCompleteByProject[project.id],
     });
     const estimatedFinalCost = costAtCompletion.value;
 
@@ -196,26 +389,32 @@ export function computeWIPReport(
     // (costToDate / totalEstimatedCost). The old basis was billed ÷ revised,
     // which makes earned ≡ billed, so the Unbilled column below was
     // identically zero: no input could make it non-zero, and a banker reading
-    // it concluded the contractor was never underbilled. When the job has no
-    // cost picture yet, fall back to schedule progress (avg task progress);
-    // with neither, 0 — the honest answer, not "as billed".
+    // it concluded the contractor was never underbilled.
+    //
+    // NO SCHEDULE FALLBACK (axis 7, audit 2026-09-11). Until then, a job with
+    // no cost picture fell back to the AVERAGE TASK PROGRESS of its schedule —
+    // so a job with two tasks at 40% and 60% and no cost recorded reported 50%
+    // complete, $250,000 earned and $250,000 unbilled here while /wip-report
+    // reported 0% and $0 for the same job. That is a THIRD percent-complete
+    // basis, and it is schedule-basis revenue recognition on a document that
+    // names itself cost-to-cost — on the account most likely to have it (a new
+    // one, with a schedule built and no cost entered yet). Zero is the honest
+    // answer: no cost recorded means percent complete is unmeasured, not
+    // fifty. Schedule progress is still read on both screens, as the
+    // divergence DIAGNOSTIC (utils/wip.flagWipRow's `evm` argument), which is
+    // what it is good for.
     //
     // The denominator is the shared cost-at-completion above, not
     // job.projectedFinal: two schedules reporting different percent-complete
     // for one job is the same defect as reporting different margin, and this is
     // the axis-3 half of it.
-    let percentComplete: number;
-    if (estimatedFinalCost > 0 && job.actual > 0) {
-      percentComplete = Math.min(100, Math.max(0, (job.actual / estimatedFinalCost) * 100));
-    } else {
-      const tasks = project.schedule?.tasks ?? [];
-      percentComplete = tasks.length > 0
-        ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length)
-        : 0;
-    }
+    const percentComplete = estimatedFinalCost > 0 && job.actual > 0
+      ? Math.min(100, Math.max(0, (job.actual / estimatedFinalCost) * 100))
+      : 0;
 
     const earned = (revisedContract * percentComplete) / 100;
     const unbilled = Math.max(0, earned - billedToDate);
+    const overbilled = Math.max(0, billedToDate - earned);
 
     const projectedProfit = revisedContract - estimatedFinalCost;
     const projectedMargin = revisedContract > 0 ? (projectedProfit / revisedContract) * 100 : 0;
@@ -229,7 +428,9 @@ export function computeWIPReport(
       percentComplete,
       billedToDate,
       paidToDate,
+      earnedRevenue: earned,
       unbilled,
+      overbilled,
       retainageHeld,
       estimatedFinalCost,
       costToDate: job.actual,
@@ -237,6 +438,7 @@ export function computeWIPReport(
       projectedMargin,
       status: project.status,
       costAtCompletion,
+      contractSource: contract.source,
     });
   }
 
@@ -250,20 +452,45 @@ export function computeWIPReport(
       revisedContract:      t.revisedContract + r.revisedContract,
       billedToDate:         t.billedToDate + r.billedToDate,
       paidToDate:           t.paidToDate + r.paidToDate,
+      earnedRevenue:        t.earnedRevenue + wipRowEarned(r),
+      unbilled:             t.unbilled + r.unbilled,
+      overbilled:           t.overbilled + wipRowOverbilled(r),
       retainageHeld:        t.retainageHeld + r.retainageHeld,
+      // `costToDate` is optional on the row (hand-built rows exist), and absent
+      // means UNKNOWN. Adding 0 for such a row would understate the book's
+      // spend; every row this module produces carries it, so in practice this
+      // sums the whole book and the `?? 0` is the honest floor for the rest.
+      costToDate:           t.costToDate + (r.costToDate ?? 0),
       estimatedFinalCost:   t.estimatedFinalCost + r.estimatedFinalCost,
       projectedProfit:      t.projectedProfit + r.projectedProfit,
       projectedMargin:      0, // computed below
+      measurableProjectedProfit: 0, // computed below
+      noCostBasisCount:     0, // computed below
+      noCostBasisContract:  0, // computed below
     }),
     {
       contractValue: 0, approvedChangeOrders: 0, revisedContract: 0,
-      billedToDate: 0, paidToDate: 0, retainageHeld: 0,
+      billedToDate: 0, paidToDate: 0, earnedRevenue: 0, unbilled: 0, overbilled: 0,
+      retainageHeld: 0, costToDate: 0,
       estimatedFinalCost: 0, projectedProfit: 0, projectedMargin: 0,
+      measurableProjectedProfit: 0, noCostBasisCount: 0, noCostBasisContract: 0,
     },
   );
-  totals.projectedMargin = totals.revisedContract > 0
-    ? (totals.projectedProfit / totals.revisedContract) * 100
+  // THE PORTFOLIO MARGIN RUNS OVER MEASURABLE JOBS ONLY (F14). The column
+  // totals above still sum the whole book — a WIP total row does — but the
+  // RATIO is what a costless job corrupts, by putting its contract in the
+  // numerator and nothing in the denominator. `projectedProfit` in the totals
+  // is left summing everything for the same reason `revisedContract` is, and
+  // the exports print the measurable subtotal beside the count of what is out.
+  const measurable = rows.filter(wipReportRowHasCostBasis);
+  const measurableContract = measurable.reduce((sum, r) => sum + r.revisedContract, 0);
+  const measurableProfit = measurable.reduce((sum, r) => sum + r.projectedProfit, 0);
+  totals.projectedMargin = measurableContract > 0
+    ? (measurableProfit / measurableContract) * 100
     : 0;
+  totals.measurableProjectedProfit = measurableProfit;
+  totals.noCostBasisCount = rows.length - measurable.length;
+  totals.noCostBasisContract = totals.revisedContract - measurableContract;
 
   return { asOf: new Date().toISOString(), rows, totals };
 }
@@ -301,13 +528,30 @@ export function computeProfitReport(
   changeOrders: ChangeOrder[],
   commitments: Commitment[],
   costSources: JobCostActualSources = {},
-): { rows: ProfitRow[]; totalRevenue: number; totalProfit: number; weightedMargin: number } {
+  /** Same contract chain as the WIP tab needs them for — see computeWIPReport. */
+  payApps: SavedAIAPayApp[] = [],
+  /** Same cost-to-complete map, same reason — see computeWIPReport. */
+  costToCompleteByProject: Record<string, number> = {},
+): {
+  rows: ProfitRow[];
+  totalRevenue: number;
+  totalProfit: number;
+  weightedMargin: number;
+  measurableRevenue: number;
+  noCostBasisCount: number;
+  noCostBasisRevenue: number;
+} {
   const rows: ProfitRow[] = [];
   for (const project of projects) {
-    const contractValue = effectiveEstimateTotal(project);
-    const approvedCOs = changeOrders
-      .filter(co => co.projectId === project.id && co.status === 'approved')
-      .reduce((s, co) => s + co.changeAmount, 0);
+    const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
+    const approvedCOs = projectCOs.reduce((s, co) => s + co.changeAmount, 0);
+    // The same one contract definition the WIP tab uses (axis 5). Two tabs of
+    // ONE screen reporting different revenue for one job is the same defect as
+    // two screens doing it, and this is the tab every sub-Business user lands
+    // on by default.
+    const contractValue = deriveOriginalContractWithSource(
+      project, projectCOs, payApps.filter(a => a.projectId === project.id),
+    ).value;
     const revenue = contractValue + approvedCOs;
 
     const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
@@ -319,8 +563,13 @@ export function computeProfitReport(
     const costAtCompletion = deriveEstimatedCostWithSource(project, projectCommitments, {
       approvedChangeOrders: approvedCOs,
       originalContract: contractValue,
-      // See the sibling call site: cost already paid out is the hard floor.
+      // See the sibling call site: cost already paid out is the hard floor, and
+      // an entered cost to complete replaces the forecast outright. The Profit
+      // tab is the one every free and Pro user lands on, so a margin here that
+      // ignores the GC's own revised forecast is the version of this defect
+      // most users would actually meet.
       costIncurred: job.actual,
+      estimatedCostToComplete: costToCompleteByProject[project.id],
     });
     const estimatedFinalCost = costAtCompletion.value;
     const projectedProfit = revenue - estimatedFinalCost;
@@ -348,10 +597,43 @@ export function computeProfitReport(
   rows.sort((a, b) => b.revenue - a.revenue);
 
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
-  const totalProfit  = rows.reduce((s, r) => s + r.projectedProfit, 0);
-  const weightedMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-  return { rows, totalRevenue, totalProfit, weightedMargin };
+  // THE SAME NO-COST-BASIS EXCLUSION THE WIP TAB APPLIES (F14, adversarial
+  // review 2026-09-11 — this tab was missed on the first pass).
+  //
+  // `deriveOriginalContract` falls back to a target budget and then a GMP cap
+  // for REVENUE; `deriveEstimatedCost` deliberately excludes both. So a job set
+  // up with only a target budget — which the portal budget-proposal flow
+  // creates, and the budget can be set by the CLIENT — carries a contract and
+  // no cost, and reported its entire contract as profit at a 100% margin
+  // straight into this roll-up. Measured on a $1,000,000/$800,000 job beside a
+  // $900,000 target-budget job: totalProfit $1,100,000 at a 57.9% weighted
+  // margin, against the $200,000 / 20% the WIP tab one chip away was already
+  // printing. Three surfaces, three answers for one book.
+  //
+  // This is the tab every free and Pro user lands on by default (the WIP tab is
+  // Business-gated), so it is the version of the defect most users would meet.
+  const measurable = rows.filter(profitRowHasCostBasis);
+  const measurableRevenue = measurable.reduce((s, r) => s + r.revenue, 0);
+  // `totalProfit` is the MEASURABLE sum, not the whole book: unlike the WIP
+  // schedule there is no column total here for a reader to cross-foot against,
+  // and this figure is rendered as the portfolio headline directly above the
+  // margin — so the two have to be struck on the same population or the screen
+  // contradicts itself in two adjacent lines.
+  const totalProfit  = measurable.reduce((s, r) => s + r.projectedProfit, 0);
+  const weightedMargin = measurableRevenue > 0 ? (totalProfit / measurableRevenue) * 100 : 0;
+
+  return {
+    rows,
+    totalRevenue,
+    totalProfit,
+    weightedMargin,
+    /** Revenue the headline profit and margin above were actually measured on. */
+    measurableRevenue,
+    /** How many rows carry a contract with no cost basis at all, and their revenue. */
+    noCostBasisCount: rows.length - measurable.length,
+    noCostBasisRevenue: totalRevenue - measurableRevenue,
+  };
 }
 
 // ─── AR aging ────────────────────────────────────────────────────────
@@ -488,35 +770,89 @@ function csvEscape(s: string | number | null | undefined): string {
 }
 
 export function wipReportToCSV(report: WIPReport): string {
+  // COST TO DATE, EARNED REVENUE AND OVER-BILLING WERE MISSING (audit
+  // 2026-09-11). `unbilled` was already here; its counterpart was not, and
+  // neither were the two columns an underwriter reads to tie a WIP schedule to
+  // an income statement. All three were computed and dropped on the floor.
   const headers = [
     'Project', 'Status',
     'Contract', 'Approved COs', 'Revised Contract',
-    '% Complete',
-    'Billed to Date', 'Paid to Date', 'Unbilled', 'Retainage Held',
-    'Estimated Final Cost', 'Projected Profit', 'Projected Margin %',
+    'Cost to Date', 'Estimated Final Cost', 'Cost to Complete', '% Complete',
+    'Earned Revenue', 'Billed to Date', 'Cash Collected (incl. tax)',
+    'Overbilled', 'Underbilled', 'Retainage Held',
+    'Projected Profit', 'Projected Margin %',
   ];
   const rows = report.rows.map(r => [
     r.projectName, r.status,
     r.contractValue.toFixed(2), r.approvedChangeOrders.toFixed(2), r.revisedContract.toFixed(2),
+    // A row that cannot say what it cost prints nothing, not 0 — see the
+    // `costToDate?` field doc. An empty cell is UNKNOWN; a 0 asserts the job
+    // has cost nothing, and a CPA would total it as such.
+    r.costToDate == null ? '' : r.costToDate.toFixed(2),
+    r.estimatedFinalCost.toFixed(2),
+    wipRowCostToComplete(r)?.toFixed(2) ?? '',
     r.percentComplete.toFixed(1),
-    r.billedToDate.toFixed(2), r.paidToDate.toFixed(2), r.unbilled.toFixed(2), r.retainageHeld.toFixed(2),
-    r.estimatedFinalCost.toFixed(2), r.projectedProfit.toFixed(2), r.projectedMargin.toFixed(1),
+    wipRowEarned(r).toFixed(2), r.billedToDate.toFixed(2), r.paidToDate.toFixed(2),
+    wipRowOverbilled(r).toFixed(2), r.unbilled.toFixed(2), r.retainageHeld.toFixed(2),
+    // Blank, never a number: a contract with no cost basis has no measurable
+    // profit and no margin, and 100% on a bank document is the worst possible
+    // place for a fabricated one (F14). Same rule as the Cost to Date cell
+    // above — an empty cell is UNMEASURABLE, a figure is a claim.
+    wipReportRowHasCostBasis(r) ? r.projectedProfit.toFixed(2) : '',
+    wipReportRowHasCostBasis(r) ? r.projectedMargin.toFixed(1) : '',
   ]);
   const totals = [
     'TOTAL', '',
     report.totals.contractValue.toFixed(2),
     report.totals.approvedChangeOrders.toFixed(2),
     report.totals.revisedContract.toFixed(2),
+    report.totals.costToDate.toFixed(2),
+    report.totals.estimatedFinalCost.toFixed(2),
+    Math.max(0, report.totals.estimatedFinalCost - report.totals.costToDate).toFixed(2),
     '',
+    report.totals.earnedRevenue.toFixed(2),
     report.totals.billedToDate.toFixed(2),
     report.totals.paidToDate.toFixed(2),
-    '',
+    report.totals.overbilled.toFixed(2),
+    report.totals.unbilled.toFixed(2),
     report.totals.retainageHeld.toFixed(2),
-    report.totals.estimatedFinalCost.toFixed(2),
-    report.totals.projectedProfit.toFixed(2),
+    // Sum over MEASURABLE jobs, matching the cells above and the margin beside it.
+    report.totals.measurableProjectedProfit.toFixed(2),
     report.totals.projectedMargin.toFixed(1),
   ];
-  return [headers, ...rows, totals].map(r => r.map(csvEscape).join(',')).join('\n');
+  const out = [headers, ...rows, totals];
+  // THE LINE THAT MAKES THE TOTAL ROW FOOT. Revised Contract − Estimated Final
+  // Cost should equal Projected Profit on a total line, and it cannot whenever
+  // a job has no cost basis: the contract column sums the whole book (a WIP
+  // total row does) while Projected Profit is struck on the measurable subset.
+  // Measured: 1,900,000 − 800,000 = 1,100,000 beside a Projected Profit cell
+  // reading 200,000. Neither half is wrong, so the reconciling line is printed.
+  // Same line, same reason, as utils/wipExport.wipPeriodToCSV.
+  if (report.totals.noCostBasisCount > 0) {
+    const measurableRows = report.rows.filter(wipReportRowHasCostBasis);
+    const mContract = measurableRows.reduce((sum, r) => sum + r.revisedContract, 0);
+    const mCost = measurableRows.reduce((sum, r) => sum + r.estimatedFinalCost, 0);
+    const sub = new Array(headers.length).fill('');
+    sub[0] = `MEASURABLE SUBTOTAL (${measurableRows.length} of ${report.rows.length} projects)`;
+    sub[headers.indexOf('Revised Contract')] = mContract.toFixed(2);
+    sub[headers.indexOf('Estimated Final Cost')] = mCost.toFixed(2);
+    sub[headers.indexOf('Projected Profit')] = (mContract - mCost).toFixed(2);
+    out.push(sub);
+  }
+  if (report.totals.noCostBasisCount > 0) {
+    // Suppressing a figure without saying it was suppressed is its own quiet
+    // lie, and this line is what stops the TOTAL above reading as the whole
+    // book.
+    const memo = new Array(headers.length).fill('');
+    memo[0] = `NO COST BASIS — ${report.totals.noCostBasisCount} contract`
+      + `${report.totals.noCostBasisCount === 1 ? ' carries' : 's carry'} a contract value with no cost `
+      + `estimate, no signed commitment and nothing spent. ${report.totals.noCostBasisCount === 1 ? 'It is' : 'They are'} EXCLUDED from the projected `
+      + 'profit total and the margin above, because a contract with no cost basis has no '
+      + 'measurable margin.';
+    memo[headers.indexOf('Revised Contract')] = report.totals.noCostBasisContract.toFixed(2);
+    out.push(memo);
+  }
+  return out.map(r => r.map(csvEscape).join(',')).join('\n');
 }
 
 export function arAgingReportToCSV(report: ARAgingReport): string {

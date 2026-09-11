@@ -16,11 +16,21 @@
 // a prospect reading a screenshot) could not see it. This chip is that
 // difference, rendered on the row.
 //
-// WHAT IT RENDERS
-//   'earned', jobCount >= 1 → MEASURED · N jobs   success tone
-//   'seeded'                → YOU SET THIS        NEUTRAL tone, never success
-//   'mixed'                 → MIXED · N jobs      neutral tone
+// WHAT IT RENDERS (four states, keyed on TONE — see below)
+//   'earned' + paid,   jobCount >= 1 → MEASURED · N jobs  success tone
+//   'earned' + signed, jobCount >= 1 → SIGNED · N jobs    neutral tone
+//   'seeded'                         → YOU SET THIS       neutral, never success
+//   'mixed'                          → MIXED · N jobs     neutral tone
 //   no book hit / no provenance / earned with 0 jobs → NOTHING AT ALL.
+//
+// THE SHEET BRANCHES ON TONE, NOT ON PROVENANCE. When 'contracted' was added,
+// only the chip LABEL learned about it: the drill-down still branched on
+// `model.provenance`, and 'contracted' IS provenance 'earned', so a book of
+// four signed subs with nothing paid showed a chip reading "SIGNED · 4 jobs"
+// over a sheet reading "Measured on 4 closed jobs of your own. This is what
+// this scope actually cost you" — with a Fact labelled "Measured average". The
+// chip told the truth and the thing you tapped it to read did not. Tone is the
+// classification that distinguishes them; provenance never could.
 //
 // The decision of what it may SAY is pure and lives in utils/rateProvenance.ts
 // so the bun validators can assert the firewall without mounting React. This
@@ -102,7 +112,15 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
   const Icon = model.provenance === 'earned' ? Ruler : model.provenance === 'mixed' ? Layers : PencilLine;
 
   const sampleWindow = measuredWindow(entry);
-  const spread = entry.variability > 0 ? `±${Math.round(entry.variability * 100)}%` : null;
+  // A ± band is a claim about repeatability, so it is printed only when the
+  // spread is an OBSERVATION. `variability > 0` caught n=1 by luck (a single
+  // sample computes 0) and missed the other case entirely: samples that all
+  // carry a price the GC STATED — two seeds at $4 and $6, or clocked hours at
+  // one typed rate — manufacture a spread out of typed numbers. Same test the
+  // cost-database card and takeoffPricing now use; the `?? > 0` keeps a book
+  // built before the flag existed behaving as it did.
+  const hasSpread = (entry.spreadMeaningful ?? (entry.variability > 0)) && entry.variability > 0;
+  const spread = hasSpread ? `±${Math.round(entry.variability * 100)}%` : null;
   const unit = entry.unit || 'unit';
 
   return (
@@ -140,7 +158,7 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
           <ScrollView contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false}>
             <Text style={styles.sheetTitle}>{entry.trade} · {unit}</Text>
 
-            {model.provenance === 'seeded' ? (
+            {model.tone === 'stated' && model.provenance === 'seeded' ? (
               <>
                 {/* A stated rate. The sheet says so in the same words the cost
                     book uses for a seeded sample, and never cites a job count. */}
@@ -156,6 +174,36 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
                 <Text style={styles.note}>
                   It still beats a national average — it is what you actually charge. The first
                   job you close on this scope replaces it with what the work really cost.
+                </Text>
+              </>
+            ) : model.tone === 'contracted' ? (
+              <>
+                {/* Signed subs on closed jobs, nothing paid out yet. Real
+                    evidence — just not a payment. So nothing here may make the
+                    measured branch's CLAIM: no "Measured on N closed jobs", no
+                    "Measured average", no "this is what it actually cost you".
+                    Naming what would upgrade it ("…becomes a measured rate")
+                    is the opposite of that claim and is allowed; the guard in
+                    scripts/validate-cost-seed §15.3 pins exactly that line. */}
+                <Text style={styles.lede}>
+                  Signed on {model.jobCount} closed job{model.jobCount === 1 ? '' : 's'} of your
+                  own — this is the sub/PO amount you contracted for that scope. Nothing has been
+                  paid out against it yet here, so it is what you agreed to pay, not yet what you
+                  paid.
+                </Text>
+                <View style={styles.facts}>
+                  <Fact label="Rate in your book" value={`${money(entry.suggestedRate)} / ${unit}`} />
+                  <Fact label="Contracted average" value={`${money(entry.personalRate)} / ${unit}`} />
+                  <Fact label="Signed on" value={`${model.jobCount} closed job${model.jobCount === 1 ? '' : 's'}`} />
+                  <Fact label="Paid to date" value="Nothing settled yet" />
+                  {sampleWindow ? <Fact label="Sample window" value={sampleWindow} /> : null}
+                  {spread ? <Fact label="Spread across jobs" value={spread} /> : null}
+                  <Fact label="Confidence" value={CONFIDENCE_LABEL[entry.confidence]} />
+                </View>
+                <Text style={styles.note}>
+                  A signed sub on a closed job is a firm number, so your book prices the next bid
+                  from it. The first payment that settles one of these contracts turns it into a
+                  measured rate.
                 </Text>
               </>
             ) : model.provenance === 'mixed' ? (

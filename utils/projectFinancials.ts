@@ -14,6 +14,24 @@ import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld } from '@/ut
 /**
  * Total contract value = base estimate + approved change orders.
  * Unapproved / void / rejected COs do not count.
+ *
+ * THIS IS THE ESTIMATE BASIS, AND IT STILL IS (MONEY-CONTRACT-1, audit
+ * 2026-09-11 — stated here rather than left for the next reader to discover).
+ * `resolveContractSum` below prefers the SIGNED contract when one exists; this
+ * function cannot, because it takes no contract and its two callers —
+ * utils/marginRiskScore.ts and utils/livingEstimate.ts — are pure engines that
+ * receive no contract from any of their own eleven call sites. Threading one
+ * through is the work, and it is not free: `ProjectContract` lives behind
+ * `fetchActiveContract`, an async Supabase read, while both engines are
+ * synchronous and are called from render.
+ *
+ * The consequence is bounded and worth stating: both engines measure MARGIN,
+ * and a GC who signed BELOW his estimate reads a margin computed against the
+ * estimate — optimistic by the difference. Neither figure is printed on a
+ * client document, which is where the same defect actually mattered (the
+ * portal, fixed; app/change-order.tsx and utils/aiaBilling.ts G702 line 1,
+ * still on the estimate and out of this wave's scope). See
+ * docs/audits/2026-09-11-handoff-money-to-wip.md.
  */
 export function getContractValue(
   project: Project | null | undefined,
@@ -24,6 +42,80 @@ export function getContractValue(
     .filter(co => co.status === 'approved')
     .reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
   return base + coSum;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE SIGNED CONTRACT IS THE CONTRACT SUM (MONEY-CONTRACT-1, audit 2026-09-11).
+//
+// `project_contracts.contract_value` was read by four SCREENS and by no money
+// engine. Everything that printed a contract figure printed
+// `effectiveEstimateTotal(project)` instead — the estimate.
+//
+// The two agree until they don't. `buildDraftContract` seeds `contractValue`
+// from the estimate, so a contract nobody edited matches; but the contract
+// screen exposes that field for editing, and an estimate is the OPENING of a
+// negotiation. The moment a GC signs at a number he negotiated, the portal his
+// homeowner reads prints the ESTIMATE as "Original Contract" on the same page
+// that links them to the executed PDF carrying a different one.
+//
+// So: prefer the signed contract, fall back to the estimate, and SAY WHICH —
+// a contract figure that cannot name its source is the thing that started
+// this. Callers render the source; they never re-derive it.
+//
+// ONLY 'signed' COUNTS. A 'sent' contract is an offer the owner has not
+// accepted and a 'draft' is not an offer at all; treating either as the
+// contract sum would let an unaccepted asking price become the number on a
+// change order. A signed contract with no usable value (zero, negative, or
+// non-finite — a legacy row, or a hand-cleared field) also falls back rather
+// than reporting a $0 contract.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ContractSumSource = 'signed_contract' | 'estimate';
+
+export interface ContractSumResolution {
+  /** The original (pre-change-order) contract sum. */
+  value: number;
+  source: ContractSumSource;
+  /** What the estimate says, always — so a screen can show the divergence. */
+  estimateTotal: number;
+}
+
+/** What the caller needs off a ProjectContract. Structural, so this file stays
+ *  importable by a bun guard (utils/contractEngine.ts pulls @/lib/supabase). */
+export interface SignedContractLike {
+  status?: string;
+  contractValue?: number;
+}
+
+/**
+ * WHO CALLS THIS TODAY, precisely — so nobody reads it as the app-wide
+ * definition it is not yet (audit 2026-09-11, review round 3).
+ *
+ *   • app/client-view.tsx — the homeowner portal. Live for a signed-in GC
+ *     previewing it; in SNAPSHOT mode (the mode a real homeowner is in) the
+ *     screen never fetches a contract, so this answers 'estimate' and the
+ *     caption says so rather than asserting an absence. Carrying the resolved
+ *     sum into utils/portalSnapshot.ts is what makes the anon view print the
+ *     signed figure, and that file belongs to the WIP/AIA wave.
+ *
+ * STILL ON THE ESTIMATE, none of them in this wave's scope:
+ *   • `getContractValue` above (see its own note) → marginRiskScore, livingEstimate;
+ *   • app/change-order.tsx — prints "Original Contract Value" on the document a
+ *     homeowner signs;
+ *   • utils/aiaBilling.ts `seedAIAPayApplicationFromInvoice` — G702 line 1;
+ *   • utils/wip.ts `deriveOriginalContractWithSource` — seven branches, no
+ *     `signed_contract` among them.
+ */
+export function resolveContractSum(
+  project: Project | null | undefined,
+  contract: SignedContractLike | null | undefined,
+): ContractSumResolution {
+  const estimateTotal = effectiveEstimateTotal(project);
+  const v = contract?.contractValue;
+  if (contract?.status === 'signed' && typeof v === 'number' && Number.isFinite(v) && v > 0) {
+    return { value: v, source: 'signed_contract', estimateTotal };
+  }
+  return { value: estimateTotal, source: 'estimate', estimateTotal };
 }
 
 /**
@@ -49,9 +141,26 @@ export function getPendingChangeOrderValue(
 /**
  * Total already collected from the client (invoices.amountPaid summed).
  * Includes retention releases if they've been recorded as payments.
+ *
+ * DRAFTS ARE EXCLUDED (MONEY-PAID-DRAFT-1, audit 2026-09-11), and that is not
+ * a formality. This was the ONE billing aggregation in the file with no status
+ * filter, sitting between two that have one (`getInvoicedToDate` below,
+ * `getOutstandingBalance` after it) — and it is what the client portal prints
+ * as "Paid to date". A payment recorded against a draft therefore read as
+ * money collected on the document the HOMEOWNER reads, while the same payment
+ * was excluded from invoiced-to-date and from outstanding: the portal's own
+ * money bar could not foot against itself.
+ *
+ * A draft is a document issued to nobody (utils/wip.ts DEFINITION 1). Nobody
+ * pays one. A non-zero `amountPaid` on a draft is either a payment logged
+ * before the invoice was sent — in which case sending it is the fix and the
+ * dollars reappear the moment it is — or a stale row; neither is cash the GC
+ * should be told he has collected on a job.
  */
 export function getPaidToDate(invoices: Invoice[] | null | undefined): number {
-  return (invoices ?? []).reduce((sum, inv) => sum + (inv.amountPaid ?? 0), 0);
+  return (invoices ?? [])
+    .filter(inv => inv.status !== 'draft')
+    .reduce((sum, inv) => sum + (inv.amountPaid ?? 0), 0);
 }
 
 /**

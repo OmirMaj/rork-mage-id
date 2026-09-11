@@ -39,6 +39,7 @@ import {
   buildLookahead, buildWeeklyWorkPlan, computePpc, ppcBand, ppcHistory, ppcTrend,
   type TaskWindowCalendar,
   varianceBreakdown, currentWeekStart, addWeeks, formatWeekRange, taskWindow,
+  buildScheduledStartDays,
   CONSTRAINT_LABELS, VARIANCE_LABELS,
   type Readiness, type ConstraintCategory, type VarianceReason,
 } from '@/utils/lastPlanner';
@@ -357,8 +358,23 @@ function LookaheadView({ tasks, startDate, constraints, calendar, onAddConstrain
 }
 
 // ── This Week (weekly work plan) ──
-function startLabelFor(task: ScheduleTask, startDate: string, calendar?: TaskWindowCalendar): string | undefined {
-  const win = taskWindow(task, startDate, calendar);
+/**
+ * The date printed next to a committed task in the crew dispatch.
+ *
+ * `scheduledEs` is REQUIRED, not optional, and that is deliberate:
+ * buildWeeklyWorkPlan files the row under the week CPM schedules it in, so a
+ * label built from the authored pin puts a contradiction on the same row. On
+ * the guard's own fixture (FOUND 20d -> FRAME 10d pinned at ordinal 11) the
+ * scheduled window starts Mon Mar 30 while the pin window starts Thu Mar 12 —
+ * the row appeared under the Mar 30 week and read "Thu, Mar 12".
+ */
+function startLabelFor(
+  task: ScheduleTask,
+  startDate: string,
+  calendar: TaskWindowCalendar | undefined,
+  scheduledEs: Map<string, number>,
+): string | undefined {
+  const win = taskWindow(task, startDate, calendar, scheduledEs.get(task.id));
   if (!win) return undefined;
   return new Date(win.startMs).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
@@ -388,6 +404,12 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
   const [blocked, setBlocked] = useState<Record<string, boolean>>({});
   const [overridden, setOverridden] = useState<Record<string, boolean>>({});
   const clashDigest = useMemo(() => digestClashes(clashes), [clashes]);
+  // Same engine run buildWeeklyWorkPlan does internally, so the dispatch label
+  // and the week the row was filed under come from one CPM answer.
+  const scheduledEs = useMemo(
+    () => buildScheduledStartDays(tasks, startDate, calendar),
+    [tasks, startDate, calendar],
+  );
 
   // Group committed tasks by crew for the "send the week" push.
   const crews = useMemo<CrewDispatchGroup[]>(() => {
@@ -396,10 +418,10 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
       .map(e => ({
         taskId: e.task.id, title: e.task.title,
         assignedSubId: e.task.assignedSubId, assignedSubName: e.task.assignedSubName,
-        crew: e.task.crew, startLabel: startLabelFor(e.task, startDate, calendar),
+        crew: e.task.crew, startLabel: startLabelFor(e.task, startDate, calendar, scheduledEs),
       }));
     return groupCommitmentsByCrew(committed, getSub);
-  }, [wwp, startDate, calendar, getSub]);
+  }, [wwp, startDate, calendar, getSub, scheduledEs]);
 
   const sentAtFor = useCallback((crewKey: string) =>
     dispatches.find(d => d.crewKey === crewKey && d.weekStart === weekStart)?.sentAt,

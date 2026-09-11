@@ -25,7 +25,9 @@ import {
 import {
   computeWipRow, deriveOriginalContract, deriveEstimatedCost,
   suggestBilledToDate, suggestCostToDate, sumApprovedChangeOrders,
+  normalizeWipEtcMap, wipEtcStorageKey, wipEtcValueMap,
 } from '@/utils/wip';
+import { useAuth } from '@/contexts/AuthContext';
 import type { WeekClose } from '@/utils/weekClose/types';
 
 interface AsyncInputs {
@@ -57,6 +59,24 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     projects, invoices, changeOrders, dailyReports, commitments, aiaPayApps,
   } = useProjects();
   const { receipts } = useMaterialReceipts();
+  const { user } = useAuth();
+  // THE COST-TO-COMPLETE MAP, so the week-close's cost at completion is the
+  // same one both WIP schedules use. Same AsyncStorage key, same parser, both
+  // out of utils/wip — a key only one screen knows how to build is a second
+  // definition of the number it holds.
+  const [etcByProject, setEtcByProject] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancelled = false;
+    setEtcByProject({});
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(wipEtcStorageKey(user?.id));
+        if (cancelled) return;
+        setEtcByProject(raw ? wipEtcValueMap(normalizeWipEtcMap(JSON.parse(raw))) : {});
+      } catch { /* no map → the derived forecast stands, exactly as before */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const [asyncInputs, setAsyncInputs] = useState<AsyncInputs>(EMPTY_ASYNC);
   const [loading, setLoading] = useState(true);
@@ -160,6 +180,10 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
           const projectCOs = changeOrders.filter(co => co.projectId === p.id);
           const projectPayApps = aiaPayApps.filter(a => a.projectId === p.id);
           const projectCommitments = commitments.filter(c => c.projectId === p.id);
+          const costToDate = suggestCostToDate(
+            projectCommitments,
+            receipts.filter(r => r.projectId === p.id),
+          );
           const out = computeWipRow({
             originalContract: deriveOriginalContract(p, projectCOs, projectPayApps),
             approvedChangeOrders: sumApprovedChangeOrders(projectCOs),
@@ -169,15 +193,30 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
             totalEstimatedCost: deriveEstimatedCost(p, projectCommitments, {
               approvedChangeOrders: sumApprovedChangeOrders(projectCOs),
               originalContract: deriveOriginalContract(p, projectCOs, projectPayApps),
+              // THE TWO ARGUMENTS THIS CALL SITE WAS MISSING (adversarial
+              // review 2026-09-11). Both WIP schedules pass them; this one
+              // built its row by hand and passed neither, so on an overrun job
+              // it produced a THIRD cost at completion and the close's
+              // "$X unbilled" stopped agreeing with the WIP screen it was
+              // explicitly built to agree with.
+              //
+              // `costIncurred` is the hard floor: a job cannot finish for less
+              // than what it has already cost. Without it, a job that has burned
+              // past its estimate reports the estimate.
+              costIncurred: costToDate,
+              // …and the GC's own revised forecast outranks all of it.
+              estimatedCostToComplete: etcByProject[p.id],
             }),
-            costToDate: suggestCostToDate(
-              projectCommitments,
-              receipts.filter(r => r.projectId === p.id),
-            ),
+            costToDate,
             billedToDate: suggestBilledToDate(
               invoices.filter(i => i.projectId === p.id),
               projectPayApps,
             ),
+            // computeWipRow applies the SAME entry a second time (it is the row
+            // engine's own parameter), which is not a double count — both
+            // resolve to costToDate + ETC — but passing it here is what makes
+            // `out.costToComplete` and the percent complete match the screen.
+            estimatedCostToComplete: etcByProject[p.id],
           });
           return {
             projectId: p.id,
@@ -189,7 +228,7 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     } catch {
       return [];
     }
-  }, [projects, invoices, changeOrders, commitments, aiaPayApps, receipts]);
+  }, [projects, invoices, changeOrders, commitments, aiaPayApps, receipts, etcByProject]);
 
   const close = useMemo<WeekClose | null>(() => {
     if (!enabled) return null;

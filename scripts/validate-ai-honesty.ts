@@ -106,6 +106,21 @@ ok('earned line cites the measured job count', (() => {
   const l = groundingFactLine(entry('Tile', 'earned', { jobCount: 3, confidence: 'high' }));
   return /on your jobs/.test(l) && /3 jobs/.test(l) && /high confidence/.test(l);
 })());
+// A BOOK NOBODY HAS PAID YET. Every sample behind it is a signed sub or PO
+// with no payment against it (utils/costDatabase earnedBasis 'contracted').
+// Real evidence, different in kind from a paid cost — and "runs $X on your
+// jobs (3 jobs)" is precisely the sentence a model paraphrases into "you paid
+// this". app/cost-database, takeoffPricing, aiService and bidLevelingEngine
+// were taught the distinction; this, the central fact line the estimate
+// wizard and the full estimator both go through, was not.
+ok('a signed-but-unpaid book says so, inside the same parenthetical', (() => {
+  const l = groundingFactLine(entry('Tile', 'earned', { jobCount: 3, earnedBasis: 'contracted' }));
+  return /3 jobs, signed but not yet paid\)/.test(l);
+})(), groundingFactLine(entry('Tile', 'earned', { jobCount: 3, earnedBasis: 'contracted' })));
+ok('…and a PAID book is not hedged (the qualifier is a claim too)', (() => {
+  const l = groundingFactLine(entry('Tile', 'earned', { jobCount: 3, earnedBasis: 'paid' }));
+  return !/signed but not yet paid/.test(l);
+})());
 
 console.log('\nbuildGroundingFacts (review B1 — one bundle per run):');
 {

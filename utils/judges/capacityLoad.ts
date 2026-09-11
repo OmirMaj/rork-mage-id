@@ -60,6 +60,9 @@ export function computeCapacityLoad(projects: Project[], windowStartISO: string,
       workingDaysPerWeek: sched.workingDaysPerWeek,
       nonWorkingDates: sched.nonWorkingDates,
     };
+    // On the stored pin, deliberately — same basis and same reasoning as
+    // utils/crossProjectLoad.ts (see its header note), so the two capacity
+    // signals cannot disagree with each other.
     for (const t of sched.tasks) {
       const w = taskWindow(t, sched.startDate, calendar);
       if (!w) continue;

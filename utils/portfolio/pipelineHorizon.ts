@@ -12,7 +12,7 @@
 //
 // Pure. No React. No network. Never throws.
 
-import type { Project, Invoice, ChangeOrder, Commitment, Lead } from '@/types';
+import type { Project, Invoice, ChangeOrder, Commitment, Lead, SavedAIAPayApp } from '@/types';
 import type { HomeownerBidResponse } from '@/types';
 import { computeCapacityLoad } from '@/utils/judges/capacityLoad';
 import { computeWIPReport } from '@/utils/financialReports';
@@ -76,11 +76,36 @@ export interface PipelineHorizonInput {
   changeOrders: ChangeOrder[];
   commitments: Commitment[];
   bidResponses: HomeownerBidResponse[];
+  /**
+   * SAVED AIA PAY APPLICATIONS (adversarial review 2026-09-11).
+   *
+   * `computeWIPReport` gained a pay-app parameter in the same pass that gave it
+   * the shared contract chain and tax-free billings, and this call site was
+   * left at four arguments. The contract and billings changes reach it for free
+   * — they are inside the function — but the pay apps are not, and this file's
+   * ONE use of the report is
+   *     remainingToBill$ = Σ max(0, revisedContract − billedToDate)
+   * so for a GC billing through the flagship G702/G703 flow, billedToDate read
+   * $0 and the backlog was overstated by everything he had already billed.
+   * Measured on a target-budget job with one $300,000 pay application:
+   * remainingToBill$ 900,000 against a true 600,000.
+   *
+   * `costSources` and the cost-to-complete map are deliberately NOT threaded:
+   * neither the contract nor the billings derive from them, so they cannot move
+   * this file's only output. Adding parameters that cannot change a number is
+   * how a signature stops meaning anything.
+   *
+   * Optional so the validators' hand-built fixtures still compile. app/
+   * business.tsx and the One Mind fact bundle (app/ask.tsx) both pass it; a
+   * caller that does not gets exactly the behaviour it had before, which is
+   * invoices-only billings.
+   */
+  aiaPayApps?: SavedAIAPayApp[];
   now: Date;
 }
 
 export function buildPipelineHorizon(input: PipelineHorizonInput): PipelineHorizonResult {
-  const { leads, projects, invoices, changeOrders, commitments, bidResponses, now } = input;
+  const { leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now } = input;
 
   // ── CRM pipeline leads ────────────────────────────────────────────────────
   const pipelineStages = new Set<string>(['new', 'qualified', 'proposal']);
@@ -121,7 +146,7 @@ export function buildPipelineHorizon(input: PipelineHorizonInput): PipelineHoriz
   if (outboundWinRate !== null) expectedInflow$ += pendingBids$ * outboundWinRate;
 
   // ── Backlog ────────────────────────────────────────────────────────────────
-  const wipReport = computeWIPReport(projects, invoices, changeOrders, commitments);
+  const wipReport = computeWIPReport(projects, invoices, changeOrders, commitments, {}, aiaPayApps ?? []);
   const activeWipRows = wipReport.rows.filter(
     r => r.status !== 'completed' && r.status !== 'closed' && r.status !== 'draft',
   );

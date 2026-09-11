@@ -127,7 +127,15 @@ export interface GroundingEntryLike extends ProvenanceLike {
   suggestedRate: number;
   confidence?: 'low' | 'medium' | 'high';
   jobCount?: number;
+  /** utils/costDatabase CostBookEntry.earnedBasis. 'contracted' means every
+   *  sample behind the rate is a signed sub or PO nobody has paid yet — real
+   *  evidence, but not a measured cost, and the fact line has to say so. */
+  earnedBasis?: 'paid' | 'contracted' | 'stated';
 }
+
+/** The one phrase every surface uses for a signed-but-unpaid book, so the
+ *  model never hears four different hedges for one fact. */
+export const CONTRACTED_NOTE = ', signed but not yet paid';
 
 /** One prompt fact per entry. A seeded rate is told to the model as
  *  told-to-us, never as measured history — handing the LLM "runs $X on your
@@ -140,7 +148,13 @@ export function groundingFactLine(e: GroundingEntryLike): string {
     return `${e.trade}: the contractor's own stated rate is ${rate} (self-reported, no closed job yet — use it, but don't call it measured)`;
   }
   const jobs = e.jobCount ?? 0;
-  return `${e.trade} runs ${rate} on your jobs (${e.confidence ?? 'low'} confidence, ${plural(jobs, 'job')})`;
+  // A book where NOTHING has been paid is still evidence — it is just a
+  // different kind, and "runs $X on your jobs" is the sentence a model
+  // paraphrases into "you paid this". utils/aiService and
+  // utils/bidLevelingEngine already qualified it; this, the CENTRAL fact line
+  // the estimate wizard and the full estimator both go through, did not.
+  const basis = e.earnedBasis === 'contracted' ? CONTRACTED_NOTE : '';
+  return `${e.trade} runs ${rate} on your jobs (${e.confidence ?? 'low'} confidence, ${plural(jobs, 'job')}${basis})`;
 }
 
 /** Everything one model call's grounding is: the prompt lines and what they

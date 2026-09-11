@@ -467,7 +467,7 @@
             <li>8 templates: kitchen / bath / ADU / new home / addition / etc.</li>
             <li><strong>AI Builder</strong>: describe the project, get a full schedule with dependencies.</li>
             <li>Build from estimate — auto-derive tasks from estimate line items.</li>
-            <li>Weather-aware scheduling for outdoor tasks (concrete, roofing) — on the roadmap.</li>
+            <li><strong>Weather-aware reflow</strong> for outdoor tasks (concrete, roofing) &mdash; shipped, and it <a href="/features/scheduling.html#weather">marks simulated days rather than passing them off as a forecast</a>.</li>
             <li>Schedule auto-shifts when approved CO adds days.</li>
           </ul>
         </div>
@@ -670,7 +670,7 @@
       <div class="ex-panel" id="panel-financials" role="tabpanel" aria-labelledby="tab-financials" tabindex="0">
         <span class="ex-panel-eyebrow">Get paid</span>
         <h2>Invoice in your pocket.<br><em>Paid in your pocket.</em></h2>
-        <p class="lede">Invoices, AIA G702/G703 pay applications, commitments, and live financial reports. Stripe Connect lets the homeowner pay online — money in your bank in 1–2 days.</p>
+        <p class="lede">Invoices, AIA-style G702/G703 pay applications, commitments, and live financial reports. Stripe Connect lets the homeowner pay online — money in your bank in 1–2 days.</p>
 
         <div class="ex-mini-grid">
           <div class="ex-mini-card">
@@ -680,7 +680,7 @@
           </div>
           <div class="ex-mini-card">
             <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg></span>
-            <h4>AIA Pay Apps</h4>
+            <h4>AIA-style Pay Apps</h4>
             <p>G702 cover + G703 schedule of values. Retainage tracking, prior billings carryforward, this-period draw.</p>
           </div>
           <div class="ex-mini-card">
@@ -700,7 +700,7 @@
           <ol class="ex-steps">
             <li>Project → Invoices tile → New invoice. Voice it ("Invoice them for demolition lump sum twenty-eight hundred, drywall 850 square feet at 2.50, net 15").</li>
             <li>Review line items. Tap Send → homeowner gets a branded email with a Pay Now button.</li>
-            <li>For AIA jobs: AIA Pay Applications tile → "+ New draw." Fill in this-period amounts. PDF generates automatically.</li>
+            <li>For AIA jobs: AIA-style Pay Applications tile → "+ New draw." Fill in this-period amounts. PDF generates automatically.</li>
             <li>Reports tile → tap WIP / Profit / A/R Aging. Export PDF for the bank.</li>
           </ol>
           <div class="ex-voice">"Invoice them for demolition kitchen, lump sum twenty-eight hundred. Drywall hang and finish, eight hundred fifty square feet at two-fifty per square foot. Net 15."</div>
@@ -732,7 +732,7 @@
           <ul class="ex-bullets">
             <li>Their assigned scope on the project.</li>
             <li>Submit invoices with photos of work done.</li>
-            <li>Submit AIA pay app drafts (when GC has set up AIA on the project).</li>
+            <li>Submit AIA-style pay app drafts (when GC has set up AIA on the project).</li>
             <li>Sign lien waivers the GC sends — each one arrives as its own emailed link, not in this portal.</li>
             <li><em>Coming soon:</em> those waivers listed inside this portal, COI/W-9 upload reusable across projects.</li>
           </ul>
@@ -817,6 +817,42 @@
         <a href="/privacy.html">Privacy</a>
       </nav>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+        <!-- STANDING AIA NOTICE — on every page that mentions AIA.
+           The generated document already carries this (utils/aiaBilling.ts:937)
+           and app/aia-pay-app.tsx shows it on first use; the site did not, which
+           left the GC to discover on their first submitted draw that they were
+           not holding an official form. "AIA-style" is the industry convention
+           — Contractor Foreman's own pricing page labels the feature "AIA Style
+           Invoicing (G702 and G703)" — so the hedge costs nothing and reads as
+           more expert to the one person who can tell the difference. -->
+      <p class="aia-notice" style="max-width:900px;margin:18px auto 0;font-size:12px;line-height:1.6;opacity:.62;text-align:center;">
+        MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are
+        registered trademarks of The American Institute of Architects, which is not affiliated with and
+        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract
+        Documents &mdash; check with yours before you submit.
+      </p>
   </footer>
 
   <script>

@@ -45,8 +45,15 @@ export interface OwnRateMatch {
    *  The UI must not present a 'seeded' rate as learned history. */
   provenance: 'earned' | 'seeded' | 'mixed';
   confidence: CostBookEntry['confidence'];
+  /** What the earned half rests on — 'contracted' means signed but not yet
+   *  paid, so the sentence must not say "measured". */
+  earnedBasis?: CostBookEntry['earnedBasis'];
   /** Spread across jobs, as a fraction (0.12 = ±12%). */
   variability: number;
+  /** False when `variability` is arithmetic rather than an observation (one
+   *  sample, or every sample priced at a rate the GC stated). The ± band must
+   *  not be printed then. See CostBookEntry.spreadMeaningful. */
+  spreadMeaningful?: boolean;
   /** 0..1 — how confident we are this line IS that trade (not the rate itself). */
   matchScore: number;
 }
@@ -67,14 +74,55 @@ export function words(input: string): string[] {
     .filter(w => w.length >= 3 && !STOPWORDS.has(w));
 }
 
-/** Units that mean the same thing, so a book entry in SF matches a line in SQFT. */
+/**
+ * Units that mean the same thing, so a book entry in SF matches a line in SQFT.
+ *
+ * THIS TABLE AND utils/costSeedCore's MUST AGREE — its comment says so — and for
+ * everything but square feet they had drifted apart. That was survivable while
+ * this table only decided whether a takeoff line could borrow a rate. It stopped
+ * being survivable when utils/costDatabase started keying the price book on
+ * normalizeUnit: the book then inherited the gap. constants/materials.ts spells
+ * trim work 'lin ft' → this table returned 'linft', a seeded LF rate is 'lf', and
+ * ONE Trim trade came out as TWO ROWS — `trim|linft` (earned, 1 job, $4.50) and
+ * `trim|lf` (seeded, $5.00). The screen showed the same trade twice at two
+ * prices, lookupRate resolved whichever spelling the caller happened to ask for
+ * (one earned, one seeded, off the same book), and the empty state's promise —
+ * "every closed job corrects what you seeded" — was false for every catalog unit
+ * that is not square feet: 'lin ft', 'cu yd' (before 'cuyd' was added), 'square',
+ * 'sq yd'. Measurement and claim could never meet in the same row.
+ *
+ * So this is now costSeedCore's table, verbatim. Keep them in step:
+ * scripts/validate-cost-seed.ts asserts that every token either table knows
+ * canonicalises the same way, and that every unit spelling shipped in
+ * constants/materials.ts round-trips.
+ */
 const UNIT_ALIASES: Record<string, string> = {
-  sqft: 'sf', sf: 'sf', 'ft2': 'sf',
-  lnft: 'lf', lf: 'lf', lin: 'lf',
-  ea: 'ea', each: 'ea', unit: 'ea',
-  cy: 'cy', cuyd: 'cy',
-  hr: 'hr', hour: 'hr', hrs: 'hr',
-  ls: 'ls', lot: 'ls',
+  // area
+  sf: 'sf', sqft: 'sf', sqf: 'sf', ft2: 'sf', sfa: 'sf',
+  squarefoot: 'sf', squarefeet: 'sf', sqfeet: 'sf', squarefeat: 'sf',
+  // linear
+  lf: 'lf', lnft: 'lf', lin: 'lf', linft: 'lf', lft: 'lf',
+  linearfoot: 'lf', linearfeet: 'lf', linealfoot: 'lf', linealfeet: 'lf',
+  // each
+  ea: 'ea', each: 'ea', unit: 'ea', pc: 'ea', pcs: 'ea', piece: 'ea',
+  pieces: 'ea', item: 'ea', items: 'ea', qty: 'ea',
+  // volume / weight
+  cy: 'cy', cuyd: 'cy', cubicyard: 'cy', cubicyards: 'cy', yd3: 'cy',
+  cf: 'cf', cuft: 'cf', cubicfoot: 'cf', cubicfeet: 'cf',
+  ton: 'ton', tons: 'ton', tn: 'ton',
+  gal: 'gal', gallon: 'gal', gallons: 'gal',
+  bf: 'bf', bdft: 'bf', boardfoot: 'bf', boardfeet: 'bf',
+  // roofing / paving
+  sq: 'sq', square: 'sq', squares: 'sq',
+  sy: 'sy', sqyd: 'sy', squareyard: 'sy', squareyards: 'sy',
+  // time
+  hr: 'hr', hour: 'hr', hours: 'hr', hrs: 'hr', manhour: 'hr',
+  manhours: 'hr', mh: 'hr',
+  day: 'day', days: 'day', dy: 'day',
+  wk: 'wk', week: 'wk', weeks: 'wk',
+  mo: 'mo', month: 'mo', months: 'mo',
+  // lump
+  ls: 'ls', lot: 'ls', lumpsum: 'ls', allowance: 'ls', job: 'ls',
 };
 
 export function normalizeUnit(unit: string): string {
@@ -139,8 +187,10 @@ export function matchOwnRate(
         unit: entry.unit,
         jobCount: entry.jobCount ?? 0,
         provenance: entry.provenance ?? 'earned',
+        earnedBasis: entry.earnedBasis,
         confidence: entry.confidence,
         variability: entry.variability ?? 0,
+        spreadMeaningful: entry.spreadMeaningful,
         matchScore: score,
       };
     }
@@ -159,7 +209,11 @@ export function matchOwnRate(
  */
 export function priceSourceLabel(source: PriceSource, match?: OwnRateMatch | null): string {
   if (source === 'yours' && match) {
-    const claim = provenanceClaimModel({ provenance: match.provenance, jobCount: match.jobCount });
+    const claim = provenanceClaimModel({
+      provenance: match.provenance,
+      jobCount: match.jobCount,
+      earnedBasis: match.earnedBasis,
+    });
 
     // A seeded rate (claim === null is impossible here since seeded always
     // returns a model, but we handle claim?.provenance directly for clarity).
@@ -169,10 +223,20 @@ export function priceSourceLabel(source: PriceSource, match?: OwnRateMatch | nul
       return `Your rate — ${match.trade}, you set this (no closed jobs yet)`;
     }
     const jobs = `${match.jobCount} job${match.jobCount === 1 ? '' : 's'}`;
-    const spread = match.variability > 0 ? ` · ±${Math.round(match.variability * 100)}%` : '';
+    // The ± band is printed only when the spread is an observation. `variability
+    // > 0` caught n=1 by luck; it does NOT catch six clocked shifts priced at
+    // one typed rate, which also agree by construction. spreadMeaningful says
+    // so explicitly; the `> 0` check stays as the fallback for a caller that
+    // does not carry the flag.
+    const hasSpread = match.spreadMeaningful ?? (match.variability > 0);
+    const spread = hasSpread && match.variability > 0 ? ` · ±${Math.round(match.variability * 100)}%` : '';
     if (claim?.provenance === 'mixed') {
       // Started from a stated rate but real jobs have begun to correct it.
       return `Your rate — ${match.trade}, ${jobs}${spread} · started from your set rate`;
+    }
+    if (claim?.tone === 'contracted') {
+      // Signed subs, nothing paid out yet — real, but not a measured cost.
+      return `Your rate — ${match.trade}, ${jobs}${spread} · signed, not yet paid`;
     }
     // earned — measured from closed jobs. The tone is 'measured' only here.
     return `Your rate — ${match.trade}, ${jobs}${spread}`;

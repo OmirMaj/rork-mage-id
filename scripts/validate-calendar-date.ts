@@ -458,7 +458,6 @@ const ALLOWED: Allowed[] = [
   { file: 'components/schedule/LookaheadView.tsx', line: 'new Date(date)', added: '2026-09-04', reason: 'getMonday(date: Date) clone' },
   { file: 'components/schedule/VerticalGantt.tsx', line: 'new Date(projectStartDate)', added: '2026-09-04', reason: 'projectStartDate is a Date prop; clone before setDate()' },
   { file: 'components/schedule/mobile/WeekStrip.tsx', line: 'new Date(selectedDate)', added: '2026-09-04', reason: 'selectedDate is a Date; clone before shifting a week' },
-  { file: 'components/schedule/TaskInspector.tsx', line: 'new Date(startDate)', added: '2026-09-04', reason: 'dayToDate(startDate: Date, …) clone' },
   { file: 'components/schedule/WeatherReschedulePrompt.tsx', line: 'new Date(startDate)', added: '2026-09-04', reason: 'clone of the local `startDate` Date inside the push loop (:57)' },
   { file: 'components/schedule/WeatherReschedulePrompt.tsx', line: 'new Date(projectStartDate)', added: '2026-09-04', reason: 'projectStartDate is a Date prop; clone before setDate() (:95)' },
 ];

@@ -83,6 +83,12 @@ let scanned = 0;
 for (const file of tracked) {
   if (!EXTS.some(e => file.endsWith(e))) continue;
   if (file.startsWith('scripts/') || file.startsWith('__tests__/')) continue;
+  // A file git still TRACKS but that is gone from disk — a deletion staged in
+  // the working tree, e.g. utils/scheduleRebase.ts on 2026-09-11. It has no
+  // imports to check, and readFileSync would throw ENOENT and take the whole
+  // guard down with it, which is the one failure mode a guard must never have:
+  // it stops reporting on the other 400 files for a reason unrelated to them.
+  if (!existsSync(join(ROOT, file))) continue;
   scanned++;
 
   const lines = readFileSync(join(ROOT, file), 'utf8').split('\n');

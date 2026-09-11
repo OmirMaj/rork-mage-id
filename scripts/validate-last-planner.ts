@@ -1,12 +1,16 @@
 // validate-last-planner.ts — the lookahead must agree with the Gantt.
 //
-// WHY THIS EXISTS. ScheduleTask stores its two date fields in DIFFERENT UNITS
-// once a project has a start date:
-//   • startDay     — a CALENDAR day index (utils/scheduleRebase converts the
-//                    working-day ordinal to a calendar index the moment a start
-//                    date is assigned).
-//   • durationDays — still a WORKING-day COUNT; scheduleRebase passes durations
-//                    through untouched.
+// WHY THIS EXISTS. utils/lastPlanner.taskWindow used to treat BOTH of
+// ScheduleTask's day fields as calendar days.
+//
+// (Historical note, corrected 2026-09-11: this header used to say `startDay`
+// became a CALENDAR index once a project had a start date, because
+// utils/scheduleRebase re-mapped it at that moment. That helper existed to
+// compensate for the CPM engine misreading the field, the engine now converts
+// at its own `pins` line, and scheduleRebase has been deleted. Both fields are
+// on the WORKING scale: `startDay` is a working ORDINAL and `durationDays` a
+// working-day COUNT. The unit mismatch this file guards is unchanged — the
+// window has to be walked on the calendar, not multiplied by DAY_MS.)
 //
 // utils/lastPlanner.taskWindow treated BOTH as calendar days:
 //     endMs = startMs + (dur - 1) * DAY_MS

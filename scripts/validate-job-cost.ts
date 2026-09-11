@@ -418,7 +418,10 @@ console.log('\nthe Job Costing screen forwards both inputs and opens the records
     /computeJobCost\(\{[\s\S]{0,400}equipment,\s*permits,[\s\S]{0,40}\}\)/.test(screen),
     'a screen that computes without them under-reports by exactly that money');
   ok('…and lists them in the useMemo deps, so logging a shift re-costs the job',
-    /\},\s*\[[^\]]*equipment,\s*permits\]\)/.test(screen));
+    // Trailing deps allowed — JOBCOST-PHASE-1 added `subcontractors` after
+    // `permits`, and pinning the list to end there would make adding a real
+    // dependency fail this guard.
+    /\},\s*\[[^\]]*equipment,\s*permits[^\]]*\]\)/.test(screen));
 
   ok('the phase sheet reads sources as ids, never as a bare count',
     !/sources\.(commitments|changeOrders|receipts|timeEntries|equipment|permits)\}/.test(screen),
