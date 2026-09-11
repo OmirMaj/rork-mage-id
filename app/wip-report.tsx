@@ -26,7 +26,9 @@ import {
   suggestBilledToDate, sumApprovedChangeOrders, isWipReportableProject,
   deriveOriginalContractWithSource, deriveEstimatedCostWithSource,
   suggestCostToDateWithSource, WIP_SOURCE_LABELS, wipSourceLabel,
+  describeCostBasis, describePortfolioCostBasis,
   type WipRowSources, type WipSnapshotRowWithSources, type WipPeriodWithSources,
+  type WipEstimatedCost,
 } from '@/utils/wip';
 import { FeatureExplainerSheet } from '@/components/FeatureExplainerSheet';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -104,6 +106,22 @@ function overrideInForce(
   const entry = map[projectId];
   return entry && !entry.cleared ? entry : undefined;
 }
+
+// A WIP SCHEDULE OF ZEROS IS STILL A BANK DOCUMENT (polish audit 2026-09-10).
+// On a brand-new account this screen printed seven zeros in its Portfolio strip
+// and offered Save period / Lock / Export CSV / Export PDF underneath — and the
+// save alert then said "Lock it to freeze for CPA/bank review". Lock makes a
+// period immutable and Export PDF brands it. A surety and a lender read a WIP
+// schedule as a sworn statement of position, so an all-zero one must not be
+// freezable or exportable at all.
+//
+// One reason, four call sites, and it names the prerequisite rather than the
+// failure — the repo's standing rule that a blocked button says why. Module
+// scope so the four useCallbacks do not each have to carry it as a dependency.
+const NOTHING_TO_REPORT =
+  'A WIP schedule needs at least one active project with a cost-and-markup estimate. '
+  + 'There is nothing to freeze or export yet — and a schedule of zeros is a document a '
+  + 'bank or a surety would read as your actual position.';
 
 // Overrides written before this screen learned to sync were bare numbers with
 // no timestamp. Stamping them at the epoch means a server row — which by
@@ -353,6 +371,8 @@ function WipReportScreenInner() {
     /** What the app can see on its own — the subs+materials lower bound. */
     auto: ReturnType<typeof suggestCostToDateWithSource>;
     override: CostOverride | undefined;
+    /** Both cost-at-completion candidates, so the screen can name the basis. */
+    cost: WipEstimatedCost;
   } => {
     const cos = getChangeOrdersForProject(project.id);
     const commitments = getCommitmentsForProject(project.id);
@@ -395,6 +415,7 @@ function WipReportScreenInner() {
       },
       auto,
       override,
+      cost,
     };
   }, [costOverrides, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject]);
 
@@ -415,6 +436,25 @@ function WipReportScreenInner() {
   );
 
   const portfolio = useMemo(() => computeWipPortfolio(liveRows), [liveRows]);
+
+  // The cost basis behind the weighted margin in the hero above. The provenance
+  // panel this screen already had is excellent and it is one tap down, inside a
+  // per-project modal — so the seven figures a banker actually reads, with two
+  // Export buttons under them, carried no source at all (polish audit
+  // 2026-09-10). Built from the same buildRow call as the rows, in its own memo
+  // so liveRows keeps the exact `const { input, sources } = buildRow(p)` shape
+  // scripts/validate-wip-provenance.ts pins.
+  // Keyed by projectId, not by position. `liveRows` happens to be
+  // activeProjects.map today, so an index lookup lines up — but the moment
+  // anyone filters a row out of one list and not the other, a project's row
+  // would print another project's signed-commitment total, on the schedule a
+  // surety reads. A partial lookup that is only correct while two array lengths
+  // agree is exactly the class of bug this campaign keeps finding.
+  const costBases = useMemo(
+    () => new Map(activeProjects.map((p) => [p.id, buildRow(p).cost] as const)),
+    [activeProjects, buildRow],
+  );
+  const portfolioBases = useMemo(() => [...costBases.values()], [costBases]);
 
   // Prior locked period, for the profit-fade watch.
   const priorPeriod = useMemo(
@@ -503,22 +543,47 @@ function WipReportScreenInner() {
     setDrillProjectId(null);
   }, [commitDrillCost]);
 
+  const hasRows = liveRows.length > 0;
+
   const handleSnapshot = useCallback(() => {
+    if (liveRows.length === 0) { showAlert('Nothing to save yet', NOTHING_TO_REPORT); return; }
     const periodEndDate = new Date().toISOString().slice(0, 10);
     addPeriod({ periodEndDate, rows: liveRows, portfolioTotals: portfolio });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Period saved', `WIP snapshot for ${periodEndDate} created. Lock it to freeze for CPA/bank review.`);
+    // Was "Lock it to freeze for CPA/bank review." — which recommended bank
+    // review of a period the app has not checked. Cost-to-date here is subs
+    // paid plus material receipts, a LOWER bound, so the one thing to do before
+    // handing it out is top it up with self-performed labour.
+    showAlert(
+      'Period saved',
+      `WIP snapshot for ${periodEndDate} created. Check cost-to-date on each project before you `
+      + 'lock it — the automatic figure counts subs paid and material receipts only, so your own '
+      + 'crews are not in it yet.',
+    );
   }, [addPeriod, liveRows, portfolio]);
 
   const handleLock = useCallback(() => {
     const target = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periods[0];
-    if (!target) { showAlert('No period', 'Save a period snapshot first, then lock it.'); return; }
+    if (!target) {
+      // Two different prerequisites, and sending a GC with no projects to the
+      // Save button — which refuses for the same reason — is a loop.
+      if (liveRows.length === 0) { showAlert('Nothing to lock', NOTHING_TO_REPORT); return; }
+      showAlert('No period', 'Save a period snapshot first, then lock it.');
+      return;
+    }
+    // A period saved before this guard shipped can still be all-zero, and
+    // locking is irreversible — so the row count is checked on the PERIOD, not
+    // on today's live rows.
+    if (target.rows.length === 0) {
+      showAlert('Nothing to lock', `This period has no projects on it. ${NOTHING_TO_REPORT}`);
+      return;
+    }
     if (target.lockedAt) { showAlert('Already locked', 'This period is immutable. Create a new period to make changes.'); return; }
     showAlert('Lock period?', `Locking freezes ${target.periodEndDate}. It can no longer be edited.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Lock', style: 'destructive', onPress: () => { lockPeriod(target.id); void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } },
     ]);
-  }, [selectedPeriodId, periods, lockPeriod]);
+  }, [selectedPeriodId, periods, lockPeriod, liveRows]);
 
   const exportPeriod = useMemo((): WipPeriodWithSources | null => {
     if (selectedPeriodId) return periods.find((p) => p.id === selectedPeriodId) ?? null;
@@ -529,8 +594,42 @@ function WipReportScreenInner() {
     };
   }, [selectedPeriodId, periods, liveRows, portfolio]);
 
+  // What the two button pairs would actually act on, so their appearance and
+  // their behaviour are read off the same thing. `lockTarget` mirrors
+  // handleLock's own selection; Live exports the live rows, a chip exports the
+  // saved period.
+  const lockTarget = selectedPeriodId ? periods.find((p) => p.id === selectedPeriodId) : periods[0];
+  const canExport = (exportPeriod?.rows.length ?? 0) > 0;
+
+  // LOCK IS BLOCKED FOR ITS OWN REASON, NOT FOR THE EXPORT ONE. This button is
+  // dim on any account with no SAVED period — including a healthy one showing a
+  // 15% margin — and it first carried NOTHING_TO_REPORT ("needs at least one
+  // active project with a cost-and-markup estimate"), which on that account is
+  // simply false: he has the project, he has the estimate, he has not saved a
+  // period. A dimmed control explained by a reason that does not apply is worse
+  // than an unexplained one, because a screen reader reads it out as fact.
+  const lockBlockedReason = lockTarget
+    ? (lockTarget.rows.length === 0 ? `This period has no projects on it. ${NOTHING_TO_REPORT}` : null)
+    // No saved period. On an empty account the prerequisite is the schedule
+    // itself, not the snapshot — telling that GC to "save a period first" sends
+    // him to a Save button that refuses for the same reason.
+    : hasRows
+      ? 'Lock freezes a period you have SAVED. Save one first — that is the snapshot your CPA or your bank reads, and locking is what stops it moving underneath them.'
+      : NOTHING_TO_REPORT;
+  const canLock = lockBlockedReason === null;
+
+  // Every reason in force, deduped and in the order the buttons sit in. The
+  // empty-account case produces one line (all four controls share it); a
+  // populated account with no saved period produces only Lock's.
+  const blockedNotes = [...new Set([
+    ...(hasRows ? [] : [NOTHING_TO_REPORT]),
+    ...(lockBlockedReason ? [lockBlockedReason] : []),
+    ...(canExport ? [] : [NOTHING_TO_REPORT]),
+  ])];
+
   const handleExportCsv = useCallback(async () => {
     if (!exportPeriod) return;
+    if (exportPeriod.rows.length === 0) { showAlert('Nothing to export yet', NOTHING_TO_REPORT); return; }
     const csv = wipPeriodToCSV(exportPeriod);
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -539,6 +638,7 @@ function WipReportScreenInner() {
 
   const handleExportPdf = useCallback(async () => {
     if (!exportPeriod) return;
+    if (exportPeriod.rows.length === 0) { showAlert('Nothing to export yet', NOTHING_TO_REPORT); return; }
     try { await shareWipPeriodPdf(exportPeriod, 'MAGE ID'); }
     catch { showAlert('Export failed', 'Could not generate the WIP PDF.'); }
   }, [exportPeriod]);
@@ -594,13 +694,44 @@ function WipReportScreenInner() {
         {/* Portfolio totals */}
         <View style={[styles.card, isDesktop && styles.cardDesktop]}>
           <Text style={styles.sectionTitle}>Portfolio</Text>
-          <Row label="Revised contract" value={money(portfolio.revisedContract)} styles={styles} />
-          <Row label="Earned revenue" value={money(portfolio.earnedRevenue)} styles={styles} />
-          <Row label="Billed to date" value={money(portfolio.billedToDate)} styles={styles} />
-          <Row label="Overbilling" value={money(portfolio.overbilling)} styles={styles} />
-          <Row label="Underbilling" value={money(portfolio.underbilling)} styles={styles} />
-          <Row label="Backlog" value={money(portfolio.backlog)} styles={styles} />
-          <Row label="Weighted margin" value={pct(portfolio.weightedMarginPct)} styles={styles} />
+          {/* Seven zeros above two Export buttons read as a measured position,
+              not as an empty account — and the screen's own "No active
+              projects." sat two cards BELOW them, after the reader had already
+              taken the headline strip for the answer. */}
+          {!hasRows ? (
+            <>
+              <Text style={styles.emptyTitle}>No active projects</Text>
+              <Text style={styles.muted}>
+                A WIP schedule compares what you have EARNED on each job against what you have
+                BILLED for it, so it needs a job to read. To put one on here:
+              </Text>
+              <Text style={styles.muted}>1  Create a project from the Projects tab.</Text>
+              {/* Says what the estimate is FOR, not that it drives every figure
+                  here — the contract side comes from a saved pay application, a
+                  change-order snapshot, a target budget or a GMP cap long before
+                  it falls back to the estimate. Over-claiming on the screen that
+                  teaches the schedule is how the schedule stops being believed. */}
+              <Text style={styles.muted}>2  Give it an estimate with a cost line and a markup — the cost line is what the margin here is measured against.</Text>
+              <Text style={styles.muted}>3  Come back and Save period to snapshot it, then top up cost-to-date with your own crews before you lock it.</Text>
+            </>
+          ) : (
+            <>
+              <Row label="Revised contract" value={money(portfolio.revisedContract)} styles={styles} />
+              <Row label="Earned revenue" value={money(portfolio.earnedRevenue)} styles={styles} />
+              <Row label="Billed to date" value={money(portfolio.billedToDate)} styles={styles} />
+              <Row label="Overbilling" value={money(portfolio.overbilling)} styles={styles} />
+              <Row label="Underbilling" value={money(portfolio.underbilling)} styles={styles} />
+              <Row label="Backlog" value={money(portfolio.backlog)} styles={styles} />
+              <Row label="Weighted margin" value={pct(portfolio.weightedMarginPct)} styles={styles} />
+              {/* The margin above is the one figure on this screen a lender
+                  reads as a verdict, and it never said what cost it was
+                  measured against. Same sentence /reports prints, from the same
+                  helper, so the two schedules explain themselves identically. */}
+              <Text style={styles.basisLine} testID="wip-cost-basis">
+                {describePortfolioCostBasis(portfolioBases, portfolio.costToDate)}
+              </Text>
+            </>
+          )}
         </View>
 
         {/* Period selector */}
@@ -621,24 +752,66 @@ function WipReportScreenInner() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+          {/* All four read as unavailable with nothing on the schedule, the
+              note below them carries the reason, and each handler refuses and
+              explains as well — so a platform that lets the press through
+              cannot produce an all-zero bank document. */}
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleSnapshot}>
+            <TouchableOpacity
+              style={[styles.actionBtn, !hasRows && styles.actionBtnBlocked]}
+              onPress={handleSnapshot}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !hasRows }}
+              accessibilityHint={!hasRows ? NOTHING_TO_REPORT : undefined}
+            >
               <Text style={styles.actionBtnText}>Save period</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleLock}>
+            <TouchableOpacity
+              style={[styles.actionBtn, !canLock && styles.actionBtnBlocked]}
+              onPress={handleLock}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canLock }}
+              accessibilityHint={lockBlockedReason ?? undefined}
+            >
               <Lock size={14} color={themeColors.text} strokeWidth={2} />
               <Text style={styles.actionBtnText}>Lock</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleExportCsv}>
+            <TouchableOpacity
+              style={[styles.actionBtn, !canExport && styles.actionBtnBlocked]}
+              onPress={handleExportCsv}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canExport }}
+              accessibilityHint={!canExport ? NOTHING_TO_REPORT : undefined}
+            >
               <FileSpreadsheet size={14} color={themeColors.text} strokeWidth={2} />
               <Text style={styles.actionBtnText}>Export CSV</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleExportPdf}>
+            <TouchableOpacity
+              style={[styles.actionBtn, !canExport && styles.actionBtnBlocked]}
+              onPress={handleExportPdf}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canExport }}
+              accessibilityHint={!canExport ? NOTHING_TO_REPORT : undefined}
+            >
               <Text style={styles.actionBtnText}>Export PDF</Text>
             </TouchableOpacity>
           </View>
+          {/* A blocked button says why, VISIBLY — the repo's own pattern
+              (app/cash-flow.tsx:1157). The alert on tap is the belt; a reader
+              who never taps, and a screen reader that reads the row as
+              disabled, still get the reason. Every reason in force is printed,
+              deduped: this used to render only on an empty account, so a
+              populated one showed a dimmed Lock with nothing on screen saying
+              why it was dim. */}
+          {blockedNotes.length > 0 ? (
+            <View testID="wip-export-blocked">
+              {blockedNotes.map((note) => (
+                <Text key={note} style={styles.blockedNote}>{note}</Text>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {/* Per-project rows (live) */}
@@ -663,6 +836,7 @@ function WipReportScreenInner() {
           ) : liveRows.map((r) => {
             const prior = priorPeriod?.rows.find((pr) => pr.projectId === r.projectId)?.output;
             const flags = flagWipRow(r.output, prior);
+            const rowCost = costBases.get(r.projectId);
             const flagged = flags.profitFade || flags.billingSwing || flags.scheduleDivergence;
             return (
               <TouchableOpacity key={r.projectId} style={styles.projectRow} onPress={() => openDrill(r.projectId)}>
@@ -673,13 +847,23 @@ function WipReportScreenInner() {
                       indistinguishable from one typed here and from the
                       subs+materials estimate. All three read the same, and the
                       GC only found out which he had when the surety asked. */}
+                  {/* "$0 · est." called a zero an estimate. Nothing was
+                      estimated — nothing has been PAID. On this very account
+                      that row sat beside $42,200 of signed subcontracts, so a
+                      GC reading it reasonably concluded MAGE had costed his job
+                      at zero rather than that no payment had cleared. The
+                      branch now reads the VALUE as well as the source. */}
                   <Text style={styles.muted}>
                     Cost-to-date {money(r.input.costToDate)}
                     {r.sources?.costToDate === 'entered_and_synced'
                       ? ' · entered by you, synced'
                       : r.sources?.costToDate === 'entered_on_this_device'
                         ? ' · entered here, not synced yet'
-                        : ' · est. (tap to add labor)'}
+                        : r.input.costToDate > 0
+                          ? ' · subs paid + material receipts only — tap to add your own crews'
+                          : rowCost && rowCost.committedFloor > 0
+                            ? ` — nothing paid out yet, though ${money(rowCost.committedFloor)} is signed. Tap to enter what this job has cost you.`
+                            : ' — nothing recorded yet. Tap to enter what this job has cost you.'}
                   </Text>
                 </View>
                 {flagged ? <AlertTriangle size={16} color={themeColors.danger} strokeWidth={2} /> : null}
@@ -758,6 +942,13 @@ function WipReportScreenInner() {
                       <Text style={styles.sourceLine}>
                         Cost budget {money(drillInput.totalEstimatedCost)} —{' '}
                         {WIP_SOURCE_LABELS[drillRow.sources.totalEstimatedCost]}
+                      </Text>
+                      {/* Which of the two candidates that branch actually was,
+                          and what the other one holds. Naming the branch alone
+                          still left "why is this $131,502 when I have signed
+                          $42,200 of subs" unanswered. */}
+                      <Text style={styles.sourceLine}>
+                        {describeCostBasis(drillRow.cost, drillInput.costToDate)}
                       </Text>
                       <Text style={styles.sourceLine}>
                         {drillRow.override
@@ -848,6 +1039,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   dataLabel: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
   dataValue: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '600' as const },
   muted: { fontSize: Type.footnote.fontSize, color: t.textMuted },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 2 },
+  basisLine: {
+    fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16,
+    marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line,
+  },
+  // Reads as unavailable; the note below it carries the reason.
+  actionBtnBlocked: { opacity: 0.45 },
+  blockedNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, marginTop: 8 },
   projectRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: t.line,

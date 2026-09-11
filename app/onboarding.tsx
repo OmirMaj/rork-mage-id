@@ -47,6 +47,7 @@ import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { useProjects } from '@/contexts/ProjectContext';
+import { mergedBidBranding } from '@/utils/bidDocumentIdentity';
 import { showAlert } from '@/utils/alert';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -120,13 +121,21 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
-    completeOnboarding,
+    completeOnboarding, settings, updateSettings,
     addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder,
   } = useProjects();
   const { addSeeds } = useCostSeeds();
   const { colors: themeColors } = useTheme();
 
   const [step, setStep] = useState<Step>('splash');
+
+  // Company name, asked here rather than on top of the first send.
+  // utils/bidDocumentIdentity blocks the first share until this is set — the
+  // proposal header would otherwise print "MAGE ID", the software's name, on a
+  // contractor's bid — so onboarding skipping it guaranteed that the ONE ask
+  // that lands on a success (the bid leaving for the homeowner) was a form.
+  // Optional: blank leaves the existing gate exactly as it was.
+  const [companyName, setCompanyName] = useState('');
 
   // Card-stack progressive disclosure — which preview card is showing.
   const [cardIndex, setCardIndex] = useState(0);
@@ -322,9 +331,15 @@ export default function OnboardingScreen() {
   // re-looped back here. No demo-seed: the wizard itself is the aha.
   const goPriceFirstBid = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Saved on both exits from this step (paste rates or skip them), so the
+    // name is captured whichever way he leaves.
+    const typedName = companyName.trim();
+    if (typedName) {
+      updateSettings({ branding: mergedBidBranding(settings?.branding, { companyName: typedName }) });
+    }
     await completeOnboarding();
     router.replace('/estimate-wizard?onboarding=1' as never);
-  }, [completeOnboarding, router]);
+  }, [completeOnboarding, router, companyName, settings?.branding, updateSettings]);
 
   // ── Seed-your-rates step ─────────────────────────────────────────────
   const handleRatesParse = useCallback(() => {
@@ -608,6 +623,22 @@ export default function OnboardingScreen() {
                   MAGE learns your rates from every job you close — which means nothing to
                   price with today. Paste what you already charge and your first estimate is
                   built on your numbers, not a national average.
+                </Text>
+                <Text style={styles.fieldLabel}>Your company name</Text>
+                <TextInput
+                  style={styles.nameInput}
+                  value={companyName}
+                  onChangeText={setCompanyName}
+                  placeholder="e.g. Harlow Building Co."
+                  placeholderTextColor={BRAND.fog}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  testID="onboarding-company-name"
+                />
+                <Text style={styles.fieldNote}>
+                  Prints on the header of every bid you send. Optional — we&apos;ll ask before the
+                  first one goes out if you skip it.
                 </Text>
                 <TextInput
                   style={styles.pasteInput}
@@ -947,6 +978,30 @@ const styles = StyleSheet.create({
   },
 
   // ── Rates step paste / confirm UI ───────────────────────────────────
+  fieldLabel: {
+    fontSize: Type.caption1.fontSize,
+    color: BRAND.cream,
+    fontWeight: '700' as const,
+    marginBottom: 6,
+  },
+  nameInput: {
+    backgroundColor: 'rgba(244,239,230,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,239,230,0.16)',
+    borderRadius: Tokens.radius.lg,
+    ...continuousCorners,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: Type.bodyCompact.fontSize,
+    color: BRAND.cream,
+    marginBottom: 6,
+  },
+  fieldNote: {
+    fontSize: Type.caption2.fontSize,
+    color: BRAND.fog,
+    lineHeight: 15,
+    marginBottom: 12,
+  },
   pasteInput: {
     minHeight: 140,
     backgroundColor: 'rgba(244,239,230,0.08)',

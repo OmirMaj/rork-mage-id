@@ -55,6 +55,7 @@ import { NavRow, type NavRowTone } from '@/components/NavRow';
 import EmptyState from '@/components/EmptyState';
 import { useProjects } from '@/contexts/ProjectContext';
 import { featureFor, type FeatureId } from '@/utils/featureRegistry';
+import { useTierAccess } from '@/hooks/useTierAccess';
 
 const SECTIONS = [
   'AI HUB', 'DECISIONS', 'FIELD', 'MONEY', 'FIND WORK',
@@ -91,7 +92,7 @@ const TOOL_ROWS: ToolRow[] = [
   { feature: 'takeoff', route: '/takeoff', Icon: Ruler, title: 'AI Takeoff', subtitle: 'Upload a PDF, get a quantity takeoff with linear / area / count', tone: 'accent', testID: 'tools-takeoff', section: 'AI HUB' },
   { feature: 'plan-intelligence', route: '/plan-intelligence', Icon: ScanSearch, title: 'Plan Intelligence', subtitle: 'AI reads the floor plan room by room — and learns your prices every job', tone: 'accent', testID: 'tools-plan-intelligence', section: 'AI HUB' },
   { feature: 'ai-punch', route: '/ai-punch', Icon: ListChecks, title: 'AI Punch from Photos', subtitle: 'Walk a site with the camera, get a punch list back', tone: 'accent', testID: 'tools-ai-punch', section: 'AI HUB' },
-  { feature: 'compare-drawings', route: '/compare-drawings', Icon: Layers, title: 'Compare Drawings', subtitle: 'Diff two plan revisions, see exactly what changed', tone: 'accent', testID: 'tools-compare-drawings', section: 'AI HUB' },
+  { feature: 'compare-drawings', route: '/compare-drawings', Icon: Layers, title: 'Compare Drawings', subtitle: 'See exactly what changed between two plan revisions', tone: 'accent', testID: 'tools-compare-drawings', section: 'AI HUB' },
   { feature: 'extract-submittals', route: '/extract-submittals', Icon: ScanLine, title: 'Spec Book Extract', subtitle: 'Pull submittal requirements out of a 200-page spec book in one tap', tone: 'accent', testID: 'tools-spec-extract', section: 'AI HUB' },
   { feature: 'scan', route: '/scan', Icon: ScanLine, title: 'Scan Anything', subtitle: 'Snap any doc — invoice, business card, COI — it files itself to the right project', tone: 'warning', testID: 'tools-scan', section: 'AI HUB' },
 
@@ -116,9 +117,17 @@ const TOOL_ROWS: ToolRow[] = [
   { feature: 'time-tracking', route: '/time-tracking', Icon: Clock, title: 'Time tracking', subtitle: 'Crew hours & timesheets', tone: 'primary', testID: 'tools-time-tracking', section: 'FIELD', needsProjects: true },
   { feature: 'plans', route: '/plans', Icon: ImageIcon, title: 'Plans & drawings', subtitle: 'Markup, compare versions, share', tone: 'info', testID: 'tools-plans', section: 'FIELD', needsProjects: true },
   // Safety hub — Business-tier. Only reachable via DesktopSidebar before this
-  // tile, so it shipped dark on iOS (the primary target). /safety handles a
-  // missing projectId (company-scoped tiles + picker) and renders its own
+  // tile, so it shipped dark on iOS (the primary target). It renders its own
   // Paywall for non-Business.
+  //
+  // This comment used to claim "/safety handles a missing projectId
+  // (company-scoped tiles + picker)". It does not: app/safety.tsx has no
+  // ToolProjectPicker, and with no projectId it shows the company-wide tiles
+  // over an "Open a project for on-site tools" card whose only button bounces
+  // to Home — so a GC with a live job is sent away to fetch the thing he
+  // already has. The row stays (the company-wide half is genuinely useful with
+  // no project); the claim is gone until app/safety.tsx actually grows a
+  // picker. Documents lie, code doesn't.
   { feature: 'safety', route: '/safety', Icon: HardHat, title: 'Safety', subtitle: 'JHAs, toolbox talks, incidents, inspections & OSHA logs', tone: 'warning', testID: 'tools-safety', section: 'FIELD', needsProjects: true },
   // PRODUCT-F4 / UX-F16: the 09-02 Deliveries batch shipped with no iOS entry
   // point at all (sidebar ≥1024pt + search only).
@@ -194,6 +203,47 @@ export default function DiscoverToolsScreen() {
   const { projects } = useProjects();
   const hasProjects = projects.length > 0;
 
+  // Tier badge. Tools is the only feature-discovery surface on iPhone, and it
+  // was showing a free contractor twenty rows with nothing to separate the
+  // ones he can open from the ones that bounce him to a plan chooser — his
+  // first three taps were three paywalls, which reads as bait rather than as a
+  // price boundary. NavRow already had the slot (`meta`) and this file never
+  // passed it.
+  //
+  // The gate is read from the registry entry, never from a field on the row,
+  // so the badge and the destination's own gate cannot fork — the same rule
+  // components/DesktopSidebar.tsx:155 states for its lock icon. Do NOT add a
+  // `requires` field to ToolRow to badge more rows: that is a second source of
+  // truth and it will drift from the gate the screen enforces.
+  //
+  // Consequence, so nobody reads a missing badge as a bug. MEASURED against
+  // this grid, not quoted from the registry-wide validator: of the 53 rows
+  // here, 22 badge, 21 have no tier gate anywhere, and TEN gate on canAccess()
+  // with no registry `requires`, so they stay blank — construction-ai
+  // ('ai_code_check'), takeoff ('ai_estimate_wizard'), ai-punch
+  // ('punch_list_closeout'), plans ('plan_markup'), permits, oac-meeting,
+  // win-optimizer, sub-scorecard, estimate-calibration, closeout-binder.
+  // Fixing them is one line each IN THE REGISTRY and this badge picks each one
+  // up with no edit here.
+  //
+  // Do NOT extend that list by eye. compare-drawings and extract-submittals
+  // look like paid AI rows and are NOT gated (grep: zero canAccess in either
+  // screen) — giving them a `requires` would put a lock chip in front of a
+  // screen that opens, which scripts/validate-feature-registry-gates.ts fails
+  // on by name. Run that script for the real list.
+  //
+  // A partial badge set is still strictly better than none: an unbadged row is
+  // a wall 10 times in 31 (32%) where before the change every row was a coin
+  // flip at 32 in 53 (60%). No badge here ever over-claims — the same
+  // validator proves no chip advertises a tier its destination does not
+  // enforce, in either direction.
+  const { canAccess, requiredTierFor } = useTierAccess();
+  const tierMeta = useCallback((row: ToolRow): string | undefined => {
+    const requires = featureFor(row.feature).requires;
+    if (!requires || canAccess(requires)) return undefined;
+    return requiredTierFor(requires).toUpperCase();
+  }, [canAccess, requiredTierFor]);
+
   // Push the REGISTRY route, not the row's literal, so a literal that has
   // drifted since ship-check last ran cannot misroute anyone.
   const open = useCallback(
@@ -246,6 +296,7 @@ export default function DiscoverToolsScreen() {
                     Icon={row.Icon}
                     title={row.title}
                     subtitle={row.subtitle}
+                    meta={tierMeta(row)}
                     tone={row.tone}
                     onPress={() => open(row)}
                     testID={row.testID}

@@ -33,6 +33,27 @@ import type {
 // cannot express its own opinion about what a billing or a WIP-reportable job
 // is. scripts/validate-wip-parity.ts asserts both engines return the same
 // dollars for the same inputs.
+//
+// AXIS 2 IS NOW SETTLED HERE TOO (polish audit 2026-09-10, the worst finding in
+// it). On one seeded job — a $155,172 contract against a $131,502 estimate with
+// $42,200 of subs already awarded — /wip-report printed "Weighted margin 15%"
+// and /reports printed "Projected profit -$18,530 / -11.9%", same account, same
+// session, same project, and neither said which cost it had measured against.
+// Two screens that both call themselves bank-ready, 27 margin points apart, and
+// the contractor is the one who has to explain it to the lender.
+//
+// The -11.9% was not a second defensible opinion, it was a double count:
+// computeWIPReport read jobCostEngine's per-phase EAC, and the engine buckets a
+// commitment by its free-text `phase` ("Electrical") while it buckets the
+// estimate by `item.category` ("subcontractor"). The strings differ, so awarding
+// the two subs the estimate had already priced added $42,200 ON TOP of the
+// $131,502 that still priced them. A GC who buys out exactly what he estimated
+// was told he was losing money.
+//
+// So there is one definition now, `deriveEstimatedCostWithSource` below, and
+// both schedules route through it. Fixing the phase-matching inside the engine
+// is still worth doing for the Job Costing screen, but it is not what makes
+// these two reports foot — one definition is.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -59,6 +80,33 @@ export function isWipBilling(invoice: Pick<Invoice, 'status'>): boolean {
  */
 export function isWipReportableProject(project: Pick<Project, 'status'>): boolean {
   return project.status !== 'closed';
+}
+
+/**
+ * DEFINITION 5 — a SIGNED commitment is money the GC is contractually bound to
+ * pay out.
+ *
+ * A `draft` subcontract or PO has been issued to nobody: it binds the GC to
+ * nothing and must not raise his cost-at-completion. utils/jobCostEngine.ts
+ * draws the line in exactly the same place (`c.status !== 'draft'`), so the two
+ * cost engines cannot disagree about which commitments exist — which is how the
+ * two WIP schedules came to disagree about everything else.
+ */
+export function isSignedCommitment(commitment: Pick<Commitment, 'status'>): boolean {
+  return commitment.status !== 'draft';
+}
+
+/**
+ * Σ what the GC has signed for — the original amount plus the net of the change
+ * orders written against each commitment. COST leaving the business, never
+ * revenue arriving. `amount` is deliberately never mutated by a CO revision
+ * (see the field doc on Commitment), so reading it alone understates every
+ * commitment that has been revised.
+ */
+export function sumSignedCommitmentValue(commitments: Commitment[]): number {
+  return commitments
+    .filter(isSignedCommitment)
+    .reduce((sum, c) => sum + (c.amount ?? 0) + (c.changeAmount ?? 0), 0);
 }
 
 /** Clamp with NaN → lo, so divide-by-zero never leaks a NaN downstream. */
@@ -160,6 +208,7 @@ export type WipSource =
   | 'estimate_base_total'
   | 'signed_commitments'
   | 'commitments_and_receipts'
+  | 'cost_incurred'
   | 'none';
 
 /** A derived WIP figure and the branch it came from. */
@@ -184,6 +233,8 @@ export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
   signed_commitments: 'Signed subcontracts and POs, including CO revisions',
   commitments_and_receipts:
     'Subs paid to date plus material receipts — self-performed labor NOT included, so this is a lower bound',
+  cost_incurred:
+    'Cost you have already paid out on this job — more than the estimate or the commitments, so it sets the floor',
   none: 'No source on file — enter this figure yourself',
 };
 
@@ -448,18 +499,46 @@ export function suggestCostToDateWithSource(
 }
 
 /**
- * Estimated cost at completion (the WIP "Total Estimated Cost" input) — the
- * GC's COST budget, which MUST be sourced separately from the contract value
- * (revenue). Precedence:
+ * Estimated cost at completion — the GC's COST budget, which MUST be sourced
+ * separately from the contract value (revenue).
+ *
+ * THE ONE DEFINITION, used by both bank-facing WIP schedules and by the Profit
+ * report (axis 2 of the parity work; see the header):
+ *
+ *     cost at completion = max(estimate cost basis, Σ signed commitments)
+ *
+ * The estimate is the plan; the signed commitments are a FLOOR under it,
+ * because a job cannot be finished for less than the money already contracted
+ * out. Taking the greater of the two is what makes buyout safe to do: awarding
+ * the sub the estimate already priced leaves the number where it was, and only
+ * a sub signed ABOVE the estimate moves it — which is the real event, and the
+ * one a lender wants to see.
+ *
+ * That max() is the whole fix for the double count. Adding the two together (or
+ * per-phase, when the phase strings do not match) is what printed a $173,702
+ * cost-at-completion on a $131,502 estimate whose two subcontractor lines were
+ * exactly the two subs that had been awarded.
+ *
+ * Estimate-side precedence:
  *   1. linkedEstimate.baseTotal — cost before markup (the true cost budget;
  *      grandTotal there is the PRICED figure and must not be used as cost).
  *   2. legacy project.estimate.grandTotal — no markup split exists, so this is
  *      the best-available cost estimate.
- *   3. Σ signed commitment amounts (subs + POs, incl. CO revisions).
- *   4. 0 — no cost basis recorded; the engine's zero-est guard yields 0%
- *      complete and the screen prompts manual entry (never silently wrong).
+ * Then the commitments floor; then 0 — no cost basis recorded, so the engine's
+ * zero-est guard yields 0% complete and the screen prompts manual entry (never
+ * silently wrong).
+ *
  * targetBudget / gmpCap are deliberately NOT used here — those are contract
  * (revenue) figures reserved for deriveOriginalContract.
+ *
+ * DIRECT actual cost (material receipts, crew hours, equipment days, permit
+ * fees) is deliberately NOT part of the floor. A snapped receipt is usually a
+ * draw against a PO whose full value is already counted here, so adding it
+ * would reintroduce the same double count one layer down — the very arithmetic
+ * utils/jobCostEngine.ts documents as EAC-DIRECT-1. The consequence, stated
+ * plainly so nobody has to rediscover it: a job carried entirely on
+ * self-performed labour with no commitments reads its cost at completion off
+ * the estimate alone, and the GC's typed cost-to-date is what corrects it.
  */
 export function deriveEstimatedCost(
   project: Pick<Project, 'linkedEstimate' | 'estimate'> | null | undefined,
@@ -474,13 +553,35 @@ export function deriveEstimatedCost(
   return deriveEstimatedCostWithSource(project, commitments, opts).value;
 }
 
+/**
+ * A cost-at-completion, the branch that supplied it, AND both candidates — so a
+ * report can print the sentence a banker needs ("this margin is measured
+ * against your estimate's cost, and the $42,200 you have signed is inside that
+ * figure, not on top of it") instead of an unexplained number.
+ */
+export interface WipEstimatedCost extends WipDerived {
+  /** The estimate's own cost line, topped up for approved COs. COST. */
+  estimateBasis: number;
+  /** Σ signed (non-draft) commitment value — money contracted OUT. COST. */
+  committedFloor: number;
+  /**
+   * COST ALREADY PAID OUT on this job — subs paid, receipts, crew hours,
+   * equipment, permits. The hardest of the three floors, because it is the only
+   * one that is not a forecast: the job cannot finish for less than what it has
+   * already cost.
+   */
+  incurredFloor: number;
+  /** Which candidate `value` is. 'none' = no cost basis on file at all. */
+  basis: 'estimate' | 'commitments' | 'incurred' | 'none';
+}
+
 /** deriveEstimatedCost, plus which branch supplied the cost base. */
 export function deriveEstimatedCostWithSource(
   project: Pick<Project, 'linkedEstimate' | 'estimate'> | null | undefined,
   commitments: Commitment[],
-  opts?: { approvedChangeOrders?: number; originalContract?: number },
-): WipDerived {
-  // Which branch supplied the base matters: the commitments branch already
+  opts?: { approvedChangeOrders?: number; originalContract?: number; costIncurred?: number },
+): WipEstimatedCost {
+  // Which branch supplied the base matters: the commitments floor already
   // contains CO cost (c.changeAmount is the sub-side CO revision), so adding a
   // derived CO cost on top of it would DOUBLE COUNT. The estimate branches are
   // frozen at original scope and are the ones that need topping up.
@@ -488,50 +589,237 @@ export function deriveEstimatedCostWithSource(
   let baseIsOriginalScope = false;
   let source: WipSource = 'none';
 
+  // Already CO-inclusive, and drafts excluded — an unissued PO binds nobody.
+  const committedFloor = sumSignedCommitmentValue(commitments);
+
   const fromEstimate = project?.linkedEstimate?.baseTotal;
   const fromLegacy = project?.estimate?.grandTotal;
   if (typeof fromEstimate === 'number' && fromEstimate > 0) {
     base = fromEstimate; baseIsOriginalScope = true; source = 'estimate_base_total';
   } else if (typeof fromLegacy === 'number' && fromLegacy > 0) {
     base = fromLegacy; baseIsOriginalScope = true; source = 'legacy_estimate_grand_total';
-  } else {
-    const committed = commitments.reduce(
-      (sum, c) => sum + (c.amount ?? 0) + (c.changeAmount ?? 0), 0);
-    if (committed > 0) { base = committed; source = 'signed_commitments'; } // already CO-inclusive
   }
 
-  if (base === 0) return { value: 0, source: 'none' };
-  if (!baseIsOriginalScope) return { value: base, source };
+  if (base === 0 && committedFloor === 0) {
+    return { value: 0, source: 'none', estimateBasis: 0, committedFloor: 0, incurredFloor: 0, basis: 'none' };
+  }
 
+  const estimateBasis = baseIsOriginalScope
+    ? topUpForChangeOrders(base, opts)
+    : base;
+
+  // The floor only binds when it is ABOVE the plan and is itself a real figure.
+  // `> 0` matters: a deductive-CO estimate basis can go negative, and a $0
+  // floor must not then "win" and claim signed commitments as its provenance.
+  // THE THIRD FLOOR, and the only one that is not a forecast. A job cannot
+  // finish for less than what it has ALREADY cost. Without this, a job that has
+  // burned past its estimate reports the estimate as its cost at completion and
+  // therefore a profit it has already spent its way out of — on the document a
+  // bank and a surety underwrite. Added 2026-09-10 after the polish audit found
+  // /reports had been flipped from overstating cost (conservative on a surety
+  // document) to understating it.
+  //
+  // A max can never double count, which is why all three candidates can stand
+  // side by side: whichever is largest is the one that binds.
+  const incurredFloor = Math.max(0, opts?.costIncurred ?? 0);
+
+  const winner = Math.max(estimateBasis, committedFloor, incurredFloor);
+
+  // Ordering on ties is deliberate: the SOFTEST explanation wins a tie, because
+  // saying "this is your estimate" when the numbers coincide is less alarming
+  // and equally true. Only a strict `>` promotes a harder floor.
+  if (incurredFloor > estimateBasis && incurredFloor > committedFloor && incurredFloor > 0) {
+    return {
+      value: incurredFloor,
+      source: 'cost_incurred',
+      estimateBasis,
+      committedFloor,
+      incurredFloor,
+      basis: 'incurred',
+    };
+  }
+  if (committedFloor > estimateBasis && committedFloor > 0) {
+    return {
+      value: committedFloor,
+      source: 'signed_commitments',
+      estimateBasis,
+      committedFloor,
+      incurredFloor,
+      basis: 'commitments',
+    };
+  }
+  void winner;
+  return { value: estimateBasis, source, estimateBasis, committedFloor, incurredFloor, basis: 'estimate' };
+}
+
+/**
+ * Grow an original-scope cost budget by the COST of the approved change orders
+ * whose REVENUE computeWipRow has already added to revisedContract.
+ *
+ * THE BUG THIS CLOSES. computeWipRow does
+ *     revisedContract = originalContract + approvedChangeOrders
+ *     estGrossProfit  = revisedContract - totalEstimatedCost
+ * so a change order that adds revenue while the cost budget stays frozen at the
+ * original estimate books at ONE HUNDRED PERCENT MARGIN. A $500k job carrying
+ * $100k of approved COs reported ~$100k of profit that does not exist.
+ * percentComplete (costToDate / totalEstimatedCost) inflated too, because
+ * costToDate DOES pick up CO-driven actuals through commitments and material
+ * receipts — so earned revenue and underbilling inflated with it.
+ *
+ * A WIP schedule is the document a surety and a bank underwrite against.
+ * Overstating profit on one is not a display bug.
+ *
+ * ChangeOrder carries no cost field — lineItems hold unitPrice/total, which are
+ * PRICED figures — so CO cost cannot be read, only estimated. We apply the job's
+ * own cost ratio, i.e. assume a CO carries the same margin as the base contract.
+ * That is the standard WIP convention and it is far closer to truth than
+ * assuming the CO is free to deliver.
+ *
+ * When there is no contract basis to derive a ratio from, fall back to a 1.0
+ * ratio — cost equals revenue, zero margin on the CO. That UNDERstates profit,
+ * which is the correct direction to be wrong on a document a surety reads. Never
+ * fall back to 0.
+ */
+function topUpForChangeOrders(
+  base: number,
+  opts?: { approvedChangeOrders?: number; originalContract?: number },
+): number {
   const coRevenue = opts?.approvedChangeOrders ?? 0;
-  if (coRevenue === 0) return { value: base, source };
-
-  // THE BUG THIS CLOSES. computeWipRow does
-  //     revisedContract = originalContract + approvedChangeOrders
-  //     estGrossProfit  = revisedContract - totalEstimatedCost
-  // so a change order that adds revenue while the cost budget stays frozen at
-  // the original estimate books at ONE HUNDRED PERCENT MARGIN. A $500k job
-  // carrying $100k of approved COs reported ~$100k of profit that does not
-  // exist. percentComplete (costToDate / totalEstimatedCost) inflated too,
-  // because costToDate DOES pick up CO-driven actuals through commitments and
-  // material receipts — so earned revenue and underbilling inflated with it.
-  //
-  // A WIP schedule is the document a surety and a bank underwrite against.
-  // Overstating profit on one is not a display bug.
-  //
-  // ChangeOrder carries no cost field — lineItems hold unitPrice/total, which
-  // are PRICED figures — so CO cost cannot be read, only estimated. We apply
-  // the job's own cost ratio, i.e. assume a CO carries the same margin as the
-  // base contract. That is the standard WIP convention and it is far closer to
-  // truth than assuming the CO is free to deliver.
-  //
-  // When there is no contract basis to derive a ratio from, fall back to a
-  // 1.0 ratio — cost equals revenue, zero margin on the CO. That UNDERstates
-  // profit, which is the correct direction to be wrong on a document a surety
-  // reads. Never fall back to 0.
+  if (coRevenue === 0) return base;
   const originalContract = opts?.originalContract ?? 0;
   const costRatio = originalContract > 0 ? base / originalContract : 1;
-  return { value: base + coRevenue * costRatio, source };
+  return base + coRevenue * costRatio;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SAYING WHICH COST A MARGIN WAS MEASURED AGAINST.
+//
+// Both screens print a margin above an Export button, and until now neither
+// named its basis. The audit's verdict was the right one: two reports that
+// disagree but each say why are survivable; two that disagree silently are not.
+// Now that they agree, the sentence is still the point — a number a banker reads
+// has to say where it came from, and "Est. final cost $173,702" arriving with no
+// explanation on a $131,502 estimate is what nobody could account for.
+//
+// One function for both screens and for the PDF, so the three cannot end up
+// explaining the same schedule three different ways.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * COST ALREADY SPENT IS A FLOOR THIS DEFINITION DOES NOT ENFORCE, SO IT SAYS SO.
+ *
+ * `deriveEstimatedCostWithSource` takes max(estimate, signed commitments) and
+ * stops there — direct actual cost (material receipts, crew hours, equipment
+ * days, permit fees) is deliberately not a third candidate; the reason is on
+ * that function. The consequence is a job that has already burned more than its
+ * estimate still reports the estimate as its cost at completion, and therefore
+ * reports a profit it has spent its way out of. That understates cost on a
+ * document a lender underwrites, which is the dangerous direction to be wrong.
+ *
+ * Raising the number needs a third branch of `WipSource`, and that type is
+ * pinned exactly by scripts/validate-wip-parity.ts (see this wave's handoff for
+ * the edit). Until that lands, the figure does not move and the sentence tells
+ * the reader the one thing that makes it safe to read: what he has already
+ * spent is larger than what the report says the job will cost.
+ *
+ * COST on both sides — `costIncurred` is money paid out, never money billed.
+ */
+function overspentNote(costAtCompletion: number, costIncurred?: number): string {
+  if (costIncurred == null || costIncurred <= costAtCompletion) return '';
+  return ` You have already recorded ${wipMoney(costIncurred)} of cost on this job — MORE than the `
+    + 'cost at completion above, so the margin here is overstated. Update the estimate to what the '
+    + 'job now costs before anyone underwrites it.';
+}
+
+/**
+ * One project's cost basis, in the words a GC uses with his banker.
+ *
+ * `costIncurred` is optional so a caller that genuinely does not know what the
+ * job has cost (the PDF builder, working from a frozen snapshot row) omits it
+ * rather than passing a 0 that would read as "nothing spent".
+ */
+export function describeCostBasis(cost: WipEstimatedCost, costIncurred?: number): string {
+  if (cost.basis === 'none') {
+    return 'Cost basis: nothing on file. Give this job an estimate with a cost line, or type its '
+      + 'cost-to-date, before you hand these figures to anyone.';
+  }
+  if (cost.basis === 'commitments') {
+    // The second clause is not decoration. This branch says the awarded subs
+    // ARE the cost at completion, and a reader would take that as the whole
+    // cost — but nothing self-performed and nothing bought outside a commitment
+    // is in the figure, so on a self-perform-heavy job it is a floor, not a
+    // forecast.
+    return `Cost basis: signed subcontracts and POs, ${wipMoney(cost.committedFloor)} — already above `
+      + `the ${wipMoney(cost.estimateBasis)} cost line in your estimate, so what you have awarded now `
+      + 'sets the cost at completion. Work you self-perform, and anything bought outside a '
+      + 'subcontract or PO, is not in that figure.' + overspentNote(cost.value, costIncurred);
+  }
+  if (cost.committedFloor > 0) {
+    // NOT "is inside that figure" — MAGE cannot know that. Nothing ties a
+    // commitment to the estimate line it fulfils (the job-cost engine's attempt
+    // to, by matching a free-text phase against an item category, is what
+    // printed a $42,200 double count in the first place). So this states the
+    // CONVENTION and then states what it costs the reader if the convention is
+    // wrong for his job, which is the only honest way to say it.
+    return `Cost basis: your estimate's cost before markup, ${wipMoney(cost.estimateBasis)}. The `
+      + `${wipMoney(cost.committedFloor)} you have signed in subcontracts and POs is read as work `
+      + 'that estimate already prices, so it is not added on top of it. If any of it is scope your '
+      + 'estimate never priced, this job will cost more than the figure above.'
+      + overspentNote(cost.value, costIncurred);
+  }
+  return `Cost basis: your estimate's cost before markup, ${wipMoney(cost.estimateBasis)}. Nothing `
+    + 'signed in subcontracts or POs against it yet.' + overspentNote(cost.value, costIncurred);
+}
+
+/**
+ * The same sentence for a roll-up. Mixed portfolios say so and send the reader
+ * to the per-project drill rather than picking one basis to speak for all of
+ * them — which is the class of quiet averaging this whole wave is about.
+ *
+ * `costIncurred` is the portfolio's total cost-to-date (COST, money paid out —
+ * not billings). Optional for the same reason as on describeCostBasis: a caller
+ * that cannot see it must omit it rather than pass a 0 that reads as measured.
+ */
+export function describePortfolioCostBasis(
+  costs: WipEstimatedCost[],
+  costIncurred?: number,
+): string {
+  if (costs.length === 0) return '';
+  if (costs.length === 1) return describeCostBasis(costs[0], costIncurred);
+
+  const jobs = (n: number) => `${n} job${n === 1 ? '' : 's'}`;
+  const onEstimate = costs.filter((c) => c.basis === 'estimate');
+  const onCommitments = costs.filter((c) => c.basis === 'commitments');
+  const onNothing = costs.filter((c) => c.basis === 'none');
+  const total = costs.reduce((sum, c) => sum + c.value, 0);
+  // The roll-up's own overspend check. Per-project overspends can hide inside a
+  // portfolio total, so this only fires when the BOOK is spent past its own
+  // cost at completion — the per-project sentence in the drill-in catches the
+  // rest.
+  const overspent = overspentNote(total, costIncurred);
+
+  if (onNothing.length === costs.length) {
+    return `Cost basis: nothing on file for any of these ${jobs(costs.length)} — there is no cost for `
+      + 'the margin below to be measured against.';
+  }
+  if (onEstimate.length === costs.length) {
+    return `Cost basis: your estimates' cost before markup across ${jobs(costs.length)}, `
+      + `${wipMoney(total)}. Signed subcontracts and POs are read as work those estimates already `
+      + 'price, so they are not added on top.' + overspent;
+  }
+  if (onCommitments.length === costs.length) {
+    return `Cost basis: signed subcontracts and POs on all ${jobs(costs.length)}, ${wipMoney(total)} — `
+      + 'each already above the estimate\'s own cost line. Self-performed work is not in that figure.'
+      + overspent;
+  }
+  const parts: string[] = [];
+  if (onEstimate.length > 0) parts.push(`estimate cost on ${jobs(onEstimate.length)}`);
+  if (onCommitments.length > 0) {
+    parts.push(`signed commitments, already above estimate, on ${jobs(onCommitments.length)}`);
+  }
+  if (onNothing.length > 0) parts.push(`no cost on file for ${jobs(onNothing.length)}`);
+  return `Cost basis: mixed — ${parts.join('; ')}. Total ${wipMoney(total)}. Open a project for its `
+    + 'own source.' + overspent;
 }
 
 /**

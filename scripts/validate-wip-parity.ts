@@ -314,6 +314,7 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
     ['estimate_base_total', /base total/i],
     ['signed_commitments', /subcontract/i],
     ['commitments_and_receipts', /receipt/i],
+    ['cost_incurred', /already paid out/i],
     ['none', /no source|enter this figure/i],
   ];
   for (const [source, phrase] of mustSay) {

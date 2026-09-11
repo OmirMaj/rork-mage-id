@@ -6,9 +6,7 @@
 // row points to a real EntityRef so tapping a row can navigate via
 // useEntityNavigation().
 //
-// Rules (9 total). Only the 7 that can be sourced from ProjectContext are
-// implemented — `permit_expiring` and any other rule that would need data not
-// held in-context are stubbed so adding them later is a pure data lift.
+// Rules (9 total), all sourced from ProjectContext.
 //
 //   overdue_invoice      Invoice with dueDate < today and status != paid
 //   rfi_past_due         RFI with dateRequired < today and still open
@@ -19,7 +17,11 @@
 //   task_starting_today  ScheduleTask whose absolute start date is today and
 //                        status === 'not_started'
 //   coi_expiring         Subcontractor.coiExpiry within 30 days
-//   permit_expiring      SKIPPED — permits live outside ProjectContext
+//   permit_expiring      Permit lapsed, or expiring within 30 days. Was listed
+//                        here as "SKIPPED — permits live outside
+//                        ProjectContext", which was never true (they are on
+//                        DocsDataContext, which useProjects() spreads in) and
+//                        cost the card a whole category — see the rule below.
 //   notice_deadline      DelayEvent whose contractual written-notice window is
 //                        approaching or blown, plus the "set your notice
 //                        period" ask and the constructive-acceleration second
@@ -35,12 +37,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
-import { groupReadyPunchItems } from '@/utils/brainWatch';
+import { groupReadyPunchItems, permitExpiryState } from '@/utils/brainWatch';
+import { daysUntilCalendarDay } from '@/utils/calendarDate';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildNoticeStatus } from '@/utils/noticeClock';
 import type {
   EntityRef, Project, Invoice, RFI, Submittal, ChangeOrder, PunchItem,
-  Subcontractor, ScheduleTask, WeatherAlert, DelayEvent,
+  Permit, Subcontractor, ScheduleTask, WeatherAlert, DelayEvent,
 } from '@/types';
 
 export type InboxCategory = 'money' | 'schedule' | 'safety' | 'other';
@@ -184,9 +187,15 @@ export function useSmartInbox(): SmartInboxResult {
 
     for (const rfi of store.rfis as RFI[]) {
       if (rfi.status !== 'open') continue;
-      const req = parseISODate(rfi.dateRequired);
-      if (req === null || req >= today) continue;
-      const daysLate = Math.floor((today - req) / MS_PER_DAY);
+      // Whole CALENDAR days, through the shared helper, because
+      // utils/brainWatch.rfiAttention counts the same RFI with it and the home
+      // screen renders both — this card's "RFI #7 past due · 23d" and the
+      // attention row's "RFI #7 is 23d past due". Local-midnight subtraction
+      // floors a 23-hour spring-forward day to 22, so for the fortnight after
+      // each DST change the two lines printed different day counts for one RFI.
+      const daysUntil = daysUntilCalendarDay(rfi.dateRequired, now);
+      if (daysUntil === null || daysUntil >= 0) continue;
+      const daysLate = -daysUntil;
       out.push({
         id: `rfi_past_due:rfi:${rfi.id}`,
         rule: 'rfi_past_due',
@@ -206,9 +215,11 @@ export function useSmartInbox(): SmartInboxResult {
       const cycles = subm.reviewCycles ?? [];
       const last = cycles.length > 0 ? cycles[cycles.length - 1] : null;
       const baseDate = last?.sentDate ?? subm.submittedDate;
-      const sent = parseISODate(baseDate);
-      if (sent === null) continue;
-      const daysStale = Math.floor((today - sent) / MS_PER_DAY);
+      // Calendar days, same helper and same reason as the RFI rule above:
+      // utils/brainWatch.submittalAttention counts this submittal too.
+      const sentDaysUntil = daysUntilCalendarDay(baseDate, now);
+      if (sentDaysUntil === null) continue;
+      const daysStale = -sentDaysUntil;
       if (daysStale < 7) continue;
       out.push({
         id: `submittal_stale:submittal:${subm.id}`,
@@ -221,6 +232,73 @@ export function useSmartInbox(): SmartInboxResult {
         projectName: projectNameById.get(subm.projectId),
         sourceDate: baseDate,
         ref: { kind: 'submittal', id: subm.id, projectId: subm.projectId },
+      });
+    }
+
+    // ── permit_expiring ──────────────────────────────────────────────────
+    // This rule was declared in InboxRule and never written, on the stated
+    // grounds that "permits live outside ProjectContext". They do not, and they
+    // never did: `permits` is on DocsDataContext, which useProjects() spreads
+    // in (contexts/ProjectContext.tsx:6038), and this hook has read that store
+    // since it was written. A comment was the whole reason a rule was missing.
+    //
+    // What the gap cost, measured on the seeded account rather than argued:
+    // with a lapsed electrical permit and nothing else open, the home screen
+    // rendered "1 thing needs your attention | … ELE-26-02219 permit has
+    // expired — work on it is unpermitted" and, four rows lower in the same
+    // scroll, this card's "All caught up. | Nothing urgent across your
+    // projects." Two cards, one account, opposite verdicts — the same failure
+    // as sim-audit #15 and as the false all-clear this campaign is about.
+    //
+    // lapsed / expiring-soon is permitExpiryState in utils/brainWatch — the
+    // same call the attention set makes, so the two cannot define "expired"
+    // differently. Category 'safety' because that is where this card already
+    // files compliance paperwork (coi_expiring), and because there is no
+    // 'other' chip for a row to hide behind.
+    const projectStatusById = new Map<string, Project['status']>();
+    for (const p of store.projects as Project[]) projectStatusById.set(p.id, p.status);
+
+    for (const permit of store.permits as Permit[]) {
+      // A permit on a job that is finished is history, not today's work. Same
+      // exclusion the attention set's callers apply. An UNKNOWN project id is
+      // not excluded — a row whose project has not hydrated yet should still
+      // be seen.
+      const projectStatus = projectStatusById.get(permit.projectId);
+      if (projectStatus === 'closed' || projectStatus === 'completed') continue;
+
+      const expiry = permitExpiryState(permit, nowMs);
+      if (!expiry) continue;
+
+      const days = expiry.daysToExpiry;
+      const severity: 1 | 2 | 3 =
+        expiry.lapsed ? 3 : days === null || days <= 7 ? 3 : days <= 14 ? 2 : 1;
+      const title = expiry.lapsed
+        ? `Permit expired · ${expiry.label}`
+        : days === 0
+          ? `Permit expires today · ${expiry.label}`
+          : `Permit expires in ${days}d · ${expiry.label}`;
+
+      out.push({
+        id: `permit_expiring:permit:${permit.id}`,
+        rule: 'permit_expiring',
+        category: 'safety',
+        severity,
+        title,
+        // The jurisdiction, not `permit.type` — the type is a raw lowercase
+        // enum and this card has no label map for it.
+        subtitle: `${permit.jurisdiction}${projectNameById.get(permit.projectId) ? ` · ${projectNameById.get(permit.projectId)}` : ''}`,
+        projectId: permit.projectId,
+        projectName: projectNameById.get(permit.projectId),
+        // A permit recorded as expired with no printed expiry date still has
+        // to sort somewhere; the day it was applied for is the next date it
+        // carries. The final '' is not dead: the sort below calls
+        // `a.sourceDate.localeCompare(...)`, so an undefined here — a legacy
+        // row whose applied_date came back null, which the type forbids and the
+        // database does not — would throw inside a useMemo and take the whole
+        // home screen to the ErrorBoundary. This is the only rule whose date
+        // can legitimately be absent, because expiresDate is optional.
+        sourceDate: permit.expiresDate ?? permit.appliedDate ?? '',
+        ref: { kind: 'permit', id: permit.id, projectId: permit.projectId },
       });
     }
 

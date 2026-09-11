@@ -36,6 +36,62 @@ const STATUS_STYLE = (t: ThemeColors): Record<CertificationStatus, { label: stri
 
 type StatusFilter = 'all' | 'expiring' | 'expired' | 'valid';
 
+export type CertRosterBanner = { text: string; tone: 'clean' | 'attention' };
+
+/**
+ * The summary banner's line, or null when there is no verdict to issue.
+ *
+ * Pure and exported because the screen cannot be rendered with certifications
+ * on it: SafetyContext.hydrateCollection reads Supabase whenever `canSync`,
+ * the smoke mock answers every select with an empty list, and the hydrate then
+ * saves that empty list over any seeded local cache. A render test can only
+ * ever observe the zero-record state, so every other branch is pinned here
+ * instead (__tests__/smoke/polish-copy-honesty.test.tsx).
+ *
+ * Two false-green cases are ruled out, both on a screen where the reader is a
+ * GC deciding whether his crew can legally be on site tomorrow:
+ *
+ *  1. ZERO RECORDS. The banner used to be two-state on "is anything expiring",
+ *     so an empty roster took the success branch and printed a green "All
+ *     certifications are current" directly above "No certifications yet".
+ *     Nothing had been checked. With no records there is no verdict, so the
+ *     banner does not render and the empty state below speaks instead.
+ *  2. RECORDS WITH NO EXPIRY DATE. `expiresDate` is optional on the add form
+ *     (only `type` is required) and utils/safety/certStatus.ts returns 'valid'
+ *     for a blank one — correctly, "non-expiring" — so a roster of five cards
+ *     nobody typed a date on counts zero expiring and would have read "5
+ *     certifications on file — none expiring in the next 30 days". MAGE does
+ *     not know when those five lapse. Say how many it is actually watching.
+ */
+export function certRosterBanner(
+  total: number,
+  expiringOrExpired: number,
+  undated: number,
+): CertRosterBanner | null {
+  if (total <= 0) return null;
+  if (expiringOrExpired > 0) {
+    return {
+      text: `${expiringOrExpired} certification${expiringOrExpired === 1 ? '' : 's'} expiring soon or expired`,
+      tone: 'attention',
+    };
+  }
+  const dated = total - undated;
+  if (undated > 0) {
+    return {
+      text: dated === 0
+        ? `${total} certification${total === 1 ? '' : 's'} on file, none with an expiry date — nothing here for us to watch.`
+        : `${total} certifications on file — none of the ${dated} with a date expire in the next 30 days. ${undated} ${undated === 1 ? 'has' : 'have'} no expiry date.`,
+      tone: 'attention',
+    };
+  }
+  // The 30 days is certExpiryStatus's own window (utils/crew/certExpiry.ts),
+  // not a number chosen for this sentence.
+  return {
+    text: `${total} certification${total === 1 ? '' : 's'} on file — none expiring in the next 30 days`,
+    tone: 'clean',
+  };
+}
+
 export default function SafetyCertificationsScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
@@ -77,6 +133,17 @@ function SafetyCertificationsInner() {
 
   const STATUS = useMemo(() => STATUS_STYLE(themeColors), [themeColors]);
   const expiringCount = useMemo(() => withStatus.filter((c) => c.status !== 'valid').length, [withStatus]);
+  // Cards with no expiry date on them. certStatus calls those 'valid', so they
+  // are invisible to expiringCount — the banner has to count them separately
+  // or it claims a 30-day all-clear over records it holds no date for.
+  const undatedCount = useMemo(
+    () => withStatus.filter((c) => !(c.expiresDate ?? '').trim()).length,
+    [withStatus],
+  );
+  const banner = useMemo(
+    () => certRosterBanner(withStatus.length, expiringCount, undatedCount),
+    [withStatus.length, expiringCount, undatedCount],
+  );
 
   const [filter, setFilter] = useState<StatusFilter>('all');
   const filtered = useMemo(
@@ -190,15 +257,16 @@ function SafetyCertificationsInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'Certifications' }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
-        {/* Expiring-soon summary banner */}
-        <View style={[styles.banner, expiringCount > 0 ? { backgroundColor: themeColors.accent + '14', borderColor: themeColors.accent + '26' } : { backgroundColor: themeColors.success + '12', borderColor: themeColors.success + '22' }]}>
-          <AlertTriangle size={18} color={expiringCount > 0 ? themeColors.accent : themeColors.success} strokeWidth={1.75} />
-          <Text style={styles.bannerText}>
-            {expiringCount > 0
-              ? `${expiringCount} certification${expiringCount === 1 ? '' : 's'} expiring soon or expired`
-              : 'All certifications are current'}
-          </Text>
-        </View>
+        {/* Expiring-soon summary banner. Every branch, and the decision not to
+            render one at all, lives in certRosterBanner above — the header
+            comment there says which false green each branch exists to prevent.
+            Green is reserved for the one state that earned it. */}
+        {banner && (
+          <View style={[styles.banner, banner.tone === 'attention' ? { backgroundColor: themeColors.accent + '14', borderColor: themeColors.accent + '26' } : { backgroundColor: themeColors.success + '12', borderColor: themeColors.success + '22' }]}>
+            <AlertTriangle size={18} color={banner.tone === 'attention' ? themeColors.accent : themeColors.success} strokeWidth={1.75} />
+            <Text style={styles.bannerText}>{banner.text}</Text>
+          </View>
+        )}
 
         {/* Status filter chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>

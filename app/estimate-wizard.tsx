@@ -62,16 +62,17 @@ import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
-import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
+import { checkAILimit, recordAIUsage, getFreeTrialsRemaining, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
 import type { Commitment, CompanyBranding, LinkedEstimate, LinkedEstimateItem, Project, ProjectType, QualityTier } from '@/types';
 import {
-  INITIAL_SCOPE, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
+  INITIAL_SCOPE, SCOPE_STEPS, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
   estimateSchema, QUALITY_LABELS, stepBlockReason,
   type WizardAnswers, type EstimateResult,
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { showAlert } from '@/utils/alert';
@@ -109,6 +110,33 @@ const BREAKDOWN_COLORS = ['#FF6A1A', '#5FBF6B', '#90A4AE', '#4FC3F7', '#FFA726',
 // Single source of truth for the post-wizard paywall destination in onboarding
 // mode — avoids the cast being duplicated at every leave site.
 const ONBOARDING_PAYWALL_ROUTE = '/onboarding-paywall' as never;
+
+// Where the TRAILING run of optional steps begins (5 today: timeline, special
+// requirements, target budget). From here on the wizard has everything it needs
+// to price the job, but the UI still made the contractor tap Next through three
+// screens that cannot be failed before Generate appeared on the last one —
+// three taps of pure toll on the one path the whole onboarding arc funnels into.
+//
+// Derived by walking BACK from the end rather than `findIndex(q => q.optional)`.
+// findIndex returns -1 when nothing is optional, and `step >= -1` is true on
+// every step — the "everything from here on is optional" line and a Generate
+// button would have appeared on question one, over a model that says the
+// opposite. It also cannot offer to skip a REQUIRED question that someone later
+// inserts after an optional one: the trailing run is optional by construction,
+// which is exactly what the line below the button claims.
+function firstTrailingOptionalStep(): number {
+  let i = SCOPE_STEPS.length;
+  while (i > 0 && SCOPE_STEPS[i - 1].optional) i -= 1;
+  return i; // === SCOPE_STEPS.length when the last step is required → row hidden
+}
+const FIRST_OPTIONAL_STEP = firstTrailingOptionalStep();
+
+/** The metered free allowance for this screen, as a sentence fragment: "2 free
+ *  left". Null once the user is on a paid tier (nothing to count down). */
+function freeRunsLabel(left: number | null): string | null {
+  if (left === null) return null;
+  return left === 1 ? '1 free left' : `${left} free left`;
+}
 
 // Map an AI EstimateResult into a project LinkedEstimate. Item shape mirrors
 // utils/estimateAssemblies.ts applyAssembly and app/drawing-analyzer.tsx (the
@@ -231,7 +259,9 @@ function EstimateWizardScreenInner() {
   const laborSamples = useLaborCostSamples();
   // Cold-start seeds: rates the contractor stated before they had any closed
   // jobs here. Without these a veteran's first estimate is a beginner's.
-  const { seeds } = useCostSeeds();
+  // seedsLoading keeps the onboarding banner from claiming a pricing basis
+  // before the seed query has answered — in either direction.
+  const { seeds, isLoading: seedsLoading } = useCostSeeds();
   const { tier } = useSubscription();
 
   const { projectId, onboarding } = useLocalSearchParams<{ projectId?: string; onboarding?: string }>();
@@ -268,6 +298,14 @@ function EstimateWizardScreenInner() {
   // AbortController is internal to mageAI) — this is the stale-state check.
   const runRef = useRef(0);
   const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
+  // How many free AI estimates are left, or null on a paid tier / unmetered.
+  // Free gets TWO for life (utils/aiRateLimiterCore FEATURE_CONFIG
+  // aiEstimateWizard.freeLifetimeCap) and the app never once said so: the
+  // count was computed inside checkAILimit, returned as `remaining`, and
+  // dropped on the floor. The contractor generated once, tapped Refine to
+  // sharpen the number — which re-runs the model and spends the second — and
+  // met the wall on the third, from a button labelled "Try it free".
+  const [freeRunsLeft, setFreeRunsLeft] = useState<number | null>(null);
   // Standalone "Save to a project" flow. When the wizard is launched with no
   // ?projectId, the result would otherwise be a dead end (Share PDF + start
   // over only) — the number is thrown away the moment they leave. This modal
@@ -314,6 +352,22 @@ function EstimateWizardScreenInner() {
       }));
     }
   }, [scopedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Read the lifetime counter once on mount so the number is on screen BEFORE
+  // he spends one. getFreeTrialsRemaining only reads storage — recordAIUsage is
+  // the only thing that increments — and returns null when the feature has no
+  // lifetime cap. Paid tiers are not metered this way, so they show nothing.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (tier !== 'free') { setFreeRunsLeft(null); return; }
+      try {
+        const left = await getFreeTrialsRemaining('aiEstimateWizard');
+        if (!cancelled) setFreeRunsLeft(left);
+      } catch { /* a lost read must not block the wizard — just no badge */ }
+    })();
+    return () => { cancelled = true; };
+  }, [tier]);
 
   const TOTAL_STEPS = TOTAL_SCOPE_STEPS;
 
@@ -380,6 +434,13 @@ function EstimateWizardScreenInner() {
     const limit = await checkAILimit(tier, 'smart', 'aiEstimateWizard');
     if (!limit.allowed) {
       setUpgradeLimit(limit);
+      // Only the LIFETIME cap means the free allowance is gone. Any other refusal
+      // leaves his trials intact, and zeroing the badge would tell him he had
+      // spent something he still has. (evaluateLimit returns on the lifetime
+      // branch before the daily one for a free user on a capped feature, so
+      // today that is the only reason this screen can be handed — the check is
+      // narrow on purpose, for the day a second one is added.)
+      if (limit.reason === 'lifetime_cap') setFreeRunsLeft(0);
       return;
     }
 
@@ -504,6 +565,11 @@ function EstimateWizardScreenInner() {
         // Only records on success — failed calls (timeout, MAX_TOKENS,
         // SAFETY) still shouldn't count against the quota.
         void recordAIUsage('smart', 'aiEstimateWizard');
+        // `limit.remaining` is what is left AFTER this run — the value this
+        // screen used to compute and discard. Applied here, next to the write
+        // that actually spends it, so a failed run (which never records) does
+        // not show the contractor a trial he still has.
+        if (tier === 'free') setFreeRunsLeft(Math.max(0, limit.remaining));
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
@@ -543,12 +609,15 @@ function EstimateWizardScreenInner() {
         source: 'estimate_wizard',
         grand_total: result?.total ?? 0,
       });
-      // Onboarding arc: after a successful send, route to the value-first
-      // paywall. The leave handler (Cancel/back) also routes there, but
-      // router.replace here means we're already gone — the leave handler
-      // won't fire for this session.
+      // Onboarding arc: the bid has just left his hands, so this is the one
+      // moment the ask follows a delivered artifact rather than replacing one.
+      // The project (if the estimate is attached to one) rides along so the
+      // paywall's "Continue on the free plan" returns him to it.
       if (isOnboarding) {
-        router.replace(ONBOARDING_PAYWALL_ROUTE);
+        const attachedId = (projectId && scopedProject) ? projectId : savedProjectId;
+        router.replace(attachedId
+          ? ({ pathname: '/onboarding-paywall', params: { projectId: attachedId } } as never)
+          : ONBOARDING_PAYWALL_ROUTE);
       } else {
         // The contextual push ask. A proposal that just left for a homeowner is
         // the moment a reply notification obviously matters; NotificationContext
@@ -562,7 +631,7 @@ function EstimateWizardScreenInner() {
       sharingRef.current = false;
       setSharingPdf(false);
     }
-  }, [result, answers, isOnboarding, router, maybeAskForPush]);
+  }, [result, answers, isOnboarding, router, maybeAskForPush, projectId, scopedProject, savedProjectId]);
 
   /** The saved branding, with no vendor-name fallback. The old
    *  `?? 'MAGE ID'` default is what put the software's name on the header of a
@@ -639,9 +708,12 @@ function EstimateWizardScreenInner() {
     setShowSaveModal(false);
     setSavedProjectId(targetId);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (isOnboarding) {
-      router.replace(ONBOARDING_PAYWALL_ROUTE);
-    } else {
+    // Onboarding used to `router.replace` onto the paywall here, so the first
+    // estimate the contractor ever built was two navigations behind him at the
+    // exact moment he was asked to pay for it. Stay on the result: the primary
+    // button below now reads "Saved to <project> — open project", and THAT is
+    // where the ask happens (with the project as its exit).
+    if (!isOnboarding) {
       router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
     }
   }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
@@ -706,9 +778,7 @@ function EstimateWizardScreenInner() {
     setNewProjectName('');
     setSavedProjectId(id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (isOnboarding) {
-      router.replace(ONBOARDING_PAYWALL_ROUTE);
-    } else {
+    if (!isOnboarding) {
       // A project the user just created is the other moment a push is
       // obviously about something they own. This fires on every create, not
       // only the first — NotificationContext holds the once-only rule, so
@@ -717,6 +787,8 @@ function EstimateWizardScreenInner() {
       void maybeAskForPush('project_created');
       router.push({ pathname: '/project-detail', params: { id } } as never);
     }
+    // In onboarding we stay on the result for the same reason as
+    // attachToExisting above: show him the thing he made before asking for $29.
   }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding, maybeAskForPush]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
@@ -891,6 +963,18 @@ function EstimateWizardScreenInner() {
           {result.refineWith && result.refineWith.length > 0 && (
             <View style={styles.refineCard}>
               <Text style={styles.refineTitle}>Sharpen this estimate</Text>
+              {/* Refining is not editing: the answer is appended to the prompt
+                  and the model is asked again, which spends one of the two free
+                  AI estimates. It used to do that silently, so a contractor who
+                  thought he was tweaking his own number was spending his last
+                  trial and meeting the wall on the next tap. */}
+              {freeRunsLeft !== null ? (
+                <Text style={styles.refineMeter}>
+                  {freeRunsLeft > 0
+                    ? `Each answer re-prices the whole estimate with AI — it uses one of your ${freeRunsLeft} free AI estimate${freeRunsLeft === 1 ? '' : 's'}.`
+                    : 'Your free AI estimates are used up — answering here will ask you to upgrade.'}
+                </Text>
+              ) : null}
               {result.refineWith.map((rfn, i) => (
                 <View key={i}>
                   <TouchableOpacity
@@ -931,7 +1015,9 @@ function EstimateWizardScreenInner() {
                         accessibilityRole="button"
                         accessibilityLabel="Add answer and refine estimate"
                       >
-                        <Text style={styles.refineGoText}>Refine</Text>
+                        <Text style={styles.refineGoText}>
+                          {freeRunsLeft !== null && freeRunsLeft > 0 ? 'Refine · uses 1 free' : 'Refine'}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   ) : null}
@@ -1118,7 +1204,10 @@ function EstimateWizardScreenInner() {
                 style={styles.resultPrimaryBtn}
                 onPress={() => {
                   if (isOnboarding) {
-                    router.replace(ONBOARDING_PAYWALL_ROUTE);
+                    // The ask, once — and it knows where he was going, so
+                    // "Continue on the free plan" lands on his project instead
+                    // of an empty Summary.
+                    router.replace({ pathname: '/onboarding-paywall', params: { projectId: attachedId! } } as never);
                   } else {
                     router.push({ pathname: '/project-detail', params: { id: attachedId! } } as never);
                   }
@@ -1128,8 +1217,12 @@ function EstimateWizardScreenInner() {
                 testID="wizard-view-project"
               >
                 <CheckCircle2 size={18} color="#FFF" strokeWidth={1.75} />
+                {/* In onboarding this button opens the ask, and the paywall's
+                    "Continue on the free plan" carries him on to the project —
+                    so the label must not promise the project one tap earlier
+                    than it arrives. */}
                 <Text style={styles.resultPrimaryText} numberOfLines={1}>
-                  Saved to {attachedProject.name} — open project
+                  Saved to {attachedProject.name}{isOnboarding ? ' — continue' : ' — open project'}
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -1393,7 +1486,21 @@ function EstimateWizardScreenInner() {
           {isOnboarding && (
             <View style={styles.onboardingBanner} testID="estimate-onboarding-banner">
               <Text style={styles.onboardingBannerTitle}>Your first bid</Text>
-              <Text style={styles.onboardingBannerSubtitle}>Priced off your rate — send it when it looks right.</Text>
+              {/* Onboarding lets him skip the rate paste, and this line claimed
+                  his rates were pricing the bid either way. Same discriminator
+                  the grounding chip uses on the result screen (utils/groundingChip):
+                  with no seeds and no closed jobs the number is a market average. */}
+              <Text style={styles.onboardingBannerSubtitle}>
+                {seedsLoading
+                  // Neither claim until the seed query answers: an empty array
+                  // before it does is not an answer, and guessing either way
+                  // tells someone something about his own numbers that we do
+                  // not know yet.
+                  ? 'Send it when it looks right.'
+                  : seeds.length > 0
+                    ? 'Priced off the rates you added — send it when it looks right.'
+                    : 'Priced off market averages until you add your rates — send it when it looks right.'}
+              </Text>
             </View>
           )}
           <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
@@ -1404,10 +1511,37 @@ function EstimateWizardScreenInner() {
             <Text style={styles.stepHintText}>{stepHint}</Text>
           </View>
         ) : null}
+        {/* The steps the model flags optional are now actually skippable. Before
+            this, Generate existed only on the last screen, so "optional" meant
+            "you still have to tap Next past it". */}
+        {step >= FIRST_OPTIONAL_STEP && step < TOTAL_STEPS - 1 ? (
+          <View style={styles.optionalRow}>
+            <Text style={styles.optionalText}>
+              Everything from here on is optional — it sharpens the number, it is not needed
+              for one.
+            </Text>
+            <TouchableOpacity
+              onPress={() => generate()}
+              disabled={loading}
+              style={[styles.optionalBtn, loading && styles.primaryBtnDisabled]}
+              activeOpacity={0.85}
+              testID="wizard-generate-now"
+            >
+              <MageAIMark size={16} color={themeColors.accent} />
+              <Text style={styles.optionalBtnText}>
+                Generate now{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             onPress={step === 0
-              ? () => (isOnboarding ? router.replace(ONBOARDING_PAYWALL_ROUTE) : safeBack())
+              // Cancel on the FIRST question used to land on the paywall: the
+              // app asked for $29 having shown the contractor nothing at all.
+              // Send him into the app instead; the paywall still owns every
+              // path that follows a real result.
+              ? () => (isOnboarding ? router.replace('/(tabs)/(home)' as never) : safeBack())
               : back}
             style={[styles.secondaryBtn, styles.footerBtn]}
             activeOpacity={0.8}
@@ -1445,7 +1579,9 @@ function EstimateWizardScreenInner() {
               ) : (
                 <>
                   <MageAIMark size={18} color="#FFF" />
-                  <Text style={styles.primaryText}>Generate Estimate</Text>
+                  <Text style={styles.primaryText}>
+                    Generate Estimate{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -1836,18 +1972,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   brainCardSpacing: { marginTop: 12 },
   // "Your cost book is empty" → the actionable fix, not just the confession.
   seedPrompt: {
+    ...cardSurface(themeColors, { radius: 'card', pad: 13 }),
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
-    marginTop: 8, padding: 13,
-    borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: themeColors.line,
-    backgroundColor: themeColors.surface,
-    minHeight: 56,
+    marginTop: 8, minHeight: 56,
   },
   seedPromptTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.text },
   seedPromptBody: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16, marginTop: 2 },
   refineCard: { backgroundColor: themeColors.accent + '12', borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
   refineTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   refineItem: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  refineMeter: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16, marginBottom: 2 },
   refineAnswerRow: { flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 4 },
   refineInput: { flex: 1, borderWidth: 1, borderColor: themeColors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: themeColors.text, backgroundColor: themeColors.surface },
   refineGoBtn: { backgroundColor: themeColors.accentFill, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
@@ -1856,6 +1990,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   groundedText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.success },
   groundedChipEmpty: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, alignSelf: 'flex-start', backgroundColor: themeColors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 12 },
   groundedTextEmpty: { fontSize: Type.caption1.fontSize, fontWeight: '500', color: themeColors.textMuted },
+  optionalRow: { paddingHorizontal: 20, paddingTop: 10, gap: 8 },
+  optionalText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
+  optionalBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
+    gap: 6, borderRadius: Tokens.radius.lg, paddingVertical: 12,
+    borderWidth: 1, borderColor: themeColors.accent + '55', backgroundColor: themeColors.surface,
+  },
+  optionalBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   stepHintRow: { paddingHorizontal: 20, paddingTop: 8 },
   stepHintText: { fontSize: Type.footnote.fontSize, color: themeColors.danger, textAlign: 'center' },
   disclaimer: {

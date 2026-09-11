@@ -149,6 +149,19 @@ export interface LimitCheck {
 export const FAIL_OPEN_RESULT: LimitCheck = { allowed: true, remaining: 0 };
 
 /**
+ * What Pro actually gives you for this class of call, in a sentence.
+ *
+ * Read from LIMITS above rather than typed, so the upgrade pitch and the quota
+ * table on app/paywall.tsx cannot drift apart. A smart-tier feature is bounded
+ * by pro.smart (6/day); a fast one only by the daily total (30/day).
+ */
+function proAllowanceSentence(requestTier: RequestTier): string {
+  return requestTier === 'smart'
+    ? `Pro includes ${LIMITS.pro.smart} advanced AI runs a day.`
+    : `Pro includes ${LIMITS.pro.daily} AI requests a day.`;
+}
+
+/**
  * PURE gating decision — no storage, no await. checkAILimit reads storage
  * then delegates here; the validate script tests this directly.
  *
@@ -176,7 +189,11 @@ export function evaluateLimit(
         remaining: 0,
         reason: 'pro_only',
         upgradeTo: 'pro',
-        message: `${cfg.displayName ?? feature} is a Pro feature. Upgrade to unlock unlimited use.`,
+        // Never "unlimited": Pro is 30 AI requests a day and 6 advanced ones,
+        // and app/paywall.tsx renders that table two taps from this message.
+        // Promising unlimited here is retracted by our own pricing screen at
+        // the moment the contractor is deciding to spend $29.
+        message: `${cfg.displayName ?? feature} is a Pro feature. ${proAllowanceSentence(cfg.tier)}`,
       };
     }
   }
@@ -195,7 +212,7 @@ export function evaluateLimit(
           remaining: 0,
           reason: 'lifetime_cap',
           upgradeTo: 'pro',
-          message: `You've used your ${cfg.freeLifetimeCap} free ${cfg.displayName ?? 'AI'} trials. Upgrade to Pro for unlimited use.`,
+          message: `You've used your ${cfg.freeLifetimeCap} free ${cfg.displayName ?? 'AI'} trials. ${proAllowanceSentence(cfg.tier)}`,
         };
       }
       return { allowed: true, remaining: cfg.freeLifetimeCap - lifetimeUsed - 1 };

@@ -10,6 +10,16 @@
 //   useBrainWatch() — THE canonical needs-attention set (same number the
 //   Summary hero pill + Your-Projects tab badge consume) → top 6 rendered.
 //
+// WIDEN THE CHECK, not the count (polish audit 2026-09-10, dead-ends P0 #1).
+// This card chose option (a): the green line is gated on more sources than the
+// nine attention kinds, because the evidence was already in context. It printed
+// "All clear — your jobs are on track" and the same screen, ten rows down,
+// printed "RFI #2 past due · 23d" — a total claim about "your jobs" from a scan
+// that had no RFI and no submittal category. The extra sources gate the SENTENCE
+// only; the header count and the rows stay exactly the canonical set, because
+// sim-audit #15 was the opposite failure (this card showing 5 while the tab
+// badge showed 11) and a second number here would bring it straight back.
+//
 // Anti-slop: Colors/Type/Tokens only — no raw hex, no inline fontSize,
 // no inline borderRadius.
 // ============================================================================
@@ -30,6 +40,8 @@ import {
   Truck,
   Building2,
   CloudOff,
+  MessageSquareWarning,
+  FileClock,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -39,9 +51,10 @@ import { Colors } from '@/constants/colors';
 import { useBrainGrading } from '@/hooks/useBrainGrading';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useCoreData, useDocsData } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import type { AttnKind, AttnSeverity } from '@/utils/brainWatch';
+import { rfiAttention, submittalAttention, type AttnKind, type AttnSeverity } from '@/utils/brainWatch';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -69,6 +82,8 @@ const KIND_ICONS: Record<AttnKind, typeof CalendarDays> = {
   changeOrder: FileSignature,
   delivery: Truck,
   buildingAccess: Building2,
+  rfi: MessageSquareWarning,
+  submittal: FileClock,
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -85,6 +100,25 @@ export default function BrainWatchCard() {
   const { items, total, sourceFailed } = useBrainWatch();
   const { accuracyReport } = useBrainGrading();
   const { canAccess } = useTierAccess();
+
+  // The two categories the canonical set does not carry yet
+  // (hooks/useBrainWatch.ts builds nine kinds and is not this component's file
+  // to change). Read from the SAME contexts that hook reads, and run through the
+  // same pure builders, so when the hook picks them up nothing here has to move
+  // and the two can never define "overdue RFI" differently.
+  const { projects } = useCoreData();
+  const { rfis, submittals } = useDocsData();
+  const outsideTheScan = React.useMemo(() => {
+    const nowMs = Date.now();
+    let n = 0;
+    for (const project of projects) {
+      // Same exclusion as useBrainWatch: a closed job rarely needs today.
+      if (project.status === 'closed' || project.status === 'completed') continue;
+      n += rfiAttention(project, rfis, nowMs).length;
+      n += submittalAttention(project, submittals, nowMs).length;
+    }
+    return n;
+  }, [projects, rfis, submittals]);
 
   const visible = items.slice(0, MAX_VISIBLE);
 
@@ -108,13 +142,47 @@ export default function BrainWatchCard() {
         </View>
       );
     }
+    // Something IS open, it is just open in a category this card's count does
+    // not cover. Saying "all clear" here is the defect; saying nothing would
+    // hide it. So: name the scope, name the gap, and make the row go somewhere —
+    // /waiting-on is the screen that already lists these correctly ("1 item
+    // overdue | 1 over a week late"), and it is reachable at every width, unlike
+    // the Inbox card, which app/(tabs)/(home)/index.tsx suppresses above 1280px.
+    if (outsideTheScan > 0) {
+      return (
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push('/waiting-on' as never)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Open Waiting On"
+          testID="brain-watch-partial-clear"
+        >
+          <View style={styles.allClearRow}>
+            <MessageSquareWarning size={16} color={Colors.warningLabel} strokeWidth={2} />
+            <Text style={styles.allClearText}>
+              Nothing overdue on schedules, invoices, permits or certs —{' '}
+              {outsideTheScan === 1 ? '1 RFI or submittal is' : `${outsideTheScan} RFIs or submittals are`}{' '}
+              waiting on a reply.
+            </Text>
+            <ChevronRight size={14} color={colors.textMuted} strokeWidth={2} />
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
     // All-clear state: render a calming "nothing to do" row — only when the
-    // source actually answered.
+    // source actually answered, and only for the ground it actually covered.
+    // "your jobs are on track" was a claim about the whole job; margin and the
+    // daily-log gap are still measured by other cards on this same screen, so
+    // the sentence names its four and stops.
     return (
       <View style={styles.card}>
         <View style={styles.allClearRow}>
           <CheckCircle2 size={16} color={colors.success} strokeWidth={2} />
-          <Text style={styles.allClearText}>All clear — your jobs are on track.</Text>
+          <Text style={styles.allClearText}>
+            All clear — nothing overdue on schedules, invoices, permits or certs.
+          </Text>
         </View>
       </View>
     );

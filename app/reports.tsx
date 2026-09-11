@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileDown, ClipboardList, TrendingUp, AlertTriangle,
   CheckCircle2, ChevronRight, Copy, FileSpreadsheet, ArrowDownToLine,
-  DollarSign, Activity, Banknote,
+  DollarSign, Activity, Banknote, FileText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -33,6 +33,7 @@ import {
   type ARAgingReport,
 } from '@/utils/financialReports';
 import { shareWIPReport, shareProfitReport, shareARAgingReport } from '@/utils/financialReportPdf';
+import { describePortfolioCostBasis, isWipBilling, type WipEstimatedCost } from '@/utils/wip';
 import { formatMoney } from '@/utils/formatters';
 import { copyToClipboard } from '@/utils/clipboard';
 import type { CompanyBranding } from '@/types';
@@ -77,8 +78,37 @@ export default function ReportsScreen() {
     logoUri:       settings?.branding?.logoUri,
   }), [settings]);
 
+  // WHAT THE ACTIVE TAB WOULD ACTUALLY EXPORT (polish audit 2026-09-10).
+  // The empty guard lives inside each tab body, while the action bar sits in
+  // the parent — so on a brand-new account /reports correctly rendered "No
+  // active projects" and still offered "Copy CSV" and "Download & share PDF"
+  // beside it. A WIP schedule of zeros is a document a lender reads as a sworn
+  // statement of position; the app must not hand one out.
+  const exportableRows = tab === 'wip' ? wip.rows.length
+                       : tab === 'profit' ? profit.rows.length
+                       : aging.rows.length;
+  const nothingToExport = exportableRows === 0;
+  const issuedInvoices = invoices.filter(isWipBilling).length;
+  // A blocked button says why (standing rule). One sentence per tab, naming
+  // the prerequisite rather than the failure.
+  const blockedReason = tab === 'wip'
+    ? 'A WIP schedule needs at least one active project with a cost-and-markup estimate. There is nothing to put on this report yet.'
+    : tab === 'profit'
+      ? 'A profit report needs at least one project with an estimate. There is nothing to put on this report yet.'
+      // NOT "nothing is owed to you" — on an account with no invoices at all
+      // that is a verdict read off absent data, the same class as the
+      // "Every invoice is fully paid. Nice work." this tab used to print with
+      // zero invoices on file. Name the prerequisite instead. The population is
+      // ISSUED invoices (utils/wip.isWipBilling — a draft is a document the
+      // client has never seen), because an account holding nothing but drafts
+      // has collected nothing and must not be told it has.
+      : issuedInvoices === 0
+        ? 'An A/R aging report ages the invoices a client still owes you. You have not issued one yet.'
+        : 'An A/R aging report lists invoices still owed to you. Every invoice you have issued is collected in full.';
+
   const handleSharePdf = useCallback(async () => {
     if (tab === 'wip' && !wipUnlocked) return; // WIP export is Business-gated
+    if (nothingToExport) { showAlert('Nothing to report yet', blockedReason); return; }
     setGenerating(true);
     try {
       if (tab === 'wip') {
@@ -94,10 +124,11 @@ export default function ReportsScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [tab, wip, profit, aging, branding, wipUnlocked]);
+  }, [tab, wip, profit, aging, branding, wipUnlocked, nothingToExport, blockedReason]);
 
   const handleCopyCsv = useCallback(async () => {
     if (tab === 'wip' && !wipUnlocked) return; // WIP CSV is Business-gated
+    if (nothingToExport) { showAlert('Nothing to report yet', blockedReason); return; }
     const csv = tab === 'wip' ? wipReportToCSV(wip)
               : tab === 'aging' ? arAgingReportToCSV(aging)
               : ''; // profit doesn't ship a CSV — it's tiny + the PDF is the deliverable
@@ -108,7 +139,7 @@ export default function ReportsScreen() {
       ok ? 'Copied' : 'Copy failed',
       ok ? 'CSV is on your clipboard. Paste into Excel/QuickBooks/Sage.' : 'Could not copy CSV.',
     );
-  }, [tab, wip, aging, wipUnlocked]);
+  }, [tab, wip, aging, wipUnlocked, nothingToExport, blockedReason]);
 
   // WIP tab selected but tier doesn't unlock it → full-screen Paywall,
   // mirroring app/wip-report.tsx. The report chrome (data, PDF, CSV) never
@@ -151,7 +182,7 @@ export default function ReportsScreen() {
 
         {tab === 'wip' && !wipLocked && <WIPView    report={wip} />}
         {tab === 'profit'               && <ProfitView profit={profit} />}
-        {tab === 'aging'                && <AgingView  report={aging} />}
+        {tab === 'aging'                && <AgingView  report={aging} anyIssued={issuedInvoices > 0} />}
       </ScrollView>
 
       {/* WIP is Business-only. Render the same Paywall wip-report.tsx uses.
@@ -167,18 +198,39 @@ export default function ReportsScreen() {
 
       {/* Action bar — hidden on the locked WIP tab so no WIP export leaks. */}
       {!wipLocked && (
-      <View style={[styles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.actionBarWrap, { paddingBottom: insets.bottom + 12 }]}>
+      {/* A blocked button says why, VISIBLY — the repo's own pattern
+          (app/cash-flow.tsx:1157). The empty guard lives inside the tab body
+          and these controls live out here, so without this line the buttons
+          were the only thing contradicting the EmptyState above them. */}
+      {nothingToExport ? (
+        <Text style={styles.blockedNote} testID="reports-export-blocked">{blockedReason}</Text>
+      ) : null}
+      <View style={styles.actionBar}>
         {tab !== 'profit' && (
-          <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleCopyCsv} activeOpacity={0.85}>
-            <Copy size={14} color={themeColors.text} strokeWidth={1.75} />
-            <Text style={styles.actionBtnSecondaryText}>Copy CSV</Text>
+          <TouchableOpacity
+            style={[styles.actionBtnSecondary, nothingToExport && styles.actionBtnBlocked]}
+            onPress={handleCopyCsv}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: nothingToExport }}
+            accessibilityHint={nothingToExport ? blockedReason : undefined}
+          >
+            <Copy size={14} color={nothingToExport ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
+            <Text style={[styles.actionBtnSecondaryText, nothingToExport && { color: themeColors.textMuted }]}>Copy CSV</Text>
           </TouchableOpacity>
         )}
+        {/* The handler refuses AND explains, in case a platform lets the press
+            through despite the disabled state above. Belt to the visible note's
+            braces — the same shape app/equipment-detail.tsx:178 describes. */}
         <TouchableOpacity
-          style={[styles.actionBtnPrimary, tab === 'profit' && { flex: 1 }]}
+          style={[styles.actionBtnPrimary, tab === 'profit' && { flex: 1 }, nothingToExport && styles.actionBtnBlocked]}
           onPress={handleSharePdf}
           disabled={generating}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: nothingToExport }}
+          accessibilityHint={nothingToExport ? blockedReason : undefined}
         >
           {generating ? (
             <ActivityIndicator size="small" color="#FFF" />
@@ -191,6 +243,7 @@ export default function ReportsScreen() {
             </>
           )}
         </TouchableOpacity>
+      </View>
       </View>
       )}
     </View>
@@ -233,15 +286,24 @@ function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
             accent={report.totals.projectedProfit >= 0 ? themeColors.success : themeColors.danger}
           />
         </View>
+        {/* A screen may not call itself bank-ready and also decline to say
+            where its numbers came from. "Est. final cost $173,702" used to
+            arrive here with no explanation of why it sat $42,200 above the
+            estimate the other WIP schedule struck its margin against. */}
+        <CostBasisLine rows={report.rows} />
       </View>
 
       {report.rows.map(r => (
         <View key={r.projectId} style={styles.row}>
           <View style={styles.rowHead}>
             <Text style={styles.rowTitle} numberOfLines={1}>{r.projectName}</Text>
+            {/* The noun, not just the number. A bare "-11.9 %" beside a
+                "% Complete 0%" row is unreadable — margin, completion,
+                variance and overrun all render the same, and colour is
+                exactly what does not survive a screenshot or a mono print. */}
             <View style={[styles.marginPill, marginTone(r.projectedMargin, themeColors)]}>
               <Text style={[styles.marginPillText, marginTextTone(r.projectedMargin, themeColors)]}>
-                {r.projectedMargin.toFixed(1)}%
+                {r.projectedMargin.toFixed(1)}% margin
               </Text>
             </View>
           </View>
@@ -287,6 +349,10 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
         <Text style={styles.profitHeroSub}>
           on {formatMoney(profit.totalRevenue)} of revised contract value
         </Text>
+        {/* Same basis line as the WIP tab, from the same helper — this is the
+            tab a sub-Business user lands on, so it is the one that most needs
+            to say what it measured against. */}
+        <CostBasisLine rows={profit.rows} />
       </View>
 
       <View style={styles.bandRow}>
@@ -302,7 +368,7 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
             <Text style={styles.rowTitle} numberOfLines={1}>{r.projectName}</Text>
             <View style={[styles.marginPill, marginTone(r.projectedMargin, themeColors)]}>
               <Text style={[styles.marginPillText, marginTextTone(r.projectedMargin, themeColors)]}>
-                {r.projectedMargin.toFixed(1)}%
+                {r.projectedMargin.toFixed(1)}% margin
               </Text>
             </View>
           </View>
@@ -321,15 +387,22 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
 
 // ─── AR Aging view ───────────────────────────────────────────────────
 
-function AgingView({ report }: { report: ARAgingReport }) {
+function AgingView({ report, anyIssued }: { report: ARAgingReport; anyIssued: boolean }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   if (report.rows.length === 0) {
+    // "Every invoice is fully paid. Nice work." was printed on an account with
+    // NO invoices at all — a success verdict computed from absent data, on the
+    // screen that answers "who owes me money". Aging can only be empty two
+    // ways, and they are not the same news, so say which one this is.
+    const collected = anyIssued;
     return <EmptyState
-      icon={CheckCircle2}
-      title="No outstanding invoices"
-      body="Every invoice is fully paid. Nice work."
-      tone="good"
+      icon={collected ? CheckCircle2 : FileText}
+      title={collected ? 'Nothing outstanding' : 'No invoices yet'}
+      body={collected
+        ? 'Every invoice you have sent is collected in full — nothing is aging.'
+        : 'A/R aging buckets the invoices a client still owes you. Issue one from a project and it lands here the day it is sent — a draft owes you nothing, so it is not counted.'}
+      tone={collected ? 'good' : undefined}
     />;
   }
   return (
@@ -377,6 +450,38 @@ function AgingView({ report }: { report: ARAgingReport }) {
 }
 
 // ─── Tiny presentational components ──────────────────────────────────
+
+/**
+ * The cost basis behind whatever margin sits above it.
+ *
+ * Both report tabs feed it the rows they are showing, and the sentence comes out
+ * of utils/wip.describePortfolioCostBasis — the same helper app/wip-report.tsx
+ * and the PDF use, so the three surfaces cannot end up explaining one schedule
+ * three different ways. A row that predates `costAtCompletion` renders nothing
+ * rather than a guess.
+ */
+function CostBasisLine(
+  { rows }: { rows: { costAtCompletion?: WipEstimatedCost; costToDate?: number }[] },
+) {
+  const styles = useThemedStyles(makeStyles);
+  const withBasis = rows.filter(r => r.costAtCompletion != null);
+  if (withBasis.length === 0) return null;
+  const bases = withBasis.map(r => r.costAtCompletion as WipEstimatedCost);
+  // COST already paid out, summed across the same rows the basis describes, so
+  // the sentence can say when the book has already spent past the cost at
+  // completion it is striking margin against. If ANY of those rows cannot say
+  // what it has cost, the sum is passed as undefined rather than short — a
+  // partial spend compared against a full cost reads as "you are fine", which
+  // is the reassurance this line exists to withhold.
+  const incurred = withBasis.every(r => r.costToDate != null)
+    ? withBasis.reduce((sum, r) => sum + (r.costToDate ?? 0), 0)
+    : undefined;
+  return (
+    <Text style={styles.basisLine} testID="reports-cost-basis">
+      {describePortfolioCostBasis(bases, incurred)}
+    </Text>
+  );
+}
 
 function SummaryStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   const { colors: themeColors } = useTheme();
@@ -504,6 +609,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   summaryStatItem: { width: '47%', paddingVertical: 4 },
   summaryStatLabel: { fontSize: 10, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
   summaryStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.3 },
+  basisLine: {
+    fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16,
+    marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line,
+  },
 
   profitHero: { flexDirection: 'row', alignItems: 'baseline', gap: 12, marginTop: 4 },
   profitHeroAmount: { fontSize: Type.title1.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.6 },
@@ -550,9 +659,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
   emptyBody:  { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
-  actionBar: {
-    flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.surface,
+  actionBarWrap: {
+    paddingTop: 12, borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.surface,
+  },
+  actionBar: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 4 },
+  blockedNote: {
+    fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16,
+    paddingHorizontal: 16, paddingBottom: 6,
   },
   actionBtnSecondary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -560,6 +673,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
   actionBtnSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  // Reads as unavailable without becoming untappable — tapping it says why.
+  actionBtnBlocked: { opacity: 0.45, shadowOpacity: 0 },
   actionBtnPrimary: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 11, backgroundColor: t.accentFill,

@@ -18,6 +18,7 @@
 
 import type { Project, Invoice, ChangeOrder, Commitment } from '@/types';
 import { computeJobCost, type JobCostActualSources } from './jobCostEngine';
+import { deriveEstimatedCostWithSource, type WipEstimatedCost } from '@/utils/wip';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
@@ -34,10 +35,30 @@ export interface WIPRow {
   paidToDate: number;           // sum of every invoice's amountPaid
   unbilled: number;             // revisedContract * %complete - billed (≥ 0)
   retainageHeld: number;        // sum of (retentionAmount - retentionReleased) on every invoice
-  estimatedFinalCost: number;   // job-cost engine projectedFinal
+  estimatedFinalCost: number;   // utils/wip.deriveEstimatedCostWithSource — the ONE cost-at-completion
+  /**
+   * COST already paid out on this job (job-cost engine `actual`) — never a
+   * billing. Carried so the screen can say when a job has already spent MORE
+   * than the cost at completion above it, which the estimate-based definition
+   * of that figure cannot show on its own. See utils/wip.describeCostBasis.
+   *
+   * OPTIONAL for the same reason `costAtCompletion` is: scripts/
+   * validate-compose-week-close.ts builds synthetic WIPRows by hand. A reader
+   * must treat "absent" as UNKNOWN, never as zero — a 0 here would read as
+   * "nothing spent" and silence the overspend warning on exactly the job that
+   * needs it. Every row this module produces carries it.
+   */
+  costToDate?: number;
   projectedProfit: number;      // revisedContract - estimatedFinalCost
   projectedMargin: number;      // projectedProfit / revisedContract * 100
   status: Project['status'];
+  /**
+   * Which cost basis produced `estimatedFinalCost`, so the screen and the PDF
+   * can name it instead of printing an unexplained figure above an Export
+   * button. OPTIONAL only because scripts/validate-compose-week-close.ts builds
+   * synthetic WIPRows by hand; every row this module produces carries it.
+   */
+  costAtCompletion?: WipEstimatedCost;
 }
 
 export interface WIPReport {
@@ -140,7 +161,35 @@ export function computeWIPReport(
     );
 
     const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
-    const estimatedFinalCost = job.projectedFinal;
+    // COST AT COMPLETION — ONE DEFINITION, SHARED WITH app/wip-report.tsx
+    // (polish audit 2026-09-10). This read `job.projectedFinal`, the job-cost
+    // engine's per-phase EAC, while the other bank-facing WIP schedule read
+    // utils/wip.deriveEstimatedCost. On the seeded job that was $173,702 here
+    // and $131,502 there — "Projected profit -$18,530 / -11.9%" on one screen
+    // and "Weighted margin 15%" on the other, same session, same project,
+    // neither naming its basis, both offering a PDF for the bank.
+    //
+    // The engine's figure was not a second opinion, it was a double count: it
+    // buckets the estimate by `item.category` ('subcontractor') and a
+    // commitment by its free-text `phase` ('Electrical'), so awarding the two
+    // subs the estimate had already priced added $42,200 on top of the
+    // $131,502 that still priced them. Fixing that bucketing is worth doing
+    // for /job-costing; it is not what makes these two reports foot. One
+    // definition is, and this is the call site that adopts it.
+    const projectCommitments = commitments.filter(c => c.projectId === project.id);
+    const costAtCompletion = deriveEstimatedCostWithSource(project, projectCommitments, {
+      approvedChangeOrders,
+      // The ratio denominator is this report's own contract value, so the CO
+      // cost top-up is derived from the same revenue figure the margin is
+      // struck against rather than from a second contract basis.
+      originalContract: contractValue,
+      // COST already paid out. A job cannot finish for less than what it has
+      // already cost, so this is the hard floor under the two forecasts — and
+      // without it a job that has burned past its estimate reports the estimate
+      // and a profit it has already spent its way out of.
+      costIncurred: job.actual,
+    });
+    const estimatedFinalCost = costAtCompletion.value;
 
     // MONEY-F13 (audit 2026-09-03): percent complete on a COST basis —
     // job actual ÷ estimate-at-completion — the same basis utils/wip.ts uses
@@ -150,9 +199,14 @@ export function computeWIPReport(
     // it concluded the contractor was never underbilled. When the job has no
     // cost picture yet, fall back to schedule progress (avg task progress);
     // with neither, 0 — the honest answer, not "as billed".
+    //
+    // The denominator is the shared cost-at-completion above, not
+    // job.projectedFinal: two schedules reporting different percent-complete
+    // for one job is the same defect as reporting different margin, and this is
+    // the axis-3 half of it.
     let percentComplete: number;
-    if (job.projectedFinal > 0 && job.actual > 0) {
-      percentComplete = Math.min(100, Math.max(0, (job.actual / job.projectedFinal) * 100));
+    if (estimatedFinalCost > 0 && job.actual > 0) {
+      percentComplete = Math.min(100, Math.max(0, (job.actual / estimatedFinalCost) * 100));
     } else {
       const tasks = project.schedule?.tasks ?? [];
       percentComplete = tasks.length > 0
@@ -178,9 +232,11 @@ export function computeWIPReport(
       unbilled,
       retainageHeld,
       estimatedFinalCost,
+      costToDate: job.actual,
       projectedProfit,
       projectedMargin,
       status: project.status,
+      costAtCompletion,
     });
   }
 
@@ -220,10 +276,12 @@ export interface ProfitRow {
   status: Project['status'];
   revenue: number;             // revised contract
   costToDate: number;          // job-cost actual
-  estimatedFinalCost: number;  // job-cost EAC
+  estimatedFinalCost: number;  // utils/wip.deriveEstimatedCostWithSource — same basis as WIP
   projectedProfit: number;
   projectedMargin: number;     // %
   health: 'green' | 'yellow' | 'red';
+  /** Which cost basis produced `estimatedFinalCost`. See WIPRow.costAtCompletion. */
+  costAtCompletion?: WipEstimatedCost;
 }
 
 /**
@@ -253,7 +311,18 @@ export function computeProfitReport(
     const revenue = contractValue + approvedCOs;
 
     const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
-    const estimatedFinalCost = job.projectedFinal;
+    // Same one cost-at-completion the WIP tab now uses — and this tab is the
+    // one that matters most, because app/reports.tsx lands every sub-Business
+    // user straight on it. A free trialist who bought out two subs was being
+    // shown "Projected profit -$18,530" on a job carrying $23,670 of margin.
+    const projectCommitments = commitments.filter(c => c.projectId === project.id);
+    const costAtCompletion = deriveEstimatedCostWithSource(project, projectCommitments, {
+      approvedChangeOrders: approvedCOs,
+      originalContract: contractValue,
+      // See the sibling call site: cost already paid out is the hard floor.
+      costIncurred: job.actual,
+    });
+    const estimatedFinalCost = costAtCompletion.value;
     const projectedProfit = revenue - estimatedFinalCost;
     const projectedMargin = revenue > 0 ? (projectedProfit / revenue) * 100 : 0;
 
@@ -272,6 +341,7 @@ export function computeProfitReport(
       projectedProfit,
       projectedMargin,
       health,
+      costAtCompletion,
     });
   }
 

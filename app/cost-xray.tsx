@@ -40,6 +40,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { priceTell, routeByConfidence, verifyOnlyReason, normalizeTells } from '@/utils/costXray';
@@ -134,11 +135,14 @@ export default function CostXrayScreen() {
   // number rather than their own.
   const { seeds } = useCostSeeds();
 
-  // Business gate — redirect locked tiers to the paywall (design decision 3).
+  // Business gate. This used to `router.replace('/paywall')`, which sent a free
+  // contractor from the app's marquee AI feature to a blank screen and then to
+  // the generic plan chooser — a screen that never says the words "Cost X-Ray".
+  // He was walled out of the one thing most likely to make him pay without ever
+  // being told what it was. The gate stays; the screen now explains itself
+  // first and asks second, the way app/(tabs)/construction-ai does.
   const locked = !canAccess('cost_xray');
-  useEffect(() => {
-    if (locked) router.replace('/paywall');
-  }, [locked, router]);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Resolve the target project: route param first, else the current estimate's
   // project (most recent linkedEstimate), else the first project.
@@ -404,11 +408,48 @@ export default function CostXrayScreen() {
     );
   }, [accepted, project, updateProject, addPunchItem, router]);
 
-  // Locked tiers see nothing while the redirect runs.
   if (locked) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+            <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
+          </TouchableOpacity>
+          <View style={styles.headerText}>
+            <Text style={styles.headerEyebrow}>Cost X-Ray · MAGE ID</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Price the hidden conditions</Text>
+          </View>
+          <View style={styles.headerBtn} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+          <View style={styles.introCard}>
+            <ScanSearch size={20} color={t.accent} strokeWidth={1.75} />
+            <View style={{ flex: 1, gap: 10 }}>
+              <Text style={styles.introText}>
+                Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> learned costs — before you commit a number.
+              </Text>
+              <Text style={styles.introText}>
+                Cost X-Ray is part of the Business plan.
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.aiBtn}
+            onPress={() => setShowUpgrade(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            testID="xray-upgrade"
+          >
+            <Text style={styles.aiBtnText}>See what Business includes</Text>
+          </TouchableOpacity>
+        </ScrollView>
+        <Paywall
+          visible={showUpgrade}
+          feature="Cost X-Ray"
+          requiredTier="business"
+          onClose={() => setShowUpgrade(false)}
+        />
       </View>
     );
   }

@@ -249,9 +249,34 @@ console.log('\nfinancialReports forwards receipts and time entries:');
   const wired = computeProfitReport([PROJECT], [], [], commitments, costSources).rows[0];
   close('profit report cost-to-date without the sources is subs only', bare.costToDate, 180_000);
   close('…and with them includes materials and priced hours', wired.costToDate, 205_600);
-  ok('…so forwarding them actually changes the reported margin',
-    wired.projectedMargin !== bare.projectedMargin,
-    `bare ${bare.projectedMargin}, wired ${wired.projectedMargin}`);
+  // The margin does NOT move here, and that is the fix rather than a regression.
+  // Since the 2026-09-10 polish audit both reports take cost-at-completion from
+  // utils/wip.deriveEstimatedCostWithSource — max(estimate cost, signed
+  // commitments, cost already paid out) — so $25,600 of materials and crew
+  // hours that were INSIDE this fixture's $420,000 estimate do not raise the
+  // projected final cost, and must not: spending money you already budgeted is
+  // not a cost overrun. What WOULD move it is spending past the estimate, and
+  // the incurred floor below is the assertion that proves that path works.
+  close('…while the projected final cost stays on the estimate that priced them',
+    wired.estimatedFinalCost, bare.estimatedFinalCost);
+
+  // THE PATH THAT MUST MOVE IT: cost past the estimate. The fixture's estimate
+  // prices the job at $420,000; hand it $480,000 of incurred cost and the
+  // projected final cost has to follow, because a job cannot finish for less
+  // than what it has already cost. Before the incurred floor landed
+  // (2026-09-10) this returned the estimate and reported a profit the job had
+  // already spent its way out of — on the document a surety underwrites.
+  const overspent = computeProfitReport([PROJECT], [], [], commitments, {
+    ...costSources,
+    receipts: [receipt(300_000, 'Finishes')],
+    timeEntries: [shift(1000, 'carpenter')],
+  }).rows[0];
+  ok('cost past the estimate RAISES the projected final cost',
+    overspent.estimatedFinalCost > wired.estimatedFinalCost,
+    `wired ${wired.estimatedFinalCost}, overspent ${overspent.estimatedFinalCost}`);
+  ok('…and therefore cuts the reported margin',
+    overspent.projectedMargin < wired.projectedMargin,
+    `wired ${wired.projectedMargin}, overspent ${overspent.projectedMargin}`);
 
   const wipBare = computeWIPReport([PROJECT], [], [], commitments).rows[0];
   const wipWired = computeWIPReport([PROJECT], [], [], commitments, costSources).rows[0];

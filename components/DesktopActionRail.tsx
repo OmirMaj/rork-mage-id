@@ -17,14 +17,31 @@
 // Width gate: 1280px MAIN VIEWPORT (not content width). Below that, the rail
 // is dropped entirely and the inline Inbox card takes over. This keeps narrow
 // laptops (1024-1280) from getting cramped 3-column layouts.
+//
+// WHY THE EMPTY STATE IS SCOPED (polish audit 2026-09-10, the all-clear wave).
+// "All caught up / Nothing urgent across your projects." is a claim about every
+// project, made from nine attention kinds that contain no RFI and no submittal
+// category. On the audited account that sentence rendered while an RFI sat 23
+// days past due to the architect — and it is WORSE here than on the phone,
+// because above 1280px app/(tabs)/(home)/index.tsx suppresses the inline Smart
+// Inbox in favour of this rail, so the desktop reader has nowhere else on the
+// screen to see the row that contradicts it.
+//
+// The fix keeps this file's original rule intact: the COUNT PILL and the ROWS
+// are still only the canonical set (that is sim-audit #15 — the rail once ran
+// its own useSmartInbox count under an authoritative "Action Required" title
+// while the badge beside it showed a different number). Only the sentence
+// changes, and the extra categories gate it rather than joining it.
 // ============================================================================
 
 import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { CloudOff, ChevronRight, CheckCircle2 } from 'lucide-react-native';
+import { CloudOff, ChevronRight, CheckCircle2, MessageSquareWarning } from 'lucide-react-native';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
+import { useCoreData, useDocsData } from '@/contexts/ProjectContext';
+import { rfiAttention, submittalAttention } from '@/utils/brainWatch';
 import type { AttentionItem, AttnSeverity } from '@/utils/brainWatch';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -54,6 +71,22 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+
+  // Gates the "all caught up" sentence only — never the pill, never the rows.
+  // Same contexts and the same pure builders the canonical hook uses, so the two
+  // cannot come to different conclusions about what an overdue RFI is.
+  const { projects } = useCoreData();
+  const { rfis, submittals } = useDocsData();
+  const outsideTheScan = useMemo(() => {
+    const nowMs = Date.now();
+    let n = 0;
+    for (const project of projects) {
+      if (project.status === 'closed' || project.status === 'completed') continue;
+      n += rfiAttention(project, rfis, nowMs).length;
+      n += submittalAttention(project, submittals, nowMs).length;
+    }
+    return n;
+  }, [projects, rfis, submittals]);
 
   const top = useMemo(() => items.slice(0, 8), [items]);
 
@@ -87,13 +120,35 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
             <Text style={[styles.emptyTitle, { color: colors.warningLabel }]}>{UNREACHABLE_LINE}</Text>
             <Text style={styles.emptySubtitle}>Nothing cached needs attention; the live read failed.</Text>
           </View>
+        ) : outsideTheScan > 0 ? (
+          // Open work this column does not count. Named rather than swallowed,
+          // and routed, because at this width there is no Inbox card below to
+          // fall back on.
+          <TouchableOpacity
+            style={styles.emptyState}
+            onPress={() => router.push('/waiting-on' as any)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Open Waiting On"
+            testID="rail-partial-clear"
+          >
+            <View style={styles.emptyIconWrap}>
+              <MessageSquareWarning size={22} color={colors.warningLabel} strokeWidth={1.8} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.warningLabel }]}>
+              {outsideTheScan === 1 ? '1 reply is overdue' : `${outsideTheScan} replies are overdue`}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              Schedules, invoices, permits and certs are clear. RFIs and submittals are not — open Waiting On.
+            </Text>
+          </TouchableOpacity>
         ) : (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconWrap}>
               <CheckCircle2 size={22} color={colors.success} strokeWidth={1.8} />
             </View>
             <Text style={styles.emptyTitle}>All caught up</Text>
-            <Text style={styles.emptySubtitle}>Nothing urgent across your projects.</Text>
+            <Text style={styles.emptySubtitle}>Nothing overdue on schedules, invoices, permits or certs.</Text>
           </View>
         )
       ) : (

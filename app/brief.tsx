@@ -25,7 +25,7 @@ import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
-  Sunrise, AlertCircle, Eye, ChevronRight, CheckCircle2,
+  Sunrise, AlertCircle, Eye, ChevronRight, CheckCircle2, CloudOff,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -36,8 +36,10 @@ import Paywall from '@/components/Paywall';
 import { useMorningBrief } from '@/hooks/useMorningBrief';
 import {
   BRIEF_LAST_SEEN_KEY, briefIsEmpty, localDateISO, QUIET_MORNING_LINE,
+  quietBriefDetail,
   type BriefItem, type BriefSeverity,
 } from '@/utils/brief/composeBrief';
+import { useCoreData } from '@/contexts/ProjectContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -77,6 +79,18 @@ function BriefInner() {
   const router = useRouter();
   const { brief } = useMorningBrief();
   const { isDesktop } = useResponsiveLayout();
+  // RT-R1, and the half of it that never generalised (polish audit 2026-09-10,
+  // verifier "missed" #2): `sourceFailed` was added to the home Brain Watch card
+  // and to the Summary tab, and this screen — which issues the same green
+  // all-clear from the same swallow-and-serve-the-cache loaders — never got it.
+  // On a dead session or a 401'd read the brief still printed "Nothing overdue"
+  // over a book nobody could read. Read straight off CoreData, the flag's owner,
+  // for the same reason useBrainWatch forwards it rather than re-deriving it.
+  const { sourceFailed } = useCoreData();
+  // Verbatim the sentence the home card and the desktop rail use: a reader who
+  // has learned what it means on one surface should not relearn it on another.
+  const unreachableLine =
+    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
 
   // Opening the brief counts as "seen today" — hides the pinned home card.
   useEffect(() => {
@@ -89,7 +103,7 @@ function BriefInner() {
   );
 
   const headline = brief.needsYou.length === 0
-    ? QUIET_MORNING_LINE
+    ? (sourceFailed ? 'Brief incomplete — MAGE was unreachable' : QUIET_MORNING_LINE)
     : `${brief.needsYou.length} need${brief.needsYou.length === 1 ? 's' : ''} you`;
 
   const openItem = (item: BriefItem) => {
@@ -164,12 +178,21 @@ function BriefInner() {
             <Text style={styles.headline}>{headline}</Text>
           </View>
 
-          {briefIsEmpty(brief) ? (
+          {/* An empty brief on a failed read is not a quiet morning — say which
+              one this is before saying anything else. */}
+          {briefIsEmpty(brief) && sourceFailed ? (
+            <View style={styles.emptyCard} testID="brief-unreachable">
+              <CloudOff size={18} color={Colors.warningLabel} strokeWidth={2} />
+              <Text style={styles.emptyText}>
+                {unreachableLine}. Nothing here was read just now, so an empty
+                brief is not an all-clear.
+              </Text>
+            </View>
+          ) : briefIsEmpty(brief) ? (
             <View style={styles.emptyCard}>
               <CheckCircle2 size={18} color={t.success} strokeWidth={2} />
-              <Text style={styles.emptyText}>
-                Nothing overdue, nothing at risk, nothing waiting on you. Go build.
-              </Text>
+              {/* States its own evidence — see quietBriefDetail / BriefScope. */}
+              <Text style={styles.emptyText}>{quietBriefDetail(brief)}</Text>
             </View>
           ) : (
             <>
@@ -209,7 +232,9 @@ function BriefInner() {
               </View>
 
               {brief.needsYou.length === 0 && brief.watching.length === 0 && (
-                <Text style={styles.quietNote}>{QUIET_MORNING_LINE}.</Text>
+                <Text style={styles.quietNote}>
+                  {sourceFailed ? `${unreachableLine} — nothing was read just now.` : quietBriefDetail(brief)}
+                </Text>
               )}
             </>
           )}

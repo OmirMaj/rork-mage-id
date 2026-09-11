@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -116,6 +116,11 @@ export default function OnboardingPaywallScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Set by the estimate wizard when the contractor already has a project here.
+  // Without it, declining the ask dropped him on Summary, which reads "No
+  // projects yet" — the app forgetting the thing he just built, two taps after
+  // charging him for it.
+  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const {
     purchasePro,
     purchaseBusiness,
@@ -205,12 +210,28 @@ export default function OnboardingPaywallScreen() {
     };
   }, [proPackage, proAnnualPackage, businessPackage, businessAnnualPackage]);
 
+  /**
+   * Where every exit from this screen lands.
+   *
+   * Shared by decline, purchase and restore on purpose: the contractor who PAYS
+   * has the same claim on seeing the project he just built as the one who
+   * declines, and routing only the decline would have dropped the buyer on
+   * Summary — which reads "No projects yet" until the context rehydrates.
+   */
+  const leaveToNextScreen = useCallback(() => {
+    if (projectId) {
+      router.replace({ pathname: '/project-detail', params: { id: projectId } } as any);
+      return;
+    }
+    router.replace('/(tabs)/summary' as any);
+  }, [router, projectId]);
+
   const handleClose = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Stamp last-seen so today's gate doesn't immediately re-show on next boot.
     void AsyncStorage.setItem(STORAGE_KEY_LAST_SEEN, new Date().toISOString());
-    router.replace('/(tabs)/summary' as any);
-  }, [router]);
+    leaveToNextScreen();
+  }, [leaveToNextScreen]);
 
   const handlePurchase = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -227,7 +248,7 @@ export default function OnboardingPaywallScreen() {
         'Welcome to MAGE ID ' + (selectedPlan === 'pro' ? 'Pro' : 'Business') + '!',
         'Your subscription is active.',
       );
-      router.replace('/(tabs)/summary' as any);
+      leaveToNextScreen();
     } catch (err: unknown) {
       const cancelled =
         err &&
@@ -241,18 +262,18 @@ export default function OnboardingPaywallScreen() {
         'Something went wrong. Please try again, or tap Restore if you already purchased.',
       );
     }
-  }, [selectedPlan, selectedPeriod, purchasePro, purchaseBusiness, router]);
+  }, [selectedPlan, selectedPeriod, purchasePro, purchaseBusiness, leaveToNextScreen]);
 
   const handleRestore = useCallback(async () => {
     try {
       await restorePurchases();
       showAlert('Restored', 'Your purchases have been restored.');
-      router.replace('/(tabs)/summary' as any);
+      leaveToNextScreen();
     } catch (err) {
       console.log('[OnboardingPaywall] restore failed', err);
       showAlert('Nothing to Restore', 'We couldn\'t find an active subscription.');
     }
-  }, [restorePurchases, router]);
+  }, [restorePurchases, leaveToNextScreen]);
 
   const openLegal = useCallback((kind: 'privacy' | 'terms') => {
     // Production domain is mageid.app, not mageid.com. Apple/Play
@@ -457,6 +478,19 @@ export default function OnboardingPaywallScreen() {
           ) : (
             <Text style={styles.ctaLabel}>{ctaLabel}</Text>
           )}
+        </TouchableOpacity>
+
+        {/* The only way past this screen used to be an unlabelled X in the top
+            corner. A contractor who is not buying today should be able to READ
+            his way out — and the free plan is a real plan, not a dead end. */}
+        <TouchableOpacity
+          onPress={handleClose}
+          style={styles.declineBtn}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          testID="onboarding-paywall-decline"
+        >
+          <Text style={styles.declineLabel}>Continue on the free plan</Text>
         </TouchableOpacity>
 
         <Text style={styles.reassurance}>
@@ -791,6 +825,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.surface,
     letterSpacing: 0.1,
+  },
+  declineBtn: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  declineLabel: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '600' as const,
+    color: t.textSecondary,
   },
   reassurance: {
     fontSize: Type.caption2.fontSize,

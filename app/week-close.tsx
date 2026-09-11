@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { CheckCircle2, ChevronRight, X } from 'lucide-react-native';
+import { CheckCircle2, ChevronRight, X, CloudOff } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -29,7 +29,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { WEEK_CLOSE_LAST_SEEN_KEY, weekCloseTodayISO } from '@/utils/weekClose/types';
 import { useWeekClose } from '@/hooks/useWeekClose';
-import { QUIET_CLOSE_LINE } from '@/utils/weekClose/composeWeekClose';
+import { QUIET_CLOSE_HEADLINE, QUIET_CLOSE_SCOPE_NOTE } from '@/utils/weekClose/composeWeekClose';
+import { useCoreData } from '@/contexts/ProjectContext';
 import type { BriefItem, BriefSeverity, WeekCloseLeg } from '@/utils/weekClose/types';
 
 // ─── Business gate ────────────────────────────────────────────────────────────
@@ -67,6 +68,18 @@ function WeekCloseInner() {
   const router = useRouter();
   const { close } = useWeekClose();
   const { isDesktop } = useResponsiveLayout();
+  // RT-R1 applied to the third surface that issues an all-clear (polish audit
+  // 2026-09-10, verifier "missed" #2). ProjectContext swallows a failed read and
+  // serves this device's cache, so five empty legs mean EITHER a genuinely clean
+  // week OR a dead session. The home Brain Watch card has gated on this since the
+  // original incident; this screen never did, and printed "Clean close" over a
+  // book nobody could read. Read from CoreData, the flag's owner.
+  const { sourceFailed } = useCoreData();
+  // Same sentence the home card and the desktop rail use, deliberately — a
+  // reader who has learned what it means on one surface should not have to learn
+  // it again on another.
+  const unreachableLine =
+    `Couldn't reach MAGE — showing what's on this ${Platform.OS === 'web' ? 'device' : 'phone'}`;
 
   // Stamp last-seen on mount — hides the home card until next week.
   // LOCAL date via the shared helper: WeekCloseCard compares ISO weeks of
@@ -88,7 +101,7 @@ function WeekCloseInner() {
   );
 
   const headline = close?.allQuiet
-    ? QUIET_CLOSE_LINE
+    ? (sourceFailed ? 'Close incomplete — MAGE was unreachable' : QUIET_CLOSE_HEADLINE)
     : `${openLegs} leg${openLegs === 1 ? '' : 's'} open`;
 
   const openItem = (item: BriefItem) => {
@@ -128,8 +141,16 @@ function WeekCloseInner() {
   // Leg-specific quiet lines — "Nothing here this week." four times in a row
   // read as filler (sim-audit slop #4). Each line states the HONEST quiet
   // condition for its leg, so an empty leg still carries information.
+  //
+  // The bill line names its BASIS (polish audit 2026-09-10, dead-ends P2). It
+  // said "invoicing is caught up", which is a claim about the account; the leg
+  // actually measures earned-not-billed value off cost-to-date
+  // (composeWeekClose's WeekCloseWipRow.unbilled = utils/wip underbilling). On
+  // the seeded job — $155,172 of contract, no cost recorded — earned is $0, so
+  // unbilled is $0, so the leg is empty. That is "nothing measured", not
+  // "nothing owed", and the two deserve different sentences. Cost, not revenue.
   const EMPTY_LEG_LINES: Record<WeekCloseLeg['id'], string> = {
-    bill: 'Nothing unbilled — invoicing is caught up.',
+    bill: 'Nothing unbilled from the costs recorded so far — log crew hours or a sub payment and this fills in.',
     chase: 'No overdue invoices out there.',
     close: 'No weekly plan was tracked this week.',
     commit: 'No lookahead tasks queued for next week yet.',
@@ -187,6 +208,18 @@ function WeekCloseInner() {
           <View style={{ flex: 1 }}>
             <Text style={styles.dateLabel}>{dateLabel}</Text>
             <Text style={styles.headline}>{headline}</Text>
+            {/* A quiet verdict carries its own limits — see QUIET_CLOSE_SCOPE_NOTE. */}
+            {close?.allQuiet && !sourceFailed && (
+              <Text style={styles.scopeNote}>{QUIET_CLOSE_SCOPE_NOTE}</Text>
+            )}
+            {close?.allQuiet && sourceFailed && (
+              <View style={styles.unreachableRow} testID="week-close-unreachable">
+                <CloudOff size={12} color={Colors.warningLabel} strokeWidth={2} />
+                <Text style={styles.scopeNote}>
+                  {unreachableLine}. Five empty legs are not an all-clear when nothing was read.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -227,6 +260,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: Tokens.spacing.sm,
     marginBottom: Tokens.spacing.sm,
   },
+  scopeNote: { ...Type.caption1, color: t.textMuted, marginTop: 4 },
+  unreachableRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs, marginTop: 4,
+  },
+
   headerIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
     backgroundColor: t.accent + '14',

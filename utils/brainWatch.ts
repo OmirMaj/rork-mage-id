@@ -5,7 +5,7 @@
 // No context calls, no side effects. Sorting + summarizing are separate.
 
 import type { Route } from 'expo-router';
-import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '@/types';
+import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder, RFI, Submittal } from '@/types';
 import { computeProjectProgress } from './projectProgress';
 import { invoiceOutstanding } from './invoiceBilling';
 // MONEY-03 (runtime audit 2026-09-06): every money string in this file goes
@@ -23,7 +23,18 @@ import {
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
-export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout' | 'punch' | 'changeOrder' | 'delivery' | 'buildingAccess';
+// ATTN-RFI (polish audit 2026-09-10, empty-states P0 #1 / dead-ends P0 #1).
+// There was no 'rfi' and no 'submittal' kind here, and that absence is what
+// made four surfaces lie at once. The seeded account carries an RFI 23 days
+// past due to the architect; /waiting-on and the Smart Inbox both name it
+// ("RFI #2 past due · 23d"), but because no attention builder could see it the
+// home Brain Watch card printed "All clear — your jobs are on track" ten rows
+// above that very line, the Morning Brief printed "Nothing overdue, nothing at
+// risk, nothing waiting on you. Go build." byte-identically in an EMPTY and a
+// POPULATED account, and the desktop rail said "All caught up". An unanswered
+// RFI is the most expensive thing on this list — it stops work — so it is the
+// last thing an all-clear should be blind to.
+export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout' | 'punch' | 'changeOrder' | 'delivery' | 'buildingAccess' | 'rfi' | 'submittal';
 export type AttnSeverity = 'critical' | 'high' | 'medium';
 
 export interface AttentionItem {
@@ -152,10 +163,80 @@ export function invoiceAttention(
 
 // ─── permitAttention ──────────────────────────────────────────────────────────
 
+/** How far ahead an expiring permit becomes a this-week problem. Wider than
+ *  the inspection window below because a permit renewal is paperwork with a
+ *  jurisdiction on the other end of it — two days' notice is not enough to do
+ *  anything about one, where two days' notice of an inspection is. */
+const PERMIT_EXPIRY_HORIZON_DAYS = 30;
+
+/** What a permit's printed expiry says about it today. */
+export interface PermitExpiryState {
+  /** Already past its expiry day, or recorded as expired by the jurisdiction. */
+  lapsed: boolean;
+  /** Whole calendar days until it expires — 0 is today, negative once past.
+   *  Null when the permit carries no readable expiry and only its `status`
+   *  says 'expired', which is still worth saying but carries no countdown. */
+  daysToExpiry: number | null;
+  /** What to call it on screen: the jurisdiction's number when there is one,
+   *  otherwise the trade. One rule, so two surfaces name the same permit the
+   *  same way. */
+  label: string;
+}
+
 /**
- * Produces one AttentionItem per permit with an upcoming inspection within 7 days.
- * Severity: ≤ 2 days → critical, else high.
+ * THE definition of "this permit needs a human about its expiry" — null when it
+ * does not.
+ *
+ * ONE definition because two surfaces read it: permitAttention below (the
+ * canonical attention set behind every "needs you" verdict) and the
+ * `permit_expiring` rule in hooks/useSmartInbox.ts. While only the first of
+ * those could see an expired permit, the home screen rendered "1 thing needs
+ * your attention | … ELE-26-02219 permit has expired — work on it is
+ * unpermitted" and, four rows lower in the same scroll, the Inbox card's "All
+ * caught up. | Nothing urgent across your projects." (measured render,
+ * 2026-09-10). Two cards, one account, opposite verdicts — the same shape of
+ * failure as sim-audit #15, and the reason this decision is not made twice.
+ *
+ * `denied` is excluded: there is nothing to renew, and a denied permit is a
+ * different conversation.
+ *
+ * Expiry is read as a CALENDAR DAY — a permit expires on a date printed on a
+ * card, not at an instant — so a reader in Denver and a reader in Tokyo agree
+ * about which day it lapsed.
+ */
+function permitLabel(permit: Permit): string {
+  return permit.permitNumber ?? permit.type;
+}
+
+export function permitExpiryState(permit: Permit, nowMs: number): PermitExpiryState | null {
+  if (permit.status === 'denied') return null;
+  const daysToExpiry = daysUntilCalendarDay(permit.expiresDate, new Date(nowMs));
+  const lapsed = permit.status === 'expired' || (daysToExpiry !== null && daysToExpiry < 0);
+  const expiringSoon =
+    daysToExpiry !== null && daysToExpiry >= 0 && daysToExpiry <= PERMIT_EXPIRY_HORIZON_DAYS;
+  if (!lapsed && !expiringSoon) return null;
+  return { lapsed, daysToExpiry, label: permitLabel(permit) };
+}
+
+/**
+ * Produces AttentionItems for a permit that needs a human this week:
+ *   • an upcoming inspection within 7 days (≤ 2 days → critical, else high), and
+ *   • a permit that has lapsed or is about to (expired → critical, else high).
+ *
  * Route: /permits with projectId param.
+ *
+ * PERMIT-EXPIRY (polish audit 2026-09-10, verifier "missed" #2): this function
+ * only ever read `inspectionDate`, and then only for an inspection 0–7 days
+ * out. Nothing here had ever looked at `expiresDate`. The consequence was not
+ * a missing nag — it was that an EXPIRED electrical permit on an active job
+ * produced no attention item at all, which is why the home card, the Morning
+ * Brief, the Friday Close and /waiting-on were all silent about the one on the
+ * seeded account (ELE-26-02219, lapsed Sep 5) while /documents rendered it as
+ * "Expired". Building on a lapsed permit is a stop-work risk; it belongs in the
+ * set that decides whether the app may say "all clear".
+ *
+ * Expiry is read as a CALENDAR DAY, like the inspection date beside it — a
+ * permit expires on a date printed on a card, not at an instant.
  */
 export function permitAttention(
   project: Project,
@@ -166,6 +247,32 @@ export function permitAttention(
 
   for (const permit of permits) {
     if (permit.projectId !== project.id) continue;
+
+    // A permit already recorded as expired, or one whose printed expiry has
+    // passed / is within the renewal horizon — see permitExpiryState, which
+    // the Smart Inbox reads too so the two cannot disagree.
+    const expiry = permitExpiryState(permit, nowMs);
+    if (expiry) {
+      items.push({
+        id: `permit-expiry-${permit.id}`,
+        projectId: project.id,
+        projectName: project.name,
+        kind: 'permit',
+        severity: expiry.lapsed ? 'critical' : 'high',
+        message: expiry.lapsed
+          ? `${project.name}: ${expiry.label} permit has expired — work on it is unpermitted`
+          // "expires in 0d" is not a sentence anyone says, and today is the one
+          // day the countdown matters most.
+          : expiry.daysToExpiry === 0
+            ? `${project.name}: ${expiry.label} permit expires today`
+            : `${project.name}: ${expiry.label} permit expires in ${expiry.daysToExpiry}d`,
+        route: {
+          pathname: '/permits',
+          params: { projectId: project.id },
+        },
+      });
+    }
+
     if (!permit.inspectionDate) continue;
 
     // B4 review A3: inspectionDate is a CALENDAR DAY (bare 'YYYY-MM-DD',
@@ -179,7 +286,6 @@ export function permitAttention(
     if (daysUntil < 0 || daysUntil > 7) continue; // past or too far out
 
     const severity: AttnSeverity = daysUntil <= 2 ? 'critical' : 'high';
-    const label = permit.permitNumber ?? permit.type;
 
     items.push({
       id: `permit-${permit.id}`,
@@ -187,9 +293,123 @@ export function permitAttention(
       projectName: project.name,
       kind: 'permit',
       severity,
-      message: `${project.name}: ${label} inspection in ${daysUntil}d`,
+      message: `${project.name}: ${permitLabel(permit)} inspection in ${daysUntil}d`,
       route: {
         pathname: '/permits',
+        params: { projectId: project.id },
+      },
+    });
+  }
+
+  return items;
+}
+
+// ─── rfiAttention ─────────────────────────────────────────────────────────────
+//
+// The line that was missing. An RFI past its required-by date is the app's
+// clearest "someone else is holding your job up" signal, and it was the one
+// signal no attention builder produced — see the ATTN-RFI note on AttnKind.
+//
+// Thresholds and the day count are lifted from hooks/useSmartInbox.ts:185-202
+// deliberately, not re-invented: that rule already renders "RFI #2 past due ·
+// 23d" on the home Inbox card, and if these two disagreed the same screen would
+// print two different day counts for the same RFI. Same reason the day math is
+// daysUntilCalendarDay — RFI.dateRequired is a date on a calendar (a reply is
+// "due Tuesday", not "due at 14:07"), and it arrives in MIXED shapes (bare
+// 'YYYY-MM-DD' from the voice/photo writers, noon-UTC from DatePickerModal),
+// which is exactly what that helper's slice-to-10 handles.
+
+export function rfiAttention(
+  project: Project,
+  rfis: RFI[],
+  nowMs: number,
+): AttentionItem[] {
+  const items: AttentionItem[] = [];
+  const now = new Date(nowMs);
+
+  for (const rfi of rfis) {
+    if (rfi.projectId !== project.id) continue;
+    // Only 'open' — an answered/closed/void RFI is nobody's problem, and
+    // useSmartInbox draws the line in the same place.
+    if (rfi.status !== 'open') continue;
+
+    const daysUntil = daysUntilCalendarDay(rfi.dateRequired, now);
+    if (daysUntil === null || daysUntil >= 0) continue; // not due yet
+    const daysLate = -daysUntil;
+
+    const severity: AttnSeverity =
+      daysLate >= 7 ? 'critical' : daysLate >= 3 ? 'high' : 'medium';
+
+    // assignedTo is free text and can be blank on a legacy row; naming a blank
+    // holder would read as "waiting on " with nothing after it.
+    const holder = rfi.assignedTo?.trim();
+    const waiting = holder ? ` — waiting on ${holder}` : '';
+
+    items.push({
+      id: `rfi-${rfi.id}`,
+      projectId: project.id,
+      projectName: project.name,
+      kind: 'rfi',
+      severity,
+      message: `${project.name}: RFI #${rfi.number} is ${daysLate}d past due${waiting}`,
+      route: {
+        pathname: '/rfi',
+        params: { projectId: project.id },
+      },
+    });
+  }
+
+  return items;
+}
+
+// ─── submittalAttention ───────────────────────────────────────────────────────
+//
+// A submittal sitting in review is the same shape of problem as an overdue RFI
+// — someone else is holding a decision the schedule needs — and it was missing
+// for the same reason. Staleness (not the required-by date) is the trigger,
+// matching hooks/useSmartInbox.ts:204-225, because a submittal's requiredDate
+// is often the date it is needed ON SITE while the review clock is what a GC
+// can actually chase.
+
+/** Days in review before a submittal becomes something to chase. Same 7 the
+ *  Smart Inbox uses, so the two surfaces cannot disagree about what is stale. */
+const SUBMITTAL_STALE_DAYS = 7;
+
+export function submittalAttention(
+  project: Project,
+  submittals: Submittal[],
+  nowMs: number,
+): AttentionItem[] {
+  const items: AttentionItem[] = [];
+  const now = new Date(nowMs);
+
+  for (const subm of submittals) {
+    if (subm.projectId !== project.id) continue;
+    if (subm.currentStatus !== 'in_review' && subm.currentStatus !== 'pending') continue;
+
+    // The clock runs from the LAST time it went out, not from first submission:
+    // a resubmittal that left yesterday is not 40 days stale.
+    const cycles = subm.reviewCycles ?? [];
+    const last = cycles.length > 0 ? cycles[cycles.length - 1] : null;
+    const sentDay = last?.sentDate ?? subm.submittedDate;
+
+    const daysUntil = daysUntilCalendarDay(sentDay, now);
+    if (daysUntil === null) continue;
+    const daysStale = -daysUntil;
+    if (daysStale < SUBMITTAL_STALE_DAYS) continue;
+
+    const severity: AttnSeverity =
+      daysStale >= 21 ? 'critical' : daysStale >= 14 ? 'high' : 'medium';
+
+    items.push({
+      id: `submittal-${subm.id}`,
+      projectId: project.id,
+      projectName: project.name,
+      kind: 'submittal',
+      severity,
+      message: `${project.name}: submittal #${subm.number} has been in review ${daysStale}d`,
+      route: {
+        pathname: '/submittal',
         params: { projectId: project.id },
       },
     });
@@ -592,6 +812,8 @@ export function summarize(items: AttentionItem[]): {
     changeOrder: 0,
     delivery: 0,
     buildingAccess: 0,
+    rfi: 0,
+    submittal: 0,
   };
   for (const item of items) {
     byKind[item.kind]++;

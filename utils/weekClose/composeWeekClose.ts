@@ -64,7 +64,72 @@ import type { BriefItem } from '@/utils/brief/composeBrief';
 
 // ─── Quiet line ───────────────────────────────────────────────────────────────
 
+/**
+ * SUPERSEDED — do not render this. Use QUIET_CLOSE_HEADLINE.
+ *
+ * CLOSE-SCOPE (polish audit 2026-09-10, empty-states P2 / dead-ends P2). This
+ * was the Friday Close headline, and it rendered byte-identically in an empty
+ * account and in a seeded one carrying an RFI 23 days past due to the architect,
+ * a lapsed electrical permit, and 19 of 21 working days with no daily log. None
+ * of those three is in scope for ANY leg here, so "nothing left on the table"
+ * was a claim about the whole week made from five legs' worth of evidence. Each
+ * leg's own line was already honest; the verdict over the top of them was not.
+ *
+ * It is still exported, and only for one reason: scripts/validate-compose-week-
+ * close.ts:740 asserts this exact literal, and that file is outside the set this
+ * change may edit. Deleting it here turns the ship gate red; changing its value
+ * does the same. The follow-up is two lines — point that assertion at
+ * QUIET_CLOSE_HEADLINE and delete this constant — and it is filed rather than
+ * left implicit, because a constant nothing renders is the kind of thing the
+ * next reader re-adopts by accident.
+ *
+ * @deprecated superseded by QUIET_CLOSE_HEADLINE; pinned only by the validator.
+ */
 export const QUIET_CLOSE_LINE = 'Clean close — nothing left on the table this week.';
+
+/**
+ * The headline the Friday Close actually shows when all five legs come back
+ * empty.
+ *
+ * It reports the RESULT OF THE CHECK, not a verdict on the business, and that
+ * distinction is the whole point. The first narrowing of this line read "Clean
+ * close on billing, collections, the plan and client updates." — scoped to the
+ * five legs, and still false in two directions on the audited account:
+ *
+ *   • It said the plan closed clean directly above the plan leg's own line,
+ *     "No weekly plan was tracked this week." There was no plan. An absent
+ *     measurement had been promoted to a passing grade.
+ *   • It said billing was clean directly above "Nothing unbilled from the costs
+ *     recorded so far" — the disclaimer the bill leg had just been given
+ *     precisely because a job with no cost recorded cannot show underbilling.
+ *     The headline took it straight back.
+ *
+ * Every one of these legs goes quiet either because there is genuinely nothing
+ * outstanding OR because nothing was recorded to measure, and this composer
+ * cannot tell those two apart. So it says the true thing — nothing came back —
+ * and the leg lines underneath say what each one looked at.
+ *
+ * Widening (an RFI/submittal leg) still wants doing; its inputs arrive through
+ * hooks/useWeekClose.ts, a file this change does not own.
+ * utils/brainWatch.ts now carries rfiAttention / submittalAttention for exactly
+ * that wiring, and QUIET_CLOSE_SCOPE_NOTE says what is skipped until it lands.
+ */
+export const QUIET_CLOSE_HEADLINE = "Nothing open in this week's five checks";
+
+/**
+ * What the five legs do NOT cover, shown under a quiet headline.
+ *
+ * Friday afternoon is precisely when an unanswered RFI should get chased, so a
+ * close that cannot see one has to say so rather than let its silence read as
+ * an answer. Margin is named here and deliberately NOT imported: the projected
+ * margin the rest of the app shows double-counts awarded buyout against the
+ * estimate line that already priced it (utils/jobCostEngine.ts matches an
+ * estimate's `item.category` against a commitment's `c.phase`, exactly and
+ * case-sensitively), so pulling it in would trade a false "clean" for a false
+ * "losing money".
+ */
+export const QUIET_CLOSE_SCOPE_NOTE =
+  'RFIs, permits and job margin are not part of this check — see Waiting On and Margin Alerts for those.';
 
 // ─── Bill-leg WIP row shape ───────────────────────────────────────────────────
 

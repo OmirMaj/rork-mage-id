@@ -22,16 +22,18 @@
 //               self-correction line when the graded ledger produced one.
 //
 // Honest empty state: when nothing needs the user and nothing is being
-// watched, the surface says so ("Quiet morning — nothing needs you")
-// instead of inflating noise.
+// watched, the surface says so — but only about what it read. The line used
+// to be "Quiet morning — nothing needs you" over a scan with no RFI, no
+// submittal and no permit-expiry category in it; see QUIET_MORNING_LINE and
+// BriefScope for the sentence it became and why.
 
 import type {
   Project, Invoice, ChangeOrder, PunchItem, Permit, Certification,
-  DailyFieldReport,
+  DailyFieldReport, RFI, Submittal,
 } from '@/types';
 import {
   scheduleAttention, invoiceAttention, permitAttention, certAttention,
-  deliveryAttention, buildingAccessAttention,
+  deliveryAttention, buildingAccessAttention, rfiAttention, submittalAttention,
   closeoutAttention, rankAttention, type AttentionItem, type AttnSeverity,
 } from '@/utils/brainWatch';
 import type { Delivery } from '@/utils/deliverySchedule';
@@ -68,12 +70,39 @@ export interface BriefItem {
   informational?: boolean;
 }
 
+/**
+ * What this brief actually looked at, and what it did not.
+ *
+ * BRIEF-SCOPE (polish audit 2026-09-10, dead-ends P0 #3 / empty-states P0 #1).
+ * The quiet state used to read "Nothing overdue, nothing at risk, nothing
+ * waiting on you. Go build." — three checked negatives — and it rendered BYTE
+ * IDENTICALLY (129 characters) in a brand-new account and in a seeded one
+ * holding an RFI 23 days past due to the architect, a lapsed electrical permit
+ * and a job the margin engine calls critical. Three total claims from a partial
+ * scan. The composer cannot be made omniscient (nothing here reads the job-cost
+ * engine, and see the `unchecked` note below for why that is deliberate), so
+ * the sentence has to name its own evidence instead.
+ *
+ * Recorded by the composer rather than written by hand next to the copy, so the
+ * sentence widens on its own the day a source is wired in and cannot drift back
+ * into a claim the scan does not support.
+ */
+export interface BriefScope {
+  /** Domains this brief read, in the words a contractor uses. Safe to assert on. */
+  checked: string[];
+  /** Domains it did NOT read. Named in the quiet line so the reader knows where
+   *  the rest of the answer lives, instead of assuming there isn't one. */
+  unchecked: string[];
+}
+
 export interface MorningBrief {
   /** Local calendar date the brief was composed for (YYYY-MM-DD). */
   dateISO: string;
   needsYou: BriefItem[];
   watching: BriefItem[];
   didForYou: BriefItem[];
+  /** The evidence behind a quiet verdict — see BriefScope. */
+  scope: BriefScope;
 }
 
 export interface OpenLeakSummary {
@@ -98,6 +127,19 @@ export interface ComposeBriefInput {
   buildingAccessRules: BuildingAccessRules[];
   accessReservations: AccessReservation[];
   expiringCertifications: (Certification & { status: 'expiring' | 'expired' })[];
+  /**
+   * Open RFIs and in-review submittals — the "someone else is holding your job
+   * up" half of the brief, and the half it was structurally blind to.
+   *
+   * OPTIONAL on purpose, and the optionality is load-bearing: `undefined` means
+   * "this caller did not hand me RFIs", which drops 'RFIs' out of
+   * BriefScope.checked and into `unchecked`, so the quiet line stops claiming
+   * them. An empty ARRAY means "I looked and there are none" and keeps the
+   * claim. A caller that forgets to pass them therefore under-claims rather
+   * than lying, which is the only failure mode worth having here.
+   */
+  rfis?: RFI[];
+  submittals?: Submittal[];
   dailyReports: DailyFieldReport[];
   /** From fetchOpenPredictionsDeduped(['leak_flag']). Pass null/undefined when
    *  the ledger read failed — the pure 14-day report-scan fallback kicks in. */
@@ -176,6 +218,9 @@ function collectBrainWatch(input: ComposeBriefInput, now: Date): AttentionItem[]
       input.deliveries,
       nowMs,
     ));
+    // Only when the caller handed them over — see the ComposeBriefInput note.
+    if (input.rfis) all.push(...rfiAttention(project, input.rfis.filter(r => r.projectId === project.id), nowMs));
+    if (input.submittals) all.push(...submittalAttention(project, input.submittals.filter(s => s.projectId === project.id), nowMs));
     all.push(...closeoutAttention(project));
   }
   all.push(...certAttention(input.expiringCertifications, nowMs));
@@ -387,6 +432,89 @@ function buildDidForYou(input: ComposeBriefInput, now: Date): BriefItem[] {
   return items;
 }
 
+// ─── Scope ───────────────────────────────────────────────────────────────────
+
+/**
+ * What the composer read, derived from the input it was actually handed.
+ *
+ * Every entry in `checked` corresponds to a builder called above: schedules
+ * (scheduleAttention), invoices (invoiceAttention + the aggregate overdue
+ * rollup), permits (permitAttention — inspections AND expiry since
+ * PERMIT-EXPIRY), certs (certAttention), deliveries + building access, closeouts,
+ * and — when passed — RFIs and submittals.
+ *
+ * `unchecked` names MARGIN unconditionally, and that is a decision rather than a
+ * gap left for later. The margin verdict the rest of the app shows is, on the
+ * audited account, a double count: utils/jobCostEngine.ts buckets an estimate's
+ * budget by `item.category` ('subcontractor') and a commitment by `c.phase`
+ * ('Electrical'), matches the two exactly and case-sensitively, and so adds
+ * $42,200 of awarded buyout on top of the $131,502 estimate that already priced
+ * it — which is where /margin-alerts' "projected to lose money" and /reports'
+ * "-$18,530" come from on a job carrying real margin. Importing that number here
+ * would swap a false green for a false red on the app's most trusted surface.
+ * The brief points at the screen instead, and picks margin up when the engine is
+ * fixed (see the verifier's REFUTED #2 / MISSED #1 in
+ * docs/audits/2026-09-10-polish-audit-rendered.md).
+ */
+export function briefScope(input: ComposeBriefInput): BriefScope {
+  // The six below are unconditional because their inputs are REQUIRED on
+  // ComposeBriefInput — you cannot compose a brief without handing over
+  // permits, and an empty array there means "looked, none". Only rfis and
+  // submittals are optional, so only they can be missing rather than empty,
+  // which is why only they are asked about. Any future OPTIONAL input has to
+  // join them below or this sentence starts claiming a source again.
+  const checked = ['schedules', 'invoices', 'permits', 'certs', 'deliveries', 'closeouts'];
+  const unchecked: string[] = [];
+  (input.rfis ? checked : unchecked).push('RFIs');
+  (input.submittals ? checked : unchecked).push('submittals');
+  unchecked.push('job margin');
+  return { checked, unchecked };
+}
+
+/** "a, b and c" — an Oxford-less list, because these render inside a sentence. */
+function joinWords(words: string[]): string {
+  if (words.length === 0) return '';
+  if (words.length === 1) return words[0];
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+}
+
+/** Where the answer this brief did not look for actually lives. Keyed by the
+ *  exact strings briefScope puts in `unchecked`. */
+const WHERE_UNCHECKED_LIVES: Record<string, string> = {
+  RFIs: 'Waiting On',
+  submittals: 'Waiting On',
+  'job margin': 'Margin Alerts',
+};
+
+/**
+ * The sentence the /brief screen shows when there is nothing to report — the
+ * one that used to read "Nothing overdue, nothing at risk, nothing waiting on
+ * you. Go build." on an account with a 23-day-late RFI.
+ *
+ * Built from BriefScope, so it states its evidence and names where the rest of
+ * the answer lives. Deliberately not cheerful: "Go build" was the app sending a
+ * contractor onto site on a day he needed to make two phone calls.
+ */
+export function quietBriefDetail(brief: MorningBrief): string {
+  const { checked, unchecked } = brief.scope;
+  const first = `Nothing overdue in ${joinWords(checked)}.`;
+  if (unchecked.length === 0) return first;
+  // The pointer is derived from what is actually unchecked, not written under
+  // it. Hardcoded, it read "see Margin Alerts and Waiting On for those" — which
+  // is right today and becomes wrong the moment hooks/useMorningBrief.ts passes
+  // rfis, because then the only unchecked domain is margin and the sentence
+  // would still be sending the reader to Waiting On for it. A sentence that
+  // widens on its own has to carry its own directions.
+  const screens: string[] = [];
+  for (const domain of unchecked) {
+    const screen = WHERE_UNCHECKED_LIVES[domain];
+    if (screen && !screens.includes(screen)) screens.push(screen);
+  }
+  const tail = screens.length > 0 ? ` — see ${joinWords(screens)} for ${unchecked.length === 1 ? 'that' : 'those'}` : '';
+  return `${first} Not checked here: ${joinWords(unchecked)}${tail}.`;
+}
+
+
 // ─── Compose ─────────────────────────────────────────────────────────────────
 
 export function composeBrief(input: ComposeBriefInput): MorningBrief {
@@ -396,6 +524,7 @@ export function composeBrief(input: ComposeBriefInput): MorningBrief {
     needsYou: buildNeedsYou(input, now),
     watching: buildWatching(input, now),
     didForYou: buildDidForYou(input, now),
+    scope: briefScope(input),
   };
 }
 
@@ -409,7 +538,19 @@ export function briefIsEmpty(brief: MorningBrief): boolean {
   return briefIsQuiet(brief) && brief.didForYou.length === 0;
 }
 
-export const QUIET_MORNING_LINE = 'Quiet morning — nothing needs you';
+/**
+ * The one-line quiet verdict, shown on the pinned home card
+ * (components/home/MorningBriefCard.tsx renders briefSummaryLine at one line)
+ * and as the /brief headline.
+ *
+ * It used to be "Quiet morning — nothing needs you", which is a TOTAL claim,
+ * and the populated home screen printed it four nodes above "RFI #2 past due ·
+ * 23d". One line has no room to list eight domains, so it hedges to exactly
+ * what it can support and the screen it opens carries the list
+ * (quietBriefDetail). No first person: the VOICE rule at the top of this file
+ * reserves "I" for the brain's own did-for-you lines.
+ */
+export const QUIET_MORNING_LINE = 'Quiet morning — nothing overdue in what was checked';
 
 /** One-line rollup for the home card: "3 need you · 2 watching · brain did
  *  4 things". Zero segments are dropped; a fully empty brief reads the

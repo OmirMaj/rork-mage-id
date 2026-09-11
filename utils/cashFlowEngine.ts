@@ -603,6 +603,118 @@ export function generateForecast(
 }
 
 /**
+ * Did any money actually move inside this forecast?
+ *
+ * THE ROW COUNT IS NOT EVIDENCE. generateForecast above pushes one row per week
+ * unconditionally — twelve rows come back from a brand-new account with no
+ * invoices, no expenses and no expected payments in it — so `weeks.length` says
+ * how long the horizon is and nothing whatsoever about whether there was
+ * anything to forecast. app/cash-flow.tsx read it as evidence anyway
+ * (`if (forecast.length === 0) → 'Setup'`), which made its no-data branch
+ * unreachable and printed a green "Healthy" verdict beside a $0 balance on both
+ * an empty account and a seeded one (rendered audit 2026-09-10). Ask this
+ * instead of counting rows.
+ *
+ * Dollars, not items: a hand-typed expense row with no amount in it produces an
+ * expenseItem and moves no cash, and it must not buy a verdict. `!== 0` rather
+ * than `> 0` so a negative amount someone typed still reads as movement rather
+ * than as silence.
+ *
+ * Cash MOVEMENT, both directions — this is inflow-or-outflow, not revenue and
+ * not cost. A week of nothing but bills going out is signal; it is what a
+ * 'Watch' or a 'Danger' reading is made of.
+ */
+export function forecastHasCashMovement(weeks: CashFlowWeek[]): boolean {
+  return weeks.some(w => w.totalIncome !== 0 || w.totalExpenses !== 0);
+}
+
+/**
+ * WHY nothing landed in the horizon — so the screen can name the missing input
+ * instead of guessing at it.
+ *
+ * The guess is the failure this closes. The first cut of the no-forecast state
+ * printed one fixed sentence, "Add your bank balance, an unpaid invoice, or a
+ * recurring bill and this becomes a real forecast", to everybody — and the
+ * rendered check of 2026-09-10 caught it beside "Current Balance $48,250", and
+ * again beside "Total Pending $26,000 · Sources 1". It asked for things the GC
+ * had already given it. Worse, the promise itself is one the code cannot keep:
+ * a starting balance moves no money, so forecastHasCashMovement above cannot
+ * flip because someone typed one in. Naming an input that would not have
+ * helped is the same category of lie as the "Healthy" verdict this screen was
+ * just fixed for; it is just quieter.
+ *
+ * Order is by what the GC can act on first, and every branch is something this
+ * function can actually see:
+ *   • undated_commitments   — signed money, no schedule to hang it on.
+ *   • bills_without_amounts — rows he typed and left blank. Hand-typed only:
+ *     the derived commitment rows are never in `expenses`.
+ *   • nothing_dated_on_file — no bills, no receivable, no expected payment.
+ *   • everything_falls_outside — there IS money on file and none of it lands:
+ *     a draft invoice (unsent), or dates before/after the window.
+ *
+ * Dollars, not rows, throughout: a blank amount is not a bill, and a paid
+ * invoice is not a receivable. Amounts are COST on the expense side and
+ * REVENUE on the income side, and the `!== 0` tests keep a negative (a credit
+ * memo, a backcharge) counted as money on file rather than as silence.
+ */
+export type EmptyForecastReason =
+  | { kind: 'undated_commitments'; amount: number }
+  | { kind: 'bills_without_amounts'; count: number }
+  | { kind: 'nothing_dated_on_file' }
+  | { kind: 'everything_falls_outside' };
+
+export function diagnoseEmptyForecast(input: {
+  /** buildCommittedOutflows().undated — committed dollars with no schedule. */
+  undatedCommitted: number;
+  /** Hand-typed rows only, exactly as stored; derived rows are not in here. */
+  expenses: CashFlowExpense[];
+  expectedPayments: ExpectedPayment[];
+  invoices: Invoice[];
+}): EmptyForecastReason {
+  const undated = Number.isFinite(input.undatedCommitted) ? input.undatedCommitted : 0;
+  if (undated > 0) return { kind: 'undated_commitments', amount: undated };
+
+  const unpriced = input.expenses.filter(e => !Number.isFinite(e.amount) || e.amount === 0).length;
+  if (unpriced > 0) return { kind: 'bills_without_amounts', count: unpriced };
+
+  const hasPricedBill = input.expenses.some(e => Number.isFinite(e.amount) && e.amount !== 0);
+  const hasIncomeOnFile =
+    input.expectedPayments.some(p => Number.isFinite(p.amount) && p.amount !== 0) ||
+    // The same two functions generateForecast uses, so "on file" here and
+    // "forecastable" there cannot drift apart and leave the screen asking for
+    // an invoice it is already reading. A draft counts as on file — it is
+    // unsent, not absent, and that is what the copy says.
+    input.invoices.some(inv => getEffectiveInvoiceStatus(inv) !== 'paid' && netBalanceDue(inv) > 0);
+
+  if (!hasPricedBill && !hasIncomeOnFile) return { kind: 'nothing_dated_on_file' };
+  return { kind: 'everything_falls_outside' };
+}
+
+/**
+ * A typed money box → dollars, or null when the box does not hold a number.
+ *
+ * `parseFloat(text) || 0` is the trap this closes, and this screen had it in
+ * three places. An empty box, a stray letter, a lone '-' all became 0, and a
+ * recorded $0 is indistinguishable from a deliberate one: the Add Expense
+ * sheet closed with a success haptic on a bill with no amount, and Edit
+ * Balance would overwrite a real bank balance with zero if the box was
+ * cleared. Callers refuse the save on null rather than inventing the number.
+ *
+ * Thousands separators are accepted ONLY in the US grouping this app formats
+ * with. "1200,50" is a decimal comma across most of Europe, and stripping
+ * commas blindly would record it as 120050 — a hundredfold error, written down
+ * as a fact about someone's money. Anything ambiguous is refused and retyped.
+ */
+export function parseMoneyInput(text: string): number | null {
+  const stripped = text.replace(/[$\s]/g, '');
+  if (stripped.length === 0) return null;
+  const degrouped = /^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(stripped) ? stripped.replace(/,/g, '') : stripped;
+  if (degrouped.includes(',')) return null;
+  const n = Number(degrouped);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * Retention dollars billed but contractually held back, across open invoices.
  *
  * This money is real and the GC will eventually get it — it is simply not on

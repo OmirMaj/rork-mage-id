@@ -775,8 +775,20 @@ export default function HomeScreen() {
                 pattern (CompanyCam): the user opens the app and the
                 very first thing they see is "what needs you right now"
                 — before stats, before project list. SmartInbox already
-                aggregates from useSmartInbox(). Renders nothing when
-                there are zero items. */}
+                aggregates from useSmartInbox().
+
+                It does NOT render nothing when there are zero items — this
+                comment said so for a long time and components/SmartInbox.tsx:80
+                has always rendered "Inbox 0 | All caught up. | Nothing urgent
+                across your projects." instead. That sentence is a claim about
+                every project made from nine rules, and it is the same false
+                all-clear the polish audit found on this card's neighbours; it
+                is also the string the DesktopActionRail dropped for exactly
+                that reason. The rules it is drawn from now include an expired
+                permit (hooks/useSmartInbox.ts permit_expiring, added because
+                this card printed "All caught up" four rows under "permit has
+                expired — work on it is unpermitted"), but the SENTENCE still
+                needs scoping in that component. */}
             {/* Inline SmartInbox is suppressed at wide desktop widths — the
                 DesktopActionRail in the tabs layout is rendering the same
                 items in the right column. */}
@@ -881,8 +893,17 @@ export default function HomeScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.stripeBannerTitle}>Get paid in one tap</Text>
+                  {/* Three screens quoted three different durations for this one
+                      step and none was the true one: this said 2 minutes, the
+                      checklist says "About 2 minutes" for a list containing it,
+                      and app/payments-setup.tsx says 3 — then tells you Stripe's
+                      own review takes "an hour, sometimes a few minutes". This
+                      one now matches the screen it sends you to, and names the
+                      wait it cannot control (polish audit 2026-09-10,
+                      first-ten-minutes #11). The other two strings are in files
+                      this change does not own. */}
                   <Text style={styles.stripeBannerSub}>
-                    Connect Stripe so clients can pay invoices from their phone. Takes 2 minutes.
+                    Connect Stripe so clients can pay invoices from their phone. About 3 minutes, then Stripe reviews it.
                   </Text>
                 </View>
                 <ChevronRight size={18} color="#FFFFFF" style={{ opacity: 0.85 }} strokeWidth={1.75} />
@@ -903,7 +924,14 @@ export default function HomeScreen() {
                 users never do. */}
             <OnboardingChecklist
               companyInfoDone={companyInfoDone}
-              projectCount={projects.length}
+              // realProjectCount, not projects.length (polish audit 2026-09-10,
+              // first-ten-minutes #15). Seeding "Sample — The Henderson Residence"
+              // ticked off "Create your first project" here, while handleCreatePress
+              // above deliberately filters samples OUT when it answers the same
+              // question for the free-tier cap. One definition of "a project", used
+              // by both, or this card credits him with work the rest of the app
+              // does not count.
+              projectCount={realProjectCount}
               estimateCount={estimateCount}
               stripeConnected={stripeConnected}
               invoiceCount={invoices.length}

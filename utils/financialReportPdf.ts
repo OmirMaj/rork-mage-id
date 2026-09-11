@@ -10,6 +10,29 @@ import {
   escHtml, fmtMoney, fmtDate, PDF_PALETTE,
 } from './pdfDesign';
 import type { WIPReport, ARAgingReport , ProfitRow } from './financialReports';
+import { describePortfolioCostBasis, type WipEstimatedCost } from './wip';
+
+/**
+ * The cost basis behind the margins in a report, as one sentence for the
+ * footnote block. Same helper the two screens use, so the exported document and
+ * the screen it came from cannot explain one schedule two different ways.
+ * Returns '' when no row carries a basis (rows built by older code), because a
+ * blank is honest and a guessed basis on a bank document is not.
+ */
+function costBasisNote(rows: { costAtCompletion?: WipEstimatedCost; costToDate?: number }[]): string {
+  const withBasis = rows.filter(r => r.costAtCompletion != null);
+  if (withBasis.length === 0) return '';
+  const bases = withBasis.map(r => r.costAtCompletion as WipEstimatedCost);
+  // COST paid out across the same rows, so the sentence can say when the book
+  // has already spent past the cost at completion the margins are struck
+  // against. A row that cannot say what it has cost makes the whole sum
+  // undefined rather than short: on a document a lender reads, a partial spend
+  // compared against a full cost is a false reassurance.
+  const incurred = withBasis.every(r => r.costToDate != null)
+    ? withBasis.reduce((sum, r) => sum + (r.costToDate ?? 0), 0)
+    : undefined;
+  return describePortfolioCostBasis(bases, incurred);
+}
 
 // ─── WIP PDF ─────────────────────────────────────────────────────────
 
@@ -79,9 +102,15 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
     <div style="margin-top:14px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2};line-height:1.6">
       <strong style="color:${PDF_PALETTE.ink}">Methodology.</strong>
       Revised Contract = Original Contract + Approved Change Orders.
-      % Complete = Billed to Date ÷ Revised Contract.
-      Estimated Final Cost = Actual Spend + (Committed − Spent) + max(0, Budget − Committed).
+      % Complete = Cost to Date ÷ Estimated Final Cost — or, on a job with no cost recorded yet,
+      the average progress across its schedule tasks, which is what a 0% on a job holding signed
+      subcontracts means.
+      Estimated Final Cost = the greater of your estimate's cost before markup (grown by the cost of
+      approved change orders) and the total you have signed in subcontracts and POs. Cost you have
+      already paid out is NOT added to it, so a job that has overspent its estimate reads its
+      estimate here until that estimate is updated.
       Projected Profit = Revised Contract − Estimated Final Cost.
+      ${escHtml(costBasisNote(report.rows))}
     </div>
     ${pdfFooter(branding, undefined, disclaimer)}
   `;
@@ -158,8 +187,9 @@ function buildProfitHtml(
       <span style="color:${PDF_PALETTE.success};font-weight:700">●</span> ≥12% margin (green) ·
       <span style="color:${PDF_PALETTE.warning};font-weight:700">●</span> 5–11% (watch) ·
       <span style="color:${PDF_PALETTE.error};font-weight:700">●</span> &lt;5% (risk).
+      ${escHtml(costBasisNote(rows))}
     </div>
-    ${pdfFooter(branding, undefined, 'Margins use the projected final cost from the job-cost engine. Final outcome subject to change as the project closes out.')}
+    ${pdfFooter(branding, undefined, 'Margins are struck against the cost at completion named above. Final outcome subject to change as the project closes out.')}
   `;
 
   return pdfShell({
