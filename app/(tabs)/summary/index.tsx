@@ -120,7 +120,16 @@ export default function SummaryScreen() {
         const done = await isSetupComplete();
         if (!done) { setCash4wk(null); return; }
         const data = await loadCashFlowData();
-        if (data.startingBalance > 0 || data.expenses.length > 0) {
+        // Gate on MONEY, not on row count. `expenses.length > 0` counts rows
+        // that may all be $0, which is the same "signal vs rows" mistake that
+        // made /cash-flow print "Healthy" beside a $0 balance — a tile showing
+        // a 4-week cash figure derived from nothing is the same lie in a
+        // smaller box (polish audit 2026-09-10).
+        const hasCashSignal =
+          data.startingBalance > 0
+          || data.expenses.some(e => (e.amount ?? 0) > 0)
+          || data.expectedPayments.some(p => (p.amount ?? 0) > 0);
+        if (hasCashSignal) {
           const forecast = generateForecast(
             data.startingBalance, data.expenses, [], data.expectedPayments, 12, data.defaultPaymentTerms,
           );
