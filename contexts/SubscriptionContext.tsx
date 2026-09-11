@@ -75,6 +75,24 @@ function isKeyValidForPlatform(key: string): boolean {
   return true;
 }
 
+/**
+ * A SANDBOX key. RevenueCat's sandbox forms carry an `_sb_` infix — the web
+ * billing one is `rcb_sb_…` against production's `rcb_…`.
+ *
+ * This needs its own check because `isKeyValidForPlatform` cannot catch it:
+ * `rcb_sb_…`.startsWith('rcb_') is TRUE, so a sandbox key passes the only
+ * pre-flight this file had and configures cleanly. Everything then looks
+ * healthy — the SDK initialises, offerings load, the paywall renders — and the
+ * one thing that does not happen is a charge.
+ *
+ * Found 2026-09-10: `eas.json` carried `rcb_sb_…` in the PRODUCTION profile,
+ * so no web visitor could ever have been billed. An app with 0 paid conversions
+ * and a sandbox key in production has not been told anything about its market.
+ */
+function isSandboxKey(key: string): boolean {
+  return /(^|_)sb_/.test(key);
+}
+
 let rcConfigured = false;
 
 function configureRC() {
@@ -96,6 +114,19 @@ function configureRC() {
     console.warn(`[RC] API key for ${Platform.OS} should start with "${expected}" — got "${apiKey.slice(0, 6)}…". ` +
       `Skipping RC configuration to avoid crash loop.`);
     return;
+  }
+  // A sandbox key in a RELEASE build is not a warning, it is a broken till.
+  // Deliberately still configured afterwards rather than skipped: skipping
+  // would blank the paywall and hide the cause, whereas configuring lets the
+  // screen render and fail at the charge, where it is diagnosable. What must
+  // not happen is this passing silently, which is exactly what it did.
+  if (!__DEV__ && isSandboxKey(apiKey)) {
+    console.error(
+      `[RC] SANDBOX KEY IN A PRODUCTION BUILD — "${apiKey.slice(0, 8)}…" on ${Platform.OS}. ` +
+      'RevenueCat will initialise and offerings will load, but NO REAL PURCHASE CAN COMPLETE. ' +
+      'Replace the key for this platform with its production value in eas.json (and .env for ' +
+      'local runs); the web one is rcb_… with no "sb".',
+    );
   }
   try {
     void Purchases.setLogLevel(LOG_LEVEL.DEBUG);
