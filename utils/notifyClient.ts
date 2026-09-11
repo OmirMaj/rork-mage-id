@@ -28,7 +28,11 @@ export type NotifyEventType =
   | 'selection_chosen'
   | 'bid_question_asked'
   | 'bid_question_answered'
-  | 'closeout_binder_sent';
+  | 'closeout_binder_sent'
+  // Invitation to bid (utils/bidInvites.ts). The payload carries the sub's
+  // address and the tokenized /bid-invite/ URL; the invite row is already on
+  // the server by the time this fires, so the link in the mail resolves.
+  | 'bid_invite_sent';
 
 export interface NotifyPayload {
   // Common keys the dispatcher looks at — all optional, supply whatever
@@ -44,9 +48,18 @@ export interface NotifyPayload {
 }
 
 /**
- * Fire a notification event. Resolves to true on a 2xx response, false
- * otherwise. Never throws — by design, notify failures should never
- * crash the user's flow.
+ * Fire a notification event. Resolves to true only when the dispatcher actually
+ * accepted and handled the event; false otherwise. Never throws — by design,
+ * notify failures should never crash the user's flow.
+ *
+ * A 2xx is NOT enough. `notify` answers an event its switch does not know with
+ * `{ok:false, reason:'unknown_event'}` and no `httpStatus`, which the serve
+ * wrapper turns into HTTP 200 `{"success":true,"result":{"ok":false,…}}` — and
+ * the same shape carries `no_gc_resolved` and `no_gc_profile`. Reading only
+ * `Response.ok` therefore reports "sent" for mail that was never composed:
+ * utils/bidInvites.ts believed that and told the GC his subs had been emailed
+ * when nothing left the building. The envelope is the answer; the status code
+ * is only the transport.
  */
 export async function notifyEvent(event: NotifyEventType, payload: NotifyPayload): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
@@ -69,9 +82,20 @@ export async function notifyEvent(event: NotifyEventType, payload: NotifyPayload
         payload,
       }),
     });
+    const text = await r.text().catch(() => '');
     if (!r.ok) {
-      const text = await r.text().catch(() => '');
       console.warn('[notifyClient]', event, 'failed', r.status, text.slice(0, 160));
+      return false;
+    }
+    // Unreadable body on a 2xx: the request landed, and we have nothing that
+    // says the dispatcher refused it. Treat that as sent rather than inventing
+    // a failure the user would act on.
+    let envelope: { success?: unknown; error?: unknown; result?: { ok?: unknown; reason?: unknown } } | null = null;
+    try { envelope = text ? JSON.parse(text) : null; } catch { envelope = null; }
+    if (!envelope || typeof envelope !== 'object') return true;
+    const handled = envelope.success !== false && envelope.result?.ok !== false;
+    if (!handled) {
+      console.warn('[notifyClient]', event, 'not handled', envelope.result?.reason ?? envelope.error ?? 'unknown');
       return false;
     }
     return true;

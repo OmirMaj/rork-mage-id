@@ -366,17 +366,36 @@ export function buildCashBlock(
    * could advise chasing money that is not actually late.
    */
   retentionHeld = 0,
+  /**
+   * Committed subcontract/PO balance the forecast could not honestly put on a
+   * week — the job carries no schedule, or it is finished and the balance was
+   * never closed out. Same reason retention is stated separately: it is money
+   * that may still go out, and an AI that treats the runway as complete when
+   * this is non-zero is telling the GC he has room he does not have.
+   */
+  undatedCommitted = 0,
 ): FactBlock {
   const facts: string[] = [];
   if (!setupComplete || !summary) {
     facts.push('Cash flow forecast is not set up yet — open Cash Flow and add your bank balance and recurring expenses to enable it.');
   } else {
-    facts.push(`${weeks}-week forecast: ${fmtMoney(summary.totalIncome)} in, ${fmtMoney(summary.totalExpenses)} out, net ${fmtMoney(summary.netProfit)}.`);
+    // "net cash change", never "net profit" — the figure is a change in bank
+    // balance over the horizon, and the AI repeating it as profit to a GC is
+    // the mislabel do-next #12b removed from the screen itself.
+    facts.push(`${weeks}-week forecast: ${fmtMoney(summary.totalIncome)} in, ${fmtMoney(summary.totalExpenses)} out, net cash change ${fmtMoney(summary.netCashChange)} (cash movement, not profit).`);
     facts.push(`Lowest projected balance ${fmtMoney(summary.lowestBalance)} in week ${summary.lowestBalanceWeek}.`);
     if (retentionHeld > 0) {
       facts.push(
         `${fmtMoney(retentionHeld)} of retention is billed but held to closeout — it is NOT in the forecast above ` +
         `and is not overdue; it is released at closeout, not on payment terms.`,
+      );
+    }
+    if (undatedCommitted > 0) {
+      facts.push(
+        `${fmtMoney(undatedCommitted)} of signed subcontract/PO balance sits on jobs with no schedule, or on ` +
+        `jobs already finished where it was never recorded as paid. It could NOT be dated, so it is NOT in the ` +
+        `weekly figures above. Do not treat the runway as complete, and do not assert it is overdue either — ` +
+        `the app cannot tell an unpaid balance from an unrecorded payment.`,
       );
     }
     if (summary.dangerWeeks.length > 0) {
@@ -611,11 +630,23 @@ export async function assembleFactBlocks(
       if (!setupDone) return buildCashBlock(null, false, 12);
       const data = await loadCashFlowData();
       const balance = engine.getEffectiveStartingBalance(data.startingBalance, data.balanceAsOf, bundle.invoices);
+      // Signed subcontracts and POs, on the same terms the Cash Flow screen
+      // uses. Without them the AI read a forecast whose income was automatic
+      // and whose outflow was only what the GC had typed in, and answered
+      // "you're fine this week" off it (audit do-next #12b).
+      const committed = engine.buildCommittedOutflows({
+        commitments: bundle.commitments,
+        projects: bundle.projects,
+        expenses: data.expenses,
+      });
       const forecast = engine.generateForecast(
-        balance, data.expenses, bundle.invoices, data.expectedPayments,
+        balance, [...data.expenses, ...committed.scheduled], bundle.invoices, data.expectedPayments,
         12, data.defaultPaymentTerms, bundle.changeOrders,
       );
-      return buildCashBlock(engine.calculateSummary(forecast), true, 12, engine.pendingRetention(bundle.invoices));
+      return buildCashBlock(
+        engine.calculateSummary(forecast), true, 12,
+        engine.pendingRetention(bundle.invoices), committed.undated,
+      );
     },
     // RECORDS — buildBusinessContext wrapped whole (the regression floor).
     async () => {

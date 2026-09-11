@@ -47,6 +47,7 @@ import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { useProjects } from '@/contexts/ProjectContext';
+import { showAlert } from '@/utils/alert';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { parseSeedBlob, draftsToSeeds, type SeedParseResult } from '@/utils/costSeedCore';
@@ -110,7 +111,7 @@ const PREVIEW_CARDS: PreviewCard[] = [
   {
     Icon: Check,
     title: 'Your turn',
-    body: 'Try it free — build an AI estimate or dictate a report. See the wow before anything asks you to upgrade.',
+    body: 'Price a real bid in about two minutes — or walk a finished sample job first and see the invoices, daily reports and change orders with real numbers already in them.',
     isTryIt: true,
   },
 ];
@@ -118,7 +119,10 @@ const PREVIEW_CARDS: PreviewCard[] = [
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { completeOnboarding } = useProjects();
+  const {
+    completeOnboarding,
+    addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder,
+  } = useProjects();
   const { addSeeds } = useCostSeeds();
   const { colors: themeColors } = useTheme();
 
@@ -216,6 +220,95 @@ export default function OnboardingScreen() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStep('rates');
   }, []);
+
+  // ── Tour a sample job ────────────────────────────────────────────────
+  // utils/demoSeed builds a finished job — invoices, daily reports, punch
+  // items, RFIs, a change order, photos — and it is the fastest "oh, I get
+  // it" the product has. Until now the only door to it was a small link
+  // under the Home empty state, which a user reaches by ABANDONING this
+  // flow: the one asset that explains MAGE in thirty seconds was hidden
+  // behind giving up on onboarding. So it sits here, beside the real-bid
+  // CTA, as a peer choice.
+  //
+  // Seeds the 'small' flavor rather than opening DemoSeedPickerModal: a
+  // two-card choice is friction at the exact moment the user has not yet
+  // seen anything to choose between, and a $422K kitchen-and-two-baths
+  // remodel is the job most new accounts recognise. The full picker still
+  // lives on Home for anyone who wants the $14M condo instead.
+  const seedingRef = useRef(false);
+  const [seedingSample, setSeedingSample] = useState(false);
+
+  const handleTourSample = useCallback(async () => {
+    // The ref is the guard, not the state flag: setSeedingSample does not
+    // take effect until the next render, so two taps inside one frame would
+    // both read `false` and seed the account two sample projects deep.
+    if (seedingRef.current) return;
+    seedingRef.current = true;
+    setSeedingSample(true);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    let projectId: string;
+    try {
+      // Lazily required, the same way app/(tabs)/(home)/index.tsx does it —
+      // the seed is several hundred lines of fixture data and first-run
+      // should not pay for it unless the user asks.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { seedDemoProject } = require('@/utils/demoSeed');
+      ({ projectId } = await seedDemoProject({
+        addProject, addInvoice, addDailyReport, addPunchItem,
+        addProjectPhoto, addRFI, addChangeOrder,
+        flavor: 'small',
+      }));
+    } catch (err) {
+      // The latch is released HERE and nowhere else. It used to wrap the whole
+      // body: completeOnboarding or the navigation throwing after a successful
+      // seed re-armed the button with a sample project already written, and the
+      // next tap wrote a second one.
+      //
+      // Releasing here is a judgement, not a guarantee of a clean slate.
+      // seedDemoProject writes through the plain context setters and does not
+      // await between them, so a throw part-way leaves whatever it had already
+      // written — most likely the project row with none of its invoices. Another
+      // tap is still the right offer: the alternative is a dead button at the
+      // one moment a new account is deciding whether this product works, and a
+      // stray sample is deletable from its own project tile (the seed's
+      // description says so). A failure AFTER the seed is different — there the
+      // sample is complete and visible, so re-arming would only duplicate it.
+      seedingRef.current = false;
+      setSeedingSample(false);
+      console.warn('[onboarding] sample seed failed', err);
+      showAlert('Could not build the sample', 'Something went wrong loading the sample job. Try again, or start with a real bid.');
+      return;
+    }
+
+    // Past this line the sample EXISTS on the account, so the latch stays shut
+    // whatever happens next. `seedingSample` stays true with it, which means a
+    // navigation that somehow threw would leave both CTAs disabled — survivable
+    // only because completeOnboarding runs first, below: with the flag set, the
+    // root gate in app/_layout.tsx no longer sends this user to /onboarding, so
+    // a relaunch lands them on the home tab with the sample sitting there.
+    // Mark onboarding done so the user is never looped back through the splash.
+    try {
+      await completeOnboarding();
+    } catch (err) {
+      // Only AsyncStorage can fail here, and the sample is already built —
+      // stranding the user on the splash to protect a flag would be worse.
+      console.warn('[onboarding] completeOnboarding failed after sample seed', err);
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // REPLACE onto the tab shell first, then PUSH the sample job on top of it.
+    // A bare `replace` onto /project-detail was a dead end: app/_layout.tsx
+    // deliberately declares no `initialRouteName` anchor (see UX-F18 there), so
+    // replacing the only entry in the root stack leaves a stack of one —
+    // project-detail is not inside (tabs), so there is no tab bar, and the
+    // native header draws no back chevron at stack index 0. The user who
+    // chose the sample tour could see the sample and nothing else, ever.
+    // Replacing with the tab shell and pushing on top gives Back something to
+    // pop to and puts the tab bar underneath.
+    router.replace('/(tabs)/(home)' as never);
+    router.push({ pathname: '/project-detail', params: { id: projectId } } as never);
+  }, [addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, completeOnboarding, router]);
 
   const handleSignIn = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -427,13 +520,37 @@ export default function OnboardingScreen() {
                   <Animated.View style={{ opacity: ctaOpacity, marginTop: 8, transform: [{ scale: ctaScale }] }}>
                     <Pressable
                       onPress={advance}
+                      disabled={seedingSample}
                       style={({ pressed }) => [styles.ctaPrimary, styles.ctaWide, pressed && { opacity: 0.92 }]}
-                      accessibilityLabel={isLast ? 'Continue to setup' : 'Next'}
+                      accessibilityRole="button"
+                      accessibilityLabel={isLast ? 'Price a real bid' : 'Next'}
                       testID="onboarding-preview-next"
                     >
-                      <Text style={styles.ctaPrimaryText}>{isLast ? 'Let’s go' : 'Next'}</Text>
+                      <Text style={styles.ctaPrimaryText}>{isLast ? 'Price a real bid' : 'Next'}</Text>
                       <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
                     </Pressable>
+
+                    {/* The sample job, offered as a peer of the real bid — not
+                        as the consolation prize you find by quitting. */}
+                    {isLast && (
+                      <Pressable
+                        onPress={handleTourSample}
+                        disabled={seedingSample}
+                        style={({ pressed }) => [
+                          styles.ctaSecondary,
+                          seedingSample && { opacity: 0.6 },
+                          pressed && { opacity: 0.82 },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Tour a sample job"
+                        accessibilityState={{ busy: seedingSample, disabled: seedingSample }}
+                        testID="onboarding-tour-sample"
+                      >
+                        <Text style={styles.ctaSecondaryText}>
+                          {seedingSample ? 'Building the sample job…' : 'Tour a sample job'}
+                        </Text>
+                      </Pressable>
+                    )}
                   </Animated.View>
                 </>
               );
@@ -734,6 +851,32 @@ const styles = StyleSheet.create({
   ctaWide: {
     alignSelf: 'stretch',
     marginTop: 4,
+  },
+
+  // Secondary CTA under the primary — outlined cream on ink so it reads as a
+  // real choice rather than a footnote, without competing with the filled
+  // primary. Used for "Tour a sample job" on the final preview card.
+  ctaSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 15,
+    borderRadius: Tokens.radius.lg,
+    ...continuousCorners,
+    borderWidth: 1,
+    borderColor: 'rgba(244,239,230,0.34)',
+    backgroundColor: 'rgba(244,239,230,0.06)',
+    minHeight: 48,
+  },
+  ctaSecondaryText: {
+    fontSize: Type.callout.fontSize,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    color: BRAND.cream,
   },
 
   signInText: {

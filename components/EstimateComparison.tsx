@@ -64,6 +64,38 @@ interface EstimateComparisonProps {
 
 const STORAGE_KEY = 'mageid_estimate_versions';
 
+// This device keeps ten saved versions. The eleventh save used to push the
+// oldest off the end silently — a GC who saved V1 as the number he had already
+// quoted the client found it gone months later with nothing having said so.
+// The cap stays (this is one AsyncStorage blob, not a synced table); what
+// changes is that the save now asks first and names what it is about to drop.
+const MAX_SAVED_VERSIONS = 10;
+
+/**
+ * The next "V<n>" name, taken from the highest number already on the list —
+ * NOT from its length.
+ *
+ * Length is wrong twice. Once the list is full every further save pushes one
+ * off the end, so the count sticks at ten and every save from the eleventh on
+ * is called "V11": two versions with the same name, and a GC comparing "V11"
+ * against the quote he emailed has no way to tell which one he is reading.
+ * Deleting a version does the same thing sooner — save V1, V2, V3, delete V2,
+ * and the next save is a second "V3".
+ *
+ * Names are the only handle these rows have, so a number is never reused while
+ * the version wearing it is still on the list.
+ */
+function nextVersionNumber(saved: { name: string }[]): number {
+  let highest = 0;
+  for (const v of saved) {
+    const m = /^V(\d+)\b/.exec(v.name);
+    if (m) highest = Math.max(highest, Number(m[1]));
+  }
+  // A list of hand-renamed versions yields no number at all; falling back to
+  // the count keeps the first save after that from being "V1" on a full list.
+  return Math.max(highest, saved.length) + 1;
+}
+
 function formatDelta(current: number, saved: number): { text: string; color: string; icon: typeof TrendingUp } {
   const delta = current - saved;
   const pct = saved > 0 ? ((delta / saved) * 100).toFixed(1) : '0.0';
@@ -120,7 +152,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
     const version: SavedEstimateVersion = {
       id: `v-${Date.now()}`,
-      name: `V${savedVersions.length + 1} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      name: `V${nextVersionNumber(savedVersions)} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
       savedAt: new Date().toISOString(),
       materialsTotal: currentMaterialsTotal,
       laborTotal: currentLaborTotal,
@@ -132,23 +164,57 @@ const EstimateComparison = React.memo(function EstimateComparison({
       items,
     };
 
-    const updated = [version, ...savedVersions].slice(0, 10);
+    const queued = [version, ...savedVersions];
+    const updated = queued.slice(0, MAX_SAVED_VERSIONS);
+    // Whatever this save pushes off the end. Named before the fact, because
+    // "your oldest version was deleted" is not something to discover on the
+    // day you go looking for it.
+    const evicted = queued.slice(MAX_SAVED_VERSIONS);
+
     // The success alert and the success haptic used to fire unconditionally,
     // outside the try — so a failed write announced "Saved" and the version
     // was gone the next time this sheet opened, with nothing said (audit
     // 2026-09-07, the honesty gap). Only the branch that actually wrote is
     // allowed to claim it — and the in-memory list is only updated after the
     // write lands, so a failed save leaves no row sitting there looking saved.
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error('[EstimateComparison] Failed to save version:', err);
-      showAlert('Couldn’t save', `This device would not store the version: ${err instanceof Error ? err.message : 'unknown error'}. Your estimate itself is untouched — try again.`);
-      return;
-    }
-    setSavedVersions(updated);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Saved', `Estimate saved as "${version.name}"`);
+    const write = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch (err) {
+        console.error('[EstimateComparison] Failed to save version:', err);
+        showAlert('Couldn’t save', `This device would not store the version: ${err instanceof Error ? err.message : 'unknown error'}. Your estimate itself is untouched — try again.`);
+        return;
+      }
+      setSavedVersions(updated);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const note = evicted.length > 0
+        ? `Estimate saved as "${version.name}". ${evicted.map(v => `"${v.name}"`).join(', ')} dropped off the end.`
+        : `Estimate saved as "${version.name}"`;
+      showAlert('Saved', note);
+    };
+
+    if (evicted.length === 0) { await write(); return; }
+    // The list is newest-first, so the OLDEST evicted version is the last one,
+    // not the first. A stored list longer than the cap (written by a build
+    // before the cap, or by a cap that was higher) drops several at once, and
+    // naming only evicted[0] would name a version that is not the oldest while
+    // the sentence claims it is.
+    const dropped = evicted[evicted.length - 1];
+    const alsoDropped = evicted.length > 1
+      ? ` and ${evicted.length - 1} other${evicted.length > 2 ? 's' : ''}`
+      : '';
+    showAlert(
+      'Saving this drops your oldest version',
+      `This device keeps ${MAX_SAVED_VERSIONS} versions. Saving "${version.name}" removes `
+        + `"${dropped.name}" ($${Math.round(dropped.grandTotal).toLocaleString('en-US')}, saved `
+        + `${new Date(dropped.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+        + `${alsoDropped}. `
+        + 'It is only on this device, so it cannot be recovered afterwards.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Save anyway', style: 'destructive', onPress: () => { void write(); } },
+      ],
+    );
   }, [currentCart, currentLaborCart, currentAssemblyCart, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, savedVersions]);
 
   const handleDeleteVersion = useCallback(async (id: string) => {

@@ -23,17 +23,19 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useWip } from '@/contexts/WipContext';
 import {
   computeWipRow, computeWipPortfolio, flagWipRow,
-  suggestCostToDate, suggestBilledToDate, sumApprovedChangeOrders,
-  deriveOriginalContract, deriveEstimatedCost, isWipReportableProject,
+  suggestBilledToDate, sumApprovedChangeOrders, isWipReportableProject,
   deriveOriginalContractWithSource, deriveEstimatedCostWithSource,
-  suggestCostToDateWithSource, WIP_SOURCE_LABELS,
+  suggestCostToDateWithSource, WIP_SOURCE_LABELS, wipSourceLabel,
+  type WipRowSources, type WipSnapshotRowWithSources, type WipPeriodWithSources,
 } from '@/utils/wip';
 import { FeatureExplainerSheet } from '@/components/FeatureExplainerSheet';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { wipPeriodToCSV, shareWipPeriodPdf } from '@/utils/wipExport';
 import { copyToClipboard } from '@/utils/clipboard';
-import type { WipRowInput, WipSnapshotRow, Project } from '@/types';
+import type { WipRowInput, Project } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
@@ -42,15 +44,94 @@ function pct(n: number): string {
   return `${(n * 100).toFixed(0)}%`;
 }
 
-// Per-project cost-to-date overrides are persisted so the GC's typed
-// cost-to-date (incl. self-performed labor) survives across sessions — it was
-// previously component-only state that reset every time WIP Report reopened,
-// silently falling back to subs+materials and quietly wrong for CPA/bank review.
-// Tenant-namespaced by user id so switching accounts on one device never bleeds
-// one company's cost figures into another's view.
+// Per-project cost-to-date overrides. Tenant-namespaced by user id so switching
+// accounts on one device never bleeds one company's cost figures into another's
+// view.
+//
+// AsyncStorage is now the OFFLINE READ CACHE, not the record. The server is
+// (public.wip_cost_overrides, migration 20260908120100). The failure that moved
+// it: a GC types $340,000 of self-performed labor — the part subs+materials
+// cannot see — into this override on his laptop, then opens WIP on his PHONE
+// where the map was empty, and the screen silently fell back to the lower
+// bound. He froze the period and exported it, and the locked period DOES sync
+// (contexts/WipContext.tsx), so what reached his surety was a schedule that had
+// quietly reverted to a number he had already corrected.
+//
+// One row per project, never the whole Record as a blob: correcting Henderson
+// on the phone must not wipe the Ridgeline override typed on the laptop.
 const WIP_COST_OVERRIDES_KEY = 'mageid_wip_cost_overrides';
+const WIP_COST_OVERRIDES_TABLE = 'wip_cost_overrides';
 function costOverridesKey(userId: string | undefined): string {
   return userId ? `${WIP_COST_OVERRIDES_KEY}_${userId}` : WIP_COST_OVERRIDES_KEY;
+}
+
+/**
+ * One project's typed cost-to-date. `value` is COST incurred, not revenue.
+ * `updatedAt` is an INSTANT (not a calendar day) — it is what decides whose
+ * edit is newer when the phone and the laptop disagree. `synced` records
+ * whether the server has taken this value yet, so the screen can say "this
+ * device only" instead of letting the GC assume every device agrees.
+ */
+interface CostOverride {
+  value: number;
+  updatedAt: string;
+  synced: boolean;
+  /**
+   * The GC took the override back off — he cleared the box, or typed the app's
+   * own figure back in. Kept as a dated entry rather than dropped from the map
+   * because the SERVER still holds the row: delete it locally and the next
+   * read-through hands the override straight back, so "clear" would not
+   * survive a reload. A tombstone wins the same updatedAt comparison a new
+   * figure would.
+   *
+   * `value` on a tombstone is inert. It carries the AUTOMATIC figure rather
+   * than the one that was taken off, so a reader that forgets to check this
+   * flag falls back to the app's own number instead of resurrecting the one
+   * the GC just rejected.
+   */
+  cleared?: boolean;
+}
+
+/**
+ * The override actually in force for a project, or undefined when there is
+ * none. A tombstone is a record of a removal, never a figure — reading one as
+ * a cost-to-date would put a stale number back on a bank-facing schedule.
+ */
+function overrideInForce(
+  map: Record<string, CostOverride>,
+  projectId: string,
+): CostOverride | undefined {
+  const entry = map[projectId];
+  return entry && !entry.cleared ? entry : undefined;
+}
+
+// Overrides written before this screen learned to sync were bare numbers with
+// no timestamp. Stamping them at the epoch means a server row — which by
+// definition was typed after the sync shipped — wins, while an override that
+// exists on NO other device is still kept and backfilled up on the next load.
+const LEGACY_OVERRIDE_STAMP = '1970-01-01T00:00:00.000Z';
+
+function normalizeOverrides(raw: unknown): Record<string, CostOverride> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, CostOverride> = {};
+  for (const [projectId, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof entry === 'number' && Number.isFinite(entry)) {
+      out[projectId] = { value: entry, updatedAt: LEGACY_OVERRIDE_STAMP, synced: false };
+      continue;
+    }
+    if (entry && typeof entry === 'object') {
+      const e = entry as Partial<CostOverride>;
+      if (typeof e.value === 'number' && Number.isFinite(e.value)) {
+        out[projectId] = {
+          value: e.value,
+          updatedAt: typeof e.updatedAt === 'string' ? e.updatedAt : LEGACY_OVERRIDE_STAMP,
+          synced: e.synced === true,
+          cleared: e.cleared === true,
+        };
+      }
+    }
+  }
+  return out;
 }
 
 export default function WipReportScreen() {
@@ -91,35 +172,152 @@ function WipReportScreenInner() {
   const { user } = useAuth();
   const userId = user?.id;
 
-  // Per-project cost-to-date overrides (keyed by project id). Persisted to
-  // AsyncStorage (tenant-namespaced) so a typed cost-to-date survives session
-  // reopens instead of resetting to the subs+materials suggestion.
-  const [costOverrides, setCostOverrides] = useState<Record<string, number>>({});
+  // Per-project cost-to-date overrides (keyed by project id). Read through from
+  // the server on load, written through on change; AsyncStorage is the offline
+  // cache in front of it.
+  const [costOverrides, setCostOverrides] = useState<Record<string, CostOverride>>({});
   // Gate persistence on hydration so the initial empty state doesn't clobber
-  // stored overrides before they load in.
+  // cached overrides before they load in.
   const overridesHydratedRef = useRef(false);
 
-  // Hydrate stored overrides whenever the tenant changes. Clear first so a prior
-  // account's cost figures never linger into a new session.
+  // Push one override to the server through the offline queue — never a direct
+  // supabase.from().upsert, so an override typed in a basement with no signal
+  // drains when the phone comes back up like every other write in this app.
+  // `upsert` (not insert) because the primary key is (user_id, project_id): a
+  // second edit to the same project is a replace, and a plain insert would come
+  // back as a duplicate-key violation, which the queue classifies as terminal —
+  // the correction would be discarded, which is the bug this closes.
+  const pushOverride = useCallback(async (projectId: string, entry: CostOverride) => {
+    if (!userId || !isSupabaseConfigured) return;
+    // A tombstone SYNCS, as `cleared: true`, rather than being dropped here or
+    // turned into a delete. utils/offlineQueue.ts deletes by `id` only and this
+    // table is keyed (user_id, project_id), so a delete could never leave the
+    // device — the row would stay server-side and the GC's other device would
+    // read it back and restore the number he just rejected. Upsert is the path
+    // that already works, so the clear travels on it (migration 20260908120100).
+    const landed = await supabaseWrite(WIP_COST_OVERRIDES_TABLE, 'upsert', {
+      user_id: userId,
+      project_id: projectId,
+      // A tombstone carries the AUTOMATIC figure, never 0, so a reader that
+      // forgets `cleared` falls back to the app's own number rather than
+      // asserting the job has cost nothing.
+      cost_to_date: entry.value,   // COST incurred, not revenue
+      cleared: entry.cleared === true,
+      // Sent explicitly rather than left to the column's default now(): this is
+      // the stamp the merge on the OTHER device compares against, so it has to
+      // be the moment the GC typed the figure, not the moment a queued write
+      // happened to drain.
+      updated_at: entry.updatedAt,
+    });
+    if (!landed) return; // queued or refused — the row keeps saying "not yet synced"
+    setCostOverrides((prev) => {
+      const current = prev[projectId];
+      // A newer edit landed while this write was in flight — don't stamp it
+      // synced, its own write will.
+      if (!current || current.updatedAt !== entry.updatedAt) return prev;
+      return { ...prev, [projectId]: { ...current, synced: true } };
+    });
+  }, [userId]);
+
+  // Hydrate whenever the tenant changes. Clear first so a prior account's cost
+  // figures never linger, read the cache for an immediate paint, then let the
+  // server correct it. Newest edit wins per project, compared on updatedAt —
+  // an override typed here and still sitting in the offline queue must not be
+  // overwritten by the older row the server still has.
   useEffect(() => {
     let cancelled = false;
     overridesHydratedRef.current = false;
     setCostOverrides({});
     (async () => {
+      let merged: Record<string, CostOverride> = {};
       try {
         const raw = await AsyncStorage.getItem(costOverridesKey(userId));
-        if (cancelled) return;
-        if (raw) {
-          const parsed = JSON.parse(raw) as Record<string, number>;
-          if (parsed && typeof parsed === 'object') setCostOverrides(parsed);
+        if (raw) merged = normalizeOverrides(JSON.parse(raw));
+      } catch { /* fresh install / bad cache → the server is the answer */ }
+      if (cancelled) return;
+      // Paint the cache NOW, before the round-trip. The comment above always
+      // promised this and the code did not do it: every override was held
+      // behind the server read, so for as long as that request took — forever,
+      // on a hung connection — the schedule showed the subs+materials lower
+      // bound with "est. (tap to add labor)" beside it, and Save period would
+      // have frozen that. That is the same failure this whole change exists to
+      // close, narrowed to the seconds after the screen opens.
+      if (Object.keys(merged).length > 0) setCostOverrides(merged);
+
+      const backfill: [string, CostOverride][] = [];
+      if (userId && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from(WIP_COST_OVERRIDES_TABLE)
+            .select('project_id, cost_to_date, cleared, updated_at')
+            // RLS already scopes this to the caller; the filter is the second
+            // lock, so one misapplied policy cannot put another company's cost
+            // figures on this GC's schedule.
+            .eq('user_id', userId);
+          if (cancelled) return;
+          if (!error && Array.isArray(data)) {
+            for (const raw of data as { project_id?: string; cost_to_date?: number | string | null; cleared?: boolean | null; updated_at?: string }[]) {
+              const projectId = raw.project_id;
+              if (!projectId || raw.cost_to_date === null || raw.cost_to_date === undefined) continue;
+              const value = Number(raw.cost_to_date);   // a numeric column arrives as a string
+              if (!Number.isFinite(value)) continue;
+              // Both sides are INSTANTS, and they are spelled differently:
+              // PostgREST returns "2026-09-08T12:01:00.123456+00:00" while this
+              // device stamps "2026-09-08T12:01:00.123Z". Comparing those as
+              // strings sorts '+' before 'Z' and compares microseconds against
+              // milliseconds — the laptop's newer figure would lose to the
+              // phone's older one, which is the failure this whole change is
+              // about. Parse to milliseconds and compare numbers.
+              const serverMs = Date.parse(raw.updated_at ?? '');
+              const serverAt = Number.isFinite(serverMs)
+                ? new Date(serverMs).toISOString()
+                : LEGACY_OVERRIDE_STAMP;
+              const local = merged[projectId];
+              if (local && Date.parse(local.updatedAt) > Date.parse(serverAt)) continue; // ours is newer
+              // `cleared` travels. Without it the OTHER device's clear is
+              // invisible here and this load restores the override the GC took
+              // off — the same last-writer-wins failure the timestamp compare
+              // above exists to prevent, one column over.
+              merged[projectId] = { value, updatedAt: serverAt, synced: true, cleared: raw.cleared === true };
+            }
+            // Anything the server has never seen — overrides typed before this
+            // screen synced, or while offline — goes up now, so the GC's other
+            // device stops silently showing the subs+materials lower bound.
+            // Tombstones included: a clear made offline is exactly as much a
+            // pending write as a typed figure, and it now has a column to land
+            // in. `synced` is what gates this, not `cleared` — an entry already
+            // acknowledged by the server is not re-sent either way, so a clear
+            // cannot be re-uploaded on every mount.
+            for (const [projectId, entry] of Object.entries(merged)) {
+              if (!entry.synced) backfill.push([projectId, entry]);
+            }
+          }
+        } catch { /* offline → the cache stands, and the writes are queued */ }
+      }
+      if (cancelled) return;
+      // Anything the GC typed while the round-trip was in flight is NEWER than
+      // everything this load is carrying, and a flat replace would wipe it off
+      // the screen seconds after he entered it — the same last-writer-wins
+      // shape the per-project rows exist to avoid. Same comparison as the
+      // server merge above: both sides are INSTANTS.
+      setCostOverrides((typedWhileLoading) => {
+        const next = { ...merged };
+        for (const [projectId, entry] of Object.entries(typedWhileLoading)) {
+          const loaded = next[projectId];
+          if (!loaded || Date.parse(entry.updatedAt) > Date.parse(loaded.updatedAt)) {
+            next[projectId] = entry;
+          }
         }
-      } catch { /* fresh install / bad cache → start empty */ }
-      finally { if (!cancelled) overridesHydratedRef.current = true; }
+        return next;
+      });
+      overridesHydratedRef.current = true;
+      for (const [projectId, entry] of backfill) void pushOverride(projectId, entry);
     })();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, pushOverride]);
 
-  // Persist on every change once hydrated. Cheap write; overrides are a small map.
+  // Persist the cache on every change once hydrated. Cheap write; overrides are
+  // a small map, and this is only the offline copy of the server's rows.
   useEffect(() => {
     if (!overridesHydratedRef.current) return;
     void AsyncStorage.setItem(costOverridesKey(userId), JSON.stringify(costOverrides))
@@ -144,38 +342,76 @@ function WipReportScreenInner() {
   );
   const closedCount = projects.length - activeProjects.length;
 
-  // Build a live WIP input for one project from existing collections.
-  const buildInput = useCallback((project: Project): WipRowInput => {
+  // Build one project's WIP inputs AND the provenance of each one, in a single
+  // pass. Two passes is how the number and the explanation drift apart, and
+  // this schedule is the document a surety underwrites — so the branch that
+  // produced a figure is read from the same call that produced the figure
+  // (audit 2026-09-07, "Worth doing" #26).
+  const buildRow = useCallback((project: Project): {
+    input: WipRowInput;
+    sources: WipRowSources;
+    /** What the app can see on its own — the subs+materials lower bound. */
+    auto: ReturnType<typeof suggestCostToDateWithSource>;
+    override: CostOverride | undefined;
+  } => {
     const cos = getChangeOrdersForProject(project.id);
     const commitments = getCommitmentsForProject(project.id);
     const invoices = getInvoicesForProject(project.id);
     const payApps = getAIAPayAppsForProject(project.id);
     const receipts = getReceiptsForProject(project.id);
-    const suggestedCost = suggestCostToDate(commitments, receipts);
+
+    // Revenue baseline (contract) and cost budget come from DISTINCT sources
+    // so est gross profit doesn't collapse to ~0 when both fall back to
+    // targetBudget: contract from AIA/CO/targetBudget, cost from the estimate.
+    const contract = deriveOriginalContractWithSource(project, cos, payApps);
+    const approvedChangeOrders = sumApprovedChangeOrders(cos);
+    // Pass the CO figures so the COST budget grows with them too. Without
+    // this the revenue side gains the change order and the cost side does
+    // not, which reports every CO at 100% margin.
+    const cost = deriveEstimatedCostWithSource(project, commitments, {
+      approvedChangeOrders,
+      originalContract: contract.value,
+    });
+    const auto = suggestCostToDateWithSource(commitments, receipts);
+    const override = overrideInForce(costOverrides, project.id);
+
     return {
-      // Revenue baseline (contract) and cost budget come from DISTINCT sources
-      // so est gross profit doesn't collapse to ~0 when both fall back to
-      // targetBudget: contract from AIA/CO/targetBudget, cost from the estimate.
-      originalContract: deriveOriginalContract(project, cos, payApps),
-      approvedChangeOrders: sumApprovedChangeOrders(cos),
-      // Pass the CO figures so the COST budget grows with them too. Without
-      // this the revenue side gains the change order and the cost side does
-      // not, which reports every CO at 100% margin.
-      totalEstimatedCost: deriveEstimatedCost(project, commitments, {
-        approvedChangeOrders: sumApprovedChangeOrders(cos),
-        originalContract: deriveOriginalContract(project, cos, payApps),
-      }),
-      costToDate: costOverrides[project.id] ?? suggestedCost,
-      billedToDate: suggestBilledToDate(invoices, payApps),
+      input: {
+        originalContract: contract.value,
+        approvedChangeOrders,
+        totalEstimatedCost: cost.value,
+        costToDate: override ? override.value : auto.value,
+        billedToDate: suggestBilledToDate(invoices, payApps),
+      },
+      sources: {
+        originalContract: contract.source,
+        totalEstimatedCost: cost.source,
+        // A typed figure that has not reached the server yet says so. That is
+        // the disclosure the whole finding was missing: the number changed
+        // between two devices and nothing told anyone.
+        costToDate: override
+          ? (override.synced ? 'entered_and_synced' : 'entered_on_this_device')
+          : auto.source,
+      },
+      auto,
+      override,
     };
   }, [costOverrides, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject]);
 
-  const liveRows: WipSnapshotRow[] = useMemo(
+  const buildInput = useCallback(
+    (project: Project): WipRowInput => buildRow(project).input,
+    [buildRow],
+  );
+
+  // Snapshot rows carry their provenance, so a period locked in March can still
+  // answer the surety's question in June — recomputing it at export time would
+  // explain today's projects, not the figures the export is printing.
+  const liveRows: WipSnapshotRowWithSources[] = useMemo(
     () => activeProjects.map((p) => {
-      const input = buildInput(p);
-      return { projectId: p.id, projectName: p.name, input, output: computeWipRow(input) };
+      const { input, sources } = buildRow(p);
+      return { projectId: p.id, projectName: p.name, input, output: computeWipRow(input), sources };
     }),
-    [activeProjects, buildInput],
+    [activeProjects, buildRow],
   );
 
   const portfolio = useMemo(() => computeWipPortfolio(liveRows), [liveRows]);
@@ -187,35 +423,11 @@ function WipReportScreenInner() {
     [periods],
   );
 
-  // Provenance for the drill-in (audit 2026-09-07, "Worth doing" #26). Every
-  // figure on this schedule comes off a fallback chain — deriveOriginalContract
-  // alone has seven branches — and a GC could not learn that the $1.4M
-  // "contract" his banker is reading came from a GMP cap he typed once during
-  // setup. That is the surety's first question. Same chains as buildInput, read
-  // through the …WithSource siblings so the number and the explanation cannot
-  // drift apart.
-  const buildProvenance = useCallback((project: Project) => {
-    const cos = getChangeOrdersForProject(project.id);
-    const commitments = getCommitmentsForProject(project.id);
-    const payApps = getAIAPayAppsForProject(project.id);
-    const receipts = getReceiptsForProject(project.id);
-    const contract = deriveOriginalContractWithSource(project, cos, payApps);
-    return {
-      contract,
-      cost: deriveEstimatedCostWithSource(project, commitments, {
-        approvedChangeOrders: sumApprovedChangeOrders(cos),
-        originalContract: contract.value,
-      }),
-      costToDate: suggestCostToDateWithSource(commitments, receipts),
-      overridden: costOverrides[project.id] !== undefined,
-    };
-  }, [costOverrides, getChangeOrdersForProject, getCommitmentsForProject, getAIAPayAppsForProject, getReceiptsForProject]);
-
   const [explainerOpen, setExplainerOpen] = useState(false);
 
   const drillProject = activeProjects.find((p) => p.id === drillProjectId) ?? null;
-  const drillProvenance = drillProject ? buildProvenance(drillProject) : null;
-  const drillInput = drillProject ? buildInput(drillProject) : null;
+  const drillRow = drillProject ? buildRow(drillProject) : null;
+  const drillInput = drillRow?.input ?? null;
   const drillOutput = drillInput ? computeWipRow(drillInput) : null;
   const drillPriorRow = priorPeriod?.rows.find((r) => r.projectId === drillProjectId)?.output;
   const drillFlags = drillOutput ? flagWipRow(drillOutput, drillPriorRow) : null;
@@ -229,13 +441,61 @@ function WipReportScreenInner() {
     setDrillProjectId(projectId);
   }, [activeProjects, buildInput]);
 
-  // Commit the typed cost-to-date into the per-project override. Called on blur
-  // AND on close so an edit isn't lost if the keyboard is never dismissed.
+  // Commit the typed cost-to-date into the per-project override and push it to
+  // the server. Called on blur AND on close so an edit isn't lost if the
+  // keyboard is never dismissed — which is why it must be idempotent: it fires
+  // twice with the same text on a normal close.
+  //
+  // Opening the drill-in and closing it without typing must NOT create an
+  // override. The field is seeded with the current figure, so recording it
+  // blindly turned the app's own suggestion into "entered by you" — a lie in
+  // the Source column of a document a banker reads, and it would have written
+  // a row to the server saying so.
   const commitDrillCost = useCallback(() => {
     if (!drillProjectId) return;
-    const v = Number(drillCostText.replace(/[^0-9.]/g, ''));
-    setCostOverrides((prev) => ({ ...prev, [drillProjectId]: Number.isFinite(v) ? v : 0 }));
-  }, [drillProjectId, drillCostText]);
+    const project = activeProjects.find((p) => p.id === drillProjectId);
+    if (!project) return;
+    const { auto, override } = buildRow(project);
+
+    const cleaned = drillCostText.replace(/[^0-9.]/g, '');
+    const typed = Number(cleaned);
+    // An EMPTY box means "use the app's own figure", not "$0 of cost incurred",
+    // and it used to be read as the second: Number('') is 0, so wiping the
+    // field recorded a $0 COST override. On a 30%-complete job that turned a
+    // $45k overbilling into a $500k one, dropped earned revenue to $0, and
+    // flagged nothing — and with this wave's sync it would have carried that
+    // $0 to the GC's other device stamped "entered by you". A string this app
+    // cannot parse ("1.2.3") is the same class: not a number, so record
+    // nothing and leave the previous figure standing. Typing "0" still records
+    // a deliberate zero, because "0" has a digit in it.
+    const emptied = !/[0-9]/.test(cleaned);
+    if (!emptied && !Number.isFinite(typed)) return;
+
+    // Typing the automatic figure back in is how a GC takes an override off —
+    // there is no other control, and clearing the box is the same request. It
+    // used to record the app's own estimate as "entered by you", which both
+    // lied in the Source column and left him no route back at all.
+    if (emptied || Math.round(typed) === Math.round(auto.value)) {
+      if (!override) return;   // nothing in force — opening and closing changes nothing
+      const tombstone: CostOverride = {
+        value: auto.value,
+        updatedAt: new Date().toISOString(),
+        synced: false,
+        cleared: true,
+      };
+      setCostOverrides((prev) => ({ ...prev, [drillProjectId]: tombstone }));
+      return;
+    }
+
+    // Rounded, because openDrill seeds the field with Math.round of the current
+    // figure: an override of $222,000.37 comes back as "222000" and a strict
+    // compare would read that as a new entry, re-stamping and re-syncing it
+    // every time the sheet is opened and closed.
+    if (override && Math.round(override.value) === Math.round(typed)) return;
+    const entry: CostOverride = { value: typed, updatedAt: new Date().toISOString(), synced: false };
+    setCostOverrides((prev) => ({ ...prev, [drillProjectId]: entry }));
+    void pushOverride(drillProjectId, entry);
+  }, [drillProjectId, drillCostText, activeProjects, buildRow, pushOverride]);
 
   const closeDrill = useCallback(() => {
     commitDrillCost();
@@ -260,7 +520,7 @@ function WipReportScreenInner() {
     ]);
   }, [selectedPeriodId, periods, lockPeriod]);
 
-  const exportPeriod = useMemo(() => {
+  const exportPeriod = useMemo((): WipPeriodWithSources | null => {
     if (selectedPeriodId) return periods.find((p) => p.id === selectedPeriodId) ?? null;
     // Fall back to a live (unsaved) period shape for export.
     return {
@@ -409,9 +669,17 @@ function WipReportScreenInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.projectName}>{r.projectName}</Text>
                   <Text style={styles.muted}>{pct(r.output.percentComplete)} complete · {money(r.output.earnedRevenue)} earned</Text>
+                  {/* A cost-to-date that came off another device used to be
+                      indistinguishable from one typed here and from the
+                      subs+materials estimate. All three read the same, and the
+                      GC only found out which he had when the surety asked. */}
                   <Text style={styles.muted}>
                     Cost-to-date {money(r.input.costToDate)}
-                    {costOverrides[r.projectId] === undefined ? ' · est. (tap to add labor)' : ''}
+                    {r.sources?.costToDate === 'entered_and_synced'
+                      ? ' · entered by you, synced'
+                      : r.sources?.costToDate === 'entered_on_this_device'
+                        ? ' · entered here, not synced yet'
+                        : ' · est. (tap to add labor)'}
                   </Text>
                 </View>
                 {flagged ? <AlertTriangle size={16} color={themeColors.danger} strokeWidth={2} /> : null}
@@ -447,6 +715,16 @@ function WipReportScreenInner() {
                     placeholderTextColor={themeColors.textMuted}
                     onEndEditing={commitDrillCost}
                   />
+                  {/* The way back. A typed figure is the only thing on this
+                      schedule the GC can set, and until this line there was
+                      nothing telling him how to un-set it — so an override
+                      typed by mistake was permanent. */}
+                  {drillRow?.override ? (
+                    <Text style={styles.muted}>
+                      Clear this box to go back to the app&apos;s own figure
+                      {' '}({money(drillRow.auto.value)}).
+                    </Text>
+                  ) : null}
                   <Row label="Revised contract" value={money(drillOutput.revisedContract)} styles={styles} />
                   <Row label="% complete" value={pct(drillOutput.percentComplete)} styles={styles} />
                   <Row label="Earned revenue" value={money(drillOutput.earnedRevenue)} styles={styles} />
@@ -461,31 +739,45 @@ function WipReportScreenInner() {
                   {/* Where each number came from. A banker's first question is
                       "what is this contract figure?" and until now the answer
                       lived only in deriveOriginalContract's branch order. */}
-                  {drillProvenance ? (
+                  {drillRow ? (
                     <View style={styles.sourceBox} testID="wip-provenance">
                       <Text style={styles.sourceTitle}>Where these numbers come from</Text>
                       <Text style={styles.sourceLine}>
-                        Contract {money(drillProvenance.contract.value)} —{' '}
-                        {WIP_SOURCE_LABELS[drillProvenance.contract.source]}
-                        {drillInput.approvedChangeOrders !== 0
+                        Contract {money(drillInput.originalContract)} —{' '}
+                        {WIP_SOURCE_LABELS[drillRow.sources.originalContract]}
+                        {/* Deductive change orders are ordinary — the owner
+                            cuts scope — and this read "plus $-30,000". Same
+                            rule as describeWipRowSources, which writes the
+                            exported copy of this same line. */}
+                        {drillInput.approvedChangeOrders > 0
                           ? `, plus ${money(drillInput.approvedChangeOrders)} of approved change orders`
-                          : ''}
+                          : drillInput.approvedChangeOrders < 0
+                            ? `, less ${money(Math.abs(drillInput.approvedChangeOrders))} of approved deductive change orders`
+                            : ''}
                       </Text>
                       <Text style={styles.sourceLine}>
-                        Cost budget {money(drillProvenance.cost.value)} —{' '}
-                        {WIP_SOURCE_LABELS[drillProvenance.cost.source]}
+                        Cost budget {money(drillInput.totalEstimatedCost)} —{' '}
+                        {WIP_SOURCE_LABELS[drillRow.sources.totalEstimatedCost]}
                       </Text>
                       <Text style={styles.sourceLine}>
-                        {drillProvenance.overridden
-                          ? `Cost-to-date ${money(drillInput.costToDate)} — entered by you. `
-                            + `The app can only see ${money(drillProvenance.costToDate.value)} `
-                            + `(${money(drillProvenance.costToDate.committed)} subs paid + `
-                            + `${money(drillProvenance.costToDate.materials)} material receipts).`
-                          : `Cost-to-date ${money(drillProvenance.costToDate.value)} — `
-                            + `${money(drillProvenance.costToDate.committed)} subs paid + `
-                            + `${money(drillProvenance.costToDate.materials)} material receipts. `
+                        {drillRow.override
+                          ? `Cost-to-date ${money(drillInput.costToDate)} — `
+                            + `${wipSourceLabel(drillRow.sources.costToDate)}. `
+                            + `The app can only see ${money(drillRow.auto.value)} `
+                            + `(${money(drillRow.auto.committed)} subs paid + `
+                            + `${money(drillRow.auto.materials)} material receipts).`
+                          : `Cost-to-date ${money(drillRow.auto.value)} — `
+                            + `${money(drillRow.auto.committed)} subs paid + `
+                            + `${money(drillRow.auto.materials)} material receipts. `
                             + 'Self-performed labor is NOT included, so this is a lower bound — type the real figure above.'}
                       </Text>
+                      {drillRow.override && !drillRow.override.synced ? (
+                        <Text style={styles.sourceLine}>
+                          This figure is on this device only so far. It goes up to your account
+                          automatically — until it does, WIP on your other devices still shows the
+                          subs + materials estimate.
+                        </Text>
+                      ) : null}
                     </View>
                   ) : null}
 

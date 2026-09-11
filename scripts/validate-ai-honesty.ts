@@ -38,7 +38,16 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 let pass = 0, fail = 0;
-function ok(n: string, cond: boolean) { if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n); } }
+// `why` is optional and printed only on failure. It used to be absent, so a
+// failing check said nothing but its own title — and the titles are short
+// because they are read in a passing list. Every other validator in this repo
+// prints the reason; this one now does too.
+function ok(n: string, cond: boolean, why?: string) {
+  if (cond) { pass++; console.log('  ✓', n); return; }
+  fail++;
+  console.log('  ✗', n);
+  if (why) console.log('        ' + why);
+}
 
 type Prov = 'earned' | 'seeded' | 'mixed' | undefined;
 const entry = (trade: string, provenance: Prov, over: Record<string, unknown> = {}) => ({
@@ -274,6 +283,67 @@ console.log('\nsource assertions:');
   ok('probe (review 9): no per-observer refetchInterval — one ref-counted ticker, foreground-gated', !/refetchInterval:/.test(probe) && /acquireTicker/.test(probe) && /releaseTicker/.test(probe));
   const rail = src('components/DesktopActionRail.tsx');
   ok('desktop rail (review 8): "All caught up" requires !sourceFailed, same copy as the card', /sourceFailed \?/.test(rail) && /Couldn't reach MAGE — showing what's on this/.test(rail));
+}
+
+// ── the estimate validator scores against HIS numbers, not "industry" ──────
+//
+// Theme 4 of the 2026-09-07 audit — "the engine is uncalled where it matters
+// most". utils/estimateCalibration.ts measures, per category, how this GC's
+// finished jobs actually landed against what he estimated, and had eight
+// consumers. The estimate VALIDATOR was not one of them: it asked a
+// browsing-less relay to score the bid "against industry standards", i.e. a
+// benchmark nobody in the conversation holds, for a contractor whose real bias
+// is sitting measured in the repo.
+{
+  const svc = src('utils/aiService.ts');
+  ok('validateEstimate no longer asks for a benchmark the relay cannot source',
+    !/Validate this estimate against industry standards/.test(svc),
+    '"industry standards" is an invented number wearing a confident label');
+  ok('validateEstimate takes the calibration report and builds a grounding block',
+    /calibration\?: CalibrationReport \| null/.test(svc) && /function calibrationGrounding\(/.test(svc));
+  ok('the grounding block tells the model his own history OUTRANKS a general average',
+    /Where they disagree, his own history wins/.test(svc));
+  ok('with no measured history it says so instead of inventing one',
+    /do not invent a benchmark you cannot source/.test(svc),
+    'an empty grounding block silently becomes permission to make a number up');
+
+  const panel = src('components/AIEstimateValidator.tsx');
+  ok('the caller actually computes and passes the calibration',
+    /computeCalibration\(\{ projects, commitments \}\)/.test(panel) && /\n\s*calibration,\n/.test(panel),
+    'a grounding parameter nothing passes is the same ungrounded panel with extra code');
+  ok('the panel carries a grounding chip naming what the score was measured against',
+    /groundingChip/.test(panel) && /not an industry average/.test(panel) && /No finished jobs measured yet/.test(panel));
+}
+
+// ── Plan Review cites the ADOPTED edition, not "general IRC/IBC" ──────────
+//
+// Same theme-4 pattern as the estimate validator above. Code Check resolved the
+// jurisdiction's adopted code and showed a chip saying which; Plan Review — one
+// toggle to its left, in the same screen, on the same jobsite — asked the model
+// for "general IRC/IBC guidance". A GC does not build to a general IRC. He
+// builds to the edition his AHJ adopted, and the two differ in exactly the
+// places a plan examiner stops him.
+{
+  const fn = src('supabase/functions/analyze-plan-code/index.ts');
+  ok('the plan-review prompt accepts a jurisdiction block',
+    /jurisdictionBlock\?: string;/.test(fn) && /const juris = req\.jurisdictionBlock/.test(fn));
+  ok('…and instructs the model to cite the adopted edition when it has one',
+    /Cite the ADOPTED edition named above/.test(fn) && /Never invent a local amendment that is not listed/.test(fn));
+  ok('…while keeping the honest fallback when there is no adoption record',
+    /give general IRC\/IBC guidance and do not invent local amendments/.test(fn),
+    'without a resolved jurisdiction the prompt must stay general, not guess an edition');
+  ok('an empty block does not leave a blank line in the prompt',
+    /\]\.filter\(Boolean\)\.join/.test(fn));
+
+  const screen = src('app/(tabs)/construction-ai/index.tsx');
+  ok('Plan Review resolves the jurisdiction from ITS OWN project, not the Code Check field',
+    /resolveCodeJurisdiction\(jobsiteAddressForProject\(planProject\)\)/.test(screen),
+    'the two tabs answer questions about different jobs and must not share one resolution');
+  ok('…and actually passes the block to the reviewer',
+    /jurisdictionBlock: planGrounding\.promptBlock/.test(screen),
+    'a grounding parameter nothing passes is the same ungrounded feature with extra code');
+  ok('…and shows a chip naming the code the sheet was checked against',
+    /testID="plan-review-jurisdiction-chip"/.test(screen) && /planGrounding\.chipLabel/.test(screen));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

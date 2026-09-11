@@ -379,6 +379,8 @@ for (const tz of TIMEZONES) {
 interface Allowed { file: string; line: string; reason: string; added: string }
 const ALLOWED: Allowed[] = [
   // ── Full ISO instants (written with toISOString()), never a bare day ──
+  { file: 'app/wip-report.tsx', line: "Date.parse(raw.updated_at ?? '')", added: '2026-09-08',
+    reason: 'wip_cost_overrides.updated_at is a timestamptz — an INSTANT, not a calendar day. It is parsed to milliseconds only to decide which of two devices wrote last (string compare over mixed offsets would let the laptop\'s newer figure lose to the phone\'s older one, which is the failure the override sync exists to fix). No day is ever named from it.' },
   { file: 'app/daily-report.tsx', line: 'new Date(reportDate)', added: '2026-09-04',
     reason: 'reportDate is an instant — useState(new Date().toISOString()) / DatePickerModal.onChange(picked.toISOString()); daily_reports.date is a text column that round-trips it unchanged' },
   // `new Date(lastReport.date)` used to sit here. It is gone: DFR-CARRY-LABEL

@@ -71,6 +71,7 @@ import {
 } from '@/utils/codeJurisdiction';
 import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/utils/automation/inspectionResultToScheduleWork';
 import { InspectionResultReviewSheet } from '@/components/automation/InspectionResultReviewSheet';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { useSafety } from '@/contexts/SafetyContext';
 import { generateUUID } from '@/utils/generateId';
 import { todayCalendarDay } from '@/utils/calendarDate';
@@ -657,6 +658,18 @@ function ConstructionAIScreenInner() {
   const [planLoading, setPlanLoading] = useState(false);
   const [planOverLimit, setPlanOverLimit] = useState(false);
   const planProject = projects.find((p) => p.id === planProjectId) ?? null;
+  // Plan Review's OWN jurisdiction, resolved from the plan's project rather
+  // than from the Code Check tab's address field one toggle to the left. The
+  // two tabs answer questions about different jobs, so they must not share a
+  // resolution — but they now share the same resolver, the same adoption table
+  // and the same prompt text, which is what stopped Plan Review citing "general
+  // IRC/IBC" for a job whose AHJ has adopted a specific edition
+  // (audit 2026-09-07, theme 4).
+  const planJurisdiction = useMemo(
+    () => resolveCodeJurisdiction(jobsiteAddressForProject(planProject)),
+    [planProject],
+  );
+  const planGrounding = useMemo(() => groundingFactsFor(planJurisdiction), [planJurisdiction]);
   const planSheets = planProjectId ? getPlanSheetsForProject(planProjectId) : [];
   const planSheet = planSheets.find((s) => s.id === planSheetId) ?? null;
   const existingReview = planSheetId ? getPlanReviewForSheet(planSheetId) : null;
@@ -670,7 +683,14 @@ function ConstructionAIScreenInner() {
     setPlanLoading(true);
     try {
       const { base64, mimeType } = await imageUriToBase64(planSheet.imageUri);
-      const res = await reviewPlanCode({ imageBase64: base64, mimeType, location: planProject.location, projectType: planProject.type });
+      const res = await reviewPlanCode({
+        imageBase64: base64,
+        mimeType,
+        location: planProject.location,
+        projectType: planProject.type,
+        // Verbatim, so the prompt and the chip below cannot drift apart.
+        jurisdictionBlock: planGrounding.promptBlock,
+      });
       const prior = getPlanReviewForSheet(planSheet.id);
       const priorStatusByRef = new globalThis.Map((prior?.findings ?? []).map((f) => [f.codeRef, f.status] as const));
       const reviewId = prior?.id ?? `plan-review-${planSheet.id}-${Date.now()}`;
@@ -919,6 +939,20 @@ Never invent a section number you are unsure of — leave section empty and desc
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
+        {/* NAV-07: this tab is registered `href: null`, so arriving from
+            Discover is a TAB SWITCH — React Navigation creates no back button
+            and no tab in the bar lights up. See components/HiddenTabBackLink.tsx
+            for why this names its destination instead of being a bare chevron.
+            Placed above the mode toggle, which is the only chrome all three
+            modes share; each mode draws its own hero inside its own ScrollView,
+            so putting it in one of those would hide it in the other two. */}
+        <HiddenTabBackLink
+          label="Tools"
+          href="/(tabs)/discover/tools"
+          style={styles.backToTools}
+          testID="construction-ai-back-to-tools"
+        />
+
         {/* ── Mode toggle ── */}
         <View style={styles.modeToggleBar}>
           <TouchableOpacity
@@ -1487,6 +1521,29 @@ Never invent a section number you are unsure of — leave section empty and desc
               <AlertTriangle size={14} color="#FF9500" strokeWidth={1.75} />
               <Text style={styles.planDisclaimerText}>{PLAN_REVIEW_DISCLAIMER}</Text>
             </View>
+
+            {/* Which code this sheet is actually being checked against. Same
+                component, same wording and the same groundingFactsFor call as
+                the Code Check chip — a review that cites a specific edition and
+                does not say WHICH is asking the GC to take the citation on
+                faith, and until 2026-09-08 this tab had no chip at all because
+                it was not grounded in the first place. Rendered only once a
+                project is chosen, since the jurisdiction comes from it. */}
+            {planProject ? (
+              <View
+                style={[styles.jurisdictionChip, !planGrounding.grounded && styles.jurisdictionChipUnknown]}
+                testID="plan-review-jurisdiction-chip"
+              >
+                {planGrounding.grounded
+                  ? <ShieldCheck size={12} color={Colors.primary} strokeWidth={2} />
+                  : <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />}
+                <Text
+                  style={[styles.jurisdictionChipText, !planGrounding.grounded && styles.jurisdictionChipTextUnknown]}
+                >
+                  {planGrounding.chipLabel}
+                </Text>
+              </View>
+            ) : null}
 
             {/* Project picker */}
             <Text style={styles.label}>Project</Text>
@@ -2236,6 +2293,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
     marginBottom: 6,
   },
+  backToTools: { alignSelf: 'flex-start' as const, marginLeft: 20, marginBottom: 2 },
   heroTitle: { fontSize: 24, fontWeight: '700' as const, color: themeColors.text },
   heroSubtitle: {
     fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted, textAlign: 'center' as const,

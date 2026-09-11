@@ -4571,7 +4571,19 @@
       ? inv.retentionHeld
       : (typeof inv.retentionAmount === 'number' ? Math.max(0, inv.retentionAmount - retentionReleased) : 0);
     if (retentionHeld > 0) {
-      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage held'+(inv.retentionPercent ? ' ('+inv.retentionPercent+'%)' : '')+'</span><span class="detail-row-value num">−'+fmtMoney(retentionHeld, {dec:2})+'</span></div>';
+      // Name the BASIS, not just the percent. The arithmetic here is correct —
+      // retainage is withheld on the work value, i.e. the subtotal — but the
+      // label sat one row above a tax-inclusive "Total Due", so a homeowner
+      // multiplying 5% by the total on his phone got a different number and
+      // called to ask which one was wrong. Neither was; the label was
+      // (audit 2026-09-07, worth-doing #27).
+      var retLabel = 'Retainage held';
+      if (inv.retentionPercent) {
+        retLabel += ' (' + inv.retentionPercent + '% of ' +
+          (typeof inv.subtotal === 'number' ? 'the ' + fmtMoney(inv.subtotal, {dec:2}) + ' subtotal' : 'the subtotal') +
+          ')';
+      }
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">'+esc(retLabel)+'</span><span class="detail-row-value num">−'+fmtMoney(retentionHeld, {dec:2})+'</span></div>';
     }
     if (retentionReleased > 0) {
       totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage released — now payable</span><span class="detail-row-value num" style="color:var(--success)">'+fmtMoney(retentionReleased, {dec:2})+'</span></div>';

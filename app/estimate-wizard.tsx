@@ -42,6 +42,7 @@ import { mageAISmart } from '@/utils/mageAI';
 import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
+import { bidIdentityGap, mergedBidBranding } from '@/utils/bidDocumentIdentity';
 import {
   EMPTY_GROUNDING, buildGroundingFacts, estimateThinkingSteps, groundingChipLabel, selectGroundingEntries,
   type GroundingBundle, type ScopeHints,
@@ -52,6 +53,7 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -221,7 +223,8 @@ function EstimateWizardScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
-  const { settings, getProject, updateProject, addProject, projects, commitments } = useProjects();
+  const { settings, getProject, updateProject, updateSettings, addProject, projects, commitments } = useProjects();
+  const { maybeAskForPush } = useNotifications();
   const { receipts } = useMaterialReceipts();
   // Self-perform labor (D6): crew hours × configured loaded rates, folded
   // into the same cost book the wizard grounds its prices on.
@@ -245,6 +248,12 @@ function EstimateWizardScreenInner() {
   const [refineText, setRefineText] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
+  // The re-entry latch for the send. `sharingPdf` disables the buttons, but a
+  // state flag is only true on the NEXT render, so two taps landing before that
+  // render both read `false` — two PDFs and, worse, two ESTIMATE_SHARED events
+  // on the activation funnel. Two buttons reach the send (the share button and
+  // the identity ask's "Save and send"), so the latch lives on the send itself.
+  const sharingRef = useRef(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
   // AI-F4 / PRODUCT-F18 (review): the grounding that went into THIS run's
   // prompt, stored next to the result. The chip, the seed CTA and the loader
@@ -265,6 +274,13 @@ function EstimateWizardScreenInner() {
   // lets them attach the estimate to an existing project OR spin up a new
   // one, folding the AI line items into its linkedEstimate.
   const [showSaveModal, setShowSaveModal] = useState(false);
+
+  // The identity gate on the share (see utils/bidDocumentIdentity.ts). Draft
+  // lives here rather than in settings so a half-typed licence number is never
+  // written to the profile.
+  const [showIdentityModal, setShowIdentityModal] = useState(false);
+  const [identityDraft, setIdentityDraft] = useState<{ companyName: string; licenseNumber: string }>({ companyName: '', licenseNumber: '' });
+  const [identityHint, setIdentityHint] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
 
@@ -509,23 +525,17 @@ function EstimateWizardScreenInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
 
-  const share = useCallback(async () => {
+  // The PDF actually goes out from here, and ONLY from here. It takes the
+  // branding as an argument rather than reading `settings` itself, because the
+  // identity ask below has to hand it values that were typed one tick ago:
+  // updateSettings writes through the offline queue, so the `settings` captured
+  // in this closure is still the blank one the user was just asked to fill in.
+  const generateAndSharePdf = useCallback(async (branding: CompanyBranding) => {
     if (!result) return;
+    if (sharingRef.current) return;
+    sharingRef.current = true;
     setSharingPdf(true);
     try {
-      // Build a CompanyBranding payload from the user's settings; fall back
-      // to "MAGE ID" defaults so the PDF still renders if they haven't
-      // filled in their branding yet.
-      const branding: CompanyBranding = {
-        companyName:   settings?.branding?.companyName ?? 'MAGE ID',
-        contactName:   settings?.branding?.contactName ?? '',
-        phone:         settings?.branding?.phone ?? '',
-        email:         settings?.branding?.email ?? '',
-        address:       settings?.branding?.address ?? '',
-        licenseNumber: settings?.branding?.licenseNumber ?? '',
-        tagline:       settings?.branding?.tagline ?? '',
-        logoUri:       settings?.branding?.logoUri,
-      };
       await shareQuickEstimatePDF(result, answers, branding);
       // Activation funnel: the final funnel step — priced estimate sent to client.
       track(AnalyticsEvents.ESTIMATE_SHARED, {
@@ -539,13 +549,59 @@ function EstimateWizardScreenInner() {
       // won't fire for this session.
       if (isOnboarding) {
         router.replace(ONBOARDING_PAYWALL_ROUTE);
+      } else {
+        // The contextual push ask. A proposal that just left for a homeowner is
+        // the moment a reply notification obviously matters; NotificationContext
+        // owns the once-only rule. Never during onboarding — the flow is still
+        // mid-arc and a system dialog there spends the one iOS prompt cold.
+        void maybeAskForPush('estimate_shared');
       }
     } catch (err) {
       showAlert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
     } finally {
+      sharingRef.current = false;
       setSharingPdf(false);
     }
-  }, [result, answers, settings]);
+  }, [result, answers, isOnboarding, router, maybeAskForPush]);
+
+  /** The saved branding, with no vendor-name fallback. The old
+   *  `?? 'MAGE ID'` default is what put the software's name on the header of a
+   *  contractor's bid; the gate below is what fills the field instead. */
+  const savedBranding = useCallback(
+    (): CompanyBranding => mergedBidBranding(settings?.branding, {}),
+    [settings?.branding],
+  );
+
+  const share = useCallback(() => {
+    if (!result) return;
+    const branding = savedBranding();
+    const gap = bidIdentityGap(branding);
+    if (gap.blocking) {
+      // Blocked, and the block says why — this is a document a homeowner will
+      // be holding, not a form field we want filled for its own sake.
+      setIdentityDraft({
+        companyName: gap.needsCompanyName ? '' : branding.companyName,
+        licenseNumber: branding.licenseNumber,
+      });
+      setIdentityHint(null);
+      setShowIdentityModal(true);
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+      return;
+    }
+    void generateAndSharePdf(branding);
+  }, [result, savedBranding, generateAndSharePdf]);
+
+  // Save what they typed to the profile — once, so the second bid never asks —
+  // and send the PDF built from those exact values.
+  const saveIdentityAndShare = useCallback(() => {
+    const merged = mergedBidBranding(settings?.branding, identityDraft);
+    const gap = bidIdentityGap(merged);
+    if (gap.blocking) { setIdentityHint(gap.reason); return; }
+    updateSettings({ branding: merged });
+    setShowIdentityModal(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void generateAndSharePdf(merged);
+  }, [settings?.branding, identityDraft, updateSettings, generateAndSharePdf]);
 
   const reset = useCallback(() => {
     setAnswers(INITIAL_SCOPE);
@@ -653,9 +709,15 @@ function EstimateWizardScreenInner() {
     if (isOnboarding) {
       router.replace(ONBOARDING_PAYWALL_ROUTE);
     } else {
+      // A project the user just created is the other moment a push is
+      // obviously about something they own. This fires on every create, not
+      // only the first — NotificationContext holds the once-only rule, so
+      // whichever qualifying moment comes first is the one that asks. Same
+      // onboarding exclusion as the share path.
+      void maybeAskForPush('project_created');
       router.push({ pathname: '/project-detail', params: { id } } as never);
     }
-  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
+  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding, maybeAskForPush]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
@@ -1194,6 +1256,94 @@ function EstimateWizardScreenInner() {
                     </ScrollView>
                   </>
                 ) : null}
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Identity gate on the share. The PDF header prints the company name
+            and licence line straight from CompanyBranding, so an unfilled
+            profile put "MAGE ID" and a missing licence number on the first
+            document a homeowner ever sees. Asked HERE, at the send, once —
+            not as another onboarding screen the user taps past. */}
+        <Modal visible={showIdentityModal} transparent animationType="slide" onRequestClose={() => setShowIdentityModal(false)}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.saveOverlay}>
+              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
+                {(() => {
+                  const gap = bidIdentityGap(mergedBidBranding(settings?.branding, identityDraft));
+                  const savedGap = bidIdentityGap(savedBranding());
+                  return (
+                    <>
+                      <View style={styles.saveHeader}>
+                        <Text style={styles.saveTitle}>{savedGap.title}</Text>
+                        <TouchableOpacity onPress={() => setShowIdentityModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                          <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={styles.identityReason} testID="wizard-identity-reason">{savedGap.reason}</Text>
+
+                      <Text style={styles.saveSectionLabel}>Company name</Text>
+                      <TextInput
+                        style={styles.saveInput}
+                        value={identityDraft.companyName}
+                        onChangeText={(v) => { setIdentityDraft(d => ({ ...d, companyName: v })); setIdentityHint(null); }}
+                        placeholder="Your company, as the homeowner should see it"
+                        placeholderTextColor={themeColors.textMuted}
+                        autoCapitalize="words"
+                        testID="wizard-identity-company"
+                      />
+
+                      {savedGap.rule && (
+                        <>
+                          <Text style={[styles.saveSectionLabel, { marginTop: 14 }]}>
+                            {savedGap.rule.authority} licence number
+                          </Text>
+                          <TextInput
+                            style={styles.saveInput}
+                            value={identityDraft.licenseNumber}
+                            onChangeText={(v) => { setIdentityDraft(d => ({ ...d, licenseNumber: v })); setIdentityHint(null); }}
+                            placeholder="e.g. 1043927"
+                            placeholderTextColor={themeColors.textMuted}
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                            testID="wizard-identity-licence"
+                          />
+                          <Text style={styles.identityCitation}>{savedGap.rule.citation}</Text>
+                        </>
+                      )}
+
+                      {!!identityHint && <Text style={styles.identityHint} testID="wizard-identity-hint">{identityHint}</Text>}
+
+                      {/* `disabled` while a share is already running, not just
+                          dimmed: the main share button carries the same guard,
+                          and without it here two taps inside one frame both run
+                          saveIdentityAndShare — two PDFs, and two
+                          ESTIMATE_SHARED events on the activation funnel this
+                          wave exists to keep honest. */}
+                      <TouchableOpacity
+                        style={[styles.identitySaveBtn, (gap.blocking || sharingPdf) && { opacity: 0.5 }]}
+                        onPress={saveIdentityAndShare}
+                        disabled={sharingPdf}
+                        activeOpacity={0.85}
+                        testID="wizard-identity-save"
+                      >
+                        <FileDown size={16} color="#FFF" strokeWidth={2} />
+                        <Text style={styles.saveCreateText}>{sharingPdf ? 'Sending…' : 'Save and send'}</Text>
+                      </TouchableOpacity>
+                      {/* Not "you will not be asked again": the licence half of
+                          this gate is keyed off the state in your profile
+                          address, so a contractor who has no address yet and
+                          later types a CA, FL or AZ one is asked once more, for
+                          the number. Promising otherwise is a promise the code
+                          does not keep. */}
+                      <Text style={styles.identityFootnote}>
+                        Saved to your company profile — the next bid goes straight out.
+                      </Text>
+                    </>
+                  );
+                })()}
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -1826,6 +1976,41 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   saveList: {
     maxHeight: 240,
     marginTop: 2,
+  },
+
+  // ── Identity gate on the share (utils/bidDocumentIdentity.ts) ──────────
+  identityReason: {
+    fontSize: Type.footnote.fontSize,
+    lineHeight: 19,
+    color: themeColors.textMuted,
+    marginBottom: 18,
+  },
+  identityCitation: {
+    fontSize: Type.caption2.fontSize,
+    color: themeColors.textMuted,
+    marginTop: 6,
+  },
+  identityHint: {
+    fontSize: Type.footnote.fontSize,
+    color: themeColors.warningLabel,
+    marginTop: 12,
+  },
+  identitySaveBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: themeColors.accentFill,
+    borderRadius: Tokens.radius.card,
+    paddingVertical: 14,
+    marginTop: 20,
+    minHeight: 48,
+  },
+  identityFootnote: {
+    fontSize: Type.caption2.fontSize,
+    color: themeColors.textMuted,
+    textAlign: 'center' as const,
+    marginTop: 10,
   },
   saveProjectRow: {
     flexDirection: 'row' as const,

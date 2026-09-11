@@ -182,9 +182,145 @@ export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
   legacy_estimate_grand_total: 'Legacy estimate — grand total',
   estimate_base_total: 'Linked estimate — base total (cost before markup)',
   signed_commitments: 'Signed subcontracts and POs, including CO revisions',
-  commitments_and_receipts: 'Subs paid to date plus material receipts',
+  commitments_and_receipts:
+    'Subs paid to date plus material receipts — self-performed labor NOT included, so this is a lower bound',
   none: 'No source on file — enter this figure yourself',
 };
+
+/**
+ * Cost-to-date is the one input on this schedule a GC types over, because the
+ * automatic figure (subs paid + material receipts) cannot see what his own
+ * crews cost. So it has two provenances the derive chain above will never
+ * return, and a schedule that does not say which one it used is the whole
+ * finding: $340,000 of self-performed labor typed on the laptop, an empty
+ * override map on the phone, a period frozen and exported from the phone at
+ * the lower bound — and nothing on screen saying the number had moved.
+ *
+ * These are deliberately NOT members of WipSource. WipSource is exactly the
+ * set of branches the three derive functions can return, and
+ * scripts/validate-wip-parity.ts holds it to exactly that set. A typed number
+ * is user input, not a derivation.
+ */
+export type WipCostOverrideSource = 'entered_on_this_device' | 'entered_and_synced';
+
+/** Every provenance a cost-to-date figure can carry — derived or typed. */
+export type WipCostToDateSource = WipSource | WipCostOverrideSource;
+
+export const WIP_COST_OVERRIDE_LABELS: Record<WipCostOverrideSource, string> = {
+  entered_on_this_device: 'Cost-to-date you entered on this device — not yet synced to your account',
+  entered_and_synced: 'Cost-to-date you entered, synced across your devices',
+};
+
+/**
+ * What a Source cell says when the row names a branch this build has no label
+ * for. This is reachable, not theoretical: snapshot rows are read back out of
+ * AsyncStorage and out of the `wip_periods` jsonb column with a cast and no
+ * validation (contexts/WipContext.tsx:55), so a renamed WipSource — or a row
+ * written by a newer build — arrives here as a string nothing in this file
+ * declares.
+ */
+export const WIP_SOURCE_UNRECOGNIZED =
+  'Recorded under a source this version of MAGE does not recognise';
+
+/**
+ * Plain-English provenance for any source a WIP figure can carry.
+ *
+ * Own-property lookups, and a real sentence when neither table has the key.
+ * `in` walks the prototype chain, so a snapshot carrying `'constructor'`
+ * returned Object itself and printed `function Object() { [native code] }` in
+ * the Source column; an unrecognised key returned undefined and printed the
+ * word "undefined" beside a $1.4M contract on the page a surety reads. A
+ * source cell has to be a sentence or an admission — never a stringified miss.
+ */
+export function wipSourceLabel(source: WipCostToDateSource): string {
+  const has = (table: object, key: unknown): boolean =>
+    typeof key === 'string' && Object.prototype.hasOwnProperty.call(table, key);
+  if (has(WIP_COST_OVERRIDE_LABELS, source)) {
+    return WIP_COST_OVERRIDE_LABELS[source as WipCostOverrideSource];
+  }
+  if (has(WIP_SOURCE_LABELS, source)) return WIP_SOURCE_LABELS[source as WipSource];
+  return WIP_SOURCE_UNRECOGNIZED;
+}
+
+/**
+ * The provenance of the three DERIVED inputs on one WIP row, carried on the
+ * snapshot so a period locked in March can still answer the surety's question
+ * in June. Snapshots are the document; recomputing provenance at export time
+ * against today's projects would explain a number the export is not printing.
+ */
+export interface WipRowSources {
+  /** Branch that produced originalContract — a REVENUE figure. */
+  originalContract: WipSource;
+  /** Branch that produced totalEstimatedCost — a COST figure. */
+  totalEstimatedCost: WipSource;
+  /** Automatic chain, or the GC's typed override and whether it has synced. */
+  costToDate: WipCostToDateSource;
+}
+
+/**
+ * A snapshot row that carries its provenance. `sources` is optional because
+ * periods locked before this shipped do not have it — those must say so rather
+ * than have a source invented for them (WIP_SOURCE_UNRECORDED below).
+ */
+export type WipSnapshotRowWithSources = WipSnapshotRow & { sources?: WipRowSources };
+
+/** A period whose rows may carry provenance. A plain WipPeriod is assignable. */
+export type WipPeriodWithSources = Omit<WipPeriod, 'rows'> & { rows: WipSnapshotRowWithSources[] };
+
+/**
+ * What the export prints when a row predates source tracking. Saying "not
+ * recorded" is the honest answer; picking the most likely branch would put a
+ * guess in front of a banker in the same typeface as a fact.
+ */
+export const WIP_SOURCE_UNRECORDED = 'Not recorded — this snapshot predates source tracking';
+
+/**
+ * The standing caveat on cost-to-date. The list row on app/wip-report.tsx has
+ * always shown it ("est. — tap to add labor") and the PDF dropped it, so the
+ * one document that leaves the building was the one that did not say the
+ * figure was a floor.
+ */
+export const WIP_COST_TO_DATE_CAVEAT =
+  'Cost to date counts subcontractor payments and material receipts. Self-performed '
+  + 'labor is not captured automatically — unless the line above says you entered the '
+  + 'figure, it is a LOWER BOUND, not the total cost incurred.';
+
+/**
+ * The three source lines for one row, ready to print in a CSV cell or a PDF.
+ * One function so the CSV and the PDF cannot end up explaining the same
+ * schedule two different ways.
+ */
+export function describeWipRowSources(row: WipSnapshotRowWithSources): {
+  originalContract: string;
+  totalEstimatedCost: string;
+  costToDate: string;
+} {
+  const s = row.sources;
+  // The exported column is REVISED contract — original plus approved change
+  // orders — so naming only the original branch would leave a banker unable to
+  // reconcile the printed figure against the source it claims.
+  const cos = row.input.approvedChangeOrders;
+  // A DEDUCTIVE change order is a negative REVENUE adjustment and it is
+  // ordinary — the owner cuts scope after signing. The sign has to pick the
+  // word: this read "plus $-30,000 of approved change orders" on the footnote
+  // page a surety underwrites. NaN off a corrupt row falls through both
+  // comparisons and says nothing, which is the right silence.
+  const coClause = cos > 0
+    ? `, plus ${wipMoney(cos)} of approved change orders`
+    : cos < 0
+      ? `, less ${wipMoney(Math.abs(cos))} of approved deductive change orders`
+      : '';
+  return {
+    originalContract: s ? wipSourceLabel(s.originalContract) + coClause : WIP_SOURCE_UNRECORDED,
+    totalEstimatedCost: s ? wipSourceLabel(s.totalEstimatedCost) : WIP_SOURCE_UNRECORDED,
+    costToDate: s ? wipSourceLabel(s.costToDate) : WIP_SOURCE_UNRECORDED,
+  };
+}
+
+/** Dollars, for prose inside a source line. Revenue or cost — the caller says which. */
+function wipMoney(n: number): string {
+  return `$${Math.round(n).toLocaleString('en-US')}`;
+}
 
 /**
  * Recover the original (pre-change-order) contract value. `Project` has no

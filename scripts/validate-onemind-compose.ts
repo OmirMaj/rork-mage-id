@@ -205,7 +205,7 @@ function mkSchedule(healthScore: number | undefined, tasks: { done?: boolean; st
 
 {
   const summary: CashFlowSummary = {
-    totalIncome: 90_000, totalExpenses: 84_000, netProfit: 6_000,
+    totalIncome: 90_000, totalExpenses: 84_000, netCashChange: 6_000,
     lowestBalance: -4_200, lowestBalanceWeek: 6, highestBalance: 30_000, highestBalanceWeek: 11,
     dangerWeeks: [
       { weekNumber: 6, weekDate: '2026-08-31', balance: -4_200 },
@@ -216,6 +216,27 @@ function mkSchedule(healthScore: number | undefined, tasks: { done?: boolean; st
   ok('cash ref = CASH', b.ref === 'CASH');
   ok('cash facts carry danger weeks', b.facts.some(f => f.includes('2026-08-31')));
   ok('cash facts carry lowest balance', b.facts.some(f => /lowest/i.test(f)));
+
+  // COST vs REVENUE, in the one place One Mind hands this number to a model.
+  // `netCashChange` is cash in minus cash out over the horizon — NOT profit
+  // (utils/cashFlowEngine.ts states why at length: deposits count before the
+  // work is done, prepaid material counts as loss, unbilled work counts as
+  // nothing). It was called `netProfit` until the 2026-09-07 audit, and a
+  // model told "net profit $6,000" will answer questions about margin with a
+  // cash figure. The fixture above is the renamed field; these two lines are
+  // what stop the label drifting back.
+  ok('the net figure is named as cash movement, not profit',
+    b.facts.some(f => /net cash change/i.test(f) && /not profit/i.test(f)),
+    b.facts.join(' | '));
+  ok('no fact calls it profit',
+    !b.facts.some(f => /net profit|\bprofit of\b/i.test(f)), b.facts.join(' | '));
+  // Pinned to the FIELD, not to a recomputation: only netCashChange differs
+  // here, so a block that derived the figure from totalIncome - totalExpenses
+  // (or printed a constant) would render identically and fail this.
+  const flipped = buildCashBlock({ ...summary, netCashChange: -6_000 }, true, 12);
+  ok('the net figure is read from netCashChange itself',
+    flipped.facts.join(' ') !== b.facts.join(' '), b.facts.join(' | '));
+
   const unset = buildCashBlock(null, false, 12);
   ok('cash not-set-up honesty', unset.facts.some(f => /not set up/i.test(f)));
 }

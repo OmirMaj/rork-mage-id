@@ -56,7 +56,7 @@ const HANDROLLED_CEILING = 684;
  * existed, which is the number that made the audit call the whole layer
  * unreachable.
  */
-const BARREL_IMPORTER_FLOOR = 6;
+const BARREL_IMPORTER_FLOOR = 8;
 
 function walk(dir: string, out: string[] = []): string[] {
   let entries: string[];

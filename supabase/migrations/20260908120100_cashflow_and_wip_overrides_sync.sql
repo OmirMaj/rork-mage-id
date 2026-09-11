@@ -52,6 +52,8 @@
 --   -- as anon, both must be invisible:
 --   select count(*) from public.cash_flow_settings;   -- expect 0 rows / denied
 --   -- as the owner, a round-trip must survive a re-login on another device.
+--   -- and a cleared override must stay cleared on the SECOND device:
+--   select project_id, cost_to_date, cleared from public.wip_cost_overrides;
 
 -- ── 1. cash flow setup ──────────────────────────────────────────────────────
 create table if not exists public.cash_flow_settings (
@@ -88,6 +90,20 @@ create table if not exists public.wip_cost_overrides (
   -- (subs + materials + receipts) cannot see. Naming it here because this repo
   -- has been bitten by an `actual` that was quietly a revenue number.
   cost_to_date numeric not null,
+  -- The GC took the override back OFF and wants the app's own figure again.
+  --
+  -- A tombstone rather than a DELETE, for a concrete reason: every write in
+  -- this app goes through utils/offlineQueue.ts, whose delete branch is
+  -- `.delete().eq('id', data.id)` — it can only delete by a column named `id`,
+  -- and this table is keyed (user_id, project_id). Without this flag a clear
+  -- could only ever be local: the row would stay server-side and the GC's
+  -- other device would read it back and restore the number he just rejected.
+  -- Upsert is the path that already works, so the clear travels on it.
+  --
+  -- A cleared row keeps the AUTOMATIC figure in cost_to_date rather than 0, so
+  -- a reader that forgets this flag falls back to the app's own number instead
+  -- of asserting the job has cost nothing.
+  cleared      boolean not null default false,
   updated_at   timestamptz not null default now(),
   primary key (user_id, project_id)
 );

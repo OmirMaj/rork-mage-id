@@ -587,9 +587,10 @@ console.log('\nhidden tabs (href: null) have a back affordance:');
   // Owed, not excused. Each line dies the moment the link lands — that is what
   // stops this from becoming the place the fix goes to be forgotten.
   const PENDING_BACK_LINK: Record<string, string> = {
-    schedule: 'app/(tabs)/schedule/index.tsx — the worst of the three: app/(tabs)/discover/schedule.tsx:42 arrives by router.replace, so the OS back gesture is dead too. Not owned by the 2026-09-07 nav wave.',
-    marketplace: 'app/(tabs)/marketplace/index.tsx — reached from Discover ▸ Tools ▸ Suppliers; wants <HiddenTabBackLink label="Tools" href="/(tabs)/discover/tools" />. Not owned by the 2026-09-07 nav wave.',
-    'construction-ai': 'app/(tabs)/construction-ai/index.tsx — reached from Discover ▸ Tools ▸ Construction AI; wants <HiddenTabBackLink label="Tools" href="/(tabs)/discover/tools" />. Not owned by the 2026-09-07 nav wave.',
+    // Empty. All three — schedule, marketplace and construction-ai — gained a
+    // HiddenTabBackLink on 2026-09-08. The assertions below still walk every
+    // href:null tab, so a NEW hidden tab with no way out fails immediately
+    // rather than being quietly added to this list.
   };
 
   for (const name of hidden) {

@@ -101,6 +101,7 @@ import { runCpm } from '@/utils/cpm';
 import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { showAlert } from '@/utils/alert';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
@@ -2595,6 +2596,21 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const scheduleScrollHeader = (
     <>
         <View style={styles.header}>
+          {/* NAV-07: this tab is registered `href: null`, so arriving from
+              Discover is a TAB SWITCH — no back button is created and no tab in
+              the bar lights up. This one is the worst of the three:
+              app/(tabs)/discover/schedule.tsx opens a schedule with
+              router.REPLACE, so the OS back gesture is dead here too. The
+              destination is that project list, which does not auto-replace on
+              mount, so this cannot bounce the user straight back. See
+              components/HiddenTabBackLink.tsx for why it names its
+              destination. */}
+          <HiddenTabBackLink
+            label="Schedules"
+            href="/(tabs)/discover/schedule"
+            style={styles.backToSchedules}
+            testID="schedule-back-to-schedules"
+          />
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.title} numberOfLines={1}>Schedule</Text>
@@ -3579,6 +3595,7 @@ function guessPhase(category: string): string {
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   header: { paddingHorizontal: 20, paddingBottom: 4 },
+  backToSchedules: { marginBottom: 6 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   // Screen title — Fraunces serif per the type rule in constants/typography.ts
   // (serif for screen titles + numbers that matter, system sans for everything

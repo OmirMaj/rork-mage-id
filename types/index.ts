@@ -366,7 +366,15 @@ export interface ContractAllowance {
 
 export interface ContractSignature {
   name: string;                  // typed legal name
-  role: 'gc' | 'homeowner';
+  /**
+   * WHO put their name on the document. 'sub' exists because a lien waiver
+   * signed by the subcontractor and one the GC recorded from a paper original
+   * are different legal facts, and storing both as 'gc' hid the difference:
+   * app/lien-waivers.tsx used to let the GC type the sub's name under
+   * `role: 'gc'`, which reads as a contractor signing his subcontractor's
+   * release. Only the token-gated sub signing page writes 'sub'.
+   */
+  role: 'gc' | 'homeowner' | 'sub';
   signedAt: string;              // ISO
   signaturePaths?: string[];     // SVG paths from SignaturePad
   ipAddress?: string;            // best-effort capture for legal record
@@ -433,6 +441,14 @@ export interface LienWaiver {
   subSignature?: ContractSignature;  // reuses the signature shape
   signedAt?: string;
   signedPdfUrl?: string;
+  /**
+   * When the signing link was emailed to `subEmail`. Distinguishes "waiver
+   * drafted" from "waiver is sitting in the sub's inbox", which the single
+   * 'requested' status could not. Undefined until the signature-request
+   * migration adds the column — the row read is a `select('*')`, so an absent
+   * column reads as absent data rather than an error.
+   */
+  signRequestedAt?: string;
   notes: string;
   createdAt: string;
   updatedAt: string;

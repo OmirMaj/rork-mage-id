@@ -1,4 +1,5 @@
 import { mageAI } from '@/utils/mageAI';
+import type { CalibrationReport } from '@/utils/estimateCalibration';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage, Commitment, MaterialReceipt } from '@/types';
@@ -421,6 +422,40 @@ export const estimateValidationSchema = z.object({
 
 export type EstimateValidationResult = z.infer<typeof estimateValidationSchema>;
 
+/**
+ * Grounding block built from the GC's OWN measured estimating bias.
+ *
+ * `utils/estimateCalibration.ts` computes, per category, how his finished jobs
+ * actually landed against what he estimated. Until 2026-09-08 this validator
+ * ignored it entirely and asked the model to score the bid against "industry
+ * standards" — a number no one in the conversation has, from a relay with no
+ * browsing, for a contractor whose real bias is sitting measured in the repo.
+ * Theme 4 of the 2026-09-07 audit ("the engine is uncalled where it matters
+ * most") and a standing product rule: every AI flow is grounded in learned data
+ * or it does not ship.
+ *
+ * Returns '' when there is nothing measured yet, and the prompt then says so
+ * out loud rather than letting the model invent a benchmark to fill the gap.
+ */
+function calibrationGrounding(report: CalibrationReport | null): string {
+  if (!report?.hasData || report.categories.length === 0) return '';
+  const worst = report.categories.slice(0, 5).map(c => {
+    const pct = Math.round((c.bias - 1) * 100);
+    const dir = pct > 0 ? `${pct}% OVER what he estimated` : `${Math.abs(pct)}% UNDER what he estimated`;
+    return `  - ${c.category}: his finished jobs came in ${dir} (${c.confidence} confidence)`;
+  }).join('\n');
+  const b = report.summary.weightedBias;
+  const overall = b > 1
+    ? `${Math.round((b - 1) * 100)}% OVER his estimates on average`
+    : `${Math.round((1 - b) * 100)}% UNDER his estimates on average`;
+  return `
+THIS CONTRACTOR'S MEASURED ESTIMATING BIAS — from ${report.summary.totalJobs} of his OWN finished jobs, as of ${report.asOf}.
+Use THIS, not a general industry benchmark. Where they disagree, his own history wins.
+Overall, his actual costs land ${overall} across ${report.summary.categoryCount} measured categories.
+${worst}
+`;
+}
+
 export async function validateEstimate(
   projectType: string,
   squareFootage: number,
@@ -430,13 +465,18 @@ export async function validateEstimate(
   itemCount: number,
   hasContingency: boolean,
   location: string,
+  /** The GC's own calibration. Optional so existing callers keep compiling;
+   *  when omitted the prompt says the bid was scored WITHOUT his history. */
+  calibration?: CalibrationReport | null,
 ): Promise<EstimateValidationResult> {
   console.log('[AI Estimate] Validating estimate...');
   const costPerSF = squareFootage > 0 ? (totalCost / squareFootage).toFixed(2) : 'N/A';
   const matLabRatio = laborCost > 0 ? (materialCost / laborCost).toFixed(1) : 'N/A';
 
+  const grounding = calibrationGrounding(calibration ?? null);
+
   const aiResult = await mageAI({
-    prompt: `You are an AI construction estimator reviewer. Validate this estimate against industry standards and flag potential issues.
+    prompt: `You are an AI construction estimator reviewer. Validate this estimate and flag potential issues.
 
 PROJECT TYPE: ${projectType}
 SQUARE FOOTAGE: ${squareFootage} SF
@@ -448,8 +488,11 @@ ITEM COUNT: ${itemCount}
 COST PER SF: $${costPerSF}
 MAT:LAB RATIO: ${matLabRatio}:1
 HAS CONTINGENCY: ${hasContingency ? 'Yes' : 'No'}
-
-Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingency, cost/SF out of range for project type, missing common items. Score overall estimate health 1-10.`,
+${grounding}
+Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingency, cost/SF out of range for project type, missing common items. Score overall estimate health 1-10.
+${grounding
+  ? 'Ground every judgement in the measured bias above and SAY which category it came from. Do not cite a generic industry average when his own number for that category is listed.'
+  : 'You have NO measured history for this contractor. Say so plainly in the summary — that the score is a general check, not a read on how HIS jobs land — and do not invent a benchmark you cannot source.'}`,
     schema: estimateValidationSchema,
     tier: 'smart',
     maxTokens: 5000,

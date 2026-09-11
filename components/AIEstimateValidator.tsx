@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView,
 } from 'react-native';
@@ -9,6 +9,8 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useProjects } from '@/contexts/ProjectContext';
+import { computeCalibration } from '@/utils/estimateCalibration';
 import { validateEstimate, type EstimateValidationResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
@@ -39,6 +41,16 @@ export default React.memo(function AIEstimateValidator(props: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
+  // The GC's OWN measured estimating bias, from his finished jobs. Passed into
+  // the prompt so the validator scores against his history instead of an
+  // "industry standard" the relay cannot source. `hasData` is false until at
+  // least one category has real actuals — the prompt handles that case by
+  // saying so rather than inventing a benchmark.
+  const { projects, commitments } = useProjects();
+  const calibration = useMemo(
+    () => computeCalibration({ projects, commitments }),
+    [projects, commitments],
+  );
   const router = useRouter();
   const [result, setResult] = useState<EstimateValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +79,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
         props.itemCount,
         props.hasContingency,
         props.location,
+        calibration,
       );
       await recordAIUsage('smart', 'estimateValidation');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -82,7 +95,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, props, tier, router]);
+  }, [isLoading, props, tier, router, calibration]);
 
   if (!result) {
     return (
@@ -158,6 +171,17 @@ export default React.memo(function AIEstimateValidator(props: Props) {
           )}
 
           <Text style={styles.summary}>{result.summary}</Text>
+
+          {/* The grounding chip. A score is only worth reading if the reader
+              knows what it was measured against — and until 2026-09-08 this
+              panel scored against "industry standards", which is a benchmark
+              the relay cannot source. Now it either names the GC's own finished
+              jobs, or says plainly that it has none of his history yet. */}
+          <Text style={styles.groundingChip}>
+            {calibration.hasData
+              ? `Scored against your own ${calibration.summary.totalJobs} finished ${calibration.summary.totalJobs === 1 ? 'job' : 'jobs'} across ${calibration.summary.categoryCount} measured ${calibration.summary.categoryCount === 1 ? 'category' : 'categories'}, not an industry average.`
+              : 'No finished jobs measured yet, so this is a general sanity check — not a read on how YOUR jobs land. It gets specific once a job closes out with actuals.'}
+          </Text>
 
           {error ? (
             <View style={styles.errorRow}>
@@ -266,6 +290,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   missingItem: {
     fontSize: Type.footnote.fontSize,
     color: t.textSecondary,
+  },
+  groundingChip: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    lineHeight: 15,
+    marginTop: 8,
   },
   summary: {
     fontSize: Type.footnote.fontSize,

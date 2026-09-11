@@ -211,7 +211,7 @@ console.log('\ncomposeBrief — leak flags:');
 console.log('\ncomposeBrief — watching:');
 {
   const cash: CashFlowSummary = {
-    totalIncome: 10_000, totalExpenses: 14_000, netProfit: -4_000,
+    totalIncome: 10_000, totalExpenses: 14_000, netCashChange: -4_000,
     lowestBalance: -4_200, lowestBalanceWeek: 3, highestBalance: 9_000, highestBalanceWeek: 1,
     dangerWeeks: [
       { weekNumber: 3, weekDate: '2026-08-10', balance: -4_200 },
@@ -346,7 +346,7 @@ console.log('\ncomposeBrief — summary line:');
   ok('singular "1 needs you"', briefSummaryLine(one).startsWith('1 needs you'), briefSummaryLine(one));
 
   const cash: CashFlowSummary = {
-    totalIncome: 0, totalExpenses: 0, netProfit: 0, lowestBalance: -1, lowestBalanceWeek: 1,
+    totalIncome: 0, totalExpenses: 0, netCashChange: 0, lowestBalance: -1, lowestBalanceWeek: 1,
     highestBalance: 0, highestBalanceWeek: 1,
     dangerWeeks: [{ weekNumber: 1, weekDate: '2026-07-27', balance: -1 }],
   };

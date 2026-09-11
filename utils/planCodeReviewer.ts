@@ -94,6 +94,10 @@ export async function reviewPlanCode(opts: {
   mimeType: string;
   location?: string;
   projectType?: string;
+  /** `JurisdictionGrounding.promptBlock` from utils/codeJurisdiction. Built on
+   *  the client because that is where the adoption table lives; passed verbatim
+   *  so the prompt and the grounding chip carry the same text. */
+  jurisdictionBlock?: string;
 }): Promise<PlanCodeResult> {
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;

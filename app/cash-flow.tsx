@@ -26,14 +26,16 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import ConcretePour from '@/components/animations/ConcretePour';
 import {
   generateForecast, calculateSummary, formatCurrency, formatCurrencyShort,
-  pendingRetention,
+  pendingRetention, buildCommittedOutflows,
   getEffectiveStartingBalance,
 } from '@/utils/cashFlowEngine';
 import type { CashFlowExpense, ExpectedPayment, CashFlowWeek, CashFlowSummary, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
 import {
-  loadCashFlowData, saveCashFlowData, isSetupComplete, markSetupComplete,
+  loadCashFlowSettings, saveCashFlowData, markSetupComplete,
   getCachedAIAnalysis, setCachedAIAnalysis,
 } from '@/utils/cashFlowStorage';
+import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { mageAI } from '@/utils/mageAI';
@@ -166,7 +168,8 @@ function CashFlowScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject } = useProjects();
+  const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject, commitments: allCommitments, getCommitmentsForProject } = useProjects();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
@@ -256,13 +259,19 @@ function CashFlowScreenInner() {
     return allChangeOrders;
   }, [projectId, allChangeOrders, getChangeOrdersForProject]);
 
+  // One read-through, not two. The setup flag and the setup itself are the same
+  // server row (public.cash_flow_settings), and reading them separately meant a
+  // phone could show the wizard while the balance had already loaded. Passing
+  // the user id is what makes this a server read at all — without it the loader
+  // answers from the device cache, which on a second device is empty, and the
+  // GC saw a $0 starting balance on the screen he uses to decide whether he can
+  // make payroll (audit do-next #12c).
   useEffect(() => {
     const init = async () => {
       console.log('[CashFlow] Initializing...');
-      const setupDone = await isSetupComplete();
-      const data = await loadCashFlowData();
-      setCashFlowData(data);
-      if (!setupDone) {
+      const settings = await loadCashFlowSettings(user?.id);
+      setCashFlowData(settings.data);
+      if (!settings.setupComplete) {
         setShowSetup(true);
       }
       const cached = await getCachedAIAnalysis(projectId);
@@ -272,7 +281,7 @@ function CashFlowScreenInner() {
       setLoading(false);
     };
     void init();
-  }, [projectId]);
+  }, [projectId, user?.id]);
 
   const effectiveStartingBalance = useMemo<number>(() => {
     if (!cashFlowData) return 0;
@@ -283,18 +292,47 @@ function CashFlowScreenInner() {
     );
   }, [cashFlowData, relevantInvoices]);
 
+  const relevantCommitments = useMemo(() => {
+    if (projectId) return getCommitmentsForProject(projectId);
+    return allCommitments;
+  }, [projectId, allCommitments, getCommitmentsForProject]);
+
+  // Signed subcontracts and POs, turned into the outflow rows this forecast was
+  // missing. Without them the income side was automatic and the expense side
+  // was whatever the GC had typed in, which tilts every week toward solvency —
+  // see the long note on buildCommittedOutflows for how a hand-typed duplicate
+  // is prevented and why undated money is reported instead of guessed at.
+  const committed = useMemo(() => buildCommittedOutflows({
+    commitments: relevantCommitments,
+    projects,
+    expenses: cashFlowData?.expenses ?? [],
+  }), [relevantCommitments, projects, cashFlowData?.expenses]);
+
+  // A Set, because the expense list looks every row up as it renders it.
+  const ambiguousIds = useMemo(() => new Set(committed.ambiguousManualIds), [committed.ambiguousManualIds]);
+
+  // Whether the two jsonb lists actually reach public.cash_flow_settings.
+  // saveCashFlowData writes the server row only when it is handed a user id,
+  // and supabaseWrite is a no-op when Supabase is not configured at all — so
+  // without both, "Saved to your account" is a promise the code does not keep.
+  const syncsToAccount = Boolean(user?.id) && isSupabaseConfigured;
+
   const forecast = useMemo<CashFlowWeek[]>(() => {
     if (!cashFlowData) return [];
     return generateForecast(
       effectiveStartingBalance,
-      cashFlowData.expenses,
+      // Derived rows are concatenated here and NOWHERE else — they are never
+      // handed to saveCashFlowData, so nothing generated from a commitment can
+      // be frozen into `mage_cashflow_data` and then counted a second time
+      // against the live commitment on the next load.
+      [...cashFlowData.expenses, ...committed.scheduled],
       relevantInvoices,
       cashFlowData.expectedPayments,
       forecastWeeks,
       cashFlowData.defaultPaymentTerms,
       relevantChangeOrders,
     );
-  }, [cashFlowData, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
+  }, [cashFlowData, committed.scheduled, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
 
   const summary = useMemo<CashFlowSummary>(() => calculateSummary(forecast), [forecast]);
 
@@ -310,14 +348,14 @@ function CashFlowScreenInner() {
   // pill so a contractor can see "Healthy / Watch / Danger" without having
   // to scan numbers. Three buckets:
   //   • Danger   — balance goes negative at any point in the horizon
-  //   • Watch    — net profit < 0 over horizon, but balance stays positive
-  //   • Healthy  — net profit >= 0 and balance stays positive
+  //   • Watch    — cash falls over the horizon, but the balance stays positive
+  //   • Healthy  — cash holds or grows and the balance stays positive
   const healthStatus = useMemo(() => {
     if (forecast.length === 0) return { kind: 'neutral' as const, label: 'Setup', color: themeColors.textSecondary, bg: 'rgba(255,255,255,0.18)' };
     if (summary.lowestBalance < 0) return { kind: 'danger' as const, label: 'Danger', color: '#FFE0E0', bg: 'rgba(255,90,90,0.35)' };
-    if (summary.netProfit < 0) return { kind: 'watch' as const, label: 'Watch', color: '#FFEBC2', bg: 'rgba(255,180,60,0.35)' };
+    if (summary.netCashChange < 0) return { kind: 'watch' as const, label: 'Watch', color: '#FFEBC2', bg: 'rgba(255,180,60,0.35)' };
     return { kind: 'healthy' as const, label: 'Healthy', color: '#D6FFE3', bg: 'rgba(80,220,140,0.35)' };
-  }, [forecast.length, summary.lowestBalance, summary.netProfit]);
+  }, [forecast.length, summary.lowestBalance, summary.netCashChange]);
 
   // Aggregate "Total Pending" across every source of expected money that hasn't landed:
   //   - unpaid invoice balances, net of held retention (MONEY-F5: invoiceOutstanding)
@@ -350,11 +388,11 @@ function CashFlowScreenInner() {
 
   const handleSetupComplete = useCallback(async (data: CashFlowData) => {
     setCashFlowData(data);
-    await saveCashFlowData(data);
-    await markSetupComplete();
+    await saveCashFlowData(data, user?.id);
+    await markSetupComplete(user?.id);
     setShowSetup(false);
     console.log('[CashFlow] Setup complete');
-  }, []);
+  }, [user?.id]);
 
   const handleUpdateBalance = useCallback(async () => {
     if (!cashFlowData) return;
@@ -363,10 +401,10 @@ function CashFlowScreenInner() {
     // this balance without the GC having to manually re-edit every time a check clears.
     const updated = { ...cashFlowData, startingBalance: bal, balanceAsOf: new Date().toISOString() };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     setShowEditBalance(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [cashFlowData, editBalanceValue]);
+  }, [cashFlowData, editBalanceValue, user?.id]);
 
   const handleAddExpense = useCallback(async () => {
     if (!cashFlowData || !newExpenseName.trim()) return;
@@ -380,22 +418,22 @@ function CashFlowScreenInner() {
     };
     const updated = { ...cashFlowData, expenses: [...cashFlowData.expenses, expense] };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     setShowAddExpense(false);
     setNewExpenseName('');
     setNewExpenseAmount('');
     setNewExpenseCategory('other');
     setNewExpenseFrequency('monthly');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [cashFlowData, newExpenseName, newExpenseAmount, newExpenseFrequency, newExpenseCategory]);
+  }, [cashFlowData, newExpenseName, newExpenseAmount, newExpenseFrequency, newExpenseCategory, user?.id]);
 
   const handleRemoveExpense = useCallback(async (id: string) => {
     if (!cashFlowData) return;
     const updated = { ...cashFlowData, expenses: cashFlowData.expenses.filter(e => e.id !== id) };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [cashFlowData]);
+  }, [cashFlowData, user?.id]);
 
   const handleAddPayment = useCallback(async () => {
     if (!cashFlowData || !newPaymentDesc.trim()) return;
@@ -412,22 +450,22 @@ function CashFlowScreenInner() {
     };
     const updated = { ...cashFlowData, expectedPayments: [...cashFlowData.expectedPayments, payment] };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     setShowAddPayment(false);
     setNewPaymentDesc('');
     setNewPaymentAmount('');
     setNewPaymentDate('');
     setNewPaymentConfidence('expected');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [cashFlowData, newPaymentDesc, newPaymentAmount, newPaymentDate, newPaymentConfidence, projectId]);
+  }, [cashFlowData, newPaymentDesc, newPaymentAmount, newPaymentDate, newPaymentConfidence, projectId, user?.id]);
 
   const handleRemovePayment = useCallback(async (id: string) => {
     if (!cashFlowData) return;
     const updated = { ...cashFlowData, expectedPayments: cashFlowData.expectedPayments.filter(p => p.id !== id) };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [cashFlowData]);
+  }, [cashFlowData, user?.id]);
 
   const handleAIAnalysis = useCallback(async () => {
     if (forecast.length === 0 || !cashFlowData) return;
@@ -442,6 +480,10 @@ ${forecast.map((w, i) => `Week ${i + 1} (${w.weekStart}): Income ${w.totalIncome
 
 RECURRING EXPENSES:
 ${cashFlowData.expenses.map(e => `${e.name}: ${e.amount}/${e.frequency}`).join('\n') || 'None entered'}
+
+COMMITTED OUTFLOW (signed subcontracts and POs, remaining balance spread across each job's schedule — already inside the weekly numbers above):
+${committed.scheduled.map(e => `${e.name}: ${Math.round(e.amount)}/${e.frequency}`).join('\n') || 'None'}
+${committed.undated > 0 ? `\nNOT in the weekly numbers above: ${Math.round(committed.undated)} of committed subcontract/PO balance that could not be dated — the job has no schedule, or it is finished and nothing recorded the payment. Say so rather than treating the runway as complete, and do not call it overdue: the app cannot tell an unpaid balance from an unrecorded payment.` : ''}
 
 PENDING INVOICES:
 ${relevantInvoices.filter(i => i.status !== 'paid').map(i => `#${i.number}: ${i.totalDue} | Sent: ${i.issueDate} | Terms: ${i.paymentTerms} | Due: ${i.dueDate}`).join('\n') || 'None pending'}
@@ -465,15 +507,22 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
     } finally {
       setAiLoading(false);
     }
-  }, [forecast, cashFlowData, forecastWeeks, relevantInvoices, projectId]);
+  }, [forecast, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId]);
 
   const toggleSection = useCallback((key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  // The committed rows are counted here too, because they are LISTED in this
+  // section. A header total that showed only the hand-typed rows would
+  // contradict the list under it — the same shape of dishonesty as leaving the
+  // commitments out of the forecast, just smaller.
+  //
+  // One-time rows are excluded from a "/mo" figure, which is the rule the
+  // hand-typed rows already followed.
   const totalMonthlyExpenses = useMemo(() => {
     if (!cashFlowData) return 0;
-    return cashFlowData.expenses.reduce((sum, e) => {
+    return [...cashFlowData.expenses, ...committed.scheduled].reduce((sum, e) => {
       switch (e.frequency) {
         case 'weekly': return sum + e.amount * 4.33;
         case 'biweekly': return sum + e.amount * 2.17;
@@ -481,7 +530,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         default: return sum;
       }
     }, 0);
-  }, [cashFlowData]);
+  }, [cashFlowData, committed.scheduled]);
 
   const freqLabel = (f: ExpenseFrequency) => {
     switch (f) {
@@ -606,13 +655,13 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </View>
                 {forecast.length > 0 && (
                   <View style={styles.heroDelta}>
-                    {summary.netProfit >= 0 ? (
+                    {summary.netCashChange >= 0 ? (
                       <TrendingUp size={11} color="#D6FFE3" strokeWidth={1.75} />
                     ) : (
                       <TrendingDown size={11} color="#FFE0E0" strokeWidth={1.75} />
                     )}
-                    <Text style={[styles.heroDeltaText, { color: summary.netProfit >= 0 ? '#D6FFE3' : '#FFE0E0' }]}>
-                      {summary.netProfit >= 0 ? '+' : ''}{formatCurrencyShort(summary.netProfit)} · {forecastWeeks}w
+                    <Text style={[styles.heroDeltaText, { color: summary.netCashChange >= 0 ? '#D6FFE3' : '#FFE0E0' }]}>
+                      {summary.netCashChange >= 0 ? '+' : ''}{formatCurrencyShort(summary.netCashChange)} · {forecastWeeks}w
                     </Text>
                   </View>
                 )}
@@ -798,23 +847,42 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               </View>
               <Text style={styles.summaryItemLabel}>Total Expenses</Text>
               <Text style={[styles.summaryItemValue, { color: themeColors.danger }]}>{formatCurrencyShort(summary.totalExpenses)}</Text>
+              {/* Committed money we could not honestly put on a week — the job
+                  has no schedule, or it is finished and the balance was never
+                  recorded as paid. Shown the way retention is shown on the
+                  income tile: the omission has to read as a fact about the
+                  data, not as money the app lost. */}
+              {committed.undated > 0 && (
+                <Text style={styles.summaryItemSub}>
+                  + {formatCurrencyShort(committed.undated)} committed on jobs with no schedule or already finished — not in the weeks above
+                </Text>
+              )}
             </View>
-            <View style={[styles.summaryItem, { borderLeftColor: summary.netProfit >= 0 ? themeColors.success : themeColors.danger, borderLeftWidth: 3 }]}>
+            <View style={[styles.summaryItem, { borderLeftColor: summary.netCashChange >= 0 ? themeColors.success : themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
-                <View style={[styles.summaryIcon, { backgroundColor: (summary.netProfit >= 0 ? themeColors.success : themeColors.danger) + '15' }]}>
-                  <DollarSign size={14} color={summary.netProfit >= 0 ? themeColors.success : themeColors.danger} strokeWidth={1.75} />
+                <View style={[styles.summaryIcon, { backgroundColor: (summary.netCashChange >= 0 ? themeColors.success : themeColors.danger) + '15' }]}>
+                  <DollarSign size={14} color={summary.netCashChange >= 0 ? themeColors.success : themeColors.danger} strokeWidth={1.75} />
                 </View>
               </View>
-              <Text style={styles.summaryItemLabel}>Net Profit</Text>
-              <Text style={[styles.summaryItemValue, { color: summary.netProfit >= 0 ? themeColors.success : themeColors.danger }]}>
-                {formatCurrencyShort(summary.netProfit)}
+              <Text style={styles.summaryItemLabel}>Net Cash Change</Text>
+              <Text style={[styles.summaryItemValue, { color: summary.netCashChange >= 0 ? themeColors.success : themeColors.danger }]}>
+                {formatCurrencyShort(summary.netCashChange)}
+              </Text>
+              {/* The label used to read "Net Profit" for a figure that is cash
+                  in minus cash out. It counts a deposit as gain before any work
+                  is done, counts a materials prepay as loss, and ignores work
+                  performed but unbilled entirely — so a GC repeating it to his
+                  accountant or a lender was misled by the word, not the math.
+                  One line of scope beats a tooltip nobody opens. */}
+              <Text style={styles.summaryItemSub}>
+                Cash in minus cash out. Not profit — excludes unbilled work.
               </Text>
               {/* Tiny progress bar showing income coverage of expenses */}
               {summary.totalIncome > 0 && (
                 <ConcretePour
                   value={Math.min(1, summary.totalIncome / Math.max(summary.totalExpenses, 1))}
                   height={3}
-                  fillColor={summary.netProfit >= 0 ? themeColors.success : themeColors.danger}
+                  fillColor={summary.netCashChange >= 0 ? themeColors.success : themeColors.danger}
                   duration={1200}
                   style={{ marginTop: 6 }}
                 />
@@ -850,6 +918,17 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <View style={styles.expenseListInfo}>
                     <Text style={styles.expenseListName}>{exp.name}</Text>
                     <Text style={styles.expenseListMeta}>{EXPENSE_CATEGORIES.find(c => c.value === exp.category)?.label} · {freqLabel(exp.frequency)}</Text>
+                    {/* Named, not counted. "2 of your rows might be duplicates"
+                        leaves the GC deleting rows at random on the screen he
+                        uses to decide whether he can make payroll; the row that
+                        might be the double count says so itself, and says what
+                        to do about it. */}
+                    {ambiguousIds.has(exp.id) && (
+                      <Text style={styles.expenseListWarn}>
+                        Sub/material money typed by hand. If this is one of the signed contracts listed
+                        below, delete this row — otherwise it is counted twice.
+                      </Text>
+                    )}
                   </View>
                   <Text style={styles.expenseListAmount}>{formatCurrency(exp.amount)}</Text>
                   <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.expenseDeleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
@@ -860,6 +939,56 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {(!cashFlowData?.expenses || cashFlowData.expenses.length === 0) && (
                 <Text style={styles.emptyListText}>No recurring expenses added yet</Text>
               )}
+
+              {/* The committed rows the forecast now spends, listed so the GC
+                  can see WHERE a week's outflow came from. No delete control:
+                  these are the subcontracts themselves, edited in the job, and
+                  a delete here would only make them come back on reload. */}
+              {committed.scheduled.length > 0 && (
+                <>
+                  <Text style={styles.listNoteStrong}>From your signed subcontracts and POs</Text>
+                  {committed.scheduled.map(row => (
+                    <View key={row.id} style={styles.expenseListRow}>
+                      <View style={styles.expenseListInfo}>
+                        <Text style={styles.expenseListName}>{row.name}</Text>
+                        <Text style={styles.expenseListMeta}>
+                          {EXPENSE_CATEGORIES.find(c => c.value === row.category)?.label} · remaining balance, spread across the job&apos;s schedule
+                        </Text>
+                      </View>
+                      <Text style={styles.expenseListAmount}>{formatCurrency(row.amount)}{freqLabel(row.frequency)}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* We can only suppress a duplicate we can identify by id. These
+                  rows are sub/material money the GC typed himself, and if one
+                  of them IS a commitment now being counted automatically, it is
+                  in the forecast twice. Saying so beats guessing at a name
+                  match and silently deleting real outflow. */}
+              {committed.ambiguousManualCount > 0 && (
+                <Text style={styles.listNote}>
+                  {committed.ambiguousManualCount === 1
+                    ? '1 row above is sub or material money you typed yourself and is flagged in place.'
+                    : `${committed.ambiguousManualCount} rows above are sub or material money you typed yourself and are flagged in place.`}
+                  {' '}We only suppress a duplicate we can match by id, so nothing was removed for you —
+                  a name guess that fired wrongly would delete real money you owe.
+                </Text>
+              )}
+
+              {/* The migration that gave this list a server home stores it as
+                  one jsonb blob per user, so it is last-writer-wins as a WHOLE
+                  LIST, not merged row by row. The GC gets told that rather than
+                  discovering it when an edit disappears — and told the truth
+                  when there is no account to save to, because saveCashFlowData
+                  skips the server write entirely without a user id and this
+                  line would otherwise promise a sync that never happened. */}
+              <Text style={styles.listNote}>
+                {syncsToAccount
+                  ? 'Saved to your account. Edit this list on two devices at once and the last save wins.'
+                  : 'Saved on this device only — sign in to see these expenses on your other devices.'}
+              </Text>
+
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.addItemText}>Add Expense</Text>
@@ -921,6 +1050,13 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {relevantInvoices.filter(i => i.status !== 'paid').length === 0 && (!cashFlowData?.expectedPayments || cashFlowData.expectedPayments.length === 0) && (
                 <Text style={styles.emptyListText}>No income expected. Add invoices or expected payments.</Text>
               )}
+              {/* Same jsonb-blob caveat as the expense list — the expected
+                  payments sync as one list, not row by row. */}
+              <Text style={styles.listNote}>
+                {syncsToAccount
+                  ? 'Expected payments save to your account as one list. Edit them on two devices at once and the last save wins.'
+                  : 'Expected payments are saved on this device only — sign in to see them on your other devices.'}
+              </Text>
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={[styles.addItemText, { color: themeColors.success }]}>Add Expected Payment</Text>
@@ -1218,6 +1354,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   confidenceBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   confidenceBadgeText: { fontSize: 10, fontWeight: '700' as const },
   emptyListText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  // warningLabel, not warning: the vivid signal fill measures ~2:1 as text
+  // (constants/colors.ts documents the split), and this line is text.
+  expenseListWarn: { fontSize: Type.caption2.fontSize, color: themeColors.warningLabel, lineHeight: 15, paddingTop: 3 },
+  listNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 16, paddingTop: 6 },
+  listNoteStrong: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, paddingTop: 8, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 4 },
   addItemText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   // Whole-card fg === bg: a solid `danger` fill with `danger` title/balance text

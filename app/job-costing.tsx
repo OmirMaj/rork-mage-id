@@ -23,7 +23,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, Minus, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
-  CheckCircle2, Clock, Calculator, Activity, Receipt, RefreshCw,
+  CheckCircle2, Clock, Calculator, Activity, Receipt, RefreshCw, FileDown,
 } from 'lucide-react-native';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import * as Haptics from 'expo-haptics';
@@ -54,6 +54,7 @@ import type {
 import { calendarDayStart } from '@/utils/calendarDate';
 import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import { sharePurchaseOrderPDF } from '@/utils/purchaseOrderPdf';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -98,6 +99,9 @@ function JobCostingInner() {
     // Both were captured and posted nowhere, so a self-perform excavation ran
     // a $450/day machine for six days and read $0 on this screen.
     equipment, permits,
+    // Deliveries give a purchase order its "required by" date — the only real
+    // one the app holds. settings carries the branding the PO prints under.
+    deliveries, settings,
   } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
@@ -154,6 +158,35 @@ function JobCostingInner() {
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);
   const [showAdd, setShowAdd] = useState<boolean>(false);
   const [selectedPhase, setSelectedPhase] = useState<JobCostLine | null>(null);
+
+  // Issue the purchase order. Until now the app recorded a PO number for the
+  // budget math and left the GC to place the order by phone — while
+  // app/material-receipt.tsx matched delivered receipts back to a PO the
+  // product had never issued.
+  const [issuingPo, setIssuingPo] = useState<string | null>(null);
+  const poBranding = useMemo(() => ({
+    companyName:   settings?.branding?.companyName ?? 'MAGE ID',
+    contactName:   settings?.branding?.contactName ?? '',
+    phone:         settings?.branding?.phone ?? '',
+    email:         settings?.branding?.email ?? '',
+    address:       settings?.branding?.address ?? '',
+    licenseNumber: settings?.branding?.licenseNumber ?? '',
+    tagline:       settings?.branding?.tagline ?? '',
+    logoUri:       settings?.branding?.logoUri,
+  }), [settings]);
+
+  const handleIssuePO = useCallback(async (c: Commitment) => {
+    if (!project) return;
+    setIssuingPo(c.id);
+    try {
+      await sharePurchaseOrderPDF(c, project, poBranding, subcontractors, deliveries);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      showAlert('Could not build the PO', e instanceof Error ? e.message : 'Try again.');
+    } finally {
+      setIssuingPo(null);
+    }
+  }, [project, poBranding, subcontractors, deliveries]);
 
   const handleDelete = useCallback((id: string) => {
     const exec = () => {
@@ -433,6 +466,12 @@ function JobCostingInner() {
               <Text style={styles.addLinkText}>Add</Text>
             </TouchableOpacity>
           </View>
+          {projectCommitments.some(c => c.type === 'purchase_order') && (
+            <Text style={styles.footerNote}>
+              Tap the download icon on a purchase order to issue it as a PDF — vendor, ship-to,
+              line items, order total and required-by date, ready to send.
+            </Text>
+          )}
           {projectCommitments.length === 0 ? (
             <View style={styles.emptyBox}>
               <FileSignature size={22} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -469,6 +508,20 @@ function JobCostingInner() {
                     {formatMoney(c.amount + (c.changeAmount ?? 0))}
                   </Text>
                   <StatusChip status={c.status} />
+                  {c.type === 'purchase_order' && (
+                    <TouchableOpacity
+                      onPress={() => { void handleIssuePO(c); }}
+                      hitSlop={8}
+                      style={styles.deleteBtn}
+                      disabled={issuingPo === c.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Issue purchase order ${c.number || ''}`}
+                    >
+                      {issuingPo === c.id
+                        ? <ActivityIndicator size="small" color={themeColors.accent} />
+                        : <FileDown size={14} color={themeColors.accent} strokeWidth={1.75} />}
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
                     <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                   </TouchableOpacity>

@@ -189,6 +189,66 @@ const PHASE_PERMITS = 'Permits';
 export const EQUIPMENT_HOURS_PER_DAY = 8;
 
 /**
+ * What a commitment is worth today — the signed amount plus the net of the
+ * approved change orders written against it. `amount` is deliberately never
+ * mutated by a CO revision (see the field doc on Commitment), so reading it
+ * alone understates every commitment that has been revised.
+ */
+export function commitmentValue(c: Commitment): number {
+  const signed = Number.isFinite(c.amount) ? c.amount : 0;
+  const revisions = Number.isFinite(c.changeAmount) ? (c.changeAmount as number) : 0;
+  return signed + revisions;
+}
+
+/**
+ * What has already gone OUT against a commitment — the server-maintained
+ * rollup of approved-and-paid sub invoices. COST, not revenue: this is the
+ * GC's money leaving, never the client's money arriving. Floored at zero
+ * because a negative rollup is a data fault, not a refund.
+ */
+export function commitmentPaidToDate(c: Commitment): number {
+  const paid = Number.isFinite(c.paidToDate) ? (c.paidToDate as number) : 0;
+  return Math.max(0, paid);
+}
+
+/**
+ * CASH still to leave the bank against a signed commitment — what the GC has
+ * committed to and has NOT yet paid.
+ *
+ * Snapped material receipts are deliberately NOT netted out of this, and that
+ * is the one place where the cash view and this engine's EAC legitimately
+ * differ, so it is worth being explicit about why:
+ *
+ *   • The EAC above nets them, and must. There, a receipt is already inside
+ *     `actual`, so leaving the same lumber in the remaining commitment balance
+ *     as well would project a $10,000 PO with $6,000 of snapped receipts at
+ *     $16,000 (EAC-DIRECT-1 — the finalize pass documents that arithmetic).
+ *
+ *   • A cash forecast has no `actual` term at all. It counts only money that
+ *     has yet to move, and a MaterialReceipt is a supplier INVOICE, not a
+ *     payment — the type carries no paid flag (status is 'extracted' |
+ *     'reviewed') and the doc on it says receipts are never posted into
+ *     `paidToDate`. Subtracting them there removes real, unpaid, imminent cash
+ *     from the runway with nothing putting it back, since generateForecast has
+ *     no receipt term. That is the same optimism the committed-outflow work was
+ *     written to remove, arriving through the dedupe.
+ *
+ *   • Receipts are also device-local (`mageid_material_receipts`, no sync), so
+ *     netting them made the laptop and the phone answer "what do I owe on this
+ *     PO" with different numbers — the exact defect the cash-flow sync closed.
+ *
+ * So the cash side is early with an outflow when the GC paid at the counter,
+ * rather than late with one when the bill is still on his desk. On the screen
+ * that answers "can I make payroll Friday" that is the cheap error, not the
+ * expensive one.
+ *
+ * Floored at zero: an overpaid commitment is not negative future cash.
+ */
+export function commitmentUnpaid(c: Commitment): number {
+  return Math.max(0, commitmentValue(c) - commitmentPaidToDate(c));
+}
+
+/**
  * Pick a phase bucket for a commitment. We prefer an explicit `phase`,
  * fall back to `csiDivision`, and last resort uncategorized.
  */
@@ -395,8 +455,8 @@ export function computeJobCost({
   for (const c of projectCommitments) {
     const phase = commitmentPhase(c);
     const existing = phases.get(phase) ?? emptyLine(phase);
-    existing.committed += c.amount + (c.changeAmount ?? 0);
-    existing.actual += Math.max(0, c.paidToDate ?? 0);
+    existing.committed += commitmentValue(c);
+    existing.actual += commitmentPaidToDate(c);
     existing.sources.commitments.push(c.id);
     phases.set(phase, existing);
   }
@@ -529,7 +589,7 @@ export function computeJobCost({
         const item = estimate.items.find(it => it.materialId === id);
         return s + (item ? (item.unitPrice ?? 0) * (item.quantity ?? 0) : 0);
       }, 0);
-      if (linkedTotal > 0 && (c.amount + (c.changeAmount ?? 0)) > linkedTotal * 1.02) {
+      if (linkedTotal > 0 && commitmentValue(c) > linkedTotal * 1.02) {
         overcommitted.push(c);
       }
     }

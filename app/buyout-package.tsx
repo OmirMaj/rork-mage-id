@@ -16,7 +16,7 @@
 // "low" bid that was actually the highest after the missing scope
 // shows up as a change order in week 2.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, ActivityIndicator,
 } from 'react-native';
@@ -27,7 +27,9 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, X, Save, Trophy, AlertTriangle, CheckCircle2,
   Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown, Scale,
+  Mail, Copy,
 } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { MageAIMark } from '@/components/icons';
 import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
@@ -50,7 +52,24 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
+import { useAuth } from '@/contexts/AuthContext';
+import { copyToClipboard } from '@/utils/clipboard';
+import { fetchBidInvites, sendBidInvites } from '@/utils/bidInvites';
+import {
+  bidInviteUrl, inviteCoverage, inviteState, inviteStateLabel, parseInviteEmails, splitAlreadyInvited,
+  type BidInviteRecord,
+} from '@/utils/bidInviteCore';
+
+// Invite timestamps are instants (timestamptz), shown here as the day they
+// fall on in the reader's own zone — which is what a GC means by "sent Tuesday".
+function fmtInviteDay(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
   open: '#FF6A1A',
@@ -77,6 +96,8 @@ export default function BuyoutPackageScreen() {
     settings,
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { receipts } = useMaterialReceipts();
   // Cold-start seeds — same reason as app/bid-leveling.tsx.
   const { seeds } = useCostSeeds();
@@ -105,6 +126,171 @@ export default function BuyoutPackageScreen() {
 
   const [leveling, setLeveling] = useState(false);
   const [levelingResult, setLevelingResult] = useState<LevelingResult | null>(null);
+
+  // ── Invitations to bid ───────────────────────────────────────
+  // Until this existed, every bid in the matrix was one the GC typed himself:
+  // bid_package_bids is owner-scoped, so a sub — who has no account — could
+  // never write one. An invite is a random token on an owner-owned row that
+  // buys exactly one insert through a SECURITY DEFINER RPC.
+  const [invites, setInvites] = useState<BidInviteRecord[]>([]);
+  const [invitesFailed, setInvitesFailed] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmails, setInviteEmails] = useState('');
+  const [inviteSending, setInviteSending] = useState(false);
+
+  const loadInvites = useCallback(async () => {
+    if (!packageId) return;
+    const rows = await fetchBidInvites(packageId);
+    // A read that failed is not an empty list. Keep whatever we last had and
+    // say so — "Nobody invited yet" over a dropped read sends the GC to invite
+    // subs who are already holding a live link.
+    if (rows === null) { setInvitesFailed(true); return; }
+    setInvitesFailed(false);
+    setInvites(rows);
+  }, [packageId]);
+
+  useEffect(() => { void loadInvites(); }, [loadInvites]);
+
+  // A bid filed through an invite is written by the RPC, server-side. This
+  // device's bid cache was populated before that row existed, so without a
+  // refetch the GC sees "Bid received" against the invite and an empty matrix
+  // next to it. Each bid id is pulled at most once — a refetch that doesn't
+  // produce it (no session, no network) must not re-arm the effect.
+  const pulledBidIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const known = new Set(bids.map(b => b.id));
+    const missing = invites
+      .map(inv => inv.bidId)
+      .filter((id): id is string => !!id && !known.has(id) && !pulledBidIds.current.has(id));
+    if (missing.length === 0) return;
+    for (const id of missing) pulledBidIds.current.add(id);
+    void queryClient.invalidateQueries({ queryKey: ['bid_package_bids'] });
+  }, [invites, bids, queryClient]);
+
+  // `inviteSending` drives the button's disabled prop, but state lands a frame
+  // later — a double tap on "Send invitations" both get through and every sub
+  // is minted TWO live tokens. `bid_invite_submit` blocks a second submit per
+  // INVITE, not per bidder, so that sub can file two bids and the levelling
+  // matrix shows one company as two competing bidders. This latch is a ref
+  // because it has to be true on the second tap's synchronous read.
+  const invitingRef = useRef(false);
+
+  const handleSendInvites = useCallback(async () => {
+    if (!pkg || !project) return;
+    if (invitingRef.current) return;
+    const uid = user?.id;
+    if (!uid) {
+      showAlert('Sign in first', 'An invite is filed against your account, so it needs a signed-in session. Sign in and try again.');
+      return;
+    }
+    const { recipients, rejected } = parseInviteEmails(inviteEmails);
+    if (recipients.length === 0) {
+      showAlert(
+        'No email addresses',
+        rejected.length > 0
+          ? `Couldn't read ${rejected.slice(0, 3).join(', ')} as an email address. One address per line, or separated by commas.`
+          : "Type the subs' email addresses — one per line, or separated by commas.",
+      );
+      return;
+    }
+    // Anyone already holding a live link is skipped rather than given a second
+    // token; expired and already-answered invites go through, because sending
+    // those again is a deliberate re-invitation.
+    const { fresh, alreadyLive } = splitAlreadyInvited(recipients, invites, Date.now());
+    if (fresh.length === 0) {
+      showAlert(
+        'They already have a link',
+        `${alreadyLive.slice(0, 3).join(', ')} ${alreadyLive.length === 1 ? 'is' : 'are'} already invited to this package and the link still works. Use the copy button next to their name to send it again — a second invite would let the same sub file two bids.`,
+      );
+      return;
+    }
+    invitingRef.current = true;
+    setInviteSending(true);
+    try {
+      const results = await sendBidInvites(
+        {
+          userId: uid,
+          packageId: pkg.id,
+          projectId: pkg.projectId,
+          packageName: pkg.name,
+          projectName: project.name,
+          csiDivision: pkg.csiDivision,
+          phase: pkg.phase,
+          scopeDescription: pkg.scopeDescription,
+          replyToEmail: settings?.branding?.email,
+        },
+        fresh,
+      );
+      const synced = results.filter(r => r.outcome === 'synced');
+      const queued = results.filter(r => r.outcome === 'queued');
+      const failed = results.filter(r => r.outcome === 'failed');
+      const mailed = synced.filter(r => r.emailed);
+
+      // One recipient whose row is actually on the server: put the link where
+      // the GC can text it. Subs answer a text far more often than an email.
+      // A QUEUED row is deliberately excluded — that link resolves to
+      // `bid_invite_denied` until the queue drains, and a sub who opens a dead
+      // link reads it as "they withdrew it" and does not bid.
+      let copied = false;
+      if (synced.length === 1 && results.length === 1) {
+        copied = await copyToClipboard(synced[0].url);
+      }
+
+      const lines: string[] = [];
+      if (synced.length > 0) {
+        lines.push(
+          mailed.length === synced.length
+            ? `${synced.length} invite${synced.length === 1 ? '' : 's'} sent. Each sub gets a link that shows the scope and takes their number — no account, no app, and nothing for you to re-key.`
+            // Not "sent": the row is filed and the link is live, but the mail
+            // hand-off did not happen, and telling him otherwise means he waits
+            // on bids from subs who were never contacted.
+            : `${synced.length} invite${synced.length === 1 ? '' : 's'} ready. The link shows the scope and takes their number — no account, no app, nothing for you to re-key.`,
+        );
+      }
+      if (queued.length > 0) {
+        lines.push(`${queued.length} invite${queued.length === 1 ? '' : 's'} saved on this phone only — you're offline. The link won't open until it uploads.`);
+      }
+      if (failed.length > 0) {
+        lines.push(`${failed.length} couldn't be filed: ${failed.map(f => f.email).join(', ')}. Try again in a minute.`);
+      }
+      if (synced.length > 0 && mailed.length === 0) {
+        lines.push('We could not hand the email off, so nothing has reached them yet — copy each link from the list below and text or email it over.');
+      } else if (synced.length > mailed.length) {
+        lines.push(`${synced.length - mailed.length} of those emails did not hand off — copy those links from the list below and send them yourself.`);
+      }
+      if (copied) lines.push('The link is on your clipboard.');
+      if (alreadyLive.length > 0) {
+        lines.push(`Skipped (already holding a live link): ${alreadyLive.slice(0, 3).join(', ')}.`);
+      }
+      if (rejected.length > 0) lines.push(`Skipped (not an email address): ${rejected.slice(0, 3).join(', ')}.`);
+
+      setShowInvite(false);
+      setInviteEmails('');
+      await loadInvites();
+      if (Platform.OS !== 'web' && failed.length === 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAlert(failed.length > 0 ? 'Some invites did not go' : 'Subs invited', lines.join('\n\n'));
+    } catch (e) {
+      // Nothing below sendBidInvites throws today, but a silent rejection here
+      // would leave the sheet open with no spinner and no message — the GC taps
+      // Send again and files a second token for every sub.
+      console.warn('[buyout] invite send failed', e);
+      showAlert('Invites did not go', 'Something went wrong sending those invitations. Check the list below before you try again — some may already be filed.');
+      await loadInvites();
+    } finally {
+      invitingRef.current = false;
+      setInviteSending(false);
+    }
+  }, [pkg, project, user, inviteEmails, settings, loadInvites, invites]);
+
+  const handleCopyInviteLink = useCallback(async (invite: BidInviteRecord) => {
+    const ok = await copyToClipboard(bidInviteUrl(invite.inviteToken));
+    showAlert(
+      ok ? 'Link copied' : 'Could not copy',
+      ok
+        ? `Text or email this to ${invite.subEmail}. It opens the scope for this package and takes their bid.`
+        : 'Your browser blocked the clipboard. Long-press to select the link instead.',
+    );
+  }, []);
 
   // ── Add bid by voice ─────────────────────────────────────────
   const handleVoiceBid = useCallback(async (transcript: string) => {
@@ -408,6 +594,18 @@ export default function BuyoutPackageScreen() {
   // ── Coverage warning: <3 bids is industry "review" threshold.
   const lowCoverage = pkg.status !== 'awarded' && pkg.status !== 'cancelled' && bids.length > 0 && bids.length < 3;
 
+  // Invites outstanding change what "too few bids" means: two bids with three
+  // subs still holding a live link is a waiting problem, not a coverage one.
+  const coverage = inviteCoverage(invites, Date.now());
+
+  // Which rows in the matrix the sub typed himself. Read from the invite that
+  // produced the bid rather than from bid.source, so a later edit to the bid
+  // can't quietly turn a sub's own number into one the GC appears to have
+  // keyed — which is the difference between a quote and a recollection.
+  const invitedBidIds = new Set(
+    invites.map(inv => inv.bidId).filter((id): id is string => !!id),
+  );
+
   // ── Days-since-opened (the stale-RFQ signal).
   const daysSinceOpened = (() => {
     if (pkg.status === 'awarded' || pkg.status === 'cancelled') return null;
@@ -473,7 +671,21 @@ export default function BuyoutPackageScreen() {
                   <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.warningTitle}>Coverage risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
-                    <Text style={styles.warningBody}>Industry best practice is 3+ qualified bids per package. Send the RFQ to more subs before awarding.</Text>
+                    <Text style={styles.warningBody}>
+                      Industry best practice is 3+ qualified bids per package.
+                      {coverage.awaiting > 0
+                        ? ` ${coverage.awaiting} invited sub${coverage.awaiting === 1 ? ' hasn’t' : 's haven’t'} answered yet — chase them, or invite more.`
+                        : ' Invite more subs before awarding.'}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.warningActionBtn}
+                      onPress={() => setShowInvite(true)}
+                      activeOpacity={0.85}
+                      testID="coverage-invite-subs"
+                    >
+                      <Mail size={13} color={Colors.warningLabel} strokeWidth={1.75} />
+                      <Text style={styles.warningActionText}>Invite subs to bid</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}
@@ -546,6 +758,93 @@ export default function BuyoutPackageScreen() {
             </View>
           )}
 
+          {/* Invitations out. This is what makes "send the RFQ to more subs"
+              an action rather than a scolding: the sub opens a link, sees the
+              scope, and types a number that lands in the matrix below. */}
+          {pkg.status !== 'awarded' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>Invited to bid</Text>
+                <Text style={styles.sectionSub}>
+                  {invitesFailed && invites.length === 0
+                    ? 'Not loaded'
+                    : coverage.invited === 0 ? 'Nobody invited yet' : `${coverage.responded} of ${coverage.invited} responded`}
+                </Text>
+              </View>
+
+              {invitesFailed && (
+                <View style={[styles.warningCard, { marginBottom: 8 }]}>
+                  <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+                  <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>
+                    Couldn&apos;t reach the server to check your invitations, so this list may be out of date — it is not a claim that nobody was invited.
+                  </Text>
+                </View>
+              )}
+
+              {invites.length === 0 ? (
+                !invitesFailed && (
+                  <View style={styles.emptyBids}>
+                    <Text style={styles.emptyBidsText}>
+                      Email the subs a link. They see this package&apos;s scope — not your budget — and type their number straight into the matrix below. No account, no app, nothing for you to re-key.
+                    </Text>
+                  </View>
+                )
+              ) : (
+                invites.map(inv => {
+                  const state = inviteState(inv, Date.now());
+                  // Only hex tokens get an alpha suffix here — `textMuted` and
+                  // `line` are rgba() in both themes, and concatenating '1A'
+                  // onto those produces an invalid color, so the lapsed pill
+                  // uses flat surface tokens instead of a tint.
+                  const tone = state === 'responded' ? themeColors.success : Colors.warningLabel;
+                  const pillStyle = state === 'expired'
+                    ? { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.line }
+                    : { backgroundColor: tone + '1A', borderColor: tone + '55' };
+                  const pillInk = state === 'expired' ? themeColors.textMuted : tone;
+                  const sentDay = fmtInviteDay(inv.createdAt);
+                  const expiryDay = fmtInviteDay(inv.expiresAt);
+                  return (
+                    <View key={inv.id} style={styles.inviteCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.inviteWho} numberOfLines={1}>{inv.subName || inv.subEmail}</Text>
+                        <Text style={styles.inviteMeta} numberOfLines={1}>
+                          {sentDay ? `Sent ${sentDay}` : 'Sent'}
+                          {state === 'awaiting' && expiryDay ? ` · link good through ${expiryDay}` : ''}
+                          {state === 'responded' ? ' · their number is in the matrix below' : ''}
+                        </Text>
+                      </View>
+                      <View style={[styles.invitePill, pillStyle]}>
+                        <Text style={[styles.invitePillText, { color: pillInk }]}>{inviteStateLabel(state)}</Text>
+                      </View>
+                      {state !== 'responded' && (
+                        <TouchableOpacity
+                          onPress={() => { void handleCopyInviteLink(inv); }}
+                          hitSlop={10}
+                          style={styles.inviteCopyBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Copy the bid link for ${inv.subEmail}`}
+                        >
+                          <Copy size={15} color={themeColors.accent} strokeWidth={1.75} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+
+              <TouchableOpacity
+                style={styles.inviteBtn}
+                onPress={() => setShowInvite(true)}
+                activeOpacity={0.85}
+                testID="invite-subs-to-bid"
+              >
+                <Mail size={15} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.inviteBtnText}>{invites.length === 0 ? 'Invite subs to bid' : 'Invite more subs'}</Text>
+                <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Bid leveling matrix */}
           <View style={styles.section}>
             <View style={styles.sectionHead}>
@@ -587,6 +886,11 @@ export default function BuyoutPackageScreen() {
                             <View style={styles.awardedBadge}>
                               <CheckCircle2 size={10} color="#FFF" strokeWidth={1.75} />
                               <Text style={styles.awardedBadgeText}>AWARDED</Text>
+                            </View>
+                          )}
+                          {invitedBidIds.has(bid.id) && (
+                            <View style={styles.invitedBadge}>
+                              <Text style={styles.invitedBadgeText}>SUB-ENTERED</Text>
                             </View>
                           )}
                           {outlier && (
@@ -778,6 +1082,58 @@ export default function BuyoutPackageScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* Invite-subs modal */}
+        <Modal visible={showInvite} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowInvite(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Invite subs to bid</Text>
+              <TouchableOpacity onPress={() => setShowInvite(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={22} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 20 }}>
+              <Text style={styles.inviteExplain}>
+                Each sub gets their own link to <Text style={{ fontWeight: '700' }}>{pkg.name}</Text>. It shows the scope, the CSI division and the phase — never your estimate budget — and takes their amount, inclusions and exclusions straight into the leveling matrix.
+              </Text>
+              <Text style={styles.fieldLabel}>Sub email addresses *</Text>
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                value={inviteEmails}
+                onChangeText={setInviteEmails}
+                placeholder={'joe@acemech.com\nmaria@bpl-electric.com'}
+                placeholderTextColor={themeColors.textMuted}
+                multiline
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                testID="invite-emails-input"
+              />
+              <Text style={styles.inviteHint}>One per line, or separated by commas — a pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days — the same window material pricing holds for.</Text>
+            </ScrollView>
+            <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
+              <TouchableOpacity
+                style={[styles.saveBtn, inviteSending && { opacity: 0.6 }]}
+                onPress={() => { void handleSendInvites(); }}
+                disabled={inviteSending}
+                activeOpacity={0.85}
+                testID="invite-send"
+              >
+                {inviteSending ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFF" />
+                    <Text style={styles.saveBtnText}>Sending…</Text>
+                  </>
+                ) : (
+                  <>
+                    <Mail size={16} color="#FFF" strokeWidth={1.75} />
+                    <Text style={styles.saveBtnText}>Send invitations</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </View>
     </>
   );
@@ -863,6 +1219,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   warningCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.warning + '12', borderLeftWidth: 4, borderLeftColor: Colors.warning, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 8 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
   warningBody: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 17 },
+  warningActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: Colors.warningLabel + '55', backgroundColor: Colors.warning + '14' },
+  warningActionText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.warningLabel },
+
+  invitedBadge: { backgroundColor: t.success + '1F', paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  invitedBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: t.success, letterSpacing: 0.4 },
+
+  inviteCard: { ...cardSurface(t, { radius: 'lg', pad: 'none' }), flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8 },
+  inviteWho: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
+  inviteMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  invitePill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, borderWidth: 1 },
+  invitePillText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 0.4, textTransform: 'uppercase' },
+  inviteCopyBtn: { padding: 4 },
+  inviteBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    marginTop: 4, paddingVertical: 12, borderRadius: Tokens.radius.lg,
+    borderWidth: 1, borderColor: t.accent + '40', backgroundColor: t.accent + '0F',
+  },
+  inviteBtnText: { color: t.accent, fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
+  inviteExplain: { fontSize: Type.footnote.fontSize, color: t.textMuted, lineHeight: 20 },
+  inviteHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 17 },
   bidHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   bidNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   bidVendor: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
