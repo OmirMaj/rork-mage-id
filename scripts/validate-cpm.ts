@@ -40,7 +40,7 @@
 import {
   runCpm, runCpmForCalendar, workingOrdinalToCalendarIndex, calendarIndexToWorkingOrdinal,
   calendarDayToDate, dateToCalendarDay, workingDaysInSpan, workingDaysBetween,
-  stampCriticalPath,
+  stampCriticalPath, detectDanglingLinks,
 } from '../utils/cpm';
 import {
   scheduleDayNumberFor, captureBaseline, diffAgainstBaseline, reflowFromActuals,
@@ -98,24 +98,47 @@ console.log('\n1. working ordinal ↔ calendar index');
   // export, icsGenerator). If these two ever drift, one of those exports is
   // silently dating tasks wrong.
   //
-  // FIVE-DAY WEEK ONLY, and that is deliberate. The two helpers disagree about
-  // what a SIX-day week is: utils/cpm.isWorkingDay treats wd === 6 as Mon–SAT
-  // (a documented 2026 fix — collapsing every `< 7` to "skip Sat and Sun"
-  // computed a 6-day schedule as a 5-day one), while
-  // scheduleEngine.addWorkingDays still skips Saturday for ANY wd < 7. So on a
-  // 6-day project the engine schedules Saturdays the CSV/.ics renderer refuses
-  // to count — measured: ordinal 6 from Mon 2026-03-02 is Sat Mar 7 to the
-  // engine and Mon Mar 9 to addWorkingDays. That is a real defect, but it lives
-  // in scheduleEngine.ts, which this wave is explicitly forbidden to touch —
-  // see the handoff note. Asserting the 6-day case as "expected to differ"
-  // would turn a bug green, so it is left un-asserted and written down instead.
-  let agree = true;
-  for (let n = 1; n <= 40; n++) {
-    const viaConverter = calendarDayToDate(START, workingOrdinalToCalendarIndex(n, SCALE)).toDateString();
-    const viaRenderer = addWorkingDays(START, n - 1, 5).toDateString();
-    if (viaConverter !== viaRenderer) { agree = false; console.log(`      ordinal ${n}: ${viaConverter} vs ${viaRenderer}`); break; }
+  // EVERY WEEK LENGTH THE ENGINE SUPPORTS, and the 6-day row is the one that
+  // matters. This loop used to run on the 5-day week ONLY, with a note saying
+  // the two helpers were known to disagree about a six-day week and that the
+  // fix lived in a file that wave could not touch: utils/cpm.isWorkingDay read
+  // wd === 6 as Mon–SAT while scheduleEngine.addWorkingDays skipped Saturday for
+  // any wd < 7, so on a 6-day project the engine scheduled Saturdays that every
+  // rendered date, CSV row and .ics event refused to count — ordinal 6 from
+  // Mon 2026-03-02 was Sat Mar 7 to the engine and Mon Mar 9 to addWorkingDays.
+  // Both now ask ONE predicate, cpm.isWorkingDayOfWeek, so the disagreement is
+  // asserted away instead of written down. wd 4 is in the list because it is
+  // reachable from the settings picker and is deliberately Mon–Fri (a genuine
+  // four-day week needs a per-day mask; inventing which day is off would be
+  // worse than counting five) — pinning it stops that decision drifting.
+  for (const wd of [4, 5, 6, 7]) {
+    let agree = true;
+    let firstDiff = '';
+    for (let n = 1; n <= 40; n++) {
+      const scale = { scheduleStartDate: ISO, workingDaysPerWeek: wd };
+      const viaConverter = calendarDayToDate(START, workingOrdinalToCalendarIndex(n, scale)).toDateString();
+      const viaRenderer = addWorkingDays(START, n - 1, wd).toDateString();
+      if (viaConverter !== viaRenderer) { agree = false; firstDiff = `ordinal ${n}: ${viaConverter} vs ${viaRenderer}`; break; }
+    }
+    ok(`workingOrdinalToCalendarIndex matches scheduleEngine.addWorkingDays for 40 ordinals (${wd}-day week)`,
+      agree, firstDiff);
   }
-  ok('workingOrdinalToCalendarIndex matches scheduleEngine.addWorkingDays for 40 ordinals (5-day week)', agree);
+  // …and the 6-day week really is a different calendar from the 5-day one, or
+  // the agreement above would be satisfied by both helpers being wrong together.
+  eq('a 6-day week is NOT a second 5-day week (ordinal 6 = Sat Mar 7, not Mon Mar 9)',
+    [addWorkingDays(START, 5, 6).toDateString(), addWorkingDays(START, 5, 5).toDateString()],
+    [new Date(2026, 2, 7).toDateString(), new Date(2026, 2, 9).toDateString()]);
+  // The third walker — scheduleOps.scheduleDayNumberFor — is the INVERSE, and it
+  // had the same inlined copy of the rule. Round-trip it on the calendar that
+  // used to break: ordinal → date → ordinal.
+  for (const wd of [5, 6, 7]) {
+    let roundTrips = true;
+    for (let n = 1; n <= 30; n++) {
+      const date = addWorkingDays(START, n - 1, wd);
+      if (scheduleDayNumberFor(START, date, wd) !== n) { roundTrips = false; break; }
+    }
+    ok(`scheduleOps.scheduleDayNumberFor inverts addWorkingDays on a ${wd}-day week`, roundTrips);
+  }
 
   // The converter has to hold on the calendars the engine supports, not only
   // the default one — and on a schedule whose own start date is a non-working
@@ -1427,6 +1450,31 @@ console.log('\n23. the calendar reaches every InteractiveGantt');
   const wiredWd = (tab.match(/<InteractiveGanttDefault[\s\S]{0,600}?workingDaysPerWeek=\{workingDaysPerWeek\}/g) ?? []).length;
   eq('  …and workingDaysPerWeek', wiredWd, sites);
 
+  // The GRID half of the split view. GanttTab handed `cpm` to all three Gantt
+  // sites and to none of its one GridPane, so the grid ran the engine itself —
+  // and its own run cannot see per-resource `taskCalendars` or
+  // `criticalFloatThresholdDays`, both of which live only on the parent's
+  // options. The consequence is MEASURED below, not asserted from the comment.
+  const gridSites = (tab.match(/<GridPaneDefault\b/g) ?? []).length;
+  const gridWired = (tab.match(/<GridPaneDefault[\s\S]{0,900}?cpm=\{cpm\}/g) ?? []).length;
+  ok('GanttTab still renders its one GridPane', gridSites === 1, gridSites);
+  eq('every GridPane in GanttTab is handed the parent CPM result', gridWired, gridSites);
+  ok('  …and GridPane prefers it over its own run',
+    /const cpm: CpmResult = cpmFromParent \?\? ownCpm;/.test(src('components/schedule/GridPane.tsx')));
+  {
+    // What the two runs actually disagree about. GridPane's fallback is
+    // `runCpmForCalendar(tasks, start, wd, closures)` with no extras, while the
+    // parent threads the resource calendars and the near-critical threshold in.
+    // taskCalendars is keyed by TASK ID (see §14) — a Mon-Sat crew on task A.
+    const satCal = new Map([['A', { workingDaysPerWeek: 6, closures: [] as string[] }]]);
+    const crew = [T('A', 10, [], { startDay: 1 })];
+    const own = runCpmForCalendar(crew, START, 5, []);
+    const parent = runCpmForCalendar(crew, START, 5, [], { taskCalendars: satCal });
+    ok("the grid's own run really does finish a Mon-Sat crew on a different day",
+      own.perTask.get('A')!.ef !== parent.perTask.get('A')!.ef,
+      { own: own.perTask.get('A')!.ef, parent: parent.perTask.get('A')!.ef });
+  }
+
   const shared = src('app/shared-schedule.tsx');
   ok('the public share viewer passes the sender\'s calendar to the Gantt too',
     /workingDaysPerWeek=\{cpmOptions\.workingDaysPerWeek\}/.test(shared)
@@ -1595,6 +1643,51 @@ console.log('\n26. the report model is driven by cpm');
     Math.round(Math.max(0.4, (12 / totalDays) * 100) * 1000) / 1000);
   ok('  …and the working duration really would have been narrower',
     (10 / totalDays) * 100 < (12 / totalDays) * 100);
+}
+
+// ── 27. A link to a task that is gone is REPORTED, not just ignored ─────────
+// Deleting a task silently severed every dependency into it: topoSort,
+// detectCycles and both passes all skip an unresolvable link, so the plan just
+// got shorter and nothing said why. The arithmetic is unchanged — you cannot
+// schedule against a task that is not there — but the silence is now a conflict.
+console.log('\n27. dangling dependency links');
+{
+  const kept = [T('A', 5, [], { startDay: 1 }), T('B', 5, ['A'], { startDay: 6 })];
+  const orphaned = [kept[1], T('C', 5, ['A', 'B'], { startDay: 11 })];   // A deleted
+
+  eq('a whole schedule reports nothing', detectDanglingLinks(kept).length, 0);
+  const d = detectDanglingLinks(orphaned);
+  eq('one row per task that lost a predecessor', d.length, 2);
+  eq('  …and it names the ids that are gone',
+    d.map(c => (c.detail as { missingPredecessorIds: string[] }).missingPredecessorIds), [['A'], ['A']]);
+  eq('  …under a kind the grid banner already treats as a warning, not an error',
+    [...new Set(d.map(c => c.kind))], ['dangling_link']);
+  ok('  …and the message names the task, so the banner is actionable',
+    d[0].message.includes('"B"'), d[0].message);
+
+  // REACHABILITY, not presence: run the real engine and read its conflicts.
+  const viaEngine = runCpm(orphaned, { scheduleStartDate: ISO, workingDaysPerWeek: 5 });
+  eq('runCpm surfaces them', viaEngine.conflicts.filter(c => c.kind === 'dangling_link').length, 2);
+  eq('  …and does not invent one on a whole schedule',
+    runCpm(kept, { scheduleStartDate: ISO, workingDaysPerWeek: 5 })
+      .conflicts.filter(c => c.kind === 'dangling_link').length, 0);
+  // The cycle path returns EARLY with an empty CPM. A schedule with both
+  // problems used to lose the dangling report entirely on that branch.
+  const both = [T('X', 5, ['Y', 'GONE'], { startDay: 1 }), T('Y', 5, ['X'], { startDay: 6 })];
+  const cyc = runCpm(both, { scheduleStartDate: ISO, workingDaysPerWeek: 5 });
+  ok('the cycle bail-out still carries the dangling report out with it',
+    cyc.conflicts.some(c => c.kind === 'cycle') && cyc.conflicts.some(c => c.kind === 'dangling_link'),
+    cyc.conflicts.map(c => c.kind));
+  // And the plan really did get shorter without saying so. A long predecessor
+  // that the successor is NOT already pinned past, so the link is what holds it.
+  const long = T('LONG', 20, [], { startDay: 1 });
+  const after = T('AFTER', 5, ['LONG'], { startDay: 1 });
+  const withPred = runCpm([long, after], { scheduleStartDate: ISO, workingDaysPerWeek: 5 }).projectFinish;
+  const predDeleted = runCpm([after], { scheduleStartDate: ISO, workingDaysPerWeek: 5 });
+  ok('deleting a predecessor silently shortens the plan — which is why it must be said',
+    predDeleted.projectFinish < withPred, { withPred, predDeleted: predDeleted.projectFinish });
+  eq('  …and THAT is the run that now carries the warning',
+    predDeleted.conflicts.filter(c => c.kind === 'dangling_link').length, 1);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

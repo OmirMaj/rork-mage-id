@@ -50,6 +50,12 @@ import { buildBuyoutDrafts, type BuyoutPackageDraft } from '@/utils/takeoffToBuy
 import {
   loadFieldVerifications, appendFieldVerification, deleteFieldVerification,
 } from '@/utils/fieldVerificationStorage';
+import {
+  pendingMeasuredRows, pendingMeasuredNotice, latestMeasurementByRow,
+} from '@/utils/fieldMeasuredQuantity';
+import {
+  takeoffRowKey, takeoffQuantityOfRecord, type TakeoffRowSection,
+} from '@/utils/takeoffPricing';
 import { markFirstTakeoffDone } from '@/utils/onboardingProgress';
 import { recordCorrection } from '@/utils/takeoffCorrections';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -458,10 +464,10 @@ function TakeoffInner() {
         const next = { ...prev };
         const sweep = <T extends { id: string; confidence: TakeoffConfidence }>(
           items: T[],
-          section: string,
+          section: TakeoffRowSection,
         ) => {
           for (const it of items) {
-            if (shouldDrop(it.confidence)) next[`${section}:${it.id}`] = true;
+            if (shouldDrop(it.confidence)) next[takeoffRowKey(section, it.id)] = true;
           }
         };
         sweep(result.walls, 'walls');
@@ -495,14 +501,37 @@ function TakeoffInner() {
     setVerifications(next);
   }, [pickedProjectId]);
 
-  const verificationsByRow = useMemo(() => {
-    const map = new Map<string, TakeoffFieldVerification>();
-    // Newest verification per row wins (verifications are stored newest-first).
-    for (const v of verifications) {
-      if (!map.has(v.rowKey)) map.set(v.rowKey, v);
-    }
-    return map;
-  }, [verifications]);
+  // Newest verification per row wins. The stamp decides, not the array order:
+  // storage happens to prepend, but "happens to" is not an invariant, and the
+  // row the GC re-measured is the one whose number now prices the job.
+  const verificationsByRow = useMemo(
+    () => latestMeasurementByRow(verifications),
+    [verifications],
+  );
+
+  /**
+   * Rows the GC measured on site where the tape disagrees with the quantity
+   * that is actually pricing the work — i.e. the measurements still sitting in
+   * AsyncStorage doing nothing (audit 2026-09-11, F6). Counted out loud on the
+   * review screen so the data cannot go quiet again; each row is adopted from
+   * its own verification modal, with the delta on screen.
+   *
+   * A rejected row returns null: it prices nothing and teaches the cost book
+   * nothing, so an unapplied measurement on it is not a pending decision.
+   */
+  const pendingMeasured = useMemo(
+    () => pendingMeasuredRows({
+      verifications,
+      // One shared decision, not a second copy of it: the SAME function
+      // app/takeoff-estimate prices from. When these were two inline copies
+      // they disagreed for three of the seven sections, so a measurement the
+      // GC adopted here stopped this notice while the pricer ignored it.
+      quantityOfRecord: (rowKey) => takeoffQuantityOfRecord(
+        { overrides, rejected }, rowKey, findRowMeta(rowKey)?.aiValue ?? null,
+      ),
+    }),
+    [verifications, overrides, rejected, findRowMeta],
+  );
 
   const handlePreviewBuyouts = useCallback(() => {
     if (!result) return;
@@ -511,13 +540,13 @@ function TakeoffInner() {
     // by filtering at this boundary we keep that pure function simple.
     const filtered: TakeoffResult = {
       ...result,
-      walls: result.walls.filter(w => !rejected[`walls:${w.id}`]),
-      floorAreas: result.floorAreas.filter(f => !rejected[`floor:${f.id}`]),
-      doors: result.doors.filter(d => !rejected[`doors:${d.id}`]),
-      windows: result.windows.filter(w => !rejected[`windows:${w.id}`]),
-      finishes: result.finishes.filter(f => !rejected[`finish:${f.id}`]),
-      fixtures: result.fixtures.filter(f => !rejected[`fixture:${f.id}`]),
-      bulkMaterials: result.bulkMaterials.filter(b => !rejected[`bulk:${b.id}`]),
+      walls: result.walls.filter(w => !rejected[takeoffRowKey('walls', w.id)]),
+      floorAreas: result.floorAreas.filter(f => !rejected[takeoffRowKey('floor', f.id)]),
+      doors: result.doors.filter(d => !rejected[takeoffRowKey('doors', d.id)]),
+      windows: result.windows.filter(w => !rejected[takeoffRowKey('windows', w.id)]),
+      finishes: result.finishes.filter(f => !rejected[takeoffRowKey('finish', f.id)]),
+      fixtures: result.fixtures.filter(f => !rejected[takeoffRowKey('fixture', f.id)]),
+      bulkMaterials: result.bulkMaterials.filter(b => !rejected[takeoffRowKey('bulk', b.id)]),
     };
     const drafts = buildBuyoutDrafts(filtered, specMatch, { overrides });
     setBuyoutDrafts(drafts);
@@ -765,6 +794,7 @@ function TakeoffInner() {
             verificationsByRow={verificationsByRow}
             onCaptureVerification={handleCaptureVerification}
             onDeleteVerification={handleDeleteVerification}
+            pendingMeasuredCount={pendingMeasured.length}
             rejected={rejected}
             rejectedCount={rejectedCount}
             onToggleReject={toggleReject}
@@ -933,6 +963,7 @@ function ResultView({
   specMatch, specMatchLoading, specMatchError, onMatchSpecs, onClearSpecs,
   onPreviewBuyouts,
   verificationsByRow, onCaptureVerification, onDeleteVerification,
+  pendingMeasuredCount,
   rejected, rejectedCount, onToggleReject, onBulkReject, onRestoreAllRejected,
 }: {
   result: TakeoffResult;
@@ -958,6 +989,10 @@ function ResultView({
   verificationsByRow: Map<string, TakeoffFieldVerification>;
   onCaptureVerification: (v: TakeoffFieldVerification) => void;
   onDeleteVerification: (id: string) => void;
+  /** Rows measured on site whose measurement is NOT yet the quantity of
+   *  record — so the estimate, and the rate this job will teach, still rest on
+   *  the drawing. */
+  pendingMeasuredCount: number;
   rejected: RejectedRows;
   rejectedCount: number;
   onToggleReject: (rowKey: string) => void;
@@ -978,35 +1013,35 @@ function ResultView({
   // the LF + SF + buyout numbers immediately.
   const totalWallLF = useMemo(
     () => sumOverridable(
-      result.walls.filter(w => !rejected[keyFor('walls', w.id)]),
-      w => w.lengthFt, w => keyFor('walls', w.id), overrides,
+      result.walls.filter(w => !rejected[takeoffRowKey('walls', w.id)]),
+      w => w.lengthFt, w => takeoffRowKey('walls', w.id), overrides,
     ),
     [result.walls, overrides, rejected],
   );
   const totalWallAreaSF = useMemo(
     () => result.walls
-      .filter(w => !rejected[keyFor('walls', w.id)])
-      .reduce((s, w) => s + (overridden(overrides, keyFor('walls', w.id), w.lengthFt) * w.heightFt * 2), 0),
+      .filter(w => !rejected[takeoffRowKey('walls', w.id)])
+      .reduce((s, w) => s + (overridden(overrides, takeoffRowKey('walls', w.id), w.lengthFt) * w.heightFt * 2), 0),
     [result.walls, overrides, rejected],
   );
   const totalFloorSF = useMemo(
     () => sumOverridable(
-      result.floorAreas.filter(f => !rejected[keyFor('floor', f.id)]),
-      f => f.areaSqFt, f => keyFor('floor', f.id), overrides,
+      result.floorAreas.filter(f => !rejected[takeoffRowKey('floor', f.id)]),
+      f => f.areaSqFt, f => takeoffRowKey('floor', f.id), overrides,
     ),
     [result.floorAreas, overrides, rejected],
   );
   const totalDoors = useMemo(
     () => sumOverridable(
-      result.doors.filter(d => !rejected[keyFor('doors', d.id)]),
-      d => d.count, d => keyFor('doors', d.id), overrides,
+      result.doors.filter(d => !rejected[takeoffRowKey('doors', d.id)]),
+      d => d.count, d => takeoffRowKey('doors', d.id), overrides,
     ),
     [result.doors, overrides, rejected],
   );
   const totalWindows = useMemo(
     () => sumOverridable(
-      result.windows.filter(w => !rejected[keyFor('windows', w.id)]),
-      w => w.count, w => keyFor('windows', w.id), overrides,
+      result.windows.filter(w => !rejected[takeoffRowKey('windows', w.id)]),
+      w => w.count, w => takeoffRowKey('windows', w.id), overrides,
     ),
     [result.windows, overrides, rejected],
   );
@@ -1102,6 +1137,19 @@ function ResultView({
         />
       )}
 
+      {/* FIELD MEASUREMENTS STILL DOING NOTHING. The GC went to the site,
+          measured, and the number disagrees with what is pricing the work —
+          which means the sub's price will be divided by the drawing at
+          closeout. Says so, and points at the row that owns the decision. */}
+      {pendingMeasuredCount > 0 && (
+        <View style={styles.measuredNotice}>
+          <Ruler size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+          <Text style={styles.measuredNoticeText}>
+            {pendingMeasuredNotice(pendingMeasuredCount)}
+          </Text>
+        </View>
+      )}
+
       {showProTeaser && (
         <TouchableOpacity style={styles.teaserCard} onPress={onUpgrade} activeOpacity={0.85}>
           <View style={styles.teaserHead}>
@@ -1172,22 +1220,22 @@ function ResultView({
           {result.walls.map(w => (
             <EditableRow
               key={w.id}
-              rowKey={keyFor('walls', w.id)}
+              rowKey={takeoffRowKey('walls', w.id)}
               title={w.description}
               subtitle={w.typeCode ? `Type ${w.typeCode} · ${w.heightFt} ft tall` : `${w.heightFt} ft tall`}
-              quantity={overridden(overrides, keyFor('walls', w.id), w.lengthFt)}
+              quantity={overridden(overrides, takeoffRowKey('walls', w.id), w.lengthFt)}
               unit="LF"
               confidence={w.confidence}
               sourcePages={w.sourcePages}
               notes={w.notes}
-              onChangeQuantity={v => onSetOverride(keyFor('walls', w.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('walls', w.id), v)}
               originalQuantity={w.lengthFt}
               onInspectPage={onInspectPage}
               specEntry={w.typeCode ? specLookup.get(w.typeCode) : undefined}
-              verification={verificationsByRow.get(keyFor('walls', w.id))}
+              verification={verificationsByRow.get(takeoffRowKey('walls', w.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('walls', w.id)]}
+              rejected={!!rejected[takeoffRowKey('walls', w.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1204,22 +1252,22 @@ function ResultView({
           {result.floorAreas.map(f => (
             <EditableRow
               key={f.id}
-              rowKey={keyFor('floor', f.id)}
+              rowKey={takeoffRowKey('floor', f.id)}
               title={f.roomName}
               subtitle={f.finishCode ? `Finish ${f.finishCode} · CH ${f.ceilingHeightFt} ft` : `CH ${f.ceilingHeightFt} ft`}
-              quantity={overridden(overrides, keyFor('floor', f.id), f.areaSqFt)}
+              quantity={overridden(overrides, takeoffRowKey('floor', f.id), f.areaSqFt)}
               unit="SF"
               confidence={f.confidence}
               sourcePages={f.sourcePages}
               notes={f.notes}
-              onChangeQuantity={v => onSetOverride(keyFor('floor', f.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('floor', f.id), v)}
               originalQuantity={f.areaSqFt}
               onInspectPage={onInspectPage}
               specEntry={f.finishCode ? specLookup.get(f.finishCode) : undefined}
-              verification={verificationsByRow.get(keyFor('floor', f.id))}
+              verification={verificationsByRow.get(takeoffRowKey('floor', f.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('floor', f.id)]}
+              rejected={!!rejected[takeoffRowKey('floor', f.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1236,21 +1284,21 @@ function ResultView({
           {result.doors.map(d => (
             <EditableRow
               key={d.id}
-              rowKey={keyFor('doors', d.id)}
+              rowKey={takeoffRowKey('doors', d.id)}
               title={d.mark ? `${d.mark} — ${d.description}` : d.description}
               subtitle={`${d.widthIn}" × ${d.heightIn}"`}
-              quantity={overridden(overrides, keyFor('doors', d.id), d.count)}
+              quantity={overridden(overrides, takeoffRowKey('doors', d.id), d.count)}
               unit="EA"
               confidence={d.confidence}
               sourcePages={d.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('doors', d.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('doors', d.id), v)}
               originalQuantity={d.count}
               onInspectPage={onInspectPage}
               specEntry={d.mark ? specLookup.get(d.mark) : undefined}
-              verification={verificationsByRow.get(keyFor('doors', d.id))}
+              verification={verificationsByRow.get(takeoffRowKey('doors', d.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('doors', d.id)]}
+              rejected={!!rejected[takeoffRowKey('doors', d.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1267,21 +1315,21 @@ function ResultView({
           {result.windows.map(w => (
             <EditableRow
               key={w.id}
-              rowKey={keyFor('windows', w.id)}
+              rowKey={takeoffRowKey('windows', w.id)}
               title={w.mark ? `${w.mark} — ${w.description}` : w.description}
               subtitle={`${w.widthIn}" × ${w.heightIn}"`}
-              quantity={overridden(overrides, keyFor('windows', w.id), w.count)}
+              quantity={overridden(overrides, takeoffRowKey('windows', w.id), w.count)}
               unit="EA"
               confidence={w.confidence}
               sourcePages={w.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('windows', w.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('windows', w.id), v)}
               originalQuantity={w.count}
               onInspectPage={onInspectPage}
               specEntry={w.mark ? specLookup.get(w.mark) : undefined}
-              verification={verificationsByRow.get(keyFor('windows', w.id))}
+              verification={verificationsByRow.get(takeoffRowKey('windows', w.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('windows', w.id)]}
+              rejected={!!rejected[takeoffRowKey('windows', w.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1330,20 +1378,20 @@ function ResultView({
           {result.bulkMaterials.map(b => (
             <EditableRow
               key={b.id}
-              rowKey={keyFor('bulk', b.id)}
+              rowKey={takeoffRowKey('bulk', b.id)}
               title={b.description}
-              quantity={overridden(overrides, keyFor('bulk', b.id), b.quantity)}
+              quantity={overridden(overrides, takeoffRowKey('bulk', b.id), b.quantity)}
               unit={b.unit.toUpperCase()}
               confidence={b.confidence}
               sourcePages={b.sourcePages}
               notes={b.notes}
-              onChangeQuantity={v => onSetOverride(keyFor('bulk', b.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('bulk', b.id), v)}
               originalQuantity={b.quantity}
               onInspectPage={onInspectPage}
-              verification={verificationsByRow.get(keyFor('bulk', b.id))}
+              verification={verificationsByRow.get(takeoffRowKey('bulk', b.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('bulk', b.id)]}
+              rejected={!!rejected[takeoffRowKey('bulk', b.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1497,20 +1545,20 @@ function FinishesSection({
           {items.map(f => (
             <EditableRow
               key={f.id}
-              rowKey={keyFor('finish', f.id)}
+              rowKey={takeoffRowKey('finish', f.id)}
               title={f.code ? `${f.code} — ${f.description}` : f.description}
-              quantity={overridden(overrides, keyFor('finish', f.id), f.quantity)}
+              quantity={overridden(overrides, takeoffRowKey('finish', f.id), f.quantity)}
               unit={f.unit.toUpperCase()}
               confidence={f.confidence}
               sourcePages={f.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('finish', f.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('finish', f.id), v)}
               originalQuantity={f.quantity}
               onInspectPage={onInspectPage}
               specEntry={f.code ? specLookup.get(f.code) : undefined}
-              verification={verificationsByRow.get(keyFor('finish', f.id))}
+              verification={verificationsByRow.get(takeoffRowKey('finish', f.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('finish', f.id)]}
+              rejected={!!rejected[takeoffRowKey('finish', f.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1560,20 +1608,20 @@ function FixturesSection({
           {items.map(f => (
             <EditableRow
               key={f.id}
-              rowKey={keyFor('fixture', f.id)}
+              rowKey={takeoffRowKey('fixture', f.id)}
               title={f.mark ? `${f.mark} — ${f.description}` : f.description}
-              quantity={overridden(overrides, keyFor('fixture', f.id), f.count)}
+              quantity={overridden(overrides, takeoffRowKey('fixture', f.id), f.count)}
               unit="EA"
               confidence={f.confidence}
               sourcePages={f.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('fixture', f.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('fixture', f.id), v)}
               originalQuantity={f.count}
               onInspectPage={onInspectPage}
               specEntry={f.mark ? specLookup.get(f.mark) : undefined}
-              verification={verificationsByRow.get(keyFor('fixture', f.id))}
+              verification={verificationsByRow.get(takeoffRowKey('fixture', f.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('fixture', f.id)]}
+              rejected={!!rejected[takeoffRowKey('fixture', f.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1745,11 +1793,46 @@ function EditableRow({
         {onCaptureVerification && (
           <TakeoffFieldVerifyButton
             rowKey={rowKey}
-            aiQuantity={quantity}
+            currentQuantity={quantity}
             unit={unit}
             existing={verification}
             onCapture={onCaptureVerification}
             onDelete={onDeleteVerification}
+            // THE MEASUREMENT'S ONLY ROUTE OUT (audit 2026-09-11, F6). Adopting
+            // it goes through the same setter the quantity field uses, so it
+            // lands in `overrides` — the quantity of record. From there:
+            // app/takeoff-estimate's resolver (runPricing) feeds overrides into
+            // buildPricingPrompt, the priced lines that come back carry that
+            // quantity (takeoff-estimate.tsx:378), buildItems (:505) writes it
+            // as the saved estimate line's `quantity`, and utils/costDatabase
+            // divides a closed commitment by exactly that. Before this prop the
+            // measured quantity was written to AsyncStorage and read by nothing
+            // at all.
+            //
+            // THE HALF THAT WAS SEVERED UNTIL 2026-09-12: both ends spelled the
+            // row key in their own local helper, and three of the seven
+            // sections did not match (finish/fixture/bulk here vs
+            // finishes/fixtures/bulkMaterials there). An adopted drywall or
+            // fixture measurement cleared the "still priced off the plan"
+            // notice and was then dropped on the way to the pricer, and a
+            // REJECTED row of those three sections was priced anyway. Both
+            // sides now call utils/takeoffPricing.takeoffRowKey /
+            // takeoffQuantityOfRecord — one typed section list, round-tripped
+            // for all seven sections in validate-cost-seed §17i.
+            //
+            // HONEST ABOUT THE ONE SOFT LINK: the pricer is an AI call, so the
+            // hand-off from override to line quantity is a prompt, not a copy —
+            // one takeoff row may come back as several lines, and the GC can
+            // still edit a quantity on the review list. What is guaranteed is
+            // that the number the estimate is BUILT FROM is the one he
+            // measured, not the one the drawing said.
+            //
+            // Measured end to end at the engine: the same $6,000 drywall buyout
+            // teaches $2.50/SF over a 2,400 SF plan read and $2.31/SF over the
+            // 2,600 SF the GC actually measured — an 8.3% permanent
+            // overstatement of his own cost, on one job
+            // (scripts/validate-estimate-cost-basis §6k).
+            onUseMeasured={onChangeQuantity}
           />
         )}
       </View>
@@ -1939,10 +2022,6 @@ function SpecMatchCard({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function keyFor(section: string, id: string): string {
-  return `${section}:${id}`;
-}
 
 function overridden(map: QuantityOverrides, key: string, fallback: number): number {
   const v = map[key];
@@ -2223,6 +2302,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
+  measuredNotice: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: themeColors.warningSoft,
+    borderRadius: Tokens.radius.panel, padding: 14,
+    borderWidth: 1, borderColor: themeColors.warningLabel + '33',
+    marginBottom: 22,
+  },
+  measuredNoticeText: {
+    flex: 1, fontSize: Type.footnote.fontSize, lineHeight: 18,
+    color: themeColors.text, fontWeight: '600',
+  },
   teaserCard: {
     backgroundColor: themeColors.accent + '0D',
     borderRadius: Tokens.radius.panel, padding: 16,

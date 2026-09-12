@@ -6,7 +6,7 @@
 
 import type { ScheduleTask, ScheduleBaseline, DependencyLink } from '@/types';
 import {
-  runCpm, calendarIndexToWorkingOrdinal,
+  runCpm, calendarIndexToWorkingOrdinal, isWorkingDayOfWeek,
   type RunCpmOptions, type CpmResult, type DayScaleOptions,
 } from '@/utils/cpm';
 import { addWorkingDays } from '@/utils/scheduleEngine';
@@ -37,8 +37,10 @@ export function scheduleDayNumberFor(
   const cur = new Date(base.getTime());
   while (cur < tgt) {
     cur.setDate(cur.getDate() + 1);
-    const dow = cur.getDay();
-    if (workingDaysPerWeek < 7 && (dow === 0 || dow === 6)) continue;
+    // THE weekend rule (cpm.isWorkingDayOfWeek), not a fourth copy of it: this
+    // walker is the INVERSE of addWorkingDays, so on a 6-day week it has to
+    // count the Saturdays the engine works. Inlined, it did not.
+    if (!isWorkingDayOfWeek(cur.getDay(), workingDaysPerWeek)) continue;
     if (blocked && blocked.has(toCalendarDayString(cur))) continue;
     count++;
   }

@@ -301,7 +301,11 @@ export default function ScheduleImportScreen() {
 
       if (cpm.conflicts.length > 0) {
         setImporting(false);
-        const conflictLine = `${cpm.conflicts.length} cycle/anchor conflict(s) were found. You can import anyway and fix them in Schedule Pro.`;
+        // "cycle/anchor" was exhaustive when those were the only two kinds.
+        // `runCpm` now also emits `dangling_link` (a dependency pointing at a
+        // task that is not in the set), which is neither — so the noun has to
+        // be the general one or the count contradicts the label.
+        const conflictLine = `${cpm.conflicts.length} scheduling conflict(s) were found. You can import anyway and fix them in Schedule Pro.`;
         showAlert(
           existingCount > 0 ? 'Replace schedule with conflicts?' : 'Schedule has conflicts',
           existingCount > 0 ? `${replaceLine}\n\n${conflictLine}` : conflictLine,

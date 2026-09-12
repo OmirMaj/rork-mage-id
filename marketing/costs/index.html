@@ -126,6 +126,12 @@
   .btn.ghost{background:var(--card);color:var(--navy);border:1.5px solid var(--line)}
   .foot{text-align:center;color:var(--muted);font-size:13px;margin-top:26px}
   .foot a{color:var(--navy)}
+  /* The strip is a SIBLING of <p class="foot">, not a child, so it does not
+     inherit .foot a — without this rule its links fell back to the UA default
+     blue, which is the one link colour on the page nobody chose. Same token as
+     the footer's own links: #0B0D10 on this page's #FAF7F0 ground = 18.19:1. */
+  .trust-strip a{color:var(--navy);text-decoration:none}
+  .trust-strip a:hover{text-decoration:underline}
   @media(max-width:560px){h1{font-size:30px}.sub{font-size:16px}}
 </style>
 </head>
@@ -194,6 +200,33 @@
   <p class="foot">
     <a href="/">MAGE ID</a> · <a href="/pricing.html">Pricing</a> · <a href="/privacy.html">Privacy</a>
   </p>
+  <!-- Trust strip, same markup and same four destinations as the other 34
+       public pages. This page had none, and it is a page that needs it: the
+       index it exists to show is EMPTY until five contributors opt in (the
+       live endpoint returns rows: []). A visitor who clicks "Price Index" out
+       of the homepage footer and lands on an empty table should not have to
+       guess whether the whole product is that thin — the strip is where the
+       site says out loud that it is new.
+       NOT in the primary nav, despite what an earlier draft of this comment
+       said. marketing/index.html:543 is the whole nav — How it works /
+       Features / Compare / Pricing / Demo / Support — and /costs/ appears on
+       that page only in body prose (:576) and in the footer (:857), which is
+       the deliberate placement: an index that is honestly empty until five
+       contributors exist does not belong in a buyer's primary path.
+       No colour INSIDE the markup, on purpose — the guard bans a literal one
+       here. The colour comes from the `.trust-strip a` rule next to `.foot a`
+       above, because this <nav> is a SIBLING of <p class="foot"> and inherits
+       nothing from it. var(--navy) #0B0D10 measures 18.19:1 on this page's
+       #FAF7F0 ground, far above the 4.5:1 AA floor at 12.5px. The strip is checked by
+       scripts/validate-marketing-claims.ts, which since 2026-09-12 counts a
+       <p class="foot"> as a footer — this page, calculator.html and
+       widget/index.html were all invisible to it before that. -->
+  <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+    <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+    <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+    <a href="/changelog.html" style="font-weight:600">Changelog</a>
+    <a href="/switch.html" style="font-weight:600">Switching</a>
+  </nav>
 </div>
 
 <script>

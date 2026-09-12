@@ -476,6 +476,11 @@ const isNotFound = (code: string | undefined) => code === "PGRST116" || code ===
  * own link (when the money arrived through an AIA pay app's link) is retired
  * on Stripe as well.
  */
+// --- BEGIN creditInvoice ---------------------------------------------------
+// Lifted and EXECUTED by scripts/validate-invoice-billing.ts against a fake
+// Db. A regex over this file cannot see an early return above the AIA mirror;
+// running the function can. Keep these sentinels — the validator exits 1 if
+// they go missing rather than quietly stopping checking.
 async function creditInvoice(
   supabase: Db,
   invoiceId: string,
@@ -636,6 +641,7 @@ async function creditInvoice(
     retentionAmount, retentionReleased,
   };
 }
+// --- END creditInvoice ---
 
 async function handleCheckoutCompleted(
   supabase: Db,

@@ -1524,7 +1524,7 @@
     .invoice-cta { align-items: flex-start; }
   }
 
-  /* ───────── AIA pay app card ───────── */
+  /* ───────── AIA-style pay app card ───────── */
   .aia-card {
     padding: 22px;
     background: linear-gradient(180deg, var(--cream-2) 0%, var(--surface) 100%);
@@ -2224,6 +2224,15 @@
     margin-bottom: 6px;
   }
 
+  /* Trademark notice under a rendered pay application. Must survive print —
+     the print rules below keep the drawer and drop everything else. */
+  .aia-trademark-note {
+    margin: 18px 0 0;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-2);
+  }
+
   /* AIA SOV table */
   .sov-table {
     width: 100%; font-size: 12px;
@@ -2490,7 +2499,7 @@
   .portal-footer a:hover { color: var(--amber-dark); }
 
   /* ───────── Print styles for AIA (drawer-based) ─────────
-     Designed for printing AIA G702/G703 pay applications, which the
+     Designed for printing AIA-style G702/G703 pay applications, which the
      homeowner opens in a side drawer. We hide #sections so only the
      drawer prints. These rules are scoped to NOT apply when the
      closeout binder print path is active (body.printing-binder), since
@@ -4796,7 +4805,20 @@
       '<div class="detail-block">' +
         '<div class="detail-block-title">G703 schedule of values</div>' +
         sovRows +
-      '</div>';
+      '</div>' +
+      // Word for word the notice the generated PDF carries
+      // (utils/aiaBilling.ts:2235) and the one app/aia-pay-app.tsx:2321 shows
+      // the GC on first use. It belongs here most of all: this drawer is the
+      // copy the OWNER reads and prints, and the owner is the party who finds
+      // out from their lender that an AIA-style certificate is not an AIA one.
+      // Inside the body rather than the footer because #drawer-footer is
+      // hidden by the print styles below.
+      '<p class="aia-trademark-note">' +
+        'MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are ' +
+        'registered trademarks of The American Institute of Architects, which is not affiliated with and ' +
+        'does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract ' +
+        'Documents &mdash; check with yours before you submit.' +
+      '</p>';
 
     // Drawer footer — Pay button (Stripe-hosted) takes precedence when a
     // payLinkUrl exists and there's a balance due. Print stays available
@@ -4821,7 +4843,7 @@
         icn(ICONS.print, 16) + ' Print / save PDF' +
       '</button>';
 
-    openDrawer('AIA G702 / G703 · App #' + a.applicationNumber, 'Period ending ' + fmtDate(a.periodTo), bodyHtml, footerHtml);
+    openDrawer('AIA-style G702 / G703 · App #' + a.applicationNumber, 'Period ending ' + fmtDate(a.periodTo), bodyHtml, footerHtml);
 
     var btn = document.getElementById('aia-print');
     if (btn) btn.addEventListener('click', function () { window.print(); });
@@ -5874,7 +5896,7 @@
 
   // ───────── Open House mode ─────────
   // When the URL carries ?openHouse=1, the portal hides every financial
-  // surface — budget, invoices, AIA pay apps, contract values, change-
+  // surface — budget, invoices, AIA-style pay apps, contract values, change-
   // order amounts, payment links — but keeps the visual project (Gantt,
   // photos, daily reports, recent activity, schedule). Lets the
   // homeowner share progress with parents / lenders / etc. without
@@ -6111,7 +6133,7 @@
       // tells the pay-app cards which periods have already been settled
       // through the invoice list.
       noteSettledInvoices(sections.invoices);
-      addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
+      addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA-style G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
       addSection('schedule', 'calendar', t('scheduleSectionTitle'), t('scheduleSectionSubtitle'), sections.schedule.tasks.length, renderSchedule(sections.schedule));

@@ -11,6 +11,8 @@ import {
 } from './pdfDesign';
 import type { WIPReport, ARAgingReport , ProfitRow } from './financialReports';
 import { wipRowEarned, wipRowOverbilled, wipRowCostToComplete, wipReportRowHasCostBasis, profitRowHasCostBasis } from './financialReports';
+import type { ReportCsvDocument } from './financialReports';
+import { csvHandoverOutcome } from './wipExport';
 import { describePortfolioCostBasis, type WipEstimatedCost } from './wip';
 
 /**
@@ -451,4 +453,56 @@ export async function shareProfitReport(
 
 export async function shareARAgingReport(report: ARAgingReport, branding: CompanyBranding): Promise<void> {
   await shareHtml(buildARAgingHtml(report, branding), `A/R Aging ${fmtDate(report.asOf)}`);
+}
+
+/**
+ * Hand a report CSV over as a FILE, the way every PDF above already goes — F18
+ * (audit 2026-09-11), the /reports half.
+ *
+ * `shareWIPReport` and its two siblings have handed a document to the share
+ * sheet since they shipped. The CSV beside them went to `copyToClipboard` and
+ * nowhere else, on a phone: the WIP schedule is eleven columns wide plus a
+ * totals line, the A/R aging is nine, and the GC's next move after tapping
+ * "Copy CSV" on an iPhone is to email it to his bookkeeper — where there is no
+ * attachment to email. The flagship /wip-report screen was fixed in the same
+ * audit (`shareWipPeriodCsv`, utils/wipExport.ts); this is the identical defect
+ * one sidebar row away, on the SAME WIP schedule, and fixing one and not the
+ * other is how this codebase keeps ending up with a change wired at some call
+ * sites and not others.
+ *
+ * THE CLIPBOARD IS STILL THE RIGHT ANSWER ON SOME PLATFORMS, so this reports
+ * what it managed instead of throwing:
+ *   • 'shared'      — written to cache and handed to the share sheet (native);
+ *   • 'downloaded'  — the browser took the file (web: `deliverTextFile` returns
+ *                     null there because there is no URI to share);
+ *   • 'unavailable' — a real filesystem but no share sheet. The caller falls
+ *                     back to the clipboard, which is what it used to do
+ *                     unconditionally.
+ * A throw from the write itself propagates: a failed export must not report a
+ * successful copy, and the screen catches it and says which happened.
+ *
+ * `deliverTextFile` is imported lazily for the same reason `wipExport` does it —
+ * it pulls `expo-file-system/legacy`, and this module is read by
+ * scripts/validate-money-basis-parity.ts.
+ */
+export async function shareReportCsv(
+  doc: ReportCsvDocument,
+  csv: string,
+): Promise<'shared' | 'downloaded' | 'unavailable'> {
+  const { deliverTextFile, hasFileSystem } = await import('@/utils/platformFile');
+  const uri = await deliverTextFile(doc.fileName, csv, 'text/csv;charset=utf-8');
+  // The three-outcome mapping is a pure function in utils/wipExport, shared with
+  // the flagship screen's CSV path, because the ternary that used to be inline
+  // here could be inverted with every guard in the repo still green — on web
+  // that reported 'unavailable' about a file the browser had already taken.
+  const outcome = csvHandoverOutcome(
+    uri, hasFileSystem(), uri ? await Sharing.isAvailableAsync() : false,
+  );
+  if (outcome !== 'shared' || !uri) return outcome;
+  await Sharing.shareAsync(uri, {
+    mimeType: 'text/csv',
+    dialogTitle: doc.dialogTitle,
+    UTI: 'public.comma-separated-values-text',
+  });
+  return outcome;
 }

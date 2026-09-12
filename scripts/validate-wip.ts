@@ -25,11 +25,18 @@ import {
   assertPeriodEditable,
   WIP_SOURCE_LABELS,
 } from '../utils/wip';
-import { wipPeriodToCSV, buildWipHtml, wipLiveAsOfNote } from '../utils/wipExport';
+import { wipPeriodToCSV, buildWipHtml, wipLiveAsOfNote, csvHandoverOutcome } from '../utils/wipExport';
+import { reportCsvDocument } from '../utils/financialReports';
 import type {
   WipRowInput, WipRow, WipSnapshotRow, WipPeriod,
   Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project, MaterialReceipt,
 } from '../types';
+// fileURLToPath + join because the repo path contains a space.
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -1030,6 +1037,234 @@ console.log('\nthe exports print the cost the row was struck against:');
     etcCells[etcHeader.indexOf('Watch Flags')], '');
   expect('…while a row that WAS watched and fired nothing says so',
     /No watch flags/.test(wipPeriodToCSV({ ...etcPeriod, rows: [{ ...etcRow, flags: flagWipRow(etcRow.output, undefined) }] })), true);
+}
+
+// ── F18: THE CSV LEAVES AS A FILE, NOT ONLY AS A CLIPBOARD PASTE ───────────
+//
+// The flagship screen's only CSV path was `copyToClipboard`, on a phone. The
+// schedule is fourteen columns wide; the clipboard reaches Excel on a laptop and
+// reaches nothing at all from iOS, where the GC's next move is to email it to his
+// bookkeeper and there is no attachment to email. `shareWipPeriodPdf`, in the
+// same module, has handed the document to the share sheet since it shipped.
+//
+// THIS CANNOT BE EXECUTED and the guard says so rather than pretending. Both
+// halves of the path reach react-native at module scope — `utils/platformFile`
+// imports `Platform` and `expo-file-system/legacy`, `expo-sharing` is native —
+// and importing either crashes bun, which is the same reason this module's own
+// header explains why the PDF's imports are lazy. So what is asserted is SHAPE
+// AND ORDER inside the handler, which is the part a presence test gets wrong:
+// the clipboard call must come AFTER the share attempt, and the handler must
+// carry exactly the returns it is supposed to carry — an extra early return is
+// how the whole fix goes inert with every string still matching (the failure
+// mode that hid the top WIP blocker through two review layers).
+console.log('\nthe CSV export hands over a file before it falls back to the clipboard:');
+{
+  const SCREEN = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
+  const EXPORT = readFileSync(join(ROOT, 'utils', 'wipExport.ts'), 'utf8');
+
+  expect('utils/wipExport exports a CSV share path beside the PDF one',
+    /export async function shareWipPeriodCsv\(/.test(EXPORT), true);
+  expect('…which writes a real file through the ONE cross-platform helper',
+    /deliverTextFile, hasFileSystem \} = await import\('@\/utils\/platformFile'\)/.test(EXPORT)
+    && /deliverTextFile\(\s*`wip-schedule-\$\{period\.periodEndDate\}\.csv`/.test(EXPORT), true);
+  expect('…lazily, so this validator can still import the pure builders',
+    /^import .*platformFile/m.test(EXPORT), false);
+  expect('…and hands it to the share sheet with a CSV type, not a PDF one',
+    /mimeType: 'text\/csv'/.test(EXPORT) && /UTI: 'public\.comma-separated-values-text'/.test(EXPORT), true);
+  expect('…and reports which of the three outcomes happened, so the screen can tell the truth',
+    /Promise<'shared' \| 'downloaded' \| 'unavailable'>/.test(EXPORT), true);
+
+  // WHICH outcome, EXECUTED. The mapping used to be a ternary inside the async
+  // function above, where bun cannot reach it, and inverting it left all four
+  // WIP validators at 100% (verifier, 2026-09-11): the union type, the mimeType
+  // and the UTI all still matched while WEB reported 'unavailable' about a file
+  // the browser had already downloaded — so the screen fell through, copied to
+  // the clipboard and alerted "This device could not hand over a file" about a
+  // file the GC already had. It is a pure function now, and these run it.
+  expect('web — the browser took the file, so it was DOWNLOADED, not unavailable',
+    csvHandoverOutcome(null, false, false), 'downloaded');
+  expect('native with nothing written — unavailable, and the clipboard catches it',
+    csvHandoverOutcome(null, true, true), 'unavailable');
+  expect('native with a file and a share sheet — shared',
+    csvHandoverOutcome('file:///tmp/wip-schedule-2026-08-31.csv', true, true), 'shared');
+  expect('native with a file and NO share sheet — unavailable',
+    csvHandoverOutcome('file:///tmp/wip-schedule-2026-08-31.csv', true, false), 'unavailable');
+  expect('…and both CSV paths in the repo route through that one function',
+    /const outcome = csvHandoverOutcome\(/.test(EXPORT)
+    && /const outcome = csvHandoverOutcome\(/.test(readFileSync(join(ROOT, 'utils', 'financialReportPdf.ts'), 'utf8')), true);
+
+  const at = SCREEN.indexOf('const handleExportCsv = useCallback(async () => {');
+  const body = at < 0 ? '' : SCREEN.slice(at, SCREEN.indexOf('}, [exportPeriod]);', at));
+  expect('the screen has a CSV handler to inspect', at >= 0, true);
+  // Order, not presence: a file-share added AFTER the clipboard copy would leave
+  // the phone behaviour exactly as it was while every substring matched.
+  const shareAt = body.indexOf('shareWipPeriodCsv(');
+  const clipAt = body.indexOf('copyToClipboard(');
+  expect('it tries the file first and the clipboard second',
+    shareAt >= 0 && clipAt >= 0 && shareAt < clipAt, true);
+  expect('…and stops when the file actually reached the user',
+    /if \(delivered !== 'unavailable'\) \{/.test(body), true);
+  // EXACTLY the three returns this handler is supposed to have: no export
+  // period, no rows, and the success short-circuit. A fourth — or an inverted
+  // first — makes Export do nothing, and every regex above still matches.
+  const returns = [...body.matchAll(/\breturn\b/g)].length;
+  expect('nothing short-circuits the export before it runs',
+    returns === 3
+    && /if \(!exportPeriod\) return;/.test(body)
+    && /if \(exportPeriod\.rows\.length === 0\) \{ showAlert\('Nothing to export yet', NOTHING_TO_REPORT\); return; \}/.test(body),
+    true);
+  // The fallback must NOT claim the file worked, and must not stay silent.
+  expect('the clipboard fallback says it IS a fallback',
+    /could not hand over a file/.test(body), true);
+  expect('…and a write that threw does not report a successful copy without saying so',
+    /catch \{/.test(body) && /Could not save or copy the CSV\./.test(body), true);
+}
+
+// ── F18, THE OTHER HALF: /reports SHIPS THE SAME SCHEDULE AS A FILE ────────
+//
+// The flagship screen was fixed above. The SAME WIP schedule is one sidebar row
+// away on /reports, where "Copy CSV" went to the clipboard and nowhere else
+// while the PDF button beside it has handed a document to the share sheet since
+// it shipped. Fixing one screen and not the other is precisely the "wired at
+// some call sites and not others" failure this campaign keeps finding — it
+// typechecks, every guard stays green, and the GC on a phone still has nothing
+// to attach to an email.
+//
+// Not executable for the same reason as the block above (expo-sharing and
+// expo-file-system are native at module scope), so what is pinned is SHAPE,
+// ORDER and REACHABILITY: the clipboard call must come AFTER the file attempt,
+// and the handler must carry exactly the exits it is supposed to carry.
+console.log('\nthe /reports CSV hands over a file too, not only a clipboard paste:');
+{
+  const REPORTS = readFileSync(join(ROOT, 'app', 'reports.tsx'), 'utf8');
+  const PDFMOD = readFileSync(join(ROOT, 'utils', 'financialReportPdf.ts'), 'utf8');
+
+  expect('utils/financialReportPdf exports a CSV share path beside its PDF ones',
+    /export async function shareReportCsv\(/.test(PDFMOD), true);
+  expect('…which writes through the ONE cross-platform helper, lazily',
+    /deliverTextFile, hasFileSystem \} = await import\('@\/utils\/platformFile'\)/.test(PDFMOD)
+    && !/^import .*platformFile/m.test(PDFMOD), true);
+  expect('…and hands it to the share sheet as a CSV, not as a PDF',
+    /mimeType: 'text\/csv'/.test(PDFMOD) && /UTI: 'public\.comma-separated-values-text'/.test(PDFMOD), true);
+  expect('…and reports which of the three outcomes happened',
+    /Promise<'shared' \| 'downloaded' \| 'unavailable'>/.test(PDFMOD), true);
+
+  const at = REPORTS.indexOf('const handleCopyCsv = useCallback(async () => {');
+  const body = at < 0 ? '' : REPORTS.slice(at, REPORTS.indexOf('}, [tab, wip, aging,', at));
+  expect('the /reports CSV handler is there to inspect', at >= 0, true);
+  // ORDER, not presence: a file share added AFTER the clipboard copy leaves the
+  // phone behaviour exactly as it was while every substring below matches.
+  const shareAt = body.indexOf('shareReportCsv(');
+  const clipAt = body.indexOf('copyToClipboard(');
+  expect('it tries the file first and the clipboard second',
+    shareAt >= 0 && clipAt >= 0 && shareAt < clipAt, true);
+  expect('…and stops when the file actually reached the user',
+    /if \(delivered !== 'unavailable'\) \{/.test(body), true);
+  // REACHABILITY. Exactly the four exits this handler is supposed to have — the
+  // Business gate, the nothing-to-report refusal, the profit tab (which ships no
+  // CSV), and the success short-circuit. A fifth, or an inverted first, makes
+  // Export CSV do nothing on every real press and every regex above still
+  // matches: the shape that hid the top blocker in this area through two review
+  // layers.
+  const returns = [...body.matchAll(/\breturn\b/g)].length;
+  expect('nothing short-circuits the export before it runs',
+    returns === 4
+    && /if \(tab === 'wip' && !wipUnlocked\) return;/.test(body)
+    && /if \(nothingToExport\) \{ showAlert\('Nothing to report yet', blockedReason\); return; \}/.test(body)
+    && /if \(!csv\) return;/.test(body),
+    true);
+  // THE FILE NAME, AS A VALUE. The two reports that ship a CSV each get their
+  // own named document — a bookkeeper's inbox is where the file name has to do
+  // its work — and the name and the share-sheet title are no longer two
+  // interchangeable positional strings.
+  //
+  // The verifier transposed them at the call site (`shareReportCsv(title, csv,
+  // fileName)`) and all four WIP validators stayed at 100%: the guard here
+  // matched the two templates in the handler body and the one below matched the
+  // share call's index against the clipboard's, and neither can see argument
+  // order. The attachment would have shipped as "WIP Schedule 2026-08-31" with
+  // no .csv extension, which is the one thing this whole path exists to get
+  // right. The pair is produced by a pure function now and travels as ONE
+  // object, so there is no order left to get wrong — and the extension can be
+  // asserted rather than assumed.
+  {
+    const wipDoc = reportCsvDocument('wip', '2026-08-31T17:04:11.000Z');
+    const agingDoc = reportCsvDocument('aging', '2026-08-31T17:04:11.000Z');
+    expect('the WIP CSV lands as a .csv named for the schedule and its as-of DAY',
+      wipDoc.fileName, 'wip-schedule-2026-08-31.csv');
+    expect('…and the share sheet gets the readable title, not the file name',
+      wipDoc.dialogTitle, 'WIP Schedule 2026-08-31');
+    expect('the aging CSV lands as its own .csv', agingDoc.fileName, 'ar-aging-2026-08-31.csv');
+    expect('…with its own readable title', agingDoc.dialogTitle, 'A/R Aging 2026-08-31');
+    expect('…and neither title is ever what the file is called',
+      wipDoc.dialogTitle !== wipDoc.fileName && agingDoc.dialogTitle !== agingDoc.fileName, true);
+    expect('…and no title carries an extension a bookkeeper would see',
+      /\.csv$/.test(wipDoc.dialogTitle) || /\.csv$/.test(agingDoc.dialogTitle), false);
+  }
+  // One named object, not two loose strings: two same-typed positional
+  // arguments can be transposed at this call site invisibly.
+  expect('…and the screen hands that document straight to the share path',
+    /const doc = reportCsvDocument\(tab === 'wip' \? 'wip' : 'aging', tab === 'wip' \? wip\.asOf : aging\.asOf\);/.test(body)
+    && /await shareReportCsv\(doc, csv\)/.test(body), true);
+  expect('…and shareReportCsv takes that document rather than loose strings',
+    /export async function shareReportCsv\(\s*doc: ReportCsvDocument,\s*csv: string,\s*\)/.test(PDFMOD), true);
+  // The fallback must NOT claim the file worked, and a throw must not become a
+  // silent successful copy.
+  expect('the clipboard fallback says it IS a fallback',
+    /could not hand over a file/.test(body), true);
+  expect('…and a write that threw says so rather than reporting a copy',
+    /catch \{/.test(body) && /Could not save or copy the CSV\./.test(body), true);
+  // The BUTTON has to stop calling itself a copy, or the screen advertises the
+  // fallback as the behaviour.
+  expect('…and the button no longer calls the action a copy',
+    /Export CSV<\/Text>/.test(REPORTS) && !/>Copy CSV</.test(REPORTS), true);
+}
+
+// ── EVERY EXPORT BUTTON IS STILL WIRED TO ITS HANDLER ──────────────────────
+//
+// THE HOLE THE VERIFIER WALKED THROUGH (2026-09-11). Four validators pin what
+// happens INSIDE these six handlers — down to the exact number of `return`
+// statements each may contain — and not one of them asserted that any button
+// ever calls one: `grep -nE 'onPress=\{handle' scripts/validate-wip*.ts
+// scripts/validate-money-basis-parity.ts` returned ZERO hits. Severing the
+// bindings one at a time (`onPress={handleX}` → `onPress={() => {}}`) left all
+// four validators fully green, 747 assertions, while Save period / Lock /
+// Export CSV / Export PDF and both /reports exports did nothing at all on press.
+//
+// Two of those are not merely dead buttons: Lock is the irreversible surety act
+// and Share PDF is the document that goes to the bank.
+//
+// The technique is the repo's own — `closeDrill` has been door-pinned this way
+// since the ETC work (scripts/validate-money-basis-parity.ts) — it had simply
+// never been applied to the six. This pins the binding AND the button it sits
+// on: a binding moved to a different control fails on the label check, so
+// "wired to something" is not enough.
+console.log('\nthe export buttons are wired to the handlers every other guard inspects:');
+{
+  const WIP_SCREEN = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
+  const REPORTS_SCREEN = readFileSync(join(ROOT, 'app', 'reports.tsx'), 'utf8');
+
+  const pinButton = (screen: string, file: string, handler: string, label: string) => {
+    const marker = `onPress={${handler}}`;
+    const hits = screen.split(marker).length - 1;
+    const at = screen.indexOf(marker);
+    const closeAt = at < 0 ? -1 : screen.indexOf('</TouchableOpacity>', at);
+    const button = at < 0 || closeAt < 0 ? '' : screen.slice(at, closeAt);
+    expect(`${file}: the "${label}" button calls ${handler}`,
+      hits === 1
+      && screen.includes(`const ${handler} = useCallback(`)
+      && button.includes(label),
+      true);
+  };
+
+  pinButton(WIP_SCREEN, 'wip-report', 'handleSnapshot', 'Save period');
+  pinButton(WIP_SCREEN, 'wip-report', 'handleLock', 'Lock');
+  pinButton(WIP_SCREEN, 'wip-report', 'handleExportCsv', 'Export CSV');
+  pinButton(WIP_SCREEN, 'wip-report', 'handleExportPdf', 'Export PDF');
+  pinButton(REPORTS_SCREEN, 'reports', 'handleCopyCsv', 'Export CSV');
+  // The PDF button's label is platform-dependent, so the phone half is the one
+  // pinned — it is the press that mails a bank document from the field.
+  pinButton(REPORTS_SCREEN, 'reports', 'handleSharePdf', 'Download & share PDF');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

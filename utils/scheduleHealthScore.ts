@@ -666,7 +666,16 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar }: ScoreInput)
   // ── Check 9: Resource overallocation ───────────────────────────────
   // Pull from CPM conflicts.
   {
-    const conflicts = cpm.conflicts ?? [];
+    // RESOURCE conflicts only. This read `cpm.conflicts` whole, so a dependency
+    // cycle, an anchor violation and (since 2026-09-12) a link to a deleted task
+    // all landed in a check labelled "DCMA #10 — Resources" and were reported to
+    // the user as "crew conflicts — reassign or sequence the overlapping tasks",
+    // which is advice that cannot fix any of them. levelResources is the only
+    // producer of these two kinds (utils/cpm.ts), and they are what DCMA #10 is
+    // about.
+    const conflicts = (cpm.conflicts ?? []).filter(
+      c => c.kind === 'resource_overallocation' || c.kind === 'resource_delayed_project',
+    );
     const denom = leafTasks.length || 1;
     const value = 1 - Math.min(1, conflicts.length / denom);
     const weight = 6;

@@ -631,14 +631,22 @@ export function applyMilestoneBilling<T extends MilestoneChargeableRow>(
  * THE INVARIANT. `LinkedEstimateItem.lineTotal` is the MARKED-UP line total,
  * so `Σ items.lineTotal === LinkedEstimate.grandTotal`.
  * app/(tabs)/estimate/full.tsx honours it (`base * (1 + markup/100) * qty`).
- * TWO shipped writers violate it: app/area-takeoff.tsx and
- * app/plan-intelligence.tsx each append an item whose `lineTotal` is the raw
- * COST with `markup: 0`, while bumping `grandTotal` by that cost PLUS its
- * share of markup — and both persist through `commitEstimatePatch`, so the
- * divergence is on the project, not in a draft.
  *
- * The consequence is only visible where the estimate is BILLED: the schedule
- * of values under-foots by exactly that markup, every row bills to 100%, the
+ * TWO shipped writers used to violate it — app/area-takeoff.tsx and
+ * app/plan-intelligence.tsx each appended an item whose `lineTotal` was the raw
+ * COST with `markup: 0` while bumping `grandTotal` by that cost PLUS its share
+ * of markup, and both persist through `commitEstimatePatch`, so the divergence
+ * landed on the project rather than in a draft. BOTH ARE FIXED (audit
+ * 2026-09-11): each now marks the appended line up at the estimate's own
+ * effective ratio, leaves at-cost categories alone, and rounds to the cent the
+ * way recomputeEstimate rounds. scripts/validate-invoice-billing.ts lifts both
+ * append blocks out of the shipped screens and RUNS them, so the invariant is
+ * measured rather than asserted here.
+ *
+ * This function stays, because that was never the only way a schedule can fail
+ * to reach the contract — an estimate can simply be missing scope, and the row
+ * set can be narrowed. The consequence is only visible where the estimate is
+ * BILLED: the schedule of values under-foots, every row bills to 100%, the
  * screen prints "Remaining $0.00", and the margin on that scope is never
  * invoiced. utils/aiaBilling.reconcileAIASov catches it on the AIA screen;
  * this is the same catch for /bill-from-estimate.
@@ -659,6 +667,68 @@ export function sovFootingShortfall(rowTotal: number, estimateGrandTotal: number
 export function milestoneInvoiceNote(m: MilestoneLike, contractTitle?: string): string {
   const doc = contractTitle?.trim() || 'the construction agreement';
   return `Payment milestone "${m.label?.trim() || 'Contract milestone'}" under ${doc}.`;
+}
+
+/**
+ * WHAT TAPPING "Create invoice" ON A MILESTONE ROW DOES — the whole decision,
+ * as a value.
+ *
+ * WHY THIS IS NOT INLINE IN app/contract.tsx (repair pass 2026-09-12). The
+ * refusal used to live in the screen as `if (!bill.billable) { showAlert(…);
+ * return; }`, and the only thing standing between a blocked milestone and the
+ * invoice editor was that one `return;`. A screen cannot be executed by
+ * `bun run test:money-definitions`, so the guard protecting it grepped for the
+ * token — and a grep cannot see control flow. Two mutations proved it: moving
+ * the `return;` into the alert's own "Open invoice" button, and weakening it to
+ * `if (bill.existingInvoiceId) return;`. Both left the `contract_fully_billed`
+ * refusal — the 125%-of-contract over-bill MONEY-LEDGER-1 exists to stop —
+ * falling straight through into the editor, and both kept the suite green.
+ *
+ * Returning a DISCRIMINATED UNION moves that decision somewhere a test can run
+ * it, and makes the fall-through a type error rather than a silent one: the
+ * navigation payload exists only on the `compose` arm, so a caller that does
+ * not stop on `refuse` cannot reach `.line` at all.
+ */
+export type MilestoneBillEffect =
+  | {
+      kind: 'refuse';
+      title: string;
+      message: string;
+      /** Present when the refusal can offer to open the invoice that caused it. */
+      existingInvoiceId?: string;
+    }
+  | {
+      kind: 'compose';
+      /** The single lump-sum line the invoice editor is prefilled with. */
+      line: MilestoneInvoiceLine;
+      /** Invoice note naming the milestone and the contract it sits under. */
+      note: string;
+      /** Stamped onto the invoice as `sourceMilestoneId` — the identifier
+       *  `billedAgainstMilestones` actually runs on. */
+      milestoneId: string;
+    };
+
+export function milestoneBillEffect(
+  bill: MilestoneBillability,
+  milestone: MilestoneLike,
+  contract: { contractValue: number; title?: string },
+): MilestoneBillEffect {
+  if (!bill.billable) {
+    return {
+      kind: 'refuse',
+      title: 'Can’t bill this milestone',
+      message: bill.reason
+        ? milestoneBlockMessage(bill.reason, bill.ceiling, bill.amount)
+        : 'This milestone can’t be invoiced right now.',
+      existingInvoiceId: bill.existingInvoiceId,
+    };
+  }
+  return {
+    kind: 'compose',
+    line: deriveMilestoneInvoiceLine(milestone, contract.contractValue),
+    note: milestoneInvoiceNote(milestone, contract.title),
+    milestoneId: milestone.id,
+  };
 }
 
 // ─── 2. Invoice reminders (dunning) ──────────────────────────────────

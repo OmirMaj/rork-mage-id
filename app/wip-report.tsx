@@ -26,6 +26,7 @@ import {
   suggestBillingsWithSource, sumApprovedChangeOrders, isWipReportableProject,
   deriveOriginalContractWithSource, deriveEstimatedCostWithSource,
   suggestCostToDateWithSource, WIP_SOURCE_LABELS, wipSourceLabel,
+  describeCostToDateComponents,
   describeCostBasis, describePortfolioCostBasis, contractVsEstimateNote,
   payAppContractHistoryNote,
   selectWipDisplayPeriod, applyWipEtcEntry,
@@ -37,7 +38,8 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import { FeatureExplainerSheet } from '@/components/FeatureExplainerSheet';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
-import { wipPeriodToCSV, shareWipPeriodPdf } from '@/utils/wipExport';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { wipPeriodToCSV, shareWipPeriodCsv, shareWipPeriodPdf } from '@/utils/wipExport';
 import { copyToClipboard } from '@/utils/clipboard';
 import type { WipRowInput, Project } from '@/types';
 import { showAlert } from '@/utils/alert';
@@ -225,9 +227,23 @@ function WipReportScreenInner() {
     getInvoicesForProject,
     getAIAPayAppsForProject,
     settings,
+    // THE COST SOURCES THIS SCREEN HELD AND NEVER READ (F4, audit 2026-09-11).
+    // Cost-to-date here was subcontract payments plus material receipts and
+    // nothing else, while the sibling bank-facing schedule on /reports priced
+    // self-perform crew hours, machine days and permit fees into the same
+    // figure. Measured on one job: $222,000 / 55.50% complete / $305,250 earned
+    // here against $271,230 / 67.81% / $372,941.25 there — $67,691.25 of earned
+    // revenue and the identical dollar of underbilling, on two documents one
+    // sidebar row apart that both offer a PDF for a bank.
+    //
+    // app/reports.tsx wires exactly these; the only thing missing was this line
+    // and the two hooks below.
+    equipment, permits,
   } = useProjects();
   const { periods, addPeriod, lockPeriod } = useWip();
   const { getReceiptsForProject } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
   const { user } = useAuth();
   const userId = user?.id;
 
@@ -463,7 +479,14 @@ function WipReportScreenInner() {
     const approvedChangeOrders = sumApprovedChangeOrders(cos);
     // Cost-to-date first: it is the third FLOOR under cost-at-completion, so it
     // has to exist before the derive runs.
-    const auto = suggestCostToDateWithSource(commitments, receipts);
+    // EVERY COST SOURCE MAGE TRACKS, not just the two this screen could see
+    // (F4). `projectId` is required because the equipment roster and the permit
+    // list are account-wide and carry their own project id — passing them
+    // unfiltered with no project would charge every machine to every job.
+    const auto = suggestCostToDateWithSource(commitments, receipts, {
+      projectId: project.id,
+      timeEntries, laborRates, overtimeMultiplier, equipment, permits,
+    });
     const override = overrideInForce(costOverrides, project.id);
     const costToDate = override ? override.value : auto.value;
     // Pass the CO figures so the COST budget grows with them too. Without
@@ -530,7 +553,7 @@ function WipReportScreenInner() {
       cost,
       etc,
     };
-  }, [costOverrides, etcMap, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject]);
+  }, [costOverrides, etcMap, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject, timeEntries, laborRates, overtimeMultiplier, equipment, permits]);
 
   const buildInput = useCallback(
     (project: Project): WipRowInput => buildRow(project).input,
@@ -540,10 +563,28 @@ function WipReportScreenInner() {
   // Snapshot rows carry their provenance, so a period locked in March can still
   // answer the surety's question in June — recomputing it at export time would
   // explain today's projects, not the figures the export is printing.
+  //
+  // THE THREE COST-AT-COMPLETION CANDIDATES GO ON THE ROW TOO (F19). The frozen
+  // row used to carry the WINNER and the name of the branch that produced it,
+  // and `describeCostBasis` — the sentence a banker can actually act on — needs
+  // all three. So the exported PDF footnote could name the branch and could not
+  // reproduce the sentence the drill-in prints one tap away: the document that
+  // leaves the building explained LESS than the screen it came from.
   const liveRows: WipSnapshotRowWithSources[] = useMemo(
     () => activeProjects.map((p) => {
-      const { input, sources } = buildRow(p);
-      return { projectId: p.id, projectName: p.name, input, output: computeWipRow(input), sources };
+      const { input, sources, cost } = buildRow(p);
+      return {
+        projectId: p.id, projectName: p.name, input, output: computeWipRow(input), sources,
+        // Only the candidates. `value` and `source` are already on the row (as
+        // wipRowCostAtCompletion and sources.totalEstimatedCost) and storing them
+        // twice is how a snapshot ends up disagreeing with itself.
+        costBasis: {
+          estimateBasis: cost.estimateBasis,
+          committedFloor: cost.committedFloor,
+          incurredFloor: cost.incurredFloor,
+          basis: cost.basis,
+        },
+      };
     }),
     [activeProjects, buildRow],
   );
@@ -903,8 +944,9 @@ function WipReportScreenInner() {
         `WIP snapshot dated ${periodEndDate} created. These are your figures AS THEY STAND TODAY, `
         + 'labelled with that period end — MAGE does not restate a closed month, so save the period '
         + 'as close to the date as you can. Check cost-to-date and cost-to-complete on each project '
-        + 'before you lock it: the automatic cost figure counts subs paid and material receipts only, '
-        + 'so your own crews are not in it yet.',
+        + 'before you lock it: the automatic cost figure counts sub payments, material receipts, '
+        + 'crew hours at your configured rates, equipment days and permit fees — a trade or a machine '
+        + 'with no rate on file adds nothing, because MAGE will not invent one.',
       );
     };
     if (duplicate) {
@@ -997,13 +1039,36 @@ function WipReportScreenInner() {
   const handleExportCsv = useCallback(async () => {
     if (!exportPeriod) return;
     if (exportPeriod.rows.length === 0) { showAlert('Nothing to export yet', NOTHING_TO_REPORT); return; }
-    // TODAY, so an UNSAVED export dated to a picked period end says on the
-    // document that its figures are current-state rather than restated. The
+    // A FILE FIRST, THE CLIPBOARD ONLY AS A FALLBACK — F18 (audit 2026-09-11).
+    // This was clipboard-only, on a phone: fourteen columns of WIP schedule with
+    // no attachment to email, while `shareWipPeriodPdf` two lines down has always
+    // handed the document to the share sheet. Same period, same as-of note.
+    //
+    // TODAY is passed, so an UNSAVED export dated to a picked period end says on
+    // the document that its figures are current-state rather than restated. The
     // Save alert has always said it; Export never passed through the alert.
+    try {
+      const delivered = await shareWipPeriodCsv(exportPeriod, todayCalendarDay());
+      if (delivered !== 'unavailable') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // 'downloaded' already reached the user; 'shared' opened the share sheet
+        // and an alert on top of it is noise. Only the fallback needs to speak.
+        return;
+      }
+    } catch {
+      // A failed write must not silently become a successful copy without the
+      // reader being told which one happened — fall through and say so.
+    }
     const csv = wipPeriodToCSV(exportPeriod, todayCalendarDay());
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert(ok ? 'CSV copied' : 'Copy failed', ok ? 'Paste into Excel / QuickBooks / Sage.' : 'Could not copy CSV.');
+    showAlert(
+      ok ? 'CSV copied' : 'Copy failed',
+      ok
+        ? 'This device could not hand over a file, so the schedule is on your clipboard — paste it '
+          + 'into Excel / QuickBooks / Sage.'
+        : 'Could not save or copy the CSV.',
+    );
   }, [exportPeriod]);
 
   const handleExportPdf = useCallback(async () => {
@@ -1354,7 +1419,16 @@ function WipReportScreenInner() {
                       : r.sources?.costToDate === 'entered_on_this_device'
                         ? ' · entered here, not synced yet'
                         : r.input.costToDate > 0
-                          ? ' · subs paid + material receipts only — tap to add your own crews'
+                          // WAS "subs paid + material receipts only — tap to add
+                          // your own crews", which stopped being true the moment
+                          // this screen started pricing crew hours, machine days
+                          // and permit fees into the figure (F4). The row now
+                          // reads the frozen source: a snapshot taken before that
+                          // landed genuinely IS the two-source floor and keeps
+                          // saying so.
+                          ? (r.sources?.costToDate === 'recorded_actual_cost'
+                            ? ' · every cost recorded on this job — tap for the breakdown'
+                            : ' · subs paid + material receipts only — tap to add your own crews')
                           : rowCost && rowCost.committedFloor > 0
                             ? ` — nothing paid out yet, though ${money(rowCost.committedFloor)} is signed. Tap to enter what this job has cost you.`
                             : ' — nothing recorded yet. Tap to enter what this job has cost you.'}
@@ -1523,13 +1597,26 @@ function WipReportScreenInner() {
                         {drillRow.override
                           ? `Cost-to-date ${money(drillInput.costToDate)} — `
                             + `${wipSourceLabel(drillRow.sources.costToDate)}. `
-                            + `The app can only see ${money(drillRow.auto.value)} `
-                            + `(${money(drillRow.auto.committed)} subs paid + `
-                            + `${money(drillRow.auto.materials)} material receipts).`
+                            + `MAGE’s own recorded figure is ${money(drillRow.auto.value)}: `
+                            + describeCostToDateComponents(drillRow.auto)
+                          // NO LOWER-BOUND BRANCH HERE, deliberately. This used to
+                          // end with a sentence declaring self-perform labour absent
+                          // and the figure a floor (quoted in full in the guard, not
+                          // here — the assertion that the sentence is gone matches
+                          // prose about it too), which was true until F4 and is not
+                          // now:
+                          // `buildRow` always hands the engine all five direct cost
+                          // sources, so `drillRow.auto.complete` is invariably true
+                          // on a LIVE row and a `complete ? … : …` ternary here
+                          // would be a branch no user can reach — the
+                          // tested-but-unreachable shape this repo removed
+                          // `percentCompleteOverride` for. The frozen-snapshot case
+                          // is real and is handled where it belongs, on the export,
+                          // by `wipCostToDateCaveat` reading each row's own source.
                           : `Cost-to-date ${money(drillRow.auto.value)} — `
-                            + `${money(drillRow.auto.committed)} subs paid + `
-                            + `${money(drillRow.auto.materials)} material receipts. `
-                            + 'Self-performed labor is NOT included, so this is a lower bound — type the real figure above.'}
+                            + describeCostToDateComponents(drillRow.auto)
+                            + ' A trade with no rate on file and a machine with no day rate add nothing'
+                            + ' — MAGE does not invent a rate — so those are the only gaps.'}
                       </Text>
                       {drillRow.override && !drillRow.override.synced ? (
                         <Text style={styles.sourceLine}>
@@ -1662,8 +1749,28 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderTopWidth: 1, borderTopColor: t.line,
   },
   projectName: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '600' as const },
-  over: { fontSize: Type.footnote.fontSize, color: t.danger, fontWeight: '700' as const },
-  under: { fontSize: Type.footnote.fontSize, color: t.info, fontWeight: '700' as const },
+  // F16 (audit 2026-09-11), the colour half. This was `over: t.danger` /
+  // `under: t.info` — red for overbilling, blue for underbilling — and it
+  // contradicted this screen's own explainer twice over:
+  //
+  //   • The explainer says overbilling "is good for cash but is a liability you
+  //     still owe in labor and materials", and says of underbilling "it is the
+  //     first thing a surety or a lender looks for". Painting the first as an
+  //     alarm and the second as a footnote inverts the emphasis the same page
+  //     spells out in words.
+  //   • `t.danger` means something specific on THIS screen: the ASC 605-35
+  //     forecast-loss tag and the watch flags. An ordinary — often desirable —
+  //     billing position wearing the same red devalues the one alarm that is a
+  //     real alarm.
+  //
+  // So overbilling keeps the informational blue it earns, and underbilling takes
+  // the amber attention ink. Both are LABEL inks rather than signal fills, which
+  // is what constants/colors.ts requires of anything rendered as text
+  // (validate-contrast check 5 holds the labels to AA on their own tint; the
+  // vivid fills measured 2.06–3.61:1 as text). The words "Over" and "Under" are
+  // still in the cell, so colour is never the only channel carrying the meaning.
+  over: { fontSize: Type.footnote.fontSize, color: t.info, fontWeight: '700' as const },
+  under: { fontSize: Type.footnote.fontSize, color: t.warningLabel, fontWeight: '700' as const },
   periodChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md,

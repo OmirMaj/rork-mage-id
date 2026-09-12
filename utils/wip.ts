@@ -4,10 +4,23 @@
 import type {
   WipRowInput, WipRow, WipPortfolio, WipSnapshotRow, WipFlags, WipPeriod,
   Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project, MaterialReceipt,
+  TimeEntry, Equipment, Permit,
 } from '@/types';
 // Pure money math — utils/invoiceBilling.ts has no React Native imports, so the
 // bun validators that import this module keep running.
 import { pendingRetentionHeld } from '@/utils/invoiceBilling';
+// THE DIRECT-COST ARITHMETIC IS BORROWED, NEVER RE-EXPRESSED (F4, audit
+// 2026-09-11). Cost-to-date on this schedule has to equal the one
+// utils/financialReports.ts prints, and that one is `computeJobCost(...).actual`
+// — so the pricing rules for a crew shift, a machine day and a commitment
+// payment are imported from the modules that own them rather than written a
+// second time here. A second expression of "what a 10-hour day with 2 hours of
+// overtime costs" is a new parity axis waiting to open, which is the failure
+// this whole module exists to close.
+import {
+  isEligibleLaborEntry, normalizeTradeKey, priceLaborEntry, type LaborRateMap,
+} from '@/utils/laborSamples';
+import { EQUIPMENT_HOURS_PER_DAY, commitmentPaidToDate } from '@/utils/jobCostEngine';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE WIP TERMS — one definition each (app-experience audit 2026-09-07, "Do
@@ -24,8 +37,9 @@ import { pendingRetentionHeld } from '@/utils/invoiceBilling';
 //      whether a job is financing itself on its own client's money.
 //   2. COST-TO-DATE BASIS — this engine sums commitment.paidToDate + material
 //      receipts (suggestCostToDate); computeWIPReport routes through
-//      utils/jobCostEngine. validate-money-definitions.ts already pins those
-//      two to the same arithmetic.
+//      utils/jobCostEngine. validate-money-definitions.ts pins those two to the
+//      same arithmetic on the two sources they SHARED; the three sources they
+//      did not is axis 9 below, and it is closed now too.
 //   3. PERCENT-COMPLETE BASIS — both are cost-based (cost ÷ cost-at-
 //      completion); they inherit whatever axis 2 hands them.
 //   4. PROJECT POPULATION — app/wip-report.tsx listed EVERY project including
@@ -85,6 +99,34 @@ import { pendingRetentionHeld } from '@/utils/invoiceBilling';
 // its own opinion. Schedule progress is still READ on both screens — as a
 // DIAGNOSTIC (flagWipRow's `evm` divergence flag), never as a revenue basis.
 // scripts/validate-wip-parity.ts asserts all three axes across the two engines.
+//
+// AXIS 9 — THE REST OF COST-TO-DATE (F4, audit 2026-09-11), the largest of the
+// nine and the last to close. Axis 2 settled the arithmetic these two engines
+// applied to the sources they SHARED and left the three they did not:
+// computeWIPReport read `computeJobCost(...).actual`, which prices self-perform
+// crew hours at the GC's own rates, machine days at each machine's day rate and
+// permit fees, while `suggestCostToDate` here saw sub payments and material
+// receipts only. Measured on one job — $180,000 of subs paid, $42,000 of
+// receipts, 700 crew hours of which 40 overtime, 80 machine hours at $450/day,
+// $4,090 of permits, a $550,000 contract against a $400,000 estimate cost:
+//
+//     /wip-report   $222,000   55.50% complete   earned $305,250.00
+//     /reports      $271,230   67.81% complete   earned $372,941.25
+//
+// $67,691.25 of earned revenue, and the identical dollar of underbilling, on two
+// documents one sidebar row apart. `suggestCostToDateWithSource` now takes the
+// same sources, BORROWING the pricing rules from the modules that own them
+// (priceLaborEntry, EQUIPMENT_HOURS_PER_DAY, commitmentPaidToDate) rather than
+// re-expressing them — and scripts/validate-wip-parity.ts asserts the two
+// engines agree to the cent on a fixture carrying all five components, a draft
+// commitment, a negative paidToDate, an unrated trade and a rate-less machine.
+//
+// STILL OUTSIDE: hooks/useWeekClose.ts builds a WIP row by hand and calls the
+// two-argument form, so the Friday Close remains on the old lower bound. It is
+// not this wave's file; the one-line change is in the handoff. Before this, the
+// two BANK-FACING schedules disagreed and the Close agreed with one of them;
+// now the two bank documents agree and the Close is the outlier, which is the
+// right way round for the surface that is not a bank document.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -435,6 +477,7 @@ export type WipSource =
   | 'estimate_base_total'
   | 'signed_commitments'
   | 'commitments_and_receipts'
+  | 'recorded_actual_cost'
   | 'cost_incurred'
   | 'cost_to_complete_entered'
   | 'none';
@@ -461,6 +504,9 @@ export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
   signed_commitments: 'Signed subcontracts and POs, including CO revisions',
   commitments_and_receipts:
     'Subs paid to date plus material receipts — self-performed labor NOT included, so this is a lower bound',
+  recorded_actual_cost:
+    'Every cost recorded on this job — subs paid, material receipts, your own crews’ hours at your rates, '
+    + 'equipment days and permit fees',
   cost_incurred:
     'Cost you have already paid out on this job — more than the estimate or the commitments, so it sets the floor',
   cost_to_complete_entered:
@@ -610,11 +656,38 @@ export interface WipRowSources {
 }
 
 /**
+ * THE THREE COST-AT-COMPLETION CANDIDATES, FROZEN WITH THE ROW — F19 (audit
+ * 2026-09-11).
+ *
+ * `describeCostBasis` is the sentence that turns a cost-at-completion into
+ * something a banker can act on: "your estimate's cost before markup, $131,502.
+ * The $42,200 you have signed in subcontracts and POs is read as work that
+ * estimate already prices, so it is not added on top of it." It needs all three
+ * candidates, and a snapshot row carried only the WINNER plus its source name —
+ * so the PDF footnote could name the branch and could not reproduce the
+ * sentence. The drill-in said more than the document, which is backwards: the
+ * document is the thing that leaves the building.
+ *
+ * Optional, because a period frozen before this shipped does not have it, and
+ * the footnote falls back to the source label for those rather than
+ * reconstructing three figures it does not hold. Deliberately NOT the whole
+ * `WipEstimatedCost`: `value` and `source` are already on the row (as
+ * `wipRowCostAtCompletion` and `sources.totalEstimatedCost`) and storing them
+ * twice is how a snapshot ends up disagreeing with itself.
+ */
+export type WipRowCostBasis =
+  Pick<WipEstimatedCost, 'estimateBasis' | 'committedFloor' | 'incurredFloor' | 'basis'>;
+
+/**
  * A snapshot row that carries its provenance. `sources` is optional because
  * periods locked before this shipped do not have it — those must say so rather
  * than have a source invented for them (WIP_SOURCE_UNRECORDED below).
  */
-export type WipSnapshotRowWithSources = WipSnapshotRow & { sources?: WipRowSources };
+export type WipSnapshotRowWithSources = WipSnapshotRow & {
+  sources?: WipRowSources;
+  /** The cost-basis candidates, for the export footnote. See WipRowCostBasis. */
+  costBasis?: WipRowCostBasis;
+};
 
 /** A period whose rows may carry provenance. A plain WipPeriod is assignable. */
 export type WipPeriodWithSources = Omit<WipPeriod, 'rows'> & { rows: WipSnapshotRowWithSources[] };
@@ -736,11 +809,80 @@ export const WIP_SOURCE_UNRECORDED = 'Not recorded — this snapshot predates so
  * always shown it ("est. — tap to add labor") and the PDF dropped it, so the
  * one document that leaves the building was the one that did not say the
  * figure was a floor.
+ *
+ * IT IS NO LONGER UNCONDITIONAL (F4, audit 2026-09-11). Since the flagship
+ * screen started passing the direct cost sources, a row whose cost-to-date came
+ * off `recorded_actual_cost` is NOT a lower bound, and printing this sentence
+ * over it would understate a figure that is complete — the same class of
+ * dishonesty as the omission it was written for, pointed the other way. Use
+ * `wipCostToDateCaveat(rows)`, which reads the rows' own recorded provenance and
+ * returns this sentence only for the rows that still need it. The constant stays
+ * exported because snapshots frozen before the column exists still land on it.
  */
 export const WIP_COST_TO_DATE_CAVEAT =
   'Cost to date counts subcontractor payments and material receipts. Self-performed '
   + 'labor is not captured automatically — unless the line above says you entered the '
   + 'figure, it is a LOWER BOUND, not the total cost incurred.';
+
+/** What an export says about cost-to-date when every row's figure is complete. */
+export const WIP_COST_TO_DATE_COMPLETE =
+  'Cost to date counts subcontractor payments, material receipts, your own crews’ hours at '
+  + 'your configured rates, equipment days at each machine’s day rate, and permit fees. A trade '
+  + 'with no rate on file and a machine with no day rate contribute nothing — MAGE does not '
+  + 'invent a rate — so those are the only gaps this figure can have.';
+
+/**
+ * The cost-to-date caveat THESE rows have earned, read off their own recorded
+ * provenance rather than off a build-time constant.
+ *
+ * A snapshot is the document, and its provenance was frozen with it: a period
+ * saved before F4 landed genuinely IS a subs-plus-materials lower bound and has
+ * to keep saying so, while a period saved after it is not one. So the sentence
+ * is derived per export:
+ *   • every row complete (or typed by the GC) → the complete sentence;
+ *   • any row still on the lower bound → the lower-bound caveat, because one
+ *     understated job understates the schedule;
+ *   • a row with no `sources` at all (pre-provenance snapshot) counts as the
+ *     lower bound, which is the conservative read and the honest one.
+ */
+export function wipCostToDateCaveat(rows: WipSnapshotRowWithSources[]): string {
+  const lowerBound = rows.some((r) => {
+    const source = r.sources?.costToDate;
+    if (source === 'recorded_actual_cost') return false;
+    // A figure the GC typed himself is whatever he says it is — the schedule
+    // must not tell a banker that the contractor's own entry is a floor.
+    if (source === 'entered_on_this_device' || source === 'entered_and_synced') return false;
+    return true;
+  });
+  return lowerBound ? WIP_COST_TO_DATE_CAVEAT : WIP_COST_TO_DATE_COMPLETE;
+}
+
+/**
+ * "$180,000 subs paid + $42,000 material receipts + $45,140 your own crews +
+ * $4,500 equipment + $4,090 permits" — the components of one cost-to-date, in
+ * one sentence, with the zero components left out.
+ *
+ * One function so the drill-in and the export cannot describe the same figure
+ * two different ways, and so a component added to `suggestCostToDateWithSource`
+ * has one place to be named.
+ */
+export function describeCostToDateComponents(ctd: WipCostToDate): string {
+  const parts: [number, string][] = [
+    [ctd.committed, 'subs paid'],
+    [ctd.materials, 'material receipts'],
+    [ctd.labor, 'your own crews’ hours'],
+    [ctd.equipment, 'equipment days'],
+    [ctd.permits, 'permit fees'],
+  ];
+  const named = parts.filter(([v]) => v > 0).map(([v, label]) => `${wipMoney(v)} ${label}`);
+  if (named.length === 0) {
+    return ctd.complete
+      ? 'No cost recorded on this job yet — no sub payments, no receipts, no crew hours, no '
+        + 'equipment and no permit fees.'
+      : 'No sub payments and no material receipts recorded on this job yet.';
+  }
+  return named.join(' + ') + '.';
+}
 
 /**
  * The three source lines for one row, ready to print in a CSV cell or a PDF.
@@ -923,44 +1065,181 @@ export function deriveOriginalContractWithSource(
 }
 
 /**
+ * THE DIRECT COST SOURCES BEYOND SUBS AND MATERIALS — F4 (audit 2026-09-11).
+ *
+ * WHY THIS PARAMETER EXISTS. Until it did, this engine's cost-to-date was
+ * `Σ commitment.paidToDate + Σ material receipts` and nothing else, while the
+ * OTHER bank-facing WIP schedule (utils/financialReports.computeWIPReport) read
+ * `computeJobCost(...).actual` — which also prices self-perform crew hours,
+ * equipment days and permit fees. Measured on one fixture (a $550,000 contract
+ * on a $400,000 estimate cost, $180,000 of subs paid, $42,000 of receipts,
+ * 700 crew hours with 40 of overtime, 80 machine hours at $450/day and $4,090
+ * of permits):
+ *
+ *     /wip-report   cost-to-date $222,000   55.50% complete   earned $305,250.00
+ *     /reports      cost-to-date $271,230   67.81% complete   earned $372,941.25
+ *
+ * $67,691.25 of earned revenue — and the identical dollar of underbilling —
+ * between two documents one sidebar row apart, both of which offer a PDF for a
+ * bank. That is the same class of defect as axes 1–8 above, on the one axis
+ * nobody had closed.
+ *
+ * `projectId` is REQUIRED because equipment utilisation rows and permits are
+ * held globally and carry their own project id; passing an unfiltered roster
+ * with no project to filter by would charge every machine on the books to every
+ * job. Commitments and receipts are already per-project at every caller, which
+ * is why they stay positional arguments.
+ */
+export interface WipDirectCostSources {
+  /** The project this cost-to-date is being measured for. */
+  projectId: string;
+  /** Crew shifts. Only `clocked_out` entries with hours and a real project
+   *  price, and only when their trade has a configured rate — the refusal
+   *  utils/laborSamples owns. */
+  timeEntries?: TimeEntry[];
+  laborRates?: LaborRateMap;
+  /** The GC's overtime premium (hooks/useLaborRates). Omitted → the 1.5× FLSA
+   *  default, via priceLaborEntry. */
+  overtimeMultiplier?: number;
+  /** Machines. Utilisation logged against THIS project, at the machine's day
+   *  rate; a machine with no day rate contributes zero rather than a guess. */
+  equipment?: Equipment[];
+  /** Permits on this project. `fee` is cash already paid to the jurisdiction,
+   *  in every status — a denied plan check is not refunded. */
+  permits?: Permit[];
+}
+
+/** What a cost-to-date figure is made of, component by component. */
+export interface WipCostToDate extends WipDerived {
+  /** Σ commitment payments — the server rollup of sub and PO payments. */
+  committed: number;
+  /** Σ material-receipt totals. */
+  materials: number;
+  /** Priced self-perform crew hours. Zero when no sources were passed. */
+  labor: number;
+  /** Logged machine days at the machine's own day rate. */
+  equipment: number;
+  /** Permit fees paid. */
+  permits: number;
+  /**
+   * Did the caller hand over the direct-cost sources at all?
+   *
+   * This is the difference between "MAGE looked and there is no crew time on
+   * this job" and "MAGE cannot see crew time from this screen", and a bank
+   * document has to be able to tell a reader which. It is NOT
+   * `labor + equipment + permits > 0`: a wired screen on a pure-subcontract job
+   * finds nothing, and the caveat that says the figure is a lower bound would
+   * then be printed over a figure that is not one.
+   */
+  complete: boolean;
+}
+
+/**
  * Auto-suggested cost-to-date. Cost-to-date in a WIP schedule is cost
- * INCURRED, so we sum the two actual-cost sources MAGE tracks:
+ * INCURRED, so we sum every actual-cost source MAGE tracks:
  *   1. Σ commitment.paidToDate — approved + paid sub-submitted invoices against
  *      subcontracts / POs (server-maintained rollup).
  *   2. Σ material-receipt totals — direct material cost captured via
  *      MaterialReceipt. Receipts are NEVER posted into commitment.paidToDate
  *      (see types/index.ts MaterialReceipt doc), so there is no double count.
+ *   3. self-perform crew hours priced at the GC's own loaded rates, machine
+ *      days at the machine's day rate, and permit fees — but ONLY when the
+ *      caller passes them (see WipDirectCostSources for the measured cost of
+ *      not passing them).
  *
- * NOT captured automatically: self-performed / direct labor and any incurred-
- * but-not-yet-invoiced sub work. This is therefore a LOWER BOUND — the screen
- * surfaces it as an editable suggestion the user tops up before locking, so a
- * seeded figure is never presented as the authoritative total incurred cost.
+ * Without (3) this is a LOWER BOUND, and the screen surfaces it as an editable
+ * suggestion the user tops up before locking, so a seeded figure is never
+ * presented as the authoritative total incurred cost.
  */
 export function suggestCostToDate(
   commitments: Commitment[],
   materialReceipts: MaterialReceipt[] = [],
+  direct?: WipDirectCostSources,
 ): number {
-  return suggestCostToDateWithSource(commitments, materialReceipts).value;
+  return suggestCostToDateWithSource(commitments, materialReceipts, direct).value;
 }
 
 /**
- * suggestCostToDate, plus the split the screen needs to say what is IN the
- * lower bound and what is missing from it. `source` is always
- * `commitments_and_receipts` — this figure has one chain, not a fallback tree —
- * but the two components are returned so the drill-in can print
- * "$180,000 subs paid + $42,000 materials — self-performed labor not included".
+ * suggestCostToDate, plus the split the drill-in needs to say what is IN the
+ * figure and what is missing from it — "$180,000 subs paid + $42,000 materials
+ * + $45,140 your own crews + $4,500 equipment + $4,090 permits".
+ *
+ * `source` names WHICH of the two populations answered, because a schedule that
+ * prints a lower bound and a schedule that prints the whole recorded cost must
+ * not be readable as the same number: `recorded_actual_cost` when the direct
+ * sources were handed over, `commitments_and_receipts` when they were not. It is
+ * still not a fallback TREE — there is one chain — but the two labels differ in
+ * exactly the sentence a surety would want (see WIP_SOURCE_LABELS).
+ *
+ * EVERY COMPONENT IS COMPUTED BY THE MODULE THAT OWNS IT. The commitment leg is
+ * `commitmentPaidToDate`, the labour leg is `priceLaborEntry`, the machine leg
+ * divides by `EQUIPMENT_HOURS_PER_DAY` — all three imported from the engine
+ * utils/financialReports.ts routes through, so this function and
+ * `computeJobCost(...).actual` cannot drift. scripts/validate-wip-parity.ts
+ * asserts the two are equal to the cent on a fixture carrying all five
+ * components, a draft commitment, an unrated trade and a rate-less machine.
  */
 export function suggestCostToDateWithSource(
   commitments: Commitment[],
   materialReceipts: MaterialReceipt[] = [],
-): WipDerived & { committed: number; materials: number } {
-  const committed = commitments.reduce((sum, c) => sum + (c.paidToDate ?? 0), 0);
+  direct?: WipDirectCostSources,
+): WipCostToDate {
+  // DRAFT COMMITMENTS ARE EXCLUDED, as computeJobCost excludes them. A draft is
+  // a subcontract nobody has signed; the sibling engine has never counted one
+  // and counting it here was a divergence of exactly its payments.
+  const committed = commitments
+    .filter((c) => c.status !== 'draft')
+    .reduce((sum, c) => sum + commitmentPaidToDate(c), 0);
   const materials = materialReceipts.reduce((sum, r) => sum + (r.total ?? 0), 0);
+  if (!direct) {
+    return {
+      value: committed + materials,
+      source: 'commitments_and_receipts',
+      committed, materials, labor: 0, equipment: 0, permits: 0, complete: false,
+    };
+  }
+  const {
+    projectId, timeEntries = [], laborRates = {}, overtimeMultiplier, equipment = [], permits = [],
+  } = direct;
+
+  let labor = 0;
+  for (const e of timeEntries) {
+    if (e.projectId !== projectId || !isEligibleLaborEntry(e)) continue;
+    const rate = laborRates[normalizeTradeKey(e.trade)];
+    // Hours alone carry no dollars. A trade with no configured rate contributes
+    // nothing rather than a market average MAGE would be inventing.
+    if (!Number.isFinite(rate) || rate <= 0) continue;
+    labor += priceLaborEntry(e, rate, overtimeMultiplier);
+  }
+
+  let equipmentCost = 0;
+  for (const eq of equipment) {
+    const rows = (eq.utilizationLog ?? []).filter((u) => u.projectId === projectId);
+    if (rows.length === 0) continue;
+    const rate = Number.isFinite(eq.dailyRate) ? eq.dailyRate : 0;
+    if (rate <= 0) continue;
+    const hours = rows.reduce(
+      (sum, u) => sum + (Number.isFinite(u.hoursUsed) ? Math.max(0, u.hoursUsed) : 0),
+      0,
+    );
+    const cost = (hours / EQUIPMENT_HOURS_PER_DAY) * rate;
+    if (cost <= 0) continue;
+    equipmentCost += cost;
+  }
+
+  let permitCost = 0;
+  for (const p of permits) {
+    if (p.projectId !== projectId) continue;
+    const fee = Number.isFinite(p.fee) ? Math.max(0, p.fee) : 0;
+    if (fee <= 0) continue;
+    permitCost += fee;
+  }
+
   return {
-    value: committed + materials,
-    source: 'commitments_and_receipts',
-    committed,
-    materials,
+    value: committed + materials + labor + equipmentCost + permitCost,
+    source: 'recorded_actual_cost',
+    committed, materials, labor, equipment: equipmentCost, permits: permitCost,
+    complete: true,
   };
 }
 
@@ -1393,6 +1672,47 @@ export function describeCostBasis(cost: WipEstimatedCost, costIncurred?: number)
   }
   return `Cost basis: your estimate's cost before markup, ${wipMoney(cost.estimateBasis)}. Nothing `
     + 'signed in subcontracts or POs against it yet.' + overspentNote(cost.value, costIncurred);
+}
+
+/**
+ * `describeCostBasis` for a FROZEN ROW — F19 (audit 2026-09-11).
+ *
+ * The exported footnote could name the branch that produced a cost at
+ * completion and could not say what the other two candidates were, so the PDF
+ * explained less than the drill-in it was generated from. The candidates are on
+ * the row now (`WipRowCostBasis`), and this reassembles the `WipEstimatedCost`
+ * the sentence needs out of the row rather than recomputing anything:
+ *
+ *   • `value` comes from `wipRowCostAtCompletion`, which is the figure the row
+ *     was actually struck against (cost-to-date + the entered ETC when the GC
+ *     revised his forecast, the derived figure otherwise);
+ *   • `source` comes from the row’s own frozen `sources.totalEstimatedCost`;
+ *   • the three candidates come from `costBasis`.
+ *
+ * Returns null when the row predates the column. A footnote that reconstructed
+ * the sentence from two candidates and a zero would explain a number the period
+ * was never struck against, which is worse than the source label alone.
+ */
+export function wipRowCostBasisSentence(row: WipSnapshotRowWithSources): string | null {
+  const cb = row.costBasis;
+  if (!cb) return null;
+  return describeCostBasis(
+    {
+      value: wipRowCostAtCompletion(row),
+      // A row whose provenance was lost is still allowed its candidates — the
+      // sentence branches on `basis`, not on `source`, and 'none' here only
+      // means "this build has no label", never "no cost basis".
+      source: (row.sources?.totalEstimatedCost ?? 'none'),
+      estimateBasis: cb.estimateBasis,
+      committedFloor: cb.committedFloor,
+      incurredFloor: cb.incurredFloor,
+      basis: cb.basis,
+    },
+    // The overspend clause compares the cost at completion against cost already
+    // paid out, and the row holds that too — so the frozen footnote can carry
+    // the same "you have already spent more than this" warning the screen does.
+    row.input.costToDate,
+  );
 }
 
 /**

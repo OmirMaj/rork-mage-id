@@ -59,6 +59,7 @@ import {
   sovLineDeletionRefusal,
   totalOverBill,
   payAppReviewNotice,
+  coFiguresAdvice,
   resolveSovBasis,
 } from '@/utils/aiaBilling';
 // The one definition of "what is still owed on this invoice", net of held
@@ -469,9 +470,34 @@ function AIAPayAppScreenInner() {
    */
   const sovBasis = resolveSovBasis(app?.sovBasis, (project?.linkedEstimate?.items?.length ?? 0) > 0);
 
-  /** Line 2 and the printed summary must state one figure. */
-  const coFiguresAgree = !app || !coSummaryForPdf
-    || Math.abs(roundCents(coSummaryForPdf.netChange - app.netChangeByCO)) <= 0.01;
+  /**
+   * THE TABLE THAT ACTUALLY PRINTS — one value, named once.
+   *
+   * `buildAIAPayAppHtml` reads `app.changeOrderSummary` (utils/aiaBilling.ts:1696)
+   * and every handoff to it — the reprint, the generate, and the record
+   * `buildSavedRecord` freezes — resolved `app.changeOrderSummary ??
+   * coSummaryForPdf` at its own call site. Three copies of one decision, and
+   * the guard below compared a FOURTH thing: the live recompute, which is not
+   * what a reopened certificate prints.
+   *
+   * That gap is reachable on real data. A record SAVED before the
+   * `effectivePeriodTo` fix froze a summary split on `app.periodTo` next to a
+   * `netChangeByCO` split on the invoice's issue date — the two-figures defect,
+   * persisted. Reopening it prints both numbers, and a guard watching
+   * `coSummaryForPdf` sees two figures that agree and says nothing. Comparing
+   * the summary that is HANDED to the builder is the assertion that catches it.
+   */
+  // --- BEGIN printed co summary ---
+  // Lifted and EXECUTED by scripts/validate-invoice-billing.ts. A regex can
+  // see which expression is written here; only running it can show that the
+  // guard watches the SAME object the print path hands the builder. Keep the
+  // sentinels — the validator exits 1 if they go missing.
+  const printedCoSummary = app?.changeOrderSummary ?? coSummaryForPdf;
+
+  /** Line 2 and the summary on the same page must state one figure. */
+  const coFiguresAgree = !app || !printedCoSummary
+    || Math.abs(roundCents(printedCoSummary.netChange - app.netChangeByCO)) <= 0.01;
+  // --- END printed co summary ---
 
   // Audit-2026-05-21 (#28.1 HIGH): edit-after-send lock for AIA pay-apps.
   //
@@ -571,6 +597,11 @@ function AIAPayAppScreenInner() {
    * the G703's change-order rows were frozen at seed time while the printed
    * CHANGE ORDER SUMMARY was computed from this field.
    */
+  // --- BEGIN period handlers ---
+  // Both handlers are lifted and EXECUTED by
+  // scripts/validate-invoice-billing.ts against a captured setApp reducer, so
+  // the two-NET-CHANGE-figures defect is pinned by running the code rather than
+  // by grepping for it. Keep the sentinels; the validator exits 1 without them.
   const setPeriodTo = useCallback((v: string) => {
     if (isReadOnly || !project) return;
     const cos = getChangeOrdersForProject(project.id);
@@ -584,6 +615,28 @@ function AIAPayAppScreenInner() {
       return applyApprovedCOsToApplication(next, splitApprovedCOsByPeriod(cos, v).inPeriod);
     });
   }, [isReadOnly, project, getChangeOrdersForProject]);
+
+  /**
+   * PERIOD FROM splits the CHANGE ORDER SUMMARY, so changing it must restate
+   * the table for the same reason changing PERIOD TO does.
+   *
+   * The other half of the two-figures defect, and the one the netChange guard
+   * cannot see. `buildSavedRecord` deliberately FREEZES the four-row summary
+   * into the record so a reprint does not sweep in a change order entered late
+   * — and the print path reads `printedCoSummary`, which prefers it, so
+   * the frozen table wins on every reopened certificate. Editing PERIOD FROM
+   * alone therefore moved the printed header's window (the "from …" line under
+   * PERIOD TO) while the ADDITIONS/DEDUCTIONS split beneath it still described
+   * the OLD window; `coFiguresAgree` compares netChange, which a re-split does
+   * not move, so nothing said so. Dropping the frozen table on a period edit
+   * lets the live summary — built from `app.periodFrom` and the same
+   * `effectivePeriodTo` line 2 uses — print instead.
+   */
+  const setPeriodFrom = useCallback((v: string) => {
+    if (isReadOnly) return;
+    setApp(prev => (prev ? { ...prev, periodFrom: v || undefined, changeOrderSummary: undefined } : prev));
+  }, [isReadOnly]);
+  // --- END period handlers ---
 
   const updateLine = useCallback((lineId: string, patch: Partial<AIASOVLine>) => {
     if (isReadOnly) return;
@@ -831,7 +884,7 @@ function AIAPayAppScreenInner() {
       // reprint recomputes the table from today's change-order list, so a CO
       // approved inside the period but entered a month later silently appears
       // on a certificate the architect already signed.
-      changeOrderSummary: app.changeOrderSummary ?? coSummaryForPdf,
+      changeOrderSummary: printedCoSummary,
       notarize: app.notarize,
       notaryState: app.notaryState,
       notaryCounty: app.notaryCounty,
@@ -856,7 +909,7 @@ function AIAPayAppScreenInner() {
       },
       savedAt: new Date().toISOString(),
     };
-  }, [app, project, totals, invoice?.id, savedForThisInvoice, coSummaryForPdf]);
+  }, [app, project, totals, invoice?.id, savedForThisInvoice, printedCoSummary]);
 
   const handleSave = useCallback(async () => {
     if (isReadOnly) {
@@ -1042,7 +1095,7 @@ function AIAPayAppScreenInner() {
       // The STORED summary wins. A live recompute is only the fallback for a
       // draft that has never been saved.
       await generateAIAPayAppPDF(
-        { ...app, changeOrderSummary: app.changeOrderSummary ?? coSummaryForPdf },
+        { ...app, changeOrderSummary: printedCoSummary },
         settings.branding,
       );
     } catch {
@@ -1050,7 +1103,7 @@ function AIAPayAppScreenInner() {
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, coSummaryForPdf]);
+  }, [app, settings?.branding, printedCoSummary]);
 
   const handleGenerate = useCallback(async () => {
     setShowPreExportConfirm(false);
@@ -1058,7 +1111,7 @@ function AIAPayAppScreenInner() {
     setGenerating(true);
     try {
       await generateAIAPayAppPDF(
-        { ...app, changeOrderSummary: app.changeOrderSummary ?? coSummaryForPdf },
+        { ...app, changeOrderSummary: printedCoSummary },
         settings.branding,
       );
       // Persist + attach pay link via the same code path as handleSave so
@@ -1070,7 +1123,7 @@ function AIAPayAppScreenInner() {
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, handleSave, coSummaryForPdf]);
+  }, [app, settings?.branding, handleSave, printedCoSummary]);
 
   // Step 1 — which job.
   if (!project || forceProjectPick) {
@@ -1424,7 +1477,7 @@ function AIAPayAppScreenInner() {
               style={styles.formInput}
               value={app.periodFrom ?? ''}
               editable={!isReadOnly}
-              onChangeText={v => setApp(p => p ? { ...p, periodFrom: v || undefined } : p)}
+              onChangeText={setPeriodFrom}
               placeholder="YYYY-MM-DD"
               autoCapitalize="none"
               testID="aia-period-from"
@@ -1849,14 +1902,18 @@ function AIAPayAppScreenInner() {
               and the printed four-row summary are driven from one date now, so
               this should be unreachable — say so loudly rather than print a
               page that contradicts itself if it ever is. */}
-          {!coFiguresAgree && coSummaryForPdf && (
+          {!coFiguresAgree && printedCoSummary && (
             <View style={styles.sovWarnBanner} testID="aia-co-figures-disagree">
               <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
               <Text style={styles.sovWarnText}>
                 G702 line 2 says {formatMoney(app.netChangeByCO, 2)} of net change by change
-                orders, but the CHANGE ORDER SUMMARY totals {formatMoney(coSummaryForPdf.netChange, 2)}.
-                Re-enter Period To, or tap the refresh button above, before printing — the two
-                figures are on the same page.
+                orders, but the CHANGE ORDER SUMMARY totals {formatMoney(printedCoSummary.netChange, 2)}.{' '}
+                {/* The advice used to be one sentence naming PERIOD TO and the
+                    refresh button. Both are gone on a read-only certificate —
+                    which is every saved one until the GC taps Edit, and every
+                    paid one for good. coFiguresAdvice answers for the state
+                    the screen is actually in. */}
+                {coFiguresAdvice({ isReadOnly, isLocked, editLabel: reviewNotice.editLabel })}
               </Text>
             </View>
           )}

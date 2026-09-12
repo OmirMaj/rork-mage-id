@@ -1,9 +1,20 @@
 // TakeoffFieldVerifyButton — opens the camera (mobile only) so the user
 // can snap a photo at the job site to verify a single takeoff quantity.
 //
-// Scaffolding-grade: stores photo URI + GPS + an optional measured value
-// locally. No upload, no AR overlay, no automated comparison against the
-// drawing yet. Those are follow-ups that need physical-device testing.
+// Stores photo URI + GPS + an optional measured value locally. No upload and
+// no AR overlay — those need physical-device testing.
+//
+// WHAT THE MEASURED VALUE IS NOW FOR (audit 2026-09-11, F6). It used to be
+// written to AsyncStorage and read by nothing but this component's own photo
+// view: the GC measured the wall and the app filed the number. When it
+// disagrees with the quantity of record, this modal now offers to ADOPT it —
+// one tap, with the delta on screen — and that is the whole route by which a
+// tape measure reaches the learned rate: the row's quantity of record feeds the
+// priced estimate, the estimate line is what a commitment links to, and
+// utils/costDatabase divides that commitment by the line's quantity. See
+// utils/fieldMeasuredQuantity for why adoption is explicit rather than
+// automatic (a partial measurement typed into an aggregate row would publish a
+// wildly wrong rate stamped "measured").
 //
 // On web we render a "this is mobile-only" notice rather than failing
 // silently.
@@ -16,7 +27,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { Camera, X, MapPin, Check } from 'lucide-react-native';
+import { Camera, X, MapPin, Check, Ruler } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -25,16 +36,32 @@ import type { TakeoffFieldVerification } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import {
+  measurementVerdict, adoptOffer, formatMeasured,
+} from '@/utils/fieldMeasuredQuantity';
 
 export interface TakeoffFieldVerifyButtonProps {
   rowKey: string;
-  /** Quantity the AI extracted — shown next to the user's input for comparison. */
-  aiQuantity: number;
+  /**
+   * The quantity currently OF RECORD for this row — the user's override if
+   * they have edited it, else the AI's read. (This was called `aiQuantity`,
+   * which was already false at the one call site: app/takeoff.tsx passes the
+   * override-aware number. The name mattered once the measurement could be
+   * adopted: a measurement already applied has to read as agreement, not
+   * offer itself again.)
+   */
+  currentQuantity: number;
   unit: string;
   /** Existing verification for this row, if any — toggles button into "view" mode. */
   existing?: TakeoffFieldVerification;
   onCapture: (v: TakeoffFieldVerification) => void;
   onDelete?: (id: string) => void;
+  /**
+   * Adopt the measured quantity as the row's quantity of record. Omit and the
+   * measurement stays a photo caption — which is exactly the state F6
+   * described, so every call site should pass it.
+   */
+  onUseMeasured?: (measuredQuantity: number) => void;
 }
 
 function generateId(): string {
@@ -45,7 +72,7 @@ function generateId(): string {
 }
 
 function TakeoffFieldVerifyButtonImpl({
-  rowKey, aiQuantity, unit, existing, onCapture, onDelete,
+  rowKey, currentQuantity, unit, existing, onCapture, onDelete, onUseMeasured,
 }: TakeoffFieldVerifyButtonProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -129,11 +156,19 @@ function TakeoffFieldVerifyButtonImpl({
   }, [draft, onCapture, rowKey]);
 
   if (existing) {
-    const delta = existing.measuredQuantity != null
-      ? existing.measuredQuantity - aiQuantity : undefined;
-    const tone = delta == null ? themeColors.textMuted
-      : Math.abs(delta) / Math.max(1, aiQuantity) < 0.05 ? themeColors.success
+    // One verdict drives the pill tone, the pill's delta and whether the modal
+    // offers to adopt the measurement — the tolerance used to live inline here
+    // and governed nothing but a colour.
+    const verdict = measurementVerdict(currentQuantity, existing);
+    const delta = verdict.kind === 'none' ? undefined : verdict.delta;
+    const tone = verdict.kind === 'none' ? themeColors.textMuted
+      : verdict.kind === 'agrees' ? themeColors.success
       : Colors.warningLabel;
+    // The offer is decided in utils/fieldMeasuredQuantity, not here, so the
+    // rule that closes F6 on screen is a function a guard can RUN rather than
+    // a ternary a guard can only grep (scripts/validate-estimate-cost-basis
+    // §6k executes it, including the no-writer case).
+    const adopt = adoptOffer(verdict, unit, !!onUseMeasured);
     return (
       <>
         <TouchableOpacity
@@ -166,17 +201,45 @@ function TakeoffFieldVerifyButtonImpl({
               <View style={styles.modalBody}>
                 <View style={styles.compareRow}>
                   <View style={styles.compareItem}>
-                    <Text style={styles.compareLabel}>AI</Text>
-                    <Text style={styles.compareValue}>{Math.round(aiQuantity)} {unit}</Text>
+                    {/* "Takeoff", not "AI": this is the quantity of record,
+                        which is the user's own edit whenever they made one. */}
+                    <Text style={styles.compareLabel}>Takeoff</Text>
+                    <Text style={styles.compareValue}>{formatMeasured(Math.round(currentQuantity), unit)}</Text>
                   </View>
                   <View style={styles.compareDivider} />
                   <View style={styles.compareItem}>
                     <Text style={styles.compareLabel}>Field</Text>
                     <Text style={styles.compareValue}>
-                      {existing.measuredQuantity != null ? `${existing.measuredQuantity} ${unit}` : '—'}
+                      {existing.measuredQuantity != null ? formatMeasured(existing.measuredQuantity, unit) : '—'}
                     </Text>
                   </View>
                 </View>
+                {/* THE ROUTE OUT OF THE PHOTO ALBUM. Adopting the measurement
+                    makes it the quantity the estimate prices and the cost book
+                    divides by; see utils/fieldMeasuredQuantity. */}
+                {adopt && (
+                  <>
+                    <TouchableOpacity
+                      style={styles.adoptBtn}
+                      onPress={() => {
+                        onUseMeasured?.(adopt.measured);
+                        setViewing(false);
+                        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={adopt.label}
+                    >
+                      <Ruler size={13} color={themeColors.accent} strokeWidth={1.75} />
+                      <Text style={styles.adoptBtnText}>{adopt.label}</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.adoptNote}>{adopt.consequence}</Text>
+                  </>
+                )}
+                {verdict.kind === 'agrees' && (
+                  <Text style={styles.adoptNote}>
+                    Matches the takeoff quantity — nothing to change.
+                  </Text>
+                )}
                 {existing.note && <Text style={styles.modalNote}>{existing.note}</Text>}
                 {existing.latitude != null && (
                   <View style={styles.gpsRow}>
@@ -239,7 +302,7 @@ function TakeoffFieldVerifyButtonImpl({
                 value={draft?.measured ?? ''}
                 onChangeText={t => setDraft(d => d ? { ...d, measured: t } : d)}
                 keyboardType="decimal-pad"
-                placeholder={`AI says ${Math.round(aiQuantity)}`}
+                placeholder={`Takeoff says ${Math.round(currentQuantity)}`}
                 placeholderTextColor={themeColors.textMuted}
                 style={styles.modalInput}
               />
@@ -321,6 +384,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderTopWidth: 1, borderTopColor: t.line,
   },
   commitBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  adoptBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accent + '12', borderWidth: 1, borderColor: t.accent + '33',
+  },
+  adoptBtnText: { color: t.accent, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  adoptNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
   deleteBtn: { padding: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: t.line },
   deleteBtnText: { color: t.danger, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 

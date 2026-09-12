@@ -255,3 +255,91 @@ export function pricingProvenance(sources: PriceSource[]): {
   const total = sources.length;
   return { ...count, ownShare: total > 0 ? count.yours / total : 0 };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE TAKEOFF ROW KEY — ONE SPELLING, OR THE MEASUREMENT IS DROPPED SILENTLY
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// WHY THIS LIVES HERE AND NOT IN EITHER SCREEN. `PersistedTakeoff.overrides`
+// and `.rejected` are keyed `<section>:<id>`. app/takeoff.tsx WRITES those keys
+// (the manual quantity edit, the reject toggle, and the adopt tap on a field
+// measurement all land in the same map); app/takeoff-estimate.tsx READS them
+// when it builds the AI pricing prompt. Until 2026-09-12 each screen spelled
+// the section names in its own local helper, and three of the seven did not
+// match:
+//
+//     WRITE (app/takeoff.tsx)          READ (app/takeoff-estimate.tsx)
+//     finish                           finishes
+//     fixture                          fixtures
+//     bulk                             bulkMaterials
+//
+// The consequence was silent and one-directional. A GC who measured a drywall
+// run on site, tapped "Use 2,600 SF as the quantity", and watched the "rows
+// still priced off the plan" notice clear was then priced off the plan anyway
+// — and a row he explicitly REJECTED was still sent to the pricer, because
+// `apply` only drops a row when `rejected['<section>:<id>']` hits. Both sides
+// looked correct in isolation, so no source grep could see it.
+//
+// The section list is therefore a TYPE, not a convention: a mis-spelled section
+// is now a compile error at the call site, and the round-trip below is executed
+// for all seven sections in scripts/validate-cost-seed §17i.
+//
+// The names are the WRITE side's, because those are the keys already sitting in
+// `mageid_takeoff::<projectId>` on every device that has run a takeoff. Renaming
+// them would orphan every override a contractor has already made.
+
+/** Every section of a takeoff that owns editable, rejectable rows. */
+export const TAKEOFF_ROW_SECTIONS = [
+  'walls', 'floor', 'doors', 'windows', 'finish', 'fixture', 'bulk',
+] as const;
+
+export type TakeoffRowSection = (typeof TAKEOFF_ROW_SECTIONS)[number];
+
+/** The persisted key for one takeoff row. The only place this string is built. */
+export function takeoffRowKey(section: TakeoffRowSection, id: string): string {
+  return `${section}:${id}`;
+}
+
+/** The two per-row maps a takeoff carries. Structural so guards can run this. */
+export interface TakeoffRowDecisions {
+  overrides?: Record<string, number>;
+  rejected?: Record<string, true>;
+}
+
+/**
+ * THE QUANTITY THAT IS ACTUALLY PRICING THIS ROW — the number the estimate
+ * uses, and the denominator utils/costDatabase will divide a closed
+ * commitment by.
+ *
+ * Returns null when the row prices nothing: the GC rejected it, or there is no
+ * usable fallback (the row is gone from the takeoff, or the AI read nothing).
+ * A null row is not "zero" — it must be dropped from the prompt, not priced at
+ * nothing.
+ *
+ * Both screens run this one function. app/takeoff.tsx asks it what is of
+ * record so it can count the field measurements still waiting on a decision;
+ * app/takeoff-estimate.tsx asks it what to price. When they were two
+ * copies they disagreed for three of the seven sections (see above).
+ */
+export function takeoffQuantityOfRecord(
+  decisions: TakeoffRowDecisions,
+  rowKey: string,
+  fallback: number | null,
+): number | null {
+  if (decisions.rejected?.[rowKey]) return null;
+  const o = decisions.overrides?.[rowKey];
+  if (typeof o === 'number' && Number.isFinite(o)) return o;
+  return typeof fallback === 'number' && Number.isFinite(fallback) ? fallback : null;
+}
+
+/**
+ * The section-and-id form app/takeoff-estimate's prompt builder needs, bound
+ * to one takeoff's decisions. Same function underneath — the section name is
+ * type-checked on the way in, which is the half that was broken.
+ */
+export function takeoffQuantityResolver(
+  decisions: TakeoffRowDecisions,
+): (section: TakeoffRowSection, id: string, fallback: number) => number | null {
+  return (section, id, fallback) =>
+    takeoffQuantityOfRecord(decisions, takeoffRowKey(section, id), fallback);
+}

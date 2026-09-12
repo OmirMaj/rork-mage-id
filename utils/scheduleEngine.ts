@@ -1,6 +1,7 @@
 import type { ScheduleTask, DependencyLink, ProjectSchedule, ScheduleRiskItem, ScheduleBaseline } from '@/types';
 import { PHASE_PALETTE, PHASE_FALLBACK } from '@/constants/colors';
 import { generateUUID } from '@/utils/generateId';
+import { isWorkingDayOfWeek } from '@/utils/cpm';
 
 export const PHASE_OPTIONS = [
   'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
@@ -157,11 +158,19 @@ export function getHealthColor(score: number): string {
 }
 
 /**
- * Advances `start` by `days` working days. Weekends are skipped when
- * `workingDaysPerWeek < 7`. When `nonWorkingDates` (ISO YYYY-MM-DD) is passed
- * in, those calendar days are also skipped — used to model holidays, rain
- * days, and site closures. We keep the signature backwards-compatible: old
- * callers passing just three args get weekend-only behavior.
+ * Advances `start` by `days` working days. Which days count is
+ * `cpm.isWorkingDayOfWeek` — THE weekend rule, shared with the engine's own
+ * `isWorkingDay` so a date label and the plan behind it cannot disagree. This
+ * function used to inline `workingDaysPerWeek < 7 && (dow === 0 || dow === 6)`,
+ * which made a 6-day project's every rendered date, CSV row and .ics event
+ * refuse the Saturdays the engine had already scheduled (measured: working
+ * ordinal 11 on a 6-day week from Mon 2026-03-02 was Fri Mar 13 to the engine
+ * and Mon Mar 16 here).
+ *
+ * When `nonWorkingDates` (ISO YYYY-MM-DD) is passed in, those calendar days are
+ * also skipped — used to model holidays, rain days, and site closures. We keep
+ * the signature backwards-compatible: old callers passing just three args get
+ * weekend-only behavior.
  */
 export function addWorkingDays(
   start: Date,
@@ -176,9 +185,7 @@ export function addWorkingDays(
   let added = 0;
   while (added < days) {
     result.setDate(result.getDate() + 1);
-    const dow = result.getDay();
-    const weekendSkip = workingDaysPerWeek < 7 && (dow === 0 || dow === 6);
-    if (weekendSkip) continue;
+    if (!isWorkingDayOfWeek(result.getDay(), workingDaysPerWeek)) continue;
     if (blocked) {
       const iso = `${result.getFullYear()}-${String(result.getMonth() + 1).padStart(2, '0')}-${String(result.getDate()).padStart(2, '0')}`;
       if (blocked.has(iso)) continue;
@@ -400,6 +407,20 @@ export function buildScheduleFromTasks(
     healthScore,
     riskItems,
     baseline: existingBaseline ?? null,
+    // DELIBERATELY NOT stamping `startDayBasis` here. An earlier draft did, on
+    // the theory that everything this function authors is on the working-ordinal
+    // scale. It cannot promise that: `recalculateStartDays` leaves a task with
+    // no dependency links sitting on whatever `startDay` it arrived with
+    // (scheduleEngine.ts:50-53), and the caller can skip the resolver entirely
+    // by passing `opts.criticalPathDays`. So on a legacy schedule the flag would
+    // have been a forged confirmation — and three live call sites write
+    // `{ ...existingSchedule, ...built }` over the real record
+    // (app/(tabs)/construction-ai/index.tsx x2, app/schedule-review.tsx), which
+    // would have retired the one-time re-anchor offer for exactly the schedules
+    // that need it. `startDayBasis` now means one thing only: THE USER ANSWERED.
+    // Nothing is lost by its absence here — `cpm.detectStartDayBasis` reads a
+    // freshly built schedule as working ordinals from the data itself, which
+    // scripts/validate-startdate-rebase.ts proves by executing this function.
     updatedAt,
   };
 }

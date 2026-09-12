@@ -37,6 +37,26 @@
 // older guard keeps working. (Fold that grep into the registry and the
 // literals can go.)
 //
+// THE GATE RUNS BOTH WAYS, AND THE SECOND WAY WAS OPEN UNTIL 2026-09-11.
+// Three rows had drifted into advertising a tier their destination does not
+// enforce (margin-board, coi-vault, plan-intelligence — each annotated below),
+// and scripts/validate-feature-registry-gates.ts closed that direction. The
+// other direction stayed open on SIXTEEN rows, and it is the one that costs a
+// sale: the row carried NO `requires` at all while its screen opens with
+// `if (!canAccess(<key>)) return <Paywall …>`. ⌘K and the Tools grid showed no
+// padlock on /invoice, /plans, /contract, /permits, /brief, /week-close,
+// /construction-ai, /payment-predictions and eight more, the user tapped a row
+// that looked open, and the app answered with a paywall and an upsell they had
+// not asked for. All sixteen now carry the key their own screen gates on.
+//
+// scripts/validate-nav-coverage.ts asserts that direction now, and it counts
+// only an ENTRY gate — a guard clause at the top level of the default-exported
+// component whose consequent returns. That distinction is the whole check:
+// app/closeout-binder.tsx checks 'client_portal' inside runPassportGeneration,
+// which gates one BUTTON, and a `requires` on that row would paint a padlock
+// over a screen that is free to open. A grep for canAccess() cannot tell the
+// two apart; that is why the guard parses instead of grepping.
+//
 // Display copy — a row's label, subtitle, icon component, tone, section — is
 // the surface's own. A 240pt rail says "Plans", the Tools grid says
 // "Plans & drawings" and this file says "Plans & Drawings"; that is voice, not
@@ -161,8 +181,8 @@ const REGISTRY = [
   { id: 'summary', title: 'Summary', synonyms: ['dashboard', 'overview', 'today'], route: '/(tabs)/summary', icon: 'MageSummary', group: 'workspace' },
   { id: 'ask-mage', title: 'Ask MAGE', synonyms: ['chat', 'assistant', 'ai', 'question', 'help'], route: '/ask', icon: 'MageAIMark', group: 'workspace' },
   { id: 'copilot-hub', title: 'MAGE Copilot', synonyms: ['voice', 'dictate', 'hands free', 'talk'], route: '/copilot-hub', icon: 'Mic', group: 'workspace' },
-  { id: 'brief', title: 'Morning Brief', synonyms: ['briefing', 'digest', 'daily brief'], route: '/brief', icon: 'Newspaper', group: 'workspace' },
-  { id: 'week-close', title: 'Week Close', synonyms: ['friday', 'friday close', 'weekly review', 'wrap up'], route: '/week-close', icon: 'CalendarCheck', group: 'workspace' },
+  { id: 'brief', title: 'Morning Brief', synonyms: ['briefing', 'digest', 'daily brief'], route: '/brief', requires: 'brain_accuracy', icon: 'Newspaper', group: 'workspace' },
+  { id: 'week-close', title: 'Week Close', synonyms: ['friday', 'friday close', 'weekly review', 'wrap up'], route: '/week-close', requires: 'brain_accuracy', icon: 'CalendarCheck', group: 'workspace' },
   { id: 'business', title: 'Your Business', synonyms: ['brain', 'company health', 'accuracy', 'predictions'], route: '/business', requires: 'brain_accuracy', icon: 'Briefcase', group: 'workspace' },
   { id: 'widget-setup', title: 'Estimate Widget', synonyms: ['embed', 'website widget', 'instant estimate', 'snippet', 'embed code', 'my website'], route: '/widget-setup', icon: 'Zap', group: 'client' },
   { id: 'sub-profile', title: 'Your Work Profile', synonyms: ['sub profile', 'my history', 'credential', 'my jobs', 'reliability', 'referral'], route: '/sub-profile', icon: 'HardHat', group: 'network' },
@@ -185,14 +205,14 @@ const REGISTRY = [
   { id: 'cost-database', title: 'Cost Database', synonyms: ['unit costs', 'price book', 'learned costs', 'rates'], route: '/cost-database', requires: 'job_costing', icon: 'MageCostDb', group: 'workspace' },
   { id: 'cost-seed', title: 'Seed Your Rates', synonyms: ['import rates', 'my prices', 'set my rates', 'paste rates', 'starting rates', 'import price book', 'cold start'], route: '/cost-seed', requires: 'job_costing', icon: 'Upload', group: 'workspace' },
   { id: 'cost-xray', title: 'Cost X-Ray', synonyms: ['xray', 'x-ray', 'hidden conditions', 'camera pricing'], route: '/cost-xray', requires: 'cost_xray', icon: 'ScanEye', group: 'workspace' },
-  { id: 'project-memory', title: 'Project Memory', synonyms: ['memory', 'decisions', 'what happened'], route: '/project-memory', icon: 'Brain', group: 'workspace' },
+  { id: 'project-memory', title: 'Project Memory', synonyms: ['memory', 'decisions', 'what happened'], route: '/project-memory', requires: 'job_costing', icon: 'Brain', group: 'workspace' },
 
   // ── Find work ─────────────────────────────────────────────────────────
   { id: 'mage-id-bids', title: 'MAGE ID Bids', synonyms: ['rfp', 'invitations', 'bid invites', 'awarded'], route: '/(tabs)/mage-id-bids', icon: 'Gavel', group: 'find-work' },
   { id: 'public-bids', title: 'Public Bids', synonyms: ['bid board', 'open bids', 'plan room'], route: '/(tabs)/discover/bids', icon: 'ScrollText', group: 'find-work' },
   { id: 'nearby-rfps', title: 'Nearby RFPs', synonyms: ['find work', 'near me', 'local jobs'], route: '/nearby-rfps', icon: 'MapPin', group: 'find-work' },
   { id: 'judges', title: 'Bid Advisor', synonyms: ['bid', 'judges', 'bid scoring', 'should i bid', 'go no go'], route: '/judges', requires: 'bid_scoring', icon: 'Scale', group: 'find-work' },
-  { id: 'bid-leveling', title: 'Bid Leveling', synonyms: ['bid', 'level bids', 'compare bids', 'scope gaps', 'apples to apples'], route: '/bid-leveling', icon: 'Layers', group: 'find-work' },
+  { id: 'bid-leveling', title: 'Bid Leveling', synonyms: ['bid', 'level bids', 'compare bids', 'scope gaps', 'apples to apples'], route: '/bid-leveling', requires: 'job_costing', icon: 'Layers', group: 'find-work' },
   // Titled "Post-Bid Analysis" with win/loss synonyms until 2026-09-07, which
   // was a different feature entirely: app/post-bid.tsx:186 self-titles "Post a
   // Bid" and is a publish-a-solicitation form with a monthly post quota. It
@@ -208,7 +228,7 @@ const REGISTRY = [
   // (post the solicitation vs. read the board), so it is a pairing rather than
   // a collision. The sidebar row uses a Megaphone; it owns its own icons.
   { id: 'post-bid', title: 'Post a Bid', synonyms: ['publish bid', 'solicitation', 'bid board', 'post opportunity', 'invite subs to bid'], route: '/post-bid', icon: 'ScrollText', group: 'find-work' },
-  { id: 'win-optimizer', title: 'Win Optimizer', synonyms: ['bid price', 'win rate', 'markup', 'pricing strategy'], route: '/win-optimizer', icon: 'Target', group: 'find-work' },
+  { id: 'win-optimizer', title: 'Win Optimizer', synonyms: ['bid price', 'win rate', 'markup', 'pricing strategy'], route: '/win-optimizer', requires: 'portfolio_margin', icon: 'Target', group: 'find-work' },
   { id: 'auto-bids', title: 'Pre-priced Bids', synonyms: ['mage bids for you', 'auto bid', 'priced bids', 'bids ready', 'autonomous bidding'], route: '/auto-bids', requires: 'bid_scoring', icon: 'Zap', group: 'find-work' },
   { id: 'quick-quote', title: 'Quick Quote', synonyms: ['quote', 'fast estimate', 'ballpark'], route: '/quick-quote', icon: 'Zap', group: 'find-work' },
   { id: 'smart-proposal', title: 'Smart Proposal', synonyms: ['proposal', 'good better best', 'pitch'], route: '/smart-proposal', requires: 'job_costing', icon: 'FileSignature', group: 'find-work' },
@@ -220,7 +240,7 @@ const REGISTRY = [
   { id: 'crew', title: 'Crew', synonyms: ['workers', 'team', 'employees', 'labor'], route: '/crew', requires: 'crew_management', icon: 'IdCard', group: 'network' },
   { id: 'subs', title: 'Subs', synonyms: ['subcontractors', 'trade partners', 'trades'], route: '/(tabs)/subs', icon: 'HardHat', group: 'network' },
   { id: 'companies', title: 'Companies', synonyms: ['firms', 'gc directory'], route: '/(tabs)/discover/companies', icon: 'Building2', group: 'network' },
-  { id: 'sub-scorecard', title: 'Sub Scorecard', synonyms: ['sub grades', 'ratings', 'who is good'], route: '/sub-scorecard', icon: 'Award', group: 'network' },
+  { id: 'sub-scorecard', title: 'Sub Scorecard', synonyms: ['sub grades', 'ratings', 'who is good'], route: '/sub-scorecard', requires: 'job_costing', icon: 'Award', group: 'network' },
   { id: 'prequal-manager', title: 'Prequalification', synonyms: ['prequal', 'qualify subs', 'packets'], route: '/prequal-manager', requires: 'prequal_coi', icon: 'ClipboardList', group: 'network' },
   // COI Vault gates on 'rfis_submittals' (Business) at app/coi-vault.tsx:50 —
   // NOT on 'prequal_coi' (Pro) like the Prequalification row above it, despite
@@ -231,7 +251,7 @@ const REGISTRY = [
   { id: 'sub-portals', title: 'Sub Portals', synonyms: ['subcontractor portal', 'sub links'], route: '/sub-portals', icon: 'Handshake', group: 'network' },
 
   // ── AI tools ──────────────────────────────────────────────────────────
-  { id: 'construction-ai', title: 'Construction AI', synonyms: ['code check', 'building code', 'permit roadmap', 'plan review', 'ada', 'zoning', 'egress'], route: '/(tabs)/construction-ai', icon: 'MageAIMark', group: 'ai' },
+  { id: 'construction-ai', title: 'Construction AI', synonyms: ['code check', 'building code', 'permit roadmap', 'plan review', 'ada', 'zoning', 'egress'], route: '/(tabs)/construction-ai', requires: 'ai_code_check', icon: 'MageAIMark', group: 'ai' },
   { id: 'takeoff', title: 'AI Takeoff', synonyms: ['quantity takeoff', 'pdf takeoff', 'count', 'linear'], route: '/takeoff', icon: 'MageTakeoff', group: 'ai' },
   { id: 'area-takeoff', title: 'Visual Takeoff', synonyms: ['floor plan takeoff', 'measure', 'square feet', 'sqft'], route: '/area-takeoff', requires: 'job_costing', icon: 'MageTakeoff', group: 'ai' },
   // Reads 'ai_estimate_wizard' (Pro) because that is what the screen actually
@@ -242,7 +262,18 @@ const REGISTRY = [
   // NOTE: components/DesktopSidebar.tsx:104 still says 'ask_your_plans' and
   // needs the same correction (that file is not owned by this change).
   { id: 'plan-intelligence', title: 'Plan Intelligence', synonyms: ['ask your plans', 'plan search', 'find on plans'], route: '/plan-intelligence', requires: 'ai_estimate_wizard', icon: 'FileSearch', group: 'ai' },
-  { id: 'ai-punch', title: 'AI Punch from Photos', synonyms: ['photo punch', 'walk the site', 'auto punch'], route: '/ai-punch', icon: 'Camera', group: 'ai', projectScoped: true },
+  // ai-punch, punch-list and rfi are the three chipped rows whose ENTRY GATE
+  // runs through hooks/useProjectAccess — tier access OR the collaborator grant
+  // for that project. All four surfaces that paint the chip (UniversalSearch,
+  // DesktopSidebar, CreateMenu, discover/tools) read own-tier canAccess with no
+  // project in hand, so a free-tier person invited to a Business job sees a
+  // BUSINESS padlock on a screen that will in fact open for them. Dropping
+  // `requires` is NOT the fix: it would restore the worse failure — an unwarned
+  // wall — for everyone who is not a collaborator on that project, which is
+  // almost everyone. The fix belongs in the four consumers. The set is pinned
+  // by scripts/validate-feature-registry-gates.ts so a fourth row cannot join
+  // it silently.
+  { id: 'ai-punch', title: 'AI Punch from Photos', synonyms: ['photo punch', 'walk the site', 'auto punch'], route: '/ai-punch', requires: 'punch_list_closeout', icon: 'Camera', group: 'ai', projectScoped: true },
   { id: 'compare-drawings', title: 'Compare Drawings', synonyms: ['diff', 'revisions', 'what changed', 'delta'], route: '/compare-drawings', icon: 'FileDiff', group: 'ai', projectScoped: true },
   { id: 'extract-submittals', title: 'Spec Book Extract', synonyms: ['spec book', 'submittal log', 'divisions'], route: '/extract-submittals', icon: 'BookOpen', group: 'ai', projectScoped: true },
   { id: 'scan', title: 'Scan Anything', synonyms: ['ocr', 'receipt', 'business card', 'document scan', 'snap'], route: '/scan', requires: 'scan_anything', icon: 'ScanLine', group: 'ai' },
@@ -272,9 +303,9 @@ const REGISTRY = [
   { id: 'schedule', title: 'Schedule', synonyms: ['timeline', 'calendar', 'phases', 'sequence'], route: '/(tabs)/discover/schedule', icon: 'MageSchedule', group: 'project' },
   { id: 'schedule-pro', title: 'Pro Scheduler', synonyms: ['gantt', 'cpm', 'critical path', 'ms project', 'dependencies', 'float'], route: '/schedule-pro', requires: 'schedule_gantt_pdf', icon: 'MageSchedule', group: 'project', projectScoped: true },
   { id: 'last-planner', title: 'Last Planner', synonyms: ['lookahead', 'ppc', 'pull planning', 'weekly commitments'], route: '/last-planner', requires: 'schedule_gantt_pdf', icon: 'ListChecks', group: 'project' },
-  { id: 'plans', title: 'Plans & Drawings', synonyms: ['blueprints', 'sheets', 'drawings', 'markup'], route: '/plans', icon: 'MagePlans', group: 'project' },
+  { id: 'plans', title: 'Plans & Drawings', synonyms: ['blueprints', 'sheets', 'drawings', 'markup'], route: '/plans', requires: 'plan_markup', icon: 'MagePlans', group: 'project' },
   { id: 'documents', title: 'Documents', synonyms: ['files', 'docs', 'folders', 'attachments'], route: '/documents', icon: 'FileText', group: 'project' },
-  { id: 'estimate-calibration', title: 'Estimate Calibration', synonyms: ['bid accuracy', 'high or low', 'calibrate'], route: '/estimate-calibration', icon: 'SlidersHorizontal', group: 'project' },
+  { id: 'estimate-calibration', title: 'Estimate Calibration', synonyms: ['bid accuracy', 'high or low', 'calibrate'], route: '/estimate-calibration', requires: 'portfolio_margin', icon: 'SlidersHorizontal', group: 'project' },
 
   // ── Field ─────────────────────────────────────────────────────────────
   { id: 'daily-report', title: 'Daily Reports', synonyms: ['dfr', 'field report', 'site diary', 'daily log'], route: '/daily-report', icon: 'MageDailyReport', group: 'field', projectScoped: true },
@@ -289,11 +320,11 @@ const REGISTRY = [
   { id: 'safety-osha', title: 'OSHA Logs', synonyms: ['osha', 'osha 300', 'recordable', 'injury log'], route: '/safety-osha', requires: 'safety_management', icon: 'AlertTriangle', group: 'field' },
   { id: 'safety-certifications', title: 'Safety Certifications', synonyms: ['certs', 'osha 30', 'training', 'cards'], route: '/safety-certifications', requires: 'safety_management', icon: 'BadgeCheck', group: 'field' },
   { id: 'time-tracking', title: 'Time Tracking', synonyms: ['timesheet', 'hours', 'clock in', 'payroll'], route: '/time-tracking', requires: 'subcontractor_management', icon: 'Clock', group: 'field' },
-  { id: 'oac-meeting', title: 'OAC Meetings', synonyms: ['meeting minutes', 'owner architect', 'action items'], route: '/oac-meeting', icon: 'Presentation', group: 'field', projectScoped: true },
+  { id: 'oac-meeting', title: 'OAC Meetings', synonyms: ['meeting minutes', 'owner architect', 'action items'], route: '/oac-meeting', requires: 'rfis_submittals', icon: 'Presentation', group: 'field', projectScoped: true },
   { id: 'equipment', title: 'Equipment', synonyms: ['machines', 'rentals', 'iron'], route: '/(tabs)/equipment', requires: 'equipment_rental', icon: 'MageEquipment', group: 'field' },
   { id: 'materials', title: 'Materials', synonyms: ['material prices', 'lumber', 'supplies'], route: '/(tabs)/materials', icon: 'Package', group: 'field' },
   { id: 'selections', title: 'Selections', synonyms: ['finishes', 'fixtures', 'allowances', 'picks'], route: '/selections', icon: 'PenTool', group: 'field', projectScoped: true },
-  { id: 'permits', title: 'Permits', synonyms: ['permit tracker', 'inspections', 'filings'], route: '/permits', icon: 'Stamp', group: 'field' },
+  { id: 'permits', title: 'Permits', synonyms: ['permit tracker', 'inspections', 'filings'], route: '/permits', requires: 'job_costing', icon: 'Stamp', group: 'field' },
   // Both render <ToolProjectPicker> with no projectId, so they satisfy the
   // stand-alone rule in this file's header. Neither is tier-gated in code
   // (no useTierAccess in either screen), so neither carries `requires` — a
@@ -302,7 +333,7 @@ const REGISTRY = [
   { id: 'building-access', title: 'Building Access', synonyms: ['freight elevator', 'loading dock', 'badging', 'badges', 'after hours', 'property manager', 'building coi', 'dock reservation', 'elevator booking'], route: '/building-access', icon: 'Building2', group: 'field', projectScoped: true },
 
   // ── Money ─────────────────────────────────────────────────────────────
-  { id: 'invoice', title: 'Invoices', synonyms: ['billing', 'bill', 'money', 'get paid'], route: '/invoice', icon: 'MageInvoice', group: 'money', projectScoped: true },
+  { id: 'invoice', title: 'Invoices', synonyms: ['billing', 'bill', 'money', 'get paid'], route: '/invoice', requires: 'change_orders_invoicing', icon: 'MageInvoice', group: 'money', projectScoped: true },
   { id: 'change-order', title: 'Change Orders', synonyms: ['co', 'extras', 'scope change', 'upcharge'], route: '/change-order', requires: 'change_orders_invoicing', icon: 'MageChangeOrder', group: 'money', projectScoped: true },
   { id: 'aia-pay-app', title: 'AIA Pay Apps', synonyms: ['g702', 'g703', 'requisition', 'pay application', 'draw'], route: '/aia-pay-app', requires: 'aia_pay_app', icon: 'MagePayApp', group: 'money', projectScoped: true },
   { id: 'job-costing', title: 'Job Costing', synonyms: ['money', 'costs', 'cost codes', 'actuals', 'spend'], route: '/job-costing', requires: 'job_costing', icon: 'Coins', group: 'money', projectScoped: true },
@@ -310,10 +341,10 @@ const REGISTRY = [
   { id: 'cash-flow', title: 'Cash Flow', synonyms: ['money', 'forecast', 'cashflow', 'runway'], route: '/cash-flow', requires: 'cash_flow_forecaster', icon: 'LineChart', group: 'money' },
   { id: 'wip-report', title: 'WIP Report', synonyms: ['work in progress', 'over under billing', 'overbilled'], route: '/wip-report', requires: 'wip_reporting', icon: 'TrendingUp', group: 'money' },
   { id: 'payments', title: 'Payments', synonyms: ['money', 'stripe', 'client payments', 'paid'], route: '/payments', icon: 'Wallet', group: 'money' },
-  { id: 'payment-predictions', title: 'Payment Predictions', synonyms: ['late payers', 'when will i get paid'], route: '/payment-predictions', icon: 'CalendarClock', group: 'money' },
+  { id: 'payment-predictions', title: 'Payment Predictions', synonyms: ['late payers', 'when will i get paid'], route: '/payment-predictions', requires: 'cash_flow_forecaster', icon: 'CalendarClock', group: 'money' },
   { id: 'retention', title: 'Retention', synonyms: ['retainage', 'holdback', 'held back'], route: '/retention', icon: 'Banknote', group: 'money' },
   { id: 'lien-waivers', title: 'Lien Waivers', synonyms: ['lien', 'waiver', 'conditional', 'unconditional'], route: '/lien-waivers', requires: 'lien_waiver_manager', icon: 'ScrollText', group: 'money' },
-  { id: 'profit-leaks', title: 'Profit Leaks', synonyms: ['leak', 'lost money', 'unbilled', 'slippage'], route: '/profit-leak-history', icon: 'Droplets', group: 'money' },
+  { id: 'profit-leaks', title: 'Profit Leaks', synonyms: ['leak', 'lost money', 'unbilled', 'slippage'], route: '/profit-leak-history', requires: 'brain_accuracy', icon: 'Droplets', group: 'money' },
   { id: 'tax-1099', title: '1099 Export', synonyms: ['1099', 'taxes', 'cpa', 'year end'], route: '/tax-1099-export', icon: 'Receipt', group: 'money' },
   { id: 'buyout', title: 'Buyout', synonyms: ['sub packages', 'award', 'procurement', 'purchase'], route: '/buyout', icon: 'Handshake', group: 'money' },
   { id: 'reports', title: 'Reports', synonyms: ['all records', 'exports', 'filterable list'], route: '/reports', icon: 'BarChart3', group: 'money' },
@@ -326,7 +357,7 @@ const REGISTRY = [
 
   // ── Client ────────────────────────────────────────────────────────────
   { id: 'client-portal', title: 'Client Portal', synonyms: ['owner portal', 'share with client', 'homeowner view'], route: '/client-portal-setup', requires: 'client_portal', icon: 'Briefcase', group: 'client', projectScoped: true },
-  { id: 'contract', title: 'Contracts', synonyms: ['agreements', 'sign', 'terms'], route: '/contract', icon: 'MageContract', group: 'client', projectScoped: true },
+  { id: 'contract', title: 'Contracts', synonyms: ['agreements', 'sign', 'terms'], route: '/contract', requires: 'client_portal', icon: 'MageContract', group: 'client', projectScoped: true },
   { id: 'closeout-binder', title: 'Closeout Binder', synonyms: ['o&m', 'as builts', 'turnover package', 'manuals'], route: '/closeout-binder', icon: 'ShieldCheck', group: 'client', projectScoped: true },
   { id: 'handover', title: 'Handover', synonyms: ['walkthrough', 'keys', 'turnover', 'signature'], route: '/handover', icon: 'KeyRound', group: 'client' },
   { id: 'warranties', title: 'Warranties', synonyms: ['warranty', 'callbacks', 'claims'], route: '/warranties', icon: 'Shield', group: 'client' },

@@ -5,7 +5,8 @@
 // buildWipHtml) free of top-level native imports keeps the validator runnable.
 // (Same pattern the crew / activation-gating validators document.)
 import {
-  describeWipRowSources, wipRowCostAtCompletion, wipRowHasCostBasis, WIP_COST_TO_DATE_CAVEAT,
+  describeWipRowSources, wipRowCostAtCompletion, wipRowHasCostBasis, wipCostToDateCaveat,
+  wipRowCostBasisSentence,
   type WipPeriodWithSources, type WipSnapshotRowWithSources,
 } from '@/utils/wip';
 
@@ -308,6 +309,17 @@ function escapeHtml(s: string): string {
  * caveat the list row on screen has always carried. A banker holding this page
  * asks one question first: what is this contract figure? The answer is here.
  */
+// THE CAVEAT THESE ROWS HAVE EARNED, not a build-time constant (F4, audit
+// 2026-09-11). A period saved before the flagship screen read crew hours,
+// machine days and permit fees genuinely is the subs-plus-materials floor and
+// has to keep saying so; a period saved after it is not, and stamping the
+// floor disclaimer onto a complete figure understates it — the same dishonesty
+// as the omission the disclaimer was written for, pointed the other way. So the
+// sentence comes from `wipCostToDateCaveat`, read off the rows' own frozen
+// provenance. (The reasoning lives HERE and not in an HTML comment: anything
+// inside the template ships inside the document a bank receives, and a stray
+// "LOWER BOUND" in its markup is exactly the phrase this change exists to keep
+// off a complete schedule.)
 function footnotesHtml(period: WipPeriodWithSources): string {
   const items = period.rows.map((r) => {
     const s = describeWipRowSources(r);
@@ -319,6 +331,18 @@ function footnotesHtml(period: WipPeriodWithSources): string {
       // superseded $620,000 beside a margin measured against his own $800,000,
       // on the page that exists to explain where the figures come from.
       + `Total estimated cost ${money(wipRowCostAtCompletion(r))} — ${escapeHtml(s.totalEstimatedCost)}<br/>`
+      // THE FULL COST-BASIS SENTENCE, WHEN THE ROW CARRIES ITS CANDIDATES (F19).
+      // The line above names the BRANCH; this one says what the other candidates
+      // were and what the convention between them costs the reader if it is wrong
+      // for his job — "the $42,200 you have signed in subcontracts and POs is
+      // read as work that estimate already prices, so it is not added on top of
+      // it. If any of it is scope your estimate never priced, this job will cost
+      // more than the figure above." That sentence was on screen and not on the
+      // page that leaves the building. Rows frozen before the candidates shipped
+      // print nothing here rather than a sentence rebuilt from zeros.
+      + (wipRowCostBasisSentence(r)
+        ? `<br/><span class="basis">${escapeHtml(wipRowCostBasisSentence(r) as string)}</span><br/>`
+        : '<br/>')
       + `Cost to date ${money(r.input.costToDate)} — ${escapeHtml(s.costToDate)}`
       // WATCH FLAGS (F8 part 2). A 17th column would not fit and would not be
       // read; the reason a job is flagged is a SENTENCE, and this is the block
@@ -334,7 +358,7 @@ function footnotesHtml(period: WipPeriodWithSources): string {
   return `<div class="notes">
     <h2>Where these figures come from</h2>
     <ul>${items}</ul>
-    <p class="caveat">${escapeHtml(WIP_COST_TO_DATE_CAVEAT)}</p>
+    <p class="caveat">${escapeHtml(wipCostToDateCaveat(period.rows))}</p>
   </div>`;
 }
 
@@ -440,6 +464,10 @@ export function buildWipHtml(
     .notes ul { margin: 0; padding-left: 16px; }
     .notes li { margin-bottom: 6px; line-height: 1.45; }
     .flag { color: #8a2b22; font-weight: 700; }
+    /* The cost-basis sentence (F19). Set apart from the source lines above it
+       because it is an EXPLANATION rather than a provenance label, and a banker
+       reading the footnote block should be able to see which is which. */
+    .basis { color: #555; }
     .caveat { margin-top: 10px; padding: 8px; background: #faf7f0; border: 1px solid #e6ded0; line-height: 1.45; }
   </style></head><body>
     <h1>${escapeHtml(companyName)} — Work-In-Progress Schedule</h1>
@@ -497,4 +525,87 @@ export async function shareWipPeriodPdf(
   } else {
     await Print.printAsync({ uri });
   }
+}
+
+/**
+ * WHICH of the three outcomes a CSV hand-over reached, as a pure function of
+ * what the platform did. Both CSV share paths in the repo route through it —
+ * this one and `shareReportCsv` (utils/financialReportPdf.ts).
+ *
+ * IT IS A FUNCTION BECAUSE THE TERNARY IN IT COULD NOT BE TESTED WHERE IT LIVED
+ * (verifier, 2026-09-11). Inverting `hasFileSystem() ? 'unavailable' :
+ * 'downloaded'` inside the async share function left all four WIP validators at
+ * 100%: they pinned the return-type union, the mimeType and the UTI, and none of
+ * them could reach the branch, because the enclosing function imports
+ * expo-sharing and cannot be executed under bun. Inverted, WEB reports
+ * 'unavailable' AFTER the browser has already taken the file, so the screen
+ * falls through and also copies to the clipboard and alerts "This device could
+ * not hand over a file" about a file the user already has.
+ *
+ * The three cases, and why:
+ *   • no uri + no filesystem  → 'downloaded'. That is web: deliverTextFile has
+ *     already triggered the browser download and has no URI to hand back.
+ *   • no uri + a filesystem   → 'unavailable'. Native with nothing written.
+ *   • a uri, no share sheet   → 'unavailable'. The caller falls back.
+ *   • a uri and a share sheet → 'shared'.
+ */
+export function csvHandoverOutcome(
+  uri: string | null,
+  fileSystemPresent: boolean,
+  sharingAvailable: boolean,
+): 'shared' | 'downloaded' | 'unavailable' {
+  if (!uri) return fileSystemPresent ? 'unavailable' : 'downloaded';
+  return sharingAvailable ? 'shared' : 'unavailable';
+}
+
+/**
+ * Hand the CSV over as a FILE, the way the PDF beside it already does — F18
+ * (audit 2026-09-11).
+ *
+ * The screen's only CSV path was `copyToClipboard`, on a phone. A WIP schedule
+ * is eleven columns wide plus three source columns; the clipboard gets it to
+ * Excel on a laptop and nowhere at all from iOS, where the GC's next move is to
+ * email it to his bookkeeper and there is no attachment to email. `shareWip-
+ * PeriodPdf` one function up has done this properly since it shipped.
+ *
+ * THE CLIPBOARD IS STILL THE ANSWER ON SOME PLATFORMS, so this returns what it
+ * managed rather than throwing:
+ *   • 'shared'      — written to cache and handed to the share sheet (native).
+ *   • 'downloaded'  — the browser took the file (web; deliverTextFile returns
+ *                     null there because there is no URI to share).
+ *   • 'unavailable' — a real filesystem but no share sheet, or no filesystem at
+ *                     all. The caller falls back to the clipboard, which is what
+ *                     it used to do unconditionally.
+ * A throw from the write itself propagates: a failed export must not report
+ * success, and the screen catches it.
+ *
+ * `liveAsOf` is passed through for the same reason the PDF takes it — an UNSAVED
+ * export has to say on the document that its figures are current-state rather
+ * than restated (see `wipLiveAsOfNote`).
+ */
+export async function shareWipPeriodCsv(
+  period: WipPeriodWithSources,
+  liveAsOf?: string,
+): Promise<'shared' | 'downloaded' | 'unavailable'> {
+  const csv = wipPeriodToCSV(period, liveAsOf);
+  // Lazily imported for the same reason the PDF's are: scripts/validate-wip.ts
+  // and scripts/validate-wip-provenance.ts import the pure builders in this file
+  // under bun, and a top-level react-native import crashes it.
+  const { deliverTextFile, hasFileSystem } = await import('@/utils/platformFile');
+  const Sharing = await import('expo-sharing');
+  // The file name is the DOCUMENT's identity in the bookkeeper's inbox, so it
+  // carries the period end rather than a timestamp.
+  const uri = await deliverTextFile(
+    `wip-schedule-${period.periodEndDate}.csv`, csv, 'text/csv;charset=utf-8',
+  );
+  const outcome = csvHandoverOutcome(
+    uri, hasFileSystem(), uri ? await Sharing.isAvailableAsync() : false,
+  );
+  if (outcome !== 'shared' || !uri) return outcome;
+  await Sharing.shareAsync(uri, {
+    mimeType: 'text/csv',
+    dialogTitle: `WIP Schedule ${period.periodEndDate}`,
+    UTI: 'public.comma-separated-values-text',
+  });
+  return outcome;
 }

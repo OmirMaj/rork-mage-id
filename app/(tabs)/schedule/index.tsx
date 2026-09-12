@@ -72,6 +72,7 @@ import TodayView from '@/components/schedule/TodayView';
 import LookaheadView from '@/components/schedule/LookaheadView';
 import VerticalGantt from '@/components/schedule/VerticalGantt';
 import { MobileScheduleScreen } from '@/components/schedule/mobile/MobileScheduleScreen';
+import { StartDayBasisNotice } from '@/components/schedule/StartDayBasisNotice';
 import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
@@ -97,7 +98,7 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { runCpm, stampCriticalPath } from '@/utils/cpm';
+import { runCpm, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch } from '@/utils/cpm';
 import { showAlert } from '@/utils/alert';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
@@ -545,8 +546,23 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         // names TOMORROW from about 5 pm anywhere west of Greenwich, so an
         // evening "create schedule" anchored day 1 on the wrong day.
         : (schedule.startDate ?? todayCalendarDay());
+      // startDayBasis policy, same shape and same reason as the anchor above.
+      // This helper REPLACES the stored schedule wholesale from a value most of
+      // its callers get out of `buildScheduleFromTasks`, so without this line an
+      // answered schedule would silently lose its answer on the next edit and be
+      // asked again. It is the user's answer, not a derived scalar: an existing
+      // schedule keeps its own — including "absent, never answered", which is
+      // what keeps the one-time re-anchor offer alive for a plan that
+      // utils/scheduleRebase.ts rewrote before 2026-09-11.
+      const startDayBasis = project.schedule ? project.schedule.startDayBasis : schedule.startDayBasis;
       updateProject(project.id, {
-        schedule: { ...schedule, projectId: project.id, startDate, updatedAt: new Date().toISOString() },
+        schedule: {
+          ...schedule,
+          projectId: project.id,
+          startDate,
+          ...(startDayBasis ? { startDayBasis } : { startDayBasis: undefined }),
+          updatedAt: new Date().toISOString(),
+        },
         status: project.estimate ? 'estimated' : 'draft',
       });
       return;
@@ -611,6 +627,45 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     setIsProjectStartDatePickerOpen(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [activeSchedule, saveSchedule, selectedProject, updateProject]);
+
+  // Legacy day-scale disclosure — the `utils/scheduleRebase.ts` population.
+  // `setProjectStartDate` directly above is one of the three call sites that
+  // used to rewrite every stored `startDay` onto the CALENDAR-INDEX scale and
+  // persist it, so a schedule that got its anchor on THIS screen is a
+  // candidate. All of the judgement is in `previewStartDayBasisMigration`
+  // (utils/cpm.ts); this screen renders the question and persists the answer.
+  const startDayBasisPreview = useMemo(
+    () => previewStartDayBasisMigration({
+      tasks: activeSchedule?.tasks ?? [],
+      startDate: activeSchedule?.startDate,
+      workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule?.nonWorkingDates,
+      startDayBasis: activeSchedule?.startDayBasis,
+    }),
+    [activeSchedule],
+  );
+  /**
+   * One write for both halves of the answer, through `updateProject` rather
+   * than `saveSchedule` — `saveSchedule` deliberately preserves an existing
+   * schedule's `startDayBasis` (so a routine edit can never forge the
+   * confirmation), which makes it the wrong door for the one write whose
+   * purpose is to set it. Declining stamps the flag and touches no task.
+   */
+  const answerStartDayBasis = useCallback((accept: boolean) => {
+    if (!selectedProject || !activeSchedule) return;
+    // The whole policy is in the patch (utils/cpm.startDayBasisAnswerPatch):
+    // a no writes only the flag, a yes writes the remapped tasks with it, and a
+    // yes built on a preview that says "don't ask" writes only the flag too.
+    updateProject(selectedProject.id, {
+      schedule: {
+        ...activeSchedule,
+        projectId: selectedProject.id,
+        ...startDayBasisAnswerPatch(startDayBasisPreview, accept, activeSchedule),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [selectedProject, activeSchedule, startDayBasisPreview, updateProject]);
 
   /**
    * Centralized persist helper for all mobile task edits (tap-edit + copilot
@@ -2652,6 +2707,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             {hasScheduleData && renderHealthBadge()}
           </View>
         </View>
+
+        {/* Legacy day-scale disclosure. Renders null for every schedule that is
+            fine, so it is mounted unconditionally — and it sits at the top of
+            the scroll, above the numbers it is talking about. */}
+        <StartDayBasisNotice
+          preview={startDayBasisPreview}
+          projectStartDate={activeSchedule?.startDate ? projectStartDate : null}
+          onAnswer={answerStartDayBasis}
+          style={{ marginHorizontal: 16, marginBottom: 8 }}
+        />
 
         {/* Active-projects chip row — primary navigation across projects.
             Replaces the old picker-button-then-modal flow so the GC can

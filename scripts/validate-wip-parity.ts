@@ -63,6 +63,19 @@
 //      ZERO, so the entire feature could be switched off (`const etcEntered =
 //      false && …`) with wip-parity and money-basis-parity both green.
 //
+//   9. THE REST OF COST-TO-DATE (F4, the largest of the nine and the last to
+//      close). Axis 2 pinned the arithmetic the two engines applied to the
+//      sources they SHARED — sub payments and material receipts — and was
+//      structurally blind to the three they did not: computeWIPReport read
+//      `computeJobCost(...).actual`, which also prices self-perform crew hours
+//      at the GC's own rates, machine days at each machine's day rate and permit
+//      fees, while utils/wip saw none of them. Measured: $222,000 / 55.50%
+//      complete / $305,250 earned on /wip-report against $271,230 / 67.81% /
+//      $372,941.25 on /reports — same job, same session, $67,691.25 of earned
+//      revenue and the identical dollar of underbilling. Closed by widening
+//      `suggestCostToDateWithSource`, and asserted by RUNNING both engines and
+//      comparing the cents rather than by grepping for an argument.
+//
 // Each is now one definition in utils/wip.ts that computeWIPReport calls, and
 // each is asserted here ACROSS BOTH ENGINES on the same fixture. The call-site
 // completeness check at the bottom is the other half: an optional positional
@@ -87,8 +100,14 @@ import {
   computeWipPortfolio,
   wipRowHasCostBasis,
   WIP_SOURCE_LABELS,
+  describeCostToDateComponents,
+  wipCostToDateCaveat,
+  WIP_COST_TO_DATE_CAVEAT,
+  WIP_COST_TO_DATE_COMPLETE,
   type WipSource,
+  type WipSnapshotRowWithSources,
 } from '../utils/wip';
+import { computeJobCost } from '../utils/jobCostEngine';
 import {
   computeWIPReport, computeProfitReport, wipReportToCSV, profitRowHasCostBasis,
 } from '../utils/financialReports';
@@ -366,6 +385,10 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
     ['estimate_base_total', /base total/i],
     ['signed_commitments', /subcontract/i],
     ['commitments_and_receipts', /receipt/i],
+    // The wired branch has to name what makes it DIFFERENT from the lower bound
+    // above it, or the Source cell cannot tell a surety which of the two
+    // figures he is holding.
+    ['recorded_actual_cost', /crews’ hours at your rates/],
     ['cost_incurred', /already paid out/i],
     ['none', /no source|enter this figure/i],
   ];
@@ -382,16 +405,323 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
 }
 
 // ── The drill-in actually shows the provenance ──────────────────────────────
+//
+// THESE WERE PRESENCE TESTS AND THEY HAVE BEEN CONVERTED (adversarial review
+// 2026-09-11). `/deriveOriginalContractWithSource/.test(screen)` matches an
+// import line, a comment, or a call whose result is dropped on the floor; it
+// cannot see the one thing that matters, which is whether the SOURCE the
+// function returned reaches the row a bank reads. That exact blindness — grep
+// for a call, never check the call's result is used or even reachable — is how
+// the top WIP blocker survived two review layers. What is pinned now is the
+// dataflow: each sourced derive is bound INSIDE `buildRow`, and its `.source`
+// lands on the `sources` object `liveRows` freezes onto the snapshot.
 {
   const screen = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
-  eq('app/wip-report.tsx reads the sourced derive functions',
-    /deriveOriginalContractWithSource/.test(screen)
-    && /deriveEstimatedCostWithSource/.test(screen)
-    && /suggestCostToDateWithSource/.test(screen), true);
-  eq('…and renders the labels rather than the enum',
-    /WIP_SOURCE_LABELS\[/.test(screen), true);
-  eq('…and names what cost-to-date does NOT include',
-    /Self-performed labor is NOT included/.test(screen), true);
+  const at = screen.indexOf('const buildRow = useCallback(');
+  const body = at < 0 ? '' : screen.slice(at, screen.indexOf('}, [costOverrides', at));
+  eq('buildRow is where every figure on this screen is built', at >= 0, true);
+
+  const bindings: [string, RegExp][] = [
+    ['the contract chain', /const contract = deriveOriginalContractWithSource\(project, cos, payApps\);/],
+    ['the cost-at-completion chain', /const cost = deriveEstimatedCostWithSource\(project, commitments, \{/],
+    ['the cost-to-date chain', /const auto = suggestCostToDateWithSource\(commitments, receipts, \{/],
+  ];
+  for (const [name, binding] of bindings) {
+    eq(`${name} is called inside buildRow and its result is bound`, binding.test(body), true);
+  }
+
+  // …and each binding's SOURCE reaches the row. A derive whose `.value` is used
+  // and whose `.source` is thrown away is the provenance layer silently gone:
+  // every Source cell falls back to WIP_SOURCE_UNRECORDED and not one dollar
+  // moves, so nothing else in this repo would notice.
+  const flows: [string, RegExp][] = [
+    ['originalContract', /originalContract: contract\.source,/],
+    ['totalEstimatedCost', /totalEstimatedCost: etc \? 'cost_to_complete_entered' : cost\.source,/],
+    ['costToDate', /: auto\.source,/],
+  ];
+  for (const [figure, flow] of flows) {
+    eq(`…and the ${figure} source is carried onto the row, not dropped`, flow.test(body), true);
+  }
+  // Built and then not returned is the same as not built.
+  eq('…and buildRow returns both the input and its sources',
+    /return \{\s*input: \{/.test(body) && /\n {6}sources: \{/.test(body), true);
+  // `liveRows` is what the portfolio, the list, Save and both exports come from.
+  eq('…and liveRows freezes the sources onto every snapshot row',
+    /projectId: p\.id, projectName: p\.name, input, output: computeWipRow\(input\), sources,/
+      .test(screen), true);
+
+  eq('…and the drill-in renders the labels rather than the enum',
+    /WIP_SOURCE_LABELS\[drillRow\.sources\.originalContract\]/.test(screen)
+    && /WIP_SOURCE_LABELS\[drillRow\.sources\.totalEstimatedCost\]/.test(screen), true);
+
+  // NAMING WHAT IS NOT IN COST-TO-DATE. The sentence used to be "Self-performed
+  // labor is NOT included, so this is a lower bound", and pinning that string is
+  // now WRONG: F4 put self-perform labour, machine days and permit fees into the
+  // figure, so the old sentence is a false disclosure and a guard holding it in
+  // place would be holding the defect in place. What the drill-in must still do
+  // is name the gap the figure ACTUALLY has — a missing rate, not a missing
+  // source — and it must not have kept a lower-bound branch no live row can
+  // reach (buildRow always passes the sources, so `auto.complete` is invariably
+  // true here; a ternary on it would be the tested-but-unreachable shape this
+  // repo removed `percentCompleteOverride` for).
+  eq('…and the drill-in names the gap the figure actually has',
+    /A trade with no rate on file and a machine with no day rate add nothing/.test(screen), true);
+  eq('…without an unreachable lower-bound branch beside it',
+    /Self-performed labor is NOT included/.test(screen), false);
+  // …while the ENGINE keeps that sentence, because a period frozen before F4
+  // genuinely IS the two-source floor and its export has to keep saying so.
+  eq('…which the engine still holds for snapshots that predate F4',
+    /LOWER BOUND/.test(WIP_COST_TO_DATE_CAVEAT), true);
+}
+
+// ── F16: OVERBILLING IS NOT THE ALARM ON THIS SCREEN ────────────────────────
+//
+// The list cell was `over: t.danger` / `under: t.info` — overbilling in the same
+// red as the ASC 605-35 forecast-loss tag, underbilling in informational blue —
+// against this screen's own explainer, which calls overbilling "good for cash
+// but a liability you still owe" and says of underbilling "it is the first thing
+// a surety or a lender looks for". Two defects in one pair of tokens: the
+// emphasis is inverted, and an ordinary — often desirable — billing position
+// wearing the loss colour devalues the one alarm on the page that is a real one.
+{
+  const screen = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
+  eq('overbilling is not painted in the loss colour',
+    /^\s*over: \{ fontSize: Type\.footnote\.fontSize, color: t\.info,/m.test(screen), true);
+  eq('…and underbilling carries the attention ink, being the surety’s first question',
+    /^\s*under: \{ fontSize: Type\.footnote\.fontSize, color: t\.warningLabel,/m.test(screen), true);
+  // TEXT takes a LABEL ink, never a signal fill — constants/colors.ts measures
+  // the vivid fills at 2.06–3.61:1 as text and validate-contrast holds the label
+  // inks to AA. `t.danger` is a fill and must not return to either cell.
+  eq('…and neither cell uses a signal fill as text',
+    /^\s*over: \{[^}]*color: t\.danger/m.test(screen)
+    || /^\s*under: \{[^}]*color: t\.danger/m.test(screen), false);
+  // Colour is never the only channel: the words stay in the cell, so a
+  // colour-blind reader and a screen reader both still get the distinction.
+  eq('…and the words carry the distinction too, not the colour alone',
+    /\? `Over \$\{money\(r\.output\.overbilling\)\}`/.test(screen)
+    && /\? `Under \$\{money\(r\.output\.underbilling\)\}`/.test(screen), true);
+}
+
+// ── AXIS 9 — COST-TO-DATE IS THE WHOLE RECORDED COST, ON BOTH SCHEDULES ─────
+//
+// F4 (audit 2026-09-11), the largest parity gap left in this area and the last
+// one to close. utils/wip.suggestCostToDate summed `commitment.paidToDate` plus
+// material receipts; utils/financialReports.computeWIPReport read
+// `computeJobCost(...).actual`, which ALSO prices self-perform crew hours at the
+// GC's configured rates, machine days at each machine's day rate, and permit
+// fees. Measured before the fix on the fixture below — $180,000 subs paid,
+// $42,000 of receipts, 700 crew hours of which 40 overtime, 80 machine hours at
+// $450/day and $4,090 of permits, on a $550,000 contract against a $400,000
+// estimate cost:
+//
+//     /wip-report   $222,000   55.50% complete   earned $305,250.00
+//     /reports      $271,230   67.81% complete   earned $372,941.25
+//
+// $67,691.25 of earned revenue, and the same dollar of underbilling, between two
+// documents one sidebar row apart that both offer a PDF for a bank.
+//
+// THIS BLOCK EXECUTES BOTH ENGINES. It does not grep for an argument: the whole
+// reason the fix is defensible is that utils/wip borrows the pricing rules from
+// the modules that own them (priceLaborEntry, EQUIPMENT_HOURS_PER_DAY,
+// commitmentPaidToDate) instead of re-expressing them, and the only assertion
+// that can prove that stayed true is running both and comparing the cents.
+console.log('\ncost-to-date is the whole recorded cost, identically, in both engines:');
+{
+  const ESTIMATE_ITEM = {
+    id: 'i1', description: 'Framing', category: 'Framing',
+    quantity: 1, unit: 'ls', unitPrice: 400_000, lineTotal: 400_000, markup: 0,
+  };
+  const PROJ = project({
+    linkedEstimate: {
+      id: 'e1', items: [ESTIMATE_ITEM], globalMarkup: 37.5,
+      baseTotal: 400_000, markupTotal: 150_000, grandTotal: 550_000, createdAt: '2026-01-01',
+    },
+  } as unknown as Partial<Project>);
+
+  // Every refusal the two engines make, in one fixture, so a divergence in ANY
+  // of them fails here rather than in production:
+  //   • a DRAFT commitment's payments are not cost (computeJobCost filters it);
+  //   • a NEGATIVE paidToDate floors at zero (commitmentPaidToDate);
+  //   • a trade with no configured rate prices at nothing, hours notwithstanding;
+  //   • a machine with no day rate prices at nothing;
+  //   • another project's crew hours, machine hours and permits stay on that job.
+  // `amount` is held BELOW the estimate's $400,000 cost basis on purpose: the
+  // signed-commitments floor inside deriveEstimatedCost would otherwise bind at
+  // $800,000 and the earned-revenue figures below would be measuring the floor
+  // rather than the cost-to-date change this block is about.
+  const commitments = [
+    { ...commitment(180_000), id: 'c-active', status: 'active', amount: 300_000 },
+    { ...commitment(50_000), id: 'c-draft', status: 'draft', amount: 0 },
+    { ...commitment(-9_000), id: 'c-negative', status: 'active', amount: 0 },
+  ] as unknown as Commitment[];
+  const receipts = [{ id: 'r1', projectId: 'p1', total: 42_000, lines: [{ category: 'Lumber', lineTotal: 42_000 }] }] as unknown as MaterialReceipt[];
+  const timeEntries = [
+    { id: 't1', projectId: 'p1', trade: 'carpenter', status: 'clocked_out', totalHours: 400, overtimeHours: 0 },
+    { id: 't2', projectId: 'p1', trade: 'laborer', status: 'clocked_out', totalHours: 300, overtimeHours: 40 },
+    { id: 't3', projectId: 'p1', trade: 'glazier', status: 'clocked_out', totalHours: 90, overtimeHours: 0 },
+    { id: 't4', projectId: 'p1', trade: 'carpenter', status: 'clocked_in', totalHours: 8, overtimeHours: 0 },
+    { id: 't5', projectId: 'p2', trade: 'carpenter', status: 'clocked_out', totalHours: 500, overtimeHours: 0 },
+  ] as never;
+  const laborRates = { carpenter: 68, laborer: 42 };
+  const equipment = [
+    { id: 'e1', name: 'Excavator', dailyRate: 450, utilizationLog: [
+      { id: 'u1', projectId: 'p1', hoursUsed: 64 }, { id: 'u2', projectId: 'p1', hoursUsed: 16 },
+      { id: 'u3', projectId: 'p2', hoursUsed: 200 }] },
+    { id: 'e2', name: 'Skid steer', dailyRate: 0, utilizationLog: [{ id: 'u4', projectId: 'p1', hoursUsed: 40 }] },
+  ] as never;
+  const permits = [
+    { id: 'pm1', projectId: 'p1', fee: 3_150, status: 'issued' },
+    { id: 'pm2', projectId: 'p1', fee: 940, status: 'denied' },
+    { id: 'pm3', projectId: 'p2', fee: 7_000, status: 'issued' },
+  ] as never;
+  const costSources = { receipts, timeEntries, laborRates, overtimeMultiplier: 1.5, equipment, permits };
+  const direct = { projectId: 'p1', timeEntries, laborRates, overtimeMultiplier: 1.5, equipment, permits };
+
+  const ctd = suggestCostToDateWithSource(commitments, receipts, direct);
+  const job = computeJobCost({ project: PROJ, commitments, changeOrders: [], ...costSources });
+
+  // THE ASSERTION THIS BLOCK EXISTS FOR. To the cent, on a fixture where the
+  // labour leg alone carries an overtime premium that a naive `hours × rate`
+  // would get wrong by $840.
+  close('the flagship cost-to-date equals the /reports one, to the cent', ctd.value, job.actual);
+  // …and it is not equal because both are empty.
+  close('…and it is the full recorded figure, not the old lower bound', ctd.value, 271_230);
+  close('…which the two-argument form still returns, for a caller not yet widened',
+    suggestCostToDateWithSource(commitments, receipts).value, 222_000);
+  close('…so the gap the fix closed is this many dollars',
+    ctd.value - suggestCostToDateWithSource(commitments, receipts).value, 49_230);
+
+  // Each component, so a leg that silently stops contributing is named rather
+  // than hidden inside a total that another leg happens to compensate.
+  close('subs paid — the draft excluded and the negative floored', ctd.committed, 180_000);
+  close('material receipts', ctd.materials, 42_000);
+  // 400h × $68 = $27,200; (260h + 40h × 1.5) × $42 = $13,440; glazier unrated → $0.
+  close('self-perform crew hours, overtime priced, unrated trades refused', ctd.labor, 40_640);
+  // 80h / 8h per day × $450 = $4,500; the rate-less skid steer adds nothing.
+  close('machine days at the machine’s own rate', ctd.equipment, 4_500);
+  close('permit fees, denied ones included', ctd.permits, 4_090);
+  close('…and the components foot to the value',
+    ctd.committed + ctd.materials + ctd.labor + ctd.equipment + ctd.permits, ctd.value);
+
+  // THE PROVENANCE HAS TO MOVE WITH THE ARITHMETIC. A wired figure carrying the
+  // lower-bound label would tell a surety the number is a floor when it is not.
+  eq('a wired figure says so', ctd.source, 'recorded_actual_cost');
+  eq('…and an unwired one still admits what it is',
+    suggestCostToDateWithSource(commitments, receipts).source, 'commitments_and_receipts');
+  eq('…and `complete` is about the WIRING, not about whether it found anything',
+    [suggestCostToDateWithSource([], [], { projectId: 'p1' }).complete,
+     suggestCostToDateWithSource([], []).complete], [true, false]);
+
+  // END TO END. Both engines, one fixture, every figure on the row a bank reads.
+  const eac = deriveEstimatedCostWithSource(PROJ, commitments, {
+    approvedChangeOrders: 0, originalContract: 550_000, costIncurred: ctd.value });
+  const flagship = computeWipRow({
+    originalContract: 550_000, approvedChangeOrders: 0,
+    totalEstimatedCost: eac.value, costToDate: ctd.value, billedToDate: 0,
+  });
+  const reportRow = computeWIPReport([PROJ], [], [], commitments, costSources, [], {}).rows[0];
+  // `WipRow` deliberately does not echo its own input, so the flagship's
+  // cost-to-date is `ctd.value` — the figure computeWipRow was HANDED. That is
+  // the right side of this comparison anyway: the question is whether /reports
+  // DERIVES the same cost-to-date the flagship was given, which is axis 2.
+  close('both schedules report the same cost-to-date on the row',
+    ctd.value, reportRow.costToDate ?? -1);
+  close('…the same percent complete', flagship.percentComplete * 100, reportRow.percentComplete, 1e-9);
+  close('…the same earned revenue', flagship.earnedRevenue, reportRow.earnedRevenue ?? -1, 1e-9);
+  close('…and the same cost at completion', eac.value, reportRow.estimatedFinalCost);
+  // The number the divergence used to be worth, kept as a number so nobody has
+  // to take the prose above on trust.
+  const stale = suggestCostToDateWithSource(commitments, receipts).value;
+  const staleRow = computeWipRow({
+    originalContract: 550_000, approvedChangeOrders: 0,
+    totalEstimatedCost: deriveEstimatedCostWithSource(PROJ, commitments, {
+      approvedChangeOrders: 0, originalContract: 550_000, costIncurred: stale }).value,
+    costToDate: stale, billedToDate: 0,
+  });
+  close('and the earned-revenue divergence it used to print was this big',
+    reportRow.earnedRevenue! - staleRow.earnedRevenue, 67_691.25, 1e-6);
+}
+
+// ── THE FLAGSHIP SCREEN ACTUALLY HANDS THE ENGINE THOSE SOURCES ─────────────
+//
+// The block above proves the ENGINE agrees. An optional positional bundle that
+// the screen does not pass is the exact shape that produced axes 2, 5, 6, 7 and
+// 8, so the call site is pinned too — and pinned by SHAPE (which fields, from
+// which hooks), because `{ projectId: p.id }` alone satisfies any presence test
+// while changing nothing.
+{
+  const screen = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
+  const calls = [...screen.matchAll(/suggestCostToDateWithSource\(/g)].length;
+  eq('the flagship screen calls the sourced cost-to-date exactly once', calls, 1);
+  const wired = /suggestCostToDateWithSource\(commitments, receipts, \{\s*projectId: project\.id,\s*timeEntries, laborRates, overtimeMultiplier, equipment, permits,\s*\}\)/
+    .test(screen);
+  eq('…and hands it the project plus all five direct cost sources', wired, true);
+  for (const hook of ['useTimeEntriesMirror\\(\\)', 'useLaborRates\\(\\)', 'useMaterialReceipts\\(\\)']) {
+    eq(`…from the hook that holds them (${hook.replace(/\\/g, '')})`,
+      new RegExp(hook).test(screen), true);
+  }
+  eq('…and equipment and permits off the project context',
+    /^\s*equipment, permits,$/m.test(screen), true);
+  // The bundle has to be inside `buildRow`, which is what every row, the
+  // portfolio, the snapshot and both exports are built from. Wiring it into some
+  // other helper would satisfy the regex above and move nothing.
+  const start = screen.indexOf('const buildRow = useCallback(');
+  const body = start < 0 ? '' : screen.slice(start, screen.indexOf('}, [costOverrides', start));
+  eq('…inside buildRow, which every row and both exports come from',
+    start >= 0 && /suggestCostToDateWithSource\(/.test(body), true);
+  // And the deps have to carry them, or a rate typed on /settings never reaches
+  // a row until the screen remounts — the same stale-map defect the ETC had.
+  for (const dep of ['timeEntries', 'laborRates', 'overtimeMultiplier', 'equipment', 'permits']) {
+    eq(`…and buildRow re-runs when ${dep} changes`,
+      new RegExp(`\\}, \\[costOverrides[^\\]]*\\b${dep}\\b[^\\]]*\\]`).test(screen), true);
+  }
+}
+
+// ── THE EXPORTED CAVEAT IS THE ONE THESE ROWS EARNED ────────────────────────
+{
+  const row = (costToDate: WipSnapshotRowWithSources['sources'] extends undefined ? never : string | undefined): WipSnapshotRowWithSources => ({
+    projectId: 'p', projectName: 'P',
+    input: { originalContract: 100, approvedChangeOrders: 0, totalEstimatedCost: 80, costToDate: 40, billedToDate: 30 },
+    output: computeWipRow({ originalContract: 100, approvedChangeOrders: 0, totalEstimatedCost: 80, costToDate: 40, billedToDate: 30 }),
+    sources: costToDate === undefined ? undefined : {
+      originalContract: 'estimate_grand_total',
+      totalEstimatedCost: 'estimate_base_total',
+      costToDate: costToDate as never,
+    },
+  } as unknown as WipSnapshotRowWithSources);
+
+  eq('a period whose rows are all wired does not call itself a lower bound',
+    wipCostToDateCaveat([row('recorded_actual_cost')]), WIP_COST_TO_DATE_COMPLETE);
+  eq('…and a GC’s own typed figure is not called a lower bound either',
+    [wipCostToDateCaveat([row('entered_and_synced')]), wipCostToDateCaveat([row('entered_on_this_device')])],
+    [WIP_COST_TO_DATE_COMPLETE, WIP_COST_TO_DATE_COMPLETE]);
+  eq('a period frozen before F4 keeps saying it is a lower bound',
+    wipCostToDateCaveat([row('commitments_and_receipts')]), WIP_COST_TO_DATE_CAVEAT);
+  eq('…and so does a snapshot that predates provenance entirely',
+    wipCostToDateCaveat([row(undefined)]), WIP_COST_TO_DATE_CAVEAT);
+  eq('ONE understated job understates the schedule',
+    wipCostToDateCaveat([row('recorded_actual_cost'), row('commitments_and_receipts')]),
+    WIP_COST_TO_DATE_CAVEAT);
+  eq('the two sentences are actually different, and each says its own thing',
+    [/LOWER BOUND/.test(WIP_COST_TO_DATE_CAVEAT),
+     /crews’ hours/.test(WIP_COST_TO_DATE_COMPLETE) && /equipment days/.test(WIP_COST_TO_DATE_COMPLETE)
+       && /permit fees/.test(WIP_COST_TO_DATE_COMPLETE) && !/LOWER BOUND/.test(WIP_COST_TO_DATE_COMPLETE)],
+    [true, true]);
+
+  // The components sentence the drill-in prints, by behaviour.
+  const full = suggestCostToDateWithSource(
+    [{ id: 'c', projectId: 'p1', status: 'active', paidToDate: 1_000 } as unknown as Commitment],
+    [{ total: 200 } as unknown as MaterialReceipt],
+    { projectId: 'p1', permits: [{ id: 'x', projectId: 'p1', fee: 50 }] as never },
+  );
+  eq('the components sentence names only the components that carry money',
+    describeCostToDateComponents(full), '$1,000 subs paid + $200 material receipts + $50 permit fees.');
+  eq('…and an empty wired job says MAGE looked, not that it cannot see',
+    /No cost recorded on this job yet/.test(
+      describeCostToDateComponents(suggestCostToDateWithSource([], [], { projectId: 'p1' }))), true);
+  eq('…while an unwired empty job says only what it checked',
+    describeCostToDateComponents(suggestCostToDateWithSource([], [])),
+    'No sub payments and no material receipts recorded on this job yet.');
 }
 
 // ── AXES 5, 6 AND 7 — CONTRACT, BILLINGS, PERCENT COMPLETE ──────────────────
@@ -729,8 +1059,27 @@ console.log('\na contract with no cost basis is unmeasurable on both:');
   eq('…hydrated from the same key both schedules read',
     /AsyncStorage\.getItem\(wipEtcStorageKey\(user\?\.id\)\)/.test(WEEK_CLOSE)
       && /wipEtcValueMap\(normalizeWipEtcMap\(JSON\.parse\(raw\)\)\)/.test(WEEK_CLOSE), true);
-  eq('…and costToDate is computed once and reused, not derived twice',
-    (WEEK_CLOSE.match(/costToDate: suggestCostToDate\(/g) ?? []).length, 0);
+  // A NEGATIVE-ONLY COUNT IS SATISFIED BY DELETION. This asserted that
+  // `costToDate: suggestCostToDate(` occurs zero times — a string this file has
+  // never contained in either direction, because the real line is `const
+  // costToDate = suggestCostToDate(`. It was therefore satisfied by the wired
+  // file, by an unwired file and by an empty file alike, and could not have
+  // caught a wiring change in either direction (verifier, 2026-09-11).
+  //
+  // What it MEANS is that the row's `costToDate` field reuses the same const the
+  // `costIncurred` floor above is computed from, rather than deriving the figure
+  // a second time — two derivations is exactly how the floor and the row drift
+  // apart on an overrun job. So both halves are asserted: the derivation exists,
+  // exactly once, and the field is the shorthand that reuses it.
+  //
+  // (Still open and declared: that one call passes no direct cost sources, so
+  // the Friday Close's cost-to-date is the subs-and-materials lower bound while
+  // both bank schedules now carry crew, equipment and permits. hooks/ is not
+  // this wave's to change; this guard does not pretend otherwise.)
+  eq('…and costToDate is derived exactly once and reused, not derived twice',
+    (WEEK_CLOSE.match(/suggestCostToDate\(/g) ?? []).length === 1
+      && /const costToDate = suggestCostToDate\(/.test(WEEK_CLOSE)
+      && /^\s+costToDate,$/m.test(WEEK_CLOSE), true);
 
   const HORIZON = readFileSync(join(ROOT, 'utils', 'portfolio', 'pipelineHorizon.ts'), 'utf8');
   eq('the pipeline horizon passes the pay applications',

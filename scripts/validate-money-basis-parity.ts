@@ -742,6 +742,37 @@ console.log('\nthe report builders are called with everything they take:');
   ok('…and re-read whenever the screen is focused, not once per mount',
     /useFocusEffect\(loadEtc\)/.test(REPORTS) && /useFocusEffect/.test(REPORTS),
     'an ETC typed on /wip-report must reach this tab without a remount');
+  // …AND THE READ IS REACHABLE. Everything above this line is a PRESENCE test:
+  // `/AsyncStorage.getItem(wipEtcStorageKey(userId))/` matches just as happily
+  // with `if (userId) return;` inserted at the top of `loadEtc`, which leaves
+  // `etcEntries` permanently `{}` — the whole of axis 8 back, on this tab, its
+  // CSV and its PDF, with every WIP validator green. That is exactly how the top
+  // WIP blocker survived two review layers inside `commitDrillEtc`, and the same
+  // shape of hole existed here. So pin the SHAPE of the loader: exactly two
+  // returns, and they are the two it is supposed to have.
+  {
+    const start = REPORTS.indexOf('const loadEtc = useCallback(() => {');
+    const body = start < 0 ? '' : REPORTS.slice(start, REPORTS.indexOf('}, [userId]);', start));
+    const returns = [...body.matchAll(/\breturn\b/g)].length;
+    ok('…and nothing short-circuits the hydrate before it runs',
+      start >= 0 && returns === 2
+      && /if \(cancelled\) return;/.test(body)
+      && /return \(\) => \{ cancelled = true; \};/.test(body),
+      start < 0
+        ? 'loadEtc not found — if it was renamed, re-point this assertion rather than deleting it'
+        : `${returns} return statement(s) in loadEtc; expected exactly two — the cancelled guard `
+          + 'and the cleanup. A third leaves etcEntries empty forever, which is axis 8 back with '
+          + 'every guard still green.');
+    // The state setter has to be INSIDE that body. A read whose result is parsed
+    // and then dropped is the same empty map by another route.
+    ok('…and the parsed map is actually put into state',
+      /setEtcEntries\(raw \? wipEtcValueMap\(normalizeWipEtcMap\(JSON\.parse\(raw\)\)\) : \{\}\);/.test(body),
+      'the hydrate must land in the state the report builders read');
+    // …and the cancelled guard must sit AFTER the await, or it can never be true
+    // and the cleanup is decoration.
+    ok('…with the cancelled check after the await, where it can actually fire',
+      body.indexOf('await AsyncStorage.getItem') < body.indexOf('if (cancelled) return;'));
+  }
   // A `costSources` built from an empty literal would satisfy the regex above
   // and change nothing, so pin what it is built FROM. These are the six fields
   // JobCostActualSources carries; app/job-costing.tsx passes the same set.
@@ -754,6 +785,30 @@ console.log('\nthe report builders are called with everything they take:');
     && /useTimeEntriesMirror\(\)/.test(REPORTS)
     && /useLaborRates\(\)/.test(REPORTS),
     'the receipts, crew hours and rates must come from the same hooks /job-costing uses');
+
+  // …AND THE BUTTON THAT SHIPS ALL OF THAT TO A BANK RUNS. Everything above is
+  // a presence test on the BUILDERS; none of it can see whether the export
+  // handler is reachable. An inverted first guard makes "Download PDF" do
+  // nothing at all — no share sheet, no alert, no spinner, because
+  // `setGenerating(true)` is below it — on the one deliverable this screen
+  // exists to produce, with every assertion in this file still green.
+  {
+    const at = REPORTS.indexOf('const handleSharePdf = useCallback(async () => {');
+    const body = at < 0 ? '' : REPORTS.slice(at, REPORTS.indexOf('}, [tab, wip, profit, aging,', at));
+    const returns = [...body.matchAll(/\breturn\b/g)].length;
+    ok('the PDF export has exactly its two refusals, and runs otherwise',
+      at >= 0 && returns === 2
+      && /if \(tab === 'wip' && !wipUnlocked\) return;/.test(body)
+      && /if \(nothingToExport\) \{ showAlert\('Nothing to report yet', blockedReason\); return; \}/.test(body),
+      at < 0
+        ? 'handleSharePdf not found — re-point this assertion rather than deleting it'
+        : `${returns} return(s) in handleSharePdf; expected 2. A third makes the bank deliverable `
+          + 'unreachable with every builder assertion above still passing.');
+    ok('…and all three share calls are inside it',
+      /await shareWIPReport\(wip, branding\);/.test(body)
+      && /await shareProfitReport\(/.test(body)
+      && /await shareARAgingReport\(aging, branding\);/.test(body));
+  }
 }
 
 // ── THE FLAGSHIP SCREEN SHOWS WHAT IT EXPORTS, AND SAYS WHOSE IT IS ─────────
@@ -842,6 +897,36 @@ console.log('\nthe WIP screen renders the period it would export:');
   }
   ok('the drill-in commit routes through that reducer',
     /applyWipEtcEntry\(prev, drillProjectId, drillEtcText, now\)/.test(WIP_SCREEN));
+  // …AND SOMETHING CALLS THE COMMIT HANDLERS AT ALL. Four validators pin the
+  // SHAPE of `commitDrillCost` and `commitDrillEtc` down to their exact return
+  // counts, and until now NOT ONE of them asserted either is ever invoked:
+  // `grep -c 'closeDrill' scripts/validate-*.ts` was 0. Deleting
+  // `commitDrillEtc();` from `closeDrill` leaves every one of those assertions
+  // green while a GC who types a cost to complete and taps the X loses it —
+  // which is the top blocker in this area arriving by a different door.
+  //
+  // Both doors are pinned, because they cover different presses: `onEndEditing`
+  // catches a GC who taps away from the field, and `closeDrill` catches the one
+  // who taps X or swipes the sheet down with the keyboard still up, where React
+  // Native does not promise a blur before the input unmounts.
+  {
+    const at = WIP_SCREEN.indexOf('const closeDrill = useCallback(() => {');
+    const body = at < 0 ? '' : WIP_SCREEN.slice(at, WIP_SCREEN.indexOf('}, [commitDrillCost, commitDrillEtc]);', at));
+    ok('closing the drill-in commits BOTH typed figures before it disappears',
+      at >= 0
+      && [...body.matchAll(/\breturn\b/g)].length === 0
+      && /commitDrillCost\(\);/.test(body) && /commitDrillEtc\(\);/.test(body),
+      at < 0
+        ? 'closeDrill not found — re-point this assertion rather than deleting it'
+        : 'closeDrill must call both commits and must not return before them; every shape '
+          + 'assertion on the two handlers is satisfied by a handler nobody calls');
+    ok('…and it is what the sheet actually closes through, by X and by back',
+      /onRequestClose=\{closeDrill\}/.test(WIP_SCREEN)
+      && /onPress=\{closeDrill\} accessibilityRole="button" accessibilityLabel="Close"/.test(WIP_SCREEN));
+    ok('…while blurring either field commits it too, for the tap-away press',
+      /onEndEditing=\{commitDrillCost\}/.test(WIP_SCREEN)
+      && /onEndEditing=\{commitDrillEtc\}/.test(WIP_SCREEN));
+  }
   // …AND THAT CALL IS REACHABLE. The assertion above is a PRESENCE test, and a
   // presence test cannot see an early return placed above the call it looks for.
   //
@@ -941,6 +1026,95 @@ console.log('\nthe WIP screen renders the period it would export:');
     'recomputing at export time compares today\'s book, not the comparison the period was struck with');
   ok('…and the LIVE export carries them too',
     /createdAt: new Date\(\)\.toISOString\(\), rows: liveRowsWithFlags/.test(WIP_SCREEN));
+
+  // ── THREE MORE HANDLERS PINNED BY REACHABILITY, NOT BY PRESENCE ──────────
+  //
+  // Every assertion in this block above this line matches a STRING in the
+  // screen, and a string keeps matching with an inverted guard clause bolted on
+  // above it. That is not a hypothetical: inserting `if (drillProjectId) return;`
+  // at the top of `commitDrillEtc` killed the entire cost-to-complete input —
+  // the top blocker in this whole area — and all four WIP validators stayed at
+  // 100%. `commitDrillEtc` is pinned by shape further down. These three are the
+  // other handlers where one inverted line silently removes a fix, so they are
+  // pinned the same way: exact return count, and the exact guards.
+  const handler = (decl: string, endsWith: string): string => {
+    const at = WIP_SCREEN.indexOf(decl);
+    return at < 0 ? '' : WIP_SCREEN.slice(at, WIP_SCREEN.indexOf(endsWith, at));
+  };
+  const returnsIn = (body: string): number => [...body.matchAll(/\breturn\b/g)].length;
+
+  {
+    // SAVE. An inverted `viewingFrozen` guard makes the button do nothing at
+    // all — no period, no snapshot, no provenance frozen, nothing to lock and
+    // nothing to export — and every regex about addPeriod's ARGUMENTS above
+    // still matches, because the call is still written there.
+    const body = handler('const handleSnapshot = useCallback(() => {', '}, [addPeriod,');
+    ok('Save has exactly the three refusals it is supposed to have',
+      body !== '' && returnsIn(body) === 3
+      && /if \(viewingFrozen\) \{/.test(body)
+      && /if \(liveRows\.length === 0\) \{/.test(body)
+      && /if \(duplicate\) \{/.test(body),
+      body === ''
+        ? 'handleSnapshot not found — re-point this assertion rather than deleting it'
+        : `${returnsIn(body)} return(s) in handleSnapshot; expected 3. A fourth makes Save inert `
+          + 'with every argument assertion above still green.');
+    ok('…and the addPeriod call is inside it, reachable, not merely written somewhere',
+      /addPeriod\(\{ periodEndDate, rows: liveRowsWithFlags, portfolioTotals: portfolio \}\)/.test(body));
+  }
+  {
+    // THE PDF. Two refusals, and the branding argument this wave fixed rides on
+    // the call being reached at all.
+    const body = handler('const handleExportPdf = useCallback(async () => {', '}, [exportPeriod, settings]);');
+    ok('the PDF export has exactly its two refusals',
+      body !== '' && returnsIn(body) === 2
+      && /if \(!exportPeriod\) return;/.test(body)
+      && /if \(exportPeriod\.rows\.length === 0\)/.test(body),
+      `${returnsIn(body)} return(s) in handleExportPdf; expected 2`);
+    ok('…and the contractor-branded share call is inside it',
+      /shareWipPeriodPdf\(exportPeriod, settings\?\.branding\?\.companyName \|\| 'MAGE ID', todayCalendarDay\(\)\)/
+        .test(body));
+  }
+  {
+    // THE SERVER LEG OF THE COST-TO-DATE OVERRIDE. An inverted first guard here
+    // is the quietest defect of the three: the figure still shows on THIS
+    // device, so the screen looks correct, and nothing ever reaches the account
+    // — so the laptop's $340,000 of self-perform labour stays invisible on the
+    // phone and every row keeps reading "entered here, not synced yet" forever.
+    // The `cleared: entry.cleared === true` assertion in
+    // scripts/validate-wip-provenance.ts is a presence test that cannot see it.
+    const body = handler('const pushOverride = useCallback(async (projectId: string, entry: CostOverride) => {',
+      '}, [userId]);');
+    ok('the override sync has exactly its four exits',
+      body !== '' && returnsIn(body) === 4
+      && /if \(!userId \|\| !isSupabaseConfigured\) return;/.test(body)
+      && /if \(!landed\) return;/.test(body),
+      `${returnsIn(body)} return(s) in pushOverride; expected 4 — the two guards, the stale-edit `
+      + 'bail inside the state update, and the update itself');
+    ok('…and the write itself is inside it, through the offline queue',
+      /await supabaseWrite\(WIP_COST_OVERRIDES_TABLE, 'upsert', \{/.test(body)
+      && /setCostOverrides\(\(prev\) => \{/.test(body));
+    ok('…and never a direct supabase upsert that a dead connection would drop',
+      !/supabase\s*\n?\s*\.from\(WIP_COST_OVERRIDES_TABLE\)\s*\n?\s*\.upsert/.test(withoutComments(body)));
+  }
+  {
+    // LOCK. The assertion above pins WHICH period Lock reads; it cannot see
+    // whether Lock runs at all. An inverted first guard leaves the period
+    // permanently unlocked — the one irreversible act that turns a snapshot into
+    // a document a surety can rely on — while `periodsByEnd[0]` is still written
+    // there and the count assertion above still passes.
+    const body = handler('const handleLock = useCallback(() => {', '}, [selectedPeriodId, periods, periodsByEnd,');
+    ok('Lock has exactly the four exits it is supposed to have',
+      body !== '' && returnsIn(body) === 4
+      && /const target = selectedPeriodId \? periods\.find\(\(p\) => p\.id === selectedPeriodId\) : periodsByEnd\[0\];/.test(body)
+      && /if \(target\.rows\.length === 0\) \{/.test(body)
+      && /if \(target\.lockedAt\) \{/.test(body),
+      body === ''
+        ? 'handleLock not found — re-point this assertion rather than deleting it'
+        : `${returnsIn(body)} return(s) in handleLock; expected 4 — no target with no rows, no `
+          + 'target at all, an empty period, and an already-locked one. A fifth makes Lock inert.');
+    ok('…and the lock itself is inside it, behind the confirm',
+      /text: 'Lock', style: 'destructive', onPress: \(\) => \{ lockPeriod\(target\.id\)/.test(body));
+  }
   ok('…and the screen states what fade is measured against, or that it is not',
     /testID="wip-fade-basis"/.test(WIP_SCREEN)
     && /Profit fade is not being measured/.test(WIP_SCREEN)

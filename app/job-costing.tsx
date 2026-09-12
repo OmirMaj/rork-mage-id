@@ -143,8 +143,12 @@ function JobCostingInner() {
     // read "Electrical — Unbudgeted, $22,600 committed" beside an untouched
     // "subcontractor — $22,600 budgeted, $0 committed", while the headline
     // absorbs the difference — measured on a $57,200 estimate with a $40,000
-    // electrical subcontract against a $22,600 electrical line: passing the
-    // roster reports +$17,400 over, omitting it reports $0.
+    // electrical subcontract against a $22,600 subcontractor line: passing the
+    // roster reports $13,800 over (EAC $71,000), omitting it reports $0 (EAC
+    // $57,200). $13,800, not the $40,000 − $22,600 this comment used to claim:
+    // the buyout folds that line into the ELECTRICAL bucket, which already
+    // carries $3,600 of cans, so the bucket budget is $26,200. Both figures are
+    // asserted in scripts/validate-money-definitions.ts.
     return computeJobCost({
       project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier,
       equipment, permits, subcontractors,
@@ -827,7 +831,52 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
       signedDate,
       phase: phase.trim() || undefined,
       subcontractorId: type === 'subcontract' ? (subId || undefined) : undefined,
-      vendorName: type === 'purchase_order' ? (vendorName.trim() || undefined) : undefined,
+      // WHO THE COMMITMENT IS WITH, WRITTEN DOWN — not just pointed at
+      // (JOBCOST-PHASE-1 close-out, audit 2026-09-11).
+      //
+      // This used to write `undefined` for every subcontract, so the ONLY
+      // record of the counterparty was a `subcontractorId` pointing into the
+      // roster. utils/jobCostEngine.ts joins a commitment to the estimate line
+      // it bought out on four signals; the roster one (signal 2) needs the
+      // caller to hand it `subcontractors`, and only THIS screen does. Every
+      // other production caller — utils/livingEstimate.ts, utils/
+      // marginRiskScore.ts, utils/portalSnapshot.ts — builds its own argument
+      // object with no roster in it, and wiring them means widening three
+      // public interfaces and thirteen call sites in eight files.
+      //
+      // Storing the name makes signal 4 (`vendorName` ↔ the estimate line's
+      // `supplier`) fire instead, which needs nothing from the caller. Measured
+      // on the JOBCOST-PHASE-1 fixture — a $40,000 electrical subcontract
+      // against a $26,200 electrical bucket, roster NOT passed:
+      //   • before: variance $0, EAC $57,200, rows read "electrical $3,600
+      //     budget / $40,000 committed / over" beside an untouched
+      //     "subcontractor $22,600 budget / $0 committed";
+      //   • after:  variance $13,800, EAC $71,000, ONE electrical row at
+      //     $26,200 / $40,000 — byte-identical to the roster-passed result.
+      // Through utils/livingEstimate.ts, the same job moves from margin
+      // $22,800 / "healthy" to $9,000 / "critical", so the margin-fade alert
+      // fires on the job it was written for. Both asserted in
+      // scripts/validate-money-definitions.ts (MONEY-PHASE-WIRED-1).
+      //
+      // It is also just true: `Commitment.vendorName` is "who the commitment is
+      // with", and for a subcontract that is the sub's company name. Every
+      // reader already prefers the roster when it has one
+      // (`sub?.companyName ?? c.vendorName` here and in the drill-down,
+      // app/material-receipt.tsx's counterparty), so the two agree by
+      // construction and no rendered string changes. Two readers that could
+      // not resolve a subcontract at all now can: app/lien-waivers.tsx
+      // prefilled a blank sub name, and app/handover.tsx's waiver-coverage
+      // check could only ever match a subcontract by companyId.
+      //
+      // Re-saving an existing subcontract backfills it. A record saved before
+      // this and never edited keeps the old behaviour, which is why the roster
+      // stays load-bearing on this screen and MONEY-PHASE-WIRED-1 still pins
+      // that this call passes it.
+      vendorName: type === 'purchase_order'
+        ? (vendorName.trim() || undefined)
+        : (subcontractors.find(s => s.id === subId)?.companyName?.trim()
+          || vendorName.trim()
+          || undefined),
       status: existing?.status ?? 'active',
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,

@@ -1303,6 +1303,38 @@ export function payAppReviewNotice(state: {
 }
 
 /**
+ * WHAT TO DO WHEN G702 LINE 2 AND THE PRINTED CHANGE ORDER SUMMARY DISAGREE.
+ *
+ * The banner used to give one instruction on every certificate — "Re-enter
+ * Period To, or tap the refresh button above" — and on a read-only record
+ * NEITHER target is on the screen: `setPeriodTo` bails on `isReadOnly`, the
+ * PERIOD TO input is `editable={!isReadOnly}`, and the refresh chip renders
+ * only under `!isReadOnly`. That is not a rare state. Every SAVED certificate
+ * opens read-only (see payAppEditability) until the GC taps Edit, and one
+ * carrying a pay link or a paid_at is read-only for good — which is precisely
+ * the legacy population where the two figures can still disagree.
+ *
+ * Three states, three instructions, and the locked one has to admit there is
+ * nothing to tap. Pure, so the guard EXECUTES the advice instead of grepping
+ * the JSX for a sentence.
+ */
+export function coFiguresAdvice(state: {
+  isReadOnly: boolean; isLocked: boolean; editLabel: string;
+}): string {
+  if (state.isLocked) {
+    return 'This certificate is locked against a live payment, so PERIOD TO and the refresh button '
+      + 'are both off the screen — it cannot be corrected here. Print it only if the owner already '
+      + 'holds this copy, and restate the change orders on the next application.';
+  }
+  if (state.isReadOnly) {
+    return `Tap ${state.editLabel} above first — a saved certificate is read-only, so PERIOD TO and `
+      + 'the refresh button are not reachable until you do. Then re-enter PERIOD TO before printing.';
+  }
+  return 'Re-enter PERIOD TO, or tap the refresh button above, before printing — the two figures are '
+    + 'on the same page.';
+}
+
+/**
  * Where column C came from, for a record that may predate the field.
  *
  * `sovBasis` is stamped by `seedAIAPayApplicationFromInvoice` and is now
@@ -1822,6 +1854,36 @@ export function buildAIAPayAppHtml(
     margin-bottom: 10px;
   }
 
+  /* DISTRIBUTION TO — one of the six header fields the 1992 G702 carries and
+     this generator did not (audit 2026-09-11, F18). It is a hand-ticked field:
+     the GC marks who the executed certificate goes to, and the owner's office
+     files against it. There is nothing to source from the app, and nothing to
+     invent either — printing the five labelled boxes empty is exactly what the
+     paper form does. Kept to one row so it costs no vertical space on a cover
+     page that already has to fit nine numbered lines. */
+  .distribution {
+    border: 1px solid #111;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .distribution .label {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #555;
+  }
+  .dist-item { display: flex; align-items: center; gap: 4px; font-size: 9px; }
+  .dist-box {
+    width: 9px;
+    height: 9px;
+    border: 1px solid #111;
+    display: inline-block;
+  }
+
   table { width: 100%; border-collapse: collapse; }
   table.cover th, table.cover td {
     border: 1px solid #111;
@@ -2004,6 +2066,12 @@ export function buildAIAPayAppHtml(
       <span class="label" style="font-size:8px;color:#555;text-transform:uppercase;letter-spacing:0.5px;">Application Date</span>
       <div style="font-size:11px;font-weight:600;">${fmtDate(app.applicationDate)}</div>
     </div>
+  </div>
+
+  <div class="distribution">
+    <span class="label">Distribution to:</span>
+    ${['Owner', 'Architect', 'Contractor', 'Field', 'Other'].map(who =>
+      `<span class="dist-item"><span class="dist-box"></span>${who.toUpperCase()}</span>`).join('')}
   </div>
 
   <!-- Application summary -->

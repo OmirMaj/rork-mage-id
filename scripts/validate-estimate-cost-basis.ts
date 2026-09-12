@@ -722,16 +722,29 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
   // Self-perform sums the direct dollars the CALLER handed the engine, and most
   // callers hand it a partial world: app/cost-xray, app/area-takeoff,
   // app/daily-report, utils/bidLevelingEngine and components/BidConfidenceBadge
-  // pass receipts with `[]` for labor; app/takeoff-estimate passes neither.
+  // pass receipts with `[]` for labor. (app/takeoff-estimate was the worst of
+  // them — it passed NEITHER — and was fixed on 2026-09-12; the four above are
+  // still partial and are held one-directionally by validate-cost-seed §17e.)
   // Before the completeness gate, the SAME trade+unit key came back at $4.49/SF
   // on the price book, $2.33/SF with receipts only and $2.17/SF with labor only
   // — every wrong one short by an entire cost stream, in the direction that
   // makes a correctly-priced bid look padded. A rate that depends on which
   // screen asked is not a rate.
+  //
+  // WHAT THE GATE DID AND DID NOT CLOSE. It turns "wrong rate" into "no rate"
+  // only where the receipt's unit differs from the scope's. When they match —
+  // the ordinary case for board, sheathing, flooring, siding and roofing — a
+  // receipts-only book still answers `framing|SF`, with the material price,
+  // 48% under the full book. That case is measured at the end of this block;
+  // the residual on the four remaining partial callers is a wrong price, not
+  // silence.
   expect('the full book prices the self-performed trade',
     round2(lookupRate(spBook, 'Framing', 'SF')?.personalRate ?? 0), round2((80 * 65 + 5_580) / 2_400));
   const spReceiptsOnly = buildCostDatabase([spJob], [], [spReceipt], []);
-  expect('a receipts-only book publishes NO materials-only "installed rate" ($2.33/SF)',
+  // Scoped to THIS fixture on purpose: the lumber is bought in 'ea', so it
+  // cannot land on the scope's key at all. The same-unit case is the opposite
+  // answer and is measured at the end of this block.
+  expect('a receipts-only book publishes NO materials-only "installed rate" ($2.33/SF) when the receipt is in another unit',
     lookupRate(spReceiptsOnly, 'Framing', 'SF'), null);
   ok('…while the material unit price it CAN measure is still learned',
     (lookupRate(spReceiptsOnly, 'Framing', 'ea')?.personalRate ?? 0) === 6.2,
@@ -762,21 +775,69 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
     lookupRate(buildCostDatabase([spJob], [], [miscatReceipt], spLabor), 'Framing', 'SF'), null);
   expect('a book with neither stream prices nothing, exactly as before the feature',
     lookupRate(buildCostDatabase([spJob], [], [], []), 'Framing', 'SF'), null);
-  // The invariant, stated once: of the books that answer at all, they all
-  // agree — over EVERY combination of the streams, not a chosen three.
+  // …AND THE INVARIANT'S REAL SCOPE, MEASURED (audit repair 2026-09-12, F1).
+  // Every book above agrees only because this fixture buys its lumber in 'ea'
+  // against an SF scope: the material lands on `framing|ea` and can never
+  // surface as an installed rate. File the SAME lumber in the scope's own unit
+  // — which is how sheathing, board, flooring, siding and roofing are actually
+  // bought — and a receipts-only book DOES answer on `framing|SF`, with the
+  // board price:
+  //     full book      $4.49/SF   (crew hours + material over 2,400 SF)
+  //     receipts-only  $2.33/SF   (the material price, on the scope's own key)
+  // 48% apart, same trade, same unit, on the four consumers that still pass
+  // receipts with [] for labor. So "every book that prices this trade at all
+  // returns the same number" was a property of the FIXTURE, not of the engine,
+  // and it is restated below over the books that derive an INSTALLED rate.
+  //
+  // The material row is not a bug — §6h pins it deliberately ("a receipts-only
+  // book still learns the board price itself"). It is a different quantity
+  // wearing the same key, and the fix is the labor stream reaching those four
+  // callers (validate-cost-seed §17e holds the list one-directionally), not a
+  // change to the engine.
+  const sameUnitReceipt = {
+    id: 'r3', projectId: 'p-sp', vendor: 'Lumber', receiptDate: '2026-01-06',
+    createdAt: '2026-01-06T00:00:00.000Z', status: 'reviewed',
+    lines: [{ id: 'l', description: 'Sheathing', category: 'Framing', quantity: 2_400, unit: 'sf', unitPrice: 5_580 / 2_400, lineTotal: 5_580 }],
+  } as never;
+  const spFullSameUnit = buildCostDatabase([spJob], [], [sameUnitReceipt], spLabor);
+  const spReceiptsOnlySameUnit = buildCostDatabase([spJob], [], [sameUnitReceipt], []);
+  expect('a same-unit receipt leaves the FULL book’s installed rate alone',
+    round2(lookupRate(spFullSameUnit, 'Framing', 'SF')?.personalRate ?? 0),
+    round2((80 * 65 + 5_580) / 2_400));
+  expect('…but a receipts-only book answers that SAME key with the material price',
+    round2(lookupRate(spReceiptsOnlySameUnit, 'Framing', 'SF')?.personalRate ?? 0),
+    round2(5_580 / 2_400));
+  ok('…so the residual on a partial book is a WRONG PRICE, not silence, whenever the receipt shares the scope unit',
+    (lookupRate(spReceiptsOnlySameUnit, 'Framing', 'SF')?.personalRate ?? 0)
+      < (lookupRate(spFullSameUnit, 'Framing', 'SF')?.personalRate ?? 0) * 0.6,
+    `full ${lookupRate(spFullSameUnit, 'Framing', 'SF')?.personalRate}, `
+    + `receipts-only ${lookupRate(spReceiptsOnlySameUnit, 'Framing', 'SF')?.personalRate}`);
+
+  // The invariant, restated to what actually holds: of the books that derive an
+  // INSTALLED rate for this trade — a self-perform sample, i.e. cost of the
+  // whole scope over the scope quantity — they all agree, over every
+  // combination of the streams and both receipt units. A book answering with a
+  // bare material price is excluded by the PREDICATE, not by hand, and is
+  // asserted above on its own.
+  const installedRate = (b: ReturnType<typeof buildCostDatabase>): number | null => {
+    const e = lookupRate(b, 'Framing', 'SF');
+    if (!e || !e.samples.some(x => x.basis === 'self_perform')) return null;
+    return round2(e.personalRate);
+  };
   const spAnswers = [
     spBook,
     spReceiptsOnly,
     spLaborOnly,
+    spFullSameUnit,
+    spReceiptsOnlySameUnit,
     buildCostDatabase([spJob], [], [miscatReceipt], spLabor),
     buildCostDatabase([spJob], [], [], []),
   ]
-    .map(b => lookupRate(b, 'Framing', 'SF')?.personalRate)
-    .filter((n): n is number => typeof n === 'number')
-    .map(round2);
-  expect('every book that prices this trade at all returns the same number',
+    .map(installedRate)
+    .filter((n): n is number => typeof n === 'number');
+  expect('every book that derives an INSTALLED rate for this trade returns the same number',
     new Set(spAnswers).size, 1);
-  ok('…and at least one of them does price it, so the invariant is not vacuous',
+  ok('…and at least one of them does derive it, so the invariant is not vacuous',
     spAnswers.length >= 1 && spAnswers[0] === round2((80 * 65 + 5_580) / 2_400), JSON.stringify(spAnswers));
 
   // ── 6j. A DISQUALIFIED SAMPLE MUST NOT MOVE THE OUTLIER THRESHOLD ─────────
@@ -810,6 +871,241 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
   expect('…and the $40 blowout is still rejected as a one-off', olEntry.excludedSampleCount, 1);
   expect('…so the learned rate is the mean of the four clean jobs, not $17.20',
     round2(olEntry.personalRate), 11.5);
+
+  // ── 6k. COST DIVIDED BY A MEASUREMENT, NOT BY A DRAWING (audit F6) ────────
+  //
+  // The engine's whole claim is `cost / quantity` where the quantity is the
+  // size of the scope. On the takeoff path that quantity is whatever an AI read
+  // off a PDF — and the app was already storing a better number: the GC stands
+  // in the room, measures the wall, types it into
+  // components/TakeoffFieldVerifyButton, and it went to AsyncStorage where a
+  // full-repo grep found NOTHING reading it. So a plan that says 2,400 SF over
+  // a wall that is really 2,600 SF taught a rate 8.3% high forever, with the
+  // right denominator sitting two storage keys away.
+  //
+  // utils/fieldMeasuredQuantity decides; the GC's tap writes the row's quantity
+  // of record; the priced estimate carries it; a commitment links to that line;
+  // and this section measures what the book then learns. Both ends are here
+  // because either alone is hollow: the pure verdict without the engine proves
+  // nothing reaches the rate, and the engine without the verdict proves nothing
+  // about whether a tape measure can ever get in.
+  const {
+    measurementVerdict, pendingMeasuredRows, adoptMeasurementCopy, adoptOffer,
+    MEASUREMENT_AGREEMENT_TOLERANCE,
+  } = await import('../utils/fieldMeasuredQuantity');
+
+  const PLAN_SF = 2_400;
+  const FIELD_SF = 2_600;
+  const BID_UNIT = 2.5;
+  const SUB_PRICE = 6_000;
+  const fmEst = (qty: number) => mkEstimate([{
+    materialId: 'm0', name: 'Hang + finish', category: 'Drywall', unit: 'SF',
+    quantity: qty, unitPrice: BID_UNIT, bulkPrice: BID_UNIT, markup: MARKUP,
+    lineTotal: BID_UNIT * (1 + MARKUP / 100) * qty,
+  }]);
+  const fmCommitment = commitment({
+    id: 'c-dw', projectId: 'p-dw', amount: SUB_PRICE, paidToDate: SUB_PRICE,
+    linkedEstimateItems: ['m0'],
+  });
+  const bookFor = (qty: number) =>
+    lookupRate(buildCostDatabase([closedJob('p-dw', fmEst(qty))], [fmCommitment]), 'Drywall', 'SF')!;
+
+  const planBook = bookFor(PLAN_SF);
+  const fieldBook = bookFor(FIELD_SF);
+  expect('the plan quantity teaches $2.50/SF — the sub\'s price over the DRAWING',
+    round2(planBook.personalRate), round2(SUB_PRICE / PLAN_SF));
+  expect('the measured quantity teaches $2.31/SF — the same price over the TAPE',
+    round2(fieldBook.personalRate), round2(SUB_PRICE / FIELD_SF));
+  ok('…so adopting the measurement is worth 8.3% of the learned rate on ONE job',
+    round2((planBook.personalRate / fieldBook.personalRate - 1) * 100) === 8.33,
+    `${round2((planBook.personalRate / fieldBook.personalRate - 1) * 100)}%`);
+  // And it is not a cosmetic difference: the blended number that prices the
+  // NEXT bid moves, and the bid-bias sentence flips from "you were exactly
+  // right" to the truth — you bought this out under your own unit price.
+  expect('the plan quantity reports zero bid bias, because it cancels',
+    round2(planBook.bidBias), 0);
+  ok('the measured quantity reveals a 7.7% over-bid that the drawing hid',
+    round2(fieldBook.bidBias) === -0.08 && fieldBook.bidBias < 0,
+    `bidBias ${fieldBook.bidBias}`);
+  ok('…and the rate carried into the next bid moves with it',
+    round2(planBook.suggestedRate) !== round2(fieldBook.suggestedRate),
+    `plan ${round2(planBook.suggestedRate)} vs field ${round2(fieldBook.suggestedRate)}`);
+
+  // THE ENGINE HAS NO BACK DOOR. buildCostDatabase cannot see a measurement —
+  // it only ever divides by the estimate line — so a measurement that the GC
+  // has not adopted changes NOTHING. That is the property that makes explicit
+  // adoption safe, and it is why a partial measurement ("used 25 ft tape" typed
+  // into a row that aggregates a whole elevation) cannot publish a 19x rate.
+  const strandedRate = bookFor(PLAN_SF).personalRate;
+  expect('a captured-but-unadopted measurement moves the rate by nothing',
+    round2(strandedRate), round2(SUB_PRICE / PLAN_SF));
+
+  // ── the verdict that decides whether the tap is even offered ──────────────
+  const cap = (measuredQuantity: number | undefined, capturedAt = '2026-02-01T00:00:00.000Z') =>
+    ({ rowKey: 'walls:w1', measuredQuantity, capturedAt });
+  expect('a photo with no number typed offers nothing',
+    measurementVerdict(PLAN_SF, cap(undefined)).kind, 'none');
+  expect('a zero is not a measurement — reject the row instead',
+    measurementVerdict(PLAN_SF, cap(0)).kind, 'none');
+  expect('a NaN (an empty decimal box) is not a measurement',
+    measurementVerdict(PLAN_SF, cap(Number.NaN)).kind, 'none');
+  expect('2,600 against a 2,400 plan disagrees',
+    measurementVerdict(PLAN_SF, cap(FIELD_SF)).kind, 'disagrees');
+  expect('…by +200', measurementVerdict(PLAN_SF, cap(FIELD_SF)).kind === 'disagrees'
+    ? (measurementVerdict(PLAN_SF, cap(FIELD_SF)) as { delta: number }).delta : 0, 200);
+  // The tolerance is the SAME number the pill has always used to colour a
+  // delta green, so what the contractor sees and what the app does agree.
+  expect('the agreement tolerance is 5%', MEASUREMENT_AGREEMENT_TOLERANCE, 0.05);
+  expect('a 4% difference is agreement — nothing to decide',
+    measurementVerdict(1_000, cap(1_040)).kind, 'agrees');
+  expect('a 6% difference is a decision',
+    measurementVerdict(1_000, cap(1_060)).kind, 'disagrees');
+  // A measurement ALREADY adopted must read as agreement, not offer itself a
+  // second time — which is why the button is handed the override-aware
+  // quantity of record rather than the AI's original read.
+  expect('an adopted measurement stops asking',
+    measurementVerdict(FIELD_SF, cap(FIELD_SF)).kind, 'agrees');
+
+  // ── the rows still resting on the drawing, counted out loud ──────────────
+  const verifs = [
+    cap(FIELD_SF),                                             // disagrees
+    { rowKey: 'floor:f1', measuredQuantity: 500, capturedAt: '2026-02-01T00:00:00.000Z' },
+    { rowKey: 'doors:d1', measuredQuantity: 4, capturedAt: '2026-02-01T00:00:00.000Z' },
+    { rowKey: 'walls:w9', measuredQuantity: 99, capturedAt: '2026-02-01T00:00:00.000Z' },
+  ];
+  const qtyOfRecord = (rowKey: string): number | null => {
+    if (rowKey === 'walls:w1') return PLAN_SF;   // plan 2,400 vs field 2,600
+    if (rowKey === 'floor:f1') return 500;       // identical — agreement
+    if (rowKey === 'doors:d1') return 4;         // identical — agreement
+    return null;                                 // rejected / row is gone
+  };
+  const pending = pendingMeasuredRows({ verifications: verifs, quantityOfRecord: qtyOfRecord });
+  expect('only the row that DISAGREES is pending a decision', pending.map(r => r.rowKey), ['walls:w1']);
+  // `?.` deliberately: widening the tolerance emptied this list and the guard
+  // died on a TypeError instead of printing a failure. A guard that crashes
+  // still exits non-zero, but it stops the assertions after it from ever being
+  // reached, which is how one regression hides five.
+  expect('…with the delta the screen will show', pending[0]?.delta, 200);
+  ok('a rejected row is not a pending decision — it prices nothing and teaches nothing',
+    !pending.some(r => r.rowKey === 'walls:w9'));
+  // Newest capture wins by STAMP, not by array order.
+  const reMeasured = pendingMeasuredRows({
+    verifications: [
+      { rowKey: 'walls:w1', measuredQuantity: FIELD_SF, capturedAt: '2026-02-01T00:00:00.000Z' },
+      { rowKey: 'walls:w1', measuredQuantity: PLAN_SF, capturedAt: '2026-03-01T00:00:00.000Z' },
+    ],
+    quantityOfRecord: qtyOfRecord,
+  });
+  expect('a re-measurement that agrees clears the row, whatever order it arrives in',
+    reMeasured.length, 0);
+
+  // ── WHETHER THE TAP IS OFFERED AT ALL, executed rather than grepped ──────
+  // This is the rule that decides whether F6 is closed on screen, and it used
+  // to live inline in the component as a ternary, pinned only by a regex over
+  // JSX. It is now a function, so it can be run — including the case that IS
+  // the defect: a call site that forgets the writer gets no button, silently,
+  // and the measurement is a caption again.
+  const disagreeing = measurementVerdict(PLAN_SF, cap(FIELD_SF));
+  const agreeing = measurementVerdict(PLAN_SF, cap(PLAN_SF));
+  const nothing = measurementVerdict(PLAN_SF, cap(undefined));
+  ok('a disagreeing measurement with a writer wired in IS offered for adoption',
+    adoptOffer(disagreeing, 'SF', true) !== null);
+  expect('…carrying the number the tap will write',
+    adoptOffer(disagreeing, 'SF', true)?.measured, FIELD_SF);
+  expect('…and the module’s own label, so the screen cannot promise something else',
+    adoptOffer(disagreeing, 'SF', true)?.label, adoptMeasurementCopy(FIELD_SF, 'SF').label);
+  expect('a measurement that AGREES is never offered — there is nothing to change',
+    adoptOffer(agreeing, 'SF', true), null);
+  expect('a photo with no number is never offered', adoptOffer(nothing, 'SF', true), null);
+  expect('and WITHOUT a writer wired in there is no offer at all — that is F6 itself',
+    adoptOffer(disagreeing, 'SF', false), null);
+
+  // ── and the promise the button makes is the promise this section proves ───
+  const copy = adoptMeasurementCopy(FIELD_SF, 'SF');
+  expect('the button names the number it will adopt', copy.label, 'Use 2,600 SF as the quantity');
+  // EXACT, not two greps. Two substring tests survived mangling the sentence
+  // around them: replacing the first half with "Prices this scope off what you
+  // measured. " left "…measured. cost book divides the sub's price by…" — a
+  // broken sentence that still matched both patterns, and the guard stayed
+  // green. This promise is the only place the invisible half of the tap is
+  // stated, so it is pinned verbatim; a rewording is a deliberate edit here.
+  expect('…and the sentence under it names the cost-book consequence, which is the invisible half',
+    copy.consequence,
+    'Prices this scope off what you measured \u2014 and when the job closes, your cost book '
+    + 'divides the sub\u2019s price by the measured quantity instead of the plan\u2019s.');
+
+  // ── 6l. A PAYMENT WITH NO CONTRACT SUM IS REFUSED — AND NOW SAID OUT LOUD ──
+  // The ladder in utils/costDatabase deliberately teaches NOTHING from a
+  // payment on a commitment whose amount is blank (or cancelled out by a
+  // deductive change order): taking the raw draw is the mobilization-deposit
+  // 10x error reached from the other side — a $1,200 payment on a 30 SQ roof
+  // bid at $400/SQ once taught $40/SQ, stamped 'actual', and drove the headline
+  // Bid-accuracy KPI to 10% on an account whose estimating was perfect.
+  //
+  // Silence is right for the RATE and wrong for the CONTRACTOR, and that was
+  // the open half of the audit's Issue 8: he paid a sub, closed the job, and
+  // his prices learned nothing with no sentence anywhere naming the blank
+  // field. Both halves are asserted here, because the notice is only honest if
+  // the silence it explains is real.
+  const { commitmentsMissingContractSum, missingContractSumNotice } =
+    await import('../utils/costDatabase');
+
+  const sumlessEst = mkEstimate([{
+    materialId: 'm0', name: 'Roof', category: 'Roofing', unit: 'SQ', quantity: 30,
+    unitPrice: 400, bulkPrice: 400, markup: MARKUP, lineTotal: 400 * (1 + MARKUP / 100) * 30,
+  }]);
+  const sumlessJob = closedJob('p-sumless', sumlessEst);
+  const sumless = commitment({
+    id: 'c-sumless', projectId: 'p-sumless', vendorName: 'Apex Roofing',
+    description: 'Tear-off + re-roof', amount: 0, paidToDate: 1_200,
+    linkedEstimateItems: ['m0'],
+  });
+  expect('the $1,200 draw with no contract sum still teaches no rate',
+    lookupRate(buildCostDatabase([sumlessJob], [sumless]), 'Roofing', 'SQ'), null);
+  const flagged = commitmentsMissingContractSum([sumlessJob], [sumless]);
+  expect('…and the contractor is told which commitment caused the silence',
+    flagged.map(r => r.commitmentId), ['c-sumless']);
+  expect('…with the money he actually paid', flagged[0].paidToDate, 1_200);
+  expect('…and the vendor he paid it to', flagged[0].vendorName, 'Apex Roofing');
+  expect('the notice names the fix, not just the fault',
+    missingContractSumNotice(flagged),
+    'One commitment on a finished job has money paid against it and no contract amount. '
+    + 'A payment with no contract sum behind it cannot say what the scope cost, so it teaches '
+    + 'your prices nothing — fill in the amount and that job will start correcting your rates.');
+
+  // A DEDUCTIVE CHANGE ORDER IS THE SAME HOLE. `(amount + changeAmount) <= 0`
+  // is what estimateActuals allocates, so a $10,000 sub with a −$10,000 CO
+  // silences the line exactly as a blank amount does.
+  const cancelled = commitment({
+    id: 'c-cancelled', projectId: 'p-sumless', amount: 10_000, changeAmount: -10_000,
+    paidToDate: 4_000, linkedEstimateItems: ['m0'],
+  });
+  expect('a commitment cancelled out by a deductive CO is flagged too',
+    commitmentsMissingContractSum([sumlessJob], [cancelled]).map(r => r.commitmentId),
+    ['c-cancelled']);
+
+  // AND THE THREE THINGS THAT ARE NOT THIS DEFECT, so the notice never cries
+  // wolf: a commitment that HAS an amount, one with nothing paid yet, and a
+  // draft (which is not a hole in the record, it is a commitment that does not
+  // exist yet). Plus a live job — this book only reads closed ones.
+  expect('a commitment with a real contract sum is not flagged',
+    commitmentsMissingContractSum([sumlessJob], [commitment({ id: 'c-ok', projectId: 'p-sumless', amount: 12_000, paidToDate: 12_000 })]), []);
+  expect('a sum-less commitment nobody has paid is not flagged',
+    commitmentsMissingContractSum([sumlessJob], [commitment({ id: 'c-unpaid', projectId: 'p-sumless', amount: 0, paidToDate: 0 })]), []);
+  expect('a DRAFT is not a hole in the record',
+    commitmentsMissingContractSum([sumlessJob], [commitment({ id: 'c-draft', projectId: 'p-sumless', status: 'draft', amount: 0, paidToDate: 900 })]), []);
+  expect('a job still running is not this book\'s business',
+    commitmentsMissingContractSum(
+      [{ id: 'p-live', name: 'Live', status: 'active', linkedEstimate: sumlessEst } as unknown as Project],
+      [commitment({ id: 'c-live', projectId: 'p-live', amount: 0, paidToDate: 900 })]),
+    []);
+  expect('an empty account produces no notice at all', missingContractSumNotice([]), '');
+  // Worst first, so the row the GC sees is the one worth fixing.
+  expect('the biggest unexplained payment is listed first',
+    commitmentsMissingContractSum([sumlessJob], [
+      commitment({ id: 'c-small', projectId: 'p-sumless', amount: 0, paidToDate: 300 }),
+      commitment({ id: 'c-big', projectId: 'p-sumless', amount: 0, paidToDate: 9_000 }),
+    ]).map(r => r.commitmentId), ['c-big', 'c-small']);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -227,5 +227,33 @@ function check(tasks: ScheduleTask[], key: string) {
     JSON.stringify(flagged) !== JSON.stringify(ordinalStale), true);
 }
 
+// ── "DCMA #10 — Resources" counts RESOURCE conflicts ────────────────────────
+// It read `cpm.conflicts` whole, so a dependency cycle — and, once runCpm began
+// reporting links to deleted tasks, those too — were scored as crew conflicts
+// and the user was told to "reassign or sequence the overlapping tasks", which
+// cannot fix either one. Executed against the real engine, not the shape of the
+// filter.
+console.log('\nDCMA #10 counts resource conflicts and nothing else:');
+{
+  const clean = [T('A', 5), { ...T('B', 5, ['A']), startDay: 6 }];
+  const cleanCheck = check(clean, 'resource_overallocation');
+  expect('a clean schedule scores a perfect 1', cleanCheck?.value, 1);
+
+  // A link to a task that is not here: runCpm reports it, DCMA #10 must not.
+  const dangling = [{ ...T('B', 5, ['GONE']), startDay: 1 }];
+  expect('the engine really does report the dangling link',
+    runCpm(dangling, CAL).conflicts.some(c => c.kind === 'dangling_link'), true);
+  expect('  …and DCMA #10 still scores 1 — it is not a crew problem',
+    check(dangling, 'resource_overallocation')?.value, 1);
+  expect('  …and does not name a phantom crew conflict in its advice',
+    check(dangling, 'resource_overallocation')?.suggestion, 'No crew conflicts detected.');
+
+  // A cycle: same rule.
+  const cyc = [{ ...T('X', 5, ['Y']), startDay: 1 }, { ...T('Y', 5, ['X']), startDay: 1 }];
+  expect('the engine really does report the cycle',
+    runCpm(cyc, CAL).conflicts.some(c => c.kind === 'cycle'), true);
+  expect('  …and DCMA #10 ignores it too', check(cyc, 'resource_overallocation')?.value, 1);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

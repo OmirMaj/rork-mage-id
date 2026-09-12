@@ -43,6 +43,7 @@
 // Run via: bun run test:money-definitions
 
 import { computeJobCost, describeVariance } from '../utils/jobCostEngine';
+import { computeLivingEstimate } from '../utils/livingEstimate';
 import { computeWIPReport, computeProfitReport } from '../utils/financialReports';
 import { suggestCostToDate, deriveEstimatedCostWithSource } from '../utils/wip';
 import { effectiveEstimateTotal } from '../utils/estimateCommit';
@@ -58,7 +59,7 @@ import { matchCommitmentByVendor } from '../utils/scanRouting';
 import {
   billedAgainstMilestones, spreadMilestoneBilling, deriveMilestoneInvoiceLine, isMilestoneBillKey,
   applyMilestoneBilling, contractBilledToDate, attributableContractBilling,
-  milestoneBillability, milestoneBlockMessage,
+  milestoneBillability, milestoneBlockMessage, milestoneBillEffect,
   sovFootingShortfall,
 } from '../utils/billingFlowCore';
 import { getPaidToDate, resolveContractSum } from '../utils/projectFinancials';
@@ -900,8 +901,138 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
     /testID="contract-billed-to-date"/.test(contractScreen)
     && /contractBilledToDate\(projectInvoices\)/.test(contractScreen),
     'the displayed line stays the full picture — it is the GATE that narrows');
-  ok('…and hands the refusal its arithmetic instead of a bare reason code',
-    /milestoneBlockMessage\(bill\.reason!, bill\.ceiling, bill\.amount\)/.test(contractScreen));
+
+  // ── THE REFUSAL MUST ACTUALLY REFUSE — EXECUTED, NOT GREPPED ────────────
+  // (repair pass 2026-09-12.)
+  //
+  // What stood here was a presence test wearing a control-flow hat: it asked
+  // whether the token `return;` appeared anywhere in a slice of screen text.
+  // Two mutations walked past it with the suite fully green — the `return;`
+  // moved into the refusal alert's own "Open invoice" arrow, and the `return;`
+  // weakened to `if (bill.existingInvoiceId) return;`. Under both, the
+  // `contract_fully_billed` refusal (the no-existing-invoice case) fell
+  // straight through into the invoice editor: the GC taps past a dialog and
+  // bills 125% of the contract to a homeowner, which is the whole of
+  // MONEY-LEDGER-1.
+  //
+  // So the decision moved OUT of the screen, into
+  // utils/billingFlowCore.milestoneBillEffect, where it can be RUN. What the
+  // screen is allowed to do is now a value — a discriminated union — and the
+  // value is asserted below on real dollars. The property the deleted `return;`
+  // used to carry is now arithmetic: a blocked milestone yields NO invoice
+  // payload at all, so there is nothing for a fall-through to open.
+  {
+    const blockedBill = milestoneBillability({
+      milestone: ms(1) as never, contractValue: CONTRACT, contractStatus: 'signed',
+      contractBilledToDate: CONTRACT,
+    });
+    const blocked = milestoneBillEffect(blockedBill, ms(1) as never,
+      { contractValue: CONTRACT, title: 'Kitchen remodel agreement' });
+    ok('a milestone the ceiling refuses yields NO invoice payload — not a warning beside one',
+      blocked.kind === 'refuse' && !('line' in blocked) && !('milestoneId' in blocked),
+      JSON.stringify(blocked));
+    ok('…and hands the refusal its arithmetic instead of a bare reason code',
+      blocked.kind === 'refuse'
+      && blocked.message.includes('$130,052.00') && blocked.message.includes('$32,513.00'),
+      blocked.kind === 'refuse' ? blocked.message : JSON.stringify(blocked));
+
+    // EVERY blocking reason, not only the ceiling: whatever milestoneBillability
+    // refuses, the effect must refuse. One loop, executed, in place of a token.
+    const blockedShapes: { why: string; m: Record<string, unknown>; status?: string }[] = [
+      { why: 'already invoiced', m: { ...ms(1), status: 'invoiced', invoiceId: 'inv-1' } },
+      { why: 'already paid', m: { ...ms(1), status: 'paid', invoiceId: 'inv-2' } },
+      { why: 'skipped', m: { ...ms(1), status: 'skipped' } },
+      { why: 'zero dollars', m: { id: 'mz', label: 'Z', amount: 0, status: 'pending' } },
+      { why: 'contract not signed', m: { ...ms(1) }, status: 'draft' },
+    ];
+    const refusals = blockedShapes.map(s => ({
+      why: s.why,
+      effect: milestoneBillEffect(
+        milestoneBillability({
+          milestone: s.m as never, contractValue: CONTRACT, contractStatus: s.status ?? 'signed',
+        }),
+        s.m as never, { contractValue: CONTRACT },
+      ),
+    }));
+    ok('…and every other blocking reason yields a refusal too, never a composed invoice',
+      refusals.every(r => r.effect.kind === 'refuse' && !('line' in r.effect)),
+      JSON.stringify(refusals.map(r => [r.why, r.effect.kind])));
+
+    const composed = milestoneBillEffect(
+      milestoneBillability({
+        milestone: ms(1) as never, contractValue: CONTRACT, contractStatus: 'signed',
+        contractBilledToDate: 0,
+      }),
+      ms(1) as never, { contractValue: CONTRACT, title: 'Kitchen remodel agreement' },
+    );
+    ok('…while a clean milestone composes the exact line the milestone ledger reads',
+      composed.kind === 'compose'
+      && composed.line.total === 32_513
+      && composed.line.sourceEstimateItemId === 'milestone:m1'
+      && composed.milestoneId === 'm1'
+      && composed.note.includes('Kitchen remodel agreement'),
+      JSON.stringify(composed));
+  }
+
+  // AND THE SCREEN MUST STILL STOP ON THE REFUSAL. The union already makes a
+  // fall-through a TYPE error — `effect.line` does not exist on the refuse arm,
+  // so `npx tsc --noEmit` rejects a handler that keeps going — but tsc is a
+  // different command, so the control flow is pinned here too, by PARSING the
+  // braces instead of grepping the text: nothing inside a nested arrow counts,
+  // and `if (x) return;` is not the statement `return;`.
+  {
+    /** Statements at the top level of the braced block that `header` opens.
+     *  Strings and comments are skipped; anything inside a nested (), [] or {}
+     *  belongs to the statement containing it, never to this list. */
+    const blockStatements = (src: string, header: string): string[] | null => {
+      const at = src.indexOf(header);
+      if (at < 0) return null;
+      const open = src.indexOf('{', at + header.length - 1);
+      if (open < 0) return null;
+      const norm = (s: string) => s.trim().replace(/\s+/g, ' ');
+      const out: string[] = [];
+      let depth = 0;
+      let cur = '';
+      for (let i = open; i < src.length; i++) {
+        const ch = src[i];
+        const two = ch + (src[i + 1] ?? '');
+        if (two === '//') { const nl = src.indexOf('\n', i); if (nl < 0) return null; i = nl; continue; }
+        if (two === '/*') { const e = src.indexOf('*/', i + 2); if (e < 0) return null; i = e + 1; continue; }
+        if (ch === '"' || ch === "'" || ch === '`') {
+          let j = i + 1;
+          while (j < src.length && src[j] !== ch) { if (src[j] === '\\') j++; j++; }
+          cur += src.slice(i, j + 1);
+          i = j;
+          continue;
+        }
+        if (ch === '{' || ch === '(' || ch === '[') {
+          depth++;
+          if (!(depth === 1 && i === open)) cur += ch;
+          continue;
+        }
+        if (ch === '}' || ch === ')' || ch === ']') {
+          depth--;
+          if (depth === 0) { if (norm(cur)) out.push(norm(cur)); return out; }
+          cur += ch;
+          continue;
+        }
+        if (ch === ';' && depth === 1) { if (norm(cur)) out.push(norm(cur)); cur = ''; continue; }
+        cur += ch;
+      }
+      return null;
+    };
+    const stmts = blockStatements(contractScreen, "if (effect.kind === 'refuse') {");
+    const last = stmts && stmts.length > 0 ? stmts[stmts.length - 1] : null;
+    ok('…and the screen STOPS on it: the refusal branch ends in an unconditional return',
+      last === 'return',
+      `the last top-level statement of the refusal branch is ${JSON.stringify(last)} `
+      + '— a return inside a dialog button, or one behind an `if`, leaves the over-bill open');
+    ok('…and the invoice it opens is built off the COMPOSED arm, so falling through cannot compile',
+      /prefillLines: JSON\.stringify\(\[effect\.line\]\)/.test(contractScreen)
+      && /prefillNotes: effect\.note,/.test(contractScreen)
+      && /milestoneId: effect\.milestoneId,/.test(contractScreen),
+      'the navigation payload must come off the narrowed compose arm — that is what makes tsc the second guard');
+  }
 
   const engine = read('utils/contractEngine.ts');
   ok('…and the 25/25/25/25 schedule this protects against is still seeded on every contract',
@@ -914,12 +1045,18 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
 // THE FIXTURES BELOW ARE SHAPED THE WAY app/job-costing.tsx WRITES THEM (audit
 // 2026-09-11, review round 2). The first cut of this block hand-set
 // `vendorName: 'Northline Electric'` AND `csiDivision: '26'` on a SUBCONTRACT.
-// The editor writes neither: `handleSave` sets `subcontractorId` on a
-// subcontract and `vendorName` only on a purchase order, and writes no
+// The editor wrote neither: `handleSave` set `subcontractorId` on a
+// subcontract and `vendorName` on a purchase order only, and writes no
 // csiDivision and no linkedEstimateItems at all (its own comment says so). So
 // the guard was green on a record the product cannot produce while the
 // reproduction case still reproduced — the worst failure a guard has, because
 // its existence stops anyone re-checking.
+//
+// THAT SENTENCE IS NOW HISTORY (repair pass 2026-09-12): the close-out pass
+// taught `handleSave` to stamp the picked sub's companyName into `vendorName`
+// on a SUBCONTRACT too, which is what the `editorWrites` assertion at the foot
+// of this block pins. `editorSub` below is deliberately kept in the OLD shape,
+// because a subcontract saved before that change is not migrated by anything.
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
 {
@@ -939,9 +1076,12 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
   } as unknown as LinkedEstimate;
   const proj = { id: 'p9', name: 'Buyout', status: 'in_progress', linkedEstimate: est } as unknown as Project;
 
-  // EXACTLY what app/job-costing.tsx's CommitmentEditor.handleSave produces for
-  // a subcontract: a subcontractorId, a typed phase, and nothing else linking
-  // it to the estimate.
+  // What app/job-costing.tsx's CommitmentEditor.handleSave produced for a
+  // subcontract BEFORE the close-out pass, and what every subcontract already
+  // sitting in a GC's data still looks like: a subcontractorId, a typed phase,
+  // and nothing else linking it to the estimate. This is now the LEGACY shape —
+  // `editorWrites` below is what the editor produces today — and it is kept
+  // because a record saved under it is not migrated by anything.
   const editorSub = {
     id: 'sc1', projectId: 'p9', number: 'SC-01', type: 'subcontract',
     subcontractorId: 'sub-northline', vendorName: undefined,
@@ -949,10 +1089,10 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
     phase: 'Electrical', status: 'active',
     signedDate: '2026-01-10', createdAt: '2026-01-10', updatedAt: '2026-01-10',
   } as unknown as Commitment;
-  ok('the fixture is the shape the commitment editor actually writes',
+  ok('the legacy fixture carries a roster pointer and nothing else',
     editorSub.vendorName === undefined && editorSub.csiDivision === undefined
     && editorSub.linkedEstimateItems === undefined && !!editorSub.subcontractorId,
-    'app/job-costing.tsx sets vendorName only for purchase_order');
+    'this is the record the roster exists for');
 
   // (a) With NO subcontractor roster there is no link to find at all — and the
   //     headline must STILL be right, because whether two records can be
@@ -998,6 +1138,199 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
     commitments: [{ ...editorSub, amount: 30_000 } as Commitment],
   });
   close('WITHOUT the roster the real overrun is absorbed and reads $0', unwiredRows.variance, 0);
+
+  // THE FIGURE THE ENGINE'S OWN DOC AND THE SCREEN'S OWN COMMENT PUBLISH,
+  // asserted rather than asserted-in-prose (close-out pass 2026-09-11). Both
+  // said "+$17,400" — $40,000 less the $22,600 subcontractor line — and neither
+  // reproduced: the buyout folds that line onto the ELECTRICAL bucket, where
+  // $3,600 of recessed cans already sit, so the bucket budget is $26,200 and the
+  // overrun is $13,800. A published proof that does not reproduce is the thing
+  // this campaign keeps finding, so the number is now measured here.
+  const doc40 = (extra?: { subcontractors: { id: string; companyName?: string }[] }) => computeJobCost({
+    project: proj, changeOrders: [], commitments: [{ ...editorSub, amount: 40_000 } as Commitment], ...extra,
+  });
+  close('the documented $40,000 case: unwired variance is $0', doc40().variance, 0);
+  close('…and unwired EAC is the budget', doc40().projectedFinal, 57_200);
+  close('…wired variance is $13,800, NOT $40,000 − $22,600',
+    doc40({ subcontractors: [{ id: 'sub-northline', companyName: 'Northline Electric' }] }).variance, 13_800);
+  close('…and wired EAC is $71,000',
+    doc40({ subcontractors: [{ id: 'sub-northline', companyName: 'Northline Electric' }] }).projectedFinal, 71_000);
+  ok('…and neither the engine doc nor the screen still publishes the $17,400 that did not reproduce',
+    !/17,400/.test(read('utils/jobCostEngine.ts')) && !/17,400/.test(read('app/job-costing.tsx'))
+    && /13,800/.test(read('utils/jobCostEngine.ts')) && /13,800/.test(read('app/job-costing.tsx')),
+    'the measured figure and the published figure must be the same figure');
+
+  // WHICH OTHER CALLERS THE ROSTER CAN ACTUALLY MOVE (close-out pass
+  // 2026-09-11). The roster decides which BUCKET a commitment lands in, so it
+  // moves `projectedFinal`, `variance` and `byPhase` and it cannot move
+  // `actual`. That distinction is what separates a caller that must be wired
+  // from a caller where wiring is a no-op, and the engine's doc now states it —
+  // so it is asserted here rather than trusted.
+  //
+  // ON A FIXTURE WITH MONEY IN IT (repair pass 2026-09-12). This compared
+  // `doc40(roster).actual` to `doc40().actual`, and doc40's commitment carries
+  // no paidToDate, no receipts and no time entries — so BOTH sides were 0. A
+  // comparison of two zeros passes whatever the engine does: it would have
+  // stayed green if the roster moved `actual` by every dollar on the job, which
+  // makes it the sole support for a refused finding and no support at all. The
+  // fixture below pays $18,000 against the subcontract and books a $2,400
+  // receipt, so the equality is between two real, non-zero figures — and the
+  // roster is shown to move what it CAN move on that same fixture, which is
+  // what stops the equality being vacuous in the other direction.
+  const ROSTER = [{ id: 'sub-northline', companyName: 'Northline Electric' }];
+  const paid40 = (extra?: { subcontractors: { id: string; companyName?: string }[] }) => computeJobCost({
+    project: proj, changeOrders: [],
+    commitments: [{ ...editorSub, amount: 40_000, paidToDate: 18_000 } as Commitment],
+    receipts: [{ ...receipt(2_400, 'electrical'), projectId: 'p9' } as MaterialReceipt],
+    ...extra,
+  });
+  close('the fixture has real money in it — actual is Σ paid out, not 0', paid40().actual, 20_400);
+  close('the roster cannot move project-level actual (it is Σ paid, not Σ bucket)',
+    paid40({ subcontractors: ROSTER }).actual, paid40().actual);
+  ok('…on a fixture where the roster demonstrably DOES move what it can move',
+    paid40({ subcontractors: ROSTER }).projectedFinal !== paid40().projectedFinal,
+    `roster-passed EAC ${paid40({ subcontractors: ROSTER }).projectedFinal} vs `
+    + `roster-free EAC ${paid40().projectedFinal} — if these are equal the equality above proves nothing`);
+  {
+    // utils/financialReports.ts reads ONE field off this engine. If that ever
+    // widens to a roster-sensitive one, the /reports costSources bundle has to
+    // carry `subcontractors`.
+    //
+    // MEASURED, NOT GREPPED (repair pass 2026-09-12). This matched the literal
+    // token `job.<field>`, which any rename or destructure walks past: rewriting
+    // the call as `const { projectedFinal: jobEac, ...job } = computeJobCost(…)`
+    // read a roster-sensitive field with the suite green. Two checks replace it,
+    // and neither is keyed on a name.
+    //
+    // (1) RUN BOTH REPORTS on a world where the roster's effect is real, once
+    //     with the buyout resolvable and once not, and require the reported
+    //     numbers to be identical. `vendorName` is signal 4 — the same resolver
+    //     the roster feeds — so stamping it moves projectedFinal/variance/byPhase
+    //     by $13,800 on the fixture above while leaving `actual` alone. If a
+    //     report ever starts reading a bucket-derived field, these rows diverge.
+    const reportsFor = (c: Commitment) => ({
+      wip: computeWIPReport([proj], [], [], [c]).rows[0],
+      profit: computeProfitReport([proj], [], [], [c]).rows[0],
+    });
+    const unresolvable = reportsFor({ ...editorSub, amount: 40_000, paidToDate: 18_000 } as Commitment);
+    const resolvable = reportsFor({
+      ...editorSub, amount: 40_000, paidToDate: 18_000, vendorName: 'Northline Electric',
+    } as Commitment);
+    close('the engine really is roster-sensitive on this fixture (else the next check is vacuous)',
+      computeJobCost({
+        project: proj, changeOrders: [],
+        commitments: [{ ...editorSub, amount: 40_000, vendorName: 'Northline Electric' } as Commitment],
+      }).variance, 13_800);
+    ok('…yet both /reports rows are byte-identical either way, so they read no bucket-derived field',
+      JSON.stringify(unresolvable) === JSON.stringify(resolvable),
+      `WIP/profit rows moved when the buyout became resolvable:\n      ${JSON.stringify(unresolvable)}`
+      + `\n      ${JSON.stringify(resolvable)} — a roster-sensitive field is now being read on a report `
+      + `whose costSources bundle (app/reports.tsx) passes no subcontractors, so the bank-facing WIP tab `
+      + `silently absorbs a bought-out overrun. Add subcontractors to that memo.`);
+
+    // (2) AND THE CALL SITE MAY NOT HOLD THE RESULT. The equivalence above is
+    //     measured on one fixture; this is the shape rule that survives a
+    //     rename, a destructure and a rest element, because it reads the
+    //     BINDING rather than the property name: whatever financialReports
+    //     binds off computeJobCost may name `actual` and nothing else.
+    const fr = stripComments(read('utils/financialReports.ts'));
+    const callAt = [...fr.matchAll(/computeJobCost\s*\(/g)].map(m => m.index ?? -1);
+    const closeOf = (open: number) => {
+      let d = 0;
+      for (let i = open; i < fr.length; i++) {
+        const c = fr[i];
+        if (c === '(') d++;
+        else if (c === ')') { d--; if (d === 0) return i; }
+      }
+      return fr.length - 1;
+    };
+    const readsBeyondActual: string[] = [];
+    for (const at of callAt) {
+      const bind = /(?:const|let|var)\s+(\{[^{}]*\}|[A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*$/
+        .exec(fr.slice(Math.max(0, at - 160), at));
+      if (!bind) {
+        // Unbound: the only legal shape is `computeJobCost(…).actual`.
+        const after = fr.slice(closeOf(at) + 1);
+        if (!/^\s*\.actual\b/.test(after)) readsBeyondActual.push(`unbound call → ${after.slice(0, 24).trim()}`);
+        continue;
+      }
+      const binding = bind[1];
+      if (binding.startsWith('{')) {
+        // Destructuring: every key must be `actual`, and a rest element
+        // (`...job`) hands the caller everything, so it can never pass.
+        const keys = [...binding.matchAll(/(\.{3})?\s*([A-Za-z_$][\w$]*)\s*(?::\s*[A-Za-z_$][\w$]*)?/g)]
+          .map(m => (m[1] ? `...${m[2]}` : m[2]));
+        readsBeyondActual.push(...keys.filter(k => k !== 'actual').map(k => `destructured ${k}`));
+      } else {
+        const props = [...fr.matchAll(new RegExp(`\\b${binding}\\.([A-Za-z_$][\\w$]*)`, 'g'))].map(m => m[1]);
+        readsBeyondActual.push(...props.filter(p => p !== 'actual').map(p => `${binding}.${p}`));
+      }
+    }
+    ok('…so financialReports may read only actual off it, or the bundle must carry the roster',
+      callAt.length >= 2 && /import \{ computeJobCost,/.test(read('utils/financialReports.ts'))
+      && readsBeyondActual.length === 0,
+      `utils/financialReports.ts makes ${callAt.length} computeJobCost call(s) and reads `
+      + `${JSON.stringify([...new Set(readsBeyondActual)])} off them — a roster-sensitive field on a report `
+      + `whose costSources bundle (app/reports.tsx) passes no subcontractors. Add subcontractors to that memo.`);
+  }
+
+  // ── (b2b) THE THREE CALLERS THAT CANNOT PASS A ROSTER ARE FIXED AT THE
+  //          WRITER (MONEY-PHASE-WIRED-1, close-out pass 2026-09-11).
+  //
+  // utils/livingEstimate.ts, utils/marginRiskScore.ts and utils/portalSnapshot
+  // .ts all read a roster-sensitive field and none of them can be handed a
+  // roster without widening three public interfaces and thirteen call sites in
+  // eight files. They did not need one. What they needed was for the commitment
+  // to record WHO IT IS WITH, which app/job-costing.tsx's editor now does — it
+  // stamps the picked sub's companyName into `vendorName`, so signal 4 resolves
+  // the buyout with no roster at all.
+  //
+  // Assert the equivalence on the SAME fixture rather than trusting it: the
+  // roster-free result must be indistinguishable from the roster-passed one.
+  const stamped = { ...editorSub, amount: 40_000, vendorName: 'Northline Electric' } as Commitment;
+  const stampedNoRoster = computeJobCost({ project: proj, changeOrders: [], commitments: [stamped] });
+  const rosterPassed = doc40({ subcontractors: [{ id: 'sub-northline', companyName: 'Northline Electric' }] });
+  close('a stamped subcontract resolves its buyout with NO roster — variance',
+    stampedNoRoster.variance, 13_800);
+  close('…and EAC', stampedNoRoster.projectedFinal, 71_000);
+  ok('…and the whole summary is indistinguishable from the roster-passed one',
+    JSON.stringify(stampedNoRoster.byPhase) === JSON.stringify(rosterPassed.byPhase),
+    `roster-free ${JSON.stringify(stampedNoRoster.byPhase)} vs `
+    + `roster-passed ${JSON.stringify(rosterPassed.byPhase)}`);
+
+  // AND THE EDITOR MUST ACTUALLY STAMP IT. Without this the two assertions
+  // above are a fixture agreeing with itself — the exact failure this block's
+  // own header warns about. Pin the write: handleSave's `vendorName` property
+  // resolves the picked sub off the roster on the subcontract branch.
+  {
+    const jcSrc = read('app/job-costing.tsx');
+    const save = jcSrc.slice(jcSrc.indexOf('const handleSave = () => {'));
+    const prop = save.slice(save.indexOf('vendorName: type ==='), save.indexOf('status: existing?.status'));
+    ok('app/job-costing.tsx STAMPS the sub company name onto a subcontract',
+      prop !== '' && /subcontractors\.find\(s => s\.id === subId\)\?\.companyName/.test(prop),
+      'a subcontract saved with only a subcontractorId is invisible to every caller that '
+      + `cannot pass a roster — handleSave wrote: ${JSON.stringify(prop.trim())}`);
+  }
+
+  // WHAT IT WAS COSTING, through the shipped function and not through prose:
+  // utils/livingEstimate.ts is the basis under utils/marginAlerts.ts, so a
+  // margin that reads healthy here is a push alert that never fires.
+  {
+    const sellEst = { ...est, grandTotal: 80_000 } as unknown as LinkedEstimate;
+    const sellProj = { ...proj, linkedEstimate: sellEst } as unknown as Project;
+    const le = (c: Commitment) => computeLivingEstimate({
+      project: sellProj, changeOrders: [], commitments: [c], invoices: [],
+    });
+    const legacy = le({ ...editorSub, amount: 40_000 } as Commitment);
+    const fixed = le({ ...stamped, projectId: 'p9' } as Commitment);
+    close('the unresolved buyout reports a $22,800 margin to the alert engine',
+      legacy.projected.margin, 22_800);
+    close('…and the resolved one reports $9,000 — the overrun the GC is actually carrying',
+      fixed.projected.margin, 9_000);
+    ok('…so the margin the alert engine sees actually moved',
+      fixed.projected.margin < legacy.projected.margin,
+      `${legacy.projected.margin} -> ${fixed.projected.margin}`);
+  }
   // Read the ARGUMENT OBJECT, not the file. The first attempt at this
   // assertion regexed the whole screen and stayed green when the property was
   // deleted from the call, because `subcontractors` also appears in the
@@ -1015,6 +1348,25 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
   ok('…and the roster is part of the cost-source bundle reports thread through',
     /\| 'subcontractors'>;/.test(read('utils/jobCostEngine.ts')),
     'JobCostActualSources must carry it so a costSources caller gets it for free');
+
+  // REACHABILITY, not just presence (audit 2026-09-11, close-out pass).
+  //
+  // Everything above greps the argument object. A grep for a call cannot see a
+  // guard clause added ABOVE that call — the failure mode that let the top WIP
+  // blocker survive two review layers — so `subcontractors` could stay in a
+  // call this memo returns before ever reaching. Pin the preamble instead:
+  // between the memo's first line and the call there is exactly ONE return,
+  // and it is the documented no-project bail. Add a tier gate, a role gate or
+  // a loading bail in front of the engine and this goes red.
+  const memoStart = jcScreenSrc.indexOf('const summary: JobCostSummary | null = useMemo(');
+  const preamble = memoStart >= 0 && memoStart < callStart
+    ? jcScreenSrc.slice(memoStart, callStart).replace(/^\s*\/\/.*$/gm, '')
+    : '';
+  const preambleReturns = preamble.match(/\breturn\b/g) ?? [];
+  ok('…and nothing returns ahead of that call but the documented no-project bail',
+    preamble !== '' && preambleReturns.length === 1 && /if \(!project\) return null;/.test(preamble),
+    `the engine call must be REACHED, not merely present — preamble returns: `
+    + `${preambleReturns.length}, text: ${JSON.stringify(preamble.trim())}`);
 
   // ── (b3) WHAT THE ROWS SHOW AND THE HEADLINE DOES NOT, NAMED. ──────────
   // The project floor absorbs genuinely unbudgeted spend into uncommitted

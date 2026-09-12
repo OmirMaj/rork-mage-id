@@ -3,8 +3,10 @@
 //   • Profit by project — running margin
 //   • A/R Aging — open invoices bucketed by days past due
 //
-// Each tab supports a "Download PDF" CTA (branded, GC-ready) and a
-// "Copy CSV" action for the WIP + AR reports so a CFO can paste into
+// Each tab supports a "Download PDF" CTA (branded, GC-ready) and an
+// "Export CSV" action for the WIP + AR reports — a real .csv file handed to the
+// share sheet (or downloaded, on web), falling back to the clipboard only where
+// the platform cannot deliver a file, so a CFO can open it in
 // QuickBooks/Excel/Sage without rekeying.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -18,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ChevronLeft, FileDown, ClipboardList, TrendingUp, AlertTriangle,
-  CheckCircle2, ChevronRight, Copy, FileSpreadsheet, ArrowDownToLine,
+  CheckCircle2, ChevronRight, FileSpreadsheet, ArrowDownToLine,
   DollarSign, Activity, Banknote, FileText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -33,10 +35,12 @@ import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import {
   computeWIPReport, computeProfitReport, computeARAgingReport,
   wipReportToCSV, arAgingReportToCSV, wipRowEarned, wipRowOverbilled, wipRowCostToComplete,
-  wipReportRowHasCostBasis, profitRowHasCostBasis,
+  wipReportRowHasCostBasis, profitRowHasCostBasis, reportCsvDocument,
   type ARAgingReport,
 } from '@/utils/financialReports';
-import { shareWIPReport, shareProfitReport, shareARAgingReport } from '@/utils/financialReportPdf';
+import {
+  shareWIPReport, shareProfitReport, shareARAgingReport, shareReportCsv,
+} from '@/utils/financialReportPdf';
 import {
   describePortfolioCostBasis, isWipBilling, normalizeWipEtcMap, wipEtcStorageKey, wipEtcValueMap,
   type WipEstimatedCost,
@@ -213,11 +217,40 @@ export default function ReportsScreen() {
               : tab === 'aging' ? arAgingReportToCSV(aging)
               : ''; // profit doesn't ship a CSV — it's tiny + the PDF is the deliverable
     if (!csv) return;
+    // A FILE FIRST, THE CLIPBOARD ONLY AS A FALLBACK — F18 (audit 2026-09-11).
+    // This was clipboard-only while the PDF button beside it has handed a
+    // document to the share sheet since it shipped. On a phone the clipboard
+    // reaches nothing: the GC's next move after "Copy CSV" is to email the
+    // schedule to his bookkeeper, and there is no attachment to email. The
+    // flagship /wip-report screen was fixed in the same audit; this is the
+    // identical defect one sidebar row away, on the SAME WIP schedule.
+    //
+    // The file name and the share-sheet title travel as ONE named document
+    // (utils/financialReports.reportCsvDocument) rather than as two positional
+    // strings: the verifier transposed them here with every guard green, and
+    // the attachment would have shipped as "WIP Schedule 2026-08-31" with no
+    // .csv extension. There is now no order to get wrong.
+    const doc = reportCsvDocument(tab === 'wip' ? 'wip' : 'aging', tab === 'wip' ? wip.asOf : aging.asOf);
+    try {
+      const delivered = await shareReportCsv(doc, csv);
+      if (delivered !== 'unavailable') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // 'downloaded' already reached the user and 'shared' opened the share
+        // sheet; an alert on top of either is noise. Only the fallback speaks.
+        return;
+      }
+    } catch {
+      // A failed write must not silently become a successful copy without the
+      // reader being told which one happened — fall through and say so.
+    }
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      ok ? 'Copied' : 'Copy failed',
-      ok ? 'CSV is on your clipboard. Paste into Excel/QuickBooks/Sage.' : 'Could not copy CSV.',
+      ok ? 'CSV copied' : 'Copy failed',
+      ok
+        ? 'This device could not hand over a file, so the schedule is on your clipboard — paste it '
+          + 'into Excel / QuickBooks / Sage.'
+        : 'Could not save or copy the CSV.',
     );
   }, [tab, wip, aging, wipUnlocked, nothingToExport, blockedReason]);
 
@@ -296,8 +329,12 @@ export default function ReportsScreen() {
             accessibilityState={{ disabled: nothingToExport }}
             accessibilityHint={nothingToExport ? blockedReason : undefined}
           >
-            <Copy size={14} color={nothingToExport ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
-            <Text style={[styles.actionBtnSecondaryText, nothingToExport && { color: themeColors.textMuted }]}>Copy CSV</Text>
+            {/* A SPREADSHEET, NOT A CLIPBOARD (F18). The action hands over a
+                .csv file now and only falls back to copying when the platform
+                has no way to deliver one, so a copy icon labelled "Copy CSV"
+                would be describing the fallback as the behaviour. */}
+            <FileSpreadsheet size={14} color={nothingToExport ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
+            <Text style={[styles.actionBtnSecondaryText, nothingToExport && { color: themeColors.textMuted }]}>Export CSV</Text>
           </TouchableOpacity>
         )}
         {/* The handler refuses AND explains, in case a platform lets the press

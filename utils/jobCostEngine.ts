@@ -302,20 +302,30 @@ function itemCost(i: LinkedEstimateItem): number {
  *     overcommitted check further down this file trusts. If the GC said which
  *     lines this subcontract covers, that is the answer and it is taken whole.
  *  2. `subcontractorId` → the sub's `companyName`, matched against the estimate
- *     line's `supplier`. This is the only structured link the commitment
- *     EDITOR writes for a subcontract (app/job-costing.tsx sets
- *     `subcontractorId` on a subcontract and `vendorName` only on a purchase
- *     order), so without it none of the others can fire on a subcontract a
- *     user actually created — which is what the first cut of this fix shipped.
- *     It needs the roster, so it is live only where the caller passes
- *     `subcontractors`; see the note on that input.
+ *     line's `supplier`. It needs the roster, so it is live only where the
+ *     caller passes `subcontractors` — see the note on that input. Until the
+ *     close-out pass this was the ONLY signal that could fire on a subcontract
+ *     a user actually created, because the commitment editor pointed at the
+ *     sub and wrote no name; that is what the first cut of this fix shipped,
+ *     and it is why the roster is load-bearing on /job-costing.
+ *     app/job-costing.tsx now ALSO stamps the sub's `companyName` into
+ *     `vendorName` when it saves, so signal 4 covers the same record with no
+ *     roster at all — but only for a record saved or re-saved since. A
+ *     subcontract written before that still needs this signal, so it stays.
  *  3. `csiDivision`. A classification both records carry, matched exactly
  *     after trimming. '26' is '26' whoever typed it.
  *  4. `vendorName` ↔ `LinkedEstimateItem.supplier`. The estimator named the
  *     vendor when he priced the line and the GC then signed that vendor — the
  *     same scope. Case- and space-insensitive, and DELIBERATELY exact after
  *     that: a substring match would let 'Alder' claim 'Alder Mechanical' and
- *     'Alder Electric' both. Live for purchase orders.
+ *     'Alder Electric' both. Live for purchase orders, and — since the
+ *     close-out pass stamped the sub's company name at save time — for any
+ *     subcontract saved by app/job-costing.tsx, WITHOUT a roster. That is what
+ *     carries the row repair to the three callers that cannot pass one
+ *     (utils/livingEstimate.ts, utils/marginRiskScore.ts,
+ *     utils/portalSnapshot.ts); measured on the fixture in
+ *     scripts/validate-money-definitions.ts, the roster-free result is
+ *     byte-identical to the roster-passed one.
  *
  * Signals are NOT combined. The first one that returns anything wins, because
  * a weaker signal agreeing adds nothing and a weaker signal disagreeing would
@@ -500,30 +510,104 @@ export interface JobCostInput {
    * `subcontractorId` into a company name for the buyout match in
    * `matchEstimateItems`.
    *
-   * It is here because `subcontractorId` is the one structured link the
-   * commitment editor writes for a SUBCONTRACT (app/job-costing.tsx writes
-   * `vendorName` only for purchase orders and writes neither `csiDivision`
-   * nor `linkedEstimateItems` at all), so without the roster the buyout match
-   * can only fire on purchase orders and on seeded data. Additive and
-   * optional: omit it and the other three signals behave exactly as before.
+   * It is here because `subcontractorId` WAS the one structured link the
+   * commitment editor wrote for a SUBCONTRACT — until the close-out pass
+   * app/job-costing.tsx stamped `vendorName` on a purchase order only, and it
+   * still writes neither `csiDivision` nor `linkedEstimateItems` at all — so
+   * without the roster the buyout match could only fire on purchase orders and
+   * on seeded data. That first clause is HISTORY, not current behaviour: the
+   * editor now stamps a subcontract's `vendorName` too (see below), and any
+   * comment still saying otherwise is stale. Additive and optional: omit the
+   * roster and the other three signals behave exactly as before.
+   *
+   * IT IS NO LONGER THE ONLY LINK, and that is what closed this defect for the
+   * callers that cannot pass a roster. The commitment editor now also stamps
+   * the picked sub's `companyName` into `vendorName`, so signal 4 resolves the
+   * same buyout with no roster: measured on the fixture below, a $40,000
+   * electrical subcontract against a $26,200 bucket reports variance $13,800 /
+   * EAC $71,000 either way. The roster still matters here for a subcontract
+   * saved BEFORE that change and never re-saved, which is why /job-costing
+   * keeps passing it and MONEY-PHASE-WIRED-1 keeps pinning that it does.
    *
    * WHO PASSES IT. app/job-costing.tsx — the screen this whole fix is about —
    * passes the roster off `useProjects()`; MONEY-PHASE-WIRED-1 in
    * scripts/validate-money-definitions.ts fails the build if it stops. It is
    * also part of `JobCostActualSources`, so any caller that threads a
-   * `costSources` bundle (utils/financialReports.ts and its two screens)
-   * carries it for free the moment those screens put it in the bundle.
+   * `costSources` bundle carries it for free once that bundle includes it.
    *
-   * STILL UNWIRED, and measured rather than hand-waved: utils/marginRiskScore
-   * .ts, utils/livingEstimate.ts and utils/portalSnapshot.ts each build their
-   * own argument object and none of the three receives a roster from its own
-   * callers (eleven call sites between them). On a project whose subcontracts
-   * were created in-app and whose estimate categorises subs by trade rather
-   * than by sub, those three read a cost EAC that ABSORBS an overrun the
-   * /job-costing screen shows: on a $57,200 estimate with a $40,000 electrical
-   * subcontract against a $22,600 electrical line, wired reports +$17,400 and
-   * unwired reports $0. Understating an overrun is the conservative direction
-   * for a margin ALERT and the wrong one for a bank document — see
+   * AND WHO DOES NOT NEED IT — measured, because the obvious next wiring job is
+   * a no-op and someone will otherwise spend a wave on it. utils/financialReports
+   * .ts reads exactly ONE field off this engine, `job.actual` (its cost-at-
+   * completion came off `deriveEstimatedCostWithSource` in the 2026-09-10 parity
+   * pass). `actual` is Σ commitment paidToDate + receipts + priced hours +
+   * equipment + permits — the roster moves which BUCKET a commitment lands in
+   * and never the total — so adding `subcontractors` to /reports' costSources
+   * bundle changes no number on either tab: measured identical costToDate
+   * 12,000 / estimatedFinalCost 57,200 / projectedProfit 0 with and without it.
+   * MONEY-PHASE-WIRED-1 pins both halves: that the roster cannot move `actual`,
+   * and that financialReports reads no roster-sensitive field. If that second
+   * assertion ever fires, wire the bundle.
+   *
+   * STILL UNWIRED, and these three DO read a roster-sensitive field: utils/
+   * livingEstimate.ts and utils/marginRiskScore.ts read `projectedFinal`,
+   * utils/portalSnapshot.ts reads `projectedFinal` AND `byPhase`. None of the
+   * three even accepts a roster on its own input type, and none receives one
+   * from its own callers (THIRTEEN call sites across eight files — measured,
+   * `grep -n 'computeLivingEstimate(\|computeMarginRisk('`), so wiring them is
+   * a signature change in three public interfaces, not a property.
+   *
+   * THEY WERE WIRED THE OTHER WAY INSTEAD, at the writer (close-out pass).
+   * What those three actually needed was not the roster; it was for the
+   * commitment to KNOW who it is with. Every production writer of a subcontract
+   * commitment now records that:
+   *   • contexts/ProjectContext.tsx's buyout award already wrote `vendorName`
+   *     off the winning bid — that is SIGNAL 4, and it is what exempts it. It
+   *     also writes `linkedEstimateItems`, but that is NOT the reason: the
+   *     value is `pkg.linkedEstimateItemIds`, which app/takeoff.tsx:572 creates
+   *     as `[]`, and `matchEstimateItems` falls through an empty array
+   *     (`if (linked.length > 0)`), so signal 1 is not guaranteed on that path;
+   *   • the dev seeders already wrote `vendorName`;
+   *   • app/job-costing.tsx's commitment editor — the only writer that did not
+   *     — now stamps the picked sub's `companyName` into `vendorName`, so
+   *     signal 4 resolves the buyout with no roster at all.
+   * Measured on the fixture below, a $40,000 electrical subcontract against a
+   * $26,200 electrical bucket: without the stamp and without a roster the
+   * engine reported variance $0 / EAC $57,200 and split the trade into an
+   * untouched "subcontractor $22,600" row beside an "electrical $3,600 budget /
+   * $40,000 committed" row; with the stamp and still no roster it reports
+   * variance $13,800 / EAC $71,000 on ONE electrical row at $26,200 / $40,000 —
+   * byte-identical to the roster-passed result.
+   *
+   * WHAT THAT WAS COSTING, MEASURED THROUGH THE SHIPPED FUNCTION rather than
+   * argued: the same job through `computeLivingEstimate` reported margin
+   * $22,800 and health 'healthy' on the unresolved EAC, and $9,000 /
+   * 'critical' on the resolved one. A losing job read healthy, and
+   * utils/marginAlerts.ts is built on that same output — so the push alert that
+   * exists to warn about margin fade was silent on exactly the job it was
+   * written for. It is not silent now, and no signature moved.
+   *
+   * The stamp CANNOT over-claim relative to the roster, which is why it is a
+   * safe substitute rather than a wider net: signals 2 and 4 compare against
+   * the same field on the same records — the estimate line's `supplier` — so a
+   * job whose estimate names no supplier resolves under neither, exactly as
+   * before. Signal 2 still runs first, so where a roster IS passed the current
+   * company name wins over a stored one that has since been renamed.
+   *
+   * WHAT IS LEFT, stated rather than glossed: a subcontract SAVED BEFORE the
+   * stamp and never re-saved still carries only a `subcontractorId`, and those
+   * three callers still absorb its overrun. Re-saving the commitment backfills
+   * it; there is no migration, because a client-only wave cannot ship one. That
+   * residue is the reason the roster is not dead code and why /job-costing must
+   * keep passing it.
+   *
+   * THAT FIGURE IS MEASURED AND WAS WRONG HERE UNTIL THE CLOSE-OUT PASS. It
+   * published the subcontract less that one line, which forgets that the buyout
+   * moves the line onto the ELECTRICAL bucket, where $3,600 of recessed cans
+   * already sit. The bucket budget is $26,200, so the overrun is $13,800.
+   * MONEY-PHASE-WIRED-1 in scripts/validate-money-definitions.ts now asserts
+   * both numbers against this exact fixture, so the prose cannot drift from the
+   * arithmetic again. Understating an overrun is the conservative direction for
+   * a margin ALERT and the wrong one for a bank document — see
    * docs/audits/2026-09-11-handoff-money-to-wip.md.
    */
   subcontractors?: { id: string; companyName?: string }[];

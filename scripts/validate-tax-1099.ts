@@ -360,6 +360,24 @@ console.log('\na sub paid by check (MONEY-1099-GC-1):');
     /\}, \[year, subcontractors, commitments, subInvoices, receipts\]\);/.test(screen),
     'a stale memo would show yesterday\u2019s dataset after a bill is recorded');
 
+  // AND THE CALL MUST BE REACHED, NOT MERELY PRESENT (close-out pass
+  // 2026-09-11). Every assertion above greps for the call. A grep cannot see a
+  // guard clause added ABOVE it — the exact blindness that let a blocker
+  // survive two review layers elsewhere in this campaign — so the wiring can be
+  // present in a memo that returns before reaching it. Pin the preamble
+  // instead: between the memo's first line and the call there is exactly ONE
+  // return, and it is the documented "portal invoices still loading" bail.
+  const rowsMemo = screen.indexOf('const rows: Tax1099Row[] = useMemo(');
+  // Anchored at the `return`, so the call's OWN return is not counted as a bail.
+  const datasetCall = screen.indexOf('return buildTax1099Dataset({', rowsMemo);
+  const rowsPreamble = rowsMemo >= 0 && datasetCall > rowsMemo ? screen.slice(rowsMemo, datasetCall) : '';
+  const rowsReturns = rowsPreamble.match(/\breturn\b/g) ?? [];
+  ok('…and nothing returns ahead of that call but the documented loading bail',
+    rowsPreamble !== '' && rowsReturns.length === 1 && /if \(!subInvoices\) return \[\];/.test(rowsPreamble),
+    'a tier gate, a role gate or a second bail in front of buildTax1099Dataset would leave every '
+    + `assertion above green on a screen that never calls it — preamble returns: ${rowsReturns.length}, `
+    + `text: ${JSON.stringify(rowsPreamble.trim())}`);
+
   // Now that the screen IS wired, rendered copy elsewhere may reference the
   // 1099 — but only because the export actually produces it. This assertion
   // exists so the pairing stays true if the wiring is ever pulled.

@@ -199,6 +199,14 @@ export function GanttTab({
         <View style={styles.grid}>
           <GridPaneDefault
             tasks={tasks as ScheduleTask[]}
+            // The SAME CpmResult the Gantt beside it draws from. Without this
+            // the grid re-ran the engine itself, and its own run has no
+            // `taskCalendars` and no `criticalFloatThresholdDays` — so a
+            // per-resource calendar and the near-critical threshold applied to
+            // one half of the split view and not the other. Dates already
+            // agreed (GridPane's fallback is calendar-aware), which is exactly
+            // why nothing caught it.
+            cpm={cpm}
             projectStartDate={projectStartDate}
             workingDaysPerWeek={workingDaysPerWeek}
             nonWorkingDates={nonWorkingDates}

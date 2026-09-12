@@ -55,6 +55,9 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 import { FEATURE_REGISTRY } from '../utils/featureRegistry';
+import { REQUIRED_TIER } from '../utils/featureTiers';
+import { HUB_ENTRIES } from '../utils/estimateHubEntries';
+import type { FeatureKey } from '../utils/featureTiers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -400,20 +403,24 @@ const registryById = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
   // exemption list: the assert below FAILS if one is fixed and the line is left
   // behind, exactly like PENDING_BACK_LINK. Neither entry is in the 2026-09-07
   // nav wave's file set.
-  const PENDING_CHIP_BACKING: Record<string, string> = {
-    schedule:
-      'the rail\'s "Schedule" row points at app/(tabs)/discover/schedule.tsx, which is the FREE '
-      + 'on-ramp (project list + ScheduleOnRamp) and gates nothing. The schedule_gantt_pdf wall is '
-      + 'one screen later, on app/(tabs)/schedule/index.tsx:219 (Schedule Pro). So a free user sees '
-      + 'a padlock on a screen they can open and use, and never opens it. Fix: drop `requires` from '
-      + 'the `schedule` registry row (the `schedule-pro` row already carries it), then delete this line.',
-  };
+  // Empty, and that is the point: the one entry it held ('schedule', whose
+  // prescribed fix was to drop `requires` from the row because
+  // app/(tabs)/discover/schedule.tsx is the free on-ramp and gates nothing) was
+  // carried out, so the line was deleted as that entry itself instructed. The
+  // mechanism stays — with the pre-skip check above it now actually fires.
+  const PENDING_CHIP_BACKING: Record<string, string> = {};
 
   const namedByCatalog = new Set(catalogRows.map(r => r.feature));
   const unbacked: string[] = [];
   const pendingFixed: string[] = [];
 
   for (const entry of FEATURE_REGISTRY) {
+    // A PENDING row whose prescribed fix was to DROP `requires` ends up with no
+    // `requires` at all, and the `!entry.requires` skip below used to swallow
+    // exactly that state — so the 'schedule' entry sat here as a no-op long
+    // after the row was fixed, and the rot check that is supposed to delete it
+    // could never fire. Ask about the pending rows BEFORE the skip.
+    if (entry.id in PENDING_CHIP_BACKING && !entry.requires) { pendingFixed.push(entry.id); continue; }
     if (!entry.requires || !namedByCatalog.has(entry.id)) continue;
     const file = screenFileFor(entry.route);
     if (!file) continue;                       // validate-feature-search.ts owns this
@@ -443,6 +450,286 @@ const registryById = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
     `${pendingFixed.map(p => `'${p}'`).join(', ')} now enforce(s) the gate the registry claims — `
     + 'delete the PENDING_CHIP_BACKING entry in the same commit so the list stays a to-do, not a '
     + 'mute button.');
+}
+
+// ── …AND A WALL THAT EXISTS MUST HAVE A CHIP ────────────────────────────────
+// The block above guards one direction: a chip must not promise a gate the
+// destination does not hold. The 2026-09-11 tier audit found the other
+// direction open on SIXTEEN rows, and it is the one that costs a conversion:
+// the row carried no `requires` at all while its screen opens with
+// `if (!canAccess(<key>)) return <Paywall …>`. ⌘K and the Tools grid therefore
+// advertised /invoice, /plans, /contract, /permits, /brief, /week-close,
+// /construction-ai, /payment-predictions and eight more as UNLOCKED, the user
+// tapped a row with no padlock on it, and the app answered with a paywall.
+// scripts/validate-feature-registry-gates.ts computed this list and printed it
+// as "tracked, not failed" (its header explains why: a guard that demands 16
+// unrelated edits gets disabled instead of satisfied). The 16 edits are done,
+// so the tracking becomes an assertion here.
+//
+// WHAT COUNTS AS A WALL, AND WHY THE PARSER IS FUSSY. Only an ENTRY gate: a
+// guard clause at the top level of the default-exported component whose
+// consequent returns, so it runs on mount and the screen refuses to render.
+// An `if (!canAccess(…))` inside a useCallback is a gate on one BUTTON, and a
+// chip in front of the whole screen would then be the false lock the block
+// above exists to stop — app/closeout-binder.tsx is exactly that shape
+// (runPassportGeneration checks 'client_portal'; the binder itself is free),
+// and CLOSEOUT_BINDER_IS_ACTION_GATED below pins that the parser still tells
+// the two apart. A grep for `canAccess('key')` cannot: it sees both.
+{
+  // LINE COMMENTS FIRST. Stripping `/* … */` first meant a `/*` that occurs
+  // INSIDE a `//` comment opened a block comment that ran to the next `*/`
+  // anywhere in the file. app/ask.tsx:3 says "the engine (utils/oneMind/*)
+  // routes…" and the next `*/` is a JSX `{/* Header */}` 255 lines later, so
+  // the whole component — `export default function` included — was erased and
+  // entryGateOf returned undefined for a file it had never read. A screen the
+  // parser cannot read is a screen every assertion below passes vacuously on.
+  const stripComments = (src: string) =>
+    src.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  // Expo Router re-export stubs (`export { default } from '…'`) are a screen's
+  // route file without being its source: app/(tabs)/discover/estimate.tsx is
+  // one line pointing at app/(tabs)/estimate/index.tsx. Resolved here, or the
+  // parser reads a one-line file, finds no component, and reports "open".
+  const RE_EXPORT = /^\s*export\s*\{\s*default[^}]*\}\s*from\s*['"]([^'"]+)['"]/m;
+  const resolveStub = (file: string, depth = 0): string => {
+    if (depth > 3) return file;
+    const m = RE_EXPORT.exec(readFileSync(join(ROOT, file), 'utf8'));
+    if (!m) return file;
+    const base = join(file, '..', m[1]);
+    const target = [`${base}.tsx`, join(base, 'index.tsx')].find(p => existsSync(join(ROOT, p)));
+    return target ? resolveStub(target, depth + 1) : file;
+  };
+
+  const screenFileFor = (route: string): string | undefined => {
+    const rel = route.replace(/^\//, '').split('?')[0];
+    const f = [join('app', `${rel}.tsx`), join('app', rel, 'index.tsx')]
+      .find(p => existsSync(join(ROOT, p)));
+    return f ? resolveStub(f) : undefined;
+  };
+
+  /** The screen's entry gate, or undefined. Reachability, not presence:
+   *  the `if` must sit at the component's own indent level (two spaces) inside
+   *  the `export default function` body, and its consequent must return — the
+   *  screen has to refuse to render, not merely mention the key. */
+  function entryGateOf(rawSource: string): string | undefined {
+    const lines = stripComments(rawSource).split('\n');
+    const start = lines.findIndex(l => /^export default function\b/.test(l));
+    if (start < 0) return undefined;
+    // `}` in column 0 closes the component. Anything after it is another
+    // function (a sub-component, a styles factory) and is not the entry path.
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i++) {
+      if (/^\}/.test(lines[i])) { end = i; break; }
+    }
+    for (let i = start + 1; i < end; i++) {
+      const m = lines[i].match(/^  if \(\s*!\s*canAccess\w*\(\s*['"]([a-z0-9_]+)['"]\s*\)\s*\)\s*(\{)?\s*$/);
+      if (!m) continue;
+      // Same line (`) return <X/>;`) or the next non-blank line must return.
+      if (!m[2] && /\)\s*return\b/.test(lines[i])) return m[1];
+      let j = i + 1;
+      while (j < end && lines[j].trim() === '') j++;
+      if (j < end && /^\s+return\b/.test(lines[j])) return m[1];
+    }
+    // The no-brace one-liner form: `  if (!canAccess('k')) return <Paywall …>;`
+    for (let i = start + 1; i < end; i++) {
+      const m = lines[i].match(/^  if \(\s*!\s*canAccess\w*\(\s*['"]([a-z0-9_]+)['"]\s*\)\s*\)\s*return\b/);
+      if (m) return m[1];
+    }
+    // THE ALIAS SHAPE — the same wall, through a named boolean:
+    //     const locked  = !canAccess('cost_xray');       …  if (locked)   { … return
+    //     const allowed =  canAccess('schedule_import'); …  if (!allowed) { … return
+    // Both refuse to render exactly as literally as `if (!canAccess(…))`, and
+    // the regexes above read neither. app/cost-xray.tsx therefore parsed as an
+    // OPEN screen, which is how the Estimate hub's walled-tile count shipped as
+    // five when the marquee AI tile makes it six. The FLOOR ratchet could not
+    // catch that: a floor counts what the parser sees, so it cannot detect
+    // blindness to a shape it has never counted. Teach it the shape instead.
+    const alias = new Map<string, { key: string; deniedWhenTrue: boolean }>();
+    for (let i = start + 1; i < end; i++) {
+      const m = lines[i].match(/^  const (\w+) = (!)?\s*canAccess\w*\(\s*['"]([a-z0-9_]+)['"]\s*\)\s*;/);
+      if (m) alias.set(m[1], { key: m[3], deniedWhenTrue: m[2] === '!' });
+    }
+    for (let i = start + 1; i < end; i++) {
+      const m = lines[i].match(/^  if \(\s*(!)?\s*(\w+)\s*\)\s*(\{)?\s*$/);
+      if (!m) continue;
+      const a = alias.get(m[2]);
+      // `if (!locked)` / `if (allowed)` is the OPEN branch, not the wall.
+      if (!a || (m[1] === '!') === a.deniedWhenTrue) continue;
+      if (!m[3] && /\)\s*return\b/.test(lines[i])) return a.key;
+      let j = i + 1;
+      while (j < end && lines[j].trim() === '') j++;
+      if (j < end && /^\s+return\b/.test(lines[j])) return a.key;
+    }
+    return undefined;
+  }
+
+  // Fixture: the discrimination this whole check rests on. If the parser ever
+  // starts counting an action-level gate, this is what says so — and if
+  // closeout-binder itself grows a real entry gate, the chipless list below
+  // will name it, which is the correct outcome either way.
+  //
+  // WHAT ACTUALLY EXCLUDES IT, stated precisely, because an earlier write-up of
+  // this fixture said "its consequent is router.push(), not a return" and that
+  // is not true: app/closeout-binder.tsx:195-198 is `{ router.push('/paywall');
+  // return; }` — line 197 IS the return. Two things exclude it. (a) The `if`
+  // sits at four spaces, inside a useCallback, and the regexes above require
+  // the component's own two. (b) Even with the indent relaxed, the parser reads
+  // only the FIRST non-blank line after the `if`, and that line is the push.
+  // So the surviving discriminator is statement ORDER inside the block, which
+  // is thinner than it looks: `{ return router.push('/paywall'); }` is
+  // semantically identical and would parse as an entry gate, putting a padlock
+  // over a door that opens. Keep this fixture honest — if it ever goes red
+  // because the binder was reworded rather than rewalled, fix the parser, not
+  // the registry row.
+  const binder = read(join('app', 'closeout-binder.tsx'));
+  ok('an action-level canAccess() is not mistaken for an entry gate',
+    /canAccess\(\s*'client_portal'\s*\)/.test(binder) && entryGateOf(binder) === undefined,
+    'app/closeout-binder.tsx gates only runPassportGeneration (a useCallback). If the parser '
+    + 'reads that as an entry gate, every screen with one guarded BUTTON is told to paint a '
+    + 'padlock over its whole door — the false lock the block above exists to prevent.');
+
+  const chipless: string[] = [];
+  const wrongTier: string[] = [];
+  const differentKeySameTier: string[] = [];
+
+  for (const entry of FEATURE_REGISTRY) {
+    const file = screenFileFor(entry.route);
+    if (!file) continue;                       // validate-feature-search.ts owns this
+    const gate = entryGateOf(read(file));
+    if (!gate) continue;                       // the other direction, above
+    if (!(gate in REQUIRED_TIER)) continue;    // not a tier key at all
+    const enforced = REQUIRED_TIER[gate as FeatureKey];
+    if (!entry.requires) {
+      chipless.push(`${entry.id} (${entry.route}) → ${file} refuses to render without '${gate}' (${enforced}), and the row carries no \`requires\``);
+      continue;
+    }
+    const claimed = REQUIRED_TIER[entry.requires];
+    if (claimed !== enforced) {
+      wrongTier.push(`${entry.id} (${entry.route}): row says ${claimed} ('${entry.requires}'), the screen's entry gate is ${enforced} ('${gate}')`);
+    } else if (entry.requires !== gate) {
+      differentKeySameTier.push(`${entry.id}: '${entry.requires}' vs entry gate '${gate}' — same tier (${claimed})`);
+    }
+  }
+
+  ok('every screen that refuses to render shows a chip saying so', chipless.length === 0,
+    `${chipless.length} destination(s) advertise as unlocked and then paywall:\n        `
+    + chipless.map(c => `• ${c}`).join('\n        ')
+    + '\n        Put the key the screen actually gates on into the registry row\'s `requires`. '
+    + 'An unbadged row that walls the user is the worst of the two failures: they had no warning, '
+    + 'and the upsell they land on is the one they did not ask for.');
+
+  ok('no chip names a softer tier than the entry gate it mirrors', wrongTier.length === 0,
+    wrongTier.map(w => `• ${w}`).join('\n        ')
+    + '\n        This is the margin-board / coi-vault drift (audit 2026-08-31 #27) seen from the '
+    + 'entry gate rather than from any canAccess in the file.');
+
+  // Not a failure: some screens gate on a differently-named key of the same
+  // tier (punch_list_closeout vs rfis_submittals, both Business). Printed so a
+  // rename shows up here before it becomes a tier difference.
+  if (differentKeySameTier.length > 0) {
+    console.log(`  ·     ${differentKeySameTier.length} row(s) name a different key than the entry gate, same tier:`);
+    for (const s of differentKeySameTier) console.log(`          ${s}`);
+  }
+
+  // The ratchet. 16 rows were fixed on 2026-09-11; the count of screens whose
+  // entry gate this parser can see must not fall, or the parser has gone blind
+  // (a refactor to `<TierGate>`, a rename of canAccess) and every assertion
+  // above passes vacuously — which is how 61 guards in the run that produced
+  // this file stayed green while their subject was deleted.
+  //
+  // A FLOOR CANNOT SEE A SHAPE IT NEVER COUNTED. This stood at 48 while the
+  // parser was blind to the alias wall (`const locked = !canAccess(…)`) and to
+  // any file whose `//` comment contained a `/*`, and the floor was perfectly
+  // green throughout: blindness to a shape looks exactly like the absence of
+  // that shape. Teaching entryGateOf both took it to 52. The number goes up
+  // when the parser learns something and down never — if a real screen loses
+  // its wall this goes red, and if a refactor hides four more, so does this.
+  const gatedSeen = FEATURE_REGISTRY.filter(e => {
+    const f = screenFileFor(e.route);
+    return f ? entryGateOf(read(f)) !== undefined : false;
+  }).length;
+  const FLOOR = 52;
+  ok(`the entry-gate parser still sees the walls: ${gatedSeen} (floor ${FLOOR})`, gatedSeen >= FLOOR,
+    `only ${gatedSeen} registry destinations parse as entry-gated, down from the floor of ${FLOOR}. The checks `
+    + 'above cannot fail on a screen the parser cannot read, so a change to how screens gate must '
+    + 'teach entryGateOf the new shape in the same commit.');
+
+  // ── THE SAME DRIFT, ON THE ONE CATALOG THAT IS NOT THIS REGISTRY ──────────
+  // Everything above only sees destinations FEATURE_REGISTRY knows about. The
+  // Estimate hub does not go through it: app/(tabs)/estimate/index.tsx renders
+  // utils/estimateHubEntries.HUB_ENTRIES, a second hand-written catalog with no
+  // tier field at all and a screen with no tier hook — so every one of its ten
+  // tiles paints as open. Measured 2026-09-12 with the parser above: SIX of
+  // the ten refuse to render behind an entry gate (area-takeoff, estimate-
+  // confidence, estimate-accuracy and living-estimate on 'job_costing' = pro;
+  // estimate-calibration on 'portfolio_margin' = business; cost-xray on
+  // 'cost_xray' = business). Two of those six ARE correctly chipped in this
+  // registry — the hub simply does not read it.
+  //
+  // It was published as FIVE, and the missing one was the product's marquee AI
+  // feature. Not a miscount: app/cost-xray.tsx walls through an alias
+  // (`const locked = !canAccess('cost_xray')` … `if (locked) { … return`) and
+  // the parser could not read that shape, so the number reported what the
+  // PARSER could see and was written down as what the SCREENS do. A ratchet
+  // whose whole job is to name the set for the next owner named five of six.
+  //
+  // A CEILING, NOT A FAILURE, and deliberately so. The fix is to give HUB_ENTRIES
+  // a tier and the hub screen a lock, and both files belong to the estimate
+  // work, not here; a red assertion on a file this wave may not edit blocks
+  // ship-check for everyone, which is how guards get commented out. What this
+  // does instead is stop the number GROWING silently: an eleventh gated tile
+  // added with no lock turns it red, and the slack check turns it red if the
+  // hub is fixed and the ceiling is left behind.
+  {
+    const HUB_SCREEN = join('app', '(tabs)', 'estimate', 'index.tsx');
+    const hubSrc = read(HUB_SCREEN);
+
+    // REACHABILITY, NOT PRESENCE: prove HUB_ENTRIES is what this screen
+    // actually renders before counting anything against it. Without this the
+    // count below is a statement about a list nothing draws.
+    ok('the Estimate hub renders utils/estimateHubEntries',
+      /from '@\/utils\/estimateHubEntries'/.test(hubSrc) && /entriesForGroup\(/.test(hubSrc),
+      `${HUB_SCREEN} no longer imports and calls entriesForGroup — if the hub was rebuilt on the `
+      + 'registry, delete this whole block (that IS the fix). If it moved to another list, point '
+      + 'the count at the new one.');
+
+    // Does the hub know about tiers at all? If it ever does, every number here
+    // is stale and the slack check says so.
+    const hubTierAware = /useTierAccess|useProjectAccess|canAccess|requiredTierFor/
+      .test(stripComments(hubSrc));
+
+    const hubWalled = HUB_ENTRIES.filter(e => {
+      const f = screenFileFor(e.route);
+      if (!f) return false;
+      const gate = entryGateOf(read(f));
+      return !!gate && gate in REQUIRED_TIER;
+    });
+    const HUB_CEILING = 6;
+    ok(`Estimate hub tiles that wall the user with no lock: ${hubWalled.length} (ceiling ${HUB_CEILING})`,
+      hubWalled.length <= HUB_CEILING,
+      `${hubWalled.length} of ${HUB_ENTRIES.length} hub tiles open a screen that refuses to render:\n        `
+      + hubWalled.map(e => {
+        const f = screenFileFor(e.route)!;
+        const g = entryGateOf(read(f))!;
+        return `• ${e.id} (${e.route}) → '${g}' (${REQUIRED_TIER[g as FeatureKey]})`;
+      }).join('\n        ')
+      + '\n        The ceiling only goes down. Give HUB_ENTRIES a tier and the hub screen a lock '
+      + 'chip — or route the hub through FEATURE_REGISTRY, which already carries the gate for '
+      + 'area-takeoff and estimate-calibration.');
+    // Fails in BOTH directions, including on the fix. A ratchet that stays
+    // green after its subject is repaired is a dead guard, and this file's own
+    // header is a list of those. If the hub grows a tier hook the premise
+    // ("no tile can show a lock") is gone and every number here is a fossil —
+    // so say so, and make deleting the block part of the same commit.
+    ok('the Estimate hub ceiling is not slack',
+      hubWalled.length === HUB_CEILING && !hubTierAware,
+      hubTierAware
+        ? `${HUB_SCREEN} now reads a tier (useTierAccess / canAccess). That is the fix this block `
+          + 'was tracking, so delete the block — leaving it green would be a guard asserting a '
+          + 'defect that no longer exists.'
+        : `only ${hubWalled.length} of a ceiling of ${HUB_CEILING} — drop HUB_CEILING to `
+          + `${hubWalled.length} so the ratchet keeps ratcheting.`);
+  }
 }
 
 // Registry entries no rendered catalog names. These are reachable (the orphan

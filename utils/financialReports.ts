@@ -878,3 +878,39 @@ export function arAgingReportToCSV(report: ARAgingReport): string {
   ];
   return [headers, ...rows, totals].map(r => r.map(csvEscape).join(',')).join('\n');
 }
+
+/**
+ * The DOCUMENT a report CSV arrives as: the file name in the bookkeeper's inbox
+ * and the title on the share sheet that hands it over.
+ *
+ * IT TRAVELS AS ONE NAMED OBJECT, and that is the whole point of it existing.
+ * `shareReportCsv(fileName, csv, dialogTitle)` was three same-typed positional
+ * strings, and the verifier (2026-09-11) transposed two of them at the call site
+ * with all four WIP validators still at 100%: the guards checked that the two
+ * file-name templates appeared in the handler and that the share call came
+ * before the clipboard call, and neither of those can see argument order. The
+ * shipped attachment would have been named "WIP Schedule 2026-08-31", with no
+ * .csv extension — the one thing the fix exists to get right, because an
+ * extensionless attachment is not a file a bookkeeper's Excel will open.
+ *
+ * Producing the pair here makes the transposition unexpressible at the call
+ * site rather than merely guarded, and it is executable, so the extension and
+ * the date can be asserted as VALUES (scripts/validate-wip.ts).
+ */
+export interface ReportCsvDocument {
+  /** What the file is called once it lands. Always carries the .csv extension. */
+  fileName: string;
+  /** What the share sheet calls it. Human-readable, no extension. */
+  dialogTitle: string;
+}
+
+/**
+ * `asOf` is an ISO timestamp; the DATE half of it is the document's identity —
+ * a WIP schedule and an A/R aging are both "as of" a day, not a moment.
+ */
+export function reportCsvDocument(kind: 'wip' | 'aging', asOf: string): ReportCsvDocument {
+  const asOfDay = asOf.slice(0, 10);
+  return kind === 'wip'
+    ? { fileName: `wip-schedule-${asOfDay}.csv`, dialogTitle: `WIP Schedule ${asOfDay}` }
+    : { fileName: `ar-aging-${asOfDay}.csv`, dialogTitle: `A/R Aging ${asOfDay}` };
+}

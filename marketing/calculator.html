@@ -116,6 +116,12 @@
   @media(max-width:820px){.sitenav{max-width:580px}.sitenav .nav-r a:not(.start){display:none}}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
   .foot a{color:var(--muted)}
+  /* The strip is a SIBLING of <p class="foot">, not a child, so it inherits
+     nothing from .foot a — its links rendered in the UA default blue until
+     2026-09-12. Same token as this page's other footer links: #5b6775 on the
+     #FAF7F0 ground = 5.39:1, above the 4.5:1 AA floor at 12.5px. */
+  .trust-strip a{color:var(--muted);text-decoration:none}
+  .trust-strip a:hover{color:var(--navy)}
   .footnav{max-width:580px;margin:24px auto 0;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center}
   .footnav a{text-decoration:none;font-size:12.5px;font-weight:600;color:var(--muted)}
   .footnav a:hover{color:var(--navy)}

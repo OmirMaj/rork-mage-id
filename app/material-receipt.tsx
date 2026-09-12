@@ -116,10 +116,14 @@ function MaterialReceiptInner() {
     () => linkableCommitments.find(c => c.id === commitmentId),
     [linkableCommitments, commitmentId],
   );
-  /** Who a commitment is WITH. app/job-costing.tsx's editor writes
+  /** Who a commitment is WITH. app/job-costing.tsx's editor USED to write
    *  `vendorName` only for purchase orders and `subcontractorId` only for
    *  subcontracts, so reading `vendorName` alone left every real subcontract
-   *  chip nameless — "SC-01" with no clue whose bill it is. */
+   *  chip nameless — "SC-01" with no clue whose bill it is. That editor now
+   *  stamps the sub's company name into `vendorName` as well (JOBCOST-PHASE-1
+   *  close-out), so on a record saved since, both branches below resolve to the
+   *  same string. The roster fallback stays: it is the only thing that names a
+   *  subcontract saved before that and never re-saved. */
   const counterpartyOf = useCallback((c: Commitment): string => {
     if (c.vendorName?.trim()) return c.vendorName.trim();
     const sub = c.subcontractorId ? subcontractors.find(x => x.id === c.subcontractorId) : undefined;

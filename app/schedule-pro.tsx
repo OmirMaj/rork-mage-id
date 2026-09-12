@@ -80,7 +80,8 @@ import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
 import { PlanZoneEditor } from '@/components/schedule/mobile/PlanZoneEditor';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
-import { runCpm, workingDaysBetween, dateToCalendarDay, stampCriticalPath, type CpmResult } from '@/utils/cpm';
+import { runCpm, workingDaysBetween, dateToCalendarDay, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch, type CpmResult } from '@/utils/cpm';
+import { StartDayBasisNotice } from '@/components/schedule/StartDayBasisNotice';
 import {
   emptyHistory,
   pushHistory,
@@ -102,7 +103,7 @@ import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
-import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
+import { buildScheduleFromTasks, mergeEditedSchedule, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
   reflowFromActuals,
@@ -639,25 +640,34 @@ function ScheduleProScreenInner() {
         project.schedule?.baseline ?? null,
         { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
       );
-      // Preserve named baselines across debounced writes — `buildScheduleFromTasks`
-      // rebuilds a fresh schedule object, so without this spread the baselines
-      // column would silently vanish on the next keystroke.
+      // Take ONLY the freshly derived scalars off the rebuild and keep every
+      // sidecar field the existing schedule already carries —
+      // `mergeEditedSchedule` is the one place that list is maintained, and its
+      // docstring names what a naive `{ ...built }` drops. This site used to
+      // enumerate seven of those fields by hand and miss the rest:
+      // workingDaysPerWeek and bufferDays were reset to
+      // buildScheduleFromTasks' hardcoded 5 / 3 on every keystroke (so a
+      // 6-day-week project silently reverted to Mon-Fri), and
+      // resourceCalendars / fragnets / weatherAlerts were dropped outright.
+      // It is also what keeps `startDayBasis` — the user's answer to the legacy
+      // day-scale question — off the rebuild's hands: `mergeEditedSchedule`
+      // takes it from `existing`, so a keystroke can never claim a scale nobody
+      // confirmed. (buildScheduleFromTasks does not emit the field at all; see
+      // the note at its return statement for why that was tried and reverted.)
+      // `startDate` still comes from the ref, not from `existing` — the
+      // settings Apply handler writes that ref eagerly so a debounce firing
+      // between it and updateProject uses the anchor the user just picked.
+      const merged = project.schedule
+        ? mergeEditedSchedule(project.schedule as ProjectSchedule, newSchedule, {
+            startDate: startDateRef.current,
+            projectId: project.id,
+          })
+        : newSchedule;
       const withBaselines = {
-        ...newSchedule,
-        // Preserve the project's existing start anchor across debounced
-        // rebuilds — via the ref, and with NO today-fallback: a schedule
-        // without an anchor must stay anchorless or its CPM flips from
-        // raw-day to calendar mode and the finish date silently jumps.
-        startDate: startDateRef.current,
+        ...merged,
+        // The ref is fresher than project.schedule.baselines: a capture and a
+        // keystroke can land inside the same debounce window.
         baselines: baselinesRef.current,
-        // Preserve schedule-level settings that buildScheduleFromTasks doesn't
-        // know about — closures, critical threshold, resource pool, scenarios.
-        nonWorkingDates: project.schedule?.nonWorkingDates,
-        criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
-        resources: project.schedule?.resources,
-        scenarios: project.schedule?.scenarios,
-        activeScenarioId: project.schedule?.activeScenarioId,
-        weatherDelayLog: project.schedule?.weatherDelayLog,
       };
       console.log('[ScheduleProScreen] Persist', {
         tasks: tasks.length,
@@ -689,19 +699,16 @@ function ScheduleProScreenInner() {
             project.schedule?.baseline ?? null,
             { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
           );
+          // Same merge rule as the debounced persist above — see the note
+          // there for what hand-enumerating the sidecar fields used to lose.
+          const mergedOnUnmount = project.schedule
+            ? mergeEditedSchedule(project.schedule as ProjectSchedule, newSchedule, {
+                startDate: startDateRef.current,
+                projectId: project.id,
+              })
+            : newSchedule;
           updateProject(project.id, {
-            schedule: {
-              ...newSchedule,
-              // Same no-today-fallback rule as the debounced persist above.
-              startDate: startDateRef.current,
-              baselines: baselinesRef.current,
-              nonWorkingDates: project.schedule?.nonWorkingDates,
-              criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
-              resources: project.schedule?.resources,
-              scenarios: project.schedule?.scenarios,
-              activeScenarioId: project.schedule?.activeScenarioId,
-              weatherDelayLog: project.schedule?.weatherDelayLog,
-            },
+            schedule: { ...mergedOnUnmount, baselines: baselinesRef.current },
           });
         }
       }
@@ -802,6 +809,56 @@ function ScheduleProScreenInner() {
     void appendAuditToAsyncStorage(project.id, buildAuditEntry(entry));
   }, [project?.id]);
 
+  // -------------------------------------------------------------------------
+  // Legacy day-scale disclosure (the utils/scheduleRebase.ts population)
+  // -------------------------------------------------------------------------
+  // This screen's settings Apply handler is where the deleted
+  // `rebaseRawToCalendar` fired most often, so it is the screen most likely to
+  // be looking at a schedule whose stored `startDay` values were rewritten onto
+  // the CALENDAR-INDEX scale and are now being converted a second time. The
+  // decision is entirely inside `previewStartDayBasisMigration` — this screen
+  // only renders it and persists the answer.
+  //
+  // Reads the PERSISTED tasks, not `workingTasks`: the question is about what is
+  // on disk, and it must not change shape while the user is mid-edit.
+  const startDayBasisPreview = useMemo(
+    () => previewStartDayBasisMigration({
+      tasks: project?.schedule?.tasks ?? [],
+      startDate: project?.schedule?.startDate,
+      workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project?.schedule?.nonWorkingDates,
+      startDayBasis: project?.schedule?.startDayBasis,
+    }),
+    [project?.schedule],
+  );
+
+  /**
+   * Write the answer — and the tasks, when the answer is yes — in ONE
+   * updateProject, exactly like applyWeatherReschedule. NOT through
+   * `commit()`: that route persists on a 500ms debounce whose closure would
+   * still hold the pre-flag `project.schedule`, and merging that stale
+   * `existing` would drop the very flag this write exists to set. The undo
+   * snapshot is pushed directly so Undo still reverses a re-anchor.
+   */
+  const answerStartDayBasis = useCallback((accept: boolean) => {
+    if (!project?.schedule) return;
+    const existing = project.schedule as ProjectSchedule;
+    // All of the policy — what a yes writes, what a no writes, and the fact
+    // that a yes built on a stale preview writes nothing — is in the patch.
+    const patch = startDayBasisAnswerPatch(startDayBasisPreview, accept, existing);
+    if (patch.tasks) setHist(h => pushHistory(h, patch.tasks!, 20));
+    updateProject(project.id, {
+      schedule: { ...existing, ...patch, updatedAt: new Date().toISOString() },
+    });
+    writeAudit({
+      user: user?.email ?? user?.name ?? 'anonymous',
+      kind: 'reflow',
+      summary: patch.tasks
+        ? `Re-anchored ${startDayBasisPreview.report.wouldRemapTaskCount} task(s) off the legacy calendar-index scale — finish ${startDayBasisPreview.storedFinishDay} → ${startDayBasisPreview.remappedFinishDay}`
+        : 'Kept the stored start days as authored (legacy day-scale notice declined)',
+    });
+  }, [project, updateProject, startDayBasisPreview, writeAudit, user?.email, user?.name]);
+
   // 14-day forecast keyed off project start. Drives the weather-aware
   // reschedule prompt AND the delay-day log written by applyWeatherReschedule
   // below — which is exactly why this must attempt the REAL API rather than
@@ -857,18 +914,17 @@ function ScheduleProScreenInner() {
       { criticalPathDays: cpm.projectFinish },
     );
     const logEntry = buildWeatherDelayLog(weatherResult, () => createId('weather'));
+    // Same merge rule as schedulePersist — see the note there.
+    const mergedWeather = project.schedule
+      ? mergeEditedSchedule(project.schedule as ProjectSchedule, rebuilt, {
+          startDate: startDateRef.current,
+          projectId: project.id,
+        })
+      : rebuilt;
     updateProject(project.id, {
       schedule: {
-        ...rebuilt,
-        // Same no-today-fallback rule as schedulePersist — a weather re-plan
-        // must not stamp an anchor onto a dateless schedule.
-        startDate: startDateRef.current,
+        ...mergedWeather,
         baselines: baselinesRef.current,
-        nonWorkingDates: project.schedule?.nonWorkingDates,
-        criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
-        resources: project.schedule?.resources,
-        scenarios: project.schedule?.scenarios,
-        activeScenarioId: project.schedule?.activeScenarioId,
         weatherDelayLog: logEntry
           ? [...(project.schedule?.weatherDelayLog ?? []), logEntry]
           : project.schedule?.weatherDelayLog,
@@ -2002,6 +2058,16 @@ function ScheduleProScreenInner() {
               <PresenceBar peers={schedulePeers} taskTitleById={taskTitleById} />
             </View>
           ) : null}
+          {/* Legacy day-scale disclosure. Renders null for every schedule that
+              is fine, so it is mounted unconditionally. Above the tab shell:
+              the finish date it is talking about is the one in the header KPIs
+              directly below it. */}
+          <StartDayBasisNotice
+            preview={startDayBasisPreview}
+            projectStartDate={project?.schedule?.startDate ? projectStartDate : null}
+            onAnswer={answerStartDayBasis}
+            style={{ marginHorizontal: 16, marginTop: 8 }}
+          />
           <SchedulerTabShell
             schedule={{
               ...(project?.schedule ?? {} as import('@/types').ProjectSchedule),

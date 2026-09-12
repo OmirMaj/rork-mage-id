@@ -40,6 +40,7 @@ import {
   savedLineToSov,
   payAppEditability,
   payAppReviewNotice,
+  coFiguresAdvice,
   resolveSovBasis,
   totalOverBill,
   lineOverBill,
@@ -53,6 +54,10 @@ import { buildPortalSnapshot } from '../utils/portalSnapshot';
 import { aiaRowToSaved, savedToAiaRow, aiaTotalsFromLines } from '../utils/projectContextPure';
 import type { SavedAIAPayApp } from '../types';
 import { changeOrderBillKey } from '../utils/changeOrderBilling';
+// AIA-F11: the canonical at-cost rule and the canonical total recompute, so the
+// two estimate writers below are checked against the estimator's own contract
+// rather than against a hand-copied formula.
+import { isAtCostLine, recomputeEstimate } from '../utils/copilot/estimateEdit/estimateOps';
 import { billFromEstimateUnitPrice } from '../utils/billFromEstimateCore';
 import { getEffectiveStartingBalance, generateForecast, calculateSummary } from '../utils/cashFlowEngine';
 import { computeWIPReport } from '../utils/financialReports';
@@ -60,6 +65,23 @@ import type { Invoice, Project, Commitment, ChangeOrder } from '../types';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// The webhook's own money rules, injected into the lifted `creditInvoice` so it
+// runs against the same functions production runs against rather than stubs.
+import {
+  toCents2,
+  effectiveRetention,
+  ledgerFrom,
+  applyLedgerEntry,
+  settlementStatus,
+  netPayable,
+} from '../supabase/functions/_shared/paymentMath';
+
+// Declared locally rather than pulled from `bun-types`: this repo has no bun
+// type package installed, and without this `npx tsc --noEmit` fails with TS2867
+// "Cannot find name 'Bun'". Same pattern as scripts/validate-stripe-webhook-math.ts:46.
+declare const Bun: {
+  Transpiler: new (opts: { loader: 'ts' }) => { transformSync: (code: string) => string };
+};
 
 let pass = 0, fail = 0;
 function eq<T>(n: string, got: T, want: T) {
@@ -1046,7 +1068,10 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   const codeOnly = (src: string) => src
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n').filter(l => !/^\s*(\/\/|\*)/.test(l)).join('\n');
-  const aiaScreen = codeOnly(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'app', 'aia-pay-app.tsx'), 'utf8'));
+  // Raw, comments and all: the lift-and-execute blocks are delimited by `//`
+  // sentinels that codeOnly strips.
+  const aiaScreenRaw = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'app', 'aia-pay-app.tsx'), 'utf8');
+  const aiaScreen = codeOnly(aiaScreenRaw);
   const billing = codeOnly(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'utils', 'aiaBilling.ts'), 'utf8'));
   const snapshotSrc = codeOnly(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'utils', 'portalSnapshot.ts'), 'utf8'));
   const portalHtml = codeOnly(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'marketing', 'portal', 'index.html'), 'utf8'));
@@ -1169,8 +1194,119 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   eq('…and there is a read-only presentation of what was sent',
     /testID="aia-review-banner"/.test(aiaScreen)
     && /testID="aia-reprint"/.test(aiaScreen), true);
-  eq('…which every mutating handler respects, not just the pay-link lock',
-    (aiaScreen.match(/if \(isReadOnly\) return;/g) ?? []).length >= 6, true);
+  // EVERY mutating handler, by NAME, not a count of six.
+  //
+  // The assertion this replaces counted occurrences of `if (isReadOnly) return;`
+  // and asked for at least six. A count cannot say WHICH handler is guarded: a
+  // new mutating handler added without the bail kept the number at six or
+  // raised it, and moving the bail off the money handler onto a cosmetic one
+  // left it green. This enumerates the handlers that actually call `setApp` and
+  // requires each one to refuse before it mutates — measured on the shipped
+  // file, so the list cannot go stale.
+  {
+    const handlers = [...aiaScreenRaw.matchAll(/const (\w+) = useCallback\(([\s\S]*?)\n  \}, \[/g)]
+      .map(m => ({ name: m[1], body: m[2] }))
+      .filter(h => /\bsetApp\(/.test(h.body));
+    // The bail must come BEFORE the first setApp, which is the thing a grep for
+    // the string cannot tell you.
+    const unguarded = handlers.filter((h) => {
+      const bail = h.body.search(/if \(isReadOnly[^)]*\) return\b/);
+      return bail < 0 || bail > h.body.indexOf('setApp(');
+    }).map(h => h.name);
+    eq('…which every handler that mutates the certificate respects, before it mutates',
+      [handlers.length >= 10, unguarded], [true, []]);
+  }
+
+  // ── THE OTHER HALF: THE WRITES THAT LIVE IN THE JSX, EXECUTED ─────────────
+  //
+  // The enumeration above walks `const X = useCallback(…)` blocks and the
+  // TextInput sweep further down walks `<TextInput>` elements. Thirteen of this
+  // screen's writes are neither — an arrow function written inline on a
+  // TouchableOpacity or a MoneyField — and both guards were blind to them.
+  // Proved: deleting the `!isReadOnly &&` from the notarize toggle, and
+  // deleting `disabled={certReadOnly}` from the "Not yet certified — record it"
+  // chip, each left a read-only certificate mutable from the screen with the
+  // suite green.
+  //
+  // So RUN them. Every JSX element whose opening tag contains a `setApp(` is
+  // executed with the certificate read-only, and passes only if it declares
+  // itself disabled/not-editable (that expression is executed too) or its own
+  // handler refuses to call setApp. Nothing here is keyed on a flag NAME: a
+  // rename that still blocks passes, and a guard that stops blocking fails.
+  {
+    /** Opening tags, brace-aware so `=>` and nested `{…}` do not end one early. */
+    const openingTags = (s: string): string[] => {
+      const out: string[] = [];
+      for (let i = 0; i < s.length; i++) {
+        if (s[i] !== '<' || !/[A-Za-z]/.test(s[i + 1] ?? '')) continue;
+        let depth = 0;
+        for (let j = i + 1; j < s.length; j++) {
+          const c = s[j];
+          if (c === '{') depth++;
+          else if (c === '}') depth--;
+          else if (c === '<' && depth === 0) { i = j - 1; break; }
+          else if (c === '>' && depth === 0 && s[j - 1] !== '=') { out.push(s.slice(i, j + 1)); i = j; break; }
+        }
+      }
+      return out;
+    };
+    /** One prop's expression, brace-balanced. */
+    const propExpr = (tag: string, name: string): string | null => {
+      const m = new RegExp(`\\b${name}=\\{`).exec(tag);
+      if (!m) return null;
+      const start = m.index + m[0].length;
+      let depth = 1;
+      for (let i = start; i < tag.length; i++) {
+        if (tag[i] === '{') depth++;
+        else if (tag[i] === '}') { depth--; if (depth === 0) return tag.slice(start, i); }
+      }
+      return null;
+    };
+    const RESERVED = new Set(['true', 'false', 'null', 'undefined', 'if', 'else', 'return', 'const',
+      'let', 'var', 'new', 'typeof', 'in', 'of', 'instanceof', 'function', 'this', 'void', 'delete',
+      'do', 'while', 'for', 'switch', 'case', 'break', 'continue', 'default', 'try', 'catch',
+      'finally', 'throw', 'class', 'extends', 'super', 'yield', 'await', 'async', 'import',
+      'export', 'NaN', 'Infinity']);
+    /** Anything the expression reaches for that is not a flag under test: callable,
+     *  indexable, truthy — so styles, `totals.currentPaymentDue` and `Math.max`
+     *  cannot throw and make a refusal look like a pass. */
+    const anyValue: unknown = new Proxy(function () { /* callable */ } as object, {
+      get: (_t, k) => (k === Symbol.toPrimitive || k === 'valueOf' ? () => 0
+        : k === Symbol.iterator ? undefined : anyValue),
+      apply: () => anyValue,
+    });
+    const run = (expr: string, flags: Record<string, unknown>, setAppSpy: () => void): unknown => {
+      const names = [...new Set(expr.match(/[A-Za-z_$][\w$]*/g) ?? [])].filter(n => !RESERVED.has(n));
+      const args = names.map(n => (n === 'setApp' ? setAppSpy : n in flags ? flags[n] : anyValue));
+      return new Function(...names, `return (${expr});`)(...args);
+    };
+
+    const mutatingTags = openingTags(aiaScreen).filter(t => /setApp\(/.test(t));
+    // READ-ONLY AND CERTIFICATION-LOCKED — the state of a certificate that has
+    // been paid, where nothing on the screen may write.
+    const flags = { isReadOnly: true, certReadOnly: true };
+    const leaks = mutatingTags.filter((tag) => {
+      const disabled = propExpr(tag, 'disabled');
+      const editable = propExpr(tag, 'editable');
+      if (disabled != null && run(disabled, flags, () => {})) return false;
+      if (editable != null && !run(editable, flags, () => {})) return false;
+      let mutated = false;
+      for (const prop of ['onPress', 'onChangeText', 'onCommit', 'onValueChange']) {
+        const expr = propExpr(tag, prop);
+        if (expr == null || !/setApp\(/.test(expr)) continue;
+        const handler = run(expr, flags, () => { mutated = true; }) as (a?: unknown) => void;
+        // A throw before the write is a refusal too.
+        try { handler('4500'); } catch { /* refused */ }
+      }
+      return mutated;
+    }).map(t => /testID="([^"]+)"/.exec(t)?.[1] ?? /^<(\w+)/.exec(t)?.[1] ?? '?');
+    // The floor is on the SCANNER, not on the screen: if a reformat stops
+    // openingTags matching, `leaks` goes empty and this guard would pass while
+    // checking nothing. The writes themselves may legitimately migrate into
+    // useCallback handlers — where the enumeration above picks them up.
+    eq('…and every write that lives in the JSX refuses a read-only certificate too',
+      [mutatingTags.length >= 10, leaks], [true, []]);
+  }
 
   // ── REVIEW MODE AND THE READ-ONLY LOCK, EXECUTED ──────────────────────────
   // These two lines used to be computed inline in the screen, so the only
@@ -1382,11 +1518,77 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   }
   eq('…and contract drift only lands on an explicit tap',
     /testID="aia-refresh-contract"/.test(aiaScreen), true);
-  // "Print as saved" means SAVED. The four-row change-order table was the last
-  // thing on the printed form still being derived live at print time.
-  eq('…and printing a saved certificate prints its STORED change-order summary',
-    (aiaScreen.match(/changeOrderSummary: app\.changeOrderSummary \?\? coSummaryForPdf/g) ?? []).length >= 3
-    && /changeOrderSummary: rec\.changeOrderSummary/.test(billing), true);
+  // ── ONE CHANGE-ORDER TABLE, AND THE GUARD WATCHES THAT ONE ────────────────
+  //
+  // "Print as saved" means SAVED: the four-row table was the last thing on the
+  // printed form still being derived live at print time. Three handoffs reach
+  // buildAIAPayAppHtml — the reprint, the generate, and the record
+  // buildSavedRecord freezes — and each used to resolve
+  // `app.changeOrderSummary ?? coSummaryForPdf` at its own call site while
+  // `coFiguresAgree` compared a FOURTH thing, the live recompute. On a record
+  // saved BEFORE the effectivePeriodTo fix — a frozen summary split on
+  // app.periodTo beside a netChangeByCO split on the invoice's issue date, the
+  // two-figures defect persisted to disk — reopening it prints both numbers and
+  // a guard watching the live recompute sees agreement and says nothing.
+  //
+  // EXECUTED: the derivation is lifted out of the shipped screen and run.
+  {
+    const BEGIN = '// --- BEGIN printed co summary ---';
+    const END = '// --- END printed co summary ---';
+    const from = aiaScreenRaw.indexOf(BEGIN);
+    const to = aiaScreenRaw.indexOf(END);
+    if (from < 0 || to < 0) {
+      console.error('\n  ✗ could not find the printed-co-summary sentinels in app/aia-pay-app.tsx.');
+      console.error('    The guard could go back to watching a table the certificate does not print.');
+      process.exit(1);
+    }
+    const js = new Bun.Transpiler({ loader: 'ts' })
+      .transformSync(aiaScreenRaw.slice(from + BEGIN.length, to));
+    const derive = new Function('app', 'coSummaryForPdf', 'roundCents',
+      `${js}\nreturn { printedCoSummary, coFiguresAgree };`) as (
+      a: unknown, live: unknown, r: (n: number) => number,
+    ) => { printedCoSummary: { netChange: number } | undefined; coFiguresAgree: boolean };
+
+    const summary = (netChange: number) => ({
+      priorAdditions: netChange, priorDeductions: 0, thisPeriodAdditions: 0,
+      thisPeriodDeductions: 0, totalAdditions: netChange, totalDeductions: 0, netChange,
+    });
+    const live = summary(70_000);
+
+    // A DRAFT has no frozen table, so the live one prints and is what is judged.
+    eq('a draft prints the live change-order summary',
+      derive(app({ netChangeByCO: 70_000 }), live, roundCents),
+      { printedCoSummary: live, coFiguresAgree: true });
+
+    // A REOPENED certificate prints its STORED table — the freeze is deliberate.
+    const frozen = summary(50_000);
+    eq('a reopened certificate prints its STORED change-order summary, not a fresh one',
+      derive(app({ netChangeByCO: 50_000, changeOrderSummary: frozen }), live, roundCents)
+        .printedCoSummary, frozen);
+
+    // THE LEGACY RECORD. This is the assertion that goes red the moment the
+    // guard is pointed back at `coSummaryForPdf`: the live table agrees with
+    // line 2, the FROZEN one does not, and the frozen one is what prints.
+    eq('a certificate whose frozen table contradicts line 2 is caught, not printed quietly',
+      derive(app({ netChangeByCO: 70_000, changeOrderSummary: frozen }), live, roundCents),
+      { printedCoSummary: frozen, coFiguresAgree: false });
+    // …and a cent of float drift is not a contradiction.
+    eq('…while a rounding cent is not a contradiction',
+      derive(app({ netChangeByCO: 70_000.004 }), live, roundCents).coFiguresAgree, true);
+
+    // NO app at all (the screen renders before the seed lands) must not throw.
+    eq('an unseeded screen neither prints a table nor cries foul',
+      derive(null, undefined, roundCents), { printedCoSummary: undefined, coFiguresAgree: true });
+  }
+  // …and every handoff to the builder uses that ONE value. Not a presence
+  // check: what it forbids is a call site re-resolving the fallback inline,
+  // which is how the guard and the print path drifted apart the first time.
+  eq('all three handoffs to buildAIAPayAppHtml pass the value the guard judged',
+    [(aiaScreen.match(/changeOrderSummary: printedCoSummary\b/g) ?? []).length,
+      /changeOrderSummary: app\.changeOrderSummary \?\?/.test(aiaScreen)],
+    [3, false]);
+  eq('…and a saved record hydrates its own stored table',
+    /changeOrderSummary: rec\.changeOrderSummary/.test(billing), true);
   // A field left editable in review mode is a dead end: the keystrokes land in
   // state and there is no Save button to persist them.
   // `certReadOnly` is the ONE deliberate exception: AMOUNT CERTIFIED and its
@@ -1858,17 +2060,148 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   // invoice was paid still carries the pre-payment AIA row. creditInvoice has
   // to do to the pay app what handleAiaPayAppCompleted already does to the
   // invoice.
+  //
+  // EXECUTED, NOT GREPPED. These four assertions used to be regexes over the
+  // webhook source, and a regex over a file cannot see an early `return` above
+  // the mirror — which is precisely how a blocker survived two review layers
+  // elsewhere in this campaign. `creditInvoice` is lifted out of the SHIPPED
+  // function between its sentinels, transpiled, and run against a fake
+  // PostgREST client that records every write. If the block is moved into dead
+  // code, guarded behind something unreachable, or dropped, no write is
+  // recorded and these go red.
   {
-    const hook = codeOnly(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'supabase',
-      'functions', 'stripe-webhook', 'index.ts'), 'utf8'));
+    const WEBHOOK = join(dirname(fileURLToPath(import.meta.url)), '..', 'supabase',
+      'functions', 'stripe-webhook', 'index.ts');
+    const src = readFileSync(WEBHOOK, 'utf8');
+    const BEGIN = '// --- BEGIN creditInvoice ---';
+    const END = '// --- END creditInvoice ---';
+    const from = src.indexOf(BEGIN);
+    const to = src.indexOf(END);
+    if (from < 0 || to < 0) {
+      console.error('\n  ✗ could not find the creditInvoice sentinels in the stripe webhook.');
+      console.error('    Someone moved or renamed the function; the invoice→AIA settlement');
+      console.error('    mirror would go unpinned and a second live Pay button could return.');
+      process.exit(1);
+    }
+
+    type Row = Record<string, unknown>;
+    type Write = { table: string; patch: Row; on: [string, unknown] };
+    const writes: Write[] = [];
+    const deactivated: string[] = [];
+    /** A PostgREST-shaped double, only as clever as the four chains the
+     *  function actually issues. Terminal awaits are `.single()` and `.is()`
+     *  on reads and `.eq()` on updates, exactly as the source uses them. */
+    const makeDb = (invoice: Row | null, aiaRows: Row[]) => {
+      const reader = (rows: Row[]) => {
+        const b = {
+          eq: (k: string, v: unknown) => { rows = rows.filter(r => (r[k] ?? null) === v); return b; },
+          is: (k: string, v: unknown) =>
+            Promise.resolve({ data: rows.filter(r => (r[k] ?? null) === v), error: null }),
+          single: () => Promise.resolve(rows[0]
+            ? { data: rows[0], error: null }
+            : { data: null, error: { code: 'PGRST116', message: 'no rows' } }),
+        };
+        return b;
+      };
+      return {
+        from: (table: string) => ({
+          select: () => reader(table === 'invoices' ? (invoice ? [invoice] : []) : aiaRows),
+          update: (patch: Row) => ({
+            eq: (k: string, v: unknown) => {
+              writes.push({ table, patch, on: [k, v] });
+              return Promise.resolve({ error: null });
+            },
+          }),
+        }),
+      };
+    };
+
+    const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(src.slice(from, to));
+    const creditInvoice = new Function(
+      'INVOICE_COLS', 'isNotFound', 'deactivatePaymentLink',
+      'toCents2', 'effectiveRetention', 'ledgerFrom', 'applyLedgerEntry',
+      'settlementStatus', 'netPayable',
+      `${js}\nreturn creditInvoice;`,
+    )(
+      '*',
+      (code: string | undefined) => code === 'PGRST116' || code === '22P02',
+      (id: string) => { deactivated.push(id); return Promise.resolve({ ok: true }); },
+      toCents2, effectiveRetention, ledgerFrom, applyLedgerEntry, settlementStatus, netPayable,
+    ) as (
+      db: unknown, invoiceId: string, session: Row,
+      account: string | undefined, via: string, viaId?: string,
+    ) => Promise<{ ok: boolean }>;
+
+    /** Henderson period 3: a $61,400 draw invoiced and certified on one G702. */
+    const invoiceRow = () => ({
+      id: 'inv1', status: 'sent', total_due: 61_400, amount_paid: 0, subtotal: 61_400,
+      retention_percent: 0, retention_amount: 0, retention_released: 0,
+      payments: [], pay_link_id: 'plink_inv', pay_link_url: 'https://pay.stripe.com/inv',
+    });
+    const aiaRow = () => ({
+      id: 'aia1', invoice_id: 'inv1', paid_at: null,
+      pay_link_id: 'plink_aia', pay_link_url: 'https://pay.stripe.com/aia',
+    });
+    const session = { id: 'cs_1', amount_total: 6_140_000, payment_intent: 'pi_1', payment_link: 'plink_inv' };
+
+    // THE BOOKKEEPER PAYS THE INVOICE.
+    writes.length = 0; deactivated.length = 0;
+    const credited = await creditInvoice(makeDb(invoiceRow(), [aiaRow()]), 'inv1', session, 'acct_1', 'invoice');
+    const aiaWrite = writes.find(w => w.table === 'aia_pay_apps');
+    eq('paying the invoice credits it', credited.ok, true);
     eq('paying the invoice settles the AIA pay application for the same period',
-      /\.from\("aia_pay_apps"\)[\s\S]{0,400}?\.eq\("invoice_id", invoiceId\)/.test(hook), true);
+      [aiaWrite?.on, !!aiaWrite], [['id', 'aia1'], true]);
     eq('…stamping paid_at and nulling all three pay-link columns',
-      /paid_at: now,[\s\S]{0,400}?pay_link_url: null,[\s\S]{0,80}?pay_link_id: null,[\s\S]{0,80}?pay_link_amount: null,/.test(hook), true);
-    eq('…and deactivating the link on Stripe, which no read side can do',
-      /await deactivatePaymentLink\(row\.pay_link_id, eventAccount\)/.test(hook), true);
+      aiaWrite && {
+        paid_at: typeof aiaWrite.patch.paid_at === 'string',
+        pay_link_url: aiaWrite.patch.pay_link_url,
+        pay_link_id: aiaWrite.patch.pay_link_id,
+        pay_link_amount: aiaWrite.patch.pay_link_amount,
+        payment_intent_id: aiaWrite.patch.payment_intent_id,
+      },
+      { paid_at: true, pay_link_url: null, pay_link_id: null, pay_link_amount: null, payment_intent_id: 'pi_1' });
+    eq('…and deactivating the pay app\'s link on Stripe, which no read side can do',
+      deactivated.includes('plink_aia'), true);
+
+    // THE AIA ROUTE must not do it twice — handleAiaPayAppCompleted has already
+    // stamped the row it came from, and a second pass would re-deactivate a
+    // link Stripe has already retired.
+    writes.length = 0; deactivated.length = 0;
+    await creditInvoice(makeDb(invoiceRow(), [aiaRow()]), 'inv1', session, 'acct_1', 'aia_pay_app', 'aia1');
     eq('…only on the invoice route, so the AIA route does not do it twice',
-      /if \(via !== "aia_pay_app"\) \{/.test(hook), true);
+      [writes.some(w => w.table === 'aia_pay_apps'), deactivated.includes('plink_aia')], [false, false]);
+
+    // A PERIOD ALREADY SETTLED is skipped: the `.is("paid_at", null)` filter is
+    // what keeps a re-delivered event from re-stamping a paid_at that is the
+    // historical record of when the money landed.
+    writes.length = 0;
+    await creditInvoice(
+      makeDb(invoiceRow(), [{ ...aiaRow(), paid_at: '2026-04-02T00:00:00.000Z' }]),
+      'inv1', session, 'acct_1', 'invoice');
+    eq('…and an already-settled pay app is left exactly as it was',
+      writes.some(w => w.table === 'aia_pay_apps'), false);
+
+    // REACHABILITY, the thing a grep cannot check: a DUPLICATE session returns
+    // early, so nothing at all is written. This assertion is what fails if
+    // someone later moves the mirror above that early return, where it would
+    // settle a pay app on a Stripe retry that moved no money.
+    writes.length = 0;
+    const dupInvoice = {
+      ...invoiceRow(), amount_paid: 61_400, status: 'paid',
+      payments: [{ id: 'stripe-cs_1', amount: 61_400, method: 'stripe', kind: 'payment' }],
+    };
+    await creditInvoice(makeDb(dupInvoice, [aiaRow()]), 'inv1', session, 'acct_1', 'invoice');
+    eq('a re-delivered session writes nothing — not the invoice, not the pay app',
+      writes.length, 0);
+
+    // And a pay app whose link is the very one just paid is settled WITHOUT a
+    // redundant Stripe round trip.
+    writes.length = 0; deactivated.length = 0;
+    await creditInvoice(
+      makeDb(invoiceRow(), [{ ...aiaRow(), pay_link_id: 'plink_inv' }]),
+      'inv1', session, 'acct_1', 'invoice');
+    eq('the link Stripe just charged is not deactivated a second time',
+      [writes.some(w => w.table === 'aia_pay_apps'), deactivated], [true, []]);
   }
 
   // Read-side suppression cannot undo a charge Stripe has already taken, so
@@ -2159,12 +2492,169 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     /const effectivePeriodTo = app\?\.periodTo \|\| seedPeriodTo;/.test(aiaScreen)
     && /splitApprovedCOsByPeriod\(getChangeOrdersForProject\(project\.id\), effectivePeriodTo\)/.test(aiaScreen)
     && /summarizeChangeOrders\(getChangeOrdersForProject\(project\.id\), app\?\.periodFrom, effectivePeriodTo\)/.test(aiaScreen), true);
-  eq('…and editing PERIOD TO restates the contract rather than only the label',
+  eq('…and both period fields are wired to the handlers that restate it',
     /onChangeText=\{setPeriodTo\}/.test(aiaScreen)
-    && /applyApprovedCOsToApplication\(next, splitApprovedCOsByPeriod\(cos, v\)\.inPeriod\)/.test(aiaScreen), true);
+    && /onChangeText=\{setPeriodFrom\}/.test(aiaScreen), true);
+
+  // ── THE SCREEN'S OWN PERIOD HANDLERS, EXECUTED ────────────────────────────
+  //
+  // The assertions above say which expressions appear in the file. They cannot
+  // say the handler is reached, and they could not see the half of this defect
+  // that shipped: `buildSavedRecord` deliberately FREEZES the four-row summary
+  // into the record, the print path reads `app.changeOrderSummary ??
+  // coSummaryForPdf`, and so the frozen table wins on every reopened
+  // certificate. Editing PERIOD FROM moved the window printed in the header
+  // while the ADDITIONS/DEDUCTIONS split beneath it still described the old
+  // window — and `coFiguresAgree` compares netChange, which a re-split does not
+  // move, so no banner fired. Both handlers are lifted out of the shipped
+  // screen and run here against a captured reducer.
+  {
+    const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const src = readFileSync(join(ROOT, 'app', 'aia-pay-app.tsx'), 'utf8');
+    const BEGIN = '// --- BEGIN period handlers ---';
+    const END = '// --- END period handlers ---';
+    const from = src.indexOf(BEGIN);
+    const to = src.indexOf(END);
+    if (from < 0 || to < 0) {
+      console.error('\n  ✗ could not find the period-handler sentinels in app/aia-pay-app.tsx.');
+      console.error('    Someone moved or renamed them; a certificate could go back to printing');
+      console.error('    two different NET CHANGE BY CHANGE ORDER figures on one page.');
+      process.exit(1);
+    }
+    const js = new Bun.Transpiler({ loader: 'ts' })
+      .transformSync(src.slice(from + BEGIN.length, to));
+
+    type Reducer = (prev: AIAPayApplication | null) => AIAPayApplication | null;
+    const build = (isReadOnly: boolean) => {
+      let captured: Reducer | AIAPayApplication | null = null;
+      const handlers = new Function(
+        'useCallback', 'isReadOnly', 'setApp', 'project', 'getChangeOrdersForProject',
+        'isCalendarDay', 'applyApprovedCOsToApplication', 'splitApprovedCOsByPeriod',
+        `${js}\nreturn { setPeriodFrom, setPeriodTo };`,
+      )(
+        (fn: unknown) => fn,
+        isReadOnly,
+        (r: Reducer) => { captured = r; },
+        { id: 'p1' },
+        () => [
+          { id: 'c1', number: 1, status: 'approved', date: '2026-02-10', updatedAt: '2026-02-10', changeAmount: 50_000, description: 'CO 1' },
+          { id: 'c2', number: 2, status: 'approved', date: '2026-04-05', updatedAt: '2026-04-05', changeAmount: 20_000, description: 'CO 2' },
+        ],
+        isCalendarDay, applyApprovedCOsToApplication, splitApprovedCOsByPeriod,
+      ) as { setPeriodFrom: (v: string) => void; setPeriodTo: (v: string) => void };
+      return {
+        ...handlers,
+        run: (prev: AIAPayApplication) => (captured as Reducer | null)?.(prev) ?? null,
+        touched: () => captured != null,
+        reset: () => { captured = null; },
+      };
+    };
+
+    /** A REOPENED certificate: seeded across the whole CO history, carrying the
+     *  frozen summary buildSavedRecord wrote. */
+    const reopened = (): AIAPayApplication => app({
+      originalContractSum: 100_000, netChangeByCO: 70_000, contractSumToDate: 170_000,
+      periodTo: '2026-04-10', periodFrom: '2026-04-01',
+      lines: [line({ id: 'sov_co:c1', scheduledValue: 50_000 }), line({ id: 'sov_co:c2', scheduledValue: 20_000 })],
+      changeOrderSummary: {
+        priorAdditions: 50_000, priorDeductions: 0,
+        thisPeriodAdditions: 20_000, thisPeriodDeductions: 0,
+        totalAdditions: 70_000, totalDeductions: 0, netChange: 70_000,
+      },
+    });
+
+    // PERIOD FROM: the split moves, so the frozen table must not print.
+    // The frozen table was written for a window opening 2026-04-01 (CO #1 prior,
+    // CO #2 this month). Correcting PERIOD FROM back to 2026-02-01 moves CO #1
+    // into THIS month, so the frozen split is now wrong by $50,000 of
+    // ADDITIONS — measured below, not assumed.
+    const hFrom = build(false);
+    hFrom.setPeriodFrom('2026-02-01');
+    const afterFrom = hFrom.run(reopened());
+    eq('editing PERIOD FROM drops the frozen CHANGE ORDER SUMMARY',
+      [afterFrom?.periodFrom, afterFrom?.changeOrderSummary], ['2026-02-01', undefined]);
+    // …and the live table the screen then prints really does read differently,
+    // which is what made the frozen one a lie rather than a redundancy.
+    {
+      const cos = [
+        { id: 'c1', number: 1, status: 'approved' as const, date: '2026-02-10', updatedAt: '2026-02-10', changeAmount: 50_000, description: 'CO 1' },
+        { id: 'c2', number: 2, status: 'approved' as const, date: '2026-04-05', updatedAt: '2026-04-05', changeAmount: 20_000, description: 'CO 2' },
+      ];
+      const live = summarizeChangeOrders(cos, afterFrom?.periodFrom, afterFrom?.periodTo);
+      eq('…because the live split for the new window is a different table',
+        [live.priorAdditions, live.thisPeriodAdditions], [0, 70_000]);
+      eq('…while still footing to G702 line 2, which PERIOD FROM does not move',
+        live.netChange, afterFrom?.netChangeByCO);
+    }
+    // A CLEARED field is `undefined`, not the empty string a date parser would
+    // sweep every change order under.
+    const hClear = build(false);
+    hClear.setPeriodFrom('');
+    eq('clearing PERIOD FROM stores undefined, not ""',
+      hClear.run(reopened())?.periodFrom, undefined);
+
+    // PERIOD TO: restates line 2, line 3, the G703 rows AND the frozen table.
+    const hTo = build(false);
+    hTo.setPeriodTo('2026-03-31');
+    const afterTo = hTo.run(reopened());
+    eq('editing PERIOD TO restates the contract, not just the label',
+      [afterTo?.netChangeByCO, afterTo?.contractSumToDate, afterTo?.changeOrderSummary,
+        afterTo?.lines.some(l => l.id === 'sov_co:c2')],
+      [50_000, 150_000, undefined, false]);
+    // An unreadable date must not restate anything — it would sweep in every CO.
+    const hBad = build(false);
+    hBad.setPeriodTo('3/31/26');
+    const afterBad = hBad.run(reopened());
+    // Nothing else moves — not line 2, and not the frozen table either. Dropping
+    // the isCalendarDay guard here does NOT show up in line 2 (an unreadable date
+    // makes onOrBeforeDay return true, so every CO is swept in and the figure
+    // happens to be unchanged); it shows up as the frozen summary being discarded
+    // and replaced by a live one computed from a date nothing can read. Measured.
+    eq('an unreadable PERIOD TO changes the label and nothing else',
+      [afterBad?.periodTo, afterBad?.netChangeByCO, afterBad?.changeOrderSummary?.netChange],
+      ['3/31/26', 70_000, 70_000]);
+
+    // REACHABILITY: a certified certificate is read-only and neither handler
+    // may touch it. A grep for the handler body cannot see this guard at all.
+    const locked = build(true);
+    locked.setPeriodFrom('2026-03-01');
+    eq('a read-only certificate refuses a PERIOD FROM edit', locked.touched(), false);
+    // Reset, so this next assertion is about the PERIOD TO guard and not about
+    // the one above it — without it, breaking setPeriodFrom alone reddened both
+    // and the second said nothing of its own. Measured: it did.
+    locked.reset();
+    locked.setPeriodTo('2026-03-31');
+    eq('…and a PERIOD TO edit', locked.touched(), false);
+  }
   eq('…with a banner if the two figures ever disagree anyway',
     /testID="aia-co-figures-disagree"/.test(aiaScreen)
     && /const coFiguresAgree =/.test(aiaScreen), true);
+  // …AND THE BANNER'S ADVICE HAS TO BE FOLLOWABLE. It gave one instruction on
+  // every certificate — "Re-enter Period To, or tap the refresh button above"
+  // — while on a read-only record setPeriodTo bails, the PERIOD TO input is
+  // `editable={!isReadOnly}` and the refresh chip is not rendered at all. Every
+  // SAVED certificate is read-only until the GC taps Edit, and a paid one
+  // permanently, so the advice pointed at nothing on exactly the certificates
+  // where the two figures can still disagree. Executed, three states:
+  {
+    const advice = (isReadOnly: boolean, isLocked: boolean) =>
+      coFiguresAdvice({ isReadOnly, isLocked, editLabel: 'Edit draft' });
+    const editable = advice(false, false), review = advice(true, false), locked = advice(true, true);
+    eq('the two-figures banner sends an EDITABLE certificate to PERIOD TO and the refresh button',
+      [/re-enter PERIOD TO/i.test(editable), /refresh button/i.test(editable)], [true, true]);
+    eq('…sends a SAVED one to the Edit button first, by the name that button carries',
+      [/Edit draft/.test(review), /read-only/i.test(review), review === editable], [true, true, false]);
+    // The one that matters: a locked certificate has neither control on screen,
+    // so naming either of them is advice the GC cannot act on. Collapsing the
+    // three cases back to one sentence fails here.
+    eq('…and never sends a LOCKED one to controls that are not on the screen',
+      [/re-enter PERIOD TO/i.test(locked), /refresh button above/i.test(locked),
+        /next application/i.test(locked), locked === editable || locked === review],
+      [false, false, true, false]);
+    eq('…and the banner prints that advice rather than a sentence of its own',
+      /coFiguresAdvice\(\{ isReadOnly, isLocked, editLabel: reviewNotice\.editLabel \}\)/.test(aiaScreen)
+      && !/Re-enter Period To, or tap the refresh button above/.test(aiaScreen), true);
+  }
 
   // ── THE FOUR-ROW CHANGE ORDER SUMMARY IS ACTUALLY PRINTED.
   // summarizeChangeOrders was unit-tested in isolation and buildAIAPayAppHtml
@@ -2191,6 +2681,23 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     eq('…and the single net row only when there is no summary to print',
       /Net change by Change Orders/.test(buildAIAPayAppHtml(app(), { companyName: 'GC' } as never))
       && /Net change by Change Orders/.test(withSummary) === false, true);
+  }
+
+  // ── THE HEADER'S HAND-TICKED FIELD (F18 remainder).
+  // "Distribution to: OWNER / ARCHITECT / CONTRACTOR / FIELD / OTHER" is on the
+  // 1992 form's face and was absent from the generator. Executed against the
+  // real HTML because the five labels alone would pass while the boxes the GC
+  // actually ticks were missing.
+  {
+    const html = buildAIAPayAppHtml(app(), { companyName: 'GC' } as never);
+    const block = html.slice(html.indexOf('class="distribution"'), html.indexOf('<!-- Application summary -->'));
+    eq('the printed G702 carries the Distribution to: block',
+      [/Distribution to:/.test(html),
+        ['OWNER', 'ARCHITECT', 'CONTRACTOR', 'FIELD', 'OTHER'].every(w => block.includes(w)),
+        (block.match(/class="dist-box"/g) ?? []).length],
+      [true, true, 5]);
+    eq('…and it is a tick-box field, not five words of prose',
+      /\.dist-box \{[\s\S]{0,120}border: 1px solid/.test(html), true);
   }
 
   // ── THE OVER-BILL WARNING IS THE SAME RULE ON THE ROW AND IN THE BANNER.
@@ -2367,6 +2874,272 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     /!\(a\.projectId === finalApp\.projectId && a\.applicationNumber === finalApp\.applicationNumber\)/.test(ctx), false);
   eq('…and a record it genuinely displaces leaves the server too',
     /supabaseWrite\('aia_pay_apps', 'delete', \{ id: a\.id \}\)/.test(ctx), true);
+}
+
+// ── AIA-F11: THE TWO WRITERS THAT MADE COLUMN C UNDER-FOOT ─────────────────
+//
+// G703 column C is Σ items.lineTotal (utils/aiaBilling.buildAIASovLines) and
+// G702 line 3 is the estimate's grandTotal. app/area-takeoff.tsx and
+// app/plan-intelligence.tsx appended a line whose lineTotal EXCLUDED markup
+// while raising grandTotal by the cost PLUS its share of markup, so every
+// certificate for a job either screen had touched under-footed by exactly that
+// markup — measured at $7,200 on a $40,000 takeoff addition to a $118,000
+// estimate carrying 18% — and the reconciliation banner told the GC to fix an
+// estimate that was already correct.
+//
+// EXECUTED, not grepped: each screen's append arithmetic is lifted out of the
+// shipped file between its sentinels and run, then the resulting estimate is
+// fed through the REAL seeding and reconciliation. A regex could not tell a
+// marked-up lineTotal from a cost one.
+{
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const lift = (file: string, begin: string, end: string): string => {
+    const src = readFileSync(join(ROOT, file), 'utf8');
+    const from = src.indexOf(begin);
+    const to = src.indexOf(end);
+    if (from < 0 || to < 0) {
+      console.error(`\n  ✗ could not find the append sentinels in ${file}.`);
+      console.error('    Someone moved or renamed the block; column C could silently go back to');
+      console.error('    under-footing G702 line 3 on every project this screen touches.');
+      process.exit(1);
+    }
+    return new Bun.Transpiler({ loader: 'ts' }).transformSync(src.slice(from + begin.length, to));
+  };
+
+  type EstItem = {
+    materialId: string; name: string; category: string; unit: string;
+    quantity: number; unitPrice: number; bulkPrice: number; markup: number;
+    usesBulk: boolean; lineTotal: number; supplier: string;
+  };
+  type Est = {
+    id: string; items: EstItem[]; globalMarkup: number;
+    baseTotal: number; markupTotal: number; grandTotal: number; createdAt: string;
+  };
+  /** A job estimated the estimator's way: Σ lineTotal === grandTotal, 18% on
+   *  $100,000 of material. This is the shape full.tsx:986 writes. */
+  const cleanEstimate = (): Est => ({
+    id: 'e1', globalMarkup: 18, baseTotal: 100_000, markupTotal: 18_000, grandTotal: 118_000,
+    createdAt: '2026-01-01',
+    items: [{
+      materialId: 'm1', name: 'Base scope', category: 'Framing', unit: 'ea',
+      quantity: 1, unitPrice: 100_000, bulkPrice: 100_000, markup: 18,
+      usesBulk: false, lineTotal: 118_000, supplier: '',
+    }],
+  });
+
+  const takeoffAppend = new Function(
+    'est', 'costLineTotal', 'category', 'qty', 'effectiveRate', 'name', 'unit',
+    'isAtCostLine', 'roundCents', 'generateUUID',
+    `${lift('app/area-takeoff.tsx', '// --- BEGIN takeoff append ---', '// --- END takeoff append ---')}\nreturn next;`,
+  ) as (
+    est: Est, costLineTotal: number, category: string, qty: number, rate: number,
+    name: string, unit: string,
+    isAtCost: (i: { category: string }) => boolean,
+    round: (n: number) => number, uuid: () => string,
+  ) => Est;
+
+  const planAppend = new Function(
+    'est', 'lines', 'isAtCostLine', 'roundCents', 'generateUUID',
+    `${lift('app/plan-intelligence.tsx', '// --- BEGIN plan append ---', '// --- END plan append ---')}\nreturn next;`,
+  ) as (
+    est: Est,
+    lines: { name: string; category: string; unit: string; quantity: number; unitPrice: number; lineTotal: number }[],
+    isAtCost: (i: { category: string }) => boolean,
+    round: (n: number) => number, uuid: () => string,
+  ) => Est;
+
+  let n = 0;
+  const uuid = () => `gen_${++n}`;
+  /** The whole point: does the printed certificate foot to the contract it
+   *  bills? Runs the SHIPPED seeding, not a copy of column C. */
+  const certificate = (est: Est) => {
+    const project = { id: 'p1', name: 'Job', status: 'active', linkedEstimate: est } as unknown as Project;
+    const inv = {
+      id: 'inv1', projectId: 'p1', number: 1, type: 'progress', status: 'sent',
+      issueDate: '2026-03-31', dueDate: '2026-04-30', lineItems: [],
+      subtotal: 0, taxAmount: 0, totalDue: 0, amountPaid: 0, retentionPercent: 10,
+    } as unknown as Invoice;
+    return reconcileAIASov(
+      seedAIAPayApplicationFromInvoice(inv, project, [], { companyName: 'GC' } as never));
+  };
+
+  // ── Visual Takeoff: 40,000 SF at $1.00 onto the 18% job ──────────────────
+  const afterTakeoff = takeoffAppend(
+    cleanEstimate(), 40_000, 'Drywall', 40_000, 1, 'Drywall (takeoff)', 'SF',
+    isAtCostLine as never, roundCents, uuid);
+  const takeoffLine = afterTakeoff.items[1];
+  eq('Visual Takeoff prices the appended line at SELL, not cost',
+    [takeoffLine.lineTotal, takeoffLine.unitPrice, roundCents(takeoffLine.markup)],
+    [47_200, 1, 18]);
+  eq('…so Σ lineTotal is the contract, to the cent',
+    [roundCents(afterTakeoff.items.reduce((s, i) => s + i.lineTotal, 0)), afterTakeoff.grandTotal],
+    [165_200, 165_200]);
+  eq('…baseTotal is still the pre-markup COST budget the WIP report reads',
+    [afterTakeoff.baseTotal, afterTakeoff.markupTotal], [140_000, 25_200]);
+  eq('…and the G703 finally foots to G702 line 3',
+    [certificate(afterTakeoff).difference, certificate(afterTakeoff).reconciled], [0, true]);
+
+  // ── Plan Intelligence: three rooms onto the same job ─────────────────────
+  const afterPlan = planAppend(cleanEstimate(), [
+    { name: 'Kitchen — finish-out (plan AI)', category: 'Kitchen', unit: 'SF', quantity: 240, unitPrice: 55, lineTotal: 13_200 },
+    { name: 'Primary bath — finish-out (plan AI)', category: 'Bathroom', unit: 'SF', quantity: 110, unitPrice: 95, lineTotal: 10_450 },
+    { name: 'Living — finish-out (plan AI)', category: 'Living', unit: 'SF', quantity: 420, unitPrice: 28, lineTotal: 11_760 },
+  ], isAtCostLine as never, roundCents, uuid);
+  eq('Plan Intelligence prices every appended room at SELL',
+    afterPlan.items.slice(1).map(i => i.lineTotal), [15_576, 12_331, 13_876.8]);
+  eq('…Σ lineTotal is the contract, to the cent',
+    [roundCents(afterPlan.items.reduce((s, i) => s + i.lineTotal, 0)), afterPlan.grandTotal],
+    [159_783.8, 159_783.8]);
+  eq('…the cost budget is still the rooms at their own rates',
+    [afterPlan.baseTotal, afterPlan.markupTotal], [135_410, 24_373.8]);
+  eq('…and the certificate foots', certificate(afterPlan).reconciled, true);
+
+  // ── THE INVARIANT, not the arithmetic. recomputeEstimate is the canonical
+  // total rebuild (the voice-edit path runs the WHOLE estimate through it), and
+  // it rebuilds grandTotal as Σ lineTotal from each line's own markup. With the
+  // old shape that DELETED the takeoff line's markup on the first voice edit;
+  // both appends must now be fixed points of it.
+  //
+  // AND A RATIO THAT DOES NOT DIVIDE. Both fixtures above carry 18%, and
+  // 40 000 × 1.18 = 47 200 exactly — so they pinned the arithmetic while saying
+  // nothing about the `roundCents` each writer's own comment justifies
+  // ("rounded the way recomputeEstimate rounds, so a later edit is a no-op
+  // rather than a cent of drift on the contract value"). Deleting it left the
+  // suite green. A one-third markup — $10,000 on a $30,000 base, an ordinary
+  // cost-plus-33% job — makes the unrounded product 53 333.333…, and
+  // recomputeEstimate's own round2 then moves the line on the first edit.
+  const thirdEstimate = (): Est => ({
+    id: 'e3', globalMarkup: 33.333333333333336, baseTotal: 30_000, markupTotal: 10_000,
+    grandTotal: 40_000, createdAt: '2026-01-01',
+    items: [{
+      materialId: 'm1', name: 'Base scope', category: 'Framing', unit: 'ea',
+      quantity: 1, unitPrice: 30_000, bulkPrice: 30_000, markup: 33.333333333333336,
+      usesBulk: false, lineTotal: 40_000, supplier: '',
+    }],
+  });
+  const afterThird = takeoffAppend(
+    thirdEstimate(), 40_000, 'Drywall', 40_000, 1, 'Drywall (takeoff)', 'SF',
+    isAtCostLine as never, roundCents, uuid);
+  eq('a markup that does not divide still lands on a whole cent',
+    afterThird.items[1].lineTotal, 53_333.33);
+
+  // ── THE INVARIANT, not the arithmetic. recomputeEstimate is the canonical
+  // total rebuild (the voice-edit path runs the WHOLE estimate through it), and
+  // it rebuilds grandTotal as Σ lineTotal from each line's own markup. With the
+  // old shape that DELETED the takeoff line's markup on the first voice edit;
+  // both appends must now be fixed points of it — LINE BY LINE, not just on the
+  // three scalars, because a grandTotal that is itself rounded absorbs a
+  // fraction of a cent left on an individual line.
+  for (const [label, est] of [['Visual Takeoff', afterTakeoff], ['Plan Intelligence', afterPlan],
+    ['Visual Takeoff at a third', afterThird]] as const) {
+    const again = recomputeEstimate(est as never) as unknown as Est;
+    eq(`${label}: the canonical recompute moves nothing — no markup is lost on the first edit`,
+      [again.baseTotal, again.markupTotal, again.grandTotal, again.items.map(i => i.lineTotal)],
+      [est.baseTotal, est.markupTotal, est.grandTotal, est.items.map(i => i.lineTotal)]);
+  }
+
+  // AT-COST LINES TAKE NO MARKUP, because recomputeEstimate would strip it and
+  // the estimate would stop footing the moment anything touched it.
+  const labourTakeoff = takeoffAppend(
+    cleanEstimate(), 10_000, 'Labor', 100, 100, 'Framing crew', 'hrs',
+    isAtCostLine as never, roundCents, uuid);
+  eq('a LABOR takeoff line stays at cost, and the estimate still foots',
+    [labourTakeoff.items[1].markup, labourTakeoff.items[1].lineTotal,
+      roundCents(labourTakeoff.items.reduce((s, i) => s + i.lineTotal, 0)), labourTakeoff.grandTotal],
+    [0, 10_000, 128_000, 128_000]);
+  // …AND SO DOES THE OTHER WRITER'S. The at-cost rule is shared, but only ONE
+  // of the two writers was ever run against it: deleting
+  // `!isAtCostLine({ category: l.category }) &&` from plan-intelligence left
+  // the suite green while the identical deletion in area-takeoff went red.
+  // Today the branch is defensive — ROOM_TYPE_LABELS never yields 'labor' or
+  // 'assemblies' — but the writer takes its lines as an argument and the
+  // teach/AI paths are what feed it, so the rule is only as proved as it is
+  // executed. Also carries a markup that does not divide, for the same
+  // rounding invariant the takeoff fixture above pins.
+  const planMixed = planAppend(thirdEstimate(), [
+    { name: 'Primary bath — finish-out (plan AI)', category: 'Bathroom', unit: 'SF', quantity: 110, unitPrice: 95, lineTotal: 10_450 },
+    { name: 'Framing crew', category: 'Labor', unit: 'hrs', quantity: 100, unitPrice: 100, lineTotal: 10_000 },
+  ], isAtCostLine as never, roundCents, uuid);
+  eq('a LABOR plan line stays at cost while the room beside it takes markup',
+    [planMixed.items[1].markup, planMixed.items[1].lineTotal,
+      planMixed.items[2].markup, planMixed.items[2].lineTotal],
+    [33.33333333333333, 13_933.33, 0, 10_000]);
+  eq('…and that estimate foots, on the cent, after the canonical recompute',
+    [roundCents(planMixed.items.reduce((s, i) => s + i.lineTotal, 0)), planMixed.grandTotal,
+      (recomputeEstimate(planMixed as never) as unknown as Est).items.map(i => i.lineTotal)],
+    [63_933.33, 63_933.33, planMixed.items.map(i => i.lineTotal)]);
+
+  // AN ESTIMATE WITH NO MARKUP appends at cost and still foots — the zero-ratio
+  // branch, which is what a cost-plus job looks like.
+  const noMarkup: Est = {
+    id: 'e2', globalMarkup: 0, baseTotal: 50_000, markupTotal: 0, grandTotal: 50_000,
+    createdAt: '2026-01-01',
+    items: [{
+      materialId: 'm1', name: 'Base', category: 'Framing', unit: 'ea', quantity: 1,
+      unitPrice: 50_000, bulkPrice: 50_000, markup: 0, usesBulk: false,
+      lineTotal: 50_000, supplier: '',
+    }],
+  };
+  const flat = takeoffAppend(noMarkup, 5_000, 'Drywall', 5_000, 1, 'Drywall', 'SF',
+    isAtCostLine as never, roundCents, uuid);
+  eq('a cost-plus estimate appends at cost and still foots',
+    [flat.items[1].markup, flat.grandTotal, roundCents(flat.items.reduce((s, i) => s + i.lineTotal, 0))],
+    [0, 55_000, 55_000]);
+
+  // ── THE ON-SCREEN HALF OF THE SAME DEFECT ────────────────────────────────
+  // Each writer confirms what it just did in a toast, and both named the COST
+  // while the contract had moved by the SELL figure — "$40,000 of Drywall" on a
+  // line that put $47,200 on the certificate. The fix went in unguarded:
+  // reverting `formatMoneyFull(lineTotal)` to `costLineTotal`, and
+  // `formatMoney(addedSell)` to `addedBase`, each left the suite green.
+  //
+  // So EXECUTE the confirmation statement out of the shipped file, with the two
+  // figures set far apart and the formatter replaced by one that brackets its
+  // argument, and read what it says. A regex on the call site could not tell
+  // which variable it received; this can.
+  {
+    const RESERVED = new Set(['true', 'false', 'null', 'undefined', 'if', 'else', 'return', 'const',
+      'let', 'var', 'new', 'typeof', 'in', 'instanceof', 'function', 'this', 'void', 'delete', 'do',
+      'while', 'for', 'switch', 'case', 'break', 'continue', 'default', 'try', 'catch', 'finally',
+      'throw', 'class', 'extends', 'super', 'yield', 'await', 'async', 'import', 'export', 'with']);
+    /** Run the `setter(...)` call that follows `afterSentinel`, and return what it was told. */
+    const confirmationSays = (
+      file: string, afterSentinel: string, setter: string, bindings: Record<string, unknown>,
+    ): string => {
+      const src = readFileSync(join(ROOT, file), 'utf8');
+      const start = src.indexOf(`${setter}(`, src.indexOf(afterSentinel));
+      if (start < 0) {
+        console.error(`\n  ✗ ${file}: no ${setter}( after ${afterSentinel}.`);
+        console.error('    The confirmation the GC reads is no longer checked; it went back to');
+        console.error('    naming the cost once already.');
+        process.exit(1);
+      }
+      let depth = 0, end = -1;
+      for (let i = src.indexOf('(', start); i < src.length; i++) {
+        if (src[i] === '(') depth++;
+        else if (src[i] === ')') { depth--; if (depth === 0) { end = i + 1; break; } }
+      }
+      const stmt = src.slice(start, end);
+      let said = '';
+      const names = [...new Set(stmt.match(/[A-Za-z_$][\w$]*/g) ?? [])].filter(n => !RESERVED.has(n));
+      const args = names.map(n => (n === setter ? (s: unknown) => { said = String(s); }
+        : n in bindings ? bindings[n] : '?'));
+      new Function(...names, `${stmt};`)(...args);
+      return said;
+    };
+    const bracketed = (n: number) => `«${n}»`;
+    const takeoffSays = confirmationSays(
+      'app/area-takeoff.tsx', '// --- END takeoff append ---', 'setLastAdded',
+      { quantityLabel: (q: number) => `${q} SF`, qty: 7, category: 'Drywall',
+        formatMoneyFull: bracketed, lineTotal: 47_200, costLineTotal: 40_000 });
+    eq('Visual Takeoff confirms the SELL figure it just put on the contract, not the cost',
+      [takeoffSays.includes('«47200»'), takeoffSays.includes('«40000»')], [true, false]);
+    const planSays = confirmationSays(
+      'app/plan-intelligence.tsx', '// --- END plan append ---', 'setAddedNote',
+      { items: [{}, {}], formatMoney: bracketed, addedSell: 47_200, addedBase: 40_000 });
+    eq('Plan Intelligence confirms the SELL figure too',
+      [planSays.includes('«47200»'), planSays.includes('«40000»')], [true, false]);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

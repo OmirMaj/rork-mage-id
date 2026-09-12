@@ -70,7 +70,8 @@ export interface CpmTaskResult {
 
 export interface CpmConflict {
   /** Machine-readable kind so the UI can show different icons / copy. */
-  kind: 'cycle' | 'resource_overallocation' | 'resource_delayed_project' | 'anchor_violation';
+  kind: 'cycle' | 'resource_overallocation' | 'resource_delayed_project'
+    | 'anchor_violation' | 'dangling_link';
   /** Short human-readable summary. */
   message: string;
   /** Task ids involved in the conflict. */
@@ -214,6 +215,36 @@ function isoToDay(iso: string | undefined, scheduleStart: string | undefined): n
  * Returns true (permissive) when scheduleStartDate is unparseable so
  * the engine degrades to raw-day behavior instead of crashing.
  */
+/**
+ * THE weekend rule, and the only copy of it. `dayOfWeek` is 0=Sunday..6=Saturday
+ * (what both `Date.getDay()` and `Date.getUTCDay()` return).
+ *
+ *   7+ → every day works.
+ *   6  → Mon–SAT; only Sunday is off.
+ *   ≤5 → Mon–Fri.
+ *
+ * Extracted 2026-09-11 because it HAD drifted. `isWorkingDay` below (the
+ * engine's index-based predicate) special-cased 6 as Mon–Sat, while
+ * `scheduleEngine.addWorkingDays` and `scheduleOps.scheduleDayNumberFor` — the
+ * two Date-based walkers every renderer, the CSV export and the .ics invite go
+ * through — collapsed every value under 7 to Mon–Fri. On a 6-day project the
+ * engine therefore scheduled Saturdays that every date label refused to count:
+ * measured on a 5-day week they agree, and on a 6-day week from Mon 2026-03-02
+ * working ordinal 11 was calendar index 12 (Fri Mar 13) to the engine and
+ * Mon Mar 16 to `addWorkingDays` — three calendar days apart on one task, and
+ * growing with every Saturday downstream. The rule now has one definition and
+ * all three callers ask it.
+ *
+ * Values below 5 still mean Mon–Fri: a genuine 4-day week needs a per-day mask
+ * (`ResourceCalendar.workingDaysOfWeek` is typed for exactly that and is still
+ * unread), and inventing which day is off would be worse than counting five.
+ */
+export function isWorkingDayOfWeek(dayOfWeek: number, workingDaysPerWeek: number): boolean {
+  if (workingDaysPerWeek >= 7) return true;
+  if (workingDaysPerWeek === 6) return dayOfWeek !== 0;
+  return dayOfWeek !== 0 && dayOfWeek !== 6;
+}
+
 export function isWorkingDay(
   dayIndex: number,
   workingDaysPerWeek: number,
@@ -230,15 +261,9 @@ export function isWorkingDay(
   // the schedule start, allocate a Date and build an ISO string on EVERY call.
   const epochDay = Math.floor(dayMs / 86400000);
   const dow = ((epochDay + 4) % 7 + 7) % 7;
-  // A 6-day week is Mon–SAT: only Sunday is off. Collapsing every `< 7` value
-  // to "skip Saturday and Sunday" computed a 6-day schedule as a 5-day one, so
-  // a GC who configured Saturday work still had every finish date pushed out by
-  // the Saturdays the engine refused to use.
-  const weekendSkip =
-    workingDaysPerWeek >= 7 ? false
-      : workingDaysPerWeek === 6 ? dow === 0
-        : (dow === 0 || dow === 6);
-  if (weekendSkip) return false;
+  // One rule, one definition — see isWorkingDayOfWeek above for why this is not
+  // inlined here any more.
+  if (!isWorkingDayOfWeek(dow, workingDaysPerWeek)) return false;
   // The ISO string is only ever used to probe `closures`; building it when
   // there are no closures was pure garbage on the hot path.
   if (closures.size === 0) return true;
@@ -482,15 +507,17 @@ function workingDaysBetweenOn(
 // A(10)->B(10)->C(5) at ordinals 1/11/21 from Mon 2026-03-02 on a 5-day week:
 // finish Fri Apr 3 without it, Wed Apr 15 with it.
 //
-// KNOWN, AND NOT AUTOMATICALLY FIXABLE: a schedule that ran through
-// `rebaseRawToCalendar` on an older build carries calendar indices in
-// `startDay` and will read longer under this engine. There is provably no way
-// to detect one — the rebase maps ordinals onto a strictly increasing run of
-// working-day indices, which is byte-identical to a plan authored directly with
-// those integers as ordinals, and the persisted duration scalars were stamped
-// by an engine that read every schedule as calendar indices, so they fingerprint
-// nothing either. Any "migration" would corrupt the second population to fix the
-// first. The remedy is a manual re-anchor of the affected plan.
+// KNOWN, AND DETECTABLE — NOT AUTOMATICALLY MIGRATED ON PURPOSE: a schedule
+// that ran through `rebaseRawToCalendar` on an older build carries calendar
+// indices in `startDay` and reads longer under this engine. An earlier note
+// here claimed the condition was undetectable. It is not: the rebase moved
+// `startDay` and left `baselineStartDay` — which is stamped EQUAL to it at
+// authoring time — behind, so the task carries its own before-and-after pair.
+// `detectStartDayBasis` reads that pair plus two corroborating signals; see the
+// long note above it at the bottom of this file. Because the result is evidence
+// and not proof, nothing converts data on its own: the verdict raises a
+// one-time notice the user answers, and the answer is persisted as
+// `ProjectSchedule.startDayBasis` so it is asked exactly once.
 
 export interface DayScaleOptions {
   workingDaysPerWeek?: number;
@@ -661,6 +688,40 @@ function getLinks(task: ScheduleTask): DependencyLink[] {
 // Uses DFS with a 3-color marker (white/gray/black) so we can both detect a
 // cycle and return the cycle nodes (handy for the UI to highlight). A gray
 // node found during DFS means we're revisiting an ancestor → cycle.
+
+/**
+ * Dependency links that point at a task which is not in this schedule.
+ *
+ * Every other pass in this file skips them silently — `topoSort` at its
+ * `!byId.has(link.taskId) continue`, `detectCycles` at its own, the forward and
+ * backward passes at theirs. That is the RIGHT arithmetic (you cannot schedule
+ * against a task that does not exist) and the wrong silence: deleting a task
+ * quietly severs every link into it, the plan gets shorter, and nothing anywhere
+ * says why. A GC reads that as the schedule improving.
+ *
+ * So the arithmetic is unchanged and the FACT is now reported. One conflict per
+ * affected task, listing the ids it can no longer find, so the grid's existing
+ * conflict banner (which renders any non-'cycle' kind as a warning rather than
+ * an error) can show it without knowing what a dangling link is.
+ *
+ * Exported and pure so a guard can execute it.
+ */
+export function detectDanglingLinks(tasks: ScheduleTask[]): CpmConflict[] {
+  const idSet = new Set(tasks.map(t => t.id));
+  const out: CpmConflict[] = [];
+  for (const task of tasks) {
+    const missing = getLinks(task).map(l => l.taskId).filter(id => !idSet.has(id));
+    if (missing.length === 0) continue;
+    const unique = [...new Set(missing)];
+    out.push({
+      kind: 'dangling_link',
+      message: `"${task.title}" depends on ${unique.length} task(s) that are no longer in this schedule, so ${unique.length === 1 ? 'that link is' : 'those links are'} being ignored.`,
+      taskIds: [task.id],
+      detail: { missingPredecessorIds: unique },
+    });
+  }
+  return out;
+}
 
 export function detectCycles(tasks: ScheduleTask[]): CpmConflict[] {
   const idSet = new Set(tasks.map(t => t.id));
@@ -1566,6 +1627,12 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
     options.scheduleStartDate,
   );
 
+  // 0. Links pointing at tasks that are not here. Reported, never repaired —
+  // every pass below already ignores them, and this is the only thing that says
+  // so out loud. Collected BEFORE the cycle bail-out so a schedule that has both
+  // problems reports both.
+  conflicts.push(...detectDanglingLinks(tasks));
+
   // 1. Cycle detection — bail early if found.
   const cycleConflicts = detectCycles(tasks);
   if (cycleConflicts.length > 0) {
@@ -1575,7 +1642,9 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
       projectStart: 1,
       projectFinish: 1,
       criticalPath: [],
-      conflicts: cycleConflicts,
+      // Cycle FIRST: GridPane's banner summarises `conflicts[0]`, and a cycle is
+      // the one that stops the engine. The dangling report rides along behind it.
+      conflicts: [...cycleConflicts, ...conflicts],
     };
   }
 
@@ -1888,4 +1957,601 @@ export function runCpmForCalendar(
     workingDaysPerWeek: workingDaysPerWeek ?? 5,
     nonWorkingDates: nonWorkingDates ?? [],
   });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// LEGACY DATA — the `rebaseRawToCalendar` population
+// ───────────────────────────────────────────────────────────────────────────
+//
+// `utils/scheduleRebase.ts` shipped from 2026-07 to 2026-09-11. It fired the
+// first time a start date was set on a schedule and rewrote every
+// `task.startDay` from a WORKING ORDINAL to the CALENDAR INDEX of that
+// ordinal's working day, then persisted the result through `updateProject`. It
+// existed because the engine of the day read `startDay` as a calendar index at
+// its `pins` line. The engine now CONVERTS there, so those rewritten rows are
+// converted a second time and the plan inflates by the width of every weekend
+// it already contained. Measured on A(10)->B(10)->C(5) authored at ordinals
+// 1/11/21, 5-day week from Mon 2026-03-02: the authored 1/11/21 finishes on
+// calendar index 33 (Fri Apr 3); the stored 1/15/29 finishes on 45
+// (Wed Apr 15). Twelve days of silent inflation, in the data, not the display.
+//
+// The note that used to sit in the scale contract said the condition was
+// undetectable. That was WRONG, and the reason is that the rebase left its own
+// before-and-after pair on the task: it moved `startDay` and never touched
+// `baselineStartDay` / `baselineEndDay`, which
+// `scheduleAI.materializeGeneratedTasks` stamps EQUAL to `startDay` at
+// authoring time (utils/scheduleAI.ts:701-702). So on a rebased task
+// `startDay === workingOrdinalToCalendarIndex(baselineStartDay)` while on a
+// never-rebased one `startDay === baselineStartDay` — and for any ordinal past
+// the first weekend those two are mutually exclusive.
+//
+// TWO KNOWN BLIND SPOTS, both of which fail SAFE (the user is never asked, the
+// data is never touched), and both worth knowing before someone widens this:
+//
+//  • A baseline CAPTURED AFTER the rebase destroys the pair.
+//    `scheduleOps.saveBaseline` records `t.startDay` and `applyBaselineToTasks`
+//    writes it back to `baselineStartDay`, so on a re-baselined legacy schedule
+//    `startDay === baselineStartDay` again and that row reads as ORDINAL
+//    evidence. The verdict then falls to `indeterminate` (ordinal and calendar
+//    evidence disagreeing) or to `workingOrdinal`, and nothing is offered. The
+//    plan stays inflated and the remedy is a manual re-anchor.
+//  • A schedule with only ONE discriminating row is refused on purpose — see
+//    `corroboratingTaskCount`. One row is indistinguishable from one slipped
+//    task, and reverting a real slip is worse than leaving two days on a
+//    two-task plan.
+//
+// It is still EVIDENCE, not proof, so nothing in this file converts data on its
+// own and nothing runs at load. `detectStartDayBasis` classifies; a one-time
+// disclosure (`components/schedule/StartDayBasisNotice.tsx`) puts the measured
+// before/after finish in front of the user; their answer is persisted as
+// `ProjectSchedule.startDayBasis`, which is what makes the migration one-shot.
+// A wrong automatic migration is worse than an explicit one.
+
+/** Scale the stored `ScheduleTask.startDay` values of one schedule are on. */
+export type StartDayBasis = 'workingOrdinal' | 'calendarIndex';
+
+export interface StartDayBasisReport {
+  /**
+   * `workingOrdinal`  — the stored numbers are on the scale the engine expects,
+   *                     or converting them would move nothing.
+   * `calendarIndex`   — every discriminating row says a pre-fix build rewrote
+   *                     them, and none says otherwise.
+   * `indeterminate`   — the signals disagree, some row cannot be read either
+   *                     way, or this data carries no signal at all.
+   */
+  verdict: StartDayBasis | 'indeterminate';
+  /**
+   * True when the two scales are the same numbers for this calendar — no
+   * anchor, or a 7-day week with no closures. The question is then moot.
+   */
+  scalesCoincide: boolean;
+  /** Signals that say "these are ordinals", in the user's own task names. */
+  ordinalEvidence: string[];
+  /** Signals that say "these are calendar indices". */
+  calendarEvidence: string[];
+  /**
+   * Titles of tasks that HAD a discriminating signal available and matched
+   * neither reading — a row edited since the re-anchor, most likely. Their
+   * presence forces `indeterminate`, because a schedule that cannot be read
+   * end-to-end cannot be converted end-to-end. Named so the notice can list
+   * them and the user can check those rows by hand.
+   */
+  unexplainedTitles: string[];
+  /** How many tasks a remap would move. Zero ⇒ the question does not matter. */
+  wouldRemapTaskCount: number;
+  /**
+   * How many DISTINCT tasks produced calendar evidence. The verdict needs two.
+   *
+   * `rebaseRawToCalendar` was a whole-schedule rewrite — it mapped every task
+   * in one pass — so a genuinely rebased plan corroborates itself from several
+   * rows. ONE row does not: a task that slipped from its baseline by exactly
+   * the weekend it spans is byte-identical to a rebased row, and I measured
+   * that shape asking for a re-anchor it must not get (a two-task plan,
+   * baselines 1 and 6, the second slipped to day 8 — one calendar-evidence row,
+   * two days of "inflation" that were a real slip). Accepting there would have
+   * silently reverted the slip. Two independent rows is the cheapest rule that
+   * separates the two, and the schedules it declines are the smallest ones,
+   * where the error is smallest.
+   */
+  corroboratingTaskCount: number;
+}
+
+/**
+ * Classify which scale one schedule's stored `startDay` values are on.
+ *
+ * PURE and CHEAP — O(tasks), no `runCpm` — so a screen may call it on every
+ * render. Three independent signals, and the conservative answer wins:
+ *
+ *  1. VETO. Every value the rebase could produce is the index of a WORKING day.
+ *     A `startDay > 1` that lands on a weekend or a closure cannot have come
+ *     from it, so it is ordinal evidence.
+ *  2. BASELINE PAIR (decisive). See the note above.
+ *  3. CHAIN GAP. `scheduleEngine.recalculateStartDays` and
+ *     `scheduleAI.materializeGeneratedTasks` both chain an FS+0 successor at
+ *     `pred.startDay + pred.durationDays` exactly — contiguous on the ordinal
+ *     scale. The calendar reading of the same link lands on the first working
+ *     day after the predecessor's calendar EF, which is strictly later whenever
+ *     the predecessor spans a weekend. Where those two differ, whichever the
+ *     stored value matches is evidence for that scale; matching NEITHER is an
+ *     unexplained row.
+ *
+ * A `calendarIndex` verdict additionally needs TWO distinct corroborating rows
+ * (see `corroboratingTaskCount`); one is a slip, not a rewrite. Any unexplained
+ * row, or any ordinal evidence at all, forces `indeterminate` and the caller
+ * offers nothing.
+ */
+export function detectStartDayBasis(
+  tasks: readonly ScheduleTask[],
+  opts: DayScaleOptions = {},
+): StartDayBasisReport {
+  const wd = opts.workingDaysPerWeek ?? 7;
+  const closures = new Set(opts.nonWorkingDates ?? []);
+  const scalesCoincide = !opts.scheduleStartDate || (wd >= 7 && closures.size === 0);
+  const base: StartDayBasisReport = {
+    verdict: 'workingOrdinal',
+    scalesCoincide,
+    ordinalEvidence: [],
+    calendarEvidence: [],
+    unexplainedTitles: [],
+    wouldRemapTaskCount: 0,
+    corroboratingTaskCount: 0,
+  };
+  if (scalesCoincide) {
+    return {
+      ...base,
+      ordinalEvidence: [
+        wd >= 7
+          ? 'A 7-day week with no closures — the working and calendar scales are the same numbers here.'
+          : 'No start date — the engine runs in raw-day mode, where the two scales are the same numbers.',
+      ],
+    };
+  }
+  if (tasks.length === 0) return base;
+
+  const start = opts.scheduleStartDate!;
+  const ordinalToIndex = makeOrdinalIndexer(opts);
+  const dayOf = (t: ScheduleTask) => Math.max(1, Math.round(t.startDay || 1));
+
+  // Answer the cheap question first: if converting moves nothing, the label is
+  // immaterial and there is no migration to offer.
+  let wouldRemapTaskCount = 0;
+  for (const t of tasks) {
+    const d = dayOf(t);
+    if (calendarIndexToWorkingOrdinal(d, opts) !== d) wouldRemapTaskCount++;
+  }
+  if (wouldRemapTaskCount === 0) {
+    return {
+      ...base,
+      ordinalEvidence: ['Every stored day is the same number on both scales — there is nothing to convert.'],
+    };
+  }
+
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const ordinalEvidence: string[] = [];
+  const calendarEvidence: string[] = [];
+  const unexplained = new Set<string>();
+  // Task ids, not evidence lines: the baseline pair and the chain gap can both
+  // fire on the same row, and one row corroborating itself twice is still one
+  // row. See StartDayBasisReport.corroboratingTaskCount.
+  const corroborating = new Set<string>();
+
+  // ── 1. Veto ───────────────────────────────────────────────────────────────
+  for (const t of tasks) {
+    const d = dayOf(t);
+    if (d > 1 && !isWorkingDay(d, wd, start, closures)) {
+      ordinalEvidence.push(
+        `"${t.title}" starts on day ${d}, a non-working day on this calendar — no re-anchor could have produced it.`,
+      );
+      break;
+    }
+  }
+
+  // ── 2. Baseline pair ──────────────────────────────────────────────────────
+  for (const t of tasks) {
+    const bsd = t.baselineStartDay;
+    if (bsd == null || !Number.isFinite(bsd) || bsd < 1) continue;
+    const ord = Math.max(1, Math.round(bsd));
+    const mapped = ordinalToIndex(ord);
+    if (mapped === ord) continue; // before the first weekend — says nothing
+    const d = dayOf(t);
+    if (d === ord) {
+      ordinalEvidence.push(
+        `"${t.title}" still starts on its own baseline day ${ord}; a re-anchor would have moved it to ${mapped}.`,
+      );
+    } else if (d === mapped) {
+      calendarEvidence.push(
+        `"${t.title}" starts on day ${d}, exactly the calendar day of its baseline working day ${ord}.`,
+      );
+      corroborating.add(t.id);
+    } else {
+      unexplained.add(t.title);
+    }
+  }
+
+  // ── 3. Chain gap ──────────────────────────────────────────────────────────
+  for (const t of tasks) {
+    const links = getLinks(t);
+    if (links.length !== 1) continue;
+    const link = links[0];
+    if ((link.type ?? 'FS') !== 'FS' || (link.lagDays ?? 0) !== 0) continue;
+    const pred = byId.get(link.taskId);
+    if (!pred) continue;
+    const predDur = Math.max(0, Math.round(pred.durationDays || 0));
+    if (predDur < 1) continue;
+    const predDay = dayOf(pred);
+    const ordinalExpectation = predDay + predDur;
+    const predEf = isWorkingDay(predDay, wd, start, closures)
+      ? walkWorkingDays(predDay, predDur - 1, 1, wd, start, closures)
+      : walkWorkingDays(predDay, predDur, 1, wd, start, closures);
+    const calendarExpectation = walkWorkingDays(predEf, 1, 1, wd, start, closures);
+    if (calendarExpectation === ordinalExpectation) continue; // uninformative
+    const d = dayOf(t);
+    if (d === ordinalExpectation) {
+      ordinalEvidence.push(
+        `"${t.title}" starts the working day after "${pred.title}" (day ${ordinalExpectation}), not the calendar day after it (day ${calendarExpectation}).`,
+      );
+    } else if (d === calendarExpectation) {
+      calendarEvidence.push(
+        `"${t.title}" starts on day ${calendarExpectation}, the day after "${pred.title}" ends on the calendar — ${calendarExpectation - ordinalExpectation} day(s) past its working-day slot.`,
+      );
+      corroborating.add(t.id);
+    } else {
+      unexplained.add(t.title);
+    }
+  }
+
+  const unexplainedTitles = [...unexplained];
+  const corroboratingTaskCount = corroborating.size;
+  let verdict: StartDayBasisReport['verdict'] = 'indeterminate';
+  if (unexplainedTitles.length === 0) {
+    // `calendarIndex` needs TWO independent rows — see corroboratingTaskCount.
+    // `workingOrdinal` needs one, deliberately: it is the reading the engine
+    // already applies, so it asserts nothing new and licenses no rewrite.
+    if (corroboratingTaskCount >= 2 && ordinalEvidence.length === 0) verdict = 'calendarIndex';
+    else if (ordinalEvidence.length > 0 && calendarEvidence.length === 0) verdict = 'workingOrdinal';
+  }
+
+  return {
+    verdict,
+    scalesCoincide,
+    ordinalEvidence,
+    calendarEvidence,
+    unexplainedTitles,
+    wouldRemapTaskCount,
+    corroboratingTaskCount,
+  };
+}
+
+/**
+ * Undo a `rebaseRawToCalendar` pass: CALENDAR INDEX → WORKING ORDINAL on
+ * `startDay`, and on `startDay` ONLY.
+ *
+ * NOT IDEMPOTENT as arithmetic — running it on data that is already on the
+ * working scale SHORTENS the plan, which is the exact mirror of the bug it
+ * repairs. Two things stop that:
+ *
+ *  • `report` is REQUIRED, and anything short of a `calendarIndex` VERDICT
+ *    returns the input array by reference, untouched — not merely "some
+ *    calendar evidence", which one weekend-exact slip can manufacture. You
+ *    cannot call this without having classified the data first.
+ *  • The caller persists `ProjectSchedule.startDayBasis = 'workingOrdinal'`
+ *    with the result, and a schedule carrying that flag is never offered the
+ *    migration again. That flag — not this function — is what makes the
+ *    migration one-shot.
+ *
+ * The TASK-LEVEL `baselineStartDay`, `baselineEndDay`, `actualStartDay` and
+ * `actualEndDay` are deliberately left alone. The rebase never touched them (it
+ * returned `{ ...t, startDay: mapped }` — utils/scheduleRebase.ts as of
+ * 172a1e6a^), so they are still the working ordinals the scale contract
+ * documents. Remapping them would destroy the pair this migration is detected
+ * by and would drag the baseline ghost off the plan it was captured against.
+ *
+ * THAT REASONING DOES NOT EXTEND TO THE SCHEDULE-LEVEL SNAPSHOTS, and an
+ * earlier version of this note claimed it did. `ProjectSchedule.baseline` and
+ * `ProjectSchedule.baselines[]` are captured from `t.startDay` AT CAPTURE TIME
+ * (`scheduleEngine.saveBaseline`, `scheduleOps.captureBaseline`). A snapshot
+ * taken while the schedule sat on the calendar-index scale therefore holds
+ * calendar indices, and moving `startDay` underneath it leaves the ghost on the
+ * old scale — silent phantom variance on every row, for as long as the snapshot
+ * lives. This function cannot see those snapshots; the ANSWER path handles them
+ * ({@link remapCapturedBaselineDays}, wired through
+ * {@link startDayBasisAnswerPatch}), and it only touches a snapshot row whose
+ * stored day still matches the task's, so a snapshot captured BEFORE the rebase
+ * is left exactly where it is.
+ *
+ * Returns the SAME array reference when nothing moves, so an undo-aware
+ * `commit()` treats a no-op as a no-op.
+ */
+export function remapCalendarIndexStartDaysToWorkingOrdinals(
+  tasks: readonly ScheduleTask[],
+  opts: DayScaleOptions,
+  report: StartDayBasisReport,
+): ScheduleTask[] {
+  if (report.verdict !== 'calendarIndex') return tasks as ScheduleTask[];
+  let changed = false;
+  const next = tasks.map(t => {
+    const d = Math.max(1, Math.round(t.startDay || 1));
+    const ordinal = calendarIndexToWorkingOrdinal(d, opts);
+    if (ordinal === t.startDay) return t;
+    changed = true;
+    return { ...t, startDay: ordinal };
+  });
+  return changed ? next : (tasks as ScheduleTask[]);
+}
+
+/**
+ * The whole legacy-scale decision for ONE schedule, in one pure function, so
+ * the screens carry no policy and a guard can execute the real thing rather
+ * than grep for it.
+ *
+ * `shouldAsk` is false unless ALL of these hold:
+ *
+ *   • the schedule has never answered the question (`startDayBasis` absent);
+ *   • TWO independent rows are positive evidence of a pre-fix re-anchor;
+ *   • no row contradicts them and no row is unreadable (`verdict` is
+ *     `calendarIndex`);
+ *   • the remap actually moves a row, AND
+ *   • the remapped plan finishes EARLIER — the symptom the bug produces.
+ *
+ * Only the last of those costs anything: the first four are O(tasks) and the
+ * function returns before the engine runs at all unless they hold. When it does
+ * run the engine it runs it twice (as stored, and as remapped), because the only
+ * honest case for asking is a measured one — the user cannot check a scale, but
+ * they can check a finish date. Memoise it on the schedule in a component.
+ */
+export interface StartDayBasisMigrationPreview {
+  report: StartDayBasisReport;
+  /** Ask the user. False for every schedule that is fine or unreadable. */
+  shouldAsk: boolean;
+  /**
+   * Whether the three finish-day numbers below were actually computed. False
+   * on the early-out path (already answered, or not classified as legacy), and
+   * they are all 0 there — 0 is "not measured", never "measured as zero".
+   */
+  measured: boolean;
+  /** Engine project-finish (calendar index) on the data exactly as stored. */
+  storedFinishDay: number;
+  /** Engine project-finish after the remap. */
+  remappedFinishDay: number;
+  /** storedFinishDay − remappedFinishDay. Positive = the plan reads long. */
+  inflationDays: number;
+  /** The tasks to persist if the user accepts. Same ref as input if no change. */
+  remappedTasks: ScheduleTask[];
+  /**
+   * Every row the answer would move, with BOTH readings of its start day.
+   *
+   * This is what the notice puts in front of the user, and it is the whole
+   * reason the notice is allowed to ask at all. The detector cannot prove a
+   * re-anchor — a task that slipped from its baseline by exactly the weekend it
+   * spans is byte-identical to a re-anchored row, at any row count (measured;
+   * see the two-row fixture in scripts/validate-startdate-rebase.ts). What the
+   * user CAN settle is a date: "Signage currently starts Mon Mar 9; the other
+   * reading starts it Mon Mar 2 — which is right?" So the offer states the
+   * measurement and names the rows, and never states the cause.
+   *
+   * Empty on the early-out path, exactly like the finish numbers.
+   */
+  affectedRows: StartDayBasisAffectedRow[];
+}
+
+/** One row a `startDayBasis` answer would move, in both readings. */
+export interface StartDayBasisAffectedRow {
+  id: string;
+  title: string;
+  /** `startDay` as stored today. */
+  storedDay: number;
+  /** `startDay` after the remap. Always < storedDay. */
+  remappedDay: number;
+}
+
+export function previewStartDayBasisMigration(schedule: {
+  tasks: ScheduleTask[];
+  startDate?: string;
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
+  startDayBasis?: 'workingOrdinal';
+}): StartDayBasisMigrationPreview {
+  const scale: DayScaleOptions = {
+    scheduleStartDate: schedule.startDate,
+    workingDaysPerWeek: schedule.workingDaysPerWeek,
+    nonWorkingDates: schedule.nonWorkingDates,
+  };
+  const tasks = schedule.tasks ?? [];
+  const report = detectStartDayBasis(tasks, scale);
+  const remappedTasks = remapCalendarIndexStartDaysToWorkingOrdinals(tasks, scale, report);
+  // BAIL BEFORE THE ENGINE. Three screens call this on every schedule change
+  // and almost every schedule in the world takes this branch, so the two CPM
+  // runs below must not be the price of asking a question whose answer is
+  // already no. Nothing downstream is lost: every one of these conditions
+  // independently forces `shouldAsk` false, and the classification — the part
+  // a diagnostic wants — is in `report` either way.
+  if (schedule.startDayBasis || report.verdict !== 'calendarIndex' || remappedTasks === tasks) {
+    return {
+      report, shouldAsk: false, measured: false,
+      storedFinishDay: 0, remappedFinishDay: 0, inflationDays: 0,
+      remappedTasks: tasks, affectedRows: [],
+    };
+  }
+  const runOpts = {
+    scheduleStartDate: schedule.startDate,
+    workingDaysPerWeek: schedule.workingDaysPerWeek,
+    nonWorkingDates: schedule.nonWorkingDates,
+  };
+  const storedFinishDay = runCpm(tasks, runOpts).projectFinish;
+  const remappedFinishDay = runCpm(remappedTasks, runOpts).projectFinish;
+  const inflationDays = storedFinishDay - remappedFinishDay;
+  const affectedRows: StartDayBasisAffectedRow[] = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const stored = tasks[i];
+    const next = remappedTasks[i];
+    if (!next || next.startDay === stored.startDay) continue;
+    affectedRows.push({
+      id: stored.id,
+      title: stored.title,
+      storedDay: Math.max(1, Math.round(stored.startDay || 1)),
+      remappedDay: Math.max(1, Math.round(next.startDay || 1)),
+    });
+  }
+  return {
+    report,
+    // The last gate, and the only one the user can check: the plan must read
+    // LONGER than the remapped plan. A rebased row that carries float moves its
+    // own dates but not the project's, and the notice speaks only about the
+    // finish date, so it stays silent there rather than quote a zero-day saving.
+    shouldAsk: inflationDays > 0,
+    measured: true,
+    storedFinishDay, remappedFinishDay, inflationDays, remappedTasks, affectedRows,
+  };
+}
+
+/**
+ * The fields a screen writes when the user answers `StartDayBasisNotice` —
+ * the whole policy, in one pure function, so the three surfaces that mount the
+ * notice carry none of it and a guard can EXECUTE the answer instead of
+ * grepping for the string `startDayBasis` in a .tsx file.
+ *
+ * Spread it into the schedule record:
+ *
+ *   updateProject(id, { schedule: { ...existing, ...startDayBasisAnswerPatch(preview, accept) } })
+ *
+ * Three properties it holds, all of them asserted by executing it:
+ *
+ *  • DECLINING TOUCHES NO TASK. The patch has no `tasks` key at all, so the
+ *    spread cannot overwrite the stored plan with a stale copy.
+ *  • BOTH ANSWERS STAMP THE FLAG. Declining is a real answer — "these numbers
+ *    are the plan I want" — and it is what stops the question coming back.
+ *  • ACCEPTING IS GATED ON THE PREVIEW, not on the caller. A patch built from a
+ *    preview that says `shouldAsk: false` never moves a task, whatever the
+ *    button passed, so a stale memo or a double-tap after the first write
+ *    cannot re-run a remap on already-remapped data and shorten the plan.
+ */
+export function startDayBasisAnswerPatch<
+  B extends CapturedBaselineLike,
+  N extends CapturedBaselineLike,
+>(
+  preview: StartDayBasisMigrationPreview,
+  accept: boolean,
+  /**
+   * The schedule's captured baseline snapshots, if it has any. Supplying them
+   * is what keeps the baseline ghost on the plan it was captured against — see
+   * {@link remapCapturedBaselineDays}. Omitting them is safe and simply leaves
+   * the snapshots out of the patch.
+   */
+  snapshots?: { baseline?: B | null; baselines?: N[] | null },
+): {
+  tasks?: ScheduleTask[];
+  startDayBasis: 'workingOrdinal';
+  totalDurationDays?: number;
+  criticalPathDays?: number;
+  baseline?: B | null;
+  baselines?: N[];
+} {
+  if (!accept || !preview.shouldAsk) return { startDayBasis: 'workingOrdinal' };
+  const baseline = snapshots?.baseline
+    ? remapCapturedBaselineDays(snapshots.baseline, preview.affectedRows)
+    : undefined;
+  const baselines = snapshots?.baselines
+    ? snapshots.baselines.map(b => remapCapturedBaselineDays(b, preview.affectedRows))
+    : undefined;
+  return {
+    tasks: preview.remappedTasks,
+    startDayBasis: 'workingOrdinal',
+    // The stored scalars were computed from the inflated plan; leaving them
+    // behind would show the old finish on every card that reads them instead of
+    // running the engine.
+    totalDurationDays: preview.remappedFinishDay,
+    criticalPathDays: preview.remappedFinishDay,
+    // Only present when something actually moved — an absent key cannot clobber
+    // the stored snapshot on the spread.
+    ...(baseline && baseline !== snapshots?.baseline ? { baseline } : {}),
+    ...(baselines && baselines.some((b, i) => b !== snapshots!.baselines![i]) ? { baselines } : {}),
+  };
+}
+
+/** The shape of `ProjectSchedule.baseline` and of one `baselines[]` entry. */
+export interface CapturedBaselineLike {
+  tasks: { id: string; startDay: number; endDay: number }[];
+}
+
+/**
+ * Move a captured baseline snapshot onto the same scale the tasks just moved to.
+ *
+ * `scheduleEngine.saveBaseline` and `scheduleOps.captureBaseline` both record
+ * `t.startDay` as it stood when the user pressed the button, so a snapshot taken
+ * on a legacy (calendar-index) schedule holds calendar indices. Remapping the
+ * tasks and not the snapshot leaves the Gantt's baseline ghost and every
+ * variance number two days per weekend adrift — silently, and permanently.
+ *
+ * TWO RULES, both of which make this safe to run unconditionally:
+ *
+ *  • A row is touched ONLY when its recorded `startDay` still equals the task's
+ *    STORED day. That is the proof the snapshot was captured on the scale we are
+ *    leaving. A snapshot captured before the rebase (working ordinals) matches
+ *    nothing and comes back untouched, which is correct — it was already right.
+ *  • `endDay` is shifted by the SAME delta rather than re-derived. Its scale is
+ *    not knowable here (`saveBaseline` stores `startDay + durationDays`, which
+ *    is neither reading cleanly), so the span is preserved rather than guessed.
+ *
+ * Returns the same reference when nothing moves.
+ */
+export function remapCapturedBaselineDays<T extends CapturedBaselineLike>(
+  snapshot: T,
+  affectedRows: readonly StartDayBasisAffectedRow[],
+): T {
+  if (affectedRows.length === 0 || !Array.isArray(snapshot?.tasks)) return snapshot;
+  const byId = new Map(affectedRows.map(r => [r.id, r]));
+  let changed = false;
+  const tasks = snapshot.tasks.map(bt => {
+    const row = byId.get(bt.id);
+    if (!row || bt.startDay !== row.storedDay) return bt;
+    const delta = row.remappedDay - row.storedDay;
+    if (delta === 0) return bt;
+    changed = true;
+    return { ...bt, startDay: bt.startDay + delta, endDay: bt.endDay + delta };
+  });
+  return changed ? { ...snapshot, tasks } : snapshot;
+}
+
+/** Which button the user pressed on `StartDayBasisNotice`. */
+export type StartDayBasisChoice = 'keep' | 'reAnchor';
+
+export interface StartDayBasisNoticeAction {
+  key: StartDayBasisChoice;
+  /** The boolean this button MUST hand to {@link startDayBasisAnswerPatch}. */
+  accept: boolean;
+  testID: string;
+}
+
+export interface StartDayBasisNoticeModel {
+  /** Whether the notice renders at all. */
+  visible: boolean;
+  /** The rows to name, with both readings. Empty when hidden. */
+  rows: StartDayBasisAffectedRow[];
+  /** In render order: decline first, then accept. Empty when hidden. */
+  actions: StartDayBasisNoticeAction[];
+}
+
+/**
+ * Everything about the notice that is a DECISION rather than a layout, in one
+ * pure function — so a guard can execute the binding between a button and the
+ * answer it sends instead of grepping a .tsx for `onReAnchor={...}`.
+ *
+ * That grep is not a hypothetical weakness. Rewiring the accept button to send
+ * `false` passed the old §4 checks at 88/0: it stamps the flag, retires the
+ * one-shot offer for good, and leaves the plan inflated while the user believes
+ * they just fixed it. The button→boolean binding is now data on this object,
+ * the component maps over it, and the guard asserts the values.
+ */
+export function startDayBasisNoticeModel(
+  preview: StartDayBasisMigrationPreview,
+): StartDayBasisNoticeModel {
+  if (!preview.shouldAsk) return { visible: false, rows: [], actions: [] };
+  return {
+    visible: true,
+    rows: preview.affectedRows,
+    actions: [
+      { key: 'keep', accept: false, testID: 'schedule-startday-basis-keep' },
+      { key: 'reAnchor', accept: true, testID: 'schedule-startday-basis-accept' },
+    ],
+  };
 }

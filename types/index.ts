@@ -994,6 +994,35 @@ export interface ProjectSchedule {
    *  refined per-project, but they can also live in a global library
    *  (separate storage). */
   fragnets?: ScheduleFragnet[];
+  /**
+   * "The user has confirmed which scale this schedule's `ScheduleTask.startDay`
+   * values are on." The flag that makes the legacy re-anchor offer ONE-SHOT.
+   *
+   * `'workingOrdinal'` is the only value, and it is the scale the CPM engine
+   * expects (see the contract at the top of `utils/cpm.ts`). It is written by
+   * exactly one thing: a user answering `StartDayBasisNotice`. BOTH answers
+   * write it — declining means "these numbers are the plan I want", which is
+   * what the engine already assumes — and that is what stops the question
+   * coming back.
+   *
+   * ABSENT is the normal state, for new schedules and old ones alike. It means
+   * "never asked", not "broken". A schedule may have been rewritten onto the
+   * CALENDAR-INDEX scale by `utils/scheduleRebase.ts` (deleted 2026-09-11),
+   * which fired the first time a start date was set and persisted the result;
+   * the engine now converts at its own `pins` line, so such a schedule is
+   * double-converted and reads up to a weekend per week too long.
+   * `cpm.detectStartDayBasis` tells the two apart from the data itself, so
+   * nothing has to be stamped at authoring time for a healthy schedule to be
+   * left alone.
+   *
+   * NOTHING ELSE MAY WRITE THIS. Not a load, not an edit, and above all not
+   * `buildScheduleFromTasks` (which was tried and reverted — see the note at
+   * its return statement): a rebuild spread over an existing record would forge
+   * a confirmation nobody gave and permanently retire the offer for the
+   * schedules that need it. `mergeEditedSchedule` therefore takes it from
+   * `existing` and never from the rebuild.
+   */
+  startDayBasis?: 'workingOrdinal';
   updatedAt: string;
 }
 

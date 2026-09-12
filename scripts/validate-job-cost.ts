@@ -417,6 +417,23 @@ console.log('\nthe Job Costing screen forwards both inputs and opens the records
   ok('…and forwards them into computeJobCost',
     /computeJobCost\(\{[\s\S]{0,400}equipment,\s*permits,[\s\S]{0,40}\}\)/.test(screen),
     'a screen that computes without them under-reports by exactly that money');
+  // A PRESENT CALL IS NOT A REACHED CALL (close-out pass 2026-09-11). The
+  // assertion above greps source text, so a guard clause added ABOVE the call
+  // leaves it green while the engine never runs — the blindness that let a
+  // blocker through two review layers elsewhere in this campaign. Pin the
+  // preamble: exactly one return between the memo's first line and the call,
+  // and it is the documented no-project bail.
+  {
+    const memoStart = screen.indexOf('const summary: JobCostSummary | null = useMemo(');
+    const callStart = screen.indexOf('return computeJobCost({', memoStart);
+    const preamble = memoStart >= 0 && callStart > memoStart ? screen.slice(memoStart, callStart) : '';
+    const returns = preamble.match(/\breturn\b/g) ?? [];
+    ok('…and that call is REACHED, not merely present',
+      preamble !== '' && returns.length === 1 && /if \(!project\) return null;/.test(preamble),
+      `a tier gate, a role gate or a loading bail in front of the engine would leave the assertion `
+      + `above green on a screen that never costs the job — preamble returns: ${returns.length}, `
+      + `text: ${JSON.stringify(preamble.trim())}`);
+  }
   ok('…and lists them in the useMemo deps, so logging a shift re-costs the job',
     // Trailing deps allowed — JOBCOST-PHASE-1 added `subcontractors` after
     // `permits`, and pinning the list to end there would make adding a real

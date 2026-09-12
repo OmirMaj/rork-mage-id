@@ -54,7 +54,17 @@ for (const { pattern, why } of BANNED) {
 // featureTiers.ts says Business, the site must not sell it as Pro or Free.
 const home = readFileSync('marketing/index.html', 'utf8');
 const badges = [...home.matchAll(/alt:'([^']+)',tier:'([^']+)'/g)].map(m => ({ alt: m[1], tier: m[2] }));
-ok('homepage brain cards carry tier badges', badges.length > 0);
+// `badges.length > 0` was the whole assertion here, which is slack pretending to
+// be a check: six of the seven cards could lose their badge and it stayed green,
+// and the EXPECTED loop below only reaches four of the seven. A floor instead,
+// so a deleted badge is a failure rather than a smaller list.
+const BADGE_FLOOR = 7;
+ok(`homepage brain cards carry tier badges: ${badges.length} (floor ${BADGE_FLOOR})`,
+  badges.length >= BADGE_FLOOR,
+  `${badges.length} badged cards, down from ${BADGE_FLOOR}. A card without a tier badge is a `
+  + 'capability the homepage sells without saying what it costs — which is how a Pro buyer ends '
+  + 'up at a Business wall. Raise the floor when you add a card; do not lower it to match a '
+  + 'deletion without saying why here.');
 
 // Capability → the feature key that actually gates it.
 const EXPECTED: { match: RegExp; key: keyof typeof REQUIRED_TIER }[] = [
@@ -62,6 +72,19 @@ const EXPECTED: { match: RegExp; key: keyof typeof REQUIRED_TIER }[] = [
   { match: /learned cost catalog/i, key: 'job_costing' },
   { match: /Cash-flow forecast/i, key: 'brain_accuracy' },
   { match: /Bid advisor/i, key: 'bid_scoring' },
+  // Added 2026-09-11. Keyed to ask_your_plans (Business) because that is what
+  // the SERVER enforces: supabase/functions/plan-extract/index.ts:150 is
+  // requireTier(req, ["business","enterprise"], "plan_extract"), and the extract
+  // is what makes a plan askable. Do not re-key it to ai_estimate_wizard (Pro)
+  // to match app/plan-intelligence.tsx:65 — the screen's entry gate is SOFTER
+  // than the server's, so a Pro subscriber gets through the door and the first
+  // upload 403s. That mismatch is a live defect in app/plan-intelligence.tsx and
+  // supabase/functions/plan-extract, both outside this file's area; the marketing
+  // badge must state the tier that actually delivers the feature, which is
+  // Business. utils/featureRegistry's row mirrors the screen gate on purpose
+  // (scripts/validate-nav-coverage.ts requires it to) — the two are answering
+  // different questions and both answers are recorded.
+  { match: /Plan sheets with conversational search/i, key: 'ask_your_plans' },
 ];
 for (const { match, key } of EXPECTED) {
   const badge = badges.find(b => match.test(b.alt));
@@ -745,12 +768,20 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // largest published-price competitor uses the same hedge on its own
     // pricing page. The hedge costs nothing and reads as more expert.
     //
-    // ONE EXCLUSION, NAMED. marketing/portal/index.html is the client-facing
-    // portal shell and is owned by the AIA work, not by the marketing copy —
-    // it is excluded here rather than silently passing, and the list is
-    // asserted not to grow, so the next page that needs an exemption has to be
-    // argued for rather than added.
-    const AIA_HEDGE_EXEMPT = ['marketing/portal/index.html'];
+    // NO EXCLUSIONS. The one that was here — marketing/portal/index.html, held
+    // out because the client portal belonged to the AIA work rather than to the
+    // marketing copy — is closed as of 2026-09-11. The portal was the page that
+    // needed it most: its drawer is the certificate the OWNER reads and prints,
+    // so it is the owner who would otherwise learn from their lender that an
+    // AIA-style pay application is not an AIA one. Both strings a client can see
+    // now say "AIA-style" (the drawer title and the section subtitle), the three
+    // CSS/JS comments that tripped this check say it too because it was the
+    // accurate word for them as well, and the drawer body carries the same
+    // trademark notice the generated PDF does (utils/aiaBilling.ts:2235), inside
+    // the body rather than the footer because the print rules drop the footer.
+    // Keep the list at zero: an exemption here is a page telling a GC or an
+    // owner they are getting an official AIA form.
+    const AIA_HEDGE_EXEMPT: string[] = [];
     const unqualified = pages.filter(p => {
       const t = prose(p).replace(/AIA-style/gi, '');
       return /AIA\s+(G70[23]|pay\s*app|Pay\s*App|billing|progress)/i.test(t);
@@ -758,8 +789,10 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     ok('every marketing mention of AIA is hedged as AIA-style',
       unqualified.every(p => AIA_HEDGE_EXEMPT.includes(p)),
       `unqualified AIA claim in: ${unqualified.filter(p => !AIA_HEDGE_EXEMPT.includes(p)).join(', ')}`);
-    ok('the AIA hedge exemption list has not grown', AIA_HEDGE_EXEMPT.length === 1,
-      'every page added here is a page that tells a GC they are getting an official AIA form');
+    ok('the AIA hedge exemption list is empty', AIA_HEDGE_EXEMPT.length === 0,
+      `still exempting ${AIA_HEDGE_EXEMPT.join(', ')} — every page listed here is a page that tells `
+      + 'a GC or an owner they are getting an official AIA form. The last one (portal/index.html) was '
+      + 'closed on 2026-09-11; it does not get reopened.');
 
     // Hedging the noun is half of it. The generated PDF carries a
     // non-affiliation notice (utils/aiaBilling.ts:937) and app/aia-pay-app.tsx
@@ -829,13 +862,17 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
   // ── 9. One nav, and the trust pages are reachable from everywhere ────────
   {
     const NAV = ['/playbook.html', '/features/', '/compare/', '/pricing.html', '/demo.html', '/support.html'];
-    // TWO PAGES NOT YET UNIFIED, NAMED RATHER THAN SKIPPED SILENTLY.
-    // marketing/brain/ and marketing/widget/ each carry a fourth and fifth nav
-    // variant and belong to other work in flight; they are listed here so the
-    // exception is visible and finite, and the count is asserted so the list
-    // cannot quietly grow into "the nav is whatever each page felt like".
-    const NAV_NOT_YET_UNIFIED = ['marketing/brain/index.html', 'marketing/widget/index.html'];
-    ok('the un-unified nav list is still just the two known pages', NAV_NOT_YET_UNIFIED.length === 2);
+    // NOTHING IS EXEMPT ANY MORE. marketing/brain/ (a fourth variant that
+    // self-linked and offered no How it works, Demo or Support) and
+    // marketing/widget/ (a fifth that dropped Features, Compare and Support)
+    // were held out here because they belonged to other work in flight. Both
+    // were unified on 2026-09-11, so the list is empty and the assertion below
+    // is what keeps it that way: a sixth variant cannot be waved through by
+    // adding a line here without the count going red.
+    const NAV_NOT_YET_UNIFIED: string[] = [];
+    ok('no page is exempt from the one-nav rule', NAV_NOT_YET_UNIFIED.length === 0,
+      `still exempt: ${NAV_NOT_YET_UNIFIED.join(', ')} — unify the nav instead. Three variants is `
+      + 'what made the site read as unfinished when a buyer opened two pages in a row.');
     // THE CHECK MUST LOOK INSIDE THE NAV, NOT AT THE WHOLE FILE.
     // The first version of this was `t.includes('href="/features/"')` over the
     // entire page, so a footer that happened to repeat the links satisfied it
@@ -863,6 +900,31 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     ok('every page with a primary nav carries the same six destinations',
       oddNav.length === 0,
       oddNav.length ? `three different navs shipped; odd ones out: ${oddNav.map(p => `${p} (missing ${NAV.filter(h => !navOf(p).includes(`href="${h}"`)).join(' ')})`).join(', ')}` : undefined);
+    // A PAGE WITH NO NAV AT ALL IS NOT COVERED BY THE ONE-NAV RULE — it is
+    // simply absent from navPages, and the rule above declares itself closed
+    // over a set that never included it. builders/ and costs/ are exactly that
+    // today: marketing pages a buyer can land on that carry only a brandbar
+    // logo link, so there is no way back into the site from either. The rest
+    // of the navless set is gated or utility (portal/sub-portal are signed-in,
+    // bid-invite/lien-waiver/unsubscribe/preferences are token surfaces, 404
+    // and icon-preview aren't destinations). Naming the whole set is the
+    // point: adding a seventh navless page has to be a deliberate edit here.
+    const NAVLESS_OK = [
+      'marketing/404.html', 'marketing/icon-preview.html',
+      'marketing/architect/index.html', 'marketing/bid-invite/index.html',
+      'marketing/lien-waiver/index.html', 'marketing/preferences/index.html',
+      'marketing/unsubscribe/index.html',
+      'marketing/portal/index.html', 'marketing/sub-portal/index.html',
+    ];
+    const NAVLESS_KNOWN_GAP = ['marketing/builders/index.html', 'marketing/costs/index.html'];
+    const navless = pages.filter(p => !navPages.includes(p) && !NAV_NOT_YET_UNIFIED.includes(p));
+    const unaccounted = navless.filter(p => !NAVLESS_OK.includes(p) && !NAVLESS_KNOWN_GAP.includes(p));
+    ok(`every page without a primary nav is one of the ${NAVLESS_OK.length + NAVLESS_KNOWN_GAP.length} accounted for`,
+      unaccounted.length === 0,
+      unaccounted.length ? `these ship with no way back into the site and no entry in either list: ${unaccounted.join(', ')} — give them the nav, or account for them here with a reason` : undefined);
+    ok('the navless marketing pages are still just builders/ and costs/',
+      NAVLESS_KNOWN_GAP.every(p => navless.includes(p)) && NAVLESS_KNOWN_GAP.length === 2,
+      `the gap list must shrink, never grow — a page that gained a nav comes off it: ${NAVLESS_KNOWN_GAP.filter(p => !navless.includes(p)).join(', ')}`);
 
     const TRUST = ['proof.html', 'who-built-this.html', 'changelog.html', 'switch.html'];
     for (const t of TRUST) ok(`marketing/${t} exists`, pages.includes(`marketing/${t}`));
@@ -870,11 +932,16 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // page that mentioned /proof.html once in its body passed with the strip
     // deleted. It now reads the strip element itself.
     const stripOf = (p: string) => /<nav class="trust-strip"[\s\S]*?<\/nav>/.exec(prose(p))?.[0] ?? '';
-    const missing = navPages.filter(p => {
-      const strip = stripOf(p);
-      return !strip || !TRUST.every(h => strip.includes(`href="/${h}"`));
-    });
-    ok('every public page links the trust pages', missing.length === 0,
+    // …AND IT RUNS OVER THE PAGES THAT CARRY A STRIP, NOT navPages. Keyed to
+    // navPages it silently skipped costs/index.html and builders/index.html —
+    // two public pages with a strip but no primary nav — so deleting the trust
+    // links out of either went green here. The footer check below independently
+    // requires a strip on every page that has a footer, so between the two
+    // there is no page left that can drop the links unnoticed.
+    const trustStripPages = pages.filter(p => stripOf(p).length > 0);
+    const missing = trustStripPages.filter(p => !TRUST.every(h => stripOf(p).includes(`href="/${h}"`)))
+      .concat(navPages.filter(p => !stripOf(p)));
+    ok(`every public page links the trust pages (${trustStripPages.length} strips)`, missing.length === 0,
       missing.length ? `a buyer checks for reviews in the second tab; staying silent reads as hiding — missing on: ${missing.join(', ')}` : undefined);
 
     // The strip sits in footers on BOTH grounds — ink on most pages, cream on
@@ -893,8 +960,27 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // skipped by a fuzzy rule, with the length pinned so it cannot grow.
     const NOT_PUBLIC = ['marketing/portal/index.html', 'marketing/sub-portal/index.html'];
     ok('the not-a-public-page list is still just the two gated surfaces', NOT_PUBLIC.length === 2);
-    const footerPages = pages.filter(p => /<footer/.test(prose(p)) && !NOT_PUBLIC.includes(p));
-    const stripPages = pages.filter(p => prose(p).includes('trust-strip'));
+    // A FOOTER IS NOT ALWAYS A <footer>. This was `/<footer/` alone until
+    // 2026-09-12, and three public pages build their footer out of a
+    // `<p class="foot">` plus a `<nav class="footnav">` instead of the element:
+    // calculator.html, costs/index.html (the Price Index) and
+    // widget/index.html. All three fell out of this list
+    // silently, so the strip could be deleted from any of them and nothing
+    // would say so — and costs/index.html never had one at all. Note the shape
+    // is matched on prose(), i.e. with HTML comments stripped: widget's own
+    // explanatory comment contains the literal string "<footer>", and matching
+    // the raw file would have let a COMMENT put a page on this list.
+    const hasFooter = (p: string) => {
+      const t = prose(p);
+      return /<footer/.test(t) || /class="foot"/.test(t) || /class="footnav"/.test(t);
+    };
+    const footerPages = pages.filter(p => hasFooter(p) && !NOT_PUBLIC.includes(p));
+    // THE ELEMENT, NOT THE WORD. This was `.includes('trust-strip')`, which a
+    // `.trust-strip a{…}` rule in <style> satisfies all by itself — so once the
+    // three sibling-footer pages got that rule (2026-09-12), deleting the strip
+    // MARKUP from one of them left this list unchanged and the "is it on every
+    // page" check below green over a page with no strip on it. Match the <nav>.
+    const stripPages = pages.filter(p => /<nav class="trust-strip"/.test(prose(p)));
     const stripless = footerPages.filter(p => !stripPages.includes(p));
     ok(`the trust strip is on every page that has a footer (${footerPages.length})`,
       stripless.length === 0,
@@ -908,6 +994,42 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     });
     ok('nothing in the trust strip overrides the footer\'s own text colour', recoloured.length === 0,
       recoloured.length ? `a muted span here measured 2.80:1 on the cream-ground pages — found in: ${recoloured.join(', ')}` : undefined);
+    // …BUT "no colour of its own" only works if something else supplies one.
+    // On the 32 pages whose strip sits INSIDE <footer> the footer's own link
+    // styling reaches it. On the three that build a footer out of
+    // <p class="foot"> the strip is a SIBLING of that <p>, so `.foot a` does
+    // NOT apply — and calculator.html, costs/index.html and widget/index.html
+    // all rendered their strip in the browser's default blue, the one link
+    // colour on those pages nobody chose. Every page's own comment claimed it
+    // "inherits the footer's colour"; none of the three did. So: either the
+    // strip is inside the footer element, or the page names a colour for it.
+    // THE CLOSED ELEMENT, NOT "THE WORD <footer APPEARS EARLIER IN THE FILE".
+    // `/<footer[\s\S]*?<nav class="trust-strip"/` proved only that the string
+    // `<footer` occurs somewhere above the strip, which is true on 32 of the 35
+    // strip pages whether the strip is inside that footer or a mile below its
+    // `</footer>`. Moving index.html's whole `<nav class="trust-strip">…</nav>`
+    // to immediately AFTER `</footer>` — which is precisely the defect this
+    // assertion exists to catch, since `footer a` then no longer reaches it —
+    // left the run at 209/0. Extract each closed <footer> and look inside it.
+    // And read the RULE off prose() as well: this line used to read the RAW
+    // file while the line above read prose(), so wrapping the live rule in an
+    // HTML comment (`<!-- .trust-strip a{color:var(--muted)} -->`) turned it
+    // into dead CSS that still satisfied the check, on a page whose strip then
+    // rendered UA-default blue. The footerPages comment above congratulates
+    // itself for avoiding exactly this trap two dozen lines earlier.
+    const noColourSource = stripPages.filter(p => {
+      const t = prose(p);
+      const insideFooter = (t.match(/<footer\b[\s\S]*?<\/footer>/g) ?? [])
+        .some(f => /<nav class="trust-strip"/.test(f));
+      const hasRule = /\.trust-strip a\s*\{[^}]*color\s*:/.test(t);
+      return !insideFooter && !hasRule;
+    });
+    ok('every trust strip has a link colour that the page actually chose',
+      noColourSource.length === 0,
+      `the strip is outside <footer> and no \`.trust-strip a{color:…}\` rule exists on: `
+      + `${noColourSource.join(', ')} — it will render in the UA default blue. Add the rule next `
+      + 'to that page\'s own `.foot a`, using the same token, rather than a literal colour inside '
+      + 'the strip markup (the check above bans that, for good reason).');
     const badBorder = stripPages.filter(p => !readFileSync(p, 'utf8').includes('border-top:1px solid rgba(128,128,128,0.3)'));
     ok('the trust strip\'s rule reads on a light footer as well as a dark one', badBorder.length === 0,
       badBorder.length ? `a white-alpha border is invisible on the cream pages — found in: ${badBorder.join(', ')}` : undefined);
@@ -976,6 +1098,77 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       `they were three different policies once, one of them a 90-day window nothing in the code enforces: ${texts.map((t, i) => `${RETENTION[i]}=${t.slice(0, 60)}`).join(' || ')}`);
     ok('no page still promises the retention window nothing enforces',
       !pages.some(p => /90 days after (you )?cancel/i.test(prose(p))));
+
+    // (b2) THE OPERATIVE CANCELLATION AND REFUND CLAUSE. The retention
+    // paragraph above is a FAQ answer; terms.html section 3 is the agreement,
+    // and until 2026-09-11 its three billing bullets named only a store
+    // subscription: cancel in Settings -> Apple ID -> Subscriptions, "refund
+    // requests are handled by Apple (App Store) or Google (Play Store)", and
+    // "MAGE ID does not directly issue refunds for in-app purchases". There is
+    // no App Store listing (itunes lookup on id 6762229238 and on bundleId
+    // com.mageid.app both return resultCount 0), so a customer we billed
+    // directly was told to cancel somewhere they cannot and told their refund
+    // was somebody else's to issue. The previous wave declined to touch it and
+    // deliberately shipped NO assertion, on the grounds that a red assertion on
+    // a file nobody could edit blocks ship-check for everyone. The file is
+    // edited now, so the assertion lands with it.
+    //
+    // WHAT IS PINNED: each bullet names the DIRECT route as well as the store
+    // one. Not "mentions an email somewhere on the page" — the bullet itself,
+    // located by its own <strong> label, so deleting the direct route out of
+    // the Refunds bullet cannot be covered by the Cancellation bullet's copy.
+    {
+      const termsSrc = prose('marketing/terms.html');
+      const bulletOf = (label: string) =>
+        (new RegExp(`<li><strong>${label}:</strong>([\\s\\S]*?)</li>`).exec(termsSrc)?.[1] ?? '')
+          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+      const cancel = bulletOf('Cancellation');
+      const refunds = bulletOf('Refunds');
+      const trials = bulletOf('Free trials');
+      // Found at all. Without this the three checks below pass on empty strings
+      // the moment a label is renamed — the presence-test failure this campaign
+      // keeps paying for, inverted.
+      ok('the three billing bullets in terms.html section 3 are locatable',
+        cancel.length > 80 && refunds.length > 80 && trials.length > 40,
+        `lengths ${cancel.length}/${refunds.length}/${trials.length} — if a <strong> label was `
+        + 'renamed, teach this check the new one; do not let it read an empty bullet as compliant.');
+
+      ok('the cancellation clause gives a route for a plan we billed directly',
+        /help@mageid\.app/.test(cancel) && /billed you directly/i.test(cancel),
+        `terms.html Cancellation reads: "${cancel.slice(0, 160)}…" — a store-only route leaves a `
+        + 'directly-billed customer with no way to cancel, in the operative agreement.');
+
+      ok('the refunds clause does not disclaim every refund as a store\'s job',
+        /help@mageid\.app/.test(refunds)
+        && !/MAGE ID does not directly issue refunds/i.test(refunds),
+        `terms.html Refunds reads: "${refunds.slice(0, 160)}…"`);
+
+      // And it must not contradict the pricing page, which publishes the same
+      // policy in a FAQ. One sentence, both places.
+      const DIRECT_REFUND_POLICY =
+        "monthly plans don't refund partial months; annual plans get a prorated refund within 30 days";
+      const pricingSrc = prose('marketing/pricing.html').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      ok('the direct-refund terms are identical on terms.html and pricing.html',
+        refunds.includes(DIRECT_REFUND_POLICY) && pricingSrc.includes(DIRECT_REFUND_POLICY),
+        `terms=${refunds.includes(DIRECT_REFUND_POLICY)} pricing=${pricingSrc.includes(DIRECT_REFUND_POLICY)} `
+        + '— a refund policy that differs between the agreement and the pricing page is the version '
+        + 'the customer quotes back, and the one they quote is the one on the page they were sold on.');
+
+      // The store references that ARE legitimate must survive the cleanup. The
+      // Apple-EULA notice in section 17 is required of anything distributed
+      // through the App Store, and the store-bought halves of the bullets above
+      // are correct for a store-bought subscription. Someone "removing the App
+      // Store references" would delete exactly these.
+      ok('the Apple EULA notice in terms.html section 17 is still there',
+        /Licensed Application End User License Agreement|Apple['’]s standard EULA|End User License Agreement/i.test(termsSrc),
+        'section 17 is the notice Apple requires of an App Store app, not a claim about a listing.');
+      ok('the store-bought route is still described for a store-bought subscription',
+        /Apple ID → Subscriptions/.test(cancel) && /Google Play/.test(cancel)
+        && /App Store or Google Play/i.test(refunds),
+        'the fix was to ADD the direct route, not to delete the store one — a subscription bought '
+        + 'in the app really is managed and refunded by that store.');
+    }
 
     // (c) THE METRO LIST. features/marketplace.html names the nine metros the
     // supplier directory queries. They are a literal array in the edge

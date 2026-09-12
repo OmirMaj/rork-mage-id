@@ -42,7 +42,7 @@ import {
 import DatePickerModal from '@/components/DatePickerModal';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
-  milestoneBillability, milestoneBlockMessage, deriveMilestoneInvoiceLine, milestoneInvoiceNote,
+  milestoneBillability, milestoneBillEffect,
   contractBilledToDate, attributableContractBilling,
   type MilestoneBillability,
 } from '@/utils/billingFlowCore';
@@ -259,22 +259,26 @@ function ContractScreenInner() {
   // runs, so a GC who opens the editor and backs out leaves it 'pending'.
   const handleCreateInvoiceFromMilestone = useCallback((m: PaymentMilestone) => {
     if (!contract || !projectId) return;
-    const bill = billabilityFor(m);
-    if (!bill.billable) {
+    // The decision — refuse, or compose — is made in utils/billingFlowCore.ts
+    // so it can be EXECUTED by a test; this handler only performs the effect it
+    // returns. The union is what makes the refusal binding: `effect.line` does
+    // not exist on the `refuse` arm, so removing the `return` below is a
+    // compile error rather than a homeowner billed 125% of the contract.
+    const effect = milestoneBillEffect(billabilityFor(m), m, contract);
+    if (effect.kind === 'refuse') {
       showAlert(
-        'Can’t bill this milestone',
-        milestoneBlockMessage(bill.reason!, bill.ceiling, bill.amount),
-        bill.existingInvoiceId
+        effect.title,
+        effect.message,
+        effect.existingInvoiceId
           ? [
               { text: 'Close', style: 'cancel' },
-              { text: 'Open invoice', onPress: () => router.push({ pathname: '/invoice', params: { projectId, invoiceId: bill.existingInvoiceId! } } as never) },
+              { text: 'Open invoice', onPress: () => router.push({ pathname: '/invoice', params: { projectId, invoiceId: effect.existingInvoiceId! } } as never) },
             ]
           : undefined,
       );
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const line = deriveMilestoneInvoiceLine(m, contract.contractValue);
     router.push({
       pathname: '/invoice',
       params: {
@@ -282,9 +286,9 @@ function ContractScreenInner() {
         // 'quick' keeps the editor to a single line if prefill parsing ever
         // fails, instead of dragging the whole estimate in behind the milestone.
         type: 'quick',
-        prefillLines: JSON.stringify([line]),
-        prefillNotes: milestoneInvoiceNote(m, contract.title),
-        milestoneId: m.id,
+        prefillLines: JSON.stringify([effect.line]),
+        prefillNotes: effect.note,
+        milestoneId: effect.milestoneId,
         contractId: contract.id,
       },
     } as never);

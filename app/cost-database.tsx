@@ -25,7 +25,10 @@ import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
-import { buildCostDatabase, type CostBookEntry, type CostSample } from '@/utils/costDatabase';
+import {
+  buildCostDatabase, commitmentsMissingContractSum, missingContractSumNotice,
+  type CostBookEntry, type CostSample,
+} from '@/utils/costDatabase';
 import { useCostBenchmark } from '@/hooks/useCostBenchmark';
 import CostTruthChip from '@/components/CostTruthChip';
 import { Type } from '@/constants/typography';
@@ -172,6 +175,18 @@ function CostDatabaseInner() {
   // would be exactly the invisible degradation this screen exists to prevent.
   const awaiting = db.entriesAwaitingEvidence ?? [];
 
+  // …and the hole the book CANNOT show as a row, because the line never became
+  // a sample: a finished job with money paid against a commitment that has no
+  // contract amount. The engine refuses that payment as rate evidence on
+  // purpose (taking it raw is the 10x deposit error from the other side), and
+  // until now refusing it was completely silent — the GC paid a sub, closed the
+  // job, and his prices learned nothing with no sentence saying why. Open half
+  // of the audit's Issue 8.
+  const missingSums = useMemo(
+    () => commitmentsMissingContractSum(projects, commitments),
+    [projects, commitments],
+  );
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -283,6 +298,21 @@ function CostDatabaseInner() {
                     The brain is grading itself — first results after your predictions resolve.
                   </Text>
                 </View>
+              )}
+            </View>
+          )}
+
+          {missingSums.length > 0 && (
+            <View style={styles.gapCard} testID="cost-db-missing-contract-sum">
+              <Text style={styles.gapTitle}>Payments that taught nothing</Text>
+              <Text style={styles.gapBody}>{missingContractSumNotice(missingSums)}</Text>
+              {missingSums.slice(0, 4).map(r => (
+                <Text key={r.commitmentId} style={styles.gapRow} numberOfLines={1}>
+                  {r.projectName} · {r.vendorName || r.description || 'commitment'} · {formatRate(r.paidToDate)} paid
+                </Text>
+              ))}
+              {missingSums.length > 4 && (
+                <Text style={styles.gapRow}>+{missingSums.length - 4} more</Text>
               )}
             </View>
           )}
@@ -511,6 +541,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   kpiSub: { fontSize: Type.caption1.fontSize, color: t.textMuted },
 
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 10 },
+
+  gapCard: {
+    backgroundColor: t.warningSoft, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.warningLabel + '33',
+    padding: 14, marginBottom: 16, gap: 6,
+  },
+  gapTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.warningLabel },
+  gapBody: { fontSize: Type.caption1.fontSize, lineHeight: 17, color: t.text },
+  gapRow: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600' as const },
 
   card: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.card,

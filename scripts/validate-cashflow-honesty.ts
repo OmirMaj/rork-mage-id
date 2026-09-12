@@ -395,7 +395,26 @@ console.log('\n  5. timing follows the schedule');
   const sevenDayWeek = weeksTouched(project('p1', 20, 0, 'in_progress', 7));
   check('a five-day week stretches the draw further than a seven-day week',
     fiveDayWeek > sevenDayWeek, `5/wk touched ${fiveDayWeek} weeks, 7/wk touched ${sevenDayWeek}`);
-  const blackout = [1, 2, 3, 4, 5].map(n => toCalendarDayString(dayOffset(n * 7)));
+  // WORKING days only, and that is the whole point of the assertion below: a
+  // shutdown can only STRETCH a draw if it falls on a day the crew would have
+  // worked. `n * 7` was the original spacing and it is a date-dependent trap —
+  // every offset lands on the SAME weekday as `today`, so when the suite runs on
+  // a Saturday or a Sunday all five blackouts are days a five-day week already
+  // skips, the shutdown changes nothing, and the check fails for a reason that
+  // has nothing to do with the engine. Found 2026-09-12, a Saturday; it had
+  // passed the day before. The section comment above promises this holds "on
+  // every weekday", so make that true rather than weakening the claim: step
+  // forward one WORKING day at a time from the schedule start, which is exactly
+  // the walk the engine itself performs.
+  const workingDayOffsets: number[] = [];
+  for (let d = 1; workingDayOffsets.length < 5; d++) {
+    const dow = dayOffset(d).getDay();
+    if (dow === 0 || dow === 6) continue;   // the five-day week these fixtures use
+    if (workingDayOffsets.length === 0 || d - workingDayOffsets[workingDayOffsets.length - 1] >= 3) {
+      workingDayOffsets.push(d);
+    }
+  }
+  const blackout = workingDayOffsets.map(d => toCalendarDayString(dayOffset(d)));
   const withShutdown = weeksTouched(project('p1', 20, 0, 'in_progress', 5, blackout));
   check("...and the project's own non-working days stretch it further again",
     withShutdown > fiveDayWeek, `${withShutdown} weeks with a shutdown vs ${fiveDayWeek} without`);

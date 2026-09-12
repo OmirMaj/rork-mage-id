@@ -41,6 +41,7 @@ import {
   describeWipRowSources, wipSourceLabel,
   WIP_SOURCE_LABELS, WIP_COST_OVERRIDE_LABELS,
   WIP_SOURCE_UNRECORDED, WIP_SOURCE_UNRECOGNIZED, WIP_COST_TO_DATE_CAVEAT,
+  WIP_COST_TO_DATE_COMPLETE, wipRowCostBasisSentence,
   type WipCostToDateSource,
   type WipSnapshotRowWithSources, type WipPeriodWithSources,
 } from '../utils/wip';
@@ -83,6 +84,30 @@ function bodyOf(file: string, marker: string): string {
   return end < 0 ? file.slice(at) : file.slice(at, end + 2);
 }
 
+/**
+ * ONE useCallback's body — declaration to its dependency array.
+ *
+ * `bodyOf` above cannot do this and must not be used for it. Its end marker is
+ * the first `}` in COLUMN 0, which is correct for a module-level function and
+ * catastrophically wrong for a callback nested inside a component: measured on
+ * this repo's own screen, `bodyOf(SCREEN_SRC, 'const commitDrillCost =
+ * useCallback(')` returned 50,410 characters — half of app/wip-report.tsx —
+ * against the handler's real 2,408. Every assertion in section 5 below claimed
+ * to be "scoped to commitDrillCost" and was in fact scoped to half the screen,
+ * so a statement living in any other handler satisfied it. That is the same
+ * failure as a presence test wearing a narrower label: the assertion passes
+ * while the thing it names does not hold.
+ *
+ * The end marker is the closing `}, [` of the dependency array, which every
+ * useCallback in this codebase carries on its own line.
+ */
+function callbackBodyOf(file: string, decl: string): string {
+  const at = file.indexOf(decl);
+  if (at < 0) return '';
+  const end = file.indexOf('\n  }, [', at);
+  return end < 0 ? '' : file.slice(at, end);
+}
+
 /** Every object literal that is `return`ed from a body, as raw text. */
 function returnedLiterals(body: string): string[] {
   const out: string[] = [];
@@ -111,6 +136,11 @@ function withoutComments(file: string): string {
       return !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*');
     })
     .join('\n');
+}
+
+/** The export's own escaper, mirrored so an assertion compares like with like. */
+function escapeForHtml(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
 const WIP_SRC = read('utils/wip.ts');
@@ -388,12 +418,87 @@ console.log('\nthe PDF a GC hands his surety carries the footnotes:');
   ok('the cost-to-date caveat the PDF used to drop is on the page',
     html.includes(WIP_COST_TO_DATE_CAVEAT.replace(/&/g, '&amp;'))
     && /lower bound/i.test(WIP_COST_TO_DATE_CAVEAT));
+  // …AND IT IS THE CAVEAT THESE ROWS EARNED, not a constant (F4, audit
+  // 2026-09-11). The period above contains a pre-provenance row, so the
+  // lower-bound sentence is correct FOR IT — which means the assertion above
+  // passes just as happily when the export goes back to printing that sentence
+  // unconditionally. Mutation-tested: replacing wipCostToDateCaveat(period.rows)
+  // with the literal left every guard in the repo green. A period whose rows all
+  // carry `recorded_actual_cost` is NOT a lower bound, and a PDF that tells a
+  // bank it is understates a complete figure — the same dishonesty as the
+  // omission the caveat was written for, pointed the other way.
+  {
+    const wiredRow: WipSnapshotRowWithSources = {
+      ...sourced,
+      sources: { ...sourced.sources!, costToDate: 'recorded_actual_cost' },
+    };
+    const wiredPeriod: WipPeriodWithSources = {
+      ...period, rows: [wiredRow], portfolioTotals: computeWipPortfolio([wiredRow]),
+    };
+    const wiredHtml = buildWipHtml(wiredPeriod, 'MAGE Construction');
+    ok('a period built from every recorded cost source says so instead',
+      wiredHtml.includes(WIP_COST_TO_DATE_COMPLETE.replace(/&/g, '&amp;')),
+      'the export must derive the sentence from the rows, never print a constant');
+    ok('…and does NOT call a complete figure a lower bound',
+      !/LOWER BOUND/.test(wiredHtml));
+    ok('…while a period carrying one unwired row still warns, on the whole page',
+      buildWipHtml(period, 'MAGE Construction').includes(
+        WIP_COST_TO_DATE_CAVEAT.replace(/&/g, '&amp;')));
+  }
   ok('a row with no provenance says so on the PDF too',
     html.includes(WIP_SOURCE_UNRECORDED));
   // buildWipHtml is what shareWipPeriodPdf renders — a footnote helper nobody
   // calls is not a disclosure.
   ok('buildWipHtml actually renders the footnote helper',
     /\$\{footnotesHtml\(period\)\}/.test(EXPORT_SRC));
+
+  // ── F19: THE FOOTNOTE REPRODUCES THE COST-BASIS SENTENCE ────────────────
+  //
+  // EXECUTED, not grepped. The footnote used to name the branch ("Linked
+  // estimate — base total (cost before markup)") and stop, while the drill-in one
+  // tap away printed the sentence a banker can act on: what the other candidates
+  // were, and what the convention between them costs the reader if it is wrong
+  // for his job. The document that leaves the building explained less than the
+  // screen it came from.
+  {
+    const basisRow: WipSnapshotRowWithSources = {
+      ...sourced,
+      sources: { ...sourced.sources!, totalEstimatedCost: 'estimate_base_total' },
+      costBasis: {
+        estimateBasis: 1_120_000, committedFloor: 420_000, incurredFloor: 340_000,
+        basis: 'estimate',
+      },
+    };
+    const withBasis = buildWipHtml(
+      { ...period, rows: [basisRow], portfolioTotals: computeWipPortfolio([basisRow]) },
+      'MAGE Construction',
+    );
+    const sentence = wipRowCostBasisSentence(basisRow);
+    ok('a row carrying its candidates gets a reconstructed cost-basis sentence',
+      sentence !== null && /\$1,120,000/.test(sentence!) && /\$420,000/.test(sentence!),
+      String(sentence));
+    ok('…and the PDF prints that exact sentence, not a paraphrase',
+      withBasis.includes(escapeForHtml(sentence!)),
+      'the footnote must render wipRowCostBasisSentence, not re-derive its own wording');
+    ok('…naming what the convention costs the reader if it is wrong for his job',
+      /never priced/.test(sentence!));
+    // A row that predates the candidates prints NOTHING here — a sentence
+    // rebuilt from two candidates and a zero would explain a figure the period
+    // was never struck against.
+    ok('a row frozen before the candidates shipped gets no invented sentence',
+      wipRowCostBasisSentence(sourced) === null
+      && wipRowCostBasisSentence(legacy) === null);
+    // The overspend clause has to survive the freeze: it is the one sentence on
+    // the page that says the margin above it is overstated.
+    const overspent: WipSnapshotRowWithSources = {
+      ...basisRow,
+      input: { ...basisRow.input, costToDate: 1_300_000 },
+      costBasis: { ...basisRow.costBasis!, incurredFloor: 1_300_000 },
+    };
+    ok('…and an overspent frozen row still says the margin above it is overstated',
+      /MORE than the cost at completion/.test(wipRowCostBasisSentence(overspent) ?? ''),
+      String(wipRowCostBasisSentence(overspent)));
+  }
 }
 
 // ── 4. The screen puts provenance ON the snapshot ──────────────────────────
@@ -402,9 +507,25 @@ console.log('\nthe WIP screen records provenance on the rows it freezes:');
   ok('liveRows are typed as rows that carry sources',
     /const liveRows: WipSnapshotRowWithSources\[\]/.test(SCREEN_SRC));
   ok('…and every snapshot row is built with its sources attached',
-    /output: computeWipRow\(input\), sources \}/.test(SCREEN_SRC));
+    /output: computeWipRow\(input\), sources,/.test(SCREEN_SRC));
   ok('the figure and its source come out of ONE call, so they cannot drift',
-    /const \{ input, sources \} = buildRow\(p\)/.test(SCREEN_SRC));
+    /const \{ input, sources, cost \} = buildRow\(p\)/.test(SCREEN_SRC));
+  // F19 (audit 2026-09-11): the THREE COST-AT-COMPLETION CANDIDATES are frozen
+  // with the row too. Without them the exported footnote could name the branch
+  // that produced a cost at completion and could not reproduce
+  // `describeCostBasis` — so the PDF a GC hands his surety explained LESS than
+  // the drill-in it came from, on the one screen whose whole argument is that a
+  // derived figure must say where it came from.
+  ok('…and the cost-at-completion CANDIDATES are frozen with it too',
+    /costBasis: \{\s*estimateBasis: cost\.estimateBasis,\s*committedFloor: cost\.committedFloor,\s*incurredFloor: cost\.incurredFloor,\s*basis: cost\.basis,\s*\},/
+      .test(SCREEN_SRC),
+    'without the candidates the frozen footnote cannot reproduce describeCostBasis');
+  // …and the row must NOT carry a second copy of the winner or its source. Both
+  // are already on it (wipRowCostAtCompletion / sources.totalEstimatedCost), and
+  // a snapshot holding one figure twice is a snapshot that can disagree with
+  // itself after an edit.
+  ok('…without storing the winner or its source a second time',
+    !/costBasis: \{[^}]*\bvalue:/.test(SCREEN_SRC) && !/costBasis: \{[^}]*\bsource:/.test(SCREEN_SRC));
   ok('a typed cost-to-date is recorded as typed, and says whether it has synced',
     /'entered_and_synced'/.test(SCREEN_SRC) && /'entered_on_this_device'/.test(SCREEN_SRC));
   ok('the override is written through the offline queue, never a direct upsert',
@@ -428,8 +549,32 @@ console.log('\nthe WIP screen records provenance on the rows it freezes:');
 // GC's other device.
 console.log('\nan override the GC typed can be taken back off:');
 {
-  const commit = bodyOf(SCREEN_SRC, 'const commitDrillCost = useCallback(');
-  ok('commitDrillCost was found (every assertion below is scoped to it)', commit.length > 300);
+  const commit = callbackBodyOf(SCREEN_SRC, 'const commitDrillCost = useCallback(');
+  ok('commitDrillCost was found (every assertion below is scoped to it)',
+    commit.length > 300 && commit.length < SCREEN_SRC.length / 8,
+    `the slice is ${commit.length} chars of a ${SCREEN_SRC.length}-char file — if it is most of the `
+    + 'screen then "scoped to it" is false and every assertion below can be satisfied by another handler');
+  // …AND IT IS REACHABLE. Every assertion below this line matches a STATEMENT
+  // inside the handler, and a statement keeps matching with an inverted guard
+  // clause bolted on above it. That is not hypothetical: the sibling handler
+  // `commitDrillEtc` was killed by inserting `if (drillProjectId) return;` at its
+  // top, which removed the top blocker's entire fix while all four WIP validators
+  // stayed at 100%. This handler is the OTHER half of the drill-in — it is what
+  // records the cost-to-date a GC types over MAGE's figure, and an inverted first
+  // guard makes that box do nothing on every real project, silently, with the
+  // typed number still appearing in the field until the sheet closes.
+  //
+  // So pin the SHAPE: exactly the six exits it is supposed to have, and the first
+  // one is the negated test.
+  {
+    const returns = [...commit.matchAll(/\breturn\b/g)].length;
+    ok('…and nothing short-circuits the cost-to-date commit before it runs',
+      returns === 6 && /^\s*if \(!drillProjectId\) return;$/m.test(commit),
+      `${returns} return statement(s) in commitDrillCost; expected exactly six — `
+      + '!drillProjectId, !project, unparseable, !override, the tombstone bail, and the '
+      + 'unchanged-value bail. An extra one makes the typed cost-to-date record nothing '
+      + 'and every assertion below here stays green.');
+  }
   ok('an empty or unparseable box is not read as $0 of incurred cost',
     !/Number\.isFinite\(typed\)\s*\?\s*typed\s*:\s*0/.test(commit)
     && /emptied/.test(commit)
@@ -457,7 +602,7 @@ console.log('\nan override the GC typed can be taken back off:');
   // so the clear now travels on the upsert path that already works, and the
   // guard has to assert the sync rather than forbid it.
   ok('a clear SYNCS, so the other device cannot restore the rejected number',
-    /cleared: entry\.cleared === true/.test(bodyOf(SCREEN_SRC, 'const pushOverride = useCallback('))
+    /cleared: entry\.cleared === true/.test(callbackBodyOf(SCREEN_SRC, 'const pushOverride = useCallback('))
     && !/if \(entry\.cleared\) return;/.test(SCREEN_SRC),
     'the tombstone must reach the server as `cleared: true`, not be swallowed before the write');
   ok('…and a clear made offline is backfilled like any other pending write',

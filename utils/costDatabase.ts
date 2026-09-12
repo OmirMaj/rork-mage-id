@@ -686,6 +686,77 @@ export function buildCostDatabase(
 }
 
 /**
+ * A commitment on a CLOSED job that has money paid against it and NO contract
+ * sum — the one hole in the cost ladder above that the contractor cannot see.
+ *
+ * WHY IT MATTERS. The ladder refuses this line as rate evidence on purpose:
+ * `committed` is 0, so nothing can settle, and taking the raw payment is the
+ * mobilization-deposit 10x error reached from the other side (a $1,200 draw on
+ * a 30 SQ roof taught $40/SQ against a true $400/SQ). Silence is the honest
+ * answer for the RATE. It is the wrong answer for the CONTRACTOR: he paid a
+ * sub, closed the job, and his price book learned nothing, with no sentence
+ * anywhere telling him a blank contract amount is the reason. That is exactly
+ * the invisible degradation this engine exists to be the cure for — the audit
+ * logged it as the open half of Issue 8.
+ *
+ * Both doors are counted: `amount` never filled in, and a deductive change
+ * order that cancelled it out, because `(amount + changeAmount) <= 0` is what
+ * utils/estimateActuals actually allocates and therefore what silences the
+ * line. Drafts are excluded — an unsigned commitment is not a hole in the
+ * record, it is a commitment that does not exist yet.
+ *
+ * Pure; a screen passes the same two arrays it hands buildCostDatabase.
+ */
+export interface CommitmentMissingContractSum {
+  commitmentId: string;
+  projectId: string;
+  projectName: string;
+  vendorName: string;
+  description: string;
+  /** Dollars paid against a contract sum nobody recorded. */
+  paidToDate: number;
+}
+
+export function commitmentsMissingContractSum(
+  projects: Project[],
+  commitments: Commitment[],
+): CommitmentMissingContractSum[] {
+  const closed = new Map(projects.filter(isClosed).map(p => [p.id, p]));
+  const out: CommitmentMissingContractSum[] = [];
+  for (const c of commitments) {
+    if (c.status === 'draft') continue;
+    const project = closed.get(c.projectId);
+    if (!project) continue;
+    const contract = (c.amount || 0) + (c.changeAmount || 0);
+    const paid = Math.max(0, c.paidToDate || 0);
+    if (contract > 0 || paid <= 0) continue;
+    out.push({
+      commitmentId: c.id,
+      projectId: c.projectId,
+      projectName: project.name,
+      vendorName: (c.vendorName || '').trim(),
+      description: (c.description || '').trim(),
+      paidToDate: paid,
+    });
+  }
+  // Biggest unexplained payment first — that is the record most worth fixing.
+  return out.sort((a, b) => b.paidToDate - a.paidToDate
+    || (a.commitmentId < b.commitmentId ? -1 : a.commitmentId > b.commitmentId ? 1 : 0));
+}
+
+/** The sentence the price book owes a contractor whose payment taught nothing. */
+export function missingContractSumNotice(rows: CommitmentMissingContractSum[]): string {
+  if (rows.length === 0) return '';
+  const n = rows.length;
+  const subject = n === 1 ? 'One commitment' : `${n} commitments`;
+  const verb = n === 1 ? 'has' : 'have';
+  return `${subject} on a finished job ${verb} money paid against `
+    + `${n === 1 ? 'it' : 'them'} and no contract amount. A payment with no contract sum behind it `
+    + 'cannot say what the scope cost, so it teaches your prices nothing — fill in the amount and '
+    + `${n === 1 ? 'that job' : 'those jobs'} will start correcting your rates.`;
+}
+
+/**
  * Look up a learned rate for a trade+unit — used by the estimate-confidence
  * layer (Build A3) to flag a line whose price deviates from your history.
  */
@@ -726,11 +797,17 @@ export function lookupRate(db: CostDatabase, trade: string, unit: string): CostB
  *    stream. Two ways that happened, and the first version of this function
  *    only closed one of them.
  *
- *    (a) The CALLER hands over a partial world. Most cost-book consumers do:
- *        app/cost-xray, app/area-takeoff, app/daily-report,
- *        utils/bidLevelingEngine and components/BidConfidenceBadge all pass
- *        receipts and `[]` for labor; app/takeoff-estimate passes neither
- *        (docs/audits 2026-09-11, the "one book, one answer" finding). Summing
+ *    (a) The CALLER hands over a partial world. Several cost-book consumers
+ *        still do: app/cost-xray, app/area-takeoff, app/daily-report and
+ *        components/BidConfidenceBadge pass receipts and `[]` for labor, and
+ *        utils/bidLevelingEngine names all five but its two screens
+ *        (app/bid-leveling, app/buyout-package) never put anything in the
+ *        labor one (docs/audits 2026-09-11, the "one book, one answer"
+ *        finding; the census in scripts/validate-cost-seed §17e pins the list
+ *        one-directionally). app/takeoff-estimate used to pass NEITHER — the
+ *        worst case, and the one sitting three lines under a comment promising
+ *        "a price here and a price there can never disagree" — and now passes
+ *        all five. Summing
  *        whichever streams arrived made the SAME trade+unit key carry a
  *        different rate on every screen: the 2,400 SF framing job below
  *        measured $4.49/SF on the full book, $2.33/SF with receipts only and

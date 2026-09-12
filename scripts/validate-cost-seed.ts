@@ -38,7 +38,10 @@ import {
   type SeededRate, type SeededRateDraft,
 } from '../utils/costSeedCore';
 import { buildCostDatabase, lookupRate } from '../utils/costDatabase';
-import { matchOwnRate, normalizeUnit, priceSourceLabel } from '../utils/takeoffPricing';
+import {
+  matchOwnRate, normalizeUnit, priceSourceLabel,
+  TAKEOFF_ROW_SECTIONS, takeoffRowKey, takeoffQuantityResolver,
+} from '../utils/takeoffPricing';
 import { priceTakeoff } from '../utils/takeoffEstimate';
 import { REQUIRED_TIER } from '../utils/featureTiers';
 import { computeEstimateConfidence } from '../utils/estimateConfidence';
@@ -450,8 +453,15 @@ ok('…and its empty cost book points at the fix instead of just confessing',
   'the "priced from market averages" state must be actionable');
 ok('the cost database empty state offers seeding as step one',
   /'\/cost-seed'/.test(src('app/cost-database.tsx')));
+// Matched on the LAST argument, not on the whole list. This assertion used to
+// pin `(projects, commitments ?? [], [], [], seeds)` verbatim — i.e. it pinned
+// the two EMPTY streams as well, so threading receipts and clocked labor into
+// this screen (audit 2026-09-11, F10/C8) failed a guard whose subject is seeds.
+// That is the same self-defeating shape §12 already corrected for the levelBids
+// callers. The stream shape is pinned positionally in §17e, where it belongs.
 ok('the takeoff pricer sees seeds too',
-  /buildCostDatabase\(projects, commitments \?\? \[\], \[\], \[\], seeds\)/.test(src('app/takeoff-estimate.tsx')));
+  /buildCostDatabase\([^;]*?,\s*seeds\s*\)/.test(src('app/takeoff-estimate.tsx')),
+  (/buildCostDatabase\([^;]*?\)/.exec(src('app/takeoff-estimate.tsx')) ?? ['<no call found>'])[0]);
 
 // Tenant safety: a new mageid_* per-user key that isn't wiped on sign-out
 // leaks one contractor's pricing to the next person on a shared device.
@@ -1757,10 +1767,14 @@ console.log('\n17. the pins the last pass did not leave behind:');
   // is the whole bug class the self-perform work was about: a book handed only
   // some of the cost streams answers differently from a full one, so the SAME
   // trade+unit key carries a different story on every screen. The engine now
-  // refuses to price a self-performed trade out of a partial book (see the
-  // BOTH COST STREAMS note in utils/costDatabase), which turns "wrong rate"
-  // into "no rate" — better, but still a disagreement between screens, and the
-  // end state is one useCostBook() assembly (audit 2026-09-11, F10/C8).
+  // refuses to DERIVE an installed rate out of a partial book (see the BOTH
+  // COST STREAMS note in utils/costDatabase) — but that is not the same as
+  // silence: when a receipt shares the scope's unit (board, sheathing,
+  // flooring, siding, roofing) a receipts-only book still answers that key
+  // with the MATERIAL price, 48% under the full book, measured in
+  // validate-estimate-cost-basis §6i. So the four names below are still a
+  // WRONG PRICE on those trades, not a missing one, and the end state is one
+  // useCostBook() assembly (audit 2026-09-11, F10/C8; repair 2026-09-12, F1).
   //
   // The census is deliberately one-directional. A consumer recorded as FULL
   // may never regress to partial; the PARTIAL set may shrink but never grow.
@@ -1769,9 +1783,11 @@ console.log('\n17. the pins the last pass did not leave behind:');
   type Argv = { receipts: boolean; labor: boolean };
   /** Every file that builds its own book. Same 16 as §12's consumer list. */
   const CENSUS_FILES = COST_BOOK_CONSUMERS.map(c => c.file).filter(f => /buildCostDatabase\(/.test(src(f)));
-  /** Known-partial as of 2026-09-11 (audit F10/C8). This list may only shrink. */
+  /** Known-partial as of 2026-09-11 (audit F10/C8). This list may only shrink.
+   *  app/takeoff-estimate.tsx left it on 2026-09-11: it was the only consumer
+   *  passing NEITHER stream, and it sat three lines under a comment promising
+   *  "a price here and a price there can never disagree". */
   const KNOWN_PARTIAL: Record<string, Argv> = {
-    'app/takeoff-estimate.tsx': { receipts: false, labor: false },
     'app/area-takeoff.tsx': { receipts: true, labor: false },
     'app/cost-xray.tsx': { receipts: true, labor: false },
     'app/daily-report.tsx': { receipts: true, labor: false },
@@ -1832,10 +1848,54 @@ console.log('\n17. the pins the last pass did not leave behind:');
   // (3) And the two screens whose fix this wave actually made are named, so a
   //     revert of either is a failure with its own sentence rather than a
   //     line in a list.
-  for (const f of ['app/cost-database.tsx', 'app/estimate-confidence.tsx']) {
+  for (const f of ['app/cost-database.tsx', 'app/estimate-confidence.tsx', 'app/takeoff-estimate.tsx']) {
     const g = shapeOf(f)!;
     ok(`${f} passes BOTH receipts and clocked labor (a labor-less book prices no self-perform trade)`,
       g.receipts && g.labor, JSON.stringify(argsOf(f)?.slice(2, 4)));
+  }
+  // …and the hooks that fill those two arguments are actually mounted in the
+  // screen. The positional shape above reads NAMES: `receipts` and
+  // `laborSamples` could be `[]` consts and the census would score the book
+  // complete. This is the same hollow-green the section's own note (4) makes
+  // about the engine side.
+  //
+  // A PRESENCE GREP FOR THE HOOK IS NOT ENOUGH — it was the assertion this
+  // report presented as the thing that closes hollow-green, and it does not.
+  // `const laborSamples = useLaborCostSamples();` → `useLaborCostSamples();
+  // const laborSamples: never[] = [];` keeps the grep green while the hook's
+  // value is thrown on the floor and the book is labor-less again (verifier
+  // mutation N2, 2026-09-12: 482/0 GREEN). So the BINDING is resolved: the
+  // identifier sitting in the positional argument must be the one the hook's
+  // return was destructured or assigned into, and it must be declared exactly
+  // once, so a second `const <name> = []` cannot shadow it.
+  /** The identifier a hook's return is bound to, destructured or direct. */
+  const hookBinding = (body: string, hook: string): string | null => {
+    const m = new RegExp(
+      `const\\s+(?:\\{\\s*([A-Za-z_$][\\w$]*)[^}]*\\}|([A-Za-z_$][\\w$]*))\\s*(?::[^=]+?)?=\\s*${hook}\\(\\)`,
+    ).exec(body);
+    return m ? (m[1] ?? m[2] ?? null) : null;
+  };
+  /** How many times that identifier is `const`-declared in the file. */
+  const declCount = (body: string, id: string): number =>
+    (body.match(new RegExp(`const\\s+(?:\\{[^}]*\\b${id}\\b[^}]*\\}|${id}\\b)`, 'g')) ?? []).length;
+  for (const f of ['app/cost-database.tsx', 'app/estimate-confidence.tsx', 'app/takeoff-estimate.tsx']) {
+    const body = src(f);
+    const a = argsOf(f)!;
+    const streams: [string, string, number][] = [
+      ['useMaterialReceipts', 'receipts', 2],
+      ['useLaborCostSamples', 'clocked labor', 3],
+    ];
+    for (const [hook, label, pos] of streams) {
+      const bound = hookBinding(body, hook);
+      const arg = (a[pos] ?? '').trim();
+      const used = bound != null && new RegExp(`\\b${bound}\\b`).test(arg);
+      const once = bound != null && declCount(body, bound) === 1;
+      ok(`${f} passes the value ${hook}() returned as its ${label} argument`,
+        bound != null && used && once,
+        bound == null
+          ? `${hook}() result is not bound to anything — its value is discarded`
+          : `bound to \`${bound}\`, argument ${pos} is \`${arg}\`, ${declCount(body, bound)} declaration(s) of that name`);
+    }
   }
 
   // (4) AND THE CALLER SIDE, because for a pure engine the argument name is
@@ -1935,6 +1995,218 @@ console.log('\n17. the pins the last pass did not leave behind:');
     /FINISHED jobs/.test(cal) && /A job still running only tells you how far through it you are/.test(cal));
   ok('…and its steps end on the settlement rule the engine actually enforces',
     /a deposit is not a cost/.test(cal));
+
+  // ── 17g. THE TAPE MEASURE'S ONLY ROUTE INTO THE DENOMINATOR (audit F6) ────
+  // scripts/validate-estimate-cost-basis §6k proves the two ENDS behaviourally:
+  // utils/fieldMeasuredQuantity decides correctly, and a book built over the
+  // measured quantity learns $2.31/SF where the drawing taught $2.50. Neither
+  // of those can see whether the middle is connected — and "read by nothing"
+  // is exactly the defect being closed, so the connection is the assertion.
+  //
+  // Each line below was checked by deleting the code it names and watching this
+  // block go red.
+  const fmMod = src('utils/fieldMeasuredQuantity.ts');
+  const fvBtn = src('components/TakeoffFieldVerifyButton.tsx');
+  const tko = src('app/takeoff.tsx');
+
+  // (1) THE BUTTON EXISTS AND IS DRIVEN BY THE MODULE, not by a second copy of
+  //     the tolerance. The 5% used to live inline here and governed a colour.
+  ok('the verify modal offers to adopt the measurement',
+    /onUseMeasured\?\.\(adopt\.measured\)/.test(fvBtn),
+    'the adopt button must call onUseMeasured with the number the module vouched for');
+  // The GATE is not grepped for, it is executed: §6k runs adoptOffer over a
+  // disagreeing verdict, an agreeing one and the no-writer case. All this line
+  // pins is that the component asks that function instead of re-deriving the
+  // rule inline — which is what it used to do, and what made the rule
+  // unrunnable.
+  ok('…gated on the module’s executable offer, not on a locally re-derived tolerance',
+    /const verdict = measurementVerdict\(currentQuantity, existing\)/.test(fvBtn)
+    && /const adopt = adoptOffer\(verdict, unit, !!onUseMeasured\)/.test(fvBtn)
+    && !/Math\.abs\(delta\) \/ Math\.max\(1, /.test(fvBtn),
+    (/const adopt[^\n]*/.exec(fvBtn) ?? ['<no adopt>'])[0]);
+  // The RENDERED Text, not just the identifier: `{adopt.label}` also appears as
+  // the button's accessibilityLabel, so grepping for the identifier alone stayed
+  // green while the visible label was replaced with a hardcoded string — the
+  // module's copy no longer reaching the screen at all.
+  ok('…and the label + consequence sentence come from the module §6k pins',
+    /<Text style=\{styles\.adoptBtnText\}>\{adopt\.label\}<\/Text>/.test(fvBtn)
+    && /<Text style=\{styles\.adoptNote\}>\{adopt\.consequence\}<\/Text>/.test(fvBtn),
+    'the visible label and the sentence under it must be the module\'s strings');
+
+  // (2) THE SCREEN BINDS IT TO THE QUANTITY SETTER. This is the whole join: the
+  //     row's onChangeQuantity is what the manual edit commits through, so
+  //     adopting lands in `overrides` — which app/takeoff-estimate prices, which
+  //     the saved estimate line carries, which utils/costDatabase divides by.
+  //     A second, private mechanism would be a fresh place for the number to go
+  //     missing, so it must be the SAME setter.
+  ok('app/takeoff.tsx binds the adopt tap to the row’s quantity setter',
+    /onUseMeasured=\{onChangeQuantity\}/.test(tko),
+    'without this prop the measured quantity is a photo caption again');
+  ok('…and that setter is the one a manual quantity edit already commits through',
+    /onChangeQuantity\(n\);/.test(tko) && /onChangeQuantity: \(v: number\) => void;/.test(tko),
+    'if adopting used its own writer, §6k would prove a path nothing takes');
+  ok('…and it is handed the OVERRIDE-AWARE quantity, so an adopted measurement stops asking',
+    /currentQuantity=\{quantity\}/.test(tko) && !/aiQuantity=/.test(tko),
+    'passing the raw AI read would re-offer a measurement the GC already applied');
+
+  // (3) AND THE ROWS STILL RESTING ON THE DRAWING ARE COUNTED OUT LOUD, so the
+  //     data cannot go quiet the way it did for the whole of its first life.
+  ok('the review screen counts the measurements that are not yet the quantity of record',
+    /pendingMeasuredRows\(\{/.test(tko) && /pendingMeasuredCount=\{pendingMeasured\.length\}/.test(tko));
+  ok('…and renders the sentence that says the estimate is still using the plan',
+    /pendingMeasuredNotice\(pendingMeasuredCount\)/.test(tko)
+    && /pendingMeasuredCount > 0 &&/.test(tko));
+  // Rejected rows are skipped by the SHARED resolver, which §17i executes for
+  // all seven sections. This line pins only that the screen delegates to it —
+  // the rule used to be inlined here as `if (rejected[rowKey]) return null;`,
+  // a body a mutation could collapse to `return null` with every guard green
+  // (verifier mutation H1, 2026-09-12).
+  ok('…skipping rejected rows, which price nothing and teach nothing',
+    /quantityOfRecord: \(rowKey\) => takeoffQuantityOfRecord\(\s*\{ overrides, rejected \}, rowKey, findRowMeta\(rowKey\)\?\.aiValue \?\? null,\s*\)/.test(tko),
+    'the pending-rows memo must call the shared resolver with the screen\'s own '
+    + 'overrides/rejected maps and the row\'s AI read — an inline copy is what '
+    + 'diverged from the pricer for three of the seven sections');
+  // AND THE MEASUREMENTS IT IS ASKED ABOUT. `latestMeasurementByRow(verifications)`
+  // is the single point where every row's verification prop comes from;
+  // substituting `[] as typeof verifications` there kills the entire adopt UI
+  // and left cost-seed 482/0 and estimate-cost-basis 168/0 green (verifier
+  // mutation H2). No pure-function guard can see a caller pass an empty array,
+  // so the expression is pinned verbatim, together with the state binding it
+  // must read and the three writers that fill it.
+  ok('…and the row verifications come from the loaded state, not from a literal',
+    /const verificationsByRow = useMemo\(\s*\(\) => latestMeasurementByRow\(verifications\),\s*\[verifications\],\s*\);/.test(tko)
+    && /const \[verifications, setVerifications\] = useState<TakeoffFieldVerification\[\]>\(\[\]\);/.test(tko)
+    && /setVerifications\(await loadFieldVerifications\(|setVerifications\(next\);/.test(tko)
+    && /pendingMeasuredRows\(\{\s*verifications,/.test(tko),
+    (/latestMeasurementByRow\([^)]*\)/.exec(tko) ?? ['<not found>'])[0]);
+
+  // (4) AND NOTHING APPLIES A MEASUREMENT BEHIND THE GC'S BACK. The capture
+  //     modal's own placeholder invites a partial number ("used 25 ft tape"),
+  //     and auto-adopting one into a row that aggregates an elevation would
+  //     divide a sub's contract by 25 instead of 480 and stamp it measured.
+  //     The module therefore exports no writer at all: it describes, and the
+  //     tap writes.
+  // Stated as what the module CANNOT reach rather than as a naming rule: the
+  // previous shape banned `export function adopt*(`, which is a rule about
+  // spelling — it had to special-case adoptMeasurementCopy, and it would have
+  // gone red on adoptOffer, a pure describer. A module with no imports at all
+  // and no reference to any store cannot write a quantity whatever its
+  // functions are called.
+  // Comments stripped first: this module explains AsyncStorage at length in its
+  // header, and an assertion about what the CODE can reach must not be
+  // satisfiable — or breakable — by prose.
+  const fmCode = fmMod.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok('utils/fieldMeasuredQuantity can write nothing — no imports, no store, no setter',
+    !/^\s*import\s/m.test(fmCode)
+    && !/overrides\[/.test(fmCode)
+    && !/AsyncStorage|setOverride|updateProject|saveTakeoff/.test(fmCode),
+    'a silent writer here is how a 19x rate gets published as "measured"');
+  // …AND IT CANNOT BE HANDED A PLACE TO PUT THINGS. The reachability rule above
+  // replaced a naming rule (`!/export function (apply|adopt)[A-Za-z]*\(/`), and
+  // that swap was a net coverage LOSS for the one hazard this section names:
+  // `export function adoptAll(rows, write: (k: string, n: number) => void)` —
+  // a bulk auto-adopt that needs no import and touches no store, because the
+  // caller hands it the setter — passed the reachability rule with 482/0 green
+  // (verifier mutations N3/N4, 2026-09-12). Both rules now stand.
+  //
+  // A SINK, NOT A SPELLING. `pendingMeasuredRows` legitimately takes a callback
+  // (`quantityOfRecord: (rowKey: string) => number | null`) — it ASKS a
+  // question and uses the answer. A `=> void` parameter asks nothing back; it
+  // is somewhere to put a number, which is the only shape a writer can have in
+  // an import-less module.
+  ok('…and cannot be HANDED one either — no exported function takes a `=> void` sink',
+    !/=>\s*void/.test(fmCode),
+    'a `write`/`onApply` callback parameter is a writer with the import removed');
+  // The retired naming rule, restored with its special cases stated rather than
+  // dropped. adoptOffer and adoptMeasurementCopy are pure describers — they
+  // return the label and the offer; the tap does the writing.
+  const PURE_DESCRIBERS = ['adoptOffer', 'adoptMeasurementCopy'];
+  const writerNames = [...fmCode.matchAll(/export function ((?:apply|adopt|write|commit|save|set|push|sync)[A-Za-z]*)\(/g)]
+    .map(m => m[1])
+    .filter(n => !PURE_DESCRIBERS.includes(n));
+  expect('…and exports nothing named like a writer beyond the two pure describers',
+    writerNames, []);
+  ok('…and the takeoff screen never sets an override from a measurement on its own',
+    !/setOverride\([^)]*measured/i.test(tko) && !/measuredQuantity/.test(tko),
+    'the only writer is the explicit tap in the verification modal');
+
+  // ── 17h. THE SILENCE THAT NOW HAS A SENTENCE (audit Issue 8, open half) ───
+  // scripts/validate-estimate-cost-basis §6l proves the engine refuses a
+  // payment with no contract sum behind it, proves the detector finds it, and
+  // pins the sentence verbatim. What neither can see is whether the price book
+  // RENDERS it — and rendering is the entire fix, since the engine's behaviour
+  // was already correct and already silent.
+  ok('the price book tells the contractor which payments taught it nothing',
+    /commitmentsMissingContractSum\(projects, commitments\)/.test(cdb)
+    && /missingContractSumNotice\(missingSums\)/.test(cdb)
+    && /missingSums\.length > 0 &&/.test(cdb),
+    'a refused payment must say why it was refused, or the refusal is invisible degradation');
+  ok('…and names the job and the vendor, so the GC knows which record to fix',
+    /\{r\.projectName\} · \{r\.vendorName \|\| r\.description \|\| 'commitment'\}/.test(cdb),
+    'a count with no rows is not actionable');
+
+  // ── 17i. THE ROW KEY, ROUND-TRIPPED (audit repair 2026-09-12, B1/H1/H2) ───
+  // THE DEFECT. app/takeoff.tsx wrote override and rejection keys as
+  // `walls|floor|doors|windows|finish|fixture|bulk` + ':' + id. app/takeoff-
+  // estimate.tsx's prompt builder read `walls|floor|doors|windows|finishes|
+  // fixtures|bulkMaterials`. Three of the seven did not match, and BOTH
+  // SPELLINGS LOOK CORRECT IN ISOLATION — which is exactly why no source grep
+  // in this file, or anywhere else, could see it. All 61 guards were green.
+  //
+  // What it cost: a GC who stood in the room, measured a drywall run, tapped
+  // "Use 2,600 SF as the quantity" and watched the "rows still priced off the
+  // plan" notice clear was then priced off the plan. And a finish, fixture or
+  // bulk row he explicitly REJECTED was still sent to the pricer and still
+  // priced, because `apply` drops a row only when the rejection key hits.
+  //
+  // So the key is executed, both directions, for every section — the write
+  // side's key function feeding the read side's resolver, which is the join
+  // the two screens now share. A rename of a section on one side alone makes
+  // this block red.
+  {
+    const SECTIONS = [...TAKEOFF_ROW_SECTIONS];
+    expect('the seven takeoff sections are the spellings already on disk',
+      SECTIONS,
+      ['walls', 'floor', 'doors', 'windows', 'finish', 'fixture', 'bulk']);
+
+    // A written override, read back through the pricer's resolver.
+    const overrides: Record<string, number> = {};
+    for (const sec of SECTIONS) overrides[takeoffRowKey(sec, 'r1')] = 2_600;
+    const rejected: Record<string, true> = {};
+    for (const sec of SECTIONS) rejected[takeoffRowKey(sec, 'r9')] = true;
+    const resolve = takeoffQuantityResolver({ overrides, rejected });
+
+    const adopted = SECTIONS.map(sec => `${sec}=${resolve(sec, 'r1', 2_400)}`);
+    expect('every adopted field measurement reaches the pricer, all seven sections',
+      adopted,
+      SECTIONS.map(sec => `${sec}=2600`));
+
+    const dropped = SECTIONS.map(sec => `${sec}=${resolve(sec, 'r9', 2_400)}`);
+    expect('…and every rejected row is dropped, all seven sections',
+      dropped,
+      SECTIONS.map(sec => `${sec}=null`));
+
+    // An untouched row still prices off the plan, and a row with nothing behind
+    // it prices nothing rather than pricing zero.
+    expect('an untouched row keeps the plan quantity', resolve('finish', 'r2', 480), 480);
+    expect('a row with no usable read prices nothing, not zero',
+      resolve('finish', 'r3', Number.NaN), null);
+
+    // AND THE TWO SCREENS STILL SPEAK THIS ONE VOCABULARY. The round-trip above
+    // proves the function; these two prove nobody has quietly gone back to a
+    // local helper with its own spellings, which is the only way the original
+    // defect could return.
+    const sectionsIn = (body: string, call: RegExp): string[] =>
+      [...new Set([...body.matchAll(call)].map(m => m[1]))].sort();
+    const wrote = sectionsIn(tko, /takeoffRowKey\('([a-zA-Z]+)'/g);
+    const read = sectionsIn(src('app/takeoff-estimate.tsx'), /apply\('([a-zA-Z]+)'/g);
+    expect('app/takeoff.tsx writes only the seven canonical sections', wrote, [...SECTIONS].sort());
+    expect('…and app/takeoff-estimate.tsx reads exactly the same seven', read, [...SECTIONS].sort());
+    ok('…through the shared resolver, not a second local copy of the rule',
+      /const apply = takeoffQuantityResolver\(t\);/.test(src('app/takeoff-estimate.tsx'))
+      && !/rejected\[`\$\{section\}:\$\{id\}`\]/.test(src('app/takeoff-estimate.tsx')),
+      'a local `apply` here is what diverged from the writer for three sections');
+  }
 }
 
 // THE SUMMARY AND THE EXIT CODE LIVE AT THE BOTTOM OF THE FILE, ALWAYS.
