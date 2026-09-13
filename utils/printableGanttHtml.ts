@@ -12,18 +12,41 @@
 // `handleAirPrint` through expo-print (`Print.printAsync({ html })`).
 //
 // Geometry mirrors InteractiveGantt so the print reads like the on-screen chart:
-//   x = LABEL_W + (startDay - 1) * px ; barW = max(3, durationDays * px)
+//   x = LABEL_W + (es - 1) * px       ; barW = max(3, (ef - es + 1) * px)
 //   y = HEADER_H + i * ROW_H          ; today x = LABEL_W + (todayDayNumber - 1) * px
+//
+// SCALE: the axis is CALENDAR days (one column per calendar day, `todayDayNumber`
+// is a raw calendar count and `totalDays` is cpm.projectFinish), so the bars must
+// be drawn from the engine's CALENDAR es/ef. They used to be drawn from
+// `task.startDay` / `task.durationDays`, which are WORKING-scale — about two
+// calendar days of leftward drift per weekend spanned, on the one-pager a GC
+// hands a client. Pass `cpmByTaskId` and it is right; the no-CPM fallback keeps
+// the old geometry so callers that have no engine result still render something.
 import type { ScheduleTask } from '../types';
+
+/** The only fields this builder needs off a CpmTaskResult. */
+export interface PrintableGanttCpmRow {
+  es: number;
+  ef: number;
+  isCritical: boolean;
+}
 
 export interface PrintableGanttOpts {
   projectName: string;
-  /** 1-based day index of "today" on the project timeline (same value the Gantt uses). */
+  /** 1-based CALENDAR day index of "today" on the project timeline. */
   todayDayNumber: number;
-  /** Project finish in days — sets the horizontal scale so the chart fits one page. */
+  /** Project finish as a CALENDAR day index — sets the horizontal scale. */
   totalDays: number;
   /** Optional pre-formatted date for the subtitle (keeps the fn pure when supplied). */
   generatedOnLabel?: string;
+  /**
+   * Live CPM rows keyed by task id. Supplies BOTH the bar geometry and the red
+   * critical bars. Without it the red bars fall back to `task.isCriticalPath`,
+   * a flag written by the AI schedule generator and by template seed code and
+   * never refreshed from a real CPM run — so the "critical path" a client saw
+   * on this printout was whatever a language model guessed.
+   */
+  cpmByTaskId?: Map<string, PrintableGanttCpmRow>;
 }
 
 // ── Layout constants (px). Chosen so a ~3-month plan fits a landscape A4/Letter. ──
@@ -72,14 +95,23 @@ export function buildPrintableGanttHtml(tasks: ScheduleTask[], opts: PrintableGa
   const canvasH = bodyH + LEGEND_H;
 
   // Row midline + bar geometry for a task at index i.
+  const cpmRow = (t: ScheduleTask) => opts.cpmByTaskId?.get(t.id);
+  /** Bar left edge, in CALENDAR day index. */
+  const startIndex = (t: ScheduleTask) => cpmRow(t)?.es ?? (t.startDay ?? 1);
+  /** Inclusive CALENDAR span of the bar. */
+  const spanDays = (t: ScheduleTask) => {
+    const r = cpmRow(t);
+    return r ? Math.max(1, r.ef - r.es + 1) : (t.durationDays ?? 0);
+  };
   const rowMidY = (i: number) => HEADER_H + i * ROW_H + ROW_H / 2;
-  const barX = (t: ScheduleTask) => LABEL_W + Math.max(0, (t.startDay ?? 1) - 1) * px;
-  const barW = (t: ScheduleTask) => Math.max(3, (t.durationDays ?? 0) * px);
+  const barX = (t: ScheduleTask) => LABEL_W + Math.max(0, startIndex(t) - 1) * px;
+  const barW = (t: ScheduleTask) => Math.max(3, spanDays(t) * px);
+  const isCriticalTask = (t: ScheduleTask) => cpmRow(t)?.isCritical ?? !!t.isCriticalPath;
 
   // Final milestone = the milestone with the latest start day (project completion).
   const milestones = tasks.filter(isMilestoneTask);
   const lastMilestoneId = milestones.length
-    ? milestones.reduce((a, b) => ((b.startDay ?? 0) >= (a.startDay ?? 0) ? b : a)).id
+    ? milestones.reduce((a, b) => (startIndex(b) >= startIndex(a) ? b : a)).id
     : null;
 
   const idIndex = new Map<string, number>();
@@ -150,7 +182,7 @@ export function buildPrintableGanttHtml(tasks: ScheduleTask[], opts: PrintableGa
       return;
     }
 
-    const fill = t.isCriticalPath ? C_CRIT : C_BAR;
+    const fill = isCriticalTask(t) ? C_CRIT : C_BAR;
     rows.push(`<rect x="${x}" y="${y}" width="${w}" height="${BAR_H}" rx="2" fill="${fill}" />`);
     const pct = Math.max(0, Math.min(100, Math.round(t.progress ?? 0)));
     if (pct > 0) {

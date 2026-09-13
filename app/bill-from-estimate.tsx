@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView,
   type LayoutChangeEvent,
@@ -8,14 +8,14 @@ import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/compo
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ClipboardList, ArrowRight, CheckCircle2, Circle, Info, Percent, DollarSign,
+  ClipboardList, ArrowRight, CheckCircle2, Circle, Info, Percent, DollarSign, ReceiptText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { Invoice, InvoiceLineItem, LinkedEstimateItem, MaterialLineItem } from '@/types';
+import type { ChangeOrder, Invoice, InvoiceLineItem, LinkedEstimateItem, MaterialLineItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -39,6 +39,14 @@ import { Tokens } from '@/constants/designTokens';
 
 import { generateUUID } from '@/utils/generateId';
 import { billedAmountForLine } from '@/utils/invoiceBilling';
+import {
+  billedAgainstChangeOrder, changeOrderBillKey, isChangeOrderBillKey,
+} from '@/utils/changeOrderBilling';
+import {
+  billedAgainstMilestones, applyMilestoneBilling, sovFootingShortfall,
+} from '@/utils/billingFlowCore';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { billFromEstimateLine, billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { showAlert } from '@/utils/alert';
 import { formatMoney } from '@/utils/formatters';
@@ -60,7 +68,14 @@ function clampPct(v: number): number {
 
 type EstimateRowSource =
   | { kind: 'linked'; item: LinkedEstimateItem }
-  | { kind: 'legacy'; item: MaterialLineItem };
+  | { kind: 'legacy'; item: MaterialLineItem }
+  | { kind: 'changeOrder'; co: ChangeOrder };
+
+// Approved change orders are billable here (MONEY-DEF-2, audit 2026-09-07).
+// The key and the billed-through math live in utils/changeOrderBilling.ts, not
+// on this screen: the "Bill this change order" action on app/change-order.tsx
+// reads the same two functions, and a guard can only execute them from a .ts
+// (see that file's header).
 
 interface Row {
   key: string;                 // stable match key (materialId or name)
@@ -90,11 +105,25 @@ export default function BillFromEstimateScreen() {
   }, []);
   useBrainFabLift(bottomBarH);
   const router = useRouter();
-  const { projectId, type } = useLocalSearchParams<{ projectId: string; type?: string }>();
-  const { getProject, getInvoicesForProject, addInvoice, settings } = useProjects();
+  // focusChangeOrderId arrives from the "Bill this change order" action on
+  // app/change-order.tsx — it preselects that CO's row and nothing else, so the
+  // GC lands on a bill for exactly the CO he tapped.
+  const { projectId: paramProjectId, type, focusChangeOrderId } = useLocalSearchParams<{
+    projectId: string; type?: string; focusChangeOrderId?: string;
+  }>();
+  const { projects, getProject, getInvoicesForProject, getChangeOrdersForProject, addInvoice, settings } = useProjects();
 
-  const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
-  const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
+  // Reached from a deep link, a Copilot action or the desktop sidebar with no
+  // project in context, this screen used to be "Project not found" + Go Back —
+  // the one money screen in the loop with no way forward, while /job-costing,
+  // /contract and /change-order all mount a picker. A pick outranks the param
+  // so a STALE id (deleted project, an old shared link) cannot make the picker
+  // inert; that is the same rule app/job-costing.tsx follows.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
+
+  const project = useMemo(() => getProject(projectId), [projectId, getProject]);
+  const existingInvoices = useMemo(() => getInvoicesForProject(projectId), [projectId, getInvoicesForProject]);
   // Max+1, not length+1 — a deleted invoice would otherwise reuse a
   // number that's already on a client-facing invoice.
   const nextInvoiceNumber = existingInvoices.reduce((max, i) => Math.max(max, i.number ?? 0), 0) + 1;
@@ -105,21 +134,60 @@ export default function BillFromEstimateScreen() {
   // linked-estimate model.
   const sources: EstimateRowSource[] = useMemo(() => {
     if (!project) return [];
-    if (project.linkedEstimate && project.linkedEstimate.items.length > 0) {
-      return project.linkedEstimate.items.map(item => ({ kind: 'linked' as const, item }));
-    }
-    if (project.estimate && project.estimate.materials.length > 0) {
-      return project.estimate.materials.map(item => ({ kind: 'legacy' as const, item }));
-    }
-    return [];
-  }, [project]);
+    const base: EstimateRowSource[] =
+      project.linkedEstimate && project.linkedEstimate.items.length > 0
+        ? project.linkedEstimate.items.map(item => ({ kind: 'linked' as const, item }))
+        : project.estimate && project.estimate.materials.length > 0
+          ? project.estimate.materials.map(item => ({ kind: 'legacy' as const, item }))
+          : [];
+    // MONEY-DEF-2: approved COs are contract dollars, so they bill here beside
+    // the estimate. Credits (a negative changeAmount) are deliberately not rows
+    // — this screen bills a PERCENT OF REMAINING, and a percent of a negative
+    // remainder is not a thing a GC can reason about. The banner below names
+    // any credit so it is not silently dropped.
+    const cos = getChangeOrdersForProject(project.id)
+      .filter(co => co.status === 'approved' && co.changeAmount > 0)
+      .sort((a, b) => a.number - b.number)
+      .map(co => ({ kind: 'changeOrder' as const, co }));
+    return [...base, ...cos];
+  }, [project, getChangeOrdersForProject]);
+
+  /** Approved credits, which have no billable row above. Named, never hidden. */
+  const approvedCredits = useMemo(() => {
+    if (!project) return [];
+    return getChangeOrdersForProject(project.id).filter(co => co.status === 'approved' && co.changeAmount < 0);
+  }, [project, getChangeOrdersForProject]);
 
   // For each estimate row, compute how much has ALREADY been billed across
   // existing invoices. Prefer `sourceEstimateItemId` for a clean match;
   // otherwise fall back to a name match so invoices created before this flow
   // existed are still accounted for.
-  const rows: Row[] = useMemo(() => {
+  const estimateAttributedRows: Row[] = useMemo(() => {
     return sources.map(src => {
+      if (src.kind === 'changeOrder') {
+        // MONEY-DEF-2: a CO is one lump-sum contract line. Its billed-through
+        // comes from the same helper the "Bill this change order" button reads,
+        // so a CO billed from either entry point shows as billed on both.
+        const co = src.co;
+        const key = changeOrderBillKey(co.id);
+        const full = co.changeAmount;
+        const already = billedAgainstChangeOrder(co.id, existingInvoices);
+        const remaining = Math.max(0, full - already);
+        return {
+          key,
+          name: `CO #${co.number}${co.description ? ` — ${co.description}` : ''}`,
+          category: 'Change order',
+          unit: 'lump',
+          quantity: 1,
+          unitPrice: full,
+          lineTotal: full,
+          alreadyBilled: already,
+          remaining,
+          // A CO is approved work already performed or committed — bill it in
+          // full by default rather than at the estimate's 30% progress default.
+          billPercent: remaining > 0 ? 100 : 0,
+        };
+      }
       if (src.kind === 'linked') {
         const item = src.item;
         const key = item.materialId || item.name;
@@ -188,6 +256,38 @@ export default function BillFromEstimateScreen() {
     });
   }, [sources, existingInvoices, isProgressDefault]);
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // MONEY-LEDGER-1 (audit 2026-09-11). ONE contract, ONE billed-to-date.
+  //
+  // Every contract MAGE creates is seeded with a 25/25/25/25 payment schedule
+  // (utils/contractEngine.defaultPaymentSchedule), and app/contract.tsx puts
+  // the milestone "Create invoice" action and a button that lands HERE on the
+  // same screen. A milestone invoice is a lump sum against the whole contract:
+  // it has no estimate line to attach to, so the per-row attribution above
+  // could not see it and this screen printed "Already billed $0.00" over
+  // 25/50/75/100% quick-fill buttons. A GC who billed the deposit milestone and
+  // then quick-filled 100% billed 125% of the contract to a homeowner. That is
+  // the only defect in the money loop that OVER-BILLS a client, and the client
+  // — not the app — was the thing catching it.
+  //
+  // The spread is documented on `spreadMilestoneBilling`. What matters here:
+  // after it, Σ row.remaining is remaining ON THE CONTRACT, so the quick-fill
+  // presets mean percent of what is actually left rather than percent of a
+  // contract that has already been drawn against.
+  // ───────────────────────────────────────────────────────────────────────────
+  const milestoneBilled = useMemo(
+    () => billedAgainstMilestones(existingInvoices),
+    [existingInvoices],
+  );
+
+  // The spread AND its application both live in utils/billingFlowCore, where a
+  // guard can execute them — see `applyMilestoneBilling`. Change-order rows are
+  // excluded: they carry their own exact billed-through.
+  const { rows, milestoneOverflow } = useMemo(() => {
+    const applied = applyMilestoneBilling(estimateAttributedRows, milestoneBilled, isChangeOrderBillKey);
+    return { rows: applied.rows, milestoneOverflow: applied.unallocated };
+  }, [estimateAttributedRows, milestoneBilled]);
+
   const [billPercents, setBillPercents] = useState<Record<string, number>>(
     () => Object.fromEntries(rows.map(r => [r.key, r.billPercent])),
   );
@@ -195,6 +295,47 @@ export default function BillFromEstimateScreen() {
     () => Object.fromEntries(rows.map(r => [r.key, r.remaining > 0])),
   );
   const [billingHint, setBillingHint] = useState<string | null>(null);
+
+  // Rows can arrive AFTER first render — the project hydrates from storage, so
+  // the lazy initial state above can be seeded from an empty list, and a key
+  // with no entry reads as unselected. Seed any key we have not seen yet.
+  // Separately, focusChangeOrderId (from the "Bill this change order" action on
+  // app/change-order.tsx) narrows the selection to that one CO the first time
+  // its row exists, so the GC lands on a bill for exactly what he tapped.
+  const focusApplied = useRef(false);
+  useEffect(() => {
+    if (rows.length === 0) return;
+    const focusKey = focusChangeOrderId ? changeOrderBillKey(focusChangeOrderId) : null;
+    const applyingFocus = !!focusKey && !focusApplied.current && rows.some(r => r.key === focusKey);
+    if (applyingFocus) focusApplied.current = true;
+
+    setBillPercents(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const r of rows) {
+        if (applyingFocus) {
+          const want = r.key === focusKey ? (r.remaining > 0 ? 100 : 0) : 0;
+          if (next[r.key] !== want) { next[r.key] = want; changed = true; }
+        } else if (next[r.key] === undefined) {
+          next[r.key] = r.billPercent; changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setSelected(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const r of rows) {
+        if (applyingFocus) {
+          const want = r.key === focusKey && r.remaining > 0;
+          if (next[r.key] !== want) { next[r.key] = want; changed = true; }
+        } else if (next[r.key] === undefined) {
+          next[r.key] = r.remaining > 0; changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [rows, focusChangeOrderId]);
 
   const amountsByKey = useMemo(() => {
     const map: Record<string, number> = {};
@@ -332,19 +473,102 @@ export default function BillFromEstimateScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Bill from Estimate' }} />
-        <Text style={styles.notFoundText}>Project not found</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <Stack.Screen options={{
+          title: 'Bill from Estimate',
+          headerStyle: { backgroundColor: themeColors.bg },
+          headerTintColor: themeColors.accent,
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
+        }} />
+        <ToolProjectPicker
+          toolName="Bill from Estimate"
+          message="Billing draws down against one project's estimate, so pick the job you're invoicing."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={paramProjectId || undefined}
+          icon={<ReceiptText size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Give it an estimate — the estimate lines become the schedule of values.',
+            'Come back here to bill a percentage of each line.',
+          ]}
+        />
       </View>
     );
   }
 
   const contractTotal = rows.reduce((s, r) => s + r.lineTotal, 0);
+  const hasChangeOrderRows = rows.some(r => isChangeOrderBillKey(r.key));
   const totalAlreadyBilled = rows.reduce((s, r) => s + r.alreadyBilled, 0);
   const totalRemaining = rows.reduce((s, r) => s + r.remaining, 0);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // THE CROSS-LEDGER CHECK (MONEY-LEDGER-1). `totalAlreadyBilled` is what the
+  // rows above can account for; `invoicedPreTax` is what the project's
+  // invoices actually add up to. When they disagree there is billing on this
+  // contract that no row can see, and the honest thing is to name the number
+  // rather than let a 100% quick-fill re-bill it.
+  //
+  // IT DOES NOT ACCUSE ANYONE OF DOUBLE-BILLING, and the first cut of it did
+  // (audit 2026-09-11, review round 2). A Quick Invoice seeds ONE line with no
+  // `sourceEstimateItemId` (app/invoice.tsx), and a quick invoice does not
+  // record its mode on the row — `Invoice.type` only ever persists as 'full'
+  // or 'progress' — so there is no way to exclude ad-hoc billing from this
+  // comparison. A $500 "final cleanup" charge is therefore unattributable BY
+  // CONSTRUCTION and is not evidence of anything. The banner now says what is
+  // true (this schedule cannot account for $X of billing) and leaves the
+  // verdict to the GC, and it waits until the gap is material so it is not
+  // sitting on every project in the account.
+  //
+  // SUBTOTAL, not totalDue. The rows are a PRE-TAX schedule of values, and
+  // `getInvoicedToDate` sums the tax-INCLUSIVE total — comparing the two would
+  // report the sales tax on every billing as unaccounted billing. That is the
+  // same basis error MONEY-05 fixed for retainage and PORTAL-01 fixed for the
+  // portal, and it is still live on the WIP schedule (see
+  // docs/audits/2026-09-11-handoff-money-to-wip.md).
+  // ───────────────────────────────────────────────────────────────────────────
+  const invoicedPreTax = existingInvoices
+    .filter(inv => inv.status !== 'draft')
+    .reduce((sum, inv) => sum + (inv.subtotal ?? 0), 0);
+  const unaccountedBilling = Math.round((invoicedPreTax - totalAlreadyBilled) * 100) / 100;
+  /** Material = a quarter of a percent of the contract, never less than $50.
+   *  Below that it is rounding, a hand-typed extra, or a tax-basis artefact,
+   *  and a banner about it is noise on an otherwise clean project. */
+  const unaccountedThreshold = Math.max(50, contractTotal * 0.0025);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // DOES THE SCHEDULE OF VALUES FOOT TO THE CONTRACT? (F4 / verifier C4.)
+  //
+  // `lineTotal` is supposed to be the MARKED-UP line total, so
+  // Σ items.lineTotal === grandTotal. app/(tabs)/estimate/full.tsx honours
+  // that; app/area-takeoff.tsx and app/plan-intelligence.tsx do not — both
+  // append an item whose `lineTotal` is the raw COST (markup: 0) while bumping
+  // `grandTotal` by the cost PLUS its share of markup. After either flow the
+  // schedule below under-foots the contract by exactly that markup, this
+  // screen bills every row to 100%, prints "Remaining $0.00", and the GC never
+  // invoices the margin on the scope he added. At 18% on a $40,000 takeoff
+  // addition that is $7,200 he will not find.
+  //
+  // utils/aiaBilling.reconcileAIASov already does this check on the AIA screen
+  // and documents both writers by line number. This is the same check on the
+  // screen where most GCs actually bill. It cannot repair the estimate from
+  // here — the two writers are the fix and they are not this file's (see the
+  // handoff) — but a stated gap is a gap the GC can bill for.
+  //
+  // CO rows are excluded from both sides: they are additional contract value
+  // that the estimate's grandTotal knows nothing about.
+  // ───────────────────────────────────────────────────────────────────────────
+  const estimateRowTotal = rows
+    .filter(r => !isChangeOrderBillKey(r.key))
+    .reduce((sum, r) => sum + r.lineTotal, 0);
+  const estimateGrandTotal = effectiveEstimateTotal(project);
+  // LINKED estimates only. The legacy `project.estimate` path rolls tax,
+  // overhead and contingency into its own grandTotal, so the difference there
+  // is not markup the GC forgot to bill — it is a different basis, and a
+  // banner about it would be wrong on every legacy project.
+  const sovShortfall = (project.linkedEstimate?.items.length ?? 0) > 0
+    ? sovFootingShortfall(estimateRowTotal, estimateGrandTotal)
+    : 0;
 
   // No estimate data → explain and give the user a way to still create a
   // blank invoice through the regular editor.
@@ -404,7 +628,11 @@ export default function BillFromEstimateScreen() {
             </Text>
             <View style={styles.heroRow}>
               <View style={styles.heroMetric}>
-                <Text style={styles.heroMetricLabel}>Contract</Text>
+                {/* Say which contract this is. Once approved COs bill here the
+                    figure is the REVISED contract, and calling it "Contract"
+                    beside a number the estimate alone cannot produce is the
+                    same mislabel the progress-percent field carries. */}
+                <Text style={styles.heroMetricLabel}>{hasChangeOrderRows ? 'Contract + COs' : 'Contract'}</Text>
                 <Text style={styles.heroMetricValue}>{money(contractTotal)}</Text>
               </View>
               <View style={styles.heroMetric}>
@@ -426,7 +654,49 @@ export default function BillFromEstimateScreen() {
                 />
               </View>
             )}
+            {milestoneBilled > 0.005 && (
+              <Text style={styles.heroFootnote} testID="milestone-billed-note">
+                Includes {money(milestoneBilled)} billed on contract payment milestones, spread
+                across the lines below — a milestone is a claim on the whole contract, so there is
+                no single line to charge it to.
+              </Text>
+            )}
           </View>
+
+          {/* Billing this screen cannot account for. Either half of the loop
+              may be the source, so it names the gap rather than guessing. */}
+          {Math.abs(unaccountedBilling) > unaccountedThreshold && (
+            <View style={styles.warnBanner} testID="billing-reconciliation">
+              <Info size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+              <Text style={styles.warnBannerText}>
+                {unaccountedBilling > 0
+                  ? `Invoices on this project total ${money(invoicedPreTax)} before tax. ${money(totalAlreadyBilled)} of that matches a line below; ${money(unaccountedBilling)} was billed outside this schedule — a quick invoice, a hand-typed extra, or an invoice raised before this estimate existed. It is not counted in “Already billed”, so it is worth a look before you bill the same work here.`
+                  : `The lines below account for ${money(totalAlreadyBilled)} of billing, more than the ${money(invoicedPreTax)} of non-draft invoices on this project. Some billing here may have been voided or deleted.`}
+              </Text>
+            </View>
+          )}
+          {sovShortfall > 0.5 && (
+            <View style={styles.warnBanner} testID="sov-footing">
+              <Info size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+              <Text style={styles.warnBannerText}>
+                The lines below add up to {money(estimateRowTotal)}, but this estimate&apos;s total is
+                {' '}{money(estimateGrandTotal)} — a {money(sovShortfall)} gap. Scope added by Visual Takeoff or
+                Plan Intelligence is written at cost, so billing every line to 100% here would still leave
+                that markup uninvoiced. Bill the gap on a separate line, or re-price those items in the
+                estimator first.
+              </Text>
+            </View>
+          )}
+          {milestoneOverflow > 0.5 && (
+            <View style={styles.warnBanner} testID="milestone-overflow">
+              <Info size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+              <Text style={styles.warnBannerText}>
+                {money(milestoneOverflow)} of milestone billing is beyond the whole schedule below,
+                so every line already reads fully billed. The contract has been drawn down past its
+                estimate — bill further only against an approved change order.
+              </Text>
+            </View>
+          )}
 
           {/* Quick presets — set every row's "bill this round" % in one tap */}
           <View style={styles.presetRow}>
@@ -449,8 +719,27 @@ export default function BillFromEstimateScreen() {
             <Text style={styles.helpBannerText}>
               Tap a row to include or exclude it. Enter a percent of the remaining balance you want
               to bill this round — the totals below update live.
+              {hasChangeOrderRows ? ' Approved change orders bill here too, and each one tracks its own billed-through.' : ''}
             </Text>
           </View>
+
+          {/* An approved credit has no billable row (you cannot bill a percent
+              of a negative remainder). Name it rather than drop it, so the GC
+              knows the total below is gross of a deduction he owes back — and
+              say where it HAS landed, not "add a negative line in the invoice
+              editor", which that editor cannot do (app/invoice.tsx renders
+              lineItems with delete-only controls and no add-a-line form). */}
+          {approvedCredits.length > 0 && (
+            <View style={styles.helpBanner}>
+              <Info size={14} color={themeColors.info} strokeWidth={1.75} />
+              <Text style={styles.helpBannerText}>
+                {approvedCredits.length === 1
+                  ? `CO #${approvedCredits[0].number} is a ${money(Math.abs(approvedCredits[0].changeAmount))} credit`
+                  : `${approvedCredits.length} approved credits totalling ${money(Math.abs(approvedCredits.reduce((s2, c) => s2 + c.changeAmount, 0)))}`}
+                {' '}— not a billable row, and not in the figure above. It is already off the revised contract total on your reports.
+              </Text>
+            </View>
+          )}
 
           {/* Line items */}
           {rows.map(r => {
@@ -608,10 +897,6 @@ export default function BillFromEstimateScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  center: { justifyContent: 'center', alignItems: 'center', padding: 24 },
-  notFoundText: { fontSize: Type.callout.fontSize, color: t.textSecondary, marginBottom: 12 },
-  backBtn: { backgroundColor: t.accentFill, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Tokens.radius.md },
-  backBtnText: { color: '#FFFFFF', fontWeight: '600' as const },
 
   hero: {
     backgroundColor: t.surface,
@@ -658,6 +943,24 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md,
   },
   helpBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.info, lineHeight: 16 },
+
+  // MONEY-LEDGER-1. The cross-ledger gap is a warning, not a hint: the money
+  // it names is money a client can be billed twice for.
+  warnBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start' as const,
+    gap: 8,
+    // warningSoft/warningLabel is the theme-aware pair: a static
+    // Colors.warningLight tint under dark-mode ink is the contrast defect the
+    // theme-surface-pairs guard exists for.
+    backgroundColor: t.warningSoft,
+    padding: 10,
+    borderRadius: Tokens.radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.warningLabel,
+  },
+  warnBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.warningLabel, lineHeight: 16 },
+  heroFootnote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 8 },
 
   rowCard: {
     backgroundColor: t.surface,

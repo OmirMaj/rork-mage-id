@@ -25,7 +25,7 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleReviewSheet';
+import { AutoScheduleReviewSheet, districtToConfirm } from '@/components/automation/AutoScheduleReviewSheet';
 import {
   roadmapToScheduleWork,
   ROADMAP_FEATURE,
@@ -362,7 +362,7 @@ describe('automation review sheet — (c) zoning confirm-gate blocks the flow', 
       />,
       { wrapper: Wrapper },
     );
-    fireEvent.press(tree.getByTestId('confirm-zoning-btn'));
+    fireEvent.press(tree.getByTestId('confirm-zoning-one-tap-btn'));
     expect(onConfirmZoning).toHaveBeenCalledTimes(1);
     // Still blocked until the parent flips the prop — confirm remains inert.
     fireEvent.press(tree.getByTestId('review-confirm-btn'));
@@ -383,5 +383,163 @@ describe('automation review sheet — (c) zoning confirm-gate blocks the flow', 
     expect(tree.queryByTestId('zoning-gate-banner')).toBeNull();
     fireEvent.press(tree.getByTestId('review-confirm-btn'));
     expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * (d) THE UNKNOWN CASE IS THE NORMAL CASE — and it must stay honest.
+ *
+ * Nothing in this app writes a guessed district, so "MAGE does not know" is
+ * what almost every real project hits. Until 2026-09-12 the screen filled that
+ * hole with `?? project.location`, the contractor tapped Confirm, and their own
+ * street address became a confirmed zoning district — shown back to them on the
+ * "Zoning confirmed:" chip as fact, and enough to unblock the auto-schedule
+ * commit. (An earlier version of this docstring said it reached an AI prompt
+ * and the permit roadmap. It did not: no reader of zoningDistrict exists
+ * outside utils/automation/jurisdiction.ts, types/index.ts, the screen and the
+ * validator. Restating the brief as a fact about the code is the same error the
+ * feature itself was built to prevent.) These assert the replacement: no
+ * district in, no one-tap confirm out; the panel hedges about who governs the
+ * address instead of naming a body it has not verified; and the only way to a
+ * confirm is a district somebody typed.
+ */
+describe('automation review sheet — (d) the honest UNKNOWN district surface', () => {
+  const unknownFacts = {
+    jobsiteLabel: 'Garden City, NY',
+    zoningAuthorityLabel: 'Garden City, NY',
+    zoningAuthorityNote: 'Zoning is set locally — by the village, town or city that governs this parcel, not by the county or the state. MAGE has not verified which one covers Garden City, NY.',
+    permitAuthority: null,
+    codeSummary: '2025 Uniform Fire Prevention and Building Code of New York State',
+    codeSourceUrl: 'https://dos.ny.gov/division-building-standards-and-codes-frequently-asked-questions',
+    codeCheckedOn: '2026-09-12',
+    ask: 'MAGE has no zoning record for this address. Zoning here is set by the local village, town or city — look up the parcel on its zoning map, or ask its building department, then enter the district here.',
+  };
+
+  it('offers NO one-tap confirm when no district is known', () => {
+    const onConfirmZoning = jest.fn();
+    const tree = render(
+      <AutoScheduleReviewSheet
+        lines={buildLines()}
+        zoning={{ status: 'guess', unknown: unknownFacts, canConfirm: true, reason: 'Confirm zoning to enable code requirements and auto-scheduling.' }}
+        onConfirm={jest.fn()}
+        onCancel={jest.fn()}
+        onConfirmZoning={onConfirmZoning}
+      />,
+      { wrapper: Wrapper },
+    );
+    // The control that exists is an INPUT plus a confirm that needs it filled.
+    expect(tree.getByTestId('zoning-district-input')).toBeTruthy();
+    // …and NOT a one-tap confirm. This is also the STALE case's rendered half:
+    // zoningPropForProject hands a stale project `district: undefined` (pinned by
+    // execution in scripts/validate-jurisdiction-zoning.ts), so a confirm made
+    // for the previous town arrives here as "no district known" and the only
+    // control offered is the one that can produce a right answer.
+    expect(tree.queryByTestId('confirm-zoning-one-tap-btn')).toBeNull();
+    fireEvent.press(tree.getByTestId('confirm-zoning-btn'));
+    expect(onConfirmZoning).not.toHaveBeenCalled();
+  });
+
+  it('the empty/trim rule is a real function, and the button tracks it', () => {
+    // A rendered press cannot reach the handler while the button is disabled,
+    // so the RULE is asserted directly and the button is asserted to follow it.
+    // (Mutation-tested: deleting the trim turns the third case red.)
+    expect(districtToConfirm('')).toBeNull();
+    expect(districtToConfirm('   ')).toBeNull();
+    expect(districtToConfirm('  R-5  ')).toBe('R-5');
+
+    const tree = render(
+      <AutoScheduleReviewSheet
+        lines={buildLines()}
+        zoning={{ status: 'guess', unknown: unknownFacts, canConfirm: true }}
+        onConfirm={jest.fn()}
+        onCancel={jest.fn()}
+        onConfirmZoning={jest.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    expect(tree.getByTestId('confirm-zoning-btn').props.accessibilityState).toEqual({ disabled: true });
+    fireEvent.changeText(tree.getByTestId('zoning-district-input'), '   ');
+    expect(tree.getByTestId('confirm-zoning-btn').props.accessibilityState).toEqual({ disabled: true });
+    fireEvent.changeText(tree.getByTestId('zoning-district-input'), 'R-5');
+    expect(tree.getByTestId('confirm-zoning-btn').props.accessibilityState).toEqual({ disabled: false });
+  });
+
+  it('names the authority and the code record instead of guessing a district', () => {
+    const tree = render(
+      <AutoScheduleReviewSheet
+        lines={buildLines()}
+        zoning={{ status: 'guess', unknown: unknownFacts, canConfirm: true }}
+        onConfirm={jest.fn()}
+        onCancel={jest.fn()}
+        onConfirmZoning={jest.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    expect(tree.getByTestId('zoning-unknown-facts')).toBeTruthy();
+    expect(tree.getByTestId('zoning-unknown-authority')).toBeTruthy();
+    // The component PRINTS describeZoningUnknown's hedged sentence; it must not
+    // compose a claim of its own. It used to read "<place> writes the district
+    // map for this parcel", asserted for boroughs, census-designated places and
+    // even a county — a governing body stated from inference.
+    expect(tree.queryByText(/MAGE has not verified which one covers/)).toBeTruthy();
+    expect(tree.queryByText(/writes the district map/)).toBeNull();
+    expect(tree.getByTestId('zoning-unknown-code')).toBeTruthy();
+    expect(tree.getByTestId('zoning-unknown-code-link')).toBeTruthy();
+    expect(tree.getByTestId('zoning-unknown-ask')).toBeTruthy();
+  });
+
+  it('passes the TYPED district through — never anything the caller had lying around', () => {
+    const onConfirmZoning = jest.fn();
+    const tree = render(
+      <AutoScheduleReviewSheet
+        lines={buildLines()}
+        zoning={{ status: 'guess', unknown: unknownFacts, canConfirm: true }}
+        onConfirm={jest.fn()}
+        onCancel={jest.fn()}
+        onConfirmZoning={onConfirmZoning}
+      />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.changeText(tree.getByTestId('zoning-district-input'), '  R-5  ');
+    fireEvent.press(tree.getByTestId('confirm-zoning-btn'));
+    expect(onConfirmZoning).toHaveBeenCalledTimes(1);
+    expect(onConfirmZoning).toHaveBeenCalledWith('R-5');
+  });
+
+  it('withholds the district input when the project has no city/state to tie it to', () => {
+    const tree = render(
+      <AutoScheduleReviewSheet
+        lines={buildLines()}
+        zoning={{
+          status: 'guess',
+          canConfirm: false,
+          reason: 'Add the jobsite city and state first — a zoning district only means something for a specific address.',
+          unknown: { ...unknownFacts, zoningAuthorityLabel: null, zoningAuthorityNote: null, jobsiteLabel: null, codeSummary: null, codeSourceUrl: null, codeCheckedOn: null },
+        }}
+        onConfirm={jest.fn()}
+        onCancel={jest.fn()}
+        onConfirmZoning={jest.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    expect(tree.queryByTestId('zoning-district-input')).toBeNull();
+    expect(tree.queryByTestId('confirm-zoning-btn')).toBeNull();
+    expect(tree.getByTestId('zoning-gate-reason')).toBeTruthy();
+  });
+
+  it('a one-tap confirm sends the district it displayed, unchanged', () => {
+    const onConfirmZoning = jest.fn();
+    const tree = render(
+      <AutoScheduleReviewSheet
+        lines={buildLines()}
+        zoning={{ district: 'R-5', status: 'guess', canConfirm: true }}
+        onConfirm={jest.fn()}
+        onCancel={jest.fn()}
+        onConfirmZoning={onConfirmZoning}
+      />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.press(tree.getByTestId('confirm-zoning-one-tap-btn'));
+    expect(onConfirmZoning).toHaveBeenCalledWith('R-5');
   });
 });

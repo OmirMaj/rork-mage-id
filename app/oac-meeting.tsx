@@ -26,7 +26,7 @@ import {
   Mic, X, Users, Calendar, AlertTriangle, AlertCircle, Check, Clock, Upload,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '@/constants/colors';
@@ -43,6 +43,7 @@ import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { neutralInk } from '@/components/ui/ink';
 import { showAlert } from '@/utils/alert';
 import {
   buildAgendaFromProjectState, mergeAgenda, generateMinutesFromTranscript,
@@ -115,13 +116,18 @@ export function groupAgendaBySection(items: OACAgendaItem[]): AgendaBucket[] {
   return buckets.filter(b => b.items.length > 0);
 }
 
-// Module-level — hardcoded hex (theme-agnostic).
-const STATUS_COLOR = {
-  info: '#9AA3AD',
-  warn: Colors.warningLabel,
-  urgent: '#C84038',
-  done: '#2E7D44',
-} as const;
+// A factory, not a module constant. `info` was the DARK theme's textSecondary
+// (#9AA3AD) and `Colors.warningLabel` is a getter that froze at import, so the
+// old "theme-agnostic" comment was describing the bug: these are read per
+// render now, and drive both a pill fill (`+ '20'`) and the icon on it.
+function statusColors(t: ThemeColors) {
+  return {
+    info: neutralInk(t),
+    warn: t.warningLabel,
+    urgent: t.dangerLabel,
+    done: t.successLabel,
+  } as const;
+}
 
 export default function OACMeetingScreen() {
   const { colors: themeColors } = useTheme();
@@ -143,15 +149,24 @@ export default function OACMeetingScreen() {
 
 function OACMeetingInner() {
   const { colors: themeColors } = useTheme();
+  const statusColor = statusColors(themeColors);
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  // Reached from the sidebar (FIELD OPS ▸ OAC Meetings), Tools, universal
+  // search or a deep link there is no projectId, so ToolProjectPicker sets one
+  // locally (field-ticket pattern). A pick outranks the param so a STALE id in
+  // the URL — deleted project, old shared link — can't make the picker inert.
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const ctx = useProjects() as any;
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = ctx.getProject?.(projectId ?? '');
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const meetings: OACMeeting[] = useMemo(() => {
     return (ctx.getOACMeetingsForProject?.(projectId ?? '') ?? []) as OACMeeting[];
   }, [ctx, projectId]);
@@ -466,17 +481,18 @@ function OACMeetingInner() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'OAC Meetings' }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="OAC Meetings"
+          message="An Owner-Architect-Contractor meeting keeps attendees, agenda and minutes tied to one project."
+          projects={ctx.projects ?? []}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<Users size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No OAC meeting open yet"
-          message="Owner-Architect-Contractor meetings live inside a project so attendees, agenda, and minutes stay tied together. To start one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap OAC Meetings inside the project tile grid.',
             'Add attendees, paste or dictate the agenda, then capture minutes mid-meeting.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );
@@ -603,13 +619,13 @@ function OACMeetingInner() {
                         />
                       </View>
                       {item.status && item.status !== 'info' ? (
-                        <View style={[styles.itemPill, { backgroundColor: STATUS_COLOR[item.status] + '20' }]}>
+                        <View style={[styles.itemPill, { backgroundColor: statusColor[item.status] + '20' }]}>
                           {item.status === 'urgent' ? (
-                            <AlertCircle size={13} color={STATUS_COLOR.urgent} strokeWidth={2} />
+                            <AlertCircle size={13} color={statusColor.urgent} strokeWidth={2} />
                           ) : item.status === 'warn' ? (
-                            <AlertTriangle size={13} color={STATUS_COLOR.warn} strokeWidth={2} />
+                            <AlertTriangle size={13} color={statusColor.warn} strokeWidth={2} />
                           ) : item.status === 'done' ? (
-                            <Check size={13} color={STATUS_COLOR.done} strokeWidth={2.5} />
+                            <Check size={13} color={statusColor.done} strokeWidth={2.5} />
                           ) : null}
                         </View>
                       ) : null}

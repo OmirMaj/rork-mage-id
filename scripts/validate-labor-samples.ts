@@ -18,6 +18,7 @@
 import {
   buildLaborSamples, computeLaborStats, normalizeTradeKey, laborTradeLabel,
   isEligibleLaborEntry, LABOR_UNIT,
+  laborSampleTradeKey,
 } from '../utils/laborSamples';
 import { buildCostDatabase, lookupRate } from '../utils/costDatabase';
 import { computeJobCost } from '../utils/jobCostEngine';
@@ -71,8 +72,22 @@ expect('entry → sample mapping (qty=hours, actualUnit=rate, bidUnit=0)',
   [{
     projectId: 'p1', projectName: 'Henderson Remodel', trade: 'Labor — Framing',
     unit: LABOR_UNIT, quantity: 8, bidUnit: 0, actualUnit: 34, basis: 'actual',
-    closedAt: '2026-07-20',
+    closedAt: '2026-07-20', source: 'labor_rate',
   }]);
+
+// MEASURED QUANTITY, STATED PRICE. The hours are real; the $/hr is the one
+// number the GC typed in settings, so every sample for a trade carries the
+// SAME price and the cost book's spread computes to exactly 0 — which the card
+// printed as "±0%", the strongest precision claim the UI can make, and five
+// shifts bought 'high' confidence. utils/costDatabase reads this tag to refuse
+// both claims without discarding the sample. Untagged, the refusal silently
+// stops working, so it is asserted here rather than left to the shape check.
+expect('every labor sample is tagged as a STATED price on a measured quantity',
+  buildLaborSamples([entry({}), entry({ id: 'e2', trade: 'Electrical' })], RATES)
+    .every(s => s.source === 'labor_rate'), true);
+expect('the trade label round-trips back to its key (the self-perform join)',
+  laborSampleTradeKey(buildLaborSamples([entry({})], RATES)[0].trade), 'framing');
+expect('…and a non-labor label recovers nothing', laborSampleTradeKey('Framing'), '');
 
 expect('same project+trade aggregates hours; latest date wins',
   buildLaborSamples([
@@ -147,7 +162,10 @@ console.log('\njob-cost labor actuals:');
   const jc = computeJobCost({ ...base, timeEntries: shifts, laborRates: { framing: 34 } });
   const labor = jc.byPhase.find(l => l.phase === 'Self-perform labor');
   expect('rated finished shifts land as an ACTUAL Self-perform labor line',
-    labor ? { actual: labor.actual, timeEntries: labor.sources.timeEntries } : null,
+    // `.length`: JobCostLine.sources became id arrays with MONEY-DRILL-1
+    // (audit 2026-09-07) so the phase drill-down can name WHICH records built
+    // the line. The assertion is unchanged — one rated finished shift.
+    labor ? { actual: labor.actual, timeEntries: labor.sources.timeEntries.length } : null,
     { actual: 272, timeEntries: 1 });
   expect('labor actual rolls into the project total', jc.actual, 272);
 

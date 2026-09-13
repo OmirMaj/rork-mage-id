@@ -17,6 +17,7 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import type { Project } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import LockedAccessCard from '@/components/LockedAccessCard';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
@@ -91,7 +92,13 @@ export default function ProjectHero({ project }: { project: Project }) {
     // UX-F6 / RT-R2: a FAILED collaborator read is not "still resolving" — the
     // hero used to vanish with no explanation on a flaky link. Say why, keep
     // the numbers hidden.
-    if (!roleError) return null;
+    // Built-but-unreachable #9 (audit 2026-09-07). This used to `return null`,
+    // so a foreman opening the job watched the LARGEST card on the screen
+    // silently not exist — indistinguishable from a render bug, and the exact
+    // thing components/LockedAccessCard.tsx was written for. Its copy is
+    // already right for this reader: field access is something the GC turned
+    // on, not a permission they got caught lacking.
+    if (!roleError) return <LockedAccessCard what="Margin" />;
     return (
       <View style={styles.card} testID="project-hero-unavailable">
         <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
@@ -104,6 +111,18 @@ export default function ProjectHero({ project }: { project: Project }) {
   if (!risk.hasBasis) return null;
 
   const healthColor = health === 'healthy' ? t.success : health === 'watch' ? t.accent : t.danger;
+  // The risk readout gets its OWN colour. Until 2026-09-07 both the band label
+  // and the bubble were painted `healthColor` — the MARGIN band's colour — so a
+  // fat margin rendered "Moderate risk" in green and a thin one would have
+  // rendered "Low risk" in red. The word and the colour were reporting
+  // different variables, which reads as the app contradicting itself on the one
+  // card a GC uses to decide whether a job is in trouble (founder report).
+  // accentLabel/dangerLabel rather than accent/danger: these are TEXT.
+  const riskColor =
+    risk.band === 'low' ? t.success
+    : risk.band === 'moderate' ? t.warningLabel
+    : risk.band === 'elevated' ? t.accentLabel
+    : t.dangerLabel;
   // Bubble travels within the vial; 0 (no risk) sits centred, 1 (max) drifts right.
   const bubbleX = bubble.interpolate({ inputRange: [0, 1], outputRange: [0, 92] });
   const bracketW = bracket.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
@@ -139,12 +158,12 @@ export default function ProjectHero({ project }: { project: Project }) {
       <View style={styles.levelWrap}>
         <View style={styles.levelHead}>
           <Text style={styles.levelLabel}>MARGIN RISK</Text>
-          <Text style={[styles.levelBand, { color: healthColor }]}>{riskBandLabel(risk.band)}</Text>
+          <Text style={[styles.levelBand, { color: riskColor }]}>{riskBandLabel(risk.band)}</Text>
         </View>
         <View style={styles.vial}>
           <View style={[styles.centerMark, styles.centerA]} />
           <View style={[styles.centerMark, styles.centerB]} />
-          <Animated.View style={[styles.bubble, { backgroundColor: healthColor, transform: [{ translateX: bubbleX }] }]} />
+          <Animated.View style={[styles.bubble, { backgroundColor: riskColor, transform: [{ translateX: bubbleX }] }]} />
         </View>
       </View>
 
@@ -182,7 +201,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   pct: { ...Type.serifLargeTitle, color: t.textMuted, marginTop: 6, marginLeft: 2 },
 
   bracket: { flexDirection: 'row', alignItems: 'center', height: 14, marginTop: 4 },
-  bracketLine: { flex: 1, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+  // minWidth: 0 is the whole fix. A `flex: 1` item refuses to shrink below its
+  // own content width unless told it may, so this row kept its natural size and
+  // pushed the flexShrink:0 label past the card's right edge — which is how
+  // "HEALTHY" rendered as "HEAL" again on an iPhone (founder report,
+  // 2026-09-07) despite the comment above claiming the overflow was solved.
+  // overflow:'hidden' clips the BAR, which is the intent; it never made room.
+  bracketLine: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
   tick: { width: 1.5, height: 12, borderRadius: 1 },
   bracketBar: { height: 1.5, marginHorizontal: 0 },
   bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8, flexShrink: 0 },

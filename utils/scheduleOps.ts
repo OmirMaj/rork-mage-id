@@ -4,8 +4,11 @@
 // Keep each op pure (input → output). The caller commits via their own
 // state manager / persist layer.
 
-import type { ScheduleTask, ScheduleBaseline } from '@/types';
-import { runCpm, type RunCpmOptions } from '@/utils/cpm';
+import type { ScheduleTask, ScheduleBaseline, DependencyLink } from '@/types';
+import {
+  runCpm, calendarIndexToWorkingOrdinal, isWorkingDayOfWeek,
+  type RunCpmOptions, type CpmResult, type DayScaleOptions,
+} from '@/utils/cpm';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 
@@ -34,8 +37,10 @@ export function scheduleDayNumberFor(
   const cur = new Date(base.getTime());
   while (cur < tgt) {
     cur.setDate(cur.getDate() + 1);
-    const dow = cur.getDay();
-    if (workingDaysPerWeek < 7 && (dow === 0 || dow === 6)) continue;
+    // THE weekend rule (cpm.isWorkingDayOfWeek), not a fourth copy of it: this
+    // walker is the INVERSE of addWorkingDays, so on a 6-day week it has to
+    // count the Saturdays the engine works. Inlined, it did not.
+    if (!isWorkingDayOfWeek(cur.getDay(), workingDaysPerWeek)) continue;
     if (blocked && blocked.has(toCalendarDayString(cur))) continue;
     count++;
   }
@@ -281,63 +286,123 @@ export function isMilestoneOnScheduleDay(
 // This op takes the observed variance on each task with actuals and cascades
 // it to downstream successors.
 //
-// Algorithm (simple & deterministic):
-//   For each task with `actualStartDay` set:
-//     delta = actualStartDay - baselineStartDay  (or startDay if no baseline)
-//     If delta > 0, push every transitive successor's startDay by `delta` days
-//       (unless that successor also already has an actualStartDay, in which
-//        case its actuals override the cascade — they've already happened).
-//   Idempotent: running twice on the same data produces the same output.
+// Algorithm — a small forward pass in WORKING-ORDINAL space:
+//   • A task that has actuals is PINNED to them. Its effective start is
+//     `actualStartDay`; its effective end is `actualEndDay` when captured, and
+//     otherwise `actualStartDay + durationDays - 1` (still running, so the best
+//     estimate is that it takes as long as planned from where it really began).
+//   • Every other task moves FORWARD to the earliest day its predecessors now
+//     allow, and no further: `startDay = max(startDay, required)`. A task with
+//     a planned gap after its predecessor absorbs the slip into that gap
+//     instead of being shoved, which is what a scheduler expects and what the
+//     gap was there for.
+//   • The link TYPE decides what "allow" means — FS waits on the finish, SS
+//     rides the start, FF and SF pin the successor's own finish. Lags apply.
+//   • Tasks are visited in dependency order, so one pass settles the chain.
+//
+// This is genuinely IDEMPOTENT, and the header used to claim that while the
+// code was not. It computed `succ.startDay = succ.startDay + push` — an
+// INCREMENT off a value it had itself just written. Measured on
+// FOUNDATION(10d, actual start day 5) -> FRAMING(10d) -> DRYWALL(5d):
+//     run 1 → A@1 B@9  C@14
+//     run 2 → A@1 B@12 C@17
+//     run 3 → A@1 B@15 C@20
+// Three taps of the same button, three different plans, no warning. Because the
+// target is now derived from the ACTUALS and the link structure rather than
+// from the field it writes, re-running settles on the same answer — with or
+// without a baseline, which the previous "baselineStartDay ?? startDay" basis
+// could not manage either.
+//
+// It also no longer treats every link as FS. `dependencies` is an untyped id
+// list; `dependencyLinks` carries the real type and lag, and an SS partner does
+// not wait on a finish delay at all.
 //
 // This does NOT recompute the critical path — the caller re-runs `runCpm`
 // after applying the reflow so all float numbers are fresh.
+
+/** Predecessor links as typed edges, falling back to the legacy id list. */
+function typedLinks(t: ScheduleTask): DependencyLink[] {
+  const links = t.dependencyLinks;
+  if (links && links.length > 0) return links;
+  return (t.dependencies ?? []).map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
+}
 
 export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
   const byId = new Map<string, ScheduleTask>();
   for (const t of tasks) byId.set(t.id, { ...t });
 
-  // Build successor index.
-  const successors = new Map<string, string[]>();
+  // Dependency order (Kahn). A cycle means we cannot say what follows what, so
+  // return the input untouched rather than guessing — schedule-pro surfaces the
+  // cycle through runCpm's own conflict list.
+  const indegree = new Map<string, number>();
+  const succIndex = new Map<string, string[]>();
+  for (const t of tasks) indegree.set(t.id, 0);
   for (const t of tasks) {
-    for (const depId of t.dependencies) {
-      const arr = successors.get(depId) ?? [];
+    for (const link of typedLinks(t)) {
+      if (!byId.has(link.taskId)) continue;   // dangling reference — ignore
+      indegree.set(t.id, (indegree.get(t.id) ?? 0) + 1);
+      const arr = succIndex.get(link.taskId) ?? [];
       arr.push(t.id);
-      successors.set(depId, arr);
+      succIndex.set(link.taskId, arr);
     }
   }
-
-  // For each task with actuals, compute delta and propagate.
-  for (const seed of tasks) {
-    if (seed.actualStartDay == null) continue;
-    const basis = seed.baselineStartDay ?? seed.startDay;
-    const delta = seed.actualStartDay - basis;
-    // Also factor in a finished task that ran longer than baseline.
-    let finishDelta = 0;
-    if (seed.actualEndDay != null) {
-      const baseEnd = seed.baselineEndDay ?? (basis + Math.max(0, seed.durationDays - 1));
-      finishDelta = seed.actualEndDay - baseEnd;
-    }
-    const push = Math.max(delta, finishDelta);
-    if (push <= 0) continue;
-
-    // BFS through successors. Stop at any successor that has its own actuals
-    // (they're already grounded in reality and should be trusted).
-    const seen = new Set<string>();
-    const q = [...(successors.get(seed.id) ?? [])];
-    while (q.length) {
-      const sid = q.shift()!;
-      if (seen.has(sid)) continue;
-      seen.add(sid);
-      const succ = byId.get(sid);
-      if (!succ) continue;
-      if (succ.actualStartDay != null) continue; // don't touch started work
-      succ.startDay = succ.startDay + push;
-      // Keep baseline as-is — baseline = the original promise, not the new plan.
-      for (const next of successors.get(sid) ?? []) q.push(next);
+  const queue = tasks.filter(t => (indegree.get(t.id) ?? 0) === 0).map(t => t.id);
+  const order: string[] = [];
+  while (queue.length) {
+    const id = queue.shift()!;
+    order.push(id);
+    for (const sid of succIndex.get(id) ?? []) {
+      const n = (indegree.get(sid) ?? 0) - 1;
+      indegree.set(sid, n);
+      if (n === 0) queue.push(sid);
     }
   }
+  if (order.length !== tasks.length) return tasks;   // cycle
 
-  return [...byId.values()];
+  /** Where a task really is, as [start, end] working ordinals. Actuals win. */
+  const span = (t: ScheduleTask): { start: number; end: number } => {
+    const dur = Math.max(0, t.durationDays ?? 0);
+    if (t.actualStartDay != null) {
+      const start = t.actualStartDay;
+      return { start, end: t.actualEndDay ?? start + Math.max(0, dur - 1) };
+    }
+    return { start: t.startDay, end: t.startDay + Math.max(0, dur - 1) };
+  };
+
+  for (const id of order) {
+    const t = byId.get(id)!;
+    // Started or finished work is grounded in reality — the cascade never
+    // overrides it. (It still PROPAGATES from it: `span` reads the actuals.)
+    if (t.actualStartDay != null) continue;
+
+    const dur = Math.max(0, t.durationDays ?? 0);
+    let required = t.startDay;                       // never pull work earlier
+    for (const link of typedLinks(t)) {
+      const pred = byId.get(link.taskId);
+      if (!pred) continue;
+      const p = span(pred);
+      const lag = link.lagDays ?? 0;
+      let need: number;
+      switch (link.type ?? 'FS') {
+        case 'SS': need = p.start + lag; break;
+        // FF / SF constrain this task's FINISH; back the start out of it.
+        case 'FF': need = p.end + lag - Math.max(0, dur - 1); break;
+        case 'SF': need = p.start + lag - Math.max(0, dur - 1); break;
+        case 'FS':
+        default:   need = p.end + 1 + lag; break;
+      }
+      if (need > required) required = need;
+    }
+    if (required > t.startDay) t.startDay = required;
+    // Baseline is untouched on purpose: baseline = the original promise, not
+    // the new plan.
+  }
+
+  // INPUT order, not topological order. `order` was only a visit sequence.
+  // app/schedule-pro.tsx compares the result against `workingTasks` BY INDEX to
+  // count what moved, and the grid renders rows in array order — reordering
+  // here would mis-report the count and silently reshuffle the user's list.
+  return tasks.map(t => byId.get(t.id)!);
 }
 
 // ---------------------------------------------------------------------------
@@ -387,6 +452,23 @@ export const BASELINE_REASON_LABELS: Record<BaselineReasonCode, string> = {
 export interface CaptureBaselineOpts {
   reasonCode?: BaselineReasonCode;
   capturedBy?: string;
+  /**
+   * The project calendar. Supply it and the snapshot records where each task is
+   * SCHEDULED rather than where it was AUTHORED.
+   *
+   * `task.startDay` is a floor, not a position: a task whose predecessor grew
+   * still carries the pin the user typed months ago. Baselining the pins meant
+   * both sides of every later comparison read the same never-moving number, so
+   * dependency-driven slip — the single most common cause of a job running
+   * late — could not appear in the variance at all. Still a WORKING ORDINAL on
+   * the way out: the stored scale is unchanged, only its accuracy improves.
+   *
+   * Optional. Without it the pin is snapshotted, exactly as before.
+   */
+  scale?: DayScaleOptions;
+  /** A CPM result already computed over the SAME `tasks` and the same
+   *  calendar, to avoid a second run. */
+  cpm?: CpmResult;
 }
 
 export function captureBaseline(
@@ -395,6 +477,12 @@ export function captureBaseline(
   note?: string,
   opts: CaptureBaselineOpts = {},
 ): NamedBaseline {
+  const scheduled = opts.scale ? (opts.cpm ?? runCpm(tasks, opts.scale)) : null;
+  const startOf = (t: ScheduleTask): number => {
+    const row = scheduled?.perTask.get(t.id);
+    if (!row) return t.startDay;
+    return calendarIndexToWorkingOrdinal(row.es, opts.scale ?? {});
+  };
   return {
     id: `baseline-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     name,
@@ -402,11 +490,14 @@ export function captureBaseline(
     reasonCode: opts.reasonCode,
     capturedBy: opts.capturedBy,
     savedAt: new Date().toISOString(),
-    tasks: tasks.map(t => ({
-      id: t.id,
-      startDay: t.startDay,
-      endDay: t.startDay + Math.max(0, t.durationDays - 1),
-    })),
+    tasks: tasks.map(t => {
+      const startDay = startOf(t);
+      return {
+        id: t.id,
+        startDay,
+        endDay: startDay + Math.max(0, t.durationDays - 1),
+      };
+    }),
   };
 }
 
@@ -511,20 +602,67 @@ export function diffTwoBaselines(a: NamedBaseline, b: NamedBaseline): BaselineDi
   return out.sort((a, b) => Math.abs(b.endDelta) - Math.abs(a.endDelta));
 }
 
-/** Show variance between the current plan and a named baseline. */
-export function diffAgainstBaseline(tasks: ScheduleTask[], baseline: NamedBaseline): BaselineDiff[] {
+export interface BaselineDiffOpts {
+  /**
+   * The project calendar. Supply it and the diff measures where each task is
+   * SCHEDULED (a CPM run over `tasks`, converted back to the baseline's
+   * working-ordinal scale) instead of where it was AUTHORED.
+   *
+   * Why it matters: `captureBaseline` and this function both read
+   * `task.startDay`, the authored pin. A pin does not move when a PREDECESSOR
+   * grows, so the one variance a superintendent most needs — "my drywall slipped
+   * because the foundation ran long" — was invisible. Measured on
+   * FOUNDATION(10d)->FRAMING(10d)->DRYWALL(5d) at ordinals 1/11/21, 5-day week:
+   * stretching FOUNDATION to 20d moves the CPM early starts 1,15,29 → 1,29,43,
+   * and the old diff returned exactly one row (FOUNDATION, +10d duration).
+   * FRAMING and DRYWALL had each slipped ten working days and it reported
+   * neither.
+   *
+   * Optional, and omitted it behaves exactly as before — the pin-only diff is
+   * still the honest answer for a caller that has no calendar to run CPM on.
+   */
+  scale?: DayScaleOptions;
+  /** A CPM result already computed over the SAME `tasks`, to avoid a second
+   *  run. Must be on the calendar named by `scale`. */
+  cpm?: CpmResult;
+}
+
+/**
+ * Show variance between the current plan and a named baseline.
+ *
+ * Both sides are in WORKING ORDINALS (the scale `NamedBaseline.tasks[].startDay`
+ * is stored on), so the deltas are working-day counts.
+ */
+export function diffAgainstBaseline(
+  tasks: ScheduleTask[],
+  baseline: NamedBaseline,
+  opts: BaselineDiffOpts = {},
+): BaselineDiff[] {
   const byId = new Map(baseline.tasks.map(b => [b.id, b]));
+
+  // Where each task actually sits, as a WORKING ORDINAL. With a calendar we
+  // ask the engine; without one we can only report the authored pin.
+  const scheduled = opts.scale
+    ? (opts.cpm ?? runCpm(tasks, opts.scale))
+    : null;
+  const startOf = (t: ScheduleTask): number => {
+    const row = scheduled?.perTask.get(t.id);
+    if (!row) return t.startDay;
+    return calendarIndexToWorkingOrdinal(row.es, opts.scale ?? {});
+  };
+
   const out: BaselineDiff[] = [];
   for (const t of tasks) {
     const b = byId.get(t.id);
     if (!b) continue;
-    const end = t.startDay + Math.max(0, t.durationDays - 1);
+    const start = startOf(t);
+    const end = start + Math.max(0, t.durationDays - 1);
     const bDur = b.endDay - b.startDay + 1;
-    if (t.startDay === b.startDay && t.durationDays === bDur) continue; // unchanged
+    if (start === b.startDay && t.durationDays === bDur) continue; // unchanged
     out.push({
       taskId: t.id,
       title: t.title,
-      startDelta: t.startDay - b.startDay,
+      startDelta: start - b.startDay,
       durationDelta: t.durationDays - bDur,
       endDelta: end - b.endDay,
     });
@@ -648,10 +786,19 @@ export function downloadCsvInBrowser(csv: string, filename: string): boolean {
 // The projection is intentionally minimal — we don't ship notes, progress
 // history, or internal ids. The shared view is read-only so that's fine.
 
+/** Highest payload version this module knows how to mint and read. */
+export const SHARE_PAYLOAD_VERSION = 4;
+
 export interface SharedSchedulePayload {
   /** v=1 legacy; v=2 adds GC contact + per-task assignedSub for sub-confirm flow.
-   *  v=3 adds projectId for the Sub Schedule Collab daily-update flow. */
-  v: 1 | 2 | 3;
+   *  v=3 adds projectId for the Sub Schedule Collab daily-update flow.
+   *  v=4 adds the project CALENDAR (workingDaysPerWeek + nonWorkingDates) and
+   *      typed dependencyLinks. Without them the viewer ran CPM on a 7-day week
+   *      with no anchors and every SS/FF/SF link and every lag died before the
+   *      link was even minted — the recipient saw a different critical path and
+   *      different dates from the GC who sent it, with the GC not in the room
+   *      to explain the difference. */
+  v: 1 | 2 | 3 | 4;
   name: string;
   /** The schedule's start CALENDAR DAY, 'YYYY-MM-DD'. Tokens minted before
    *  2026-09-04 carry a full toISOString() instant instead; parseCalendarDay
@@ -669,6 +816,12 @@ export interface SharedSchedulePayload {
     phone?: string;
     company?: string;
   };
+  /** v4+: working days per week (1-7). Absent → the viewer must NOT guess; see
+   *  cpmOptionsFromSharePayload, which falls back to the app's 5-day default
+   *  rather than the engine's raw-day 7. */
+  workingDaysPerWeek?: number;
+  /** v4+: closures / holidays (ISO YYYY-MM-DD) that block work. */
+  nonWorkingDates?: string[];
   tasks: {
     id: string;
     title: string;
@@ -676,6 +829,10 @@ export interface SharedSchedulePayload {
     startDay: number;
     durationDays: number;
     dependencies: string[];
+    /** v4+: typed links, emitted ONLY for tasks that have a non-FS type or a
+     *  non-zero lag — a plain FS+0 chain is already fully described by
+     *  `dependencies`, and the token has a 6000-char ceiling to respect. */
+    dependencyLinks?: DependencyLink[];
     crew?: string;
     isMilestone?: boolean;
     baselineStartDay?: number;
@@ -765,7 +922,21 @@ export function decodeShareToken(token: string): SharedSchedulePayload | null {
       ? new TextDecoder().decode(bytes)
       : ascii;
     const parsed = JSON.parse(json) as SharedSchedulePayload;
-    if (parsed.v !== 1 || !Array.isArray(parsed.tasks)) return null;
+    // Accept EVERY version this module can mint, not just v1.
+    //
+    // This read `parsed.v !== 1`, while buildSharePayload has emitted v2 for a
+    // GC contact and v3 for a projectId for some time — and app/schedule-pro's
+    // "Share" always passes { projectId }, so it always minted v3. Every share
+    // link the Pro scheduler produced therefore decoded to null and the
+    // recipient got the "invalid link" leaf. Reproduced: buildSharePayload(...,
+    // { projectId }) → v3 → encodeShareToken → decodeShareToken → null.
+    //
+    // Newer payloads are strict supersets (every field added since v1 is
+    // optional), so an older viewer degrades rather than breaks; the guard's
+    // real job is rejecting garbage, which the shape checks below do.
+    const version = (parsed as { v?: unknown }).v;
+    if (typeof version !== 'number' || version < 1 || version > SHARE_PAYLOAD_VERSION) return null;
+    if (!Array.isArray(parsed.tasks)) return null;
     return parsed;
   } catch {
     return null;
@@ -778,6 +949,36 @@ export interface BuildSharePayloadOpts {
   /** Project this schedule belongs to. Required for Sub Schedule Collab
    *  daily updates so posts route to the right project context. */
   projectId?: string;
+  /** The project's working calendar. Pass it — without it the recipient's CPM
+   *  runs on a different calendar from the one the GC is looking at. */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
+}
+
+/** True when a link carries information `dependencies: string[]` cannot. */
+function isNonTrivialLink(l: DependencyLink): boolean {
+  return (l.type ?? 'FS') !== 'FS' || (l.lagDays ?? 0) !== 0;
+}
+
+/**
+ * RunCpmOptions for a shared payload, so the read-only viewer computes the
+ * SAME critical path and the SAME dates as the scheduler that shared it.
+ *
+ * `runCpm(tasks)` with no options — which is what the viewer used to do —
+ * defaults to a 7-DAY week (A(10d)->B(5d) finishes on index 10 instead of 12)
+ * and, with no scheduleStartDate, makes isoToDay return null so EVERY anchor is
+ * silently dropped.
+ *
+ * The 5-day fallback for pre-v4 tokens matches the app's own default
+ * (`project?.schedule?.workingDaysPerWeek ?? 5`) and the calendar those tokens
+ * were rendered against, so an old link keeps showing what it always showed.
+ */
+export function cpmOptionsFromSharePayload(payload: SharedSchedulePayload): RunCpmOptions {
+  return {
+    scheduleStartDate: payload.projectStartISO?.slice(0, 10),
+    workingDaysPerWeek: payload.workingDaysPerWeek ?? 5,
+    nonWorkingDates: payload.nonWorkingDates,
+  };
 }
 
 export function buildSharePayload(
@@ -790,9 +991,17 @@ export function buildSharePayload(
   // v2 when only GC contact / sub assignment is set, v1 otherwise.
   const anySub = tasks.some(t => t.assignedSubName);
   const hasGc = !!(opts.gc?.name || opts.gc?.email || opts.gc?.phone);
-  const v: 1 | 2 | 3 = opts.projectId ? 3 : (anySub || hasGc) ? 2 : 1;
+  const anyTypedLink = tasks.some(t => (t.dependencyLinks ?? []).some(isNonTrivialLink));
+  const hasCalendar = opts.workingDaysPerWeek != null
+    || (opts.nonWorkingDates != null && opts.nonWorkingDates.length > 0);
+  const v: 1 | 2 | 3 | 4 = (hasCalendar || anyTypedLink) ? 4
+    : opts.projectId ? 3
+    : (anySub || hasGc) ? 2 : 1;
   return {
     v,
+    workingDaysPerWeek: opts.workingDaysPerWeek,
+    nonWorkingDates: opts.nonWorkingDates && opts.nonWorkingDates.length > 0
+      ? opts.nonWorkingDates : undefined,
     name,
     // UX-F2: a calendar day, from LOCAL components. toISOString() re-projected
     // local midnight into UTC, and the viewer re-parsed that as UTC midnight —
@@ -815,6 +1024,11 @@ export function buildSharePayload(
       startDay: t.startDay,
       durationDays: t.durationDays,
       dependencies: t.dependencies,
+      // Only the links that carry more than `dependencies` already does. A
+      // plain FS+0 chain stays out of the token — the 6000-char URL ceiling is
+      // the reason this projection is minimal in the first place.
+      dependencyLinks: (t.dependencyLinks ?? []).some(isNonTrivialLink)
+        ? t.dependencyLinks : undefined,
       crew: t.crew || undefined,
       isMilestone: t.isMilestone,
       baselineStartDay: t.baselineStartDay,
@@ -838,6 +1052,7 @@ export function tasksFromSharePayload(payload: SharedSchedulePayload): ScheduleT
     progress: t.progress ?? 0,
     crew: t.crew ?? '',
     dependencies: t.dependencies,
+    dependencyLinks: t.dependencyLinks,
     notes: '',
     status: 'not_started',
     isMilestone: t.isMilestone,

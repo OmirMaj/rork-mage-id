@@ -40,12 +40,22 @@ import {
   type NamedBaseline,
   type BaselineDiff,
 } from '@/utils/scheduleOps';
+import type { DayScaleOptions } from '@/utils/cpm';
 
 interface BaselineManagerModalProps {
   visible: boolean;
   onClose: () => void;
   baselines: NamedBaseline[];
   workingTasks: ScheduleTask[];
+  /**
+   * The project calendar. Both the capture and the variance run through it so
+   * they record and report where work is SCHEDULED, not where it was pinned:
+   * without it, a task pushed by a predecessor that grew shows zero variance
+   * (measured — FOUNDATION 10d→20d slipped FRAMING and DRYWALL ten working
+   * days each and the diff listed only FOUNDATION). Optional; omitted, both
+   * fall back to the authored `startDay`.
+   */
+  dayScale?: DayScaleOptions;
   /** The currently-active baseline's id (drives the ghost-stripe overlay). */
   activeBaselineId?: string | null;
   /** Persist a new baselines list. Called when the user captures, renames,
@@ -69,7 +79,7 @@ type Mode =
 export default function BaselineManagerModal(props: BaselineManagerModalProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { visible, onClose, baselines, workingTasks, activeBaselineId, onBaselinesChange, onActivate } = props;
+  const { visible, onClose, baselines, workingTasks, activeBaselineId, onBaselinesChange, onActivate, dayScale } = props;
   const [mode, setMode] = useState<Mode>({ kind: 'list' });
   const [draftName, setDraftName] = useState('');
   const [draftNote, setDraftNote] = useState('');
@@ -100,7 +110,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
   const handleCapture = useCallback(() => {
     const name = draftName.trim() || `v${baselines.length + 1}`;
     const snap: NamedBaseline = {
-      ...captureBaseline(workingTasks, name),
+      ...captureBaseline(workingTasks, name, undefined, { scale: dayScale }),
       note: draftNote.trim() || undefined,
     };
     const next = [...baselines, snap];
@@ -109,7 +119,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
     setMode({ kind: 'list' });
     setDraftName('');
     setDraftNote('');
-  }, [draftName, draftNote, baselines, workingTasks, onBaselinesChange, onActivate]);
+  }, [draftName, draftNote, baselines, workingTasks, onBaselinesChange, onActivate, dayScale]);
 
   // ── Rename ─────────────────────────────────────────────────────
   const startRename = useCallback((baselineId: string) => {
@@ -175,7 +185,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
           const b = baselines.find(x => x.id === mode.bId);
           return b ? diffTwoBaselines(a, b) : [];
         })()
-      : diffAgainstBaseline(workingTasks, a);
+      : diffAgainstBaseline(workingTasks, a, { scale: dayScale });
 
     // diffTwoBaselines returns the task id as `title` (it doesn't have
     // the live task list). Resolve it back to the human title from
@@ -184,7 +194,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
     // was deleted between baselines.
     const titleById = new Map(workingTasks.map(t => [t.id, t.title]));
     return raw.map(d => ({ ...d, title: titleById.get(d.taskId) ?? d.title }));
-  }, [mode, baselines, workingTasks]);
+  }, [mode, baselines, workingTasks, dayScale]);
 
   // ── Render ─────────────────────────────────────────────────────
   return (

@@ -13,19 +13,24 @@
 import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { parseCalendarDay, formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { scheduleVerdict } from '@/utils/scheduleVerdict';
 import { useResponsive } from '@/utils/useResponsive';
 
 export function DashboardTab() {
-  useTheme();
+  // Was a bare `useTheme()` over a module-scope StyleSheet — 19 Colors.surface
+  // /text/textSecondary/border reads frozen at import, so the four KPI tiles
+  // and both chart cards stayed white in dark mode (audit 2026-09-07).
+  const { colors: t } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { bp } = useResponsive();
   const isPhone = bp === 'phone';
   const { tasks, schedule, cpm } = useScheduler();
@@ -74,7 +79,7 @@ export function DashboardTab() {
   const verdictColor = verdict.tone === 'behind' ? Colors.pillLate
                      : verdict.tone === 'slightlyBehind' ? Colors.pillAtRisk
                      : verdict.tone === 'ahead' || verdict.tone === 'onPace' ? Colors.pillOnTrack
-                     : Colors.textSecondary;
+                     : t.textSecondary;
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -125,7 +130,7 @@ export function DashboardTab() {
             <Text style={styles.chartTitle}>Earned Value</Text>
             <View style={styles.legend}>
               <Legend color={Colors.tradeColors.general} label="EV" />
-              <Legend color={Colors.textSecondary} label="PV" />
+              <Legend color={t.textSecondary} label="PV" />
               <Legend color={Colors.pillLate} label="AC" />
             </View>
           </View>
@@ -151,7 +156,11 @@ export function DashboardTab() {
             <View>
               <LegendRow color={Colors.tradeColors.general} label="Done" count={stats.done} />
               <LegendRow color="#FFCC80" label="In Progress" count={stats.inProgress} />
-              <LegendRow color={Colors.fillTertiary} label="Not Started" count={stats.notStarted} />
+              {/* textMuted, not a soft tint: this swatch and its donut segment
+                  are a DATA encoding — the count of not-started tasks — so it
+                  has to be a colour you can see, not the 6%/12% neutral wash
+                  the old Colors.fillTertiary composited to on white. */}
+              <LegendRow color={t.textMuted} label="Not Started" count={stats.notStarted} />
               {stats.overdue > 0 && <LegendRow color={Colors.pillLate} label="Overdue" count={stats.overdue} />}
             </View>
           </View>
@@ -184,6 +193,7 @@ export function DashboardTab() {
 }
 
 function StatCard({ label, value, valueColor, delta, deltaBad, phone }: { label: string; value: string; valueColor?: string; delta: string; deltaBad?: boolean; phone?: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.statCard, phone && styles.statCardPhone]}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -194,30 +204,33 @@ function StatCard({ label, value, valueColor, delta, deltaBad, phone }: { label:
 }
 
 function Legend({ color, label }: { color: string; label: string }) {
+  const { colors: t } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-      <Text style={{ fontSize: 10, color: Colors.textSecondary }}>{label}</Text>
+      <Text style={{ fontSize: 10, color: t.textSecondary }}>{label}</Text>
     </View>
   );
 }
 
 function LegendRow({ color, label, count }: { color: string; label: string; count: number }) {
+  const { colors: t } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 3 }}>
       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-      <Text style={{ fontSize: 11, color: Colors.text }}>{label} · {count}</Text>
+      <Text style={{ fontSize: 11, color: t.text }}>{label} · {count}</Text>
     </View>
   );
 }
 
 function StatusDonut({ done, inProgress, notStarted, overdue, total }: { done: number; inProgress: number; notStarted: number; overdue: number; total: number }) {
+  const { colors: t } = useTheme();
   const r = 40, stroke = 16, size = 120;
   const safeTotal = Math.max(total, 1);
   const segments = [
     { value: done, color: Colors.tradeColors.general },
     { value: inProgress, color: '#FFCC80' },
-    { value: notStarted, color: Colors.fillTertiary },
+    { value: notStarted, color: t.textMuted },   // see the LegendRow note above
     { value: overdue, color: Colors.pillLate },
   ].filter(s => s.value > 0);
 
@@ -241,53 +254,53 @@ function StatusDonut({ done, inProgress, notStarted, overdue, total }: { done: n
         })}
       </Svg>
       <View style={{ position: 'absolute', alignItems: 'center' }}>
-        <Text style={{ fontSize: 18, color: Colors.text, fontWeight: '700' }}>{Math.round((done / safeTotal) * 100)}%</Text>
-        <Text style={{ fontSize: 9, color: Colors.textSecondary, letterSpacing: 0.6 }}>DONE</Text>
+        <Text style={{ fontSize: 18, color: t.text, fontWeight: '700' }}>{Math.round((done / safeTotal) * 100)}%</Text>
+        <Text style={{ fontSize: 9, color: t.textSecondary, letterSpacing: 0.6 }}>DONE</Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1 },
   content: { padding: 18, gap: 14 },
-  verdictBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
+  verdictBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: t.surface, borderRadius: Tokens.radius.md, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line },
   verdictDot: { width: 10, height: 10, borderRadius: Tokens.radius.full, marginTop: 4 },
-  verdictHeadline: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text },
-  verdictDetail: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 3 },
+  verdictHeadline: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text },
+  verdictDetail: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 3 },
   statRow: { flexDirection: 'row', gap: 10 },
   statCard: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 14,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border,
+    flex: 1, backgroundColor: t.surface, borderRadius: 10, padding: 14,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: t.line,
   },
-  statLabel: { fontSize: 10, color: Colors.textSecondary, letterSpacing: 0.6, fontWeight: '700' },
-  statValue: { fontSize: 22, fontWeight: '700', color: Colors.text, letterSpacing: -0.4, marginTop: 6 },
-  statDelta: { fontSize: 10, color: Colors.textSecondary, marginTop: 4 },
+  statLabel: { fontSize: 10, color: t.textSecondary, letterSpacing: 0.6, fontWeight: '700' },
+  statValue: { fontSize: 22, fontWeight: '700', color: t.text, letterSpacing: -0.4, marginTop: 6 },
+  statDelta: { fontSize: 10, color: t.textSecondary, marginTop: 4 },
   chartsRow: { flexDirection: 'row', gap: 10 },
   chartCard: {
-    backgroundColor: Colors.surface, borderRadius: 10, padding: 14,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border,
+    backgroundColor: t.surface, borderRadius: 10, padding: 14,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: t.line,
   },
   chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  chartTitle: { color: Colors.text, fontSize: 12, fontWeight: '600' },
-  chartHint: { color: Colors.textSecondary, fontSize: 10 },
+  chartTitle: { color: t.text, fontSize: 12, fontWeight: '600' },
+  chartHint: { color: t.textSecondary, fontSize: 10 },
   legend: { flexDirection: 'row', gap: 14 },
   cpList: {
-    backgroundColor: Colors.surface, borderRadius: 10, padding: 14,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border,
+    backgroundColor: t.surface, borderRadius: 10, padding: 14,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: t.line,
   },
   cpRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 7,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(31,37,45,0.6)',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,   // was a fixed near-opaque 'rgba(31,37,45,0.6)' — a heavy dark rule on the light theme
   },
   cpRowLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   cpDot: { fontSize: 10 },
-  cpName: { color: Colors.text, fontSize: 11, flexShrink: 1 },
-  cpTrade: { color: Colors.textSecondary, fontSize: 9, marginLeft: 4 },
+  cpName: { color: t.text, fontSize: 11, flexShrink: 1 },
+  cpTrade: { color: t.textSecondary, fontSize: 9, marginLeft: 4 },
   cpFloat: { width: 60, color: Colors.pillLate, fontSize: 11 },
-  cpDue: { width: 50, color: Colors.textSecondary, fontSize: 11, textAlign: 'right' },
-  emptyText: { color: Colors.textMuted, fontSize: 11, textAlign: 'center', paddingVertical: 14, fontStyle: 'italic' },
+  cpDue: { width: 50, color: t.textSecondary, fontSize: 11, textAlign: 'right' },
+  emptyText: { color: t.textMuted, fontSize: 11, textAlign: 'center', paddingVertical: 14, fontStyle: 'italic' },
 
   // ---- Phone overrides (Task 18): 2x2 stat wrap + stacked charts ----
   statRowPhone: { flexWrap: 'wrap', gap: 10 },

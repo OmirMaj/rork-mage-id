@@ -49,6 +49,10 @@ import {
   type NormPoint,
 } from '@/utils/takeoffGeometry';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
+// The canonical at-cost rule (labor / assemblies carry no markup), shared with
+// the estimator and the voice-edit recompute rather than restated here.
+import { isAtCostLine } from '@/utils/copilot/estimateEdit/estimateOps';
+import { roundCents } from '@/utils/invoiceBilling';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
@@ -363,7 +367,7 @@ function AreaTakeoffInner() {
     if (!project?.linkedEstimate || effectiveRate == null || billableRounded <= 0) return;
     const est = project.linkedEstimate;
     const qty = billableRounded;
-    const lineTotal = qty * effectiveRate;
+    const costLineTotal = qty * effectiveRate;
     const usingHistory = historyRate != null && !!selectedTrade;
     const name = usingHistory
       ? `${selectedTrade} (takeoff)`
@@ -371,6 +375,44 @@ function AreaTakeoffInner() {
         ? `${manualRateSource} (takeoff · engine rate)`
         : 'Takeoff line (manual rate)';
     const category = usingHistory ? (selectedTrade as string) : (manualRateSource ?? 'Takeoff');
+    // ── MARKUP LIVES INSIDE lineTotal (AIA-F11) ───────────────────────────
+    //
+    // `lineTotal` is the SELL value of the line, so that
+    // Σ items.lineTotal === grandTotal. That is the estimator's own contract
+    // (app/(tabs)/estimate/full.tsx:986) and the one utils/aiaBilling.ts reads:
+    // buildAIASovLines builds G703 column C from `lineTotal` while G702 line 3
+    // is `grandTotal`, and the two are two statements of one contract.
+    //
+    // This screen used to push `markup: 0` with a COST lineTotal while bumping
+    // grandTotal by cost + its share of markup. Measured on the case the audit
+    // cites — a $40,000 takeoff addition onto a $118,000 estimate carrying 18%
+    // — column C footed to $158,000 against a line 3 of $165,200: the G703
+    // under-footed the certificate by $7,200, permanently, on every pay
+    // application for that job, and the reconciliation banner then told the GC
+    // to go and fix an estimate that was already correct. app/bill-from-estimate
+    // billed the same short rows to 100% and printed "Remaining $0.00".
+    //
+    // Two smaller consequences of the old shape went with it:
+    // utils/copilot/estimateEdit/estimateOps.recomputeEstimate rebuilds
+    // grandTotal as Σ lineTotal, so the FIRST voice edit of the estimate
+    // silently deleted the takeoff line's markup; and project-detail's
+    // qty × price × (1+markup) fallback disagreed with the stored total.
+    //
+    // The rate the GC priced stays in `unitPrice`, which is what the cost
+    // consumers read (utils/jobCostEngine.ts:919 measures a commitment against
+    // unitPrice × quantity for exactly this reason), and baseTotal still sums
+    // pre-markup cost, which is the WIP cost budget (utils/wip.ts:989).
+    // --- BEGIN takeoff append ---
+    // Lifted and EXECUTED by scripts/validate-invoice-billing.ts. Keep the
+    // sentinels: the validator exits 1 if they go missing rather than quietly
+    // stopping checking that this screen's lines foot to the contract.
+    const atCost = isAtCostLine({ category });
+    const ratio = !atCost && est.baseTotal > 0 ? est.markupTotal / est.baseTotal : 0;
+    const markupPct = ratio * 100;
+    // Rounded the way recomputeEstimate rounds, so a later edit is a no-op
+    // rather than a cent of drift on the contract value.
+    const lineTotal = roundCents(costLineTotal * (1 + markupPct / 100));
+    const addedMarkup = roundCents(lineTotal - costLineTotal);
     const item: LinkedEstimateItem = {
       materialId: generateUUID(),
       name,
@@ -379,24 +421,25 @@ function AreaTakeoffInner() {
       quantity: qty,
       unitPrice: effectiveRate,
       bulkPrice: effectiveRate,
-      markup: 0,
+      markup: markupPct,
       usesBulk: false,
       lineTotal,
       supplier: '',
     };
-    // Add markup at the estimate's existing effective ratio so permits /
+    // Markup at the estimate's existing effective ratio so permits /
     // contingency and current markup are preserved (don't recompute from scratch).
-    const ratio = est.baseTotal > 0 ? est.markupTotal / est.baseTotal : 0;
-    const addedMarkup = lineTotal * ratio;
     const next: LinkedEstimate = {
       ...est,
       items: [...est.items, item],
-      baseTotal: est.baseTotal + lineTotal,
-      markupTotal: est.markupTotal + addedMarkup,
-      grandTotal: est.grandTotal + lineTotal + addedMarkup,
+      baseTotal: roundCents(est.baseTotal + costLineTotal),
+      markupTotal: roundCents(est.markupTotal + addedMarkup),
+      grandTotal: roundCents(est.grandTotal + lineTotal),
     };
+    // --- END takeoff append ---
     updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Added from visual takeoff' }));
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // The contract value moved by the SELL total, so that is the figure to
+    // confirm. Saying the cost here was the on-screen half of the same defect.
     setLastAdded(`${quantityLabel(qty)} of ${category} · ${formatMoneyFull(lineTotal)}`);
     setDrawPoints([]);
     setManualRate('');
@@ -588,7 +631,7 @@ function AreaTakeoffInner() {
                         return (
                           <TouchableOpacity
                             key={e.key}
-                            style={[styles.chip, sel && { backgroundColor: t.accent, borderColor: t.accent }]}
+                            style={[styles.chip, sel && { backgroundColor: t.accentFill, borderColor: t.accentFill }]}
                             onPress={() => { setSelectedTrade(sel ? null : e.trade); setManualRate(''); setManualRateSource(null); }}
                             activeOpacity={0.8}
                             testID={`takeoff-trade-${e.key}`}
@@ -634,7 +677,7 @@ function AreaTakeoffInner() {
                             return (
                               <TouchableOpacity
                                 key={opt.category}
-                                style={[styles.chip, sel && { backgroundColor: t.accent, borderColor: t.accent }]}
+                                style={[styles.chip, sel && { backgroundColor: t.accentFill, borderColor: t.accentFill }]}
                                 onPress={() => { setManualRate(opt.rate.toFixed(2)); setManualRateSource(opt.label); setSelectedTrade(null); }}
                                 activeOpacity={0.8}
                                 testID={`takeoff-engine-${opt.category}`}

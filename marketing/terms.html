@@ -72,9 +72,25 @@
     <p>MAGE ID offers free and paid subscription tiers (currently Pro, Business, and Enterprise). Paid subscriptions are billed monthly or annually as selected at checkout, in U.S. dollars.</p>
     <ul>
       <li><strong>Auto-renewal:</strong> Paid subscriptions renew automatically at the end of each billing period unless you cancel before renewal. Your payment method will be charged the then-current rate.</li>
-      <li><strong>Cancellation:</strong> You can cancel anytime. On iOS, manage your subscription in Settings → Apple ID → Subscriptions. On Android, in Google Play → Subscriptions. Cancellation takes effect at the end of the current paid period — you keep access until then.</li>
-      <li><strong>Refunds:</strong> Refund requests are handled by Apple (App Store) or Google (Play Store). MAGE ID does not directly issue refunds for in-app purchases.</li>
-      <li><strong>Free trials:</strong> If you start a free trial, you must cancel at least 24 hours before the trial ends to avoid being charged.</li>
+      <!-- THESE THREE BULLETS USED TO NAME ONLY A STORE SUBSCRIPTION.
+           They said: cancel in Settings → Apple ID → Subscriptions or Google
+           Play → Subscriptions; "refund requests are handled by Apple (App
+           Store) or Google (Play Store)"; and "MAGE ID does not directly issue
+           refunds for in-app purchases". For a subscription bought inside an
+           app-store app all of that is correct, and it is kept below. The defect
+           was that it was the ONLY route given, so a customer we billed directly
+           was pointed at a store subscription they do not have, told to cancel
+           somewhere they cannot, and told we do not issue their refund — in the
+           operative section of the agreement rather than in marketing copy.
+           Each bullet now names both routes and says which one applies, decided
+           by where the subscription was bought. Nothing here asserts whether a
+           given route is open today: that is pricing.html's job and it says so.
+           scripts/validate-marketing-claims.ts pins that no bullet goes back to
+           naming a store as the only way out, and that the direct-refund terms
+           stay identical to the ones published on pricing.html. -->
+      <li><strong>Cancellation:</strong> You can cancel anytime. If you bought your subscription inside the iOS or Android app, manage and cancel it where that store keeps it — on iOS in Settings → Apple ID → Subscriptions, on Android in Google Play → Subscriptions. If we billed you directly, including any plan we enabled on your account by arrangement with you, cancel by emailing <a href="mailto:help@mageid.app">help@mageid.app</a> and we will confirm it in writing. Either way, cancellation takes effect at the end of the current paid period — you keep access until then.</li>
+      <li><strong>Refunds:</strong> For a subscription bought through Apple's App Store or Google Play, refunds are handled by that store under its own policy, and we cannot issue them on the store's behalf. For a plan we billed you for directly, ask us at <a href="mailto:help@mageid.app">help@mageid.app</a> — monthly plans don't refund partial months; annual plans get a prorated refund within 30 days. That is the same policy published on our <a href="/pricing.html">pricing page</a>.</li>
+      <li><strong>Free trials:</strong> If you start a free trial, cancel before it ends to avoid being charged. A trial attached to an app-store subscription must be cancelled at least 24 hours before it ends, as that store requires.</li>
       <li><strong>Price changes:</strong> We may change subscription prices. We'll notify you in advance, and changes apply only to renewals after the notice period.</li>
     </ul>
 
@@ -174,6 +190,28 @@
       </nav>
       <p class="footer-copy">© MAGE&nbsp;ID. Built for builders.</p>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
   </footer>
   <script src="/nav-mobile.js" defer></script>
   <script src="/motion.js" defer></script>

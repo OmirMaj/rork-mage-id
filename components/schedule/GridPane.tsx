@@ -12,9 +12,17 @@
 // ---------------
 // 1. Every write goes through `onEdit(taskId, patch)` — the parent owns state.
 //    The grid itself never mutates tasks; it just proposes edits.
-// 2. On every edit, the parent re-runs `runCpm(tasks)` and passes the result
-//    back as `cpm`. We render Start/Finish/Float from that result, not from
-//    raw task fields, so Start and Finish are ALWAYS in sync with the math.
+// 2. Start/Finish/Float come from a CPM result, never from raw task fields,
+//    so a row can never contradict the math. The parent MAY hand its own
+//    `cpm` down (preferred — it is the same object the Gantt beside us draws
+//    from, and the only one carrying per-resource `taskCalendars`). When it
+//    does not, we run the engine ourselves through `runCpmForCalendar`, which
+//    forces the project calendar in. Calling bare `runCpm(tasks)` here is a
+//    BUG, not a shortcut: it returns raw WORKING ORDINALS which this file then
+//    renders as CALENDAR days. Measured 2026-09-11 on A(10)->B(5)->C(5),
+//    5-day week from Mon Mar 2: the grid printed Mar 11 / Mar 16 / Sat Mar 21
+//    against an engine (and a Gantt bar) saying Mar 13 / Mar 20 / Mar 27, and
+//    `workingDaysInSpan(es, ef)` read 8 / 3 / 4 for tasks of 10 / 5 / 5 days.
 // 3. Predecessor edits are validated by the PredecessorPicker UI; existing
 //    out-of-order links (legal DAG after move-up/down) are always preserved.
 // 4. Actual-start / actual-finish columns exist but are rendered faded until
@@ -42,11 +50,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, TaskStatus, AnchorType } from '@/types';
 import {
-  runCpm, formatFloat,
+  runCpmForCalendar, formatFloat, calendarDayToDate, dateToCalendarDay, calendarIndexToWorkingOrdinal,
   type CpmResult, type CpmTaskResult,
 } from '@/utils/cpm';
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
+import { toCalendarDayString } from '@/utils/calendarDate';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { parsePastedRows } from '@/utils/pasteRows';
@@ -122,6 +131,7 @@ interface ColumnResizeHandleProps {
 }
 
 function ColumnResizeHandle({ colKey, currentWidth, onResize }: ColumnResizeHandleProps) {
+  const gridResizeHandleStyle = useThemedStyles(makeResizeHandleStyles);
   const startWidthRef = useRef(currentWidth);
   // Keep the ref in sync with the latest width so a fresh drag uses the
   // current value (not whatever was passed when the handle first mounted).
@@ -158,7 +168,7 @@ function ColumnResizeHandle({ colKey, currentWidth, onResize }: ColumnResizeHand
   );
 }
 
-const gridResizeHandleStyle = StyleSheet.create({
+const makeResizeHandleStyles = (t: ThemeColors) => StyleSheet.create({
   // Outer hit area — sits at the right edge of the header cell. INSIDE the
   // cell at `right: 0` (not hanging off) because the cell uses overflow:
   // hidden to clip long labels. 10 px wide for an easy touch target.
@@ -173,11 +183,14 @@ const gridResizeHandleStyle = StyleSheet.create({
   },
   // Inner visible bar — 2 px wide, faint by default. Sits flush with the
   // right edge so it visually anchors to the column boundary.
+  // The bar was a fixed `rgba(0,0,0,0.18)` — black-on-black, i.e. invisible,
+  // on the dark theme's #14181D header (audit 2026-09-07). `t.line` is the
+  // same "column boundary" identity in both themes.
   bar: {
     width: 2,
     height: '60%',
     borderRadius: 1,
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    backgroundColor: t.line,
   },
 });
 
@@ -210,6 +223,13 @@ export interface GridPaneProps {
    * everything else said Tue 09-15).
    */
   nonWorkingDates?: string[];
+  /**
+   * The parent's CPM result, when it has one. Optional so the existing tab
+   * shells keep working, but strongly preferred: it is the same result the
+   * Gantt draws its bars from, and the only one carrying per-resource
+   * `taskCalendars`. Every day number on it (es/ef/ls/lf) is a CALENDAR INDEX.
+   */
+  cpm?: CpmResult;
   /**
    * Split-view mode. The gantt on the right already shows Start / Finish /
    * Float visually, so repeating them as text columns makes the layout feel
@@ -266,6 +286,7 @@ export interface GridPaneProps {
 
 export default function GridPane({
   tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates,
+  cpm: cpmFromParent,
   onEdit, onAddTask, onAddTasks, onDeleteTask, onOutline, onReorder, focusedTaskId,
   selectedIds, onSelectionChange,
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
@@ -351,10 +372,18 @@ export default function GridPane({
     () => visibleColumns.reduce((s, c) => s + c.width, 0),
     [visibleColumns],
   );
-  // Re-run CPM on every render. It's fast (< 1ms for a few hundred tasks) and
-  // keeps the grid's derived columns honest. If profiling ever shows this as
-  // a bottleneck, memoize on a tasks signature.
-  const cpm: CpmResult = useMemo(() => runCpm(tasks), [tasks]);
+  // Prefer the parent's CPM result — it is the exact object the Gantt pane
+  // beside us renders from, so grid and bars cannot disagree, and it is the
+  // only one that knows about per-resource `taskCalendars`. Falling back to our
+  // own run keeps the existing tab shells (ListTab, GanttTab) working; that run
+  // MUST go through `runCpmForCalendar` so es/ef come back as CALENDAR indices,
+  // which is the scale `renderCalendarDate` below renders. It is fast (< 1ms
+  // for a few hundred tasks); memoized on the calendar inputs as well as tasks.
+  const ownCpm: CpmResult = useMemo(
+    () => runCpmForCalendar(tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates),
+    [tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates],
+  );
+  const cpm: CpmResult = cpmFromParent ?? ownCpm;
 
   // Which cell is currently being edited. `null` means read-only mode.
   const [editing, setEditing] = useState<{ row: number; col: ColumnKey } | null>(null);
@@ -546,18 +575,44 @@ export default function GridPane({
   // hit the TDZ on `dateToDayNumber`.)
   // -------------------------------------------------------------------------
 
-  const renderDate = useCallback((dayNumber: number): string => {
-    if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
-    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek, nonWorkingDates);
-    return formatShortDate(d);
-  }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
-
+  // renderIso takes a WORKING ORDINAL (task.startDay and friends) — the scale
+  // addWorkingDays is the matching renderer for. Only the no-CPM fallbacks use
+  // it now; every value the engine returns goes through renderCalendar* below.
   const renderIso = useCallback((dayNumber: number): string => {
     const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek, nonWorkingDates);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
 
-  // The exact inverse of renderDate/renderIso. It used to walk days itself and
+  // …and these take a CALENDAR INDEX, which is what every value on `cpmRow`
+  // (es/ef/ls/lf) is, because `cpm` above is a calendar-aware run. The two
+  // renderers must stay paired with their own scale: put a calendar index
+  // through `renderIso` and it prints late by every weekend the task spans (on
+  // A(10)->B(5)->C(5) from Mon Mar 2, A's EF of index 12 renders as Tue Mar 17
+  // instead of Fri Mar 13, and the gap grows down the chain); put a working
+  // ordinal through `renderCalendarDate` and it prints early by the same
+  // amount, which is what shipped between 2026-09-07 and 2026-09-11 while this
+  // component ran `runCpm(tasks)` with no calendar — C finished on a Saturday
+  // on a Mon-Fri job.
+  const renderCalendarDate = useCallback((calendarIndex: number): string => {
+    if (!Number.isFinite(calendarIndex) || calendarIndex < 1) return '—';
+    return formatShortDate(calendarDayToDate(projectStartDate, calendarIndex));
+  }, [projectStartDate]);
+
+  const renderCalendarIso = useCallback((calendarIndex: number): string => {
+    const d = calendarDayToDate(projectStartDate, Math.max(1, calendarIndex));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [projectStartDate]);
+
+  /** The stored working ordinal that corresponds to a CPM calendar index. */
+  const calendarToOrdinal = useCallback((calendarIndex: number): number => (
+    calendarIndexToWorkingOrdinal(calendarIndex, {
+      workingDaysPerWeek,
+      scheduleStartDate: toCalendarDayString(projectStartDate),
+      nonWorkingDates,
+    })
+  ), [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
+
+  // The exact inverse of renderIso. It used to walk days itself and
   // skip only Sat/Sun, which disagreed with `addWorkingDays` the moment a
   // closure existed (and floored raw ms on a 7-day week, losing a day across a
   // fall-back DST boundary). `scheduleDayNumberFor` is the shared implementation.
@@ -592,16 +647,23 @@ export default function GridPane({
       case 'duration': seed = String(task.durationDays ?? 0); break;
       case 'progress': seed = String(task.progress ?? 0); break;
       case 'crew':     seed = task.crew ?? ''; break;
-      case 'start':    seed = renderIso(task.startDay); break;
-      case 'finish':   seed = renderIso(
-        cpmAtBegin?.ef ?? (task.startDay + Math.max(1, task.durationDays ?? 1) - 1),
-      ); break;
-      case 'deadline': seed = task.deadline ?? renderIso(cpmAtBegin?.ef ?? task.startDay); break;
+      // Seed the editor with the date the cell is SHOWING. Seeding from the
+      // authored pin while the cell rendered the scheduled date meant clicking
+      // "Mar 16" opened an editor saying "Mar 12" whenever a predecessor had
+      // pushed the task — the picker disagreed with the row it came out of.
+      case 'start':    seed = cpmAtBegin
+        ? renderCalendarIso(cpmAtBegin.es)
+        : renderIso(task.startDay); break;
+      case 'finish':   seed = cpmAtBegin
+        ? renderCalendarIso(cpmAtBegin.ef)
+        : renderIso(task.startDay + Math.max(1, task.durationDays ?? 1) - 1); break;
+      case 'deadline': seed = task.deadline
+        ?? (cpmAtBegin ? renderCalendarIso(cpmAtBegin.ef) : renderIso(task.startDay)); break;
     }
     setDraft(seed);
     setCellError(null);
     setEditing({ row, col });
-  }, [tasks, renderIso, cpm, idToWbsMap, idToRowLabel]);
+  }, [tasks, renderIso, renderCalendarIso, cpm, idToWbsMap, idToRowLabel]);
 
   // After an insert, focus the new row's name cell once it appears in `tasks`.
   useEffect(() => {
@@ -628,6 +690,11 @@ export default function GridPane({
     if (!editing) return false;
     const task = tasks[editing.row];
     if (!task) { cancelEdit(); return false; }
+
+    // The CPM row this cell was rendered from. The date cells display SCHEDULED
+    // dates (calendar indices), so every comparison below has to be against the
+    // same thing the user was looking at.
+    const cpmRowAtCommit = cpm.perTask.get(task.id);
 
     const patch: Partial<ScheduleTask> = {};
 
@@ -664,7 +731,13 @@ export default function GridPane({
         const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
         if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
         const newStartDay = dateToDayNumber(picked);
-        if (newStartDay === task.startDay) break;
+        // Compare against the ordinal the cell was DISPLAYING (the scheduled
+        // start), not the authored pin — otherwise re-committing an unchanged
+        // seed on a dependency-pushed task writes a pin the user never typed.
+        const shownOrdinal = cpmRowAtCommit
+          ? calendarToOrdinal(cpmRowAtCommit.es)
+          : task.startDay;
+        if (newStartDay === shownOrdinal) break;
         patch.startDay = newStartDay;
         break;
       }
@@ -675,7 +748,15 @@ export default function GridPane({
         const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
         if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
         const newFinishDay = dateToDayNumber(picked);
-        const newDuration = newFinishDay - task.startDay + 1;
+        // Duration is measured from where the task is SCHEDULED to start, not
+        // from its authored pin. Both operands are working ordinals, so the
+        // difference is a working-day count — which is what durationDays is.
+        // Measuring from task.startDay on a dependency-pushed task inflated the
+        // duration by the whole push the moment anyone touched the Finish cell.
+        const startOrdinal = cpmRowAtCommit
+          ? calendarToOrdinal(cpmRowAtCommit.es)
+          : task.startDay;
+        const newDuration = newFinishDay - startOrdinal + 1;
         if (newDuration < 1) {
           setCellError('Finish date must be on or after Start');
           return false;
@@ -701,7 +782,7 @@ export default function GridPane({
     setDraft('');
     setCellError(null);
     return true;
-  }, [editing, draft, tasks, onEdit, cancelEdit, dateToDayNumber]);
+  }, [editing, draft, tasks, onEdit, cancelEdit, dateToDayNumber, cpm, calendarToOrdinal]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation (web). iPad/mobile rely on tap-to-edit + blur.
@@ -943,7 +1024,7 @@ export default function GridPane({
         display = <Text style={[styles.cellText, styles.cellTextMono]}>{task.durationDays}d</Text>;
         break;
       case 'start': {
-        const label = cpmRow ? renderDate(cpmRow.es) : '—';
+        const label = cpmRow ? renderCalendarDate(cpmRow.es) : '—';
         const hasAnchor = task.anchorType && task.anchorType !== 'none';
         if (Platform.OS === 'web' && !compact && cpmRow) {
           return (
@@ -1000,7 +1081,7 @@ export default function GridPane({
         break;
       }
       case 'finish': {
-        const label = cpmRow ? renderDate(cpmRow.ef) : '—';
+        const label = cpmRow ? renderCalendarDate(cpmRow.ef) : '—';
         if (Platform.OS === 'web' && !compact && cpmRow) {
           return (
             <TouchableOpacity
@@ -1065,12 +1146,26 @@ export default function GridPane({
         const deadlineDay = (() => {
           const parsed = Date.parse(task.deadline + 'T00:00:00');
           if (!Number.isFinite(parsed)) return null;
-          const d = new Date(parsed);
-          return Math.floor((d.getTime() - projectStartDate.getTime()) / 86400000) + 1;
+          // dateToCalendarDay, not a raw millisecond divide: `projectStartDate`
+          // is not guaranteed to be at local midnight, and a DST boundary
+          // inside the span shaves an hour and floors to the day before.
+          return dateToCalendarDay(projectStartDate, new Date(parsed));
         })();
-        const ef = cpmRow?.ef ?? (task.startDay + Math.max(0, task.durationDays - 1));
-        const variance = deadlineDay != null ? ef - deadlineDay : 0;
-        const label = deadlineDay != null
+        // `deadlineDay` is a CALENDAR index (a raw date delta), so the finish it
+        // is measured against has to be one too — cpmRow.ef, and only cpmRow.ef,
+        // and only because `cpm` above is now a CALENDAR-aware run. The old
+        // fallback compared it against `startDay + duration - 1`, a WORKING
+        // ordinal, and even after that was removed the cell stayed wrong while
+        // the engine ran in raw-day mode: measured on a 10-day task from Mon
+        // Mar 2 with a deadline of Fri Mar 13 — its true finish — the cell read
+        // "2d early" (ef 10 against a deadlineDay of 12) and now reads "on
+        // time". The variance is in CALENDAR days, which is the right unit for
+        // a due date: the client's deadline does not skip your weekends.
+        // With no CPM row (the engine bailed on a cycle) there is no honest
+        // variance to state, so state the date.
+        const ef = cpmRow?.ef ?? null;
+        const variance = deadlineDay != null && ef != null ? ef - deadlineDay : 0;
+        const label = deadlineDay != null && ef != null
           ? (variance > 0 ? `${variance}d late` : variance < 0 ? `${-variance}d early` : 'on time')
           : task.deadline;
         const color = variance > 0 ? themeColors.danger : variance < 0 ? themeColors.success : themeColors.textSecondary;
@@ -1121,7 +1216,7 @@ export default function GridPane({
         display = <Text style={[styles.cellText, !task.crew && styles.cellTextMuted]}>{task.crew || '—'}</Text>;
         break;
       case 'status': {
-        const chip = statusChip(task.status);
+        const chip = statusChip(task.status, themeColors);
         display = (
           <TouchableOpacity
             style={[styles.statusChip, { backgroundColor: chip.bg }]}
@@ -1448,7 +1543,7 @@ export default function GridPane({
                 position: 'sticky',
                 left: frozenLeftOffset.get(col.key) ?? 0,
                 zIndex: 4,
-                backgroundColor: Colors.surfaceAlt,
+                backgroundColor: themeColors.surfaceAlt,
                 ...(isLastFrozen ? { boxShadow: '2px 0 4px -2px rgba(0,0,0,0.15)' } : {}),
               } : null;
               return (
@@ -1510,7 +1605,7 @@ export default function GridPane({
                 : isSelected ? themeColors.accent + '18'
                 : isFocused ? themeColors.accent + '10'
                 : rowIndex % 2 === 1 ? themeColors.surface
-                : Colors.card;
+                : themeColors.surface;
 
               return (
                 <Pressable
@@ -1628,6 +1723,7 @@ export default function GridPane({
 // ---------------------------------------------------------------------------
 
 function MiniDonut({ progress, status }: { progress: number; status?: 'not_started' | 'in_progress' | 'done' | 'on_hold' }) {
+  const { colors: themeColors } = useTheme();
   const size = 18;
   const stroke = 3;
   const r = (size - stroke) / 2;
@@ -1638,7 +1734,7 @@ function MiniDonut({ progress, status }: { progress: number; status?: 'not_start
   return (
     <Svg width={size} height={size}>
       <SvgG rotation="-90" origin={`${size / 2}, ${size / 2}`}>
-        <SvgCircle cx={size / 2} cy={size / 2} r={r} stroke={Colors.fillTertiary} strokeWidth={stroke} fill="none" />
+        <SvgCircle cx={size / 2} cy={size / 2} r={r} stroke={themeColors.neutralSoft} strokeWidth={stroke} fill="none" />
         {pct > 0 && (
           <SvgCircle
             cx={size / 2}
@@ -1685,7 +1781,13 @@ interface AnchorPickerModalProps {
 
 function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
   const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
+  // Built per theme, not at import. This sheet used to be a module-scope
+  // StyleSheet.create of Theme.light literals (a #FFFFFF card, #2B3038 ink)
+  // while the web date <input> a few lines below painted itself with the LIVE
+  // `themeColors.text` — so in dark mode the modal was cream type on a white
+  // card, i.e. an invisible date field. Baked and live colour in one tree is
+  // the exact defect the 2026-09-07 audit singled this file out for.
+  const anchorStyles = useThemedStyles(makeAnchorStyles);
   const [type, setType] = useState<AnchorType>('none');
   const [date, setDate] = useState<string>('');
 
@@ -1791,7 +1893,7 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
   );
 }
 
-const anchorStyles = StyleSheet.create({
+const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -1801,7 +1903,7 @@ const anchorStyles = StyleSheet.create({
   card: {
     width: 420,
     maxWidth: '92%',
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     shadowColor: '#000',
     shadowOpacity: 0.18,
@@ -1816,10 +1918,10 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(43,48,56,0.12)",
+    borderBottomColor: t.line,
   },
-  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: "#2B3038" },
-  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: "#9AA3AD", marginLeft: 4 },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: t.textMuted, marginLeft: 4 },
   closeBtn: { padding: 4 },
   option: {
     flexDirection: 'row',
@@ -1828,18 +1930,20 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(43,48,56,0.12)",
+    borderBottomColor: t.line,
   },
-  optionActive: { backgroundColor: Colors.primaryLight },
+  optionActive: { backgroundColor: t.accentSoft },
   radio: {
-    width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: "rgba(43,48,56,0.12)",
+    width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
-  radioActive: { borderColor: "#FF6A1A" },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#FF6A1A" },
-  optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#2B3038" },
-  optionLabelActive: { color: "#FF6A1A" },
-  optionHelp: { fontSize: Type.caption2.fontSize, color: "#9AA3AD", marginTop: 1 },
+  radioActive: { borderColor: t.accent },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.accent },
+  optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  // accentLabel, not accent: the selected option's label is TEXT, and the brand
+  // #FF6A1A is 2.87:1 on a light card.
+  optionLabelActive: { color: t.accentLabel },
+  optionHelp: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1847,18 +1951,18 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(43,48,56,0.12)",
+    borderTopColor: t.line,
   },
-  dateLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#2B3038" },
+  dateLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   dateInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "rgba(43,48,56,0.12)",
+    borderColor: t.line,
     borderRadius: Tokens.radius.xs,
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: Type.bodyCompact.fontSize,
-    color: "#2B3038",
+    color: t.text,
   },
   footer: {
     flexDirection: 'row',
@@ -1867,15 +1971,17 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(43,48,56,0.12)",
+    borderTopColor: t.line,
   },
   btnGhost: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
   },
-  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#9AA3AD" },
+  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
   btnPrimary: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
-    backgroundColor: "#FF6A1A",
+    // accentFill, not accent: btnPrimaryText below is white, and white on the
+    // brand #FF6A1A is 2.87:1. #BC440C carries it at 5.29:1.
+    backgroundColor: t.accentFill,
   },
   btnDisabled: { opacity: 0.45 },
   btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
@@ -1885,16 +1991,21 @@ const anchorStyles = StyleSheet.create({
 // Status chip helper
 // ---------------------------------------------------------------------------
 
-function statusChip(status: TaskStatus): { bg: string; fg: string; label: string; Icon?: any } {
+// Takes the resolved theme rather than reading the static Colors module: the
+// pale *Light tints (#E8FAF0, #EBF3FF) and the light inks (#2E7D44, #1565C0)
+// were the same on both themes, so a Done chip in dark mode was mid-green type
+// on a near-white slab inside an otherwise dark grid (audit 2026-09-07). The
+// *Soft/*Label pairs are the tint-and-ink split constants/colors.ts documents.
+function statusChip(status: TaskStatus, t: ThemeColors): { bg: string; fg: string; label: string; Icon?: any } {
   switch (status) {
     case 'done':
-      return { bg: Colors.successLight, fg: "#2E7D44", label: 'Done', Icon: Check };
+      return { bg: t.successSoft, fg: t.successLabel, label: 'Done', Icon: Check };
     case 'in_progress':
-      return { bg: Colors.infoLight, fg: "#1565C0", label: 'Active', Icon: Play };
+      return { bg: t.info + '1F', fg: t.info, label: 'Active', Icon: Play };
     case 'on_hold':
-      return { bg: Colors.warningLight, fg: Colors.warning, label: 'Hold', Icon: Pause };
+      return { bg: t.warningSoft, fg: t.warningLabel, label: 'Hold', Icon: Pause };
     default:
-      return { bg: "#F4EFE6", fg: "#9AA3AD", label: 'Not Started', Icon: Circle };
+      return { bg: t.neutralSoft, fg: t.textMuted, label: 'Not Started', Icon: Circle };
   }
 }
 
@@ -1934,7 +2045,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: t.line,
     // Matches InteractiveGantt.HEADER_HEIGHT so the first table row and
@@ -1964,7 +2075,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     height: ROW_HEIGHT,
     alignItems: 'center',
-    backgroundColor: Colors.card,
+    backgroundColor: t.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: t.line,
     borderLeftWidth: 3,
@@ -1979,7 +2090,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.danger + '10',
   },
   rowSummary: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
   },
   cell: {
     paddingHorizontal: 10,
@@ -2151,7 +2262,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   selectCell: {
     // Visually distinguish the # column as a clickable selection target.
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
   },
   selectCellActive: {
     backgroundColor: t.accent + '20',

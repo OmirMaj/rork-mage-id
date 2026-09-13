@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Pricing — MAGE ID</title>
   <link rel="canonical" href="https://mageid.app/pricing.html" />
-  <meta name="description" content="Four tiers, flat pricing. Free, Pro $29/mo, Business $79/mo, Enterprise $150/mo. AI estimating, AI takeoff, schedule, cash flow, AIA pay apps, public bids, sub directory. No per-project fees, no add-ons." />
+  <meta name="description" content="Four tiers, flat pricing. Free, Pro $29/mo, Business $79/mo, Enterprise $150/mo. AI estimating, AI takeoff, schedule, cash flow, AIA-style pay apps, public bids, sub directory. No per-project fees, no add-ons." />
   <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
@@ -41,6 +41,40 @@
       max-width: 600px;
       margin: 0 auto 14px;
       line-height: 1.55;
+    }
+
+    /* The two honesty blocks under the hero: what the till can actually do
+       today, and the seat allowance in full. Both are deliberately styled as
+       plain prose panels rather than warning banners — a buyer reads a limit
+       stated calmly; a yellow alert box reads as an apology. */
+    .till-notice, .seats-notice {
+      max-width: 760px;
+      margin: 26px auto 0;
+      padding: 20px 24px;
+      text-align: left;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .till-notice { border-color: rgba(255, 106, 26, 0.32); background: rgba(255, 106, 26, 0.05); }
+    .till-notice p, .seats-notice p, .seats-notice li {
+      font-size: 0.92rem;
+      line-height: 1.6;
+      color: var(--fog);
+      margin: 0 0 10px;
+      max-width: none;
+    }
+    .till-notice p:last-child, .seats-notice p:last-child { margin-bottom: 0; }
+    .till-notice strong, .seats-notice strong { color: var(--cream); }
+    .till-notice a, .seats-notice a { color: var(--amber); }
+    .seats-notice ul { margin: 0; padding-left: 20px; }
+    .seats-notice li { margin-bottom: 10px; }
+    .seats-notice li:last-child { margin-bottom: 0; }
+    .tier-note-till {
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--fog);
+      margin: -8px 0 0;
     }
 
     .tier-grid {
@@ -290,13 +324,38 @@
     <section class="pricing-hero">
       <h1>Flat pricing.<br><em>Pick your tier.</em></h1>
       <p>
-        AI estimating, AI takeoff, scheduling, cash flow, AIA pay apps, public bids, vetted
+        AI estimating, AI takeoff, scheduling, cash flow, AIA-style pay apps, public bids, vetted
         sub directory, client portal — all in one app. No per-project fees, no add-on modules.
         Four tiers so you only pay for the AI quota you'll actually use.
       </p>
       <p style="font-size: 0.85rem; color: var(--fog); margin-top: 18px;">
-        Free forever on your first project · No credit card · Cancel anytime
+        Free forever on your first project &middot; No credit card &middot; Cancel anytime
       </p>
+
+      <div class="till-notice">
+        <p><strong>Straight answer before you read the prices: we cannot take your card yet.</strong></p>
+        <p>
+          The free plan is live right now at <a href="https://app.mageid.app">app.mageid.app</a> &mdash;
+          one project, end to end, no card, nothing to install. The paid plans are not self-serve yet:
+          our payment processor is still in sandbox and the iPhone app is in TestFlight rather than the
+          App Store. Until both are done, a &ldquo;Buy Pro&rdquo; button would take you to a register that
+          cannot ring. So the prices below are what you will pay, published so you can plan and compare,
+          and the buttons put you in touch with us instead of pretending otherwise.
+        </p>
+        <p>
+          <a href="/access.html">Ask for access</a> and we turn your plan on and send the TestFlight
+          invite, usually the same day.
+        </p>
+      </div>
+
+      <div class="seats-notice" id="seats">
+        <p><strong>Seats, in full, because a limit you meet in an invite dialog is not a limit.</strong></p>
+        <ul>
+          <li><strong>Field seats are unlimited and free on every plan, permanently.</strong> Every sub, foreman and lead carpenter you put on a job gets the schedule, tasks, daily reports, photos and RFIs at no charge. Not a trial and not a portal-lite. Their field data is what teaches your cost book; charging for it would tax the thing that makes the product work.</li>
+          <li><strong>Office seats &mdash; the ones that can see margin and financials &mdash; are included on top of your own login: two on Pro, five on Business, fifteen on Enterprise.</strong> The account owner never occupies a seat, so Pro fits a three-person office (you plus two) and Business fits six. A four-person office is a Business plan at $79. Free has no office seats, because collaboration is a paid feature.</li>
+          <li><strong>There is no per-seat fee at any tier.</strong> Not for field, not for office. Going past the included office seats asks you to move up a plan; it never quietly adds $15 to your bill, because we will not promise a charge our billing cannot actually take.</li>
+        </ul>
+      </div>
     </section>
 
     <section class="tier-grid">
@@ -318,7 +377,7 @@
         <li>Community bids · 2/mo</li>
         <li class="muted">AI estimating &amp; takeoff (unlimited)</li>
         <li class="muted">Photo documentation &amp; AI photo triage</li>
-        <li class="muted">AIA pay apps · job costing</li>
+        <li class="muted">AIA-style pay apps · job costing</li>
         <li class="muted">Vetted sub directory</li>
       </ul>
       </div>
@@ -334,12 +393,19 @@
         <div class="tier-price" style="margin-top: -6px;">
           <span class="price-extra">Subs are free. Unlimited projects.</span>
         </div>
-        <a href="https://app.mageid.app/?plan=pro&trial=14" class="tier-cta tier-cta-primary">Start free · try Pro 14 days</a>
+        <!-- RESTORE WHEN THE TILL WORKS — see the note above this section.
+             Put this line back verbatim once scripts/validate-release-keys.ts
+             passes on a release build (production RevenueCat key in eas.json),
+             and delete the interim link below it. Nothing else needs changing.
+        <a href="https://app.mageid.app/?plan=pro&trial=14" class="tier-cta tier-cta-primary">Start free &middot; try Pro 14 days</a>
+        -->
+        <a href="/access.html" class="tier-cta tier-cta-primary">Start free &middot; ask for Pro access</a>
+        <p class="tier-note-till">Pro is not self-serve yet &mdash; we cannot take a card today. Start free on the web, email us, and we will turn Pro on for you and send the iPhone TestFlight invite.</p>
       <ul class="tier-features">
         <li>Unlimited projects · subs always free</li>
         <li class="section-break">Everything in Free, plus —</li>
         <li><strong>AI estimates + AI takeoff</strong> · drawings analyzer, LF/SF/EA</li>
-        <li><strong>AIA G702/G703 pay apps</strong> with retainage</li>
+        <li><strong>AIA-style G702/G703 pay apps</strong> with retainage</li>
         <li><strong>Change orders + job costing</strong></li>
         <li><strong>Live client portals</strong> (custom branded, 6 languages)</li>
         <li><strong>Cash flow + EVM</strong> · CPI, SPI, 12-week forecast</li>
@@ -361,7 +427,11 @@
         <div class="tier-price" style="margin-top: -6px;">
           <span class="price-extra">Unlimited projects. Unlimited marketplace bids. Subs free.</span>
         </div>
+        <!-- RESTORE WHEN THE TILL WORKS:
         <a href="https://app.mageid.app/?plan=business" class="tier-cta tier-cta-ghost">Start free</a>
+        -->
+        <a href="/access.html" class="tier-cta tier-cta-ghost">Start free &middot; ask for Business access</a>
+        <p class="tier-note-till">Same as Pro: start free on the web, email us, and we switch it on.</p>
       <ul class="tier-features">
         <li class="section-break">Everything in Pro, plus the brain —</li>
         <li><strong>Cost X-Ray</strong> · point the camera, it prices the hidden conditions on your learned costs</li>
@@ -380,7 +450,7 @@
         <li>RFIs &amp; submittals workflow</li>
         <li>Full budget dashboard</li>
         <li><strong>QuickBooks Online 2-way sync</strong> — customers, items, invoices and payments push out; QBO payments reconcile back and QBO bills land in a cost-review queue you approve line by line</li>
-        <li>Priority support + named CSM</li>
+        <li><strong>Support from the person who wrote the code.</strong> Not a tier and not a queue &mdash; you email, the founder answers, usually the same day. Weekdays, within a few hours; evenings and weekends, by the next morning. There is nobody to escalate to because there is nobody in between</li>
       </ul>
       </div>
 
@@ -395,7 +465,11 @@
         <div class="tier-price" style="margin-top: -6px;">
           <span class="price-extra">For AI-heavy shops running takeoffs daily. Highest quotas.</span>
         </div>
+        <!-- RESTORE WHEN THE TILL WORKS:
         <a href="https://app.mageid.app/?plan=enterprise" class="tier-cta tier-cta-ghost">Start free</a>
+        -->
+        <a href="/access.html" class="tier-cta tier-cta-ghost">Start free &middot; talk to us about Enterprise</a>
+        <p class="tier-note-till">Same as Pro: start free on the web, email us, and we switch it on.</p>
         <ul class="tier-features">
           <li class="section-break">Everything in Business, plus —</li>
           <li><strong>150</strong> daily AI requests <span style="color:rgba(255,255,255,0.5)">(vs 80 on Biz)</span></li>
@@ -403,7 +477,7 @@
           <li><strong>100</strong> drawing analyses / mo <span style="color:rgba(255,255,255,0.5)">(vs 50)</span></li>
           <li><strong>200</strong> photo analyses / mo <span style="color:rgba(255,255,255,0.5)">(vs 150)</span></li>
           <li><strong>300</strong> PDF takeoff pages / mo <span style="color:rgba(255,255,255,0.5)">(vs 100)</span></li>
-          <li>Same priority support + named CSM</li>
+          <li>The same direct line to the founder, plus a standing 30-minute call whenever you want one</li>
         </ul>
       </div>
     </section>
@@ -439,7 +513,20 @@
           </div>
         </div>
         <p style="font-size: 14px; color: var(--fog); margin: 22px 0 0;">
-          Stacking the basic apps runs $360–920/month combined. MAGE ID Pro is one subscription, one bill, one app — at a fraction of the stacked price.
+          <!-- ONE STACK TOTAL, STATED IN ONE PLACE. This page used to sum its
+               own four cells to "$360–920/month" while features/vs-other-tools
+               summed a near-identical basket to "$360–910" and
+               features/vs-competitors itemised eight categories at "$396–703,
+               midpoint $549". Three totals for the same argument is how a
+               reader stops trusting the arithmetic everywhere else, so the
+               only total the site states is the itemised eight-category one,
+               and every other page links to it rather than computing its own. -->
+          Priced individually, the eight categories a GC typically pays someone for &mdash; CRM, estimating,
+          scheduling, document and photo storage, field ops, punch, client portal and pay applications &mdash;
+          run <strong>$396&ndash;$703 a month</strong>, midpoint <strong>$549</strong>.
+          <a href="/features/vs-competitors.html#stack">Every line of that total is itemised here</a>, vendor by
+          vendor, so you can disagree with any of it &mdash; and it is the only stack figure anywhere on this
+          site, deliberately. MAGE ID Pro is one subscription, one bill, one app.
         </p>
       </div>
 
@@ -447,7 +534,7 @@
         <div>
           <h2>One app. Every tool a GC needs.</h2>
           <p>
-            Estimating, takeoff, scheduling, cash flow, AIA pay apps, bids, the sub directory,
+            Estimating, takeoff, scheduling, cash flow, AIA-style pay apps, bids, the sub directory,
             and the client portal — they all live behind one tile grid, on the phone you already
             carry. No add-on modules, no per-project fees, no separate logins.
           </p>
@@ -480,8 +567,45 @@
       </div>
 
       <div class="faq-item">
-        <h3>Is there an annual discount?</h3>
-        <p>Yes — and Enterprise has the steepest discount. Pro drops to <strong>~$24/mo effective</strong> when billed annually (about 2 months free), Business drops to <strong>~$66/mo</strong> (about 2 months free), and Enterprise drops to <strong>~$83/mo effective</strong> when billed annually (over 5 months free, $999.99/yr vs. $149.99 × 12 = $1,799.88). The Free plan is free either way.</p>
+        <h3 id="annual">Is there an annual discount?</h3>
+        <!-- THE PRICE LIST LIVES HERE AND NOWHERE ELSE — AND THE ANNUAL HALF
+             OF IT IS DELIBERATELY BLANK.
+             Round one of this fix unified four circulating annual figures
+             ($288, "~$24/mo effective", $299 and an unlabelled $348 that was
+             really the month-to-month annualisation) into three: $288, $792
+             and $999.99. Then somebody checked them against the code, which is
+             what should have happened first. $288 and $792 exist NOWHERE in
+             this repo. The only annual prices the product knows are
+             components/Paywall.tsx FALLBACK_PRICES — $289.99, $769.99, $999.99
+             — whose own comment says they mirror App Store Connect. Business
+             was therefore understated by $22 in the customer's disfavour: they
+             would have read $792 here and been charged more.
+             The monthly figures disagree in the code too. app/paywall.tsx
+             falls back to "$29/mo" / "$79/mo" / "$150/mo" and calls that "the
+             published list rate"; components/Paywall.tsx says the App Store
+             products are $29.99 / $79.99 / $149.99. Both screens ship. Until
+             the store listing exists and settles which one a card is actually
+             charged, this page states the published monthly rate — the one the
+             upgrade screen shows and the one the whole site quotes — and
+             states NO yearly dollar figure at all, because every candidate we
+             have is either invented or unverifiable.
+             scripts/validate-marketing-claims.ts enforces exactly that, bound
+             to both files: while the two in-code price tables disagree it
+             fails if this page prints an annual figure, and the moment they
+             agree it flips and fails until the figure is printed here. So this
+             is a deletion when the till is fixed, not an archaeology dig. -->
+        <p>Yes &mdash; every paid tier has an annual plan, and Enterprise&rsquo;s discount is the steepest.</p>
+        <p style="margin-top: 12px;">
+          What we are <strong>not</strong> doing on this page is printing a yearly dollar figure, and
+          you should know why rather than assume we forgot. Four different annual numbers were
+          circulating across five pages of this site until September 2026. Not one of them came from
+          the store &mdash; they came from people doing arithmetic on different pages. The figure
+          that belongs here is whatever the store product actually charges, and that listing is not
+          live yet (see the note above the prices: we cannot take your card at all today). When it
+          is, the number goes in this one place and nowhere else, so it cannot drift again.
+        </p>
+        <p style="margin-top: 12px;">Until then the monthly rate is the whole price list &mdash; <strong>Free, Pro $29, Business $79, Enterprise $150, per company, per month</strong> &mdash; and the app shows you the exact amount before you confirm anything.</p>
+        <p style="margin-top: 12px;">Month-to-month at $29 comes to $348 over a year if you never switch to annual; where another page quotes that figure it says so, because a month-to-month total printed as if it were the annual price is the kind of small dishonesty that makes a buyer re-check every other number on the site.</p>
       </div>
 
       <div class="faq-item">
@@ -489,9 +613,30 @@
         <p>Same feature set. Higher AI quotas. Business already includes the full stack — Cost X-Ray, the Bid Advisor, Ask Your Plans, Track Record, the margin engine, safety management, WIP reporting, and crew/worker profiles on top of everything in Pro. Business is sized for a typical multi-office GC (80 daily AI requests, 50 drawing analyses/mo). Enterprise nearly doubles those caps for teams running AI-heavy workflows — drawing analyses, photo triage, spec extraction at scale. If you're hitting Business caps two months in a row, Enterprise will pay for itself in time saved.</p>
       </div>
 
+
+      <div class="faq-item">
+        <!-- ACCOUNTS PAYABLE. The bookkeeper looks for a payables aging report
+             in week one and does not find one; better they hit that here, in
+             minute two, than after the card is charged. The boundary is exact
+             on purpose - "we don't do AP" is as misleading as claiming it,
+             because a lot of what people mean by AP genuinely is here. -->
+        <h3 id="ap">Does it do accounts payable?</h3>
+        <p>No &mdash; and here is exactly where the line is, because a bare &ldquo;no&rdquo; would mislead you in both directions.</p>
+        <p style="margin-top:12px;"><strong>What it does do.</strong> Photograph a sub&rsquo;s paper bill or a supply-house invoice and it is read, checked with you, and posted as a cost against the right job and the right cost code (that is Scan Anything, on Business). Subs you have set up with a portal submit their invoices to you directly, and you approve or reject with notes. Bills entered in QuickBooks Online land in a review queue here and you approve them line by line against the job, rather than having them appear silently in your costs. When you pay, you record <em>how</em> &mdash; check number, ACH trace, card &mdash; so paid-versus-owed ties out to your bank statement and your 1099s are real. Mark something paid without that detail and the app flags it as unreconciled instead of quietly closing the balance.</p>
+        <p style="margin-top:12px;"><strong>What it does not do.</strong> There is no payables ledger. No vendor aging report, no pay-when-paid logic, no check run, no batch payment file, and no way to originate a bill on the GC side that a sub did not submit. MAGE ID never moves money &mdash; &ldquo;paid&rdquo; here means you paid it somewhere else and told us.</p>
+        <p style="margin-top:12px;"><strong>So:</strong> if you need real AP, keep QuickBooks and connect it, or buy something built for AP. If what you actually need is &ldquo;every cost landed on the right job before I bill for it,&rdquo; that is what this is for.</p>
+      </div>
+
       <div class="faq-item">
         <h3>Can I switch between tiers?</h3>
         <p>Up or down anytime. Downgrade to Free and Pro features become read-only on existing data — nothing is deleted, you can re-upgrade later.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>What happens to my data if I cancel?</h3>
+        <!-- ONE POLICY, WORD FOR WORD, ON ALL THREE PAGES. These gave three different answers to the question a one-person vendor is asked most: demo.html promised read-only access "for 90 days after cancel" (no code anywhere enforces a 90-day window, so it was a policy nobody could keep), pricing.html described downgrade-to-Free, and support.html said "until the end of the current billing period". If this paragraph changes, change it in all three places; scripts/validate-marketing-claims.ts asserts the three are word for word identical and goes red if one drifts. DONE 2026-09-11: terms.html section 3 (the wave that wrote this called it section 5) used to route BOTH cancellation and refunds through a store subscription only, which left a directly-billed customer with no way to cancel and no one to ask for a refund. Both bullets now name the direct route as well as the store one, the direct-refund sentence is word for word the one in this page's Refunds FAQ, and the Apple EULA notice in section 17 - which is legitimate and unrelated - was left alone. scripts/validate-marketing-claims.ts pins all four. -->
+        <p>Nothing is deleted. Paid features become read-only on your existing data, and everything you have created stays viewable and exportable. You can export the full archive &mdash; every project with its estimate and revision history, plus invoices, change orders, daily reports, punch items, photos, RFIs, submittals, warranties, contacts and subcontractors &mdash; at any time, before or after cancelling, without asking us. Re-subscribe and everything picks up where it left off. We do not hold data hostage to force a retention call; there is nobody here to make one.</p>
+        <p><strong>Try the export on day one, before you trust us with anything.</strong> Settings &rarr; Data Export, one tap, JSON or CSV, human-readable. It was built before the paywall was, deliberately &mdash; proving you can leave is the cheapest way to find out whether the rest of this page is worth believing. <a href="/switch.html">What moves in and what moves out.</a></p>
       </div>
 
       <div class="faq-item">
@@ -531,6 +676,42 @@
       </nav>
       <p class="footer-copy">© MAGE&nbsp;ID. Built for builders.</p>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+        <!-- STANDING AIA NOTICE — on every page that mentions AIA.
+           The generated document already carries this (utils/aiaBilling.ts:937)
+           and app/aia-pay-app.tsx shows it on first use; the site did not, which
+           left the GC to discover on their first submitted draw that they were
+           not holding an official form. "AIA-style" is the industry convention
+           — Contractor Foreman's own pricing page labels the feature "AIA Style
+           Invoicing (G702 and G703)" — so the hedge costs nothing and reads as
+           more expert to the one person who can tell the difference. -->
+      <p class="aia-notice" style="max-width:900px;margin:18px auto 0;font-size:12px;line-height:1.6;opacity:.62;text-align:center;">
+        MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are
+        registered trademarks of The American Institute of Architects, which is not affiliated with and
+        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract
+        Documents &mdash; check with yours before you submit.
+      </p>
   </footer>
   <script src="/nav-mobile.js" defer></script>
   <script src="/motion.js" defer></script>

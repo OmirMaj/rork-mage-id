@@ -148,7 +148,7 @@ export function WeekStrip({ selectedDate, onSelectDate }: WeekStripProps) {
         </Text>
         <View style={[
           styles.numWrap,
-          isSel ? { backgroundColor: colors.accent } : null,
+          isSel ? { backgroundColor: colors.accentFill } : null,
           !isSel && isToday ? { borderWidth: 1.5, borderColor: colors.accent } : null,
         ]}>
           <Text style={[

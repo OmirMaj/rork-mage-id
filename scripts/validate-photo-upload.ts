@@ -461,5 +461,105 @@ ok('queue entries carry a path, never bytes',
 ok('a task records the local path and the destination path',
   /localUri: string/.test(coreCode) && /storagePath: string/.test(coreCode));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Field capture: the three ways a photo went missing on a jobsite
+// (app-experience audit 2026-09-07, "worth doing" #10, #11, #14, #35)
+//
+// These are source pins, not runtime tests — every one of them lives in an Expo
+// Router route that cannot be imported outside Metro. Each asserts the SHAPE of
+// the fix, and each is written so that reverting the fix flips it. The pure
+// logic behind these screens is exercised for real in
+// scripts/validate-field-capture.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nfield capture:');
+
+// stripComments (declared above) is applied first, and that is not fussiness:
+// the first run of this section failed on its own fix, because the code that
+// replaced `await stampPhotoLocation()` explains itself by QUOTING the line it
+// removed. A guard that reads prose reports the bug as still present — or, the
+// other way round, passes on a fix that exists only in a comment.
+const dfrSrc = stripComments(readFileSync('app/daily-report.tsx', 'utf8'));
+const punchSrc = stripComments(readFileSync('app/punch-list.tsx', 'utf8'));
+const incidentSrc = stripComments(readFileSync('app/safety-incidents.tsx', 'utf8'));
+const permitSrc = stripComments(readFileSync('app/permits.tsx', 'utf8'));
+
+// ── #10: the GPS stamp must not block the photo ────────────────────────────
+// The shipped code carried a comment saying the stamp ran "in parallel — so it
+// never blocks the photo" and awaited it on the very next line. Worst case is
+// ~4.5s of blank screen per shot (3s fix race + 1.5s reverse-geocode), and the
+// worst case is the normal case in a below-grade structure where no fix lands.
+ok('the DFR never awaits the geo stamp inline',
+  !/await stampPhotoLocation/.test(dfrSrc),
+  'awaiting the stamp is the bug: the photo waits on a fix that will not come');
+ok('the DFR fires the geo stamp and patches the photo by id',
+  /void stampPhotoLocation\(\)/.test(dfrSrc) && /p\.id === photoId/.test(dfrSrc),
+  'the photo must be in state before the fix is asked for, and patched by id after');
+
+// ── #35: burst capture ─────────────────────────────────────────────────────
+ok('the DFR camera is a burst, not a one-shot',
+  /captureBurst\(/.test(dfrSrc),
+  'one-shot capture is ~4 interactions per photo standing in the sun');
+ok('the DFR library pick is multi-select',
+  /pickPhotoBatch\(/.test(dfrSrc) && !/allowsMultipleSelection: false/.test(dfrSrc),
+  'allowsMultipleSelection:false made a GC re-open the picker once per photo');
+ok('the punch list has a burst-capture photo walk',
+  /captureBurst\(/.test(punchSrc) && /MAX_WALK_SHOTS/.test(punchSrc),
+  'a twenty-defect walk was ~80 interactions; the walk is what the audit asked for');
+ok('a walk photo cannot become a punch item without a description',
+  /describedWalkShots/.test(punchSrc) && /description\.trim\(\)\.length > 0/.test(punchSrc),
+  'a punch item with no description is a row nobody can action');
+// Review 2026-09-08. Two things the walk got wrong on the way in:
+//
+//   • it filed through a LOOP of addPunchItem. ProjectContext exposes
+//     addPunchItems precisely so a caller with N rows does one setState and one
+//     AsyncStorage write; the loop re-serialises the whole punch list once per
+//     photo, on the phone that just finished a forty-frame walk.
+//   • one gesture files the whole walk, and a gesture on a cold phone
+//     registers twice. The filed rows leave `walkShots` on the NEXT render, so
+//     a second tap re-reading the same `describedWalkShots` files every defect
+//     again — twenty duplicate punch items, each with its own Supabase row.
+//     The latch has to be a ref (state has not re-rendered yet) and has to be
+//     released by the commit that empties the sheet, not at the end of the
+//     handler, or it is a latch that is already open when the second tap lands.
+ok('the walk files its items in ONE batch write',
+  /addPunchItems\(/.test(punchSrc) && !/for \(const shot of describedWalkShots\)/.test(punchSrc),
+  'a loop of addPunchItem serialises the entire punch list once per photo');
+ok('filing a walk twice cannot double-file it',
+  /filingWalkRef\.current\) return;/.test(punchSrc)
+    && /useEffect\(\(\) => \{ filingWalkRef\.current = false; \}, \[walkShots\]\);/.test(punchSrc),
+  'released at the end of the handler the latch is already open when the second tap lands');
+
+// ── #11: safety incidents can finally hold a photo ─────────────────────────
+// photoUrls had a useState, a column, a type and a sync path and NO writer.
+// Deliberately specific. The first version of this check was
+// `/attachIncidentPhoto/ && /setPhotoUrls\(prev =>/`, and a mutation that
+// renamed the writer to `attachIncidentPhotoX` sailed through it twice over:
+// the rename still matched as a SUBSTRING, and the surviving remove-a-photo
+// handler still matched the setter. It asserted that the words appear, not
+// that a photo can be attached. These three assert the actual chain — a
+// declared writer, an append that puts the durable value IN the array, and a
+// control the user can reach.
+ok('safety incidents write photoUrls',
+  /\bconst attachIncidentPhoto\b/.test(incidentSrc)
+    && /\[\.\.\.prev, durable\]/.test(incidentSrc)
+    && /onPress=\{handleIncidentCamera\}/.test(incidentSrc),
+  'the one record OSHA reads back had no way to attach an image');
+ok('an incident photo is staged for upload, not stored as a raw file:// path',
+  /queuePhotoUpload\(/.test(incidentSrc) && /buildPhotoStoragePath\(/.test(incidentSrc),
+  'a file:// in photo_urls means nothing on the inspector laptop or after a reinstall');
+ok('the incident form can shoot a burst and pick a batch',
+  /captureBurst\(/.test(incidentSrc) && /pickPhotoBatch\(/.test(incidentSrc));
+
+// ── #14 (second half): the permit scan must survive leaving this device ────
+ok('a permit scan is staged for upload',
+  /stagePermitScan\(/.test(permitSrc) && /queuePhotoUpload\(/.test(permitSrc),
+  'permits.tsx used to persist result.assets[0].uri — unopenable anywhere else');
+ok('the permit form never assigns a picker asset straight to attachmentUri',
+  !/attachmentUri: result\.assets/.test(permitSrc),
+  'that assignment IS the bug; the value must come back from the staging helper');
+ok('the permit form no longer prints the raw attachment path at the user',
+  !/\{form\.attachmentUri\}<\/Text>/.test(permitSrc),
+  'a file:// path is not an explanation of what is attached');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

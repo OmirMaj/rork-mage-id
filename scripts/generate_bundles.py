@@ -516,11 +516,16 @@ hiring workers for a job.""",
 )
 
 # ---------- 12: DISCOVER / MARKETPLACE / EQUIPMENT ----------
+# Materials is deliberately absent from both the blurb and the file list. Its
+# Discover sub-tab and the app/(tabs)/discover/materials.tsx alias behind it
+# were deleted on 2026-09-07 when the Estimator absorbed the browser, so
+# naming it here would describe a strip pill that no longer exists. The
+# screen itself is bundled in 06 (ESTIMATES & MATERIALS).
 bundle(
     "12-DISCOVER-MARKETPLACE-EQUIPMENT.md",
     "Discover, Marketplace, Equipment & Integrations",
     """Discover tab (unified search across bids/companies/hire/estimate/
-schedule/materials), Marketplace tab, Equipment tracking, and third-party
+schedule), Marketplace tab, Equipment tracking, and third-party
 integrations screen.""",
     [
         "app/(tabs)/discover/index.tsx",
@@ -529,7 +534,6 @@ integrations screen.""",
         "app/(tabs)/discover/hire.tsx",
         "app/(tabs)/discover/estimate.tsx",
         "app/(tabs)/discover/schedule.tsx",
-        "app/(tabs)/discover/materials.tsx",
         "app/(tabs)/discover/_layout.tsx",
         "app/(tabs)/marketplace/index.tsx",
         "app/(tabs)/equipment/index.tsx",

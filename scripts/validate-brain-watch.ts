@@ -16,9 +16,21 @@ import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } 
 // MONEY-05: the reader Summary's amount comes from, so the fixture below pins
 // the shipped rule rather than a number copied out of it.
 import { invoiceOutstanding } from '../utils/invoiceBilling';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
-function ok(n: string, cond: boolean) { if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n); } }
+// `why` is optional and printed only on failure. Without it a failing check
+// says nothing but its own title, and the titles are short because they are
+// read in a passing list. Same widening as scripts/validate-ai-honesty.ts.
+function ok(n: string, cond: boolean, why?: string) {
+  if (cond) { pass++; console.log('  ✓', n); return; }
+  fail++;
+  console.log('  ✗', n);
+  if (why) console.log('        ' + why);
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -781,6 +793,55 @@ function mkCO(over: Partial<ChangeOrder> = {}): ChangeOrder {
 // Singular message
 {
   ok('1 pending → singular message', changeOrderAttention([mkCO()])[0].message.includes('1 change order awaiting'));
+}
+
+// ─── Every attention builder is actually CALLED by something ────────────────
+//
+// utils/brainWatch.ts exports one `*Attention` builder per signal. A builder
+// that exists and is composed by nothing is finished work nobody can see — this
+// repo's most reliable way to lose engineering it already paid for. Found on
+// this check's first run (2026-09-10): `deliveryAttention` and
+// `buildingAccessAttention` were fully written and called by NOTHING — not the
+// hook, not one screen.
+//
+// WHAT THIS DELIBERATELY DOES NOT ASSERT: that every builder reaches
+// hooks/useBrainWatch's canonical `total`. That was this check's first draft and
+// it was WRONG. RFIs and submittals gate the all-clear SENTENCE and are kept out
+// of the COUNT on purpose — sim-audit #15 was the home card reading 5 while the
+// tab badge read 11, and __tests__/smoke/all-clear-honesty.test.tsx pins the
+// split ("the extra categories gate the SENTENCE here precisely so they can
+// never reach the count"). Requiring canonical membership broke two of those
+// tests immediately. Reachability is the honest invariant; membership is a
+// product decision this guard has no business making.
+{
+  const watchSrc = readFileSync(join(ROOT, 'utils', 'brainWatch.ts'), 'utf8');
+  const builders = [...new Set(
+    [...watchSrc.matchAll(/export function ([a-z][A-Za-z0-9]*Attention)\s*\(/g)].map(m => m[1]),
+  )].filter(b => b !== 'rankAttention');
+
+  ok('found the attention builders in utils/brainWatch.ts', builders.length >= 5,
+    `only ${builders.length} — has the naming changed?`);
+
+  // Every consumer: the hook, plus any screen or component that composes one
+  // directly (which is how the sentence-gating surfaces legitimately do it).
+  const consumerDirs = ['hooks', 'components', 'app', 'utils'];
+  const consumers: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(rel); continue; }
+      if (/\.tsx?$/.test(e.name) && rel !== 'utils/brainWatch.ts') consumers.push(rel);
+    }
+  };
+  for (const d of consumerDirs) { try { walk(d); } catch { /* absent */ } }
+  const allSrc = consumers.map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n');
+
+  const orphans = builders.filter(b => !new RegExp(`\\b${b}\\(`).test(allSrc));
+  ok('every *Attention builder is composed by something',
+    orphans.length === 0,
+    `written and called by nothing: ${orphans.join(', ')}. Either compose it — in the ` +
+    'canonical set if it should raise the count, or on the surface whose sentence it ' +
+    'should gate — or delete it. A builder nobody calls is finished work nobody sees.');
 }
 
 // ─── Footer ──────────────────────────────────────────────────────────────────

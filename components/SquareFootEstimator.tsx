@@ -4,7 +4,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { X, ChevronRight, Building2, Home, Hammer, Trees, Calculator, TrendingUp, TrendingDown, Minus as MinusIcon } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { SQUARE_FOOT_MODELS, QUALITY_TIERS, SF_CATEGORIES, type SquareFootModel, type QualityTier } from '@/constants/squareFootCosts';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -29,6 +31,10 @@ function formatCurrency(value: number): string {
 }
 
 const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, onClose, locationFactor = 1 }: SquareFootEstimatorProps) {
+  // Built per theme — the estimator baked its page background, model cards and
+  // ink at import (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedModel, setSelectedModel] = useState<SquareFootModel | null>(null);
@@ -117,7 +123,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
                   <Text style={s.modelName}>{model.buildingType}</Text>
                   <Text style={s.modelDesc} numberOfLines={1}>{model.description}</Text>
                 </View>
-                <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
+                <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
               </View>
               <View style={s.modelCardBottom}>
                 <Text style={s.modelRange}>${midRange.low}-${midRange.high}/SF</Text>
@@ -174,7 +180,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
             keyboardType="number-pad"
             textAlign="center"
             placeholder="Enter SF"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={t.textMuted}
           />
           <TouchableOpacity style={s.sqftBtn} onPress={() => setSqftInput(String(sqft + 100))}>
             <Text style={s.sqftBtnText}>+</Text>
@@ -202,7 +208,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
             )}
             <View style={s.resultRow}>
               <View style={s.resultCol}>
-                <TrendingDown size={14} color={Colors.successLabel} strokeWidth={1.75} />
+                <TrendingDown size={14} color={t.successLabel} strokeWidth={1.75} />
                 <Text style={s.resultLabel}>Low</Text>
                 <Text style={s.resultValueLow}>{formatCurrency(costResult.low)}</Text>
                 <Text style={s.resultPerSf}>${costResult.perSfLow}/SF</Text>
@@ -214,7 +220,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
                 <Text style={s.resultPerSf}>${costResult.perSfMid}/SF</Text>
               </View>
               <View style={s.resultCol}>
-                <TrendingUp size={14} color={Colors.dangerLabel} strokeWidth={1.75} />
+                <TrendingUp size={14} color={t.dangerLabel} strokeWidth={1.75} />
                 <Text style={s.resultLabel}>High</Text>
                 <Text style={s.resultValueHigh}>{formatCurrency(costResult.high)}</Text>
                 <Text style={s.resultPerSf}>${costResult.perSfHigh}/SF</Text>
@@ -237,7 +243,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
             <Text style={s.headerTitle}>Quick Estimate</Text>
             <Text style={s.headerSub}>Square foot cost calculator</Text>
           </View>
-          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <View style={s.body}>
           {step === 1 && renderStep1()}
@@ -250,63 +256,63 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
 
 export default SquareFootEstimator;
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
-    backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+    backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.line,
   },
-  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  headerSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  headerSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 2 },
   closeBtn: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.fillTertiary,
+    width: 34, height: 34, borderRadius: 17, backgroundColor: t.neutralSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
-  stepTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 4 },
-  stepSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12 },
+  stepTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 4 },
+  stepSubtitle: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 12 },
   categoryRow: { flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap' },
   catChip: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
   },
   catChipActive: { backgroundColor: Colors.primary },
-  catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   catChipTextActive: { color: Colors.textOnPrimary },
   modelList: { flex: 1 },
   modelCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.cardBorder, gap: 10,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 8,
+    borderWidth: 1, borderColor: t.line, gap: 10,
   },
   modelCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   modelIconWrap: {
     width: 40, height: 40, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center',
   },
   modelCardInfo: { flex: 1, gap: 2 },
-  modelName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  modelDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  modelName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  modelDesc: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   modelCardBottom: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    paddingTop: 6, borderTopWidth: 0.5, borderTopColor: t.line,
   },
-  modelRange: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.successLabel },
-  modelSize: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  modelRange: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.successLabel },
+  modelSize: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   backBtn: { marginBottom: 8 },
   backBtnText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' as const },
   qualityGrid: { flexDirection: 'row', gap: 8, marginBottom: 16, marginTop: 4 },
   qualityCard: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12,
-    alignItems: 'center', gap: 4, borderWidth: 1.5, borderColor: Colors.cardBorder,
+    flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 12,
+    alignItems: 'center', gap: 4, borderWidth: 1.5, borderColor: t.line,
   },
   qualityCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
-  qualityLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
+  qualityLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textSecondary },
   qualityLabelActive: { color: Colors.primary },
-  qualityRange: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  qualityRange: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
   qualityRangeActive: { color: Colors.primary },
-  qualityUnit: { fontSize: 10, color: Colors.textMuted },
+  qualityUnit: { fontSize: 10, color: t.textMuted },
   qualityUnitActive: { color: Colors.primary },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6 },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginBottom: 6 },
   sqftRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   sqftBtn: {
     width: 44, height: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary + '12',
@@ -314,37 +320,37 @@ const s = StyleSheet.create({
   },
   sqftBtnText: { fontSize: Type.title2.fontSize, color: Colors.primary, fontWeight: '600' as const },
   sqftInput: {
-    flex: 1, height: 48, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text,
-    borderWidth: 1, borderColor: Colors.border,
+    flex: 1, height: 48, backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text,
+    borderWidth: 1, borderColor: t.line,
   },
   presetRow: { flexDirection: 'row', gap: 6, marginBottom: 16 },
   presetChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
   },
-  presetText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
+  presetText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.textSecondary },
   resultCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 12,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 12,
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
   resultHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  resultTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  resultTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   locationBadge: {
     backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.sm, paddingHorizontal: 10, paddingVertical: 4,
     alignSelf: 'flex-start',
   },
-  locationText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.infoLabel },
+  locationText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.info },
   resultRow: { flexDirection: 'row', gap: 8 },
   resultCol: {
-    flex: 1, backgroundColor: Colors.background, borderRadius: Tokens.radius.card, padding: 12,
+    flex: 1, backgroundColor: t.bg, borderRadius: Tokens.radius.card, padding: 12,
     alignItems: 'center', gap: 4,
   },
   resultColMid: { backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '25' },
-  resultLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
-  resultValueLow: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.successLabel },
+  resultLabel: { fontSize: 10, fontWeight: '600' as const, color: t.textMuted, textTransform: 'uppercase' as const },
+  resultValueLow: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: t.successLabel },
   resultValueMid: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  resultValueHigh: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.dangerLabel },
-  resultPerSf: { fontSize: 10, color: Colors.textMuted },
-  resultNotes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
+  resultValueHigh: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: t.dangerLabel },
+  resultPerSf: { fontSize: 10, color: t.textMuted },
+  resultNotes: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
 });

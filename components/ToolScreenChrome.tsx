@@ -30,7 +30,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, FolderOpen, Plus, AlertTriangle } from 'lucide-react-native';
+import { FolderOpen, Plus, AlertTriangle } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -39,9 +39,15 @@ import { Tokens } from '@/constants/designTokens';
 import EmptyState from '@/components/EmptyState';
 import type { Project } from '@/types';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 
 // ─── ToolHeader ───────────────────────────────────────────────────────────────
 
+// The `variant="tool"` door into ScreenHeader. The row's implementation — back
+// chevron, serif title, eyebrow, the hairline under it — moved to
+// components/ui/ScreenHeader.tsx on 2026-09-07 and is now shared with
+// PageHeader and FeatureHeader. This header was the worst of the three before
+// that: system sans 17/700 with no <h1>, across seventeen screens.
 export function ToolHeader({ eyebrow, title, right }: {
   /** Small uppercase context line, e.g. "AI PUNCH · MAGE ID". */
   eyebrow: string;
@@ -50,29 +56,17 @@ export function ToolHeader({ eyebrow, title, right }: {
   /** Optional right-slot action; a spacer keeps the title centered-left. */
   right?: React.ReactNode;
 }) {
-  const { colors: t } = useTheme();
-  const styles = useThemedStyles(makeStyles);
   // UX-F18: the eight project-scoped tool screens share this chevron; a bare
   // router.back() is dead on a cold-start route, so fall through to home.
   const goBack = useSafeBack();
   return (
-    <View style={styles.header}>
-      <TouchableOpacity
-        onPress={goBack}
-        style={styles.headerBtn}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        testID="tool-header-back"
-      >
-        <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
-      </TouchableOpacity>
-      <View style={styles.headerText}>
-        <Text style={styles.headerEyebrow}>{eyebrow}</Text>
-        <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
-      </View>
-      {right ?? <View style={styles.headerBtn} />}
-    </View>
+    <ScreenHeader
+      variant="tool"
+      title={title}
+      eyebrow={eyebrow}
+      onBack={goBack}
+      actions={right}
+    />
   );
 }
 
@@ -170,16 +164,6 @@ export function ToolProjectPicker({
 // ─── Styles (plan-intelligence idiom) ────────────────────────────────────────
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
-  header: {
-    flexDirection: 'row' as const, alignItems: 'center' as const,
-    paddingHorizontal: 12, paddingVertical: 10, gap: 8,
-    borderBottomWidth: 1, borderBottomColor: t.line,
-  },
-  headerBtn: { width: 38, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerText: { flex: 1 },
-  headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
-  headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
-
   pickerEmptyWrap: { flex: 1, padding: 16 },
   pickerContent: { padding: 16, paddingBottom: 48 },
   pickerLead: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19, marginBottom: 16 },

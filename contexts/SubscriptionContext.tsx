@@ -36,10 +36,36 @@ function getRCApiKey(): string | undefined {
   // configuration cleanly with a single console.log instead of spamming
   // dozens of validation errors.
   //
-  // For iOS/Android the test fallback IS valid — it's an iOS test key
+  // For iOS/Android in DEV the test fallback IS valid — it's an iOS test key
   // and RN-purchases on iOS accepts it; on Android the goog_ form is
   // missing but the simulator still boots (entitlements are absent
   // rather than mis-typed).
+  //
+  // IT IS NOT VALID IN A RELEASE BUILD, and it used to be reachable there.
+  // Until 2026-09-11 the release branch below read
+  //
+  //     ios:     …IOS_API_KEY     ?? …TEST_API_KEY,
+  //     android: …ANDROID_API_KEY ?? …TEST_API_KEY,
+  //     default: …TEST_API_KEY,
+  //
+  // which made a variable whose NAME says "test" a production credential path
+  // on three of the four platforms. That is worse than it sounds, because
+  // scripts/validate-release-keys.ts exempted `_TEST_`-named variables from its
+  // sandbox scan on the reasoning that such a variable is SUPPOSED to hold a
+  // non-production value. Both statements were true at once: the guard skipped
+  // the variable because of its name, and a release build could reach it. Put a
+  // genuine sandbox key in the variable the guard tells you it is safe to put a
+  // sandbox key in, unset the iOS key in a profile, and iOS release builds ship
+  // a till that cannot charge — with every check green.
+  //
+  // Nothing was broken in practice (the variable happened to hold the live
+  // `appl_` key, byte-identical to the iOS one). The hole was in the reasoning,
+  // and this is the same class as the `rcb_sb_` miss below: a check that passes
+  // because of a NAME rather than a ROLE.
+  //
+  // So the release branch now takes each platform's OWN key or nothing. Web
+  // already worked this way for the separate reason documented above, and the
+  // no-key path is a clean skip with one log — see configureRC.
   if (__DEV__) {
     if (Platform.OS === 'web') {
       // In dev on web, only use a key that's actually a web key. Skip
@@ -48,17 +74,17 @@ function getRCApiKey(): string | undefined {
     }
     return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
   }
+  // RELEASE. Each platform's own key or nothing — no cross-platform and no
+  // test-variable fallback. If the key isn't set, skip configuration entirely
+  // (return undefined): subscription state reads from the local AsyncStorage
+  // cache + the Supabase mirror, both of which already work without RC
+  // initialized. A missing key is a visible, logged skip; a wrong key that
+  // configures cleanly is the failure nobody sees.
   return Platform.select({
-    ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY
-      ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
-    android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY
-      ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
-    // Web: NO fallback to the iOS test key. If the web key isn't set,
-    // skip configuration entirely (return undefined). Subscription state
-    // will read from the local AsyncStorage cache + Supabase mirror, both
-    // of which already work without RC initialized.
+    ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
+    android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
     web: process.env.EXPO_PUBLIC_REVENUECAT_WEB_API_KEY,
-    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
+    default: undefined,
   });
 }
 
@@ -73,6 +99,24 @@ function isKeyValidForPlatform(key: string): boolean {
   if (Platform.OS === 'ios') return key.startsWith('appl_');
   if (Platform.OS === 'android') return key.startsWith('goog_');
   return true;
+}
+
+/**
+ * A SANDBOX key. RevenueCat's sandbox forms carry an `_sb_` infix — the web
+ * billing one is `rcb_sb_…` against production's `rcb_…`.
+ *
+ * This needs its own check because `isKeyValidForPlatform` cannot catch it:
+ * `rcb_sb_…`.startsWith('rcb_') is TRUE, so a sandbox key passes the only
+ * pre-flight this file had and configures cleanly. Everything then looks
+ * healthy — the SDK initialises, offerings load, the paywall renders — and the
+ * one thing that does not happen is a charge.
+ *
+ * Found 2026-09-10: `eas.json` carried `rcb_sb_…` in the PRODUCTION profile,
+ * so no web visitor could ever have been billed. An app with 0 paid conversions
+ * and a sandbox key in production has not been told anything about its market.
+ */
+function isSandboxKey(key: string): boolean {
+  return /(^|_)sb_/.test(key);
 }
 
 let rcConfigured = false;
@@ -96,6 +140,19 @@ function configureRC() {
     console.warn(`[RC] API key for ${Platform.OS} should start with "${expected}" — got "${apiKey.slice(0, 6)}…". ` +
       `Skipping RC configuration to avoid crash loop.`);
     return;
+  }
+  // A sandbox key in a RELEASE build is not a warning, it is a broken till.
+  // Deliberately still configured afterwards rather than skipped: skipping
+  // would blank the paywall and hide the cause, whereas configuring lets the
+  // screen render and fail at the charge, where it is diagnosable. What must
+  // not happen is this passing silently, which is exactly what it did.
+  if (!__DEV__ && isSandboxKey(apiKey)) {
+    console.error(
+      `[RC] SANDBOX KEY IN A PRODUCTION BUILD — "${apiKey.slice(0, 8)}…" on ${Platform.OS}. ` +
+      'RevenueCat will initialise and offerings will load, but NO REAL PURCHASE CAN COMPLETE. ' +
+      'Replace the key for this platform with its production value in eas.json (and .env for ' +
+      'local runs); the web one is rcb_… with no "sb".',
+    );
   }
   try {
     void Purchases.setLogLevel(LOG_LEVEL.DEBUG);

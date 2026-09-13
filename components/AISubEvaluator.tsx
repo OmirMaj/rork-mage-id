@@ -15,6 +15,8 @@ import {
 } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useLaborRates } from '@/hooks/useLaborRates';
+import { normalizeTradeKey } from '@/utils/laborSamples';
 import { useRouter } from 'expo-router';
 import type { Subcontractor } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
@@ -36,6 +38,12 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
   const [result, setResult] = useState<SubEvaluationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  // The rate the GC actually pays for this trade. This panel used to print
+  // model-invented journeyman/master/apprentice wages here (see the note on
+  // subEvaluationSchema) — a benchmark with no market and no city behind it,
+  // read on the screen where the award is decided.
+  const { rates } = useLaborRates();
+  const yourRate = rates[normalizeTradeKey(sub.trade)];
 
   const handleEvaluate = useCallback(async () => {
     if (isLoading) return;
@@ -107,21 +115,27 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         </View>
       ))}
 
-      <Text style={styles.sectionLabel}>Typical Rates ({sub.trade})</Text>
-      <View style={styles.rateGrid}>
-        <View style={styles.rateItem}>
-          <Text style={styles.rateLabel}>Journeyman</Text>
-          <Text style={styles.rateValue}>{result.typicalRates?.journeyman ?? '—'}</Text>
+      <Text style={styles.sectionLabel}>Your Rate ({sub.trade})</Text>
+      {yourRate ? (
+        <View style={styles.rateRow}>
+          <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
+          <Text style={styles.rateValue}>${yourRate.toLocaleString('en-US', { maximumFractionDigits: 2 })}/hr</Text>
+          <Text style={styles.rateNote}>your loaded self-perform rate — a comparison point, not a market benchmark</Text>
         </View>
-        <View style={styles.rateItem}>
-          <Text style={styles.rateLabel}>Master</Text>
-          <Text style={styles.rateValue}>{result.typicalRates?.master ?? '—'}</Text>
-        </View>
-        <View style={styles.rateItem}>
-          <Text style={styles.rateLabel}>Apprentice</Text>
-          <Text style={styles.rateValue}>{result.typicalRates?.apprentice ?? '—'}</Text>
-        </View>
-      </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.rateRow}
+          onPress={() => router.push('/time-tracking')}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Set your labor rate for this trade"
+        >
+          <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
+          <Text style={styles.rateNote}>
+            No loaded rate set for {sub.trade}. MAGE won&apos;t invent one — set yours under Time Tracking → Labor rates and it shows here.
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {(result.redFlags ?? []).length > 0 && (
         <>
@@ -191,14 +205,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 6,
-    backgroundColor: Colors.successLight,
+    // successSoft + successLabel, not the baked `Colors.successLight`: the
+    // static tint stays pale while the ink themes, so dark mode drew #4ED37A
+    // on near-white at ~1.1:1. The themed pair is 5.53:1 / 7.40:1.
+    backgroundColor: t.successSoft,
     borderRadius: Tokens.radius.sm,
     padding: 10,
     marginBottom: 12,
   },
   trackText: {
     fontSize: Type.footnote.fontSize,
-    color: t.success,
+    color: t.successLabel,
     flex: 1,
     lineHeight: 18,
   },
@@ -223,27 +240,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     lineHeight: 18,
   },
-  rateGrid: {
+  rateRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-  },
-  rateItem: {
-    flex: 1,
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: Colors.fillSecondary,
     borderRadius: Tokens.radius.sm,
     padding: 10,
-    alignItems: 'center',
-  },
-  rateLabel: {
-    fontSize: 10,
-    color: t.textMuted,
-    fontWeight: '500' as const,
+    marginBottom: 8,
   },
   rateValue: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: t.text,
+  },
+  rateNote: {
+    flex: 1,
+    fontSize: Type.caption1.fontSize,
+    color: t.textMuted,
+    lineHeight: 16,
   },
   flagRow: {
     flexDirection: 'row',

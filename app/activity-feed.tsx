@@ -8,7 +8,7 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Activity, Plus, RefreshCcw, CheckCircle2,
-  XCircle, DollarSign, Upload,
+  XCircle, DollarSign, Upload, CloudOff,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -19,9 +19,14 @@ import { useActivityFeed, type ActivityAction, type ActivityItem } from '@/hooks
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import type { EntityRef } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { neutralInk } from '@/components/ui/ink';
+
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8).
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function ActivityFeedScreen() {
   const { colors: themeColors } = useTheme();
@@ -32,7 +37,10 @@ export default function ActivityFeedScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject } = useProjects();
+  // RT-R1: useActivityFeed composes this timeline from the same ProjectContext
+  // collections that swallow a failed read and serve the cache, so an empty
+  // feed is EITHER a quiet project OR a dead session (audit 2026-09-07).
+  const { getProject, sourceFailed, retryRemoteReads } = useProjects();
   const { navigateTo } = useEntityNavigation();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -66,12 +74,33 @@ export default function ActivityFeedScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
-          <Text style={styles.headerSubtitle}>{items.length} event{items.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.headerSubtitle}>
+            {items.length === 0 && sourceFailed
+              ? 'Not loaded'
+              : `${items.length} event${items.length === 1 ? '' : 's'}`}
+          </Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
 
-      {items.length === 0 ? (
+      {/* A project's whole history reading as "nothing has happened here" is
+          the most alarming version of this bug, so the failed read is told
+          apart first. A genuinely quiet project (sourceFailed false) still
+          gets the friendly copy below. */}
+      {items.length === 0 && sourceFailed ? (
+        <ErrorState
+          icon={<CloudOff size={32} color={themeColors.warningLabel} strokeWidth={1.75} />}
+          title="Couldn't reach MAGE"
+          body="This project's history didn't come back from the last read. Nothing has been deleted — this device just has nothing cached to show yet."
+          steps={[
+            'Check that you have signal or Wi-Fi.',
+            'Tap Try again below.',
+            'If it keeps failing, sign out and back in — the session may have expired.',
+          ]}
+          onRetry={retryRemoteReads}
+          testID="activity-unreachable"
+        />
+      ) : items.length === 0 ? (
         <EmptyState
           icon={<Activity size={32} color={themeColors.accent} strokeWidth={1.75} />}
           title="No activity yet"
@@ -113,7 +142,7 @@ interface RowProps {
 function ActivityRow({ item, onPress, onLongPress }: RowProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { icon: Icon, color, verb } = iconAndColor(item.action);
+  const { icon: Icon, color, verb } = iconAndColor(item.action, themeColors);
 
   return (
     <TouchableOpacity
@@ -150,7 +179,10 @@ function ActivityRow({ item, onPress, onLongPress }: RowProps) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function iconAndColor(action: ActivityAction) {
+// Takes the theme because 'closed'/'unknown' render in the NEUTRAL ink, and a
+// neutral has to invert between themes — this returned the dark theme's
+// #9AA3AD, which is 2.5:1 as the `rowVerb` text on a light row.
+function iconAndColor(action: ActivityAction, t: ThemeColors) {
   switch (action) {
     case 'created':
       return { icon: Plus, color: "#FF6A1A", verb: 'Created' };
@@ -159,7 +191,7 @@ function iconAndColor(action: ActivityAction) {
     case 'completed':
       return { icon: CheckCircle2, color: "#2E7D44", verb: 'Completed' };
     case 'closed':
-      return { icon: XCircle, color: "#9AA3AD", verb: 'Closed' };
+      return { icon: XCircle, color: neutralInk(t), verb: 'Closed' };
     case 'paid':
       return { icon: DollarSign, color: "#2E7D44", verb: 'Paid' };
     case 'uploaded':
@@ -167,7 +199,7 @@ function iconAndColor(action: ActivityAction) {
     default: {
       const _exhaustive: never = action;
       void _exhaustive;
-      return { icon: Activity, color: "#9AA3AD", verb: 'Activity' };
+      return { icon: Activity, color: neutralInk(t), verb: 'Activity' };
     }
   }
 }

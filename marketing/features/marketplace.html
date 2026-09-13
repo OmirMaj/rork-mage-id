@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Marketplace — Suppliers, Materials, Equipment | MAGE ID</title>
   <link rel="canonical" href="https://mageid.app/features/marketplace.html" />
-  <meta name="description" content="Local supplier directory, live material pricing, and equipment tracking — built into the app. Nine major metros indexed, prices refreshed weekly." />
+  <meta name="description" content="Local supplier directory across nine metros refreshed weekly, a regional materials catalog, and equipment tracking — built into the app." />
   <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Marketplace — Suppliers, Materials, Equipment | MAGE ID" />
-  <meta property="og:description" content="Local supplier directory, live material pricing, equipment tracking — built into the app." />
+  <meta property="og:description" content="Local supplier directory across nine metros, a regional materials catalog that learns your real supply-house prices, and equipment tracking." />
   <meta property="og:url" content="https://mageid.app/features/marketplace.html" />
   <meta property="og:site_name" content="MAGE ID" />
   <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
@@ -44,8 +44,9 @@
       <span class="eyebrow">Marketplace</span>
       <h1>Suppliers, materials, equipment — <br>in the pocket, in the moment.</h1>
       <p>
-        Nine major metros indexed. Live material pricing. Local supplier directory with reviews.
-        Plus every owned or rented machine tracked in one place — daily rates, status, and which job it's on.
+        A supplier directory across nine metros, refreshed weekly. A materials catalog with regional
+        cost factors &mdash; and, from your first scanned receipt, your own supply-house prices.
+        Plus every owned or rented machine tracked in one place &mdash; daily rates, status, and which job it&apos;s on.
       </p>
     </section>
 
@@ -56,11 +57,16 @@
           <h2>Local supplier directory.</h2>
           <p>
             A curated directory of construction suppliers — lumber yards, steel, concrete,
-            masonry, MEP — across the nine largest construction metros in the US. Updated weekly.
+            masonry, MEP — across nine US metros. Refreshed weekly.
             Filter by material type, distance, and delivery options.
           </p>
           <ul>
-            <li>Indexed metros: NYC, LA, Chicago, Houston, Phoenix, Philadelphia, San Antonio, San Diego, Dallas</li>
+            <!-- These are the nine metros the code actually queries, verbatim from
+                 supabase/functions/fetch-external-data (the Google Places step). The
+                 page used to list San Antonio and San Diego, which it has never
+                 indexed; Atlanta and Miami, which it does, were missing. A city list
+                 is the single easiest thing on this page for a buyer to disprove. -->
+            <li>Indexed metros: New York, Los Angeles, Chicago, Houston, Dallas, Phoenix, Philadelphia, Atlanta, Miami</li>
             <li>Filter by material category (lumber, concrete, steel, finishes, MEP, tools)</li>
             <li>Distance-sorted with drive time estimates</li>
             <li>Delivery availability and lead times</li>
@@ -71,26 +77,36 @@
       </div>
     </section>
 
-    <!-- Live Material Pricing -->
+    <!-- Material pricing -->
     <section class="section-alt">
       <div class="wrap-wide">
         <div class="feature-row reverse">
           <div>
-            <h2>Live material pricing that matches your estimates.</h2>
+            <h2>Material prices that become <em>yours</em>.</h2>
             <p>
-              Common construction materials priced by region, refreshed weekly. Use them to
-              sanity-check an estimate, or pull them directly into line items when you're
-              drafting a new project. No more "pricing from memory" from a 2022 job.
+              <!-- "Live material pricing" claimed a supplier feed that does not exist:
+                   constants/regions.ts is ten static regional indexes and twenty metro
+                   multipliers, and nothing fetches a price. The true story is stronger
+                   and is what utils/costDatabase.ts:183-196 actually does — a scanned
+                   supply-house invoice writes real unit prices into the book the same
+                   day, without waiting for the job to close. -->
+              Day one, materials price off a regional cost index &mdash; ten regional factors and
+              twenty metro adjustments, so a Bay Area bid is not priced off a Tulsa number. It is a
+              starting point and the app says so on the screen. From your first scanned receipt it is
+              <em>your</em> pricing: snap a supply-house invoice and those unit prices go straight
+              into a price book only you can see, the same day. No more &ldquo;pricing from memory&rdquo;
+              off a 2022 job, and no pretending a national average is what your yard charges you.
             </p>
             <ul>
-              <li>Weekly price refreshes by metro</li>
+              <li>Regional cost factors on day one, clearly labelled as a starting point</li>
               <li>Common-material catalog: lumber grades, rebar, concrete, drywall, pipe, conductor</li>
+              <li>Scanned supplier invoices write real unit prices into your own book, same day</li>
               <li>Pull directly into estimate line items</li>
-              <li>Historical price chart per item (trend line)</li>
+              <li>Your own price history per item as the receipts accumulate</li>
               <li>Regional price variance flagged (when your zip is 20%+ above average)</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="Material pricing · 2×4 lumber trend"><img src="/screenshots/screens/09-bulk-savings.png" alt="Live material pricing and bulk savings" /></div>
+          <div class="screenshot phone" data-label="Materials · Bulk savings"><img src="/screenshots/screens/09-bulk-savings.png" alt="Bulk savings across awarded buyout packages" /></div>
         </div>
       </div>
     </section>
@@ -191,6 +207,28 @@
       </div>
       <div class="footer-bottom">© <script>document.write(new Date().getFullYear())</script> MAGE ID. Built for general contractors.</div>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
   </footer>
   <script src="/nav-mobile.js" defer></script>
   <script src="/motion.js" defer></script>

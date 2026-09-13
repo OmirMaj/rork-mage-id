@@ -29,6 +29,7 @@ import {
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
+import { neutralInk } from '@/components/ui/ink';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -117,7 +118,11 @@ export default function ExtractSubmittalsScreen() {
 
       setStep('analyzing');
       const { result } = await extractSubmittalsFromSpecBook({
-        pageUrls: rendered.map(p => p.publicUrl),
+        // DB-F11: paths, not URLs — the function downloads the bytes with the
+        // service role. pageUrls is the one-release fallback for a function
+        // that has not been redeployed yet.
+        pagePaths: rendered.map(p => p.storagePath),
+        pageUrls: rendered.map(p => p.viewUrl),
         projectName: project.name,
       });
       await recordAIUsage('smart', 'specBookExtract');
@@ -283,19 +288,19 @@ export default function ExtractSubmittalsScreen() {
                     <View style={styles.metaLine}>
                       {row.specSection ? (
                         <View style={styles.metaChip}>
-                          <Layers size={11} color={"#9AA3AD"} strokeWidth={1.75} />
+                          <Layers size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                           <Text style={styles.metaChipText}>{row.specSection}</Text>
                         </View>
                       ) : null}
                       <View style={styles.metaChip}>
-                        <Hammer size={11} color={"#9AA3AD"} strokeWidth={1.75} />
+                        <Hammer size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                         <Text style={styles.metaChipText}>{row.trade}</Text>
                       </View>
                       <View style={styles.metaChip}>
-                        <Calendar size={11} color={"#9AA3AD"} strokeWidth={1.75} />
+                        <Calendar size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                         <Text style={styles.metaChipText}>{row.dueRelativeDays}d lead</Text>
                       </View>
-                      <View style={[styles.confChip, confColor(row.confidence)]}>
+                      <View style={[styles.confChip, confColor(row.confidence, themeColors)]}>
                         <Text style={styles.confText}>{row.confidence}</Text>
                       </View>
                     </View>
@@ -312,7 +317,7 @@ export default function ExtractSubmittalsScreen() {
                   />
                 </View>
                 <TouchableOpacity onPress={() => dropRow(row.rowId)} style={styles.dropRow}>
-                  <Trash2 size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+                  <Trash2 size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.dropText}>Remove from list</Text>
                 </TouchableOpacity>
               </View>
@@ -342,10 +347,13 @@ export default function ExtractSubmittalsScreen() {
   );
 }
 
-function confColor(c: 'high' | 'medium' | 'low') {
+// `low` was the DARK theme's textSecondary (#9AA3AD) suffixed as a fill, so in
+// dark mode the "low confidence" chip washed toward the surface it sits on
+// instead of away from it. neutralInk inverts with the ground.
+function confColor(c: 'high' | 'medium' | 'low', t: ThemeColors) {
   if (c === 'high') return { backgroundColor: "#2E7D44" + '20' };
   if (c === 'medium') return { backgroundColor: Colors.warning + '20' };
-  return { backgroundColor: "#9AA3AD" + '20' };
+  return { backgroundColor: neutralInk(t) + '20' };
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({

@@ -20,7 +20,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { CloudOff } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import {
@@ -55,6 +57,8 @@ export interface SimulatedWeatherBannerProps {
  * Renders null when every displayed day is a real reading.
  */
 export function SimulatedWeatherBanner({ days, style }: SimulatedWeatherBannerProps) {
+  const { colors: t } = useTheme();
+  const s = useThemedStyles(makeStyles);
   if (!hasSimulatedDays(days)) return null;
   const simulatedDayCount = countSimulatedDays(days);
   const allSimulated = simulatedDayCount === days.length;
@@ -62,7 +66,7 @@ export function SimulatedWeatherBanner({ days, style }: SimulatedWeatherBannerPr
   return (
     <View style={[s.simBanner, style]} accessibilityRole="alert">
       <View style={s.simBannerIcon}>
-        <CloudOff size={16} color={Colors.warningDark} strokeWidth={1.75} />
+        <CloudOff size={16} color={t.warningLabel} strokeWidth={1.75} />
       </View>
       <View style={s.simBannerBody}>
         <Text style={s.simBannerTitle}>{SIMULATED_WEATHER_HEADLINE}</Text>
@@ -88,6 +92,7 @@ export interface SimulatedDayChipProps {
  * read as all-real. Renders null for a live day.
  */
 export function SimulatedDayChip({ source, style }: SimulatedDayChipProps) {
+  const s = useThemedStyles(makeStyles);
   if (source === 'live') return null;
   return (
     <View style={[s.simDayChip, style]}>
@@ -96,7 +101,12 @@ export function SimulatedDayChip({ source, style }: SimulatedDayChipProps) {
   );
 }
 
-const s = StyleSheet.create({
+// Built per theme. The card used to be a fixed pale-amber #FFF3E0 (warningLight)
+// carrying `Colors.textSecondary` body copy baked at import — and the pairing is
+// only safe by accident: unfreeze the ink alone and dark mode paints cream type
+// on a pale card. The *Soft/*Label pair composites over whichever ground is
+// actually behind it, so tint and ink move together (audit 2026-09-07).
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Amber warning treatment (never the neutral/info palette): this is a trust
   // warning, not a hint. Full-width, above the data it disclaims.
   simBanner: {
@@ -106,7 +116,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.warningLight,
+    backgroundColor: t.warningSoft,
     borderWidth: 1,
     borderColor: Colors.warning,
   },
@@ -116,25 +126,25 @@ const s = StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   simBannerBody: { flex: 1, gap: 3 },
   simBannerTitle: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '800' as const,
-    color: Colors.warningDark,
+    color: t.warningLabel,
     letterSpacing: 0.4,
   },
   simBannerText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 15,
   },
   simDayChip: {
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.warningLight,
+    backgroundColor: t.warningSoft,
     borderWidth: 1,
     borderColor: Colors.warning,
   },
@@ -146,7 +156,7 @@ const s = StyleSheet.create({
     // to a token without re-checking both of those columns.
     fontSize: 9,
     fontWeight: '800' as const,
-    color: Colors.warningDark,
+    color: t.warningLabel,
     letterSpacing: 0.3,
   },
 });

@@ -72,20 +72,34 @@ interface PlanCodeRequest {
   mimeType: string;
   location?: string;
   projectType?: string;
+  /** The adopted-code facts for this jobsite, built CLIENT-SIDE by
+   *  utils/codeJurisdiction.groundingFactsFor. Exactly the text the prompt
+   *  carries and the chip shows, so the two can never disagree. */
+  jurisdictionBlock?: string;
 }
 
 function buildPrompt(req: PlanCodeRequest): string {
   const loc = req.location?.trim() || "jurisdiction unknown";
   const ptype = req.projectType?.trim() || "residential/commercial construction";
+  // The adopted edition, when the client could resolve one. Plan Review used to
+  // ask for "general IRC/IBC" while Code Check -- one toggle to the left in the
+  // same screen -- resolved the jurisdiction's ACTUAL adopted code and cited it
+  // (audit 2026-09-07, theme 4: the engine is uncalled where it matters most).
+  // A GC does not build to a general IRC; he builds to the edition his AHJ
+  // adopted, and the two differ in exactly the places a plan examiner stops him.
+  const juris = req.jurisdictionBlock?.trim() || "";
   return [
     "You are a meticulous building-code plan reviewer. Review THIS construction drawing for LIKELY code issues a plan examiner would flag.",
     `Project location: ${loc}. Project type: ${ptype}.`,
-    "Cite general IRC/IBC sections (and ADA where relevant). If the location is unknown, give general IRC/IBC guidance and do not invent local amendments.",
+    juris,
+    juris
+      ? "Cite the ADOPTED edition named above wherever it covers the issue, and say which edition you are citing. Fall back to general IRC/IBC (and ADA where relevant) only for something that block does not cover. Never invent a local amendment that is not listed."
+      : "Cite general IRC/IBC sections (and ADA where relevant). If the location is unknown, give general IRC/IBC guidance and do not invent local amendments.",
     "Only flag what you can ACTUALLY SEE in the drawing. Prefer fewer high-confidence findings over speculation. This is a PRE-CHECK the GC will verify against their AHJ — it is not a substitute for plan review.",
     "Return STRICT JSON of this exact shape and nothing else:",
     '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"IRC/IBC section","requirement":"what code requires","observed":"what the drawing shows that conflicts","severity":"high|med|low","confidence":"high|med|low"}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}',
     'If you see no likely issues, return {"findings":[],"disclaimer":"..."}.',
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function approxBase64Bytes(b64: string): number {

@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Platform,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
@@ -120,6 +121,7 @@ export default function BidDetailScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
@@ -129,7 +131,13 @@ export default function BidDetailScreen() {
   const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
-  useBrainFabLift(!layout.isDesktop ? bottomBarH : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = !layout.isDesktop ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
   const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
   const router = useRouter();
   const { bids: localBids } = useBids();
@@ -294,7 +302,7 @@ export default function BidDetailScreen() {
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
-      <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
         {layout.isDesktop ? (
           <View style={bidDesktopStyles.twoCol}>
             <View style={bidDesktopStyles.mainCol}>
@@ -501,6 +509,25 @@ export default function BidDetailScreen() {
                 </View>
               ) : null}
             </View>
+            {/* A NAICS code or a solicitation number means this came off a public
+                solicitation feed, and prevailing-wage work almost always carries
+                a weekly certified payroll obligation (WH-347 federally, a state
+                equivalent elsewhere). MAGE does not produce one and is not going
+                to — it is a large build with no bearing on the residential and
+                light-commercial work this product is for. Saying so on the card
+                is the honest half: a GC should learn it here, while he is
+                deciding whether to chase the job, and not after he wins it.
+                Audit 2026-09-07 raised exactly this: winning a public job through
+                this feed pushes his labor into another system, which is the same
+                labor the cost-learning engine needs. */}
+            <View style={styles.payrollNote}>
+              <Shield size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
+              <Text style={styles.payrollNoteText}>
+                Public work usually requires weekly certified payroll (WH-347 or your
+                state&apos;s form). MAGE does not generate it — plan to run payroll
+                for this job in your payroll system.
+              </Text>
+            </View>
           </View>
         ) : null}
 
@@ -594,7 +621,7 @@ export default function BidDetailScreen() {
                   </TouchableOpacity>
                 ) : null}
                 {applyUrl ? (
-                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.accent }]} onPress={() => void Linking.openURL(applyUrl)}>
+                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.accentFill }]} onPress={() => void Linking.openURL(applyUrl)}>
                     <ExternalLink size={16} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.contactBtnText}>Apply</Text>
                   </TouchableOpacity>
@@ -635,7 +662,6 @@ export default function BidDetailScreen() {
           testID="bid-ai-scorecard"
         />
 
-        <View style={{ height: 120 }} />
           </>
         )}
       </ScrollView>
@@ -738,6 +764,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   reqItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reqLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
   reqValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  payrollNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14 },
+  payrollNoteText: { flex: 1, minWidth: 0, fontSize: Type.footnote.fontSize, lineHeight: 18, color: t.textSecondary },
   certGrid: { gap: 8 },
   certCard: { backgroundColor: t.bg, padding: 12, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
   certShort: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, marginBottom: 2 },

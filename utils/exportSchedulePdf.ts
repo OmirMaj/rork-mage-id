@@ -23,7 +23,10 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import type { ScheduleTask } from '@/types';
-import type { CpmResult } from '@/utils/cpm';
+import {
+  workingOrdinalToCalendarIndex, workingDaysBetween,
+  type CpmResult, type DayScaleOptions,
+} from '@/utils/cpm';
 import type { NamedBaseline } from '@/utils/scheduleOps';
 
 /**
@@ -55,6 +58,16 @@ interface ExportOpts {
   baseline?: NamedBaseline;
   /** Paper size — defaults to A3 landscape (existing behavior). */
   paperSize?: SchedulePdfPaperSize;
+  /**
+   * The project calendar. Needed because this document mixes the two
+   * day-number scales: everything on `cpm` is a CALENDAR INDEX while
+   * `baseline.tasks[].startDay/endDay` and `task.startDay/durationDays` are
+   * WORKING ORDINALS. Without it the baseline ghost bar and the variance
+   * columns are drawn on the wrong axis (2026-09-11 review). Absent → 5-day
+   * week, no closures, which is schedule-pro's own default.
+   */
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
 }
 
 /** Map paper size key → CSS @page size declaration. Landscape on all
@@ -100,10 +113,30 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline, paperSize = 'a3' }: ExportOpts): string {
+function buildHtml({
+  projectName, scheduleStartIso, tasks, cpm, baseline, paperSize = 'a3',
+  workingDaysPerWeek, nonWorkingDates,
+}: ExportOpts): string {
   const pageSize = cssPageSize(paperSize);
   const scale = paperScale(paperSize);
   const totalDays = Math.max(1, cpm.projectFinish);
+  // The axis of this document is the CALENDAR (`totalDays` is cpm.projectFinish,
+  // a calendar index, and `addDays` is a plain date add). Every stored working
+  // ordinal that lands on it has to be lifted first — the same treatment
+  // printableGanttHtml and scheduleReportModel already apply. Before this, the
+  // bar's LEFT edge came from cpm.es (calendar) while its WIDTH came from
+  // durationDays (working days), so on a 5-day week a 10-day task drew 10
+  // columns against a true 12-column span; and the baseline ghost was drawn
+  // from raw working ordinals, which rendered an unchanged baseline as a slip.
+  const dayScale: DayScaleOptions = {
+    scheduleStartDate: scheduleStartIso,
+    workingDaysPerWeek: workingDaysPerWeek ?? 5,
+    nonWorkingDates: nonWorkingDates ?? [],
+  };
+  const toCal = (workingOrdinal: number) => workingOrdinalToCalendarIndex(workingOrdinal, dayScale);
+  /** Slip between two CALENDAR indices, counted in WORKING days — the unit a
+   *  superintendent reads "+3d" in. Matches utils/scheduleReportModel. */
+  const slipDays = (fromCal: number, toDay: number) => workingDaysBetween(fromCal, toDay, dayScale);
   // Fast lookup from task id → baseline snapshot. Missing means the task
   // was added after baseline was captured — we show em-dashes rather
   // than falsely pretending it slipped from day 1.
@@ -120,8 +153,12 @@ function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline, paperS
     for (const t of tasks) {
       const b = baselineById.get(t.id);
       if (!b) continue;
-      const end = (t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 0) - 1);
-      const delta = end - b.endDay;
+      // Both operands lifted to the calendar, then differenced in working
+      // days. The end used to be `startDay + duration - 1` — the AUTHORED pin,
+      // which cannot see a slip caused by a predecessor moving. cpm.ef can.
+      const row = cpm.perTask.get(t.id);
+      const endCal = row?.ef ?? toCal((t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 1) - 1));
+      const delta = slipDays(toCal(b.endDay), endCal);
       if (delta !== 0) variances.push({ title: t.title || 'Untitled', endDelta: delta });
     }
     variances.sort((a, b) => Math.abs(b.endDelta) - Math.abs(a.endDelta));
@@ -129,11 +166,14 @@ function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline, paperS
 
   const rows = tasks.map((t, i) => {
     const row = cpm.perTask.get(t.id);
-    const es = row?.es ?? t.startDay ?? 1;
-    const ef = row?.ef ?? es + (t.durationDays ?? 0) - 1;
+    const es = row?.es ?? toCal(t.startDay ?? 1);
+    const ef = row?.ef ?? toCal((t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 1) - 1));
     const dur = t.durationDays ?? 0;
     const leftPct = ((es - 1) / totalDays) * 100;
-    const widthPct = Math.max(0.3, (dur / totalDays) * 100);
+    // CALENDAR span, to match the calendar left edge. `dur` is a WORKING-day
+    // count and belongs in the duration COLUMN, never in the bar geometry.
+    const calSpan = Math.max(dur === 0 ? 0 : 1, ef - es + 1);
+    const widthPct = Math.max(0.3, (calSpan / totalDays) * 100);
     const critical = row?.isCritical;
     const isSummary = t.isSummary;
     const isMilestone = t.isMilestone || dur === 0;
@@ -144,8 +184,10 @@ function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline, paperS
     const bSnap = baselineById?.get(t.id);
     const baselineBar = bSnap
       ? (() => {
-          const bLeftPct = ((bSnap.startDay - 1) / totalDays) * 100;
-          const bDur = Math.max(1, bSnap.endDay - bSnap.startDay + 1);
+          const bStartCal = toCal(bSnap.startDay);
+          const bEndCal = toCal(bSnap.endDay);
+          const bLeftPct = ((bStartCal - 1) / totalDays) * 100;
+          const bDur = Math.max(1, bEndCal - bStartCal + 1);
           const bWidthPct = Math.max(0.3, (bDur / totalDays) * 100);
           return `<div style="position:absolute;left:${bLeftPct}%;width:${bWidthPct}%;height:4px;background:#999;opacity:0.55;top:17px;border-radius:2px;"></div>`;
         })()
@@ -168,12 +210,12 @@ function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline, paperS
     let baselineCols = '';
     if (baselineById) {
       if (bSnap) {
-        const endDelta = ef - bSnap.endDay;
+        const endDelta = slipDays(toCal(bSnap.endDay), ef);
         const deltaClass = endDelta > 0 ? 'var-bad' : endDelta < 0 ? 'var-good' : '';
         const deltaLabel = endDelta === 0 ? '0d' : `${endDelta > 0 ? '+' : ''}${endDelta}d`;
         baselineCols = `
-          <td>${addDays(scheduleStartIso, bSnap.startDay)}</td>
-          <td>${addDays(scheduleStartIso, bSnap.endDay)}</td>
+          <td>${addDays(scheduleStartIso, toCal(bSnap.startDay))}</td>
+          <td>${addDays(scheduleStartIso, toCal(bSnap.endDay))}</td>
           <td class="num ${deltaClass}"><b>${deltaLabel}</b></td>
         `;
       } else {

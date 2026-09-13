@@ -104,6 +104,33 @@ function ColdStartNote({ text, styles }: { text: string; styles: ReturnType<type
   return <Text style={styles.coldStart}>{text}</Text>;
 }
 
+/**
+ * What to say when Margin by Job Type has nothing to compare.
+ *
+ * "Needs 2 closed jobs … you have N" is only true while N < 2, and N here is
+ * `coverage.closedWithBasis`, a count across ALL types, while the row gate is
+ * PER TYPE (`jobCount < 2`, utils/portfolio/typeProfitability.ts:80). So a GC
+ * who has closed a kitchen, a bath, a deck, an addition and a whole-house
+ * remodel has five jobs that qualify, every row still gated, and the screen
+ * would have printed "Needs 2 closed jobs to compare job types — you have 5."
+ * — a sentence the reader can see contradict itself, on the screen whose whole
+ * job is to be the honest one.
+ *
+ * In that branch every row is gated, so Σ jobCount === closedWithBasis and
+ * each type holds exactly one job: the spread IS the blocker, so name it.
+ * `closedWithBasis` also excludes closed jobs with no contract or no cost on
+ * them (utils/judges/typeMargin.ts realizedMarginPct returns null), which is
+ * why the first line says what makes a job countable rather than just "closed".
+ *
+ * Exported so the honesty guard can assert the N >= 2 branch — no fixture has
+ * two closed jobs of different types, so a render test can only ever see N = 0.
+ */
+export function typeComparisonColdStart(closedWithBasis: number): string {
+  return closedWithBasis < 2
+    ? `Margin by job type needs 2 closed jobs of the same type. You have ${closedWithBasis} closed with both a contract and costs on it.`
+    : `Your ${closedWithBasis} closed jobs are each a different type — a type needs 2 before MAGE compares its margin.`;
+}
+
 // ── Inner screen ──────────────────────────────────────────────────────────
 
 function BusinessInner() {
@@ -117,7 +144,7 @@ function BusinessInner() {
   const { isDesktop } = useResponsiveLayout();
 
   const { projects } = useCoreData();
-  const { invoices, changeOrders, commitments } = useFinancialsData();
+  const { invoices, changeOrders, commitments, aiaPayApps } = useFinancialsData();
   const { dailyReports } = useFieldData();
   const { leads } = usePreconData();
   const { bidResponses } = useBidResponsesPortfolio();
@@ -132,8 +159,8 @@ function BusinessInner() {
   );
 
   const pipeline = useMemo(
-    () => buildPipelineHorizon({ leads, projects, invoices, changeOrders, commitments, bidResponses, now }),
-    [leads, projects, invoices, changeOrders, commitments, bidResponses, now],
+    () => buildPipelineHorizon({ leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now }),
+    [leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now],
   );
 
   const clientBook = useMemo(
@@ -158,6 +185,15 @@ function BusinessInner() {
   );
 
   const gatedTypeCount = typeProfit.rows.filter(r => r.gated && r.jobCount > 0).length;
+
+  // Is there any scheduled work in the three forward windows at all?
+  // overlappingProjects counts the active projects whose task spans intersect
+  // that window, so zero across all three means the load percentages have no
+  // denominator — see the Crew Load block for why that must not render as 0%.
+  const loadMeasurable = useMemo(
+    () => pipeline.loadWindows.some(w => w.overlappingProjects > 0),
+    [pipeline],
+  );
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -215,7 +251,10 @@ function BusinessInner() {
             />
             {visibleTypeRows.length === 0 ? (
               <ColdStartNote
-                text={`Closes feed this — ${typeProfit.coverage.closedWithBasis} of 2 jobs needed for your first type comparison.`}
+                // "Closes feed this — 0 of 2 jobs needed…" is not a sentence a
+                // GC parses; say what is missing and how many he has. See
+                // typeComparisonColdStart for why it is not one string.
+                text={typeComparisonColdStart(typeProfit.coverage.closedWithBasis)}
                 styles={styles}
               />
             ) : (
@@ -329,8 +368,24 @@ function BusinessInner() {
               </View>
             )}
 
-            {/* Load bars */}
+            {/* Load bars. `loadMeasurable` is the denominator test the rest of
+                this screen already applies to its win rates: a RATE with no
+                input renders a cold-start note, not a number. Three rows of
+                "0%" read as a measurement — "I looked at your next twelve
+                weeks and your crew is idle" — when what actually happened is
+                that no active project has a scheduled task landing in any of
+                the three windows, so there was nothing to divide by. The
+                windows are 28 CALENDAR-day blocks counted forward from now
+                (utils/portfolio/pipelineHorizon.ts), not working days. */}
             <Text style={styles.subSectionLabel}>Crew Load</Text>
+            {!loadMeasurable ? (
+              <ColdStartNote
+                text={pipeline.backlog.horizonDate === null
+                  ? 'No project schedule to measure yet — build one and crew load fills in.'
+                  : 'No scheduled work in the next 12 weeks.'}
+                styles={styles}
+              />
+            ) : (<>
             {pipeline.loadWindows.map(w => (
               <View key={w.label} style={styles.loadRow}>
                 <Text style={styles.loadLabel}>{w.label}</Text>
@@ -349,6 +404,7 @@ function BusinessInner() {
               </View>
             ))}
             <Text style={styles.caveat}>{pipeline.loadCaveat}</Text>
+            </>)}
           </View>
 
           {/* ── Section 3: Client Book ───────────────────────────────── */}

@@ -27,11 +27,49 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { buildTax1099Dataset, tax1099DatasetToCsv, thresholdInfoForYear, THRESHOLD_PROVISIONAL_NOTE, type Tax1099Row } from '@/utils/tax1099Export';
+import {
+  buildTax1099Dataset, tax1099DatasetToCsv, thresholdInfoForYear, THRESHOLD_PROVISIONAL_NOTE,
+  gcRecordedSubPaymentsFromReceipts, coverageNoteFor,
+  COVERAGE_NOTE, COVERAGE_NOTE_WITH_RECORDED_BILLS, type Tax1099Row,
+} from '@/utils/tax1099Export';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import type { SubSubmittedInvoice } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+
+/**
+ * The per-row notes, minus the two sentences the screen now renders as their
+ * own elements — the coverage disclosure (stated ONCE above the totals) and the
+ * undated-commitment figure (its own amber line on the row it belongs to).
+ *
+ * Both used to arrive only inside this semicolon-joined blob, in 11px italic,
+ * on every row: eleven subs carried eleven copies of the same disclosure, and
+ * the gaps that actually need chasing — TIN missing, W-9 not on file — read as
+ * more of the same noise. Printing a sentence twice, a line apart, on a screen
+ * whose whole job is telling a GC which dollar figures he can trust reads as
+ * two different facts about the same money.
+ *
+ * The CSV is untouched: its `Notes` column keeps every segment, because that
+ * column is what the CPA parses and the screen is not its editor.
+ *
+ * Matching is deliberately loose-jointed and FAIL-SAFE. utils/tax1099Export.ts
+ * joins with '; ', COVERAGE_NOTE holds no semicolon so it survives as one
+ * segment, and the commitment sentence holds exactly one so it splits into a
+ * prefixed half and its trailing clause. If either is reworded upstream, the
+ * filter stops matching and the sentence comes BACK on the row — visibly
+ * duplicated, never silently dropped, which is the direction a tax screen
+ * should fail in.
+ */
+const COMMITMENT_NOTE_PREFIX = 'Commitments record ';
+const COMMITMENT_NOTE_TAIL = 'confirm the year against your books';
+function notesForScreen(notes: string): string {
+  return notes
+    .split('; ')
+    .filter(n => n !== COVERAGE_NOTE && n !== COVERAGE_NOTE_WITH_RECORDED_BILLS
+      && !n.startsWith(COMMITMENT_NOTE_PREFIX) && n !== COMMITMENT_NOTE_TAIL)
+    .join('; ');
+}
 
 export default function Tax1099ExportScreen() {
   const { colors: themeColors } = useTheme();
@@ -42,6 +80,14 @@ export default function Tax1099ExportScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { subcontractors, commitments } = useProjects();
+  // MONEY-1099-GC-1 (audit 2026-09-11). `sub_submitted_invoices` has no GC
+  // INSERT path — the sub creates that row from inside a portal he has to log
+  // into — so for the residential norm (the framer texts a photo of an invoice
+  // and gets a check) this export returned $0 and printed "1099 Required: No"
+  // on a deliverable with an IRS deadline and a per-form penalty. A bill the GC
+  // recorded against a SUBCONTRACT commitment is the one dated, attributable
+  // record of that payment the app holds, and it is what this passes.
+  const { receipts } = useMaterialReceipts();
 
   // Default to last calendar year — the year a CPA usually asks for in
   // January / February. User can pick another year via chips.
@@ -109,8 +155,14 @@ export default function Tax1099ExportScreen() {
       subcontractors,
       commitments,
       subSubmittedInvoices: subInvoices,
+      // ALWAYS PASSED, even when it is empty. An omitted argument means "this
+      // run never looked", and the engine words its own "no payments this
+      // year" note differently for the two cases. Passing the array — empty or
+      // not — is what makes the note say "and no bills recorded against a
+      // subcontract either", which is the sentence a CPA needs.
+      gcRecordedPayments: gcRecordedSubPaymentsFromReceipts(receipts, commitments),
     });
-  }, [year, subcontractors, commitments, subInvoices]);
+  }, [year, subcontractors, commitments, subInvoices, receipts]);
 
   const totals = useMemo(() => {
     const required1099 = rows.filter(r => r.required1099);
@@ -228,6 +280,23 @@ export default function Tax1099ExportScreen() {
               </View>
             </View>
 
+            {/* MONEY-1099-COV-1: what "Total paid" actually counts, stated
+                directly under the figure it qualifies. The constant was
+                exported for the screen and only ever reached the CSV, so a GC
+                who pays his subs by check read a tile of zeros, believed the
+                Y/N column, and under-filed — the penalty is per form, and the
+                only place the limitation was written down was a column of a
+                file he never opened. Same sentence the CSV carries, verbatim,
+                so the screen and the export cannot drift. */}
+            <View style={styles.coverageCard}>
+              <Text style={styles.coverageTitle}>What this counts</Text>
+              {/* Derived from the ROWS, not from what this screen believes it
+                  passed, so the sentence and the numbers cannot disagree —
+                  `coverageNoteFor` widens it only when bills were actually
+                  counted. */}
+              <Text style={styles.coverageBody} testID="coverage-note">{coverageNoteFor(rows)}.</Text>
+            </View>
+
             {(totals.missingTin > 0 || totals.missingW9 > 0 || totals.missingAddress > 0) && (
               <View style={styles.warnBanner}>
                 <AlertTriangle size={14} color="#7A4500" strokeWidth={1.75} />
@@ -249,16 +318,37 @@ export default function Tax1099ExportScreen() {
                 <Text style={styles.emptyText}>No subs in your roster yet.</Text>
               </View>
             ) : (
-              rows.map(r => (
-                <View key={r.subcontractorId} style={[styles.row, !r.required1099 && r.totalPaid <= 0 && { opacity: 0.5 }]}>
+              // A row with undated commitment money is NOT a quiet row —
+              // dimming it to half opacity was hiding the one figure that
+              // tells the GC his $0 is a coverage gap and not a fact.
+              rows.map(r => {
+                const screenNotes = notesForScreen(r.notes);
+                return (
+                <View key={r.subcontractorId} style={[styles.row, !r.required1099 && r.totalPaid <= 0 && r.uncountedCommitmentPaid <= 0 && { opacity: 0.5 }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowName}>{r.recipientName}</Text>
                     <Text style={styles.rowMeta}>
                       {r.totalPaid > 0
                         ? `$${r.totalPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })} · ${r.paymentCount} payment${r.paymentCount === 1 ? '' : 's'}`
-                        : 'No payments this year'}
+                        : 'No sub-portal payments this year'}
                     </Text>
-                    {r.notes ? <Text style={styles.rowNotes}>{r.notes}</Text> : null}
+                    {/* Money the app KNOWS was paid to this sub and cannot put
+                        in a tax year — the figure that explains a $0 row to the
+                        GC who paid by check. It reached the CSV as its own
+                        column and the screen not at all; a number the CPA is
+                        told to go confirm is worth nothing if the only place it
+                        appears is a file nobody opened. Deliberately outside
+                        the counted total, exactly as the dataset keeps it:
+                        `paidToDate` is an undated rollup and dating it by
+                        guessing is what mis-files a 1099 — hence the
+                        instruction to go check the books, which travels with
+                        the figure rather than trailing the notes blob below. */}
+                    {r.uncountedCommitmentPaid > 0 ? (
+                      <Text style={styles.rowUncounted} testID={`uncounted-${r.subcontractorId}`}>
+                        {`+ $${r.uncountedCommitmentPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })} recorded on commitments — undated, so not counted above. Confirm the year against your books.`}
+                      </Text>
+                    ) : null}
+                    {screenNotes ? <Text style={styles.rowNotes}>{screenNotes}</Text> : null}
                   </View>
                   {r.required1099 && (
                     <View style={[styles.flag, { backgroundColor: Colors.warning + '20', borderColor: Colors.warning }]}>
@@ -271,7 +361,8 @@ export default function Tax1099ExportScreen() {
                     </View>
                   )}
                 </View>
-              ))
+                );
+              })
             )}
 
             <TouchableOpacity
@@ -315,7 +406,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 8 },
   heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
-  heroCaveat: { marginTop: 8, fontSize: Type.caption1.fontSize, color: '#7A4500', lineHeight: 17, fontWeight: '600' },
+  // Same reason as rowUncounted below: the hero's ground is `t.accent + '0D'`
+  // over `t.bg`, i.e. the theme's, so a literal dark amber disappears into it
+  // in dark mode — and this is the line that says the year's threshold is
+  // PROVISIONAL, which is the one caveat a CPA must not miss.
+  heroCaveat: { marginTop: 8, fontSize: Type.caption1.fontSize, color: t.warningLabel, lineHeight: 17, fontWeight: '600' },
   sectionLabel: {
     marginHorizontal: 16, marginTop: 8, marginBottom: 6,
     fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.textMuted,
@@ -347,6 +442,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   warnTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#7A4500', marginBottom: 2 },
   warnBody: { fontSize: Type.caption2.fontSize, color: '#7A4500', lineHeight: 16 },
+  // Neutral, not amber: this is the permanent scope of the export, true on
+  // every load, so it must not compete with the warn banner below it — which
+  // marks gaps the GC can actually go close.
+  coverageCard: {
+    marginHorizontal: 16, marginBottom: 12, padding: 12,
+    borderRadius: Tokens.radius.md, backgroundColor: t.surfaceAlt,
+    borderWidth: 1, borderColor: t.line,
+  },
+  coverageTitle: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4,
+  },
+  coverageBody: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
   emptyCard: {
     margin: 16, padding: 16, borderRadius: Tokens.radius.card,
     backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
@@ -360,7 +468,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   rowMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
-  rowNotes: { fontSize: 11, color: '#7A4500', marginTop: 4, fontStyle: 'italic' },
+  // Amber for "reconcile this before you file", at the weight of a figure
+  // rather than a footnote — it is a dollar amount the GC has to chase.
+  //
+  // `t.warningLabel`, NOT the literal #7A4500 the warn banner above uses. That
+  // banner paints its own literal cream ground (#FFF4E0), so a fixed dark amber
+  // on it is a pinned pair and correct. These two sit on `styles.row`, whose
+  // ground is `t.surface` — #14181D in dark, where #7A4500 measures 2.34:1 and
+  // the figure the GC is being told to go reconcile is the one line on the
+  // screen he cannot read. warningLabel is the theme's label ink for exactly
+  // this (#B84A00 light / #FF9500 dark) and clears AA on both.
+  rowUncounted: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.warningLabel, marginTop: 4 },
+  rowNotes: { fontSize: 11, color: t.warningLabel, marginTop: 4, fontStyle: 'italic' },
   flag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
   flagText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
   exportBtn: {

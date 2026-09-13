@@ -97,6 +97,33 @@ const NOT_STORAGE_KEYS = new Map<string, string>([
   ['shift-alert:', 'hooks/useTimeEntries.ts — prefix of a local-notification identifier'],
   ['Pre-CO', 'utils/coScheduleReflowCore.ts — a schedule baseline NAME'],
   ['standalone', 'utils/takeoffStorage.ts — project-id placeholder INSIDE the composite mageid_takeoff:: key'],
+  // CO_BILL_KEY_PREFIX. Namespaces an approved change order's INVOICE LINE
+  // ITEM id so a bare co.id cannot collide with a LinkedEstimateItem.materialId
+  // (both are UUIDs off the same generator). It never reaches AsyncStorage —
+  // utils/changeOrderBilling.ts imports no storage API at all — but the
+  // _KEY_PREFIX const name is what KEY_CONST_RE looks for. Added 2026-09-07.
+  ['co:', 'utils/changeOrderBilling.ts — an invoice LINE-ITEM id prefix, never a storage key'],
+  // COMMITMENT_NOTE_PREFIX. The opening words of a SENTENCE inside a 1099
+  // row's notes string, used by notesForScreen() to filter the CSV-only
+  // coverage disclosure back out of the on-screen copy. app/tax-1099-export.tsx
+  // imports no storage API at all; the _PREFIX in the const name is what
+  // KEY_CONST_RE looks for. Added 2026-09-08.
+  ['Commitments record ', 'app/tax-1099-export.tsx — the first words of a notes SENTENCE, never a storage key'],
+  // MILESTONE_BILL_KEY_PREFIX. The exact twin of the `co:` entry above, and
+  // added for the same reason: it namespaces a contract payment milestone's
+  // INVOICE LINE ITEM id so a bare milestone id cannot collide with a
+  // LinkedEstimateItem.materialId (both are UUIDs off generateUUID).
+  // utils/billingFlowCore.ts imports nothing but ./invoiceBilling — no storage
+  // API at all — but the _KEY_PREFIX const name is what KEY_CONST_RE looks
+  // for. Added 2026-09-11 (MONEY-LEDGER-1).
+  ['milestone:', 'utils/billingFlowCore.ts — an invoice LINE-ITEM id prefix, never a storage key'],
+  // GENERIC_TRADE_KEY. normalizeTradeKey's sink for un-named trades — '',
+  // 'crew', 'general' and 'labor' all fold onto it (utils/laborSamples
+  // GENERIC_TRADES), and selfPerformSamples refuses it on the receipt side so a
+  // blank-trade receipt cannot teach a rate. utils/costDatabase.ts imports only
+  // types and pure utils — no storage API of any kind — but the _KEY in the
+  // const name is what KEY_CONST_RE looks for. Added 2026-09-11.
+  ['general', 'utils/costDatabase.ts — normalizeTradeKey\'s generic TRADE bucket, never a storage key'],
 ]);
 
 const discovered = new Map<string, string>(); // key -> first file that writes it
@@ -280,6 +307,7 @@ ok('offline write queues survive a same-user re-auth',
   const authNoComments = strip(auth);
   const queueSrc = strip(read('utils/offlineQueue.ts'));
   const photoSrc = strip(read('utils/photoUploadQueue.ts'));
+  const audioSrc = strip(read('utils/audioTranscribeQueue.ts'));
 
   for (const key of OFFLINE_WRITE_QUEUE_KEYS) {
     ok(`AuthContext never removes ${key} by key`,
@@ -289,28 +317,71 @@ ok('offline write queues survive a same-user re-auth',
   ok('AuthContext does not reach for OFFLINE_WRITE_QUEUE_KEYS at all',
     !/OFFLINE_WRITE_QUEUE_KEYS/.test(authNoComments),
     'the list is for selectTenantKeysToWipe to honour, not for a caller to multiRemove');
-  ok('the wipe empties both queues through their own locked clear functions',
-    /await clearOfflineQueue\(\);/.test(authNoComments) && /await clearPhotoUploadQueue\(\);/.test(authNoComments));
+
   ok('the prefix sweep is pinned to dropOfflineQueue: false so its multiRemove cannot include them',
     /selectTenantKeysToWipe\(allKeys, \{ dropOfflineQueue: false \}\)/.test(authNoComments),
     'the sweep\'s multiRemove is unlocked; the locked clears above already cover both keys');
   // Coverage is unchanged, only the route: what the sweep no longer removes,
   // the two clear functions do. Assert that, or "don't wipe it here" becomes
   // "don't wipe it".
-  const clearedByModule = [
-    /AsyncStorage\.removeItem\(OFFLINE_QUEUE_KEY\)/.test(queueSrc) ? 'mageid_offline_queue' : '',
-    /AsyncStorage\.removeItem\(PHOTO_QUEUE_KEY\)/.test(photoSrc) ? 'mageid_photo_upload_queue' : '',
-  ].filter(Boolean);
+  // One row per exempt queue. Driven off OFFLINE_WRITE_QUEUE_KEYS rather than
+  // written out longhand: this block used to name exactly two queues, so adding
+  // a third (the audio dictation queue, 2026-09-08) left it silently
+  // unverified — the guard would have said "both queues are covered" while the
+  // new one was covered by nothing. The `noRow` assertion below is what makes
+  // that impossible: a key with no row here FAILS rather than being skipped.
+  // docs/START-HERE.md: "A guard that names files goes blind. Enumerate, do not
+  // list."
+  const QUEUE_MODULES: Record<string, { src: string; clearFn: string; retainFn: string; keyConst: string }> = {
+    'mageid_offline_queue':          { src: queueSrc, clearFn: 'clearOfflineQueue',       retainFn: 'retainOfflineQueueForUser',       keyConst: 'OFFLINE_QUEUE_KEY' },
+    'mageid_photo_upload_queue':     { src: photoSrc, clearFn: 'clearPhotoUploadQueue',   retainFn: 'retainPhotoUploadQueueForUser',   keyConst: 'PHOTO_QUEUE_KEY' },
+    'mageid_audio_transcribe_queue': { src: audioSrc, clearFn: 'clearAudioTranscribeQueue', retainFn: 'retainAudioTranscribeQueueForUser', keyConst: 'AUDIO_QUEUE_KEY' },
+  };
+  const noRow = OFFLINE_WRITE_QUEUE_KEYS.filter((k) => !QUEUE_MODULES[k]);
+  ok('every exempt write-queue has a row in this check',
+    noRow.length === 0,
+    `no row for: ${noRow.join(', ')} — add one, or this key is exempted from the sweep and verified by nothing`);
+
+  const notCleared = OFFLINE_WRITE_QUEUE_KEYS.filter((k) => {
+    const m = QUEUE_MODULES[k];
+    return !m || !new RegExp(`AsyncStorage\\.removeItem\\(${m.keyConst}\\)`).test(m.src);
+  });
   ok('every write-queue key is still emptied by SOMETHING on a sign-out',
-    OFFLINE_WRITE_QUEUE_KEYS.every((k) => clearedByModule.includes(k)),
-    `not cleared anywhere: ${OFFLINE_WRITE_QUEUE_KEYS.filter((k) => !clearedByModule.includes(k)).join(', ')}`);
+    notCleared.length === 0,
+    `not cleared anywhere: ${notCleared.join(', ')}`);
+
+  const unlockedClear = OFFLINE_WRITE_QUEUE_KEYS.filter((k) => {
+    const m = QUEUE_MODULES[k];
+    return !m || !new RegExp(`export async function ${m.clearFn}\\(\\): Promise<void> \\{[\\s\\S]{0,160}?withQueueLock\\(`).test(m.src);
+  });
   ok('…and each clear runs inside withQueueLock',
-    /export async function clearOfflineQueue\(\): Promise<void> \{\s*await withQueueLock\(/.test(queueSrc)
-      && /export async function clearPhotoUploadQueue\(\): Promise<void> \{\s*const cleared = await withQueueLock\(/.test(photoSrc),
-    'outside the lock this is the same race with extra steps');
+    unlockedClear.length === 0,
+    `outside the lock this is the same race with extra steps — ${unlockedClear.join(', ')}`);
+
+  const unlockedRetain = OFFLINE_WRITE_QUEUE_KEYS.filter((k) => {
+    const m = QUEUE_MODULES[k];
+    return !m || !new RegExp(`export async function ${m.retainFn}\\([\\s\\S]{0,200}?await withQueueLock\\(`).test(m.src);
+  });
   ok('…as does the per-user narrowing AuthContext calls on a marker-less session',
-    /export async function retainOfflineQueueForUser\([\s\S]{0,120}?await withQueueLock\(/.test(queueSrc)
-      && /export async function retainPhotoUploadQueueForUser\([\s\S]{0,120}?await withQueueLock\(/.test(photoSrc));
+    unlockedRetain.length === 0,
+    `not under the lock: ${unlockedRetain.join(', ')}`);
+
+  // COUNTS, not presence. AuthContext clears the queues at TWO sites — the
+  // deliberate sign-out and the "a different user just signed in" path — and a
+  // presence test passes while one of them is missing a queue, which is the
+  // whole leak. Requiring the counts to match makes the three calls travel
+  // together: adding a site without the new queue fails, and so does dropping
+  // one call from either site. (Mutation-proved 2026-09-08: deleting a single
+  // `await clearAudioTranscribeQueue();` passed the presence form.)
+  const clearCounts = OFFLINE_WRITE_QUEUE_KEYS.map((k) => ({
+    key: k,
+    fn: QUEUE_MODULES[k]?.clearFn ?? '(no row)',
+    n: (authNoComments.match(new RegExp(`await ${QUEUE_MODULES[k]?.clearFn ?? '\\0'}\\(\\);`, 'g')) ?? []).length,
+  }));
+  const expectedSites = Math.max(...clearCounts.map((c) => c.n));
+  ok('every exempt queue is cleared at EVERY sign-out site, not just one of them',
+    expectedSites > 1 && clearCounts.every((c) => c.n === expectedSites),
+    `sign-out sites: ${expectedSites}; per queue: ${clearCounts.map((c) => `${c.fn}×${c.n}`).join(', ')}`);
 
   // ── BLOCKING (review 2026-09-05, round 4): the marker backfill NARROWS
   // before it STAMPS ─────────────────────────────────────────────────────────
@@ -351,11 +422,12 @@ ok('offline write queues survive a same-user re-auth',
     const gate = /const dropUntagged = Platform\.OS === 'web';/.test(backfill);
     ok('…and the narrowing is gated on the platform that can actually leak',
       gate && /retainOfflineQueueForUser\(u\.id, \{ dropUntagged \}\)/.test(backfill)
-        && /retainPhotoUploadQueueForUser\(u\.id, \{ dropUntagged \}\)/.test(backfill),
-      'either the Platform.OS === \'web\' gate or one of the two calls that consumes it is gone');
+        && /retainPhotoUploadQueueForUser\(u\.id, \{ dropUntagged \}\)/.test(backfill)
+        && /retainAudioTranscribeQueueForUser\(u\.id, \{ dropUntagged \}\)/.test(backfill),
+      'either the Platform.OS === \'web\' gate or one of the three calls that consumes it is gone');
     // A8: a read that FAILED is not a queue that was empty. Stamping over a
     // queue this call could not inspect is the same leak by another route.
-    const guard = backfill.indexOf('if (text.readFailed || photos.readFailed) {');
+    const guard = backfill.indexOf('if (text.readFailed || photos.readFailed || audio.readFailed) {');
     ok('…and a queue that could not be READ leaves the marker unwritten',
       guard !== -1 && guard < stamp,
       'without this the marker goes down over an unreadable queue and every untagged entry in it becomes adoptable');

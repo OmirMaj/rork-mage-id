@@ -1,5 +1,33 @@
+// materialFinder.ts — AI material lookup for the estimator's search box.
+//
+// WHAT THIS IS, EXACTLY. `mageAI` relays to Gemini with NO browsing tool, no
+// supplier feed and no price file. Every number that comes back is model
+// recall. This file used to open its prompt with "You are a construction
+// materials pricing expert with access to current US construction supply
+// pricing" and ask for "2025-2026 US pricing from major suppliers like Home
+// Depot, Lowe's" — a premise that is false at the relay, and an instruction
+// that made the model NAME a store it never checked. The store name then rode
+// into the material's `supplier` field (app/(tabs)/estimate/full.tsx) and out
+// onto a bid PDF the GC signs, so the client read "3/4" copper Type L — Home
+// Depot — $4.85/ft" with neither the price nor the store ever verified
+// (audit 2026-09-07, money-trust). Removed 2026-09-07: the premise, the store
+// names, and the model-filled `priceSource` field they landed in.
+//
+// Deleted with them: `getPriceComparison` (schema fields `homeDepotPrice`,
+// `lowesPrice`, `rsmeansPrice`, `rsmeansYear`) and `suggestMaterialsForPhase`.
+// Both fabricated named-source pricing, both had zero callers anywhere in the
+// tree, and both were one import away from putting an "RSMeans price" the
+// model made up in front of a contractor.
+
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
+
+/**
+ * The one true thing about where these prices come from. Constant, never
+ * model-supplied — a field the model fills is a field the model can put a
+ * store name in.
+ */
+export const AI_PRICE_SOURCE = 'AI estimate — not a supplier quote';
 
 const materialSearchSchema = z.object({
   materials: z.array(z.object({
@@ -14,7 +42,6 @@ const materialSearchSchema = z.object({
     commonUses: z.array(z.string()),
     alternateNames: z.array(z.string()),
     relatedItems: z.array(z.string()),
-    priceSource: z.string(),
     priceConfidence: z.enum(['high', 'medium', 'low']),
     laborToInstall: z.object({
       hoursPerUnit: z.number(),
@@ -25,8 +52,12 @@ const materialSearchSchema = z.object({
   searchTips: z.string().optional(),
 });
 
-export type AIMaterialResult = z.infer<typeof materialSearchSchema>['materials'][number];
-export type AIMaterialSearchResponse = z.infer<typeof materialSearchSchema>;
+export type AIMaterialResult = z.infer<typeof materialSearchSchema>['materials'][number] & {
+  /** Always AI_PRICE_SOURCE. Stamped here, never parsed from the response. */
+  priceSource: string;
+};
+export type AIMaterialSearchResponse =
+  Omit<z.infer<typeof materialSearchSchema>, 'materials'> & { materials: AIMaterialResult[] };
 
 export async function findMaterials(
   searchQuery: string,
@@ -36,21 +67,24 @@ export async function findMaterials(
   console.log('[MaterialFinder] Searching for:', searchQuery, 'category:', category, 'zip:', zipCode);
 
   const aiResult = await mageAI({
-    prompt: `You are a construction materials pricing expert with access to current US construction supply pricing. Find materials matching this search query and provide accurate current pricing.
+    prompt: `You are a construction estimator. From general knowledge only, list materials matching this search query with a plausible order-of-magnitude US retail price for each.
 
 SEARCH: "${searchQuery}"
 ${category ? `CATEGORY: ${category}` : ''}
-${zipCode ? `LOCATION: ${zipCode} (adjust pricing for regional cost differences)` : ''}
+${zipCode ? `LOCATION: ${zipCode} (adjust for regional cost differences)` : ''}
+
+You have NO price feed, NO catalog and NO browsing. Do not name a store, a supplier or a distributor, and do not claim a price was looked up — these are recalled estimates the contractor will verify.
 
 Return 3-8 matching materials with:
-1. Accurate current retail pricing (use 2025-2026 US pricing from major suppliers like Home Depot, Lowe's, or specialty distributors)
+1. A recalled retail price, realistic for the US — not wholesale, not inflated
 2. The correct unit of measure for how this material is typically purchased
 3. Common construction uses
 4. Alternate names contractors might search for
 5. Related items they might also need
 6. If applicable, estimated labor hours to install per unit
+7. priceConfidence: how sure you are of the price from memory alone
 
-Be SPECIFIC with product names (e.g., "2" Schedule 40 PVC 90° Elbow" not just "PVC fitting"). Include brand names where relevant. Prices should be realistic retail pricing — not wholesale, not inflated.
+Be SPECIFIC with product names (e.g., "2" Schedule 40 PVC 90° Elbow" not just "PVC fitting"). Include manufacturer brand names where they identify the product.
 
 If the search is vague, return the most common variants. For example, if someone searches "copper pipe", return 1/2", 3/4", and 1" in Type M and Type L.`,
     schema: materialSearchSchema,
@@ -62,110 +96,10 @@ If the search is vague, return the most common variants. For example, if someone
     throw new Error(aiResult.error || 'Material search unavailable');
   }
 
-  const result = aiResult.data;
+  const result: z.infer<typeof materialSearchSchema> = aiResult.data;
   console.log('[MaterialFinder] Found', result.materials.length, 'materials');
-  return result;
-}
-
-const priceComparisonSchema = z.object({
-  homeDepotPrice: z.number().optional(),
-  lowesPrice: z.number().optional(),
-  industryAverage: z.number(),
-  rsmeansPrice: z.number().optional(),
-  rsmeansYear: z.string().optional(),
-  priceTrend: z.enum(['rising', 'falling', 'stable']),
-  trendPercentage: z.number(),
-  bulkPricing: z.array(z.object({
-    minQuantity: z.number(),
-    pricePerUnit: z.number(),
-    savings: z.string(),
-  })).optional(),
-  purchasedTogether: z.array(z.string()),
-  priceNote: z.string().optional(),
-});
-
-export type PriceComparisonResult = z.infer<typeof priceComparisonSchema>;
-
-export async function getPriceComparison(
-  materialName: string,
-  currentPrice: number,
-  unit: string,
-): Promise<PriceComparisonResult> {
-  console.log('[MaterialFinder] Getting price comparison for:', materialName);
-
-  const aiResult = await mageAI({
-    prompt: `You are a construction materials pricing expert. Provide price comparison data for this material.
-
-MATERIAL: "${materialName}"
-CURRENT PRICE: $${currentPrice}/${unit}
-
-Provide:
-1. Estimated Home Depot price
-2. Estimated Lowe's price
-3. Industry average price
-4. RSMeans reference price (if applicable, with year)
-5. Price trend (rising/falling/stable) with percentage change over last 6 months
-6. Bulk pricing tiers if applicable
-7. Related items commonly purchased together (3-5 items)
-8. Any price notes (e.g., "Lumber prices volatile due to tariffs")
-
-Use realistic 2025-2026 US pricing.`,
-    schema: priceComparisonSchema,
-    tier: 'fast',
-  });
-
-  if (!aiResult.success) {
-    console.log('[MaterialFinder] Price comparison AI failed:', aiResult.error);
-    throw new Error(aiResult.error || 'Price comparison unavailable');
-  }
-
-  const result = aiResult.data;
-  console.log('[MaterialFinder] Price comparison complete');
-  return result;
-}
-
-const phaseSuggestionsSchema = z.object({
-  phase: z.string(),
-  suggestedMaterials: z.array(z.object({
-    name: z.string(),
-    unit: z.string(),
-    unitPrice: z.number(),
-    suggestedQuantity: z.number(),
-    reason: z.string(),
-  })),
-  estimatedPhaseCost: z.number(),
-  tips: z.array(z.string()),
-});
-
-export type PhaseSuggestionsResult = z.infer<typeof phaseSuggestionsSchema>;
-
-export async function suggestMaterialsForPhase(
-  phase: string,
-  projectType: string,
-  squareFootage: number,
-): Promise<PhaseSuggestionsResult> {
-  console.log('[MaterialFinder] Suggesting materials for phase:', phase, 'type:', projectType, 'sqft:', squareFootage);
-
-  const aiResult = await mageAI({
-    prompt: `You are a construction estimating expert. Suggest the essential materials needed for the "${phase}" phase of a ${projectType} project that is ${squareFootage} SF. 
-
-Include:
-1. Every material commonly needed for this phase
-2. Realistic quantities based on the square footage
-3. Current 2025-2026 pricing
-4. Why each material is needed
-
-Order by importance (most essential first). Include both structural materials and fasteners/connectors/adhesives that are often forgotten. Return 8-15 materials.`,
-    schema: phaseSuggestionsSchema,
-    tier: 'fast',
-  });
-
-  if (!aiResult.success) {
-    console.log('[MaterialFinder] Phase suggestions AI failed:', aiResult.error);
-    throw new Error(aiResult.error || 'Phase suggestions unavailable');
-  }
-
-  const result = aiResult.data;
-  console.log('[MaterialFinder] Phase suggestions complete:', result.suggestedMaterials.length, 'items');
-  return result;
+  return {
+    ...result,
+    materials: result.materials.map(m => ({ ...m, priceSource: AI_PRICE_SOURCE })),
+  };
 }

@@ -39,6 +39,13 @@ async function imageToBase64(uri: string): Promise<{ b64: string; mime: string }
     return { b64, mime: mimeFromExt(uri) };
   }
 
+  // Anything else must be a fetchable remote URL. A bare storage PATH is NOT
+  // (DB-F11: `plan_sheets.image_uri` holds a path now, and a sheet that could
+  // not be signed — offline, or a legacy `tmp/` key — reaches here as
+  // `<uuid>/sheet-page-1.png`). FileSystem.downloadAsync on that throws, which
+  // used to abort the whole indexing run on the first unsignable sheet.
+  if (!/^https?:\/\//i.test(uri)) return { b64: '', mime: 'image/jpeg' };
+
   // Remote https:// — download to cache, read, clean up
   const target = `${FileSystem.cacheDirectory}plan-extract-${Date.now()}`;
   const dl = await FileSystem.downloadAsync(uri, target);
@@ -55,7 +62,15 @@ async function imageToBase64(uri: string): Promise<{ b64: string; mime: string }
 export async function indexPlanSheets(projectId: string, sheets: PlanSheet[]): Promise<number> {
   const extracted: ExtractedSheet[] = [];
   for (const s of sheets) {
-    const { b64, mime } = await imageToBase64(s.imageUri);
+    // Per-sheet best-effort, as the comment below already promised: one sheet
+    // whose bytes cannot be read must skip, never abort the run.
+    let b64 = '', mime = 'image/jpeg';
+    try {
+      ({ b64, mime } = await imageToBase64(s.imageUri));
+    } catch (e) {
+      console.warn(`[askYourPlans] could not read sheet ${s.sheetNumber || s.name || s.id}:`, e);
+      continue;
+    }
     if (!b64) continue;
     const { data, error } = await supabase.functions.invoke('plan-extract', {
       body: { imageBase64: b64, mimeType: mime, sheetNumber: s.sheetNumber },

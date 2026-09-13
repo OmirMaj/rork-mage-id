@@ -88,8 +88,16 @@ export default function SmartInbox() {
           <View style={styles.emptyIcon}>
             <CheckCircle2 size={20} color={colors.success} strokeWidth={2.2} />
           </View>
-          <Text style={styles.emptyText}>All caught up.</Text>
-          <Text style={styles.emptySub}>Nothing urgent across your projects.</Text>
+          <Text style={styles.emptyText}>Nothing in the inbox.</Text>
+          {/* Was "All caught up. / Nothing urgent across your projects." — a
+              total claim about every project, produced by a fixed set of rules
+              that do not read everything. Say what was actually checked; the
+              contractor can then tell silence from coverage (polish audit
+              2026-09-10, the same correction made to /brief and the home
+              all-clear). */}
+          <Text style={styles.emptySub}>
+            Nothing overdue in the signals this inbox watches. It does not read every screen.
+          </Text>
         </View>
       </View>
     );

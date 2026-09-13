@@ -32,6 +32,23 @@ export type LaborRateMap = Record<string, number>;
 /** All labor samples share this unit — the book keys on `trade|unit`. */
 export const LABOR_UNIT = 'hour';
 
+/** The leading words of every labor sample's trade label. Exported so the cost
+ *  book can recover the underlying trade from a sample it was handed
+ *  (self-perform derivation in utils/costDatabase).
+ *
+ *  NOT named *_PREFIX on purpose: scripts/validate-storage-hygiene.ts treats a
+ *  `*_PREFIX` / `*_KEY` const as an AsyncStorage key literal and would demand a
+ *  tenant-wipe prefix for it. This string never goes near storage. */
+export const LABOR_LABEL_LEAD = 'Labor — ';
+
+/** Recover the normalized trade key from a labor sample's display label —
+ *  the inverse of laborTradeLabel. Returns '' for a non-labor label. */
+export function laborSampleTradeKey(label: string | undefined): string {
+  const l = (label ?? '').trim();
+  if (!l.startsWith(LABOR_LABEL_LEAD)) return '';
+  return normalizeTradeKey(l.slice(LABOR_LABEL_LEAD.length));
+}
+
 /** Roster placeholders that mean "no specific trade was set at clock-in". */
 const GENERIC_TRADES = new Set(['', 'crew', 'general', 'labor']);
 
@@ -44,8 +61,12 @@ export function normalizeTradeKey(trade: string | undefined): string {
 /** Price-book display label: "Labor — Framing" / "Labor — general". Prefixed
  *  so a self-perform labor entry never masquerades as a subcontract scope. */
 export function laborTradeLabel(trade: string | undefined): string {
-  if (normalizeTradeKey(trade) === 'general') return 'Labor — general';
-  return `Labor — ${(trade ?? '').trim()}`;
+  // Built from the same constant laborSampleTradeKey slices back off, so the
+  // label and its inverse can never drift apart — the self-perform derivation
+  // in utils/costDatabase depends on that round-trip to know which trade a
+  // labor sample belongs to.
+  if (normalizeTradeKey(trade) === 'general') return `${LABOR_LABEL_LEAD}general`;
+  return `${LABOR_LABEL_LEAD}${(trade ?? '').trim()}`;
 }
 
 /** An entry is labor evidence only when the shift is FINISHED (live shifts
@@ -171,6 +192,15 @@ export function buildLaborSamples(
       actualUnit: g.overtime && g.hours > 0 ? g.cost / g.hours : g.rate,
       basis: 'actual',
       closedAt: g.lastDate,
+      // MEASURED QUANTITY, STATED PRICE. The hours are real; the $/hr is the
+      // number the GC typed once in settings (see the honesty note at the top
+      // of this file). Every sample for a trade therefore carries the SAME
+      // price, so the cost book's spread computes to exactly 0 and the card
+      // printed "±0%" — the strongest precision claim the UI can make — beside
+      // a rate nothing has measured, and six clocked shifts bought 'high'
+      // confidence. The tag lets utils/costDatabase refuse both claims without
+      // discarding the sample, which is genuinely useful: it IS his rate.
+      source: 'labor_rate',
     });
   }
   return out;

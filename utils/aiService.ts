@@ -1,4 +1,5 @@
 import { mageAI } from '@/utils/mageAI';
+import type { CalibrationReport } from '@/utils/estimateCalibration';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage, Commitment, MaterialReceipt } from '@/types';
@@ -8,6 +9,8 @@ import { getLanguageMeta } from '@/utils/portalLanguages';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { CONTRACTED_NOTE } from '@/utils/groundingChip';
+import { resolveScheduleAnchor, scheduleDayNumberFor } from '@/utils/scheduleOps';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -106,76 +109,14 @@ export async function saveCopilotHistory(projectId: string, messages: CopilotMes
   await AsyncStorage.setItem(COPILOT_HISTORY_PREFIX + projectId, JSON.stringify(trimmed));
 }
 
-const copilotResponseSchema = z.object({
-  answer: z.string().default(''),
-  confidence: z.enum(['high', 'medium', 'low']).default('medium'),
-  actionItems: z.array(z.object({
-    text: z.string(),
-    priority: z.enum(['urgent', 'important', 'suggestion']),
-  })).default([]),
-  dataPoints: z.array(z.object({
-    label: z.string(),
-    value: z.string(),
-  })).default([]),
-});
-
-export type CopilotResponse = z.infer<typeof copilotResponseSchema>;
-
-export function buildProjectContext(project: Project | null, schedule: ProjectSchedule | null): string {
-  if (!project) return 'No project selected.';
-  const estimate = project.linkedEstimate ?? project.estimate;
-  const tasks = schedule?.tasks ?? [];
-  const done = tasks.filter(t => t.status === 'done').length;
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
-  const overdue = tasks.filter(t => t.status !== 'done' && t.progress < 100).length;
-
-  return `Project: ${project.name}
-Status: ${project.status}
-Type: ${project.type}
-Location: ${project.location}
-Square Footage: ${project.squareFootage || 'N/A'}
-
-Schedule:
-- Total tasks: ${tasks.length}
-- Completed: ${done}
-- In progress: ${inProgress}
-- Overdue: ${overdue}
-- Health score: ${schedule?.healthScore ?? 'N/A'}
-- Total duration: ${schedule?.totalDurationDays ?? 0} days
-- Critical path: ${schedule?.criticalPathDays ?? 0} days
-
-Estimate:
-- Grand total: $${estimate && 'grandTotal' in estimate ? estimate.grandTotal : 0}
-- Items: ${estimate && 'items' in estimate ? (estimate as any).items?.length ?? 0 : 0}
-
-Risk items: ${schedule?.riskItems?.map(r => r.title).join('; ') || 'None'}
-
-Tasks (top 25):
-${tasks.slice(0, 25).map(t =>
-    `- ${t.title} (${t.phase}): ${t.progress}% | ${t.status} | Day ${t.startDay}-${t.startDay + t.durationDays}${t.crew ? ` | Crew: ${t.crew}` : ''}`
-  ).join('\n') || 'No tasks'}`;
-}
-
-export async function askCopilot(userMessage: string, projectContext: string): Promise<CopilotResponse> {
-  console.log('[AI Copilot] Sending message:', userMessage.substring(0, 50));
-  const aiResult = await mageAI({
-    prompt: `You are MAGE AI, a senior construction project management advisor built into the MAGE ID app. You have access to the user's project data below. Answer their question with specific, actionable advice based on their actual data. Be concise (2-4 sentences max for the main answer). If there are action items, list them. Use construction industry terminology.
-
-PROJECT DATA:
-${projectContext}
-
-USER QUESTION: ${userMessage}
-
-Respond with a helpful, specific answer based on the project data above. Include relevant numbers and task names from the data. If you identify risks or issues, flag them clearly.`,
-    schema: copilotResponseSchema,
-    tier: 'fast',
-  });
-  if (!aiResult.success) {
-    throw new Error(aiResult.error || 'AI unavailable');
-  }
-  console.log('[AI Copilot] Response received');
-  return aiResult.data;
-}
+// NOTE: `copilotResponseSchema`, `CopilotResponse`, `buildProjectContext` and
+// `askCopilot` used to live here with ZERO callers (re-grepped app/ components/
+// hooks/ utils/ scripts/ __tests__ on 2026-09-07 — scripts/stress-test-ai.ts
+// carries its own copy). Deleted rather than left sitting: buildProjectContext
+// carried the same fabricated-overdue defect fixed in generateHomeBriefing
+// below (`tasks.filter(t => t.status !== 'done' && t.progress < 100)` reported
+// every unfinished task as overdue), and dead code with a live-looking bug in
+// it is one import away from shipping.
 
 export const scheduleRiskSchema = z.object({
   overallConfidence: z.number().default(0),
@@ -482,6 +423,40 @@ export const estimateValidationSchema = z.object({
 
 export type EstimateValidationResult = z.infer<typeof estimateValidationSchema>;
 
+/**
+ * Grounding block built from the GC's OWN measured estimating bias.
+ *
+ * `utils/estimateCalibration.ts` computes, per category, how his finished jobs
+ * actually landed against what he estimated. Until 2026-09-08 this validator
+ * ignored it entirely and asked the model to score the bid against "industry
+ * standards" — a number no one in the conversation has, from a relay with no
+ * browsing, for a contractor whose real bias is sitting measured in the repo.
+ * Theme 4 of the 2026-09-07 audit ("the engine is uncalled where it matters
+ * most") and a standing product rule: every AI flow is grounded in learned data
+ * or it does not ship.
+ *
+ * Returns '' when there is nothing measured yet, and the prompt then says so
+ * out loud rather than letting the model invent a benchmark to fill the gap.
+ */
+function calibrationGrounding(report: CalibrationReport | null): string {
+  if (!report?.hasData || report.categories.length === 0) return '';
+  const worst = report.categories.slice(0, 5).map(c => {
+    const pct = Math.round((c.bias - 1) * 100);
+    const dir = pct > 0 ? `${pct}% OVER what he estimated` : `${Math.abs(pct)}% UNDER what he estimated`;
+    return `  - ${c.category}: his finished jobs came in ${dir} (${c.confidence} confidence)`;
+  }).join('\n');
+  const b = report.summary.weightedBias;
+  const overall = b > 1
+    ? `${Math.round((b - 1) * 100)}% OVER his estimates on average`
+    : `${Math.round((1 - b) * 100)}% UNDER his estimates on average`;
+  return `
+THIS CONTRACTOR'S MEASURED ESTIMATING BIAS — from ${report.summary.totalJobs} of his OWN finished jobs, as of ${report.asOf}.
+Use THIS, not a general industry benchmark. Where they disagree, his own history wins.
+Overall, his actual costs land ${overall} across ${report.summary.categoryCount} measured categories.
+${worst}
+`;
+}
+
 export async function validateEstimate(
   projectType: string,
   squareFootage: number,
@@ -491,13 +466,18 @@ export async function validateEstimate(
   itemCount: number,
   hasContingency: boolean,
   location: string,
+  /** The GC's own calibration. Optional so existing callers keep compiling;
+   *  when omitted the prompt says the bid was scored WITHOUT his history. */
+  calibration?: CalibrationReport | null,
 ): Promise<EstimateValidationResult> {
   console.log('[AI Estimate] Validating estimate...');
   const costPerSF = squareFootage > 0 ? (totalCost / squareFootage).toFixed(2) : 'N/A';
   const matLabRatio = laborCost > 0 ? (materialCost / laborCost).toFixed(1) : 'N/A';
 
+  const grounding = calibrationGrounding(calibration ?? null);
+
   const aiResult = await mageAI({
-    prompt: `You are an AI construction estimator reviewer. Validate this estimate against industry standards and flag potential issues.
+    prompt: `You are an AI construction estimator reviewer. Validate this estimate and flag potential issues.
 
 PROJECT TYPE: ${projectType}
 SQUARE FOOTAGE: ${squareFootage} SF
@@ -509,8 +489,11 @@ ITEM COUNT: ${itemCount}
 COST PER SF: $${costPerSF}
 MAT:LAB RATIO: ${matLabRatio}:1
 HAS CONTINGENCY: ${hasContingency ? 'Yes' : 'No'}
-
-Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingency, cost/SF out of range for project type, missing common items. Score overall estimate health 1-10.`,
+${grounding}
+Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingency, cost/SF out of range for project type, missing common items. Score overall estimate health 1-10.
+${grounding
+  ? 'Ground every judgement in the measured bias above and SAY which category it came from. Do not cite a generic industry average when his own number for that category is listed.'
+  : 'You have NO measured history for this contractor. Say so plainly in the summary — that the score is a general check, not a read on how HIS jobs land — and do not invent a benchmark you cannot source.'}`,
     schema: estimateValidationSchema,
     tier: 'smart',
     maxTokens: 5000,
@@ -728,17 +711,40 @@ export async function analyzeChangeOrderImpact(
           .filter(e => descWords.includes(e.trade.toLowerCase()) || lineItems.some(li => li.name.toLowerCase().includes(e.trade.toLowerCase())))
           .slice(0, 4);
         if (relatedEntries.length > 0) {
-          const anyEarned = relatedEntries.some(e => e.provenance !== 'seeded');
-          const anySeeded = relatedEntries.some(e => e.provenance === 'seeded');
+          // MEASURED MEANS "A JOB IS BEHIND IT", NOT "NOTHING WAS SEEDED".
+          // This read `provenance === 'earned'`, so a set of only MIXED
+          // entries — a seed the contractor typed PLUS closed jobs that
+          // corrected it — pushed the seed chip alone and never "your cost
+          // history", although those entries do have measured jobs behind
+          // them. jobCount is the honest test: it counts distinct projects
+          // among the non-seed samples that actually teach the rate, and it is
+          // 0 for the one 'earned' case that has nothing measured (an
+          // unfiled receipt, projectId '').
+          const anyEarned = relatedEntries.some(e => (e.jobCount ?? 0) >= 1);
+          // A 'mixed' rate is PART stated. It used to take the earned branch
+          // and push only 'your cost history', so a number the contractor half
+          // invented was cited to him as measurement.
+          const anySeeded = relatedEntries.some(e => e.provenance !== 'earned');
           costBlock = 'YOUR OWN RATES (flag line items more than 25% off these):\n'
-            + relatedEntries.map(e =>
+            + relatedEntries.map(e => {
               // A seeded row has exactly one stated sample; printing
               // "(1 samples, low confidence)" would dress a claim up as
               // evidence. Name it instead.
-              e.provenance === 'seeded'
-                ? `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (SELF-REPORTED — the GC set this rate themselves; nothing here has measured it. Do not call it their cost history.)`
-                : `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${e.sampleCount} samples, ${e.confidence} confidence)`,
-            ).join('\n');
+              if (e.provenance === 'seeded') {
+                return `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (SELF-REPORTED — the GC set this rate themselves; nothing here has measured it. Do not call it their cost history.)`;
+              }
+              // EVIDENCE IS COUNTED IN JOBS, NEVER IN SAMPLES. sampleCount
+              // (costDatabase) is ss.length — it includes the seed and any
+              // sample rejected as an outlier or disqualified as unit-rate
+              // evidence, so it OVERSTATES what was measured every time it is
+              // shown to the model as proof. jobCount is the measured count.
+              const jobs = `${e.jobCount} measured job${e.jobCount === 1 ? '' : 's'}`;
+              const basis = e.earnedBasis === 'contracted' ? CONTRACTED_NOTE : '';
+              if (e.provenance === 'mixed') {
+                return `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${jobs}${basis}, ${e.confidence} confidence — STARTED FROM A RATE THE GC SET HIMSELF and partly corrected by those jobs. Do not present it as measured history alone.)`;
+              }
+              return `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${jobs}${basis}, ${e.confidence} confidence)`;
+            }).join('\n');
           // Two distinct grounding chips so the UI never labels a stated rate
           // as measured history.
           if (anyEarned) groundingSources.push('your cost history');
@@ -911,23 +917,65 @@ export const homeBriefingSchema = z.object({
 
 export type HomeBriefingResult = z.infer<typeof homeBriefingSchema>;
 
+/**
+ * How many tasks are PAST THEIR PLANNED FINISH as of `now` — or null when the
+ * schedule cannot honestly answer that.
+ *
+ * The briefing used to compute this as
+ *   `t.startDay + t.durationDays < (schedule?.totalDurationDays ?? 999)`
+ * — a task's finish DAY NUMBER compared against the schedule's TOTAL duration,
+ * so on a perfectly healthy job every incomplete task except the last one
+ * counted as overdue and the model was handed "17 potentially overdue" to be
+ * "specific with names and numbers" about. Today's date never entered it. On
+ * Home that fabricated count renders ~150px above MorningBriefCard, the
+ * deterministic brief that correctly says nothing needs attention (audit
+ * 2026-09-07, ai-features).
+ *
+ * An UNDATED schedule has real working-day numbers and no calendar position at
+ * all (utils/scheduleOps, "THE RULE"), so nothing on it can be overdue — it
+ * returns null and the caller emits no overdue line rather than a number the
+ * schedule cannot support. The anchor is checked BEFORE the task list: a dated
+ * schedule with no tasks yet honestly has zero overdue, and returning null for
+ * it made the caller tell the model "this schedule has no start date" about a
+ * schedule that has one.
+ */
+function overdueTaskCount(schedule: ProjectSchedule | null | undefined, now: Date): number | null {
+  const anchor = resolveScheduleAnchor(schedule ?? null, now);
+  if (!anchor.date) return null;
+  const tasks = schedule?.tasks ?? [];
+  if (tasks.length === 0) return 0;
+  const today = scheduleDayNumberFor(
+    anchor.date, now, schedule?.workingDaysPerWeek ?? 5, schedule?.nonWorkingDates,
+  );
+  return tasks.filter(t => {
+    if (t.status === 'done' || (t.progress ?? 0) >= 100) return false;
+    // Inclusive last day, matching scheduleEngine.getTaskDateRange. A 0-day
+    // milestone finishes on its own start day.
+    const finish = Math.max(1, t.startDay ?? 1) + Math.max(1, t.durationDays ?? 0) - 1;
+    return finish < today;
+  }).length;
+}
+
 export async function generateHomeBriefing(
   projects: Project[],
   invoices: Invoice[],
+  now: Date = new Date(),
 ): Promise<HomeBriefingResult> {
   console.log('[AI Briefing] Generating for', projects.length, 'projects');
   const projectSummaries = projects.map(p => {
     const schedule = p.schedule;
     const tasks = schedule?.tasks ?? [];
     const done = tasks.filter(t => t.status === 'done').length;
-    const overdue = tasks.filter(t => t.status !== 'done' && t.progress < 100 && t.startDay + t.durationDays < (schedule?.totalDurationDays ?? 999)).length;
+    const overdue = overdueTaskCount(schedule, now);
     const est = p.linkedEstimate ?? p.estimate;
     const projectInvoices = invoices.filter(inv => inv.projectId === p.id);
     const pendingInvoices = projectInvoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft');
     return `Project: ${p.name}
   Type: ${p.type} | Status: ${p.status}
   Schedule health: ${schedule?.healthScore ?? 'N/A'}/100
-  Tasks: ${tasks.length} total, ${done} done, ${overdue} potentially overdue
+  Tasks: ${tasks.length} total, ${done} done${overdue === null
+    ? ' (this schedule has no start date — its day numbers carry no calendar position, so NOTHING on it is overdue and you must not say anything is)'
+    : `, ${overdue} past their planned finish date`}
   Estimate: ${est && 'grandTotal' in est ? est.grandTotal.toLocaleString() : '0'}
   Pending invoices: ${pendingInvoices.length} totaling ${pendingInvoices.reduce((s, i) => s + invoiceOutstanding(i), 0).toLocaleString()} (net of held retention)`;
   }).join('\n---\n');
@@ -938,7 +986,7 @@ export async function generateHomeBriefing(
 PROJECTS:
 ${projectSummaries}
 
-DATE: ${new Date().toLocaleDateString()}`,
+DATE: ${now.toLocaleDateString()}`,
     schema: homeBriefingSchema,
     schemaHint: {
       briefing: "2-3 sentence portfolio overview highlighting what needs attention today",
@@ -998,13 +1046,16 @@ Predict the actual payment date, confidence level, and give a tip for getting pa
   return aiResult.data;
 }
 
+// NOTE: `typicalRates: {journeyman, master, apprentice}` used to live here and
+// AISubEvaluator rendered it as a 3-up "Typical Rates" grid a GC anchored on
+// before negotiating. The payload below carries company, contact, trade,
+// license/COI dates and bid counts — no zip, no city, no market feed — and the
+// relay has no browsing tool, so every one of those dollar figures was recall
+// with no geography and no source (audit 2026-09-07, ai-features). Removed at
+// the schema so the model cannot emit them at all; the panel now shows the
+// GC's OWN loaded rate for the trade from hooks/useLaborRates.
 export const subEvaluationSchema = z.object({
   questionsToAsk: z.array(z.string()).default([]),
-  typicalRates: z.object({
-    journeyman: z.string().default(''),
-    master: z.string().default(''),
-    apprentice: z.string().default(''),
-  }).default({ journeyman: '', master: '', apprentice: '' }),
   redFlags: z.array(z.string()).default([]),
   recommendation: z.string().default(''),
   trackRecord: z.string().optional(),
@@ -1035,7 +1086,9 @@ Notes: ${sub.notes || 'None'}
 CONTEXT:
 ${projectContext}
 
-Provide: questions to ask before hiring, typical rates for their trade, red flags to watch for, and overall recommendation. If they have bid history, summarize their track record.`,
+Provide: questions to ask before hiring, red flags to watch for, and overall recommendation. If they have bid history, summarize their track record.
+
+Do NOT state wage rates, unit prices or any other dollar figure — you have no rate data for this trade or this market, and the app shows the contractor their own measured rate instead.`,
     schema: subEvaluationSchema,
     tier: 'fast',
   });

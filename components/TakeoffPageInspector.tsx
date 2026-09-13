@@ -180,9 +180,9 @@ function TakeoffPageInspectorImpl({
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.imageScrollContent}
               >
-                {currentPage?.publicUrl ? (
+                {currentPage?.viewUrl ? (
                   <Image
-                    source={{ uri: currentPage.publicUrl }}
+                    source={{ uri: currentPage.viewUrl }}
                     style={{
                       width: Math.min(screenW - (isWide ? 360 : 32), currentPage.width) * zoom,
                       height: imgMaxH * zoom,

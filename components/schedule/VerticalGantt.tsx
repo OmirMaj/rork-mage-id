@@ -7,7 +7,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { GitBranch } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
   formatShortDate,
@@ -56,6 +58,10 @@ interface DayRow {
 }
 
 function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBaseline: _showBaseline, forecast }: VerticalGanttProps) {
+  // Built per theme: the date gutter and row rules baked their
+  // Colors.borderLight/textMuted/text at import (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const now = useMemo(() => new Date(), []);
   const totalDays = schedule.totalDurationDays;
   const days = useMemo(() => forecast ?? [], [forecast]);
@@ -109,7 +115,7 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
         <View style={[s.taskBarFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor + '30' }]} />
         <View style={s.taskBarContent}>
           <View style={s.taskBarIcons}>
-            {task.isCriticalPath && <GitBranch size={9} color={Colors.dangerLabel} strokeWidth={1.75} />}
+            {task.isCriticalPath && <GitBranch size={9} color={t.dangerLabel} strokeWidth={1.75} />}
           </View>
           <Text style={[s.taskBarTitle, { color: phaseColor }]} numberOfLines={1}>{task.title}</Text>
           <Text style={s.taskBarPercent}>{task.progress}%</Text>
@@ -177,14 +183,14 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1 },
   // Layout only for the shared marker (components/schedule/SimulatedWeatherNotice).
   simBannerSpacing: { marginHorizontal: 4, marginBottom: 8 },
   header: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
@@ -193,7 +199,7 @@ const s = StyleSheet.create({
   headerLabel: {
     fontSize: 10,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
   },
@@ -201,14 +207,14 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     minHeight: 44,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
     alignItems: 'stretch',
   },
   dayRowToday: {
     backgroundColor: Colors.primary + '06',
   },
   dayRowWeekend: {
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.neutralSoft,
   },
   todayIndicator: {
     position: 'absolute' as const,
@@ -229,15 +235,15 @@ const s = StyleSheet.create({
   dayWeekday: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
-  dayWeekdayToday: { color: Colors.dangerLabel, fontWeight: '800' as const },
+  dayWeekdayToday: { color: t.dangerLabel, fontWeight: '800' as const },
   dayDate: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
-  dayDateToday: { color: Colors.dangerLabel, fontWeight: '800' as const },
+  dayDateToday: { color: t.dangerLabel, fontWeight: '800' as const },
   dayWeather: { fontSize: Type.caption1.fontSize, marginTop: 1 },
   dayTasks: {
     flex: 1,
@@ -275,7 +281,7 @@ const s = StyleSheet.create({
   taskBarPercent: {
     fontSize: 10,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 });
 

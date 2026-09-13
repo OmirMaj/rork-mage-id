@@ -2,11 +2,17 @@
 // Generate one of the four waiver types pre-filled from a paid invoice
 // or commitment. Status flows: requested → signed → received.
 //
-// Sub-portal-side signing is deferred to a follow-up push; for now the
-// GC can also countersign on behalf of the sub when they have a paper
-// waiver in hand (which is how a lot of GCs actually operate).
+// WHO SIGNS. This screen used to capture the sub's email and send nothing to
+// it, while "Mark signed" let the GC type the sub's name and stored it as the
+// sub's signature under `role: 'gc'` — a contractor signing his own
+// subcontractor's release. The primary action is now "Request signature",
+// which emails the sub a token-gated link to sign the document themselves
+// (utils/lienWaiverEngine.requestLienWaiverSignature). Recording a waiver that
+// was signed on paper is still here, because plenty of subs sign paper — but
+// it is labelled as the contractor's record of a paper original, and the PDF
+// prints it that way rather than as the sub's signature.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Modal,
 } from 'react-native';
@@ -16,7 +22,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Plus, FileSignature, FileDown, CheckCircle2,
-  Clock, XCircle, Trash2, ShieldCheck, AlertTriangle,
+  Clock, XCircle, Trash2, ShieldCheck, AlertTriangle, Send, Landmark,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -29,8 +35,11 @@ import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import {
   fetchLienWaiversForProject, saveLienWaiver, deleteLienWaiver,
-  shareLienWaiverPDF, WAIVER_LABELS,
+  shareLienWaiverPDF, WAIVER_LABELS, lienWaiverDocContext,
+  lienWaiverFormLabel, requestLienWaiverSignature,
 } from '@/utils/lienWaiverEngine';
+import { isStatutoryWaiverState, statutoryStateName } from '@/utils/lienWaiverForms';
+import { copyToClipboard } from '@/utils/clipboard';
 import { formatMoney } from '@/utils/formatters';
 import { statusPillStyle } from '@/utils/statusPill';
 import type { LienWaiver, LienWaiverType, CompanyBranding } from '@/types';
@@ -87,6 +96,7 @@ function LienWaiversScreenInner() {
   const [loading, setLoading] = useState(true);
   const [addModal, setAddModal] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [requesting, setRequesting] = useState<string | null>(null);
 
   // Prefill seed for the New Waiver modal — populated when this screen
   // is opened with `prefillFromInvoice` query params (the "Collect a
@@ -182,28 +192,180 @@ function LienWaiversScreenInner() {
     }
   }, [projectId, prefillSeed]);
 
+  // One resolution of the jobsite, shared by the PDF, the form label, and the
+  // signing request — so what the badge on the card says is necessarily the
+  // form the sub is emailed.
+  const docCtx = useMemo(() => lienWaiverDocContext(project), [project]);
+
+  const projectCommitments = useMemo(
+    () => (projectId ? getCommitmentsForProject(projectId) ?? [] : []),
+    [projectId, getCommitmentsForProject],
+  );
+
+  /**
+   * The same jobsite, plus what THIS sub furnished.
+   *
+   * Texas, Arizona and Georgia all leave a blank for it — "to the following
+   * extent: ____ (job description)" — and that blank is the SCOPE of the
+   * release. Left empty it printed a line of underscores, so a Texas
+   * unconditional final waiver came out of the app without saying what it
+   * released. The waiver already carries the commitment it was collected
+   * against, so the answer is a lookup, not a guess: no commitment, no
+   * description, and the statutory blank stays a blank for the signer to fill
+   * — this never invents one.
+   */
+  const docCtxFor = useCallback((w: LienWaiver) => lienWaiverDocContext(project, {
+    jobDescription: (projectCommitments.find((c: any) => c.id === w.commitmentId)?.description ?? '').trim(),
+  }), [project, projectCommitments]);
+
   const handleExport = useCallback(async (w: LienWaiver) => {
     setExporting(w.id);
     try {
-      await shareLienWaiverPDF(w, branding, project?.name ?? 'Project', project?.location);
+      await shareLienWaiverPDF(w, branding, docCtxFor(w));
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       showAlert('Export failed', e instanceof Error ? e.message : 'Could not generate PDF.');
     } finally {
       setExporting(null);
     }
-  }, [branding, project]);
+  }, [branding, docCtxFor]);
+
+  // Email the sub a link to sign their own waiver. Every outcome gets its own
+  // message: a Resend accept, a composer that only opened a draft, a missing
+  // address, and a database that has not had the signing migration applied are
+  // four different situations and only one of them means the sub has been
+  // asked.
+  //
+  // The ref is the re-entry latch. `requesting` disables the button, but that
+  // only takes effect on the next render, and each press mints a NEW token that
+  // invalidates the last — so a double tap emails the sub two links of which
+  // the first is already dead.
+  const requestInFlight = useRef(false);
+  // Lets the no-email branch below re-enter the send once the address is saved,
+  // without the callback having to name the function it lives inside. Assigned
+  // in an effect rather than during render; nothing can reach it before then
+  // because the only way in is a press.
+  const requestRef = useRef<((w: LienWaiver) => Promise<void>) | null>(null);
+
+  /** Save an address the GC typed into the missing-email prompt, then send. */
+  const saveEmailThenRequest = useCallback(async (w: LienWaiver, typed: string | null | undefined) => {
+    const email = (typed ?? '').trim();
+    if (!email) return;   // they cancelled or cleared the field
+    if (!email.includes('@') || /\s/.test(email)) {
+      showAlert('That is not an email address', `"${email}" has no "@" in it, so there is nowhere to send the waiver.`);
+      return;
+    }
+    const saved = await saveLienWaiver({ ...w, id: w.id, subEmail: email });
+    if (!saved) {
+      showAlert('Could not save that address', 'The email was not saved, so nothing was sent. Try again.');
+      return;
+    }
+    setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
+    // Send against the SAVED row, not the stale one the button was pressed on.
+    await requestRef.current?.(saved);
+  }, []);
+
+  const handleRequestSignature = useCallback(async (w: LienWaiver) => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setRequesting(w.id);
+    try {
+      const result = await requestLienWaiverSignature(w, branding, docCtxFor(w), {
+        senderEmail: settings?.branding?.email,
+        senderName: settings?.branding?.contactName,
+      });
+      if (result.outcome === 'sent') {
+        await refresh();
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        showAlert('Signing link sent', `${w.subName} can now open the waiver and sign it. You'll see it here once they do.`);
+        return;
+      }
+      if (result.outcome === 'no_email') {
+        // Covers both an empty field and a typo'd one — the engine rejects
+        // anything without an "@", and "No email on this waiver" reads as a
+        // lie to a GC who can see an address sitting in the field.
+        //
+        // ASK FOR IT HERE. The address is only settable in the New Waiver
+        // modal and a saved waiver has no edit screen anywhere in this app, so
+        // "fix it on the waiver and try again" named a remedy the product does
+        // not have: the GC's only route was to delete the waiver and retype it.
+        showPrompt(
+          w.subEmail ? 'That address will not send' : 'Where should the link go?',
+          w.subEmail
+            ? `"${w.subEmail}" is not an address we can send to. Type ${w.subName}'s email and we'll save it and send the signing link.`
+            : `Type ${w.subName}'s email. We'll save it on this waiver and send them the signing link.`,
+          (value) => { void saveEmailThenRequest(w, value); },
+          'plain-text',
+          w.subEmail ?? '',
+        );
+        return;
+      }
+      if (result.outcome === 'voided') {
+        // Sending on a voided waiver would set its status back to 'requested',
+        // and the signing page decides whether to show a Sign button off exactly
+        // that status — so the sub would be handed a live link to a release this
+        // contractor had already cancelled.
+        showAlert(
+          'This waiver is voided',
+          `It was cancelled, so ${w.subName} is not being asked to sign it. Create a new waiver if you need one.`,
+        );
+        return;
+      }
+      if (result.outcome === 'already_signed') {
+        showAlert(
+          'This waiver is already signed',
+          `${w.subName} has signed it. Re-sending would replace the signed document with a fresh unsigned one, so it is refused.`,
+        );
+        return;
+      }
+      if (result.outcome === 'email_failed' && result.signUrl) {
+        const url = result.signUrl;
+        // The row IS updated on this path — the token and the sealed document
+        // are stored, only the mail failed. Refresh so the card stops offering
+        // "Request signature" as if nothing had happened and shows the link is
+        // live; without it the GC taps again and kills the link they are about
+        // to paste.
+        await refresh();
+        showAlert(
+          'Email did not go out',
+          'The waiver is ready to sign but the email was not accepted. Copy the signing link and send it yourself.',
+          [
+            { text: 'Close', style: 'cancel' },
+            { text: 'Copy link', onPress: () => { void copyToClipboard(url); } },
+          ],
+        );
+        return;
+      }
+      if (result.outcome === 'not_provisioned') {
+        showAlert(
+          'Signing is not switched on yet',
+          'Sub-signed waivers need a database update that has not been applied to this account yet. Until then, use Record paper waiver.',
+        );
+        return;
+      }
+      showAlert('Could not send', result.error || 'The signing request did not go out. Try again.');
+    } finally {
+      requestInFlight.current = false;
+      setRequesting(null);
+    }
+  }, [branding, docCtxFor, refresh, settings, saveEmailThenRequest]);
+
+  useEffect(() => { requestRef.current = handleRequestSignature; }, [handleRequestSignature]);
 
   const handleStatusChange = useCallback(async (w: LienWaiver, status: LienWaiver['status']) => {
     const saved = await saveLienWaiver({ ...w, id: w.id, status });
     if (saved) setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
   }, []);
 
-  const handleMarkSigned = useCallback(async (w: LienWaiver) => {
+  // Recording a PAPER waiver. This is not the sub signing — it is the GC
+  // saying "I have their signed paper original in the file", which is a
+  // different fact and is stored and printed as one. The sub's own signature
+  // comes back through the signing page with role 'sub'.
+  const handleRecordPaper = useCallback(async (w: LienWaiver) => {
     const persist = async (rawName: string) => {
       const name = rawName.trim();
       if (!name || name.length < 2) {
-        showAlert('Name required', 'Type the subcontractor\'s legal name to confirm signature.');
+        showAlert('Name required', 'Type the subcontractor\'s legal name as it appears on the paper waiver.');
         return;
       }
       try {
@@ -211,13 +373,15 @@ function LienWaiversScreenInner() {
           ...w, id: w.id,
           status: 'signed',
           signedAt: new Date().toISOString(),
+          // role 'gc': the contractor attesting to a paper original. Never
+          // 'sub' — only the token-gated signing page writes that.
           subSignature: { name, role: 'gc', signedAt: new Date().toISOString() },
         });
         if (saved) {
           setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         } else {
-          showAlert('Save failed', 'Could not mark this waiver as signed. Try again.');
+          showAlert('Save failed', 'Could not record this waiver. Try again.');
         }
       } catch (e) {
         showAlert('Save failed', e instanceof Error ? e.message : 'Try again.');
@@ -227,8 +391,8 @@ function LienWaiversScreenInner() {
     // themed modal on Android + web), so the old hand-rolled window.prompt
     // fallback this file carried for web is no longer needed.
     showPrompt(
-      'Mark as signed',
-      `Type the subcontractor's name to confirm they've signed the waiver:`,
+      'Record a paper waiver',
+      'Only for a waiver the sub has already signed on paper. Type the name as it appears on that original — this is recorded as your record of it, not as their signature.',
       (name) => { if (name != null) void persist(name); },
       'plain-text',
       w.subName,
@@ -323,21 +487,38 @@ function LienWaiversScreenInner() {
           </View>
         )}
 
-        <View style={styles.disclaimer}>
-          <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-          <Text style={styles.disclaimerText}>
-            Generic 4-type waivers cover ~38 states. CA, TX, FL, GA, AZ require state-specific
-            statutory forms — consult an attorney for those.
-          </Text>
-        </View>
+        {/* Which form this job gets, said once at the top rather than
+            discovered on the PDF. A statutory state is the good news; anywhere
+            else the old warning is still the honest thing to print. */}
+        {isStatutoryWaiverState(docCtx.jobsiteState) ? (
+          <View style={styles.statuteBanner}>
+            <Landmark size={14} color={themeColors.success} strokeWidth={1.75} />
+            <Text style={styles.statuteBannerText}>
+              This jobsite is in {statutoryStateName(docCtx.jobsiteState)}. Waivers print on that state&apos;s statutory form
+              — check the citation and &ldquo;text as of&rdquo; date on the PDF, and have counsel confirm the
+              current wording before you rely on it.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.disclaimer}>
+            <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.disclaimerText}>
+              This job prints the general form. CA, TX, FL, GA and AZ prescribe their own statutory
+              wording; if the jobsite is in one of them, set the project&apos;s address so we use it.
+            </Text>
+          </View>
+        )}
 
         {waivers.map(w => (
           <WaiverCard
             key={w.id}
             waiver={w}
             exporting={exporting === w.id}
+            requesting={requesting === w.id}
+            formLabel={lienWaiverFormLabel(w, docCtx)}
             onExport={() => handleExport(w)}
-            onMarkSigned={() => handleMarkSigned(w)}
+            onRequestSignature={() => handleRequestSignature(w)}
+            onRecordPaper={() => handleRecordPaper(w)}
             onMarkReceived={() => handleStatusChange(w, 'received')}
             onMarkVoid={() => handleStatusChange(w, 'voided')}
             onDelete={() => handleDelete(w)}
@@ -355,11 +536,15 @@ function LienWaiversScreenInner() {
   );
 }
 
-function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived, onMarkVoid, onDelete }: {
+function WaiverCard({ waiver, exporting, requesting, formLabel, onExport, onRequestSignature, onRecordPaper, onMarkReceived, onMarkVoid, onDelete }: {
   waiver: LienWaiver;
   exporting: boolean;
+  requesting: boolean;
+  /** "California statutory form · Cal. Civ. Code § 8132" or "General form". */
+  formLabel: string;
   onExport: () => void;
-  onMarkSigned: () => void;
+  onRequestSignature: () => void;
+  onRecordPaper: () => void;
   onMarkReceived: () => void;
   onMarkVoid: () => void;
   onDelete: () => void;
@@ -409,11 +594,27 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
         </View>
       </View>
 
+      <Text style={styles.formLabel}>{formLabel}</Text>
+
+      {/* A signature the SUB gave and a paper original the GC recorded are
+          different facts. The card says which one this is, because the row
+          used to read "Signed by <name>" for both. */}
       {waiver.subSignature && (
-        <View style={styles.sigPreview}>
-          <FileSignature size={12} color={themeColors.success} strokeWidth={1.75} />
+        <View style={[styles.sigPreview, waiver.subSignature.role === 'gc' && styles.sigPreviewPaper]}>
+          <FileSignature size={12} color={waiver.subSignature.role === 'gc' ? Colors.warningLabel : themeColors.success} strokeWidth={1.75} />
           <Text style={styles.sigPreviewText}>
-            Signed by <Text style={{ fontWeight: '800' }}>{waiver.subSignature.name}</Text> on {new Date(waiver.subSignature.signedAt).toLocaleDateString()}
+            {waiver.subSignature.role === 'gc'
+              ? <>Paper waiver recorded by you for <Text style={{ fontWeight: '800' }}>{waiver.subSignature.name}</Text> on {new Date(waiver.subSignature.signedAt).toLocaleDateString()}</>
+              : <>Signed by <Text style={{ fontWeight: '800' }}>{waiver.subSignature.name}</Text> on {new Date(waiver.subSignature.signedAt).toLocaleDateString()}</>}
+          </Text>
+        </View>
+      )}
+
+      {!waiver.subSignature && waiver.signRequestedAt && (
+        <View style={styles.sigPreview}>
+          <Send size={12} color={themeColors.accent} strokeWidth={1.75} />
+          <Text style={styles.sigPreviewText}>
+            Signing link sent to {waiver.subEmail ?? 'the sub'} on {new Date(waiver.signRequestedAt).toLocaleDateString()}
           </Text>
         </View>
       )}
@@ -428,9 +629,21 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
           )}
         </TouchableOpacity>
         {waiver.status === 'requested' && (
-          <TouchableOpacity style={styles.actionPrimary} onPress={onMarkSigned}>
-            <FileSignature size={13} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.actionPrimaryText}>Mark signed</Text>
+          <TouchableOpacity style={styles.actionPrimary} onPress={onRequestSignature} disabled={requesting}>
+            {requesting ? <ActivityIndicator size="small" color="#FFF" /> : (
+              <>
+                <Send size={13} color="#FFF" strokeWidth={1.75} />
+                <Text style={styles.actionPrimaryText}>
+                  {waiver.signRequestedAt ? 'Resend to sub' : 'Request signature'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+        {waiver.status === 'requested' && (
+          <TouchableOpacity style={styles.actionSecondary} onPress={onRecordPaper}>
+            <FileSignature size={13} color={themeColors.text} strokeWidth={1.75} />
+            <Text style={styles.actionSecondaryText}>Record paper waiver</Text>
           </TouchableOpacity>
         )}
         {waiver.status === 'signed' && (
@@ -537,7 +750,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
             style={styles.modalInput}
             value={subEmail}
             onChangeText={setSubEmail}
-            placeholder="optional — for signing requests later"
+            placeholder="where we send the signing link"
             placeholderTextColor={themeColors.textMuted}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -615,6 +828,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   disclaimerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text, lineHeight: 16 },
 
+  statuteBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    padding: 12, borderRadius: Tokens.radius.md, marginBottom: 12,
+    backgroundColor: t.success + '0D',
+    borderWidth: 1, borderColor: t.success + '30',
+  },
+  statuteBannerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text, lineHeight: 16 },
+
+  formLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '700' },
+
   waiverCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: t.line,
@@ -632,6 +855,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   waiverFieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, marginTop: 2 },
 
   sigPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: t.success + '0D', borderWidth: 1, borderColor: t.success + '30' },
+  // A GC-recorded paper waiver is amber, not green: it is a filing note, not
+  // a signature the sub gave.
+  sigPreviewPaper: { backgroundColor: Colors.warning + '0D', borderColor: Colors.warning + '30' },
   sigPreviewText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text },
 
   waiverActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },

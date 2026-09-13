@@ -26,14 +26,17 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import ConcretePour from '@/components/animations/ConcretePour';
 import {
   generateForecast, calculateSummary, formatCurrency, formatCurrencyShort,
-  pendingRetention,
+  pendingRetention, buildCommittedOutflows, forecastHasCashMovement,
+  diagnoseEmptyForecast, parseMoneyInput,
   getEffectiveStartingBalance,
 } from '@/utils/cashFlowEngine';
 import type { CashFlowExpense, ExpectedPayment, CashFlowWeek, CashFlowSummary, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
 import {
-  loadCashFlowData, saveCashFlowData, isSetupComplete, markSetupComplete,
+  loadCashFlowSettings, saveCashFlowData, markSetupComplete,
   getCachedAIAnalysis, setCachedAIAnalysis,
 } from '@/utils/cashFlowStorage';
+import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { mageAI } from '@/utils/mageAI';
@@ -42,6 +45,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
@@ -166,7 +170,8 @@ function CashFlowScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject } = useProjects();
+  const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject, commitments: allCommitments, getCommitmentsForProject } = useProjects();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
@@ -256,13 +261,19 @@ function CashFlowScreenInner() {
     return allChangeOrders;
   }, [projectId, allChangeOrders, getChangeOrdersForProject]);
 
+  // One read-through, not two. The setup flag and the setup itself are the same
+  // server row (public.cash_flow_settings), and reading them separately meant a
+  // phone could show the wizard while the balance had already loaded. Passing
+  // the user id is what makes this a server read at all — without it the loader
+  // answers from the device cache, which on a second device is empty, and the
+  // GC saw a $0 starting balance on the screen he uses to decide whether he can
+  // make payroll (audit do-next #12c).
   useEffect(() => {
     const init = async () => {
       console.log('[CashFlow] Initializing...');
-      const setupDone = await isSetupComplete();
-      const data = await loadCashFlowData();
-      setCashFlowData(data);
-      if (!setupDone) {
+      const settings = await loadCashFlowSettings(user?.id);
+      setCashFlowData(settings.data);
+      if (!settings.setupComplete) {
         setShowSetup(true);
       }
       const cached = await getCachedAIAnalysis(projectId);
@@ -272,7 +283,7 @@ function CashFlowScreenInner() {
       setLoading(false);
     };
     void init();
-  }, [projectId]);
+  }, [projectId, user?.id]);
 
   const effectiveStartingBalance = useMemo<number>(() => {
     if (!cashFlowData) return 0;
@@ -283,18 +294,47 @@ function CashFlowScreenInner() {
     );
   }, [cashFlowData, relevantInvoices]);
 
+  const relevantCommitments = useMemo(() => {
+    if (projectId) return getCommitmentsForProject(projectId);
+    return allCommitments;
+  }, [projectId, allCommitments, getCommitmentsForProject]);
+
+  // Signed subcontracts and POs, turned into the outflow rows this forecast was
+  // missing. Without them the income side was automatic and the expense side
+  // was whatever the GC had typed in, which tilts every week toward solvency —
+  // see the long note on buildCommittedOutflows for how a hand-typed duplicate
+  // is prevented and why undated money is reported instead of guessed at.
+  const committed = useMemo(() => buildCommittedOutflows({
+    commitments: relevantCommitments,
+    projects,
+    expenses: cashFlowData?.expenses ?? [],
+  }), [relevantCommitments, projects, cashFlowData?.expenses]);
+
+  // A Set, because the expense list looks every row up as it renders it.
+  const ambiguousIds = useMemo(() => new Set(committed.ambiguousManualIds), [committed.ambiguousManualIds]);
+
+  // Whether the two jsonb lists actually reach public.cash_flow_settings.
+  // saveCashFlowData writes the server row only when it is handed a user id,
+  // and supabaseWrite is a no-op when Supabase is not configured at all — so
+  // without both, "Saved to your account" is a promise the code does not keep.
+  const syncsToAccount = Boolean(user?.id) && isSupabaseConfigured;
+
   const forecast = useMemo<CashFlowWeek[]>(() => {
     if (!cashFlowData) return [];
     return generateForecast(
       effectiveStartingBalance,
-      cashFlowData.expenses,
+      // Derived rows are concatenated here and NOWHERE else — they are never
+      // handed to saveCashFlowData, so nothing generated from a commitment can
+      // be frozen into `mage_cashflow_data` and then counted a second time
+      // against the live commitment on the next load.
+      [...cashFlowData.expenses, ...committed.scheduled],
       relevantInvoices,
       cashFlowData.expectedPayments,
       forecastWeeks,
       cashFlowData.defaultPaymentTerms,
       relevantChangeOrders,
     );
-  }, [cashFlowData, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
+  }, [cashFlowData, committed.scheduled, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
 
   const summary = useMemo<CashFlowSummary>(() => calculateSummary(forecast), [forecast]);
 
@@ -306,18 +346,99 @@ function CashFlowScreenInner() {
   // add up reads as a bug in the app rather than a fact about the contract.
   const retentionHeld = useMemo(() => pendingRetention(relevantInvoices), [relevantInvoices]);
 
+  // Does any money actually MOVE inside the horizon? This is the difference
+  // between a forecast and twelve empty rows, and every verdict on this screen
+  // hangs off it.
+  //
+  // generateForecast emits one row per week unconditionally, so `forecast` is
+  // 12 rows long on a brand-new account with nothing in it. The ladder below
+  // used to open on `forecast.length === 0`, which therefore could never fire:
+  // a $0 balance with no invoices, no expenses and no expected payments gives
+  // lowestBalance 0 and netCashChange 0 — neither of them strictly negative —
+  // so control fell all the way through to a green "Healthy" with a check mark.
+  // The rendered audit of 2026-09-10 caught that word printed on an empty
+  // account AND on a seeded one carrying a $155K job, identical both times,
+  // which is how you can tell no data reached it. "Healthy" computed from the
+  // absence of data is the worst sentence this screen can print: the question
+  // it is answering is "can I make payroll on Friday".
+  //
+  // The predicate lives next to generateForecast in the engine, so the next
+  // screen that needs to know whether a forecast measured anything asks rather
+  // than re-deriving it from the row count the way this one did.
+  const hasCashMovement = useMemo(() => forecastHasCashMovement(forecast), [forecast]);
+
+  // …and WHICH input is missing, so the line under the pill names something the
+  // GC has not already done.
+  //
+  // The first version of that line said the same thing to everyone: "Add your
+  // bank balance, an unpaid invoice, or a recurring bill and this becomes a
+  // real forecast." Mounted against a seeded device it printed under "Current
+  // Balance $48,250", and again next to "Total Pending $26,000 · Sources 1"
+  // where the one expected payment on file was simply dated past the end of
+  // the window. It asked for what was already there. And the promise cannot be
+  // kept in any state: a starting balance is a LEVEL, not a movement — it
+  // never enters totalIncome or totalExpenses — so typing one in can never
+  // flip hasCashMovement and can never turn this into a forecast.
+  const noForecastReason = useMemo(() => diagnoseEmptyForecast({
+    undatedCommitted: committed.undated,
+    expenses: cashFlowData?.expenses ?? [],
+    expectedPayments: cashFlowData?.expectedPayments ?? [],
+    invoices: relevantInvoices,
+  }), [committed.undated, cashFlowData?.expenses, cashFlowData?.expectedPayments, relevantInvoices]);
+
+  // `useMemo<string>`, not an inferred return: without the annotation a
+  // fall-through out of the switch below is inferred as `string | undefined`
+  // and compiles, which would defeat the exhaustiveness note inside it.
+  const noForecastLine = useMemo<string>(() => {
+    // Calendar weeks, not instants: the horizon is whole weeks from today.
+    const opener = `No money is scheduled in or out of the next ${forecastWeeks} weeks, so there is nothing to forecast yet.`;
+    switch (noForecastReason.kind) {
+      case 'undated_commitments':
+        // Committed money is COST — outflow — which is why it cannot fill the
+        // income side on its own, and why the instruction is dates, not money.
+        return `${opener} The ${formatCurrencyShort(noForecastReason.amount)} you have already committed has no dates on it — put a schedule on those jobs and it lands on a week.`;
+      case 'bills_without_amounts':
+        // "can place it", not "it lands on a week": the row's own start date
+        // decides which week, and a row imported with an old date may still
+        // fall outside the horizon once it has a number on it.
+        return noForecastReason.count === 1
+          ? `${opener} One bill in your list has no amount on it — put a number on it and the forecast can place it.`
+          : `${opener} ${noForecastReason.count} bills in your list have no amount on them — put numbers on them and the forecast can place them.`;
+      case 'everything_falls_outside':
+        return `${opener} The money you do have on file is either unsent or dated outside this window — check those dates, or pick a longer horizon above.`;
+      // No `default`. The union is exhaustive here on purpose: add a fifth
+      // reason and this stops compiling, rather than quietly answering a new
+      // situation with the "nothing on file" sentence — which would be the
+      // same wrong-instruction bug all over again.
+      case 'nothing_dated_on_file':
+        // The balance clause says what a balance actually does. It is offered
+        // only when there isn't one, and it does not claim to produce a
+        // forecast, because it doesn't.
+        return `${opener} Add an unpaid invoice, an expected payment or a recurring bill — dated money is what a forecast is made of.${
+          effectiveStartingBalance === 0 ? ' Your bank balance sets where the line starts: tap the number above to set it.' : ''
+        }`;
+    }
+  }, [noForecastReason, forecastWeeks, effectiveStartingBalance]);
+
   // Derive a one-glance health status from the forecast. Used by the hero
   // pill so a contractor can see "Healthy / Watch / Danger" without having
-  // to scan numbers. Three buckets:
+  // to scan numbers. Four buckets:
+  //   • No forecast — nothing lands in the horizon, so nothing was measured
   //   • Danger   — balance goes negative at any point in the horizon
-  //   • Watch    — net profit < 0 over horizon, but balance stays positive
-  //   • Healthy  — net profit >= 0 and balance stays positive
+  //   • Watch    — cash falls over the horizon, but the balance stays positive
+  //   • Healthy  — cash holds or grows and the balance stays positive
+  //
+  // The starting balance is deliberately NOT part of the no-forecast test. A GC
+  // who skipped the wizard but has invoices and bills on file gets a real
+  // reading, and treating his unrecorded balance as $0 only ever understates
+  // the runway — it can push the verdict toward Watch or Danger, never toward
+  // a false Healthy, which is the direction this screen must err in.
   const healthStatus = useMemo(() => {
-    if (forecast.length === 0) return { kind: 'neutral' as const, label: 'Setup', color: themeColors.textSecondary, bg: 'rgba(255,255,255,0.18)' };
+    if (!hasCashMovement) return { kind: 'neutral' as const, label: 'No forecast yet', color: 'rgba(255,255,255,0.95)', bg: 'rgba(255,255,255,0.22)' };
     if (summary.lowestBalance < 0) return { kind: 'danger' as const, label: 'Danger', color: '#FFE0E0', bg: 'rgba(255,90,90,0.35)' };
-    if (summary.netProfit < 0) return { kind: 'watch' as const, label: 'Watch', color: '#FFEBC2', bg: 'rgba(255,180,60,0.35)' };
+    if (summary.netCashChange < 0) return { kind: 'watch' as const, label: 'Watch', color: '#FFEBC2', bg: 'rgba(255,180,60,0.35)' };
     return { kind: 'healthy' as const, label: 'Healthy', color: '#D6FFE3', bg: 'rgba(80,220,140,0.35)' };
-  }, [forecast.length, summary.lowestBalance, summary.netProfit]);
+  }, [hasCashMovement, summary.lowestBalance, summary.netCashChange]);
 
   // Aggregate "Total Pending" across every source of expected money that hasn't landed:
   //   - unpaid invoice balances, net of held retention (MONEY-F5: invoiceOutstanding)
@@ -350,87 +471,111 @@ function CashFlowScreenInner() {
 
   const handleSetupComplete = useCallback(async (data: CashFlowData) => {
     setCashFlowData(data);
-    await saveCashFlowData(data);
-    await markSetupComplete();
+    await saveCashFlowData(data, user?.id);
+    await markSetupComplete(user?.id);
     setShowSetup(false);
     console.log('[CashFlow] Setup complete');
-  }, []);
+  }, [user?.id]);
 
   const handleUpdateBalance = useCallback(async () => {
     if (!cashFlowData) return;
-    const bal = parseFloat(editBalanceValue) || 0;
+    // `parseFloat(editBalanceValue) || 0` recorded a cleared box as $0 — and a
+    // recorded $0 is indistinguishable from a GC who really is at zero, on the
+    // number every week of the forecast is built up from. Refuse instead of
+    // inventing it; a deliberate zero is still accepted, because "0" parses.
+    const bal = parseMoneyInput(editBalanceValue);
+    if (bal === null) return;
     // Stamp balanceAsOf so future invoice payments can be auto-added on top of
     // this balance without the GC having to manually re-edit every time a check clears.
     const updated = { ...cashFlowData, startingBalance: bal, balanceAsOf: new Date().toISOString() };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     setShowEditBalance(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [cashFlowData, editBalanceValue]);
+  }, [cashFlowData, editBalanceValue, user?.id]);
 
   const handleAddExpense = useCallback(async () => {
-    if (!cashFlowData || !newExpenseName.trim()) return;
+    // An expense is COST — money leaving — so the amount must be a real
+    // positive number. It was `parseFloat(newExpenseAmount) || 0`: an empty
+    // box saved a bill named "Payroll" at $0, the sheet closed with a success
+    // haptic, and the row then sat in Monthly Expenses contributing nothing to
+    // any week while the hero said no money was scheduled. A credit is not a
+    // negative bill; it belongs on the income side as an expected payment.
+    const amount = parseMoneyInput(newExpenseAmount);
+    if (!cashFlowData || !newExpenseName.trim() || amount === null || amount <= 0) return;
     const expense: CashFlowExpense = {
       id: `exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: newExpenseName.trim(),
-      amount: parseFloat(newExpenseAmount) || 0,
+      amount,
       frequency: newExpenseFrequency,
       category: newExpenseCategory,
       startDate: new Date().toISOString(),
     };
     const updated = { ...cashFlowData, expenses: [...cashFlowData.expenses, expense] };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     setShowAddExpense(false);
     setNewExpenseName('');
     setNewExpenseAmount('');
     setNewExpenseCategory('other');
     setNewExpenseFrequency('monthly');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [cashFlowData, newExpenseName, newExpenseAmount, newExpenseFrequency, newExpenseCategory]);
+  }, [cashFlowData, newExpenseName, newExpenseAmount, newExpenseFrequency, newExpenseCategory, user?.id]);
 
   const handleRemoveExpense = useCallback(async (id: string) => {
     if (!cashFlowData) return;
     const updated = { ...cashFlowData, expenses: cashFlowData.expenses.filter(e => e.id !== id) };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [cashFlowData]);
+  }, [cashFlowData, user?.id]);
 
   const handleAddPayment = useCallback(async () => {
-    if (!cashFlowData || !newPaymentDesc.trim()) return;
+    // Same empty-box trap as the expense sheet. A zero is refused because a $0
+    // expected payment is a row that can never move the forecast, but a
+    // NEGATIVE one is kept: a backcharge against you is real money leaving,
+    // and the forecast reads it correctly as a fall in the week it lands.
+    const amount = parseMoneyInput(newPaymentAmount);
+    if (!cashFlowData || !newPaymentDesc.trim() || amount === null || amount === 0) return;
     const daysFromNow = parseInt(newPaymentDate) || 30;
     const date = new Date();
     date.setDate(date.getDate() + daysFromNow);
     const payment: ExpectedPayment = {
       id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       description: newPaymentDesc.trim(),
-      amount: parseFloat(newPaymentAmount) || 0,
+      amount,
       expectedDate: date.toISOString(),
       confidence: newPaymentConfidence,
       projectId: projectId,
     };
     const updated = { ...cashFlowData, expectedPayments: [...cashFlowData.expectedPayments, payment] };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     setShowAddPayment(false);
     setNewPaymentDesc('');
     setNewPaymentAmount('');
     setNewPaymentDate('');
     setNewPaymentConfidence('expected');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [cashFlowData, newPaymentDesc, newPaymentAmount, newPaymentDate, newPaymentConfidence, projectId]);
+  }, [cashFlowData, newPaymentDesc, newPaymentAmount, newPaymentDate, newPaymentConfidence, projectId, user?.id]);
 
   const handleRemovePayment = useCallback(async (id: string) => {
     if (!cashFlowData) return;
     const updated = { ...cashFlowData, expectedPayments: cashFlowData.expectedPayments.filter(p => p.id !== id) };
     setCashFlowData(updated);
-    await saveCashFlowData(updated);
+    await saveCashFlowData(updated, user?.id);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [cashFlowData]);
+  }, [cashFlowData, user?.id]);
 
   const handleAIAnalysis = useCallback(async () => {
-    if (forecast.length === 0 || !cashFlowData) return;
+    // `forecast.length === 0` was the same dead guard the hero pill had: the
+    // engine always returns 12 rows, so this asked Gemini to analyze twelve
+    // zero weeks and print whatever verdict it invented from them — the AI card
+    // renders an overallHealth and a /100 score, so the false "Healthy" simply
+    // came back through a second door. Gate it on money having moved. (The
+    // button itself is disabled and says why, so this is the belt to that
+    // brace — a keyboard or an automation can still reach the handler.)
+    if (!hasCashMovement || !cashFlowData) return;
     setAiLoading(true);
     setShowAiResults(true);
     try {
@@ -442,6 +587,10 @@ ${forecast.map((w, i) => `Week ${i + 1} (${w.weekStart}): Income ${w.totalIncome
 
 RECURRING EXPENSES:
 ${cashFlowData.expenses.map(e => `${e.name}: ${e.amount}/${e.frequency}`).join('\n') || 'None entered'}
+
+COMMITTED OUTFLOW (signed subcontracts and POs, remaining balance spread across each job's schedule — already inside the weekly numbers above):
+${committed.scheduled.map(e => `${e.name}: ${Math.round(e.amount)}/${e.frequency}`).join('\n') || 'None'}
+${committed.undated > 0 ? `\nNOT in the weekly numbers above: ${Math.round(committed.undated)} of committed subcontract/PO balance that could not be dated — the job has no schedule, or it is finished and nothing recorded the payment. Say so rather than treating the runway as complete, and do not call it overdue: the app cannot tell an unpaid balance from an unrecorded payment.` : ''}
 
 PENDING INVOICES:
 ${relevantInvoices.filter(i => i.status !== 'paid').map(i => `#${i.number}: ${i.totalDue} | Sent: ${i.issueDate} | Terms: ${i.paymentTerms} | Due: ${i.dueDate}`).join('\n') || 'None pending'}
@@ -465,15 +614,22 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
     } finally {
       setAiLoading(false);
     }
-  }, [forecast, cashFlowData, forecastWeeks, relevantInvoices, projectId]);
+  }, [forecast, hasCashMovement, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId]);
 
   const toggleSection = useCallback((key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  // The committed rows are counted here too, because they are LISTED in this
+  // section. A header total that showed only the hand-typed rows would
+  // contradict the list under it — the same shape of dishonesty as leaving the
+  // commitments out of the forecast, just smaller.
+  //
+  // One-time rows are excluded from a "/mo" figure, which is the rule the
+  // hand-typed rows already followed.
   const totalMonthlyExpenses = useMemo(() => {
     if (!cashFlowData) return 0;
-    return cashFlowData.expenses.reduce((sum, e) => {
+    return [...cashFlowData.expenses, ...committed.scheduled].reduce((sum, e) => {
       switch (e.frequency) {
         case 'weekly': return sum + e.amount * 4.33;
         case 'biweekly': return sum + e.amount * 2.17;
@@ -481,7 +637,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         default: return sum;
       }
     }, 0);
-  }, [cashFlowData]);
+  }, [cashFlowData, committed.scheduled]);
 
   const freqLabel = (f: ExpenseFrequency) => {
     switch (f) {
@@ -520,6 +676,24 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
       default: return { bg: themeColors.info + '1F', text: themeColors.info };
     }
   };
+
+  // What the three money boxes currently hold. A save that would record a
+  // number nobody typed is blocked at the button AND in the handler, and the
+  // button says which box is the problem — a dead button with no explanation
+  // is the thing this repo has a standing rule against.
+  const editBalanceParsed = parseMoneyInput(editBalanceValue);
+  const newExpenseParsed = parseMoneyInput(newExpenseAmount);
+  const newPaymentParsed = parseMoneyInput(newPaymentAmount);
+  // Typed-but-unreadable is a different problem from left-blank, and it has to
+  // read differently or a GC on a keyboard whose decimal key is a comma sits
+  // in front of a dead button being told to enter an amount he can see he has
+  // entered. parseMoneyInput refuses "3200,50" on purpose — stripping that
+  // comma would record 320050 — so the note has to say what shape to type.
+  const unreadable = (raw: string, parsed: number | null) => raw.trim().length > 0 && parsed === null;
+  const BAD_NUMBER_NOTE = 'That amount is not a number this can read — type it as 3200 or 3200.50.';
+  const canUpdateBalance = editBalanceParsed !== null;
+  const canAddExpense = newExpenseName.trim().length > 0 && newExpenseParsed !== null && newExpenseParsed > 0;
+  const canAddPayment = newPaymentDesc.trim().length > 0 && newPaymentParsed !== null && newPaymentParsed !== 0;
 
   if (loading) {
     return (
@@ -604,15 +778,19 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   {healthStatus.kind === 'danger' && <AlertTriangle size={11} color={healthStatus.color} strokeWidth={1.75} />}
                   <Text style={[styles.heroStatusText, { color: healthStatus.color }]}>{healthStatus.label}</Text>
                 </View>
-                {forecast.length > 0 && (
+                {/* The projected delta is a claim about the horizon, so it is
+                    gated on the horizon having something in it. On an empty
+                    account it rendered "+$0 · 12w" behind a green up-arrow —
+                    a rise of nothing, dressed as a trend. */}
+                {hasCashMovement && (
                   <View style={styles.heroDelta}>
-                    {summary.netProfit >= 0 ? (
+                    {summary.netCashChange >= 0 ? (
                       <TrendingUp size={11} color="#D6FFE3" strokeWidth={1.75} />
                     ) : (
                       <TrendingDown size={11} color="#FFE0E0" strokeWidth={1.75} />
                     )}
-                    <Text style={[styles.heroDeltaText, { color: summary.netProfit >= 0 ? '#D6FFE3' : '#FFE0E0' }]}>
-                      {summary.netProfit >= 0 ? '+' : ''}{formatCurrencyShort(summary.netProfit)} · {forecastWeeks}w
+                    <Text style={[styles.heroDeltaText, { color: summary.netCashChange >= 0 ? '#D6FFE3' : '#FFE0E0' }]}>
+                      {summary.netCashChange >= 0 ? '+' : ''}{formatCurrencyShort(summary.netCashChange)} · {forecastWeeks}w
                     </Text>
                   </View>
                 )}
@@ -628,6 +806,17 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <Edit3 size={14} color={themeColors.surface} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
+
+          {/* A pill reading "No forecast yet" is honest but says nothing about
+              what is missing, and this is the screen a GC opens when he is
+              worried — he should not have to guess which input the app is
+              waiting on, or be sent after one he has already entered. The
+              branching lives in diagnoseEmptyForecast; this renders its answer. */}
+          {!hasCashMovement && (
+            <Text style={styles.heroNoSignal} testID="cash-flow-no-signal">
+              {noForecastLine}
+            </Text>
+          )}
 
           <View style={styles.forecastSelector}>
             {FORECAST_OPTIONS.map(opt => (
@@ -685,11 +874,28 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         {forecast.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>FORECAST</Text>
-            <CashFlowChart
-              weeks={forecast}
-              onWeekPress={setSelectedWeek}
-              selectedWeek={selectedWeek}
-            />
+            {/* Twelve empty bars are not a chart of anything. With every week at
+                zero, components/CashFlowChart.tsx clamps its own scale away from
+                a divide-by-zero (`if (maxNet === 0) maxNet = 1`), so the axis
+                came out "+$1 / $0 / −$1" over a flat line — which reads as a
+                projection somebody computed rather than as no data. Say what is
+                true instead, and put the chart back the moment a dollar lands on
+                a week. */}
+            {hasCashMovement ? (
+              <CashFlowChart
+                weeks={forecast}
+                onWeekPress={setSelectedWeek}
+                selectedWeek={selectedWeek}
+              />
+            ) : (
+              <View style={styles.chartEmptyCard}>
+                <BarChart3 size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.chartEmptyText} testID="cash-flow-chart-empty">
+                  No dated cash movements yet. The chart draws itself as invoices, bills and
+                  draws land on weeks.
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -798,23 +1004,42 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               </View>
               <Text style={styles.summaryItemLabel}>Total Expenses</Text>
               <Text style={[styles.summaryItemValue, { color: themeColors.danger }]}>{formatCurrencyShort(summary.totalExpenses)}</Text>
+              {/* Committed money we could not honestly put on a week — the job
+                  has no schedule, or it is finished and the balance was never
+                  recorded as paid. Shown the way retention is shown on the
+                  income tile: the omission has to read as a fact about the
+                  data, not as money the app lost. */}
+              {committed.undated > 0 && (
+                <Text style={styles.summaryItemSub}>
+                  + {formatCurrencyShort(committed.undated)} committed on jobs with no schedule or already finished — not in the weeks above
+                </Text>
+              )}
             </View>
-            <View style={[styles.summaryItem, { borderLeftColor: summary.netProfit >= 0 ? themeColors.success : themeColors.danger, borderLeftWidth: 3 }]}>
+            <View style={[styles.summaryItem, { borderLeftColor: summary.netCashChange >= 0 ? themeColors.success : themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
-                <View style={[styles.summaryIcon, { backgroundColor: (summary.netProfit >= 0 ? themeColors.success : themeColors.danger) + '15' }]}>
-                  <DollarSign size={14} color={summary.netProfit >= 0 ? themeColors.success : themeColors.danger} strokeWidth={1.75} />
+                <View style={[styles.summaryIcon, { backgroundColor: (summary.netCashChange >= 0 ? themeColors.success : themeColors.danger) + '15' }]}>
+                  <DollarSign size={14} color={summary.netCashChange >= 0 ? themeColors.success : themeColors.danger} strokeWidth={1.75} />
                 </View>
               </View>
-              <Text style={styles.summaryItemLabel}>Net Profit</Text>
-              <Text style={[styles.summaryItemValue, { color: summary.netProfit >= 0 ? themeColors.success : themeColors.danger }]}>
-                {formatCurrencyShort(summary.netProfit)}
+              <Text style={styles.summaryItemLabel}>Net Cash Change</Text>
+              <Text style={[styles.summaryItemValue, { color: summary.netCashChange >= 0 ? themeColors.success : themeColors.danger }]}>
+                {formatCurrencyShort(summary.netCashChange)}
+              </Text>
+              {/* The label used to read "Net Profit" for a figure that is cash
+                  in minus cash out. It counts a deposit as gain before any work
+                  is done, counts a materials prepay as loss, and ignores work
+                  performed but unbilled entirely — so a GC repeating it to his
+                  accountant or a lender was misled by the word, not the math.
+                  One line of scope beats a tooltip nobody opens. */}
+              <Text style={styles.summaryItemSub}>
+                Cash in minus cash out. Not profit — excludes unbilled work.
               </Text>
               {/* Tiny progress bar showing income coverage of expenses */}
               {summary.totalIncome > 0 && (
                 <ConcretePour
                   value={Math.min(1, summary.totalIncome / Math.max(summary.totalExpenses, 1))}
                   height={3}
-                  fillColor={summary.netProfit >= 0 ? themeColors.success : themeColors.danger}
+                  fillColor={summary.netCashChange >= 0 ? themeColors.success : themeColors.danger}
                   duration={1200}
                   style={{ marginTop: 6 }}
                 />
@@ -850,6 +1075,17 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <View style={styles.expenseListInfo}>
                     <Text style={styles.expenseListName}>{exp.name}</Text>
                     <Text style={styles.expenseListMeta}>{EXPENSE_CATEGORIES.find(c => c.value === exp.category)?.label} · {freqLabel(exp.frequency)}</Text>
+                    {/* Named, not counted. "2 of your rows might be duplicates"
+                        leaves the GC deleting rows at random on the screen he
+                        uses to decide whether he can make payroll; the row that
+                        might be the double count says so itself, and says what
+                        to do about it. */}
+                    {ambiguousIds.has(exp.id) && (
+                      <Text style={styles.expenseListWarn}>
+                        Sub/material money typed by hand. If this is one of the signed contracts listed
+                        below, delete this row — otherwise it is counted twice.
+                      </Text>
+                    )}
                   </View>
                   <Text style={styles.expenseListAmount}>{formatCurrency(exp.amount)}</Text>
                   <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.expenseDeleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
@@ -860,6 +1096,56 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {(!cashFlowData?.expenses || cashFlowData.expenses.length === 0) && (
                 <Text style={styles.emptyListText}>No recurring expenses added yet</Text>
               )}
+
+              {/* The committed rows the forecast now spends, listed so the GC
+                  can see WHERE a week's outflow came from. No delete control:
+                  these are the subcontracts themselves, edited in the job, and
+                  a delete here would only make them come back on reload. */}
+              {committed.scheduled.length > 0 && (
+                <>
+                  <Text style={styles.listNoteStrong}>From your signed subcontracts and POs</Text>
+                  {committed.scheduled.map(row => (
+                    <View key={row.id} style={styles.expenseListRow}>
+                      <View style={styles.expenseListInfo}>
+                        <Text style={styles.expenseListName}>{row.name}</Text>
+                        <Text style={styles.expenseListMeta}>
+                          {EXPENSE_CATEGORIES.find(c => c.value === row.category)?.label} · remaining balance, spread across the job&apos;s schedule
+                        </Text>
+                      </View>
+                      <Text style={styles.expenseListAmount}>{formatCurrency(row.amount)}{freqLabel(row.frequency)}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* We can only suppress a duplicate we can identify by id. These
+                  rows are sub/material money the GC typed himself, and if one
+                  of them IS a commitment now being counted automatically, it is
+                  in the forecast twice. Saying so beats guessing at a name
+                  match and silently deleting real outflow. */}
+              {committed.ambiguousManualCount > 0 && (
+                <Text style={styles.listNote}>
+                  {committed.ambiguousManualCount === 1
+                    ? '1 row above is sub or material money you typed yourself and is flagged in place.'
+                    : `${committed.ambiguousManualCount} rows above are sub or material money you typed yourself and are flagged in place.`}
+                  {' '}We only suppress a duplicate we can match by id, so nothing was removed for you —
+                  a name guess that fired wrongly would delete real money you owe.
+                </Text>
+              )}
+
+              {/* The migration that gave this list a server home stores it as
+                  one jsonb blob per user, so it is last-writer-wins as a WHOLE
+                  LIST, not merged row by row. The GC gets told that rather than
+                  discovering it when an edit disappears — and told the truth
+                  when there is no account to save to, because saveCashFlowData
+                  skips the server write entirely without a user id and this
+                  line would otherwise promise a sync that never happened. */}
+              <Text style={styles.listNote}>
+                {syncsToAccount
+                  ? 'Saved to your account. Edit this list on two devices at once and the last save wins.'
+                  : 'Saved on this device only — sign in to see these expenses on your other devices.'}
+              </Text>
+
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.addItemText}>Add Expense</Text>
@@ -921,6 +1207,13 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {relevantInvoices.filter(i => i.status !== 'paid').length === 0 && (!cashFlowData?.expectedPayments || cashFlowData.expectedPayments.length === 0) && (
                 <Text style={styles.emptyListText}>No income expected. Add invoices or expected payments.</Text>
               )}
+              {/* Same jsonb-blob caveat as the expense list — the expected
+                  payments sync as one list, not row by row. */}
+              <Text style={styles.listNote}>
+                {syncsToAccount
+                  ? 'Expected payments save to your account as one list. Edit them on two devices at once and the last save wins.'
+                  : 'Expected payments are saved on this device only — sign in to see them on your other devices.'}
+              </Text>
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={[styles.addItemText, { color: themeColors.success }]}>Add Expected Payment</Text>
@@ -931,10 +1224,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
         <View style={styles.section}>
           <TouchableOpacity
-            style={styles.aiButton}
+            style={[styles.aiButton, !hasCashMovement && styles.aiButtonDisabled]}
             onPress={handleAIAnalysis}
             activeOpacity={0.85}
-            disabled={aiLoading}
+            disabled={aiLoading || !hasCashMovement}
             testID="ai-analysis-btn"
           >
             {aiLoading ? (
@@ -946,9 +1239,21 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {aiLoading ? 'Analyzing...' : 'Get AI Advice'}
             </Text>
           </TouchableOpacity>
+          {/* A blocked button says why. Without the line it looks broken, and
+              the honest reason is the same one the hero pill gives.
+              "No forecast to analyze", not "nothing to analyze": on the seeded
+              account there IS data — $42K of committed subcontracts and the
+              pending-invoice list both go into the prompt below — it is the
+              twelve weeks that are empty, and that is what the sentence says. */}
+          {!hasCashMovement && (
+            <Text style={styles.aiBlockedNote}>
+              No forecast to analyze yet — the next {forecastWeeks} weeks have no money moving in
+              or out of them.
+            </Text>
+          )}
 
           <TouchableOpacity
-            style={[styles.aiButton, { backgroundColor: themeColors.accent, marginTop: 10 }]}
+            style={[styles.aiButton, { backgroundColor: themeColors.accentFill, marginTop: 10 }]}
             onPress={() => router.push({ pathname: '/payment-predictions' as any, params: projectId ? { projectId } : {} })}
             activeOpacity={0.85}
             testID="payment-forecast-btn"
@@ -957,7 +1262,12 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <Text style={styles.aiButtonText}>Payment Forecast</Text>
           </TouchableOpacity>
 
-          {showAiResults && aiAnalysis && (
+          {/* hasCashMovement, not just showAiResults: the analysis outlives the
+              data it was made from. Delete the last expected payment after
+              running it and the card sat there with its overallHealth and its
+              /100 score — the fabricated verdict, back through a third door,
+              while the hero two screens up said there was nothing to forecast. */}
+          {showAiResults && aiAnalysis && hasCashMovement && (
             <View style={styles.aiResultsCard}>
               <View style={styles.aiResultsHeader}>
                 <MageAIMark size={16} color={themeColors.accent} />
@@ -1058,9 +1368,23 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   onChangeText={setEditBalanceValue}
                   keyboardType="numeric"
                   autoFocus
+                  testID="edit-balance-input"
                 />
               </View>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleUpdateBalance} activeOpacity={0.85}>
+              {!canUpdateBalance && (
+                <Text style={styles.modalBlockedNote} testID="balance-blocked-note">
+                  {unreadable(editBalanceValue, editBalanceParsed)
+                    ? BAD_NUMBER_NOTE
+                    : 'Type the balance as a number. An empty box used to save as $0, which reads on this screen exactly like a real zero.'}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, !canUpdateBalance && styles.modalSaveBtnDisabled]}
+                onPress={handleUpdateBalance}
+                disabled={!canUpdateBalance}
+                activeOpacity={0.85}
+                testID="update-balance-btn"
+              >
                 <Text style={styles.modalSaveBtnText}>Update Balance</Text>
               </TouchableOpacity>
             </View>
@@ -1103,7 +1427,20 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   ))}
                 </View>
               </ScrollView>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAddExpense} activeOpacity={0.85}>
+              {!canAddExpense && (
+                <Text style={styles.modalBlockedNote} testID="add-expense-blocked-note">
+                  {unreadable(newExpenseAmount, newExpenseParsed)
+                    ? BAD_NUMBER_NOTE
+                    : 'A bill needs a name and an amount above $0 — without one it sits in your list adding nothing to any week.'}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, !canAddExpense && styles.modalSaveBtnDisabled]}
+                onPress={handleAddExpense}
+                disabled={!canAddExpense}
+                activeOpacity={0.85}
+                testID="add-expense-btn"
+              >
                 <Plus size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>Add Expense</Text>
               </TouchableOpacity>
@@ -1142,7 +1479,20 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   );
                 })}
               </View>
-              <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: themeColors.success }]} onPress={handleAddPayment} activeOpacity={0.85}>
+              {!canAddPayment && (
+                <Text style={styles.modalBlockedNote} testID="add-payment-blocked-note">
+                  {unreadable(newPaymentAmount, newPaymentParsed)
+                    ? BAD_NUMBER_NOTE
+                    : 'An expected payment needs a description and an amount. A negative one is fine — that is a backcharge against you, and the forecast reads it as money leaving.'}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, { backgroundColor: themeColors.success }, !canAddPayment && styles.modalSaveBtnDisabled]}
+                onPress={handleAddPayment}
+                disabled={!canAddPayment}
+                activeOpacity={0.85}
+                testID="add-payment-btn"
+              >
                 <Plus size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>Add Payment</Text>
               </TouchableOpacity>
@@ -1183,6 +1533,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   heroStatusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, letterSpacing: 0.3 },
   heroDelta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card, backgroundColor: 'rgba(255,255,255,0.15)' },
   heroDeltaText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, letterSpacing: 0.2 },
+  // White at 88% on the accent fill, which is the ground the whole hero card
+  // sits on (the fill is solved for white text — see constants/colors.ts).
+  heroNoSignal: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: 'rgba(255,255,255,0.88)', lineHeight: 18 },
   editBalanceBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: 'rgba(255,255,255,0.2)' },
   editBalanceBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.surface },
   forecastSelector: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
@@ -1218,8 +1571,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   confidenceBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   confidenceBadgeText: { fontSize: 10, fontWeight: '700' as const },
   emptyListText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  // warningLabel, not warning: the vivid signal fill measures ~2:1 as text
+  // (constants/colors.ts documents the split), and this line is text.
+  expenseListWarn: { fontSize: Type.caption2.fontSize, color: themeColors.warningLabel, lineHeight: 15, paddingTop: 3 },
+  listNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 16, paddingTop: 6 },
+  listNoteStrong: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, paddingTop: 8, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 4 },
   addItemText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  chartEmptyCard: { ...cardSurface(themeColors, { radius: 'lg', pad: 16 }), flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
+  chartEmptyText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 },
   // Whole-card fg === bg: a solid `danger` fill with `danger` title/balance text
   // inside it, so the entire "Danger Zone" card rendered as a featureless red
   // block. Its own `danger + '40'` border and `danger + '15'` row rules are the
@@ -1250,6 +1610,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyWeekText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center', paddingVertical: 16 },
   aiButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
   aiButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  // Dimmed, not greyed out to invisibility: the label stays readable so the
+  // note under it explains a button the GC can still read.
+  aiButtonDisabled: { opacity: 0.5 },
+  aiBlockedNote: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, marginTop: 8, lineHeight: 18 },
   aiResultsCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, marginTop: 12, borderWidth: 1, borderColor: themeColors.line, gap: 12 },
   aiResultsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiResultsTitle: { flex: 1, fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
@@ -1288,4 +1652,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   chipTextActive: { color: "#FFFFFF" },
   modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 12 },
   modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  modalSaveBtnDisabled: { opacity: 0.45 },
+  modalBlockedNote: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, marginTop: 10, lineHeight: 18 },
 });

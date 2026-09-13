@@ -17,9 +17,10 @@
 import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { SchedulerProvider, type CpmResult as ContextCpmResult } from './SchedulerContext';
 import { SchedulerMenuBar, type SchedulerActions } from './SchedulerMenuBar';
 import { SchedulerHeader } from './SchedulerHeader';
@@ -98,7 +99,11 @@ export interface SchedulerTabShellProps {
 }
 
 export function SchedulerTabShell(props: SchedulerTabShellProps) {
-  useTheme();
+  // Was a bare `useTheme()` over a module-scope StyleSheet — the shell, the
+  // phone tab bar and the overflow sheet froze their Colors.surface/text/border
+  // at import, so none of the Pro Scheduler chrome followed the theme
+  // (audit 2026-09-07).
+  const styles = useThemedStyles(makeStyles);
   const { bp } = useResponsive();
   const [active, setActive] = useState<SchedulerTabKey>('overview');
 
@@ -147,6 +152,7 @@ interface PhoneTabBarProps {
 }
 
 function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const close = () => setOverflowOpen(false);
@@ -222,6 +228,7 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
 }
 
 function SheetRow({ label, onPress, active }: { label: string; onPress: () => void; active?: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -314,6 +321,13 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
   }
 
   // list, handled in later tasks — generic placeholder for now
+  return <ComingSoonPlaceholder />;
+}
+
+// A component, not JSX inlined into renderTab: renderTab is a plain function
+// with early returns, so it cannot hold the useThemedStyles hook.
+function ComingSoonPlaceholder() {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.comingSoon}>
       <Text style={styles.comingSoonTitle}>Coming soon</Text>
@@ -325,10 +339,11 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
 }
 
 function CalendarPreviewMock() {
+  const { colors: t } = useTheme();
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>
       {Array.from({ length: 21 }).map((_, i) => (
-        <View key={i} style={{ width: 30, height: 30, backgroundColor: Colors.surface, borderRadius: 4 }}>
+        <View key={i} style={{ width: 30, height: 30, backgroundColor: t.surface, borderRadius: 4 }}>
           {(i % 5 === 0 || i % 7 === 0) && (
             <View style={{ position: 'absolute', bottom: 2, left: 2, width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.tradeColors.general }} />
           )}
@@ -338,7 +353,7 @@ function CalendarPreviewMock() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // The single flex:1 column wrapper around the tab-bar + header + body.
   // Without this, SchedulerProvider (a pure Context.Provider with no View
   // of its own) leaks its 3 children as direct siblings of whatever flex-row
@@ -354,12 +369,12 @@ const styles = StyleSheet.create({
   },
   comingSoonTitle: {
     fontSize: Type.subheadline.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '700',
   },
   comingSoonSub: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 8,
     textAlign: 'center',
     maxWidth: 280,
@@ -371,18 +386,18 @@ const styles = StyleSheet.create({
   bottomTabBar: {
     flexDirection: 'row',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
+    borderTopColor: t.line,
     paddingVertical: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   bottomTab: { flex: 1, alignItems: 'center', paddingVertical: 4, gap: 2 },
-  bottomTabIcon: { fontSize: 17, color: Colors.textSecondary },
-  bottomTabLabel: { fontSize: 8, color: Colors.textSecondary, fontWeight: '600' },
+  bottomTabIcon: { fontSize: 17, color: t.textSecondary },
+  bottomTabLabel: { fontSize: 8, color: t.textSecondary, fontWeight: '600' },
   bottomTabActive: { color: Colors.tradeColors.general },
   overflowBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   // paddingBottom is set inline via useSafeAreaInsets() in PhoneTabBar.
   overflowSheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     padding: 16,
@@ -392,18 +407,23 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
     marginBottom: 12,
   },
   overflowItem: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(31,37,45,0.6)',
+    // Same fixed `rgba(31,37,45,0.6)` as ExportSheet/DashboardTab — a 60%
+    // achromatic rule reads as a grey bar between every row of the phone
+    // overflow sheet (ground `t.surface`, white in light) and disappears
+    // entirely in dark. `t.line` is the separator identity in both
+    // (review 2026-09-07).
+    borderBottomColor: t.line,
   },
-  overflowText: { color: Colors.text, fontSize: 14, fontWeight: '500' },
+  overflowText: { color: t.text, fontSize: 14, fontWeight: '500' },
   overflowGroup: {
     ...Type.caption2,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginTop: 14,

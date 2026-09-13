@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0B0D10" />
+<meta name="robots" content="noindex" />
+<title>Invitation to Bid — MAGE ID</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<style>
+  /* Same ink / amber / cream system as /portal and /sub-portal — this page is
+     the third door a person with no MAGE account walks through, and it should
+     look like it belongs to the same company as the other two. */
+  :root {
+    --ink: #0B0D10; --ink-2: #1A1D22; --amber: #FF6A1A; --amber-dark: #E5570F;
+    --amber-tint: #FFF1E6; --cream: #F4EFE6; --cream-2: #FAF7F0;
+    --surface: #FFFFFF; --bone: #E8DFCD; --bone-2: #F1EAD9;
+    --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
+    --success: #1E8E4A; --success-tint: #E8F5ED;
+    --warning: #C26A00; --warning-tint: #FFF4E0;
+    --error: #C0392B; --error-tint: #FBEAE7;
+    --shadow-sm: 0 1px 2px rgba(11,13,16,0.04), 0 1px 3px rgba(11,13,16,0.06);
+    --shadow-md: 0 4px 12px rgba(11,13,16,0.06), 0 2px 4px rgba(11,13,16,0.04);
+    --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
+    --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
+    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: var(--ff-sans);
+    background: var(--cream); color: var(--text);
+    line-height: 1.55; font-size: 15px; min-height: 100vh;
+  }
+  .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+
+  .hero { background: var(--ink); color: #fff; padding: 26px 20px 56px; position: relative; overflow: hidden; }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(760px 420px at 92% -20%, rgba(255,106,26,0.22), transparent 62%);
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; }
+  .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 10px; background: var(--amber); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px;
+  }
+  .brand-name { font-weight: 600; letter-spacing: 0.02em; font-size: 14px; opacity: 0.85; }
+  .hero-eyebrow {
+    text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px;
+    font-weight: 700; color: var(--amber); margin-bottom: 10px;
+  }
+  .hero h1 { font-family: var(--ff-serif); font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+  .hero h1 em { font-style: italic; color: var(--amber); }
+  .hero-meta { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600;
+  }
+
+  .container { max-width: 720px; margin: -36px auto 0; padding: 0 20px 56px; position: relative; z-index: 2; }
+  .card {
+    background: var(--surface); border: 1px solid var(--bone-2);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+    padding: 22px; margin-bottom: 16px;
+  }
+  .card h2 { font-family: var(--ff-serif); font-size: 19px; font-weight: 700; margin-bottom: 6px; }
+  .card .sub { color: var(--text-2); font-size: 13.5px; margin-bottom: 16px; }
+  .scope-body { white-space: pre-wrap; color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
+  .scope-empty { color: var(--text-muted); font-style: italic; font-size: 14px; }
+
+  .field { margin-bottom: 16px; }
+  .label { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-2); margin-bottom: 6px; }
+  .hint { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
+  input[type="text"], textarea {
+    width: 100%; padding: 13px 14px; font-family: inherit; font-size: 15px;
+    color: var(--text); background: var(--cream-2);
+    border: 1px solid var(--bone); border-radius: var(--radius-md); outline: none;
+  }
+  input[type="text"]:focus, textarea:focus { border-color: var(--amber); background: #fff; }
+  textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
+  .amount-wrap { position: relative; }
+  .amount-wrap .dollar {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    font-family: var(--ff-mono); font-size: 17px; color: var(--text-muted);
+  }
+  .amount-wrap input { padding-left: 30px; font-family: var(--ff-mono); font-size: 19px; font-weight: 500; }
+
+  .btn {
+    width: 100%; padding: 15px; border: none; border-radius: var(--radius-md);
+    background: var(--amber); color: #fff; font-family: inherit;
+    font-size: 15.5px; font-weight: 700; cursor: pointer;
+  }
+  .btn:hover { background: var(--amber-dark); }
+  .btn[disabled] { opacity: 0.55; cursor: default; }
+  .form-status { min-height: 20px; margin-bottom: 12px; font-size: 13.5px; font-weight: 600; color: var(--error); }
+
+  .state-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .state-card {
+    background: var(--surface); max-width: 460px; width: 100%; text-align: center;
+    border: 1px solid var(--bone-2); border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg); padding: 40px 30px;
+  }
+  .state-badge {
+    width: 58px; height: 58px; border-radius: 16px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 26px; margin-bottom: 18px;
+  }
+  .badge-error { background: var(--error-tint); color: var(--error); }
+  .badge-ok { background: var(--success-tint); color: var(--success); }
+  .badge-wait { background: var(--warning-tint); color: var(--warning); }
+  .state-card h1 { font-family: var(--ff-serif); font-size: 23px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; }
+  .state-card p { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
+  .state-card p + p { margin-top: 12px; }
+
+  .footer { text-align: center; color: var(--text-muted); font-size: 12.5px; padding: 8px 0 0; }
+  .footer a { color: var(--text-2); }
+  @media (max-width: 520px) { .hero h1 { font-size: 25px; } .card { padding: 18px; } }
+</style>
+</head>
+<body>
+
+<div id="root">
+  <div class="state-wrap" id="boot">
+    <div class="state-card">
+      <div class="state-badge badge-wait">…</div>
+      <h1>Opening your invitation</h1>
+      <p>One moment.</p>
+    </div>
+  </div>
+</div>
+
+<!-- The whole page is script. Without this a sub whose browser has JavaScript
+     off sits on "Opening your invitation" forever and concludes the link is
+     broken — which is the one thing every failure here already looks like. -->
+<noscript>
+  <div class="state-wrap">
+    <div class="state-card">
+      <div class="state-badge badge-error">!</div>
+      <h1>This page needs JavaScript</h1>
+      <p>Your browser has JavaScript turned off, so the invitation can't load. Open the same link in Safari or Chrome and it will work.</p>
+      <p>If you'd rather not, just email your price, what it includes and what it excludes straight back to the contractor — they can enter it on their side.</p>
+    </div>
+  </div>
+</noscript>
+
+<script>
+(function () {
+  'use strict';
+
+  // Invitation to bid — the sub's half.
+  //
+  // The person reading this has no MAGE account and will never make one. All
+  // they hold is a random token in the URL, which two SECURITY DEFINER RPCs
+  // trade for exactly two things: the scope of one package, and one insert of
+  // one bid. See supabase/migrations/20260908120000_bid_package_invites.sql.
+  //
+  // bid_invite_get deliberately does NOT return the GC's estimate budget, and
+  // nothing on this page may go looking for it: handing his own number to the
+  // people bidding against it would anchor every bid just under it. Every read
+  // of the RPC result goes through the single SCOPE variable below so that
+  // scripts/validate-bid-invite.ts can check, field by field, that this page
+  // only reads what the contract actually returns.
+
+  var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
+  // Public by design: the anon key is a client key. The security here is the
+  // token plus the two definer functions, never the secrecy of this string.
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+
+  var root = document.getElementById('root');
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function getToken() {
+    try { return new URLSearchParams(window.location.search).get('t') || ''; }
+    catch (e) { return ''; }
+  }
+
+  // PostgREST turns `raise exception 'bid_invite_denied'` into a 400 whose body
+  // is {"code":"P0001",…,"message":"bid_invite_denied"}. We keep that word only
+  // to choose a sentence — it is never shown to the bidder, who cannot act on
+  // "P0001" and should not have to.
+  function rpc(fn, args) {
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(args || {})
+    }).then(function (r) {
+      return r.text().then(function (text) {
+        if (!r.ok) {
+          var sentinel = '';
+          try { sentinel = String((JSON.parse(text) || {}).message || ''); } catch (e) { sentinel = ''; }
+          console.error('[bid-invite] ' + fn + ' failed', r.status, text);
+          var err = new Error('rpc_failed');
+          err.sentinel = sentinel;
+          throw err;
+        }
+        return text ? JSON.parse(text) : null;
+      });
+    });
+  }
+
+  // ── The states a person can land in, each with something they can do ──────
+  function showState(kind, title, paras) {
+    var badge = kind === 'ok' ? 'badge-ok' : kind === 'wait' ? 'badge-wait' : 'badge-error';
+    var glyph = kind === 'ok' ? '✓' : kind === 'wait' ? '•' : '!';
+    root.innerHTML =
+      '<div class="state-wrap"><div class="state-card">' +
+        '<div class="state-badge ' + badge + '">' + glyph + '</div>' +
+        '<h1>' + esc(title) + '</h1>' +
+        paras.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
+        '<p class="footer" style="margin-top:22px">Sent with <a href="https://mageid.app">MAGE ID</a></p>' +
+      '</div></div>';
+  }
+
+  var DEAD_LINK = [
+    'Bid links stop working 30 days after they go out, and a contractor can withdraw one at any time.',
+    'Ask them to send a fresh link — it takes them one tap. Nothing you typed here was lost on their end, because nothing was sent.'
+  ];
+
+  function showDeadLink() {
+    showState('error', 'This invitation is no longer open', DEAD_LINK);
+  }
+
+  function showAlreadyIn(extra) {
+    showState('ok', 'Your bid is already in', [
+      extra || 'You have already sent your number for this package, and the contractor has it.',
+      'This link files one bid and one only. If a number has moved, call them — they can update it on their side.'
+    ]);
+  }
+
+  function showUnreachable() {
+    showState('error', 'We could not reach the server', [
+      'Nothing was sent. Check your signal and open the link again — your bid has not gone anywhere.'
+    ]);
+  }
+
+  // ── The invitation itself ────────────────────────────────────────────────
+  // SCOPE holds exactly what bid_invite_get returned, and every field read
+  // below is a `SCOPE.<name>` on a key that function builds. Nothing else about
+  // the package, the project or the GC is available here, on purpose.
+  var SCOPE = null;
+  var TOKEN = getToken();
+
+  function money(n) {
+    if (n == null || isNaN(n)) return '$0';
+    return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function parseAmount(el) {
+    var raw = String(el.value || '').replace(/[^0-9.]/g, '');
+    var n = parseFloat(raw);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function renderInvite() {
+    var greeting = SCOPE.sub_name
+      ? 'Hi ' + SCOPE.sub_name + ' — you are invited to bid'
+      : 'You are invited to bid';
+    var chips = [];
+    if (SCOPE.csi_division) chips.push('CSI ' + SCOPE.csi_division);
+    if (SCOPE.phase) chips.push(SCOPE.phase);
+    if (SCOPE.project_name) chips.push(SCOPE.project_name);
+
+    root.innerHTML =
+      '<header class="hero"><div class="hero-inner">' +
+        '<div class="brand-row"><div class="brand-mark">M</div><span class="brand-name">MAGE ID</span></div>' +
+        '<div class="hero-eyebrow">Invitation to bid</div>' +
+        '<h1>' + esc(greeting) + ' on <em>' + esc(SCOPE.package_name || 'this package') + '</em></h1>' +
+        '<div class="hero-meta">' + chips.map(function (c) { return '<span class="chip">' + esc(c) + '</span>'; }).join('') + '</div>' +
+      '</div></header>' +
+
+      '<main class="container">' +
+        '<section class="card">' +
+          '<h2>The scope</h2>' +
+          '<div class="sub">This is what the contractor is asking you to price.</div>' +
+          (SCOPE.scope_description
+            ? '<div class="scope-body">' + esc(SCOPE.scope_description) + '</div>'
+            : '<div class="scope-empty">The contractor did not write out a scope for this package. Call them before you price it — do not guess.</div>') +
+        '</section>' +
+
+        '<section class="card">' +
+          '<h2>Your bid</h2>' +
+          '<div class="sub">Goes straight to the contractor. No account, no password, nothing to install.</div>' +
+
+          '<div class="field">' +
+            '<div class="label">Your company</div>' +
+            '<input id="f-vendor" type="text" placeholder="e.g. Ace Mechanical" />' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<div class="label">Your price for this scope</div>' +
+            '<div class="amount-wrap"><span class="dollar">$</span>' +
+            '<input id="f-amount" type="text" inputmode="decimal" placeholder="0" /></div>' +
+            '<div class="hint">Your total to the contractor for the scope above.</div>' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<div class="label">What your price includes</div>' +
+            '<textarea id="f-includes" placeholder="Materials, labor, permits, cleanup — whatever is covered."></textarea>' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<div class="label">What it excludes</div>' +
+            '<textarea id="f-excludes" placeholder="Fixtures by owner, dump fees, patching…"></textarea>' +
+            '<div class="hint">Worth spelling out. The contractor compares bids after adding back what each one leaves out, so a clear exclusion protects your number instead of costing you the job.</div>' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<div class="label">Terms</div>' +
+            '<input id="f-terms" type="text" placeholder="Net 30, 10% deposit, can start 4/15…" />' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<div class="label">Anything else</div>' +
+            '<textarea id="f-notes" placeholder="Lead times, alternates, questions."></textarea>' +
+          '</div>' +
+
+          '<div class="form-status" id="form-status"></div>' +
+          '<button class="btn" id="submit-btn" type="button">Send my bid</button>' +
+          '<div class="hint" style="text-align:center;margin-top:10px">This link is yours — anyone who has it can file a bid under your name, so please don\'t forward it.</div>' +
+        '</section>' +
+
+        '<div class="footer">Sent with <a href="https://mageid.app">MAGE ID</a></div>' +
+      '</main>';
+
+    if (SCOPE.sub_name) document.getElementById('f-vendor').value = SCOPE.sub_name;
+
+    // Thousands separators as they type — a mis-read $48000 vs $4800 is the
+    // kind of thing that gets argued about after award.
+    var amountEl = document.getElementById('f-amount');
+    amountEl.addEventListener('input', function () {
+      var raw = amountEl.value.replace(/[^0-9.]/g, '');
+      if (!raw) { amountEl.value = ''; return; }
+      var parts = raw.split('.');
+      var head = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      amountEl.value = parts.length > 1 ? head + '.' + parts[1].slice(0, 2) : head;
+    });
+
+    document.getElementById('submit-btn').addEventListener('click', submitBid);
+  }
+
+  function submitBid() {
+    var statusEl = document.getElementById('form-status');
+    var btn = document.getElementById('submit-btn');
+    var vendor = (document.getElementById('f-vendor').value || '').trim();
+    var amount = parseAmount(document.getElementById('f-amount'));
+
+    if (!vendor) {
+      statusEl.textContent = 'Put your company name on it so the contractor knows whose bid this is.';
+      return;
+    }
+    // The same bound bid_invite_submit enforces (0 < amount < 1e9), checked
+    // here so a fat-fingered amount comes back as a sentence instead of as the
+    // RPC's blanket "this invitation is no longer open".
+    if (!(amount > 0)) {
+      statusEl.textContent = 'Enter your price for this scope.';
+      return;
+    }
+    if (amount >= 1000000000) {
+      statusEl.textContent = 'That amount is too large to file — check the number.';
+      return;
+    }
+
+    statusEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    // `amount` is the sub's PRICE for this scope, which on the contractor's
+    // side is a COST — it lands in bid_package_bids.amount, which the levelling
+    // matrix compares against the other subs' costs, never against revenue.
+    rpc('bid_invite_submit', {
+      p_token: TOKEN,
+      p_vendor_name: vendor,
+      p_amount: amount,
+      p_includes: (document.getElementById('f-includes').value || '').trim(),
+      p_excludes: (document.getElementById('f-excludes').value || '').trim(),
+      p_terms: (document.getElementById('f-terms').value || '').trim(),
+      p_notes: (document.getElementById('f-notes').value || '').trim()
+    }).then(function (res) {
+      if (!res || res.ok !== true) throw new Error('rpc_failed');
+      showState('ok', 'Your bid is in', [
+        vendor + ' — ' + money(amount) + ' for ' + (SCOPE.package_name || 'this package') + '.',
+        'The contractor has it now, alongside the other bids on this package. If a number changes, call them: this link files one bid and is now closed.'
+      ]);
+    }).catch(function (err) {
+      var sentinel = err && err.sentinel;
+      if (sentinel === 'bid_invite_already_submitted') {
+        showAlreadyIn('A bid was already filed through this link, so this one was not sent.');
+        return;
+      }
+      if (sentinel === 'bid_invite_denied') {
+        showDeadLink();
+        return;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Send my bid';
+      statusEl.textContent = 'That did not send. Nothing was filed — try once more, and if it still fails, email your bid to the contractor directly.';
+    });
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+  if (!TOKEN) {
+    showState('error', 'This link is missing its invitation code', [
+      'Open the link straight from the contractor\'s email or text rather than retyping it — the code is the long part at the end.',
+      'If it still will not open, ask them to resend it.'
+    ]);
+    return;
+  }
+
+  rpc('bid_invite_get', { p_token: TOKEN })
+    .then(function (data) {
+      SCOPE = data;
+      if (!SCOPE || SCOPE.ok !== true) { showDeadLink(); return; }
+      if (SCOPE.already_responded === true || SCOPE.status === 'submitted') { showAlreadyIn(null); return; }
+      renderInvite();
+    })
+    .catch(function (err) {
+      if (err && err.sentinel === 'bid_invite_denied') { showDeadLink(); return; }
+      showUnreachable();
+    });
+})();
+</script>
+</body>
+</html>

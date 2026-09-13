@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Image,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Camera, Check } from 'lucide-react-native';
+import { Camera, Check, AlertTriangle } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -35,6 +35,7 @@ export default React.memo(function AIDFRFromPhotos({
   const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(photos.slice(0, 12).map(p => p.id)));
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const sortedPhotos = useMemo(() =>
     [...photos].sort((a, b) => {
@@ -65,6 +66,7 @@ export default React.memo(function AIDFRFromPhotos({
     if (loading) return;
     if (isLocked) { onLockedPress?.(); return; }
     if (selectedPhotos.length === 0) return;
+    setError(null);
     setLoading(true);
     if (Platform_isMobile()) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -72,7 +74,12 @@ export default React.memo(function AIDFRFromPhotos({
       if (Platform_isMobile()) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onGenerated(partial, selectedPhotos.map(p => p.id));
     } catch (err) {
+      // Name the failure. This catch was console-only: the super taps
+      // "Generate from 6 photos" at 4pm on site, the button spins, goes back to
+      // normal, and the narrative stays blank — no way to tell a dropped signal
+      // from a tier cap from a dead feature (audit 2026-09-07, ai-features).
       console.warn('[AIDFRFromPhotos] generation failed', err);
+      setError(`Couldn't draft from those photos. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
     } finally {
       setLoading(false);
     }
@@ -129,6 +136,13 @@ export default React.memo(function AIDFRFromPhotos({
         })}
       </ScrollView>
 
+      {error ? (
+        <View style={styles.errorRow}>
+          <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
       <TouchableOpacity
         style={[styles.btn, (loading || selected.size === 0) && styles.btnDisabled]}
         onPress={handleGenerate}
@@ -143,7 +157,9 @@ export default React.memo(function AIDFRFromPhotos({
         <Text style={styles.btnText}>
           {loading
             ? 'Drafting from photos…'
-            : `Generate from ${selected.size} photo${selected.size === 1 ? '' : 's'}`}
+            : error
+              ? 'Try again'
+              : `Generate from ${selected.size} photo${selected.size === 1 ? '' : 's'}`}
         </Text>
       </TouchableOpacity>
     </View>
@@ -151,8 +167,13 @@ export default React.memo(function AIDFRFromPhotos({
 });
 
 function Platform_isMobile() {
-  const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
+  // NOT a component. The theme migration dropped a `useTheme()` +
+  // `useThemedStyles()` pair in here alongside every other file's, and this
+  // function is called from event handlers (togglePhoto, handleGenerate) —
+  // so `useMemo` ran with a null dispatcher and every photo tap and every
+  // Generate press threw "Invalid hook call" BEFORE reaching the try below.
+  // The two calls were never read here. Removed 2026-09-07.
+  //
   // Tiny shim to avoid pulling Platform from RN here
   // — Haptics is a no-op on web so it's safe to always call,
   // but skipping avoids a console warning on RN Web.
@@ -207,4 +228,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   btnDisabled: { opacity: 0.5 },
   btnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    // dangerSoft/dangerLabel, not the static Colors.errorLight: that tint is a
+    // baked LIGHT value while the ink themes, so in dark mode the pair drew
+    // #FF5A51 on pale pink at 2.78:1 (constants/colors.ts).
+    backgroundColor: t.dangerSoft,
+    borderRadius: Tokens.radius.md,
+    padding: 10,
+    marginTop: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Type.caption1.fontSize,
+    color: t.dangerLabel,
+    fontWeight: '500',
+    lineHeight: 17,
+  },
 });

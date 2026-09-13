@@ -113,11 +113,11 @@ function EstimateCalibrationInner() {
         <EmptyState
           icon={<SlidersHorizontal size={36} color={t.accent} strokeWidth={1.6} />}
           title="No measured jobs yet"
-          message="Calibration compounds bid-vs-actual truth across jobs into a per-category correction. To light it up:"
+          message="Calibration compounds bid-vs-actual truth across FINISHED jobs into a per-category correction. A job still running only tells you how far through it you are, so it is deliberately left out. To light it up:"
           steps={[
             'Build estimates with cost and markup on your projects.',
             'Award buyout so commitments link back to estimate lines.',
-            'Record sub payments — once actuals exist, bias appears here.',
+            'Close the job, and settle the subs — a deposit is not a cost.',
           ]}
           actionLabel="Open Projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}

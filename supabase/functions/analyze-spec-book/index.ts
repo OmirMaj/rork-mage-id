@@ -27,6 +27,9 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
+import {
+  loadPlanSheetImageParts, selectPageSource, PlanSheetAccessError,
+} from "../_shared/planSheetBytes.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 
@@ -82,7 +85,10 @@ function jsonResponse(body: unknown, status = 200): Response {
 type SpecTask = 'codes' | 'submittals';
 
 interface SpecRequest {
-  pageUrls: string[];
+  /** PREFERRED: `plan-sheets` storage paths, read with the service role. */
+  pagePaths?: string[];
+  /** DEPRECATED, one release (DB-F11). */
+  pageUrls?: string[];
   /** Which task to run. Default is 'codes' for backward compatibility
    *  with the takeoff → spec-match pipeline. */
   task?: SpecTask;
@@ -294,14 +300,30 @@ function validate(raw: Record<string, unknown>, task: SpecTask): Record<string, 
   return task === 'submittals' ? validateSubmittals(raw) : validateCodes(raw);
 }
 
-async function callGemini(req: SpecRequest): Promise<{ data: unknown; modelUsed: ModelKey }> {
+/**
+ * The images for this request, in page order.
+ *
+ * PATHS WIN (DB-F11). A request carrying both — what the post-fix client sends,
+ * so the OTA is safe whichever order the function deploy and the OTA happen in —
+ * is served entirely from storage and never fetches a URL at all.
+ *
+ * Delete the `pageUrls` arm (and the field) one release after this ships.
+ */
+async function pageImageParts(
+  req: SpecRequest,
+  userId: string,
+): Promise<{ inlineData: { mimeType: string; data: string } }[]> {
+  const { kind, values } = selectPageSource(req, 24);
+  if (kind === 'paths') return await loadPlanSheetImageParts(values, userId, MAX_PAGE_BYTES);
+  return await Promise.all(values.map(urlToInlineImagePart));
+}
+
+async function callGemini(req: SpecRequest, userId: string): Promise<{ data: unknown; modelUsed: ModelKey }> {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured.');
-  if (!req.pageUrls || req.pageUrls.length === 0) throw new Error('No page URLs provided.');
-  if (req.pageUrls.length > 24) throw new Error('Maximum 24 spec pages per request.');
 
   const requested = req.model ?? DEFAULT_MODEL;
   const modelUsed: ModelKey = ALLOWED_MODELS.includes(requested) ? requested : DEFAULT_MODEL;
-  const imageParts = await Promise.all(req.pageUrls.map(urlToInlineImagePart));
+  const imageParts = await pageImageParts(req, userId);
   const maxOutputTokens = modelUsed === 'gemini-2.5-pro' ? 32000 : 16000;
 
   const body = {
@@ -349,8 +371,12 @@ serve(async (req) => {
 
   try {
     const body = await req.json() as SpecRequest;
-    if (!body || !Array.isArray(body.pageUrls)) {
-      return jsonResponse({ success: false, error: 'Missing pageUrls' }, 400);
+    // Either input is acceptable for one release; `pagePaths` is preferred and
+    // wins when both are present (DB-F11).
+    const hasPaths = Array.isArray(body?.pagePaths) && body.pagePaths.length > 0;
+    const hasUrls = Array.isArray(body?.pageUrls) && body.pageUrls.length > 0;
+    if (!body || (!hasPaths && !hasUrls)) {
+      return jsonResponse({ success: false, error: 'Missing pagePaths' }, 400);
     }
     if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
       body.model = 'gemini-2.5-flash';
@@ -380,10 +406,15 @@ serve(async (req) => {
       }, 429);
     }
 
-    const { data, modelUsed } = await callGemini(body);
+    const { data, modelUsed } = await callGemini(body, auth.userId);
     const newUsed = await aiUsageIncrement(auth.userId, 'analyze_drawings');
     return jsonResponse({ success: true, data, modelUsed, usage: { used: newUsed, cap } });
   } catch (e) {
+    if (e instanceof PlanSheetAccessError) {
+      // Generic and 403 — never say whether the path was malformed or simply
+      // someone else's project (DB-F11).
+      return jsonResponse({ success: false, error: 'One or more plan sheets are not available on this account.' }, 403);
+    }
     if (e instanceof UrlValidationError) {
       // Generic — never echo the offending URL or an upstream status.
       return jsonResponse({ success: false, error: 'One or more image URLs are not allowed.' }, 400);

@@ -130,12 +130,25 @@ function project(items: { category: string; lineTotal: number }[]): Project {
   } as unknown as Project;
 }
 
-/** A fully paid invoice whose lines trace to no estimate item. */
+/** A fully paid invoice whose lines trace to no estimate item. Client money
+ *  IN — kept as a fixture precisely because it must move nothing (MONEY-DEF-1,
+ *  audit 2026-09-07); the actual-cost definition itself is pinned in
+ *  scripts/validate-money-definitions.ts. */
 function paidInvoice(amount: number, sourceEstimateItemId?: string): Invoice {
   return {
     id: 'inv1', projectId: 'p1', amountPaid: amount,
     lineItems: [{ id: 'l1', description: 'Progress billing', total: amount, sourceEstimateItemId }],
   } as unknown as Invoice;
+}
+
+/** A sub paid in full on a phase the estimate never priced — the Henderson
+ *  $49K, told with the correct money definition: cost paid OUT, not client
+ *  cash in. No phase, so it lands in '(Uncategorized)' exactly as before. */
+function paidCommitment(amount: number, phase?: string): Commitment {
+  return {
+    id: 'c-paid', projectId: 'p1', status: 'active', type: 'subcontract',
+    amount, paidToDate: amount, phase,
+  } as unknown as Commitment;
 }
 
 function commitment(amount: number, phase?: string): Commitment {
@@ -147,8 +160,8 @@ function commitment(amount: number, phase?: string): Commitment {
 
 const HENDERSON = computeJobCost({
   project: project([{ category: 'Framing', lineTotal: 30_000 }, { category: 'Electrical', lineTotal: 18_000 }]),
-  commitments: [],
-  invoices: [paidInvoice(49_000)],
+  commitments: [paidCommitment(49_000)],
+  invoices: [paidInvoice(49_000)],   // revenue — must not move a single number
   changeOrders: [],
 });
 
@@ -157,12 +170,29 @@ const HENDERSON = computeJobCost({
 console.log('\nsign convention (asserted directly against jobCostEngine):');
 expect('Henderson budget is $48K', HENDERSON.budget, 48_000);
 expect('Henderson actual is $49K', HENDERSON.actual, 49_000);
-expect('Henderson EAC is $97K (paid + uncommitted budget floor)', HENDERSON.projectedFinal, 97_000);
+// THE HENDERSON NUMBER MOVED, DELIBERATELY (JOBCOST-PHASE-1, audit 2026-09-11).
+//
+// This commitment carries no phase, so it buckets to '(Uncategorized)' and the
+// engine cannot join it to the $48,000 of estimated scope. It used to be
+// charged ON TOP of the whole budget — EAC $97,000, "$49K over" — which is the
+// fabricated-overrun defect in its purest form: the same $49,000 counted as a
+// payment AND as budget still to be bought out. The 2026-09-07 audit's own
+// remedy (F1) is what runs now: at project level the EAC is
+// max(estimate, committed, incurred) in effect, so a $49,000 payment against a
+// $48,000 budget is a job that has finished $1,000 over, not $49,000 over.
+//
+// What this file exists to protect is UNCHANGED and still asserted below: the
+// sign. Over is POSITIVE, it is painted danger, and the banner says "over
+// budget" — the 2026-08-17 web audit found the screen saying "$49K UNDER
+// budget" on this exact fixture, and it still cannot.
+expect('Henderson EAC is what the job has actually cost, not cost + a budget it already bought out',
+  HENDERSON.projectedFinal, 49_000);
 expect('variance === projectedFinal - budget', HENDERSON.variance, HENDERSON.projectedFinal - HENDERSON.budget);
 ok('an OVER-budget project produces a POSITIVE variance',
   HENDERSON.variance > 0,
   `variance = ${HENDERSON.variance}; positive must mean OVER`);
-expect('Henderson is $49K over', HENDERSON.variance, 49_000);
+expect('Henderson is $1K over — a real overrun, not the whole payment counted twice',
+  HENDERSON.variance, 1_000);
 
 {
   // The exact case the old header comment claimed "shows up negative":
@@ -240,9 +270,9 @@ console.log('\ndescribeVariance (the pure display mapping the screen renders):')
 {
   // The regression as the user saw it, end to end.
   const d = describeVariance(HENDERSON.variance);
-  expect('Henderson KPI reads "Over by $49K"', `${d.label} ${formatMoney(d.amount)}`, 'Over by $49K');
+  expect('Henderson KPI reads "Over by $1.0K"', `${d.label} ${formatMoney(d.amount)}`, 'Over by $1.0K');
   ok('Henderson banner reports the overrun',
-    /over budget/i.test(d.banner) && /\$49K/.test(d.banner), d.banner);
+    /over budget/i.test(d.banner) && /\$1\.0K/.test(d.banner), d.banner);
   expect('Henderson KPI is painted danger, not success', d.colorKey, 'danger');
 }
 

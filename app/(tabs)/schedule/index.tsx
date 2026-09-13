@@ -58,7 +58,6 @@ import {
   formatShortDate,
   getTaskDateRange,
   getStatusLabel,
-  getStatusColor,
   getTaskBorderColor,
   suggestDuration,
   buildScheduleFromTasks,
@@ -73,13 +72,14 @@ import TodayView from '@/components/schedule/TodayView';
 import LookaheadView from '@/components/schedule/LookaheadView';
 import VerticalGantt from '@/components/schedule/VerticalGantt';
 import { MobileScheduleScreen } from '@/components/schedule/mobile/MobileScheduleScreen';
+import { StartDayBasisNotice } from '@/components/schedule/StartDayBasisNotice';
 import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
 import { getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
 import { parseCalendarDay, toCalendarDayString, todayCalendarDay } from '@/utils/calendarDate';
 import {
-  resolveScheduleAnchor,
+  resolveScheduleAnchor, startDayNumberFor,
   UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_PREVIEW_NOTE, UNDATED_SCHEDULE_TITLE,
 } from '@/utils/scheduleOps';
 import {
@@ -91,16 +91,17 @@ import AIScheduleRisk from '@/components/AIScheduleRisk';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface, taskStatusInk, labelOn } from '@/components/ui';
 import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { runCpm } from '@/utils/cpm';
-import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
+import { runCpm, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch } from '@/utils/cpm';
 import { showAlert } from '@/utils/alert';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
@@ -181,6 +182,21 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const desktopStyles = useThemedStyles(makeDesktopStyles);
+  // useMemo, not a bare call: renderTaskCard below is a useCallback that closes
+  // over this, and a fresh object every render would either go stale (left out
+  // of the deps) or defeat the memo (put in them). themeColors is itself
+  // memoised by ThemeContext, so this changes only when the theme does.
+  const statusInk = useMemo(() => taskStatusInk(themeColors), [themeColors]);
+  // TOTAL, the way `getStatusColor` was. That function had a `default:` arm;
+  // a Record lookup does not, and `task.status` is only required by the type —
+  // TaskInspector still reads `task.status ?? 'not_started'`, and a schedule
+  // persisted before the field existed hydrates without it. `undefined + '14'`
+  // is the string "undefined14", which RN's normalizeColor rejects: an
+  // invisible status chip and a colourless progress bar rather than a grey one.
+  const inkFor = useCallback(
+    (s: ScheduleTask['status'] | undefined) => statusInk[s ?? 'not_started'] ?? statusInk.not_started,
+    [statusInk],
+  );
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
 
@@ -303,11 +319,30 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     return new Date(base.getFullYear(), base.getMonth(), base.getDate(), 12, 0, 0, 0);
   }, [scheduleAnchor]);
 
+  /** True when a picked date falls before Day 1 of the schedule. */
+  const beforeProjectStart = useCallback((picked: Date): boolean => {
+    const a = new Date(picked.getFullYear(), picked.getMonth(), picked.getDate()).getTime();
+    const b = new Date(
+      projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate(),
+    ).getTime();
+    return a < b;
+  }, [projectStartDate]);
+
   /**
    * Convert an ISO datetime string (noon UTC, from DatePickerModal) to a
-   * 1-indexed startDay offset from projectStartDate. Returns null for invalid
-   * input. Clears dependencies when an explicit date is set, matching the
-   * existing startDateOverride behaviour in handleSaveTask.
+   * 1-indexed startDay — a WORKING ORDINAL, see "THE TWO DAY-NUMBER SCALES" in
+   * utils/cpm.ts. Returns null for invalid input or a date before Day 1.
+   * Clears dependencies when an explicit date is set, matching the existing
+   * startDateOverride behaviour in handleSaveTask.
+   *
+   * This used to divide the raw millisecond gap, which is a CALENDAR offset.
+   * The engine reads `startDay` as a working ordinal and expands it across
+   * weekends, so a calendar offset scheduled the task LATER than the day the
+   * user picked, and the error grew with distance from the project start:
+   * measured on a 5-day week from Mon 2026-03-02, picking Mon Mar 16 stored 15
+   * and the engine planned Fri Mar 20. `startDayNumberFor` is the shared helper
+   * GridPane's date cell already uses (and it pushes a weekend pick forward to
+   * the next working day rather than rolling it back to Friday).
    */
   const isoToStartDay = useCallback((iso: string): number | null => {
     if (!iso) return null;
@@ -316,11 +351,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (!scheduleAnchor.dated) return null;
     const picked = new Date(iso);
     if (Number.isNaN(picked.getTime())) return null;
-    const ms = picked.getTime() - projectStartDate.getTime();
-    const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
-    if (dayOffset < 1) return null;
-    return dayOffset;
-  }, [projectStartDate, scheduleAnchor.dated]);
+    if (beforeProjectStart(picked)) return null;
+    return startDayNumberFor(
+      projectStartDate, picked,
+      activeSchedule?.workingDaysPerWeek ?? 5,
+      activeSchedule?.nonWorkingDates,
+    );
+  }, [projectStartDate, scheduleAnchor.dated, beforeProjectStart, activeSchedule]);
 
   /**
    * When a What-If scenario is selected, the Gantt reads from that scenario's
@@ -509,8 +546,23 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         // names TOMORROW from about 5 pm anywhere west of Greenwich, so an
         // evening "create schedule" anchored day 1 on the wrong day.
         : (schedule.startDate ?? todayCalendarDay());
+      // startDayBasis policy, same shape and same reason as the anchor above.
+      // This helper REPLACES the stored schedule wholesale from a value most of
+      // its callers get out of `buildScheduleFromTasks`, so without this line an
+      // answered schedule would silently lose its answer on the next edit and be
+      // asked again. It is the user's answer, not a derived scalar: an existing
+      // schedule keeps its own — including "absent, never answered", which is
+      // what keeps the one-time re-anchor offer alive for a plan that
+      // utils/scheduleRebase.ts rewrote before 2026-09-11.
+      const startDayBasis = project.schedule ? project.schedule.startDayBasis : schedule.startDayBasis;
       updateProject(project.id, {
-        schedule: { ...schedule, projectId: project.id, startDate, updatedAt: new Date().toISOString() },
+        schedule: {
+          ...schedule,
+          projectId: project.id,
+          startDate,
+          ...(startDayBasis ? { startDayBasis } : { startDayBasis: undefined }),
+          updatedAt: new Date().toISOString(),
+        },
         status: project.estimate ? 'estimated' : 'draft',
       });
       return;
@@ -541,16 +593,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       showAlert('No schedule', 'Add at least one task before setting a project start date.');
       return;
     }
-    // First explicit anchor on a dateless schedule: its startDay values are
-    // raw working-day ordinals, so re-map them onto the calendar before the
-    // CPM mode flip — otherwise every multi-day chain silently inflates (the
-    // finish-jump bug). Mirrors schedule-pro's settings Apply handler.
-    const tasks = !activeSchedule.startDate
-      ? rebaseRawToCalendar(
-          activeSchedule.tasks, isoYYYYMMDD,
-          activeSchedule.workingDaysPerWeek, activeSchedule.nonWorkingDates,
-        )
-      : activeSchedule.tasks;
+    // No re-mapping on the first anchor any more. `rebaseRawToCalendar` existed
+    // because the CPM engine read `startDay` as a CALENDAR index, so assigning
+    // an anchor reinterpreted every stored working-day ordinal and inflated
+    // each multi-day chain (the finish-jump bug). Since 2026-09-11 the engine
+    // converts at its own `pins` line, so `startDay` means the same thing on
+    // both sides of the flip and re-mapping DOUBLE-converts — and this handler
+    // persists the result through `updateProject`. Measured on
+    // A(10)->B(10)->C(5) at ordinals 1/11/21, 5-day week from Mon 2026-03-02:
+    // 1,11,21 → 1,15,29, finish Fri Apr 3 → Wed Apr 15. Mirrors schedule-pro
+    // and components/schedule/mobile/MobileScheduleScreen.tsx.
+    const tasks = activeSchedule.tasks;
     // Refresh the duration scalars against the new anchor so the modal /
     // summary read engine-true numbers immediately, not on the next edit.
     const cpmRes = runCpm(tasks, {
@@ -575,6 +628,45 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [activeSchedule, saveSchedule, selectedProject, updateProject]);
 
+  // Legacy day-scale disclosure — the `utils/scheduleRebase.ts` population.
+  // `setProjectStartDate` directly above is one of the three call sites that
+  // used to rewrite every stored `startDay` onto the CALENDAR-INDEX scale and
+  // persist it, so a schedule that got its anchor on THIS screen is a
+  // candidate. All of the judgement is in `previewStartDayBasisMigration`
+  // (utils/cpm.ts); this screen renders the question and persists the answer.
+  const startDayBasisPreview = useMemo(
+    () => previewStartDayBasisMigration({
+      tasks: activeSchedule?.tasks ?? [],
+      startDate: activeSchedule?.startDate,
+      workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule?.nonWorkingDates,
+      startDayBasis: activeSchedule?.startDayBasis,
+    }),
+    [activeSchedule],
+  );
+  /**
+   * One write for both halves of the answer, through `updateProject` rather
+   * than `saveSchedule` — `saveSchedule` deliberately preserves an existing
+   * schedule's `startDayBasis` (so a routine edit can never forge the
+   * confirmation), which makes it the wrong door for the one write whose
+   * purpose is to set it. Declining stamps the flag and touches no task.
+   */
+  const answerStartDayBasis = useCallback((accept: boolean) => {
+    if (!selectedProject || !activeSchedule) return;
+    // The whole policy is in the patch (utils/cpm.startDayBasisAnswerPatch):
+    // a no writes only the flag, a yes writes the remapped tasks with it, and a
+    // yes built on a preview that says "don't ask" writes only the flag too.
+    updateProject(selectedProject.id, {
+      schedule: {
+        ...activeSchedule,
+        projectId: selectedProject.id,
+        ...startDayBasisAnswerPatch(startDayBasisPreview, accept, activeSchedule),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [selectedProject, activeSchedule, startDayBasisPreview, updateProject]);
+
   /**
    * Centralized persist helper for all mobile task edits (tap-edit + copilot
    * mobileCommit). Two-step:
@@ -597,10 +689,19 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions).tasks;
     // Step 2: derive accurate scalar fields via the canonical builder.
     const cpmResult = runCpm(reflowed, cpmOptions);
+    // Stamp the LIVE critical path onto the rows we are about to persist.
+    // `isCriticalPath` is read directly by the client portal, the schedule PDF,
+    // the printable one-pager and the "On critical path" line in the calendar
+    // invite — and until Schedule Pro started stamping it, the only thing that
+    // ever wrote it was the AI generator at creation time. A schedule edited
+    // only on mobile therefore shipped a language model's guess to the client
+    // for the life of the job. Schedule Pro does this on its persist paths;
+    // this is the mobile sink, and every mobile edit funnels through here.
+    const stamped = stampCriticalPath(reflowed, cpmResult);
     const built = buildScheduleFromTasks(
       activeSchedule.name ?? selectedProject.name ?? 'Schedule',
       selectedProject.id,
-      reflowed,
+      stamped,
       activeSchedule.baseline ?? null,
       { criticalPathDays: cpmResult.projectFinish },
     );
@@ -608,7 +709,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     // take built's freshly-derived scalars. saveSchedule preserves startDate.
     const merged: typeof activeSchedule = {
       ...activeSchedule,
-      tasks: reflowed,
+      tasks: stamped,
       totalDurationDays: built.totalDurationDays,
       criticalPathDays: built.criticalPathDays,
       healthScore: built.healthScore,
@@ -650,13 +751,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       }
       const picked = new Date(rawStartDate + 'T12:00:00');
       if (Number.isNaN(picked.getTime())) { showAlert('Invalid start date'); return; }
-      const ms = picked.getTime() - projectStartDate.getTime();
-      const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
-      if (dayOffset < 1) {
+      if (beforeProjectStart(picked)) {
         showAlert('Start date too early', `Pick a date on or after the project start (${projectStartDate.toLocaleDateString()}).`);
         return;
       }
-      startDayFromDate = dayOffset;
+      // Same WORKING-ORDINAL conversion as isoToStartDay above — see its note.
+      startDayFromDate = startDayNumberFor(
+        projectStartDate, picked,
+        activeSchedule?.workingDaysPerWeek ?? 5,
+        activeSchedule?.nonWorkingDates,
+      );
     }
 
     if (editing) {
@@ -768,7 +872,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks, beforeProjectStart]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);
@@ -1130,7 +1234,26 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [healthScore]);
 
   const renderTaskCard = useCallback((task: ScheduleTask) => {
-    const statusColor = getStatusColor(task.status);
+    // statusInk, not getStatusColor: `utils/scheduleEngine.ts:getStatusColor`
+    // returns the same four raw signal hues the edit sheet used
+    // ({done:'#34C759', in_progress:'#007AFF', on_hold:'#FF9500',
+    // not_started:'#8E8E93'}), and every consumer on this screen paints them as
+    // 10pt CHIP TEXT on an 8% wash of themselves — #34C759 that way measures
+    // ~2.07:1. Same defect as the edit sheet, on the chips a GC actually reads.
+    //
+    // ONE value drives all four roles here — chip label, chip wash, dot, and
+    // the progress-bar fill — so the ink is what the dot and the bar take too.
+    // That is deliberate but it is a trade, not a free win: the bar and the dot
+    // read as deep green/blue rather than the iOS signal hues they used to.
+    // The alternative — `Colors.statusFills` for the graphics, ink for the
+    // words — means a second table and a per-role proof (that palette's
+    // `not_started` #8E9299 is 3.12:1 on white: over the 3:1 floor a dot has to
+    // clear, under the 4.5:1 a label does, so the two roles genuinely cannot
+    // share one value), and validate-contrast has no check for the graphic
+    // floor yet. Until it does, one AA-clean value beats two half-proved ones.
+    // Hue still follows `utils/scheduleColors.ts:statusColor`, so a Gantt bar
+    // and a chip for the same task agree on WHICH colour, only on how deep.
+    const statusColor = inkFor(task.status);
     const borderColor = getTaskBorderColor(task, projectStartDate, activeSchedule?.workingDaysPerWeek ?? 5);
     const dateRange = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
     const variance = getTaskVariance(task);
@@ -1213,7 +1336,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </View>
       </TouchableOpacity>
     );
-  }, [activeSchedule, projectStartDate, handleProgressUpdate, getTaskVariance]);
+  }, [activeSchedule, projectStartDate, handleProgressUpdate, getTaskVariance, inkFor]);
 
   /**
    * BOARD VIRTUALIZATION.
@@ -1397,7 +1520,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   onPress={() => setTaskDetailModal(task)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.resourceTaskDot, { backgroundColor: getStatusColor(task.status) }]} />
+                  <View style={[styles.resourceTaskDot, { backgroundColor: inkFor(task.status) }]} />
                   <Text style={styles.resourceTaskName} numberOfLines={1}>{task.title}</Text>
                   <Text style={styles.resourceTaskDate}>
                     {dateRange ? formatShortDate(dateRange.start) : `Day ${task.startDay}`}
@@ -1409,7 +1532,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         );
       })}
     </View>
-  ), [crewMap, activeSchedule, projectStartDate]);
+  ), [crewMap, activeSchedule, projectStartDate, inkFor]);
 
   const renderSummary = useCallback(() => {
     if (!activeSchedule) return null;
@@ -1552,7 +1675,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           keyExtractor={item => item.id}
           showsVerticalScrollIndicator={false}
           renderItem={({ item: task }) => {
-            const statusColor = getStatusColor(task.status);
+            // statusInk, not getStatusColor — see renderTaskCard.
+            const statusColor = inkFor(task.status);
             const isSelected = taskDetailModal?.id === task.id;
             return (
               <TouchableOpacity
@@ -1575,7 +1699,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         />
       </View>
     );
-  }, [activeSchedule, filteredTasks, sortedTasks.length, taskDetailModal]);
+  }, [activeSchedule, filteredTasks, sortedTasks.length, taskDetailModal, inkFor]);
 
   const renderDesktopStatusBar = useCallback(() => {
     const completedCount = sortedTasks.filter(t => t.status === 'done').length;
@@ -1638,20 +1762,40 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   <>
                     <Text style={styles.fieldLabel}>Status</Text>
                     <View style={styles.statusChipRow}>
+                      {/* Both states are real text: unselected the hue IS the
+                          label on the sheet, selected it is the fill under one.
+                          The palette this replaced —
+                          {done:'#34C759', in_progress:'#007AFF',
+                           on_hold:'#FF9500', not_started:'#8E8E93'} — failed
+                          BOTH ways, at 2.22 / 4.02 / 2.20 / 3.26:1 each
+                          direction, on a control whose mis-tap silently
+                          rewrites progress to 100 or 0 (see onPress). The inks
+                          are the theme's AA-verified *Label tokens, shared with
+                          TaskInspector so the two schedule surfaces agree, and
+                          the selected label is measured rather than assumed
+                          white. */}
                       {(['not_started', 'in_progress', 'on_hold', 'done'] as ScheduleTask['status'][]).map(s => {
-                        const colors: Record<string, string> = { done: '#34C759', in_progress: '#007AFF', on_hold: '#FF9500', not_started: '#8E8E93' };
                         const labels: Record<string, string> = { done: 'Done', in_progress: 'In Progress', on_hold: 'On Hold', not_started: 'Not Started' };
+                        const ink = statusInk[s];
                         const active = taskDraft.status === s;
+                        // Done and Not started also REWRITE progress. Say so —
+                        // on screen it is only discoverable by watching the
+                        // "Progress — n%" label above change under your thumb.
+                        const alsoSets = s === 'done' ? ' — also sets progress to 100%'
+                          : s === 'not_started' ? ' — also sets progress to 0%' : '';
                         return (
                           <TouchableOpacity
                             key={s}
-                            style={[styles.modalStatusChip, { borderColor: colors[s], backgroundColor: active ? colors[s] : 'transparent' }]}
+                            style={[styles.modalStatusChip, { borderColor: ink, backgroundColor: active ? ink : 'transparent' }]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                            accessibilityLabel={`${labels[s]}${alsoSets}`}
                             onPress={() => {
                               const autoProgress = s === 'done' ? '100' : s === 'not_started' ? '0' : taskDraft.progress;
                               setTaskDraft(p => ({ ...p, status: s, progress: autoProgress }));
                             }}
                           >
-                            <Text style={[styles.modalStatusChipText, { color: active ? '#FFF' : colors[s] }]}>{labels[s]}</Text>
+                            <Text style={[styles.modalStatusChipText, { color: active ? labelOn(ink) : ink }]}>{labels[s]}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -2471,7 +2615,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             <Pressable style={[styles.modalCard, { maxHeight: '85%' }]} onPress={() => undefined}>
               {taskDetailModal && (() => {
                 const task = taskDetailModal;
-                const statusColor = getStatusColor(task.status);
+                // statusInk, not getStatusColor — see renderTaskCard.
+                const statusColor = inkFor(task.status);
                 return (
                   <ScrollView showsVerticalScrollIndicator={false}>
                     <View style={styles.modalHeader}>
@@ -2539,6 +2684,21 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const scheduleScrollHeader = (
     <>
         <View style={styles.header}>
+          {/* NAV-07: this tab is registered `href: null`, so arriving from
+              Discover is a TAB SWITCH — no back button is created and no tab in
+              the bar lights up. This one is the worst of the three:
+              app/(tabs)/discover/schedule.tsx opens a schedule with
+              router.REPLACE, so the OS back gesture is dead here too. The
+              destination is that project list, which does not auto-replace on
+              mount, so this cannot bounce the user straight back. See
+              components/HiddenTabBackLink.tsx for why it names its
+              destination. */}
+          <HiddenTabBackLink
+            label="Schedules"
+            href="/(tabs)/discover/schedule"
+            style={styles.backToSchedules}
+            testID="schedule-back-to-schedules"
+          />
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.title} numberOfLines={1}>Schedule</Text>
@@ -2547,6 +2707,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             {hasScheduleData && renderHealthBadge()}
           </View>
         </View>
+
+        {/* Legacy day-scale disclosure. Renders null for every schedule that is
+            fine, so it is mounted unconditionally — and it sits at the top of
+            the scroll, above the numbers it is talking about. */}
+        <StartDayBasisNotice
+          preview={startDayBasisPreview}
+          projectStartDate={activeSchedule?.startDate ? projectStartDate : null}
+          onAnswer={answerStartDayBasis}
+          style={{ marginHorizontal: 16, marginBottom: 8 }}
+        />
 
         {/* Active-projects chip row — primary navigation across projects.
             Replaces the old picker-button-then-modal flow so the GC can
@@ -3203,7 +3373,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <Pressable style={[styles.modalCard, { maxHeight: '85%' }]} onPress={() => undefined}>
             {taskDetailModal && (() => {
               const task = taskDetailModal;
-              const statusColor = getStatusColor(task.status);
+              // statusInk, not getStatusColor — see renderTaskCard.
+              const statusColor = inkFor(task.status);
               const dateRange = activeSchedule ? getTaskDateRange(task, projectStartDate, activeSchedule.workingDaysPerWeek) : null;
               const preds = getPredecessors(task, sortedTasks);
               const succs = getSuccessors(task.id, sortedTasks);
@@ -3290,7 +3461,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       <Text style={styles.detailDepTitle}>Predecessors</Text>
                       {preds.map(p => (
                         <View key={p.id} style={styles.detailDepRow}>
-                          <View style={[styles.detailDepDot, { backgroundColor: getStatusColor(p.status) }]} />
+                          <View style={[styles.detailDepDot, { backgroundColor: inkFor(p.status) }]} />
                           <Text style={styles.detailDepName} numberOfLines={1}>{p.title}</Text>
                           <Text style={styles.detailDepMeta}>{getDepTypeForDep(task, p.id)}</Text>
                         </View>
@@ -3303,7 +3474,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       <Text style={[styles.detailDepTitle, { color: themeColors.accent }]}>Successors</Text>
                       {succs.map(s => (
                         <View key={s.id} style={styles.detailDepRow}>
-                          <View style={[styles.detailDepDot, { backgroundColor: getStatusColor(s.status) }]} />
+                          <View style={[styles.detailDepDot, { backgroundColor: inkFor(s.status) }]} />
                           <Text style={styles.detailDepName} numberOfLines={1}>{s.title}</Text>
                         </View>
                       ))}
@@ -3522,6 +3693,7 @@ function guessPhase(category: string): string {
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   header: { paddingHorizontal: 20, paddingBottom: 4 },
+  backToSchedules: { marginBottom: 6 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   // Screen title — Fraunces serif per the type rule in constants/typography.ts
   // (serif for screen titles + numbers that matter, system sans for everything
@@ -3534,7 +3706,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   healthScore: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const },
 
   projectPickerRow: { paddingHorizontal: 16, marginTop: 14, marginBottom: 10 },
-  projectPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, minHeight: 46, borderWidth: 1, borderColor: themeColors.line },
+  projectPickerBtn: { ...cardSurface(themeColors, { radius: 'lg', pad: 'none' }), flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 46 },
   projectPickerText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
 
   // Project chips — replaces the picker-button-then-modal flow.
@@ -3572,7 +3744,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
-  topBar: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: themeColors.line },
+  topBar: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   copilotEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
   copilotEntryText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
   copilotBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.full, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: themeColors.accent },
@@ -3641,7 +3813,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   phaseTaskRow: { paddingHorizontal: 16, paddingBottom: 8 },
   phaseHeaderSpaced: { marginTop: 6 },
 
-  taskCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: themeColors.line, gap: 8 },
+  taskCard: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), gap: 8 },
   taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, flexWrap: 'wrap' as const },
   varianceText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
@@ -3675,7 +3847,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   fieldModeSubtitle: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: -4 },
   fieldModeEmpty: { alignItems: 'center', paddingVertical: 40, gap: 10 },
   fieldModeEmptyText: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary },
-  fieldCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 10, borderWidth: 1, borderColor: themeColors.line },
+  fieldCard: { ...cardSurface(themeColors, { radius: 'panel' }), gap: 10 },
   fieldCardTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
   fieldProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fieldProgressTrack: { flex: 1, height: 10, borderRadius: 5, backgroundColor: themeColors.surfaceAlt, overflow: 'hidden' as const },
@@ -3690,7 +3862,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
   resourceContainer: { paddingHorizontal: 16, gap: 12 },
   resourceTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
-  resourceCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, gap: 10, borderWidth: 1, borderColor: themeColors.line },
+  resourceCard: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), gap: 10 },
   resourceCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resourceCrewInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   resourceCrewName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
@@ -3712,7 +3884,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   healthRingOuter: { width: 100, height: 100, borderRadius: 50, borderWidth: 6, alignItems: 'center', justifyContent: 'center' },
   healthRingScore: { fontSize: 30, fontWeight: '800' as const },
   healthRingLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontWeight: '600' as const },
-  summaryStatsRow: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: themeColors.line },
+  summaryStatsRow: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), flexDirection: 'row', justifyContent: 'space-around' },
   summaryStat: { alignItems: 'center' },
   summaryStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text },
   summaryStatLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
@@ -3751,7 +3923,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   saveBaselineBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 20, gap: 8 },
+  modalCard: { ...cardSurface(themeColors, { radius: '2xl', pad: 20, bordered: false }), gap: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   pickerOption: { backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 14, gap: 2, marginTop: 6 },

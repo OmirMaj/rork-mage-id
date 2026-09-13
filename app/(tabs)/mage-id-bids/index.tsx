@@ -122,9 +122,12 @@ export default function MageIdBidsTabScreen() {
         .limit(200);
       if (user?.id) q = q.neq('user_id', user.id);
       const { data, error } = await q;
+      // A failed read is not an empty marketplace. Let react-query see the
+      // throw so the error branch below can say so, instead of telling a
+      // contractor there is no work near him (audit 2026-09-07 "Do now" #9).
       if (error) {
         console.warn('[mage-id-bids/browse] fetch error', error);
-        return [];
+        throw new Error(error.message || 'Could not load nearby projects.');
       }
       return (data ?? []).map(r => ({ ...r, photo_urls: r.photo_urls as string[] | null }));
     },
@@ -142,7 +145,13 @@ export default function MageIdBidsTabScreen() {
         .eq('user_id', user.id)
         .eq('is_homeowner_rfp', true)
         .order('posted_date', { ascending: false });
-      if (error || !rfps || rfps.length === 0) return [];
+      // A failed read used to be folded into the same branch as zero rows, so
+      // one bad request told a homeowner who had posted three RFPs that they
+      // "haven't posted anything yet" and handed them a button to post again
+      // — a duplicate RFP or a data-loss support ticket (audit 2026-09-07
+      // "Do now" #9). Error and empty are now different facts.
+      if (error) throw new Error(error.message || 'Could not load your posts.');
+      if (!rfps || rfps.length === 0) return [];
       const ids = rfps.map(r => r.id);
       const { data: responses } = await supabase
         .from('bid_responses')
@@ -277,6 +286,7 @@ export default function MageIdBidsTabScreen() {
   const isLoading = mode === 'browse' ? browseQ.isLoading : mineQ.isLoading;
   const isRefetching = mode === 'browse' ? browseQ.isRefetching : mineQ.isRefetching;
   const refetch = mode === 'browse' ? browseQ.refetch : mineQ.refetch;
+  const queryError = mode === 'browse' ? browseQ.error : mineQ.error;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -453,8 +463,29 @@ export default function MageIdBidsTabScreen() {
           </View>
         )}
 
+        {/* The read failed. This has to come BEFORE both empty states below:
+            neither of them can tell the truth about a list that never
+            arrived, and one of them is a claim about the user's own posts. */}
+        {!isLoading && queryError && (
+          <View style={styles.emptyCard}>
+            <AlertTriangle size={28} color={themeColors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.emptyTitle}>
+              {mode === 'browse' ? "Couldn't load nearby projects" : "Couldn't load your posts"}
+            </Text>
+            <Text style={styles.emptyBody}>
+              {mode === 'mine'
+                ? 'Nothing has been deleted — this is a failed request, not an empty list. Try again in a moment.'
+                : 'Try again in a moment.'}
+              {queryError instanceof Error && queryError.message ? `\n\n${queryError.message}` : ''}
+            </Text>
+            <TouchableOpacity style={styles.bigCta} onPress={() => { void refetch(); }} testID="mageid-bids-retry">
+              <Text style={styles.bigCtaText}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* BROWSE mode */}
-        {mode === 'browse' && !isLoading && filteredBrowse.length === 0 && locationUnknownBrowse.length === 0 && (
+        {mode === 'browse' && !isLoading && !queryError && filteredBrowse.length === 0 && locationUnknownBrowse.length === 0 && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
@@ -497,7 +528,7 @@ export default function MageIdBidsTabScreen() {
           </View>
         )}
 
-        {mode === 'mine' && user && !mineQ.isLoading && (mineQ.data ?? []).length === 0 && (
+        {mode === 'mine' && user && !mineQ.isLoading && !mineQ.error && (mineQ.data ?? []).length === 0 && (
           <View style={styles.emptyCard}>
             <Hammer size={28} color={Colors.primary} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>You haven&apos;t posted anything yet</Text>

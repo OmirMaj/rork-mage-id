@@ -7,15 +7,22 @@
 //  - Punch list: zero open items
 //  - Warranties: at least one on file
 //  - Closeout binder: status === 'sent'
-//  - Final invoice: an invoice marked status='paid' or 'sent' for the
-//    final draw (we look for the highest-numbered invoice).
+//  - Final invoice: the highest-numbered invoice on the job — 'paid' is
+//    done, 'draft' is not started, everything in between is in progress.
 //  - Lien waivers: at least one signed waiver per active commitment
-//  - Final walk-through: a manually-checked completion item
+//  - Final walk-through and Keys & access: manually-checked items
 //
-// We deliberately don't auto-mark anything as "done." This is a
-// signed-off ceremony, not a status board — the GC explicitly confirms
-// each item, and the screen surfaces what's blocking before it
-// becomes embarrassing on handover day.
+// Eight items, six of them read straight off the job — MAGE ticks those
+// itself, which is what the footer line on the screen tells the GC.
+// (This comment used to claim "we deliberately don't auto-mark anything
+// as done", which the six computed statuses and their green ticks have
+// never matched.) What the screen does refuse is a vacuous tick: a job
+// with no selection categories, no punch items, no commitments reads
+// 'open', not 'done', so "Ready to hand over" cannot come from an empty
+// project.
+//
+// The two manual items are the ceremony half — the GC confirms those
+// standing next to the homeowner, and the date is saved on the project.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -38,6 +45,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
+import type { InvoiceStatus, Project } from '@/types';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
@@ -61,6 +70,50 @@ interface HandoverItem {
 const HANDOVER_MANUAL_KEYS = ['walkthrough', 'keys'] as const;
 type ManualKey = typeof HANDOVER_MANUAL_KEYS[number];
 
+/**
+ * The "Final invoice paid" row, from the highest-numbered invoice on the job.
+ *
+ * InvoiceStatus has FIVE members (types/index.ts:1520) and this ladder used to
+ * handle two: 'overdue' and 'partially_paid' both fell into the else and the
+ * row read "Most recent invoice is still draft". An overdue final invoice is
+ * the single most likely state on handover day — it went out weeks ago and the
+ * money has not landed — and the GC was being told it had never left his desk,
+ * which is false and points him at the wrong action. Only 'paid' counts as
+ * done, before and after, so "Ready to hand over" is unchanged.
+ *
+ * Exported pure because the smoke fixture seeds no invoices (both dumps render
+ * "No invoices yet"), so four of these five branches cannot be reached by
+ * mounting the screen.
+ */
+export function finalInvoiceState(
+  inv: { number: number; status: InvoiceStatus } | undefined,
+): { status: HandoverItem['status']; detail: string } {
+  if (!inv) {
+    return {
+      status: 'open',
+      detail: 'No invoices yet. Issue the final invoice for the remaining balance.',
+    };
+  }
+  switch (inv.status) {
+    case 'paid':
+      return { status: 'done', detail: `Invoice #${inv.number} paid in full` };
+    case 'overdue':
+      return {
+        status: 'partial',
+        detail: `Invoice #${inv.number} is overdue — chase it before you hand over the keys`,
+      };
+    case 'partially_paid':
+      return {
+        status: 'partial',
+        detail: `Invoice #${inv.number} part-paid — there is still a balance out`,
+      };
+    case 'sent':
+      return { status: 'partial', detail: `Invoice #${inv.number} sent — awaiting payment` };
+    case 'draft':
+      return { status: 'open', detail: `Invoice #${inv.number} is still a draft — send it` };
+  }
+}
+
 export default function HandoverScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -69,9 +122,25 @@ export default function HandoverScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  // Opened from the Tools hub, the desktop sidebar or universal search there is
+  // NO projectId — and the Tools row is `needsProjects: true`, so the only
+  // people who could see that entry point were the ones this screen then told
+  // "Project not found". ToolProjectPicker resolves the id locally instead,
+  // the same way field-ticket does (the reference call site).
+  //
+  // The pick has to outrank the param, never the other way round: the param is
+  // whatever link opened the screen and it can be dead (deleted project, a URL
+  // shared last month), while pickedProjectId is the row the user tapped a
+  // second ago from a list of projects that exist. `paramProjectId ?? picked`
+  // leaves the picker inert on a dead link because the bad id keeps winning.
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const ctx = useProjects() as any;
+  const projects: Project[] = ctx.projects ?? [];
   const project = projectId ? ctx.getProject(projectId) : undefined;
+  /** The URL named a project that no longer exists — not the same as "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
   const projectInvoices = useMemo(
     () => projectId ? ctx.getInvoicesForProject(projectId) : [],
@@ -106,6 +175,12 @@ export default function HandoverScreen() {
     let cancelled = false;
     void (async () => {
       if (!projectId) { setLoading(false); return; }
+      // Picking a project in the picker re-runs this effect with `loading`
+      // already false, so without this the checklist paints "0 of 8 done"
+      // from the previous project's empty selections/binder/waivers before
+      // the fetch lands — a wrong status on a screen whose whole point is
+      // what is genuinely outstanding on handover day.
+      setLoading(true);
       const [sel, b, w] = await Promise.all([
         fetchSelectionsForProject(projectId),
         fetchCloseoutBinder(projectId),
@@ -154,11 +229,7 @@ export default function HandoverScreen() {
       (a: any, b: any) => Number(b.number ?? 0) - Number(a.number ?? 0),
     );
     const finalInv = sortedInvoices[0];
-    const invoiceStatus: HandoverItem['status'] =
-      !finalInv ? 'open'
-      : finalInv.status === 'paid' ? 'done'
-      : finalInv.status === 'sent' ? 'partial'
-      : 'open';
+    const invoiceRow = finalInvoiceState(finalInv);
 
     // Lien waivers — at least one signed waiver per active commitment.
     const activeCommitments = projectCommitments.filter((c: any) => c.status !== 'draft');
@@ -235,21 +306,15 @@ export default function HandoverScreen() {
       {
         key: 'invoice',
         label: 'Final invoice paid',
-        detail: !finalInv
-          ? 'No invoices yet. Issue the final invoice for the remaining balance.'
-          : finalInv.status === 'paid'
-            ? `Invoice #${finalInv.number} paid in full`
-            : finalInv.status === 'sent'
-              ? `Invoice #${finalInv.number} sent — awaiting payment`
-              : 'Most recent invoice is still draft',
+        detail: invoiceRow.detail,
         icon: Receipt,
-        status: invoiceStatus,
+        status: invoiceRow.status,
         cta: '/invoice',
         ctaParams: ({
           projectId: project.id,
           ...(finalInv?.id ? { invoiceId: finalInv.id } : {}),
         }) as Record<string, string>,
-        ctaLabel: invoiceStatus === 'done' ? 'Review' : 'Open invoice',
+        ctaLabel: invoiceRow.status === 'done' ? 'Review' : 'Open invoice',
       },
       {
         key: 'waivers',
@@ -293,14 +358,19 @@ export default function HandoverScreen() {
   const total = items.length;
   const allDone = doneCount === total && total > 0;
 
-  if (!project) {
+  if (!projectId || !project) {
     return (
-      <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.emptyTitle}>Project not found</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.emptyBack}>
-          <Text style={styles.emptyBackText}>Back</Text>
-        </TouchableOpacity>
+        <ToolHeader eyebrow="HANDOVER · MAGE ID" title="Walkthrough day checklist" />
+        <ToolProjectPicker
+          toolName="Handover"
+          message="The walkthrough checklist reads one job — its selections, punch list, warranties, binder and final invoice."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
+          icon={<Footprints size={36} color={themeColors.accent} strokeWidth={1.6} />}
+        />
       </View>
     );
   }
@@ -385,7 +455,7 @@ export default function HandoverScreen() {
           ))}
 
           <Text style={styles.fineprint}>
-            This checklist computes status from your project data. Items marked manually (walk-through, keys) save to the project so the timestamp survives re-opens.
+            MAGE ticks what it can read from this job. Walk-through and keys are yours to tick — we save the date you do it.
           </Text>
         </ScrollView>
       )}
@@ -436,7 +506,6 @@ function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: 
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  center: { alignItems: 'center', justifyContent: 'center' },
   loading: { padding: 30, alignItems: 'center', gap: 10 },
   loadingText: { fontSize: Type.footnote.fontSize, color: t.textMuted },
 
@@ -447,9 +516,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
   title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
-  emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   heroCard: {
     backgroundColor: t.accent + '0D', borderWidth: 1, borderColor: t.accent + '30',

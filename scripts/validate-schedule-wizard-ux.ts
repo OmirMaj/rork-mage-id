@@ -51,7 +51,7 @@ import {
   taskName, sequenceLabel, sequenceDetail, lagStepperLabel,
 } from '../constants/scheduleTemplates';
 import type { TemplateTask } from '../constants/scheduleTemplates';
-import { runCpm } from '../utils/cpm';
+import { runCpm, calendarIndexToWorkingOrdinal } from '../utils/cpm';
 import type { ScheduleTask } from '../types';
 
 let pass = 0, fail = 0;
@@ -195,7 +195,14 @@ function saved(tasks: readonly TemplateTask[], opts: { start: string; wd: number
       title: t.name.trim() || 'Untitled task',
       phase: t.phase,
       durationDays: t.duration,
-      startDay: t.startDay,
+      // Mirrors handleSave's converter. `t.startDay` here is the preview's
+      // CALENDAR INDEX (cpm.es); ScheduleTask.startDay is a WORKING ORDINAL.
+      // Writing the index straight through is what made the kitchen-remodel
+      // template preview 29 days and save 39 — the engine re-expanded a value
+      // that already contained its weekends.
+      startDay: calendarIndexToWorkingOrdinal(t.startDay, {
+        scheduleStartDate: opts.start, workingDaysPerWeek: opts.wd,
+      }),
       dependencies,
       dependencyLinks,
       crew: '',

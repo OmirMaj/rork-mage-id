@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>MAGE ID — see how it works · video walkthroughs + live demo</title>
   <link rel="canonical" href="https://mageid.app/demo.html" />
-  <meta name="description" content="See how MAGE ID works. 90-second tour, full 15-minute walkthrough, and short how-to videos for every feature — AI takeoff, drawing analyzer, AIA pay app, daily reports, client portal, sub buyout, scheduling. Or book a live 30-minute demo with the team." />
+  <meta name="description" content="See how MAGE ID works. 90-second tour, full 15-minute walkthrough, and short how-to videos for every feature — AI takeoff, drawing analyzer, AIA-style pay app, daily reports, client portal, sub buyout, scheduling. Or book a live 30-minute demo with the team." />
   <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
@@ -462,7 +462,7 @@
       <h2 class="section-heading-light">One project, <em>end to end</em>.</h2>
       <p class="section-sub-light">
         A single job carried across every screen &mdash; plan upload, AI takeoff, sub-trade buyout,
-        schedule, AIA pay app, client portal. The tour below breaks each piece into its own screen.
+        schedule, AIA-style pay app, client portal. The tour below breaks each piece into its own screen.
       </p>
 
       <div class="hero-video-wrap" style="max-width: 960px; margin: 0 auto;">
@@ -534,13 +534,16 @@
           </div>
         </div>
 
-        <!-- AIA pay app -->
+        <!-- AIA-style pay app -->
         <div class="tutorial-card">
           <div class="shot-frame">
-            <img src="/screenshots/screens/12-summary-tools.png" alt="AIA G702/G703 progress billing generated from the project's line items" loading="lazy" />
+            <!-- Alt text described a G702 this image does not show — it is the
+                 project tool grid, with the Money section the pay app lives in.
+                 Describe the picture, not the pitch. -->
+            <img src="/screenshots/screens/12-summary-tools.png" alt="The project tool grid, where the pay-application screen lives under Money" loading="lazy" />
           </div>
           <div class="tc-body">
-            <div class="tc-eyebrow">AIA progress billing</div>
+            <div class="tc-eyebrow">AIA-style progress billing</div>
             <h3>G702 + G703 generated in two minutes</h3>
             <p>The bank-formatted pay app for institutional and HNW projects. Add line completion %, retention, prior pay apps. Send the PDF.</p>
           </div>
@@ -602,7 +605,7 @@
           <div class="tc-body">
             <div class="tc-eyebrow">Cash flow forecaster</div>
             <h3>12 weeks ahead. Across all your jobs.</h3>
-            <p>Sees your invoices, AIA pay apps, sub commitments, payroll, overhead. Tells you which Friday you&apos;re short on cash.</p>
+            <p>Sees your invoices, AIA-style pay apps, sub commitments, payroll, overhead. Tells you which Friday you&apos;re short on cash.</p>
           </div>
         </div>
 
@@ -668,7 +671,7 @@
           <div class="hc-icon">
             <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           </div>
-          <h4>AIA pay apps</h4>
+          <h4>AIA-style pay apps</h4>
           <p>Setting up the schedule of values, retention, sending to the bank.</p>
         </a>
         <a href="/support.html#portal" class="help-card">
@@ -753,9 +756,8 @@
         <details class="faq-item">
           <summary>What happens to my data if I cancel?</summary>
           <div class="faq-body">
-            Read-only access to everything you&apos;ve created stays available for 90 days after cancel.
-            Full export of all projects, estimates, photos, daily reports, and PDFs at any time, no
-            cancellation required.
+            <!-- ONE POLICY, WORD FOR WORD, ON ALL THREE PAGES. These gave three different answers to the question a one-person vendor is asked most: demo.html promised read-only access "for 90 days after cancel" (no code anywhere enforces a 90-day window, so it was a policy nobody could keep), pricing.html described downgrade-to-Free, and support.html said "until the end of the current billing period". If this paragraph changes, change it in all three places; scripts/validate-marketing-claims.ts asserts the three are word for word identical and goes red if one drifts. DONE 2026-09-11: terms.html section 3 (the wave that wrote this called it section 5) used to route BOTH cancellation and refunds through a store subscription only, which left a directly-billed customer with no way to cancel and no one to ask for a refund. Both bullets now name the direct route as well as the store one, the direct-refund sentence is word for word the one in this page's Refunds FAQ, and the Apple EULA notice in section 17 - which is legitimate and unrelated - was left alone. scripts/validate-marketing-claims.ts pins all four. -->
+            Nothing is deleted. Paid features become read-only on your existing data, and everything you have created stays viewable and exportable. You can export the full archive &mdash; every project with its estimate and revision history, plus invoices, change orders, daily reports, punch items, photos, RFIs, submittals, warranties, contacts and subcontractors &mdash; at any time, before or after cancelling, without asking us. Re-subscribe and everything picks up where it left off. We do not hold data hostage to force a retention call; there is nobody here to make one.
           </div>
         </details>
 
@@ -770,9 +772,14 @@
         <details class="faq-item">
           <summary>Do you integrate with QuickBooks?</summary>
           <div class="faq-body">
-            In active development. Today MAGE ID handles the entire invoice / change-order /
-            AIA pay-app flow in-app, and exports a clean CSV for your bookkeeper. If QuickBooks sync is
-            a hard blocker for switching, let us know &mdash; demand drives priority.
+            QuickBooks <strong>Online</strong>, yes &mdash; two-way, on Business and Enterprise.
+            Customers, items, invoices and payments push out to QBO. Payments recorded in QBO reconcile
+            back. Bills entered in QBO land in a cost-review queue here and you approve them line by line
+            against the job, rather than having them appear silently in your costs. Free and Pro export a
+            clean CSV for your bookkeeper instead.
+            <br><br>
+            QuickBooks <strong>Desktop</strong> and Sage: no, and not planned. If your books live there,
+            that is a fair reason to buy something else &mdash; we would rather say so now.
           </div>
         </details>
 
@@ -786,7 +793,7 @@
         <details class="faq-item">
           <summary>What&apos;s the price?</summary>
           <div class="faq-body">
-            Pro is $29/month or $288/year (about 2 months free). Business is $79/month or $792/year. Both replace a
+            Pro is $29/month, Business $79/month, per company. There is an annual plan on both; the <a href="/pricing.html#annual">pricing page states why it does not print a yearly figure yet</a>, and it is the only page that will. Both replace a
             stack of point tools that typically runs $400&ndash;$700/month. See the full breakdown on the
             <a href="/compare/">Compare</a> page.
           </div>
@@ -837,6 +844,42 @@
       </div>
     </div>
     <p style="font-size: 12px; color: var(--fog); text-align: center; margin-top: 20px;">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
+        <!-- STANDING AIA NOTICE — on every page that mentions AIA.
+           The generated document already carries this (utils/aiaBilling.ts:937)
+           and app/aia-pay-app.tsx shows it on first use; the site did not, which
+           left the GC to discover on their first submitted draw that they were
+           not holding an official form. "AIA-style" is the industry convention
+           — Contractor Foreman's own pricing page labels the feature "AIA Style
+           Invoicing (G702 and G703)" — so the hedge costs nothing and reads as
+           more expert to the one person who can tell the difference. -->
+      <p class="aia-notice" style="max-width:900px;margin:18px auto 0;font-size:12px;line-height:1.6;opacity:.62;text-align:center;">
+        MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are
+        registered trademarks of The American Institute of Architects, which is not affiliated with and
+        does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract
+        Documents &mdash; check with yours before you submit.
+      </p>
   </footer>
 
   <!-- Keep the footer copyright year current across every page. -->

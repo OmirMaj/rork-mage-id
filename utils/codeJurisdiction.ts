@@ -177,15 +177,22 @@ export interface LocalAdoption extends BaseEntry {
 // them from a script, so it reports them unreachable FOREVER. That is a
 // property of the host, not a defect in the row: do not "fix" it by swapping
 // in a worse citation that happens to be fetchable.
-//   New York      dos.ny.gov sits behind a Cloudflare interstitial ("Just a
-//     (state)     moment…") that returns 403 to curl and to every fetch tool,
-//                 with or without a browser User-Agent, and does the same for
-//                 its regulation PDFs — so no dos.ny.gov URL will ever verify
-//                 from a script. It loads normally in a real browser, and it
-//                 was read in one: the row's FAQ states both 2025 codes and
-//                 the 2024-ICC basis in a single sentence, and 19 NYCRR
-//                 1219.2(a)(1) and 1240.2(a) were read as well and say the
-//                 same. This row is no longer "re-check me" — it is checked.
+//   New York      dos.ny.gov sits behind a Cloudflare interstitial that 403s
+//     (state)     this repo's fetcher — verified again 2026-09-12: bun's
+//                 `fetch`, with the script's own Chrome User-Agent, gets a
+//                 5.9 kB 403 interstitial for the FAQ, for Part 1219 and for
+//                 the Part 1240 PDF. So no dos.ny.gov URL will ever verify
+//                 from verify-code-sources.ts. It is NOT unreadable, though,
+//                 and the earlier note here overstated it: macOS `curl -L`
+//                 with a Safari User-Agent gets HTTP 200 on all of them, and
+//                 that is how the row was re-read on 2026-09-12 (FAQ as HTML;
+//                 19 NYCRR Parts 1219, 1220 and 1240 and the Notice of
+//                 Adoption as PDFs/HTML through `pdftotext -layout`). Reach
+//                 for curl before you reach for the Internet Archive here.
+//                 The FAQ states both 2025 codes and the 2024-ICC basis in a
+//                 single sentence; § 1219.2(a)(1)-(8) names the eight 2025 New
+//                 York volumes; § 1220.2(a) puts one- and two-family work
+//                 under the 2025 RCNYS. This row is checked, not "re-check me".
 //   Massachusetts www.mass.gov 403s every automated request (a 14 kB block
 //                 page, not an outage). The state row keeps citing the live
 //                 BBRS handbook because that is the right page for a HUMAN to
@@ -235,21 +242,49 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     stateName: 'New York',
     authorityName: 'New York State Department of State, Division of Building Standards and Codes',
     codes: [
-      // Both claims are cited to the BINDING regulation rather than to the FAQ
-      // that is the row's sourceUrl. The FAQ does state both, in one sentence,
-      // which is why it stays as the row citation; 19 NYCRR is what makes them
-      // law. Part 1219 has a stable landing URL that redirects to the current
-      // file, so it will follow the next code cycle by itself. Part 1240 has
-      // NO such landing URL (dos.ny.gov/19-nycrr-part-1240 is a 404), so its
+      // The first two claims are cited to the BINDING regulation rather than to
+      // the FAQ that is the row's sourceUrl. The FAQ does state both, in one
+      // sentence, which is why it stays as the row citation; 19 NYCRR is what
+      // makes them law. Part 1219 has a stable landing URL that redirects to the
+      // current file, so it will follow the next code cycle by itself. Part 1240
+      // has NO such landing URL (dos.ny.gov/19-nycrr-part-1240 is a 404), so its
       // citation is a dated file path and WILL rot at the next amendment —
       // when it does, re-find it from dos.ny.gov's laws-and-regulations page
       // rather than deleting the claim.
       { family: 'LOCAL', edition: '2025', name: '2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes)', sourceUrl: 'https://dos.ny.gov/19-nycrr-part-1219' },
       { family: 'LOCAL', edition: '2025', name: '2025 Energy Conservation Construction Code of New York State', sourceUrl: 'https://dos.ny.gov/system/files/documents/2026/02/19-nycrr-part-1240.pdf' },
+      // THE RESIDENTIAL VOLUME, added 2026-09-12. The note below used to say the
+      // state "does not publish separate IBC/IRC/IECC edition years" and left it
+      // there, which read as "New York publishes nothing but the Uniform Code
+      // umbrella". It does: 19 NYCRR § 1219.2(a)(1)-(8), read today, defines
+      // EIGHT separately-titled 2025 New York volumes (BCNYS, EBCNYS, FCNYS,
+      // FGCNYS, MCNYS, PCNYS, PMCNYS and RCNYS), each "(publication date: July
+      // 2025)", and § 1220.2(a) makes the 2025 RCNYS the operative code for
+      // detached one- and two-family dwellings and townhouses not more than
+      // three stories above grade plane — which is most of what this app's users
+      // build. Only the residential volume is claimed here because it is the one
+      // whose absence was actively misleading; the other seven are real and can
+      // be added the same way, each off a page that names it.
+      //
+      // WHY THIS URL AND NOT PART 1219: the title is stated in both, but a claim
+      // is keyed FAMILY|edition|sourceUrl, so citing Part 1219 twice would give
+      // two different claims one identical id and the receipt would then carry
+      // the Uniform Code's evidence sentence as proof of this one. The Notice of
+      // Adoption is the state's own notice of the very rule that did this, and
+      // it prints the title verbatim in a list of what the rule incorporated by
+      // reference. It is an ARCHIVE page — it also carries the 2020 and earlier
+      // notices, so read the section headed by the 25 July 2025 adoption, not
+      // the first match for "Residential Code of New York State" on the page.
+      { family: 'LOCAL', edition: '2025', name: '2025 Residential Code of New York State', sourceUrl: 'https://dos.ny.gov/notice-adoption' },
     ],
-    notes: 'The 2025 Uniform Code replaced the 2020 edition on 31 December 2025. The state states its basis as the 2024 ICC books collectively and does not publish separate IBC/IRC/IECC edition years, so none are claimed here. NEW YORK CITY IS A PARTIAL, NOT A TOTAL, EXEMPTION: it writes its own Construction Codes in place of the Uniform Code, but the Energy Code is statewide and NYC enforces an approved, more-restrictive LOCAL version of it rather than being outside it. ONE LARGE PROVISION IS ON THE BOOKS BUT UNENFORCEABLE: the 2025 prohibition on fossil-fuel equipment and building systems in new buildings (19 NYCRR § 1240.6 and Subpart 1229-2) is suspended by court order and is neither effective nor enforceable — do not price a new build all-electric on the assumption that it applies.',
+    notes: 'The 2025 Uniform Code replaced the 2020 edition on 31 December 2025. The state states its basis as the 2024 ICC books collectively and does not publish separate IBC/IRC/IECC edition years, so none are claimed here — but it DOES publish separately-titled New York volumes under that umbrella, and the one a one- or two-family job is built to is the 2025 Residential Code of New York State (19 NYCRR § 1220.2(a); § 1219.2(a)(8) names the publication, July 2025). Which IRC edition sits under the RCNYS is still not stated by the state, so it is not claimed. NEW YORK CITY IS A PARTIAL, NOT A TOTAL, EXEMPTION: it writes its own Construction Codes in place of the Uniform Code, but the Energy Code is statewide and NYC enforces an approved, more-restrictive LOCAL version of it rather than being outside it. ONE LARGE PROVISION IS ON THE BOOKS BUT UNENFORCEABLE: the 2025 prohibition on fossil-fuel equipment and building systems in new buildings (19 NYCRR § 1240.6 and Subpart 1229-2) is suspended by court order and is neither effective nor enforceable — do not price a new build all-electric on the assumption that it applies.',
     sourceUrl: 'https://dos.ny.gov/division-building-standards-and-codes-frequently-asked-questions',
-    checkedOn: '2026-09-07',
+    // Re-verified 2026-09-12: the FAQ (this sourceUrl) was re-read and still
+    // states the 2025 Uniform Code + 2025 ECCCNYS on the 2024 ICC books, the
+    // NYC split, and the court-ordered suspension; 19 NYCRR Parts 1219, 1220
+    // and 1240 were re-read as PDFs. See the New York paragraph in "SOURCES
+    // THIS ENVIRONMENT CANNOT OPEN" for how — it is curl, not the fetcher.
+    checkedOn: '2026-09-12',
   },
   {
     state: 'PA',

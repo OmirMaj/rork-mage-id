@@ -66,7 +66,16 @@ export async function saveTakeoff(
   data: Omit<PersistedTakeoff, 'savedAt'>,
 ): Promise<void> {
   try {
-    const toSave: PersistedTakeoff = { ...data, savedAt: new Date().toISOString() };
+    const toSave: PersistedTakeoff = {
+      ...data,
+      // DB-F11: `viewUrl` is a SIGNED plan-sheet url and it expires. Writing it
+      // to AsyncStorage is exactly the mistake utils/storage.ts:11-14 documents
+      // (a baked expiring URL that silently 400s later), so only the durable
+      // storagePath is persisted; app/takeoff.tsx re-signs on load through
+      // pdfRenderClient.resolveRenderedPages.
+      pages: (data.pages ?? []).map(p => ({ ...p, viewUrl: '' })),
+      savedAt: new Date().toISOString(),
+    };
     await AsyncStorage.setItem(keyFor(projectId), JSON.stringify(toSave));
   } catch (e) {
     console.log('[takeoffStorage] save failed', e);

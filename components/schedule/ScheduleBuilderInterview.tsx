@@ -239,9 +239,15 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${((idx + 1) / questions.length) * 100}%` }]} />
       </View>
+      {/* The suffix was double-counting. `questions` is already
+          [...staticQuestions, ...dynamicFollowups] (see the memo above), so by
+          the time a follow-up exists it is IN the denominator — and the label
+          still announced "(+ FOLLOW-UPS)" on top of it. A GC on the last
+          question read "12 OF 12 (+ FOLLOW-UPS)" beside a full progress bar and
+          could not tell whether he was done or had an unknown number left
+          (founder report, 2026-09-07). The count alone is the truth. */}
       <Text style={styles.progressLabel}>
         {idx + 1} OF {questions.length}
-        {dynamicFollowups.length > 0 ? ' (+ follow-ups)' : ''}
       </Text>
 
       <Animated.View style={[styles.card, cardStyle]}>

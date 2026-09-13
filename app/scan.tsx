@@ -21,6 +21,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -40,6 +41,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import Paywall from '@/components/Paywall';
+import EmptyState from '@/components/EmptyState';
 import { resolveDestination, defaultTitleFor } from '@/utils/scanRouting';
 import { normalizeExtraction } from '@/utils/materialReceipt';
 import { uploadProjectFile } from '@/utils/projectFiles';
@@ -50,6 +52,7 @@ import type {
 } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
 
@@ -404,7 +407,26 @@ function ScanInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* What this screen is. It had no sentence on it at all: an eyebrow,
+            a title and two camera buttons — and picking a project replaced the
+            only self-description that existed, because the title falls back to
+            "Auto-file a document" only when nothing is selected. Every sibling
+            AI door (ai-punch, cost-xray, takeoff, compare-drawings) opens with
+            a paragraph saying what it will do. */}
+        {/* Suppressed at zero projects: the EmptyState below already opens
+            with what Scan Anything does, and two paragraphs of the same
+            explanation is the wall of text this pass exists to avoid. */}
+        {projects.length > 0 && captures.length === 0 && !result && !saved && (
+          <View style={styles.intro}>
+            <Text style={styles.introText}>
+              Photograph any document — a sub&apos;s invoice, a COI, a permit, a business
+              card. MAGE reads it, tells you what it found, and files it to the right
+              job. Nothing is filed without your OK.
+            </Text>
+          </View>
+        )}
+
         {/* Project picker */}
         {projects.length > 1 && (
           <View style={styles.pickerWrap}>
@@ -433,7 +455,22 @@ function ScanInner() {
           </View>
         )}
 
-        {!result && !saved && (
+        {/* The prerequisite in front of the camera instead of behind it. With
+            no projects, the old screen still offered Capture: the contractor
+            took the photo, waited out the vision call, and was only then told
+            to pick a project from an empty list — the cost paid before the
+            refusal. */}
+        {!result && !saved && projects.length === 0 && (
+          <EmptyState
+            icon={<ScanLine size={36} color={t.accent} strokeWidth={1.6} />}
+            title="No projects yet"
+            message="Scan Anything reads a document and files it into a job — the invoice onto its cost, the COI onto the sub, the permit onto the project. Create a project first so Scan Anything has somewhere to land."
+            actionLabel="Create a project"
+            onAction={() => router.push({ pathname: '/' as never, params: { openCreate: '1' } as never })}
+          />
+        )}
+
+        {!result && !saved && projects.length > 0 && (
           <View style={styles.captureRow}>
             <TouchableOpacity style={styles.captureBtn} onPress={() => addCapture('camera')} activeOpacity={0.85} testID="scan-camera">
               <Camera size={22} color={t.accent} strokeWidth={1.75} />
@@ -572,6 +609,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerEyebrow: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4 },
   headerTitle: { ...Type.serifHeadline, color: t.text },
 
+  intro: { ...cardSurface(t, { radius: 'card', pad: 14 }), marginBottom: 14 },
+  introText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
   pickerWrap: { marginBottom: 14 },
   pickerLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const, marginBottom: 6 },
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface, maxWidth: 180 },

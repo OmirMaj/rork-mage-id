@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Package, Percent, MapPin, Clock } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { CATEGORY_META, CATEGORY_COST_FACTORS } from '@/constants/materials';
 import type { MaterialItem } from '@/constants/materials';
 import type { LaborRate } from '@/constants/laborRates';
@@ -52,6 +54,11 @@ interface CategoryBreakdown {
 const CostBreakdownReport = React.memo(function CostBreakdownReport({
   cart, laborCart, assemblyCart, globalMarkup, locationFactor, locationName: _locationName,
 }: CostBreakdownReportProps) {
+  // Built per theme: the report's card, rules and ink baked their Colors.*
+  // getters at import, so the breakdown stayed a white sheet in dark mode
+  // (audit 2026-09-07).
+  const s = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
   const breakdown = useMemo(() => {
     const categoryMap = new Map<string, CategoryBreakdown>();
 
@@ -195,13 +202,13 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
           <Text style={s.metricValue}>${totals.markupAmount.toFixed(0)}</Text>
         </View>
         <View style={s.metricCard}>
-          <Clock size={14} color={Colors.infoLabel} strokeWidth={1.75} />
+          <Clock size={14} color={t.info} strokeWidth={1.75} />
           <Text style={s.metricLabel}>Labor Hrs</Text>
           <Text style={s.metricValue}>{totals.laborHours.toFixed(0)}</Text>
         </View>
         {locationFactor !== 1 && (
           <View style={s.metricCard}>
-            <MapPin size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+            <MapPin size={14} color={t.warningLabel} strokeWidth={1.75} />
             <Text style={s.metricLabel}>Location</Text>
             <Text style={s.metricValue}>{locationFactor.toFixed(2)}x</Text>
           </View>
@@ -213,52 +220,52 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
 
 export default CostBreakdownReport;
 
-const s = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { gap: 12 },
   sectionTitle: {
-    fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text,
+    fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text,
     paddingHorizontal: 16, paddingTop: 8,
   },
   barContainer: {
-    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12,
-    borderWidth: 1, borderColor: Colors.cardBorder, gap: 8,
+    marginHorizontal: 16, backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 12,
+    borderWidth: 1, borderColor: t.line, gap: 8,
   },
   barTrack: {
     flexDirection: 'row', height: 12, borderRadius: Tokens.radius.xs, overflow: 'hidden' as const,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
   },
   barSegment: { height: '100%' },
   legendRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 10, fontWeight: '600' as const, color: Colors.textSecondary },
+  legendText: { fontSize: 10, fontWeight: '600' as const, color: t.textSecondary },
   divisionTable: {
-    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
+    marginHorizontal: 16, backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line, overflow: 'hidden' as const,
   },
   tableHeader: {
     flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.fillSecondary, gap: 4,
+    backgroundColor: t.neutralSoft, gap: 4,
   },
   tableHeaderCell: {
-    flex: 1, fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    flex: 1, fontSize: 10, fontWeight: '700' as const, color: t.textMuted,
     textTransform: 'uppercase' as const, letterSpacing: 0.3,
   },
   tableRow: {
     flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
-    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, alignItems: 'center', gap: 4,
+    borderTopWidth: 0.5, borderTopColor: t.line, alignItems: 'center', gap: 4,
   },
   tableCell: { flex: 1 },
   tableDot: { width: 6, height: 6, borderRadius: 3 },
-  tableCellText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  tableCellBold: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
+  tableCellText: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  tableCellBold: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
   metricsGrid: {
     flexDirection: 'row', flexWrap: 'wrap' as const, paddingHorizontal: 16, gap: 8,
   },
   metricCard: {
-    flex: 1, minWidth: 70, backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, padding: 10,
-    alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.cardBorder,
+    flex: 1, minWidth: 70, backgroundColor: t.surface, borderRadius: Tokens.radius.md, padding: 10,
+    alignItems: 'center', gap: 4, borderWidth: 1, borderColor: t.line,
   },
-  metricLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
-  metricValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text },
+  metricLabel: { fontSize: 10, fontWeight: '600' as const, color: t.textMuted },
+  metricValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: t.text },
 });

@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
   Search, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
-  Wallet,
+  Wallet, CloudOff,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -34,6 +34,7 @@ import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseProjectFromTranscript } from '@/utils/voiceFormParsers';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
@@ -74,6 +75,13 @@ import WeekCloseCard from '@/components/home/WeekCloseCard';
 import DailyLogCard from '@/components/home/DailyLogCard';
 import { showAlert } from '@/utils/alert';
 
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8). Home renders a
+// dozen independent cards — Brain Watch, Ready to Bill, Morning Brief, Week
+// Close — and a render bug in any one of them used to unwind to the root
+// boundary and restart the whole bundle. Contained here, the tab bar survives
+// and "Go Back" is a real way out.
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -102,7 +110,13 @@ export default function HomeScreen() {
   const { navigateTo } = useEntityNavigation();
   const { openSearch } = useSearch();
   const projectCtx = useProjects();
-  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices, settings, userRole } = projectCtx;
+  const {
+    projects, isLoading, addProject, getTotalOutstandingBalance, invoices, settings, userRole,
+    // RT-R1: an empty `projects` is EITHER a brand-new account OR every read
+    // 401'd and this device has a cold cache. The list's empty state answers
+    // that question, so it has to know which (audit 2026-09-07).
+    sourceFailed, retryRemoteReads,
+  } = projectCtx;
   const { user } = useAuth();
   // "Try a sample project" — un-gated as of the explainability refresh.
   // Original design had this owner-only because we worried users would
@@ -761,8 +775,20 @@ export default function HomeScreen() {
                 pattern (CompanyCam): the user opens the app and the
                 very first thing they see is "what needs you right now"
                 — before stats, before project list. SmartInbox already
-                aggregates from useSmartInbox(). Renders nothing when
-                there are zero items. */}
+                aggregates from useSmartInbox().
+
+                It does NOT render nothing when there are zero items — this
+                comment said so for a long time and components/SmartInbox.tsx:80
+                has always rendered "Inbox 0 | All caught up. | Nothing urgent
+                across your projects." instead. That sentence is a claim about
+                every project made from nine rules, and it is the same false
+                all-clear the polish audit found on this card's neighbours; it
+                is also the string the DesktopActionRail dropped for exactly
+                that reason. The rules it is drawn from now include an expired
+                permit (hooks/useSmartInbox.ts permit_expiring, added because
+                this card printed "All caught up" four rows under "permit has
+                expired — work on it is unpermitted"), but the SENTENCE still
+                needs scoping in that component. */}
             {/* Inline SmartInbox is suppressed at wide desktop widths — the
                 DesktopActionRail in the tabs layout is rendering the same
                 items in the right column. */}
@@ -867,8 +893,17 @@ export default function HomeScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.stripeBannerTitle}>Get paid in one tap</Text>
+                  {/* Three screens quoted three different durations for this one
+                      step and none was the true one: this said 2 minutes, the
+                      checklist says "About 2 minutes" for a list containing it,
+                      and app/payments-setup.tsx says 3 — then tells you Stripe's
+                      own review takes "an hour, sometimes a few minutes". This
+                      one now matches the screen it sends you to, and names the
+                      wait it cannot control (polish audit 2026-09-10,
+                      first-ten-minutes #11). The other two strings are in files
+                      this change does not own. */}
                   <Text style={styles.stripeBannerSub}>
-                    Connect Stripe so clients can pay invoices from their phone. Takes 2 minutes.
+                    Connect Stripe so clients can pay invoices from their phone. About 3 minutes, then Stripe reviews it.
                   </Text>
                 </View>
                 <ChevronRight size={18} color="#FFFFFF" style={{ opacity: 0.85 }} strokeWidth={1.75} />
@@ -889,7 +924,14 @@ export default function HomeScreen() {
                 users never do. */}
             <OnboardingChecklist
               companyInfoDone={companyInfoDone}
-              projectCount={projects.length}
+              // realProjectCount, not projects.length (polish audit 2026-09-10,
+              // first-ten-minutes #15). Seeding "Sample — The Henderson Residence"
+              // ticked off "Create your first project" here, while handleCreatePress
+              // above deliberately filters samples OUT when it answers the same
+              // question for the free-tier cap. One definition of "a project", used
+              // by both, or this card credits him with work the rest of the app
+              // does not count.
+              projectCount={realProjectCount}
               estimateCount={estimateCount}
               stripeConnected={stripeConnected}
               invoiceCount={invoices.length}
@@ -943,15 +985,60 @@ export default function HomeScreen() {
           </View>
         }
         ListEmptyComponent={
-          <EmptyState
-            icon={<HardHat size={40} color={themeColors.accent} strokeWidth={1.6} />}
-            title="Build something"
-            message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail."
-            actionLabel="Create your first project"
-            onAction={handleCreatePress}
-            secondaryLabel={showDemoSeed ? 'Try a sample project (small or large)' : undefined}
-            onSecondaryAction={showDemoSeed ? handleSeedDemo : undefined}
-          />
+          // FlatList renders this whenever `data` is empty — and at tablet+
+          // widths `data` is hard-wired to `[]` above (the rows render as one
+          // table in ListFooterComponent), so on the web app this fired for
+          // EVERY GC, printing "Your first project is one tap away / Create
+          // your first project" directly above the table listing his twenty
+          // jobs. Pre-existing, found while routing the failed-read copy
+          // through here (review 2026-09-07): an empty state is a claim, and
+          // on desktop it was a false one. Say nothing when the table has rows.
+          useDenseRows && filteredProjects.length > 0 ? null :
+          // A failed read is not an empty account. This is the day-one
+          // onboarding card — "Your first project is one tap away" — and it
+          // was what a GC saw after reinstalling, or signing in on a second
+          // device, when every read came back 401 (audit 2026-09-07, the
+          // sourceFailed site batch 1 could not reach). Same copy contract the
+          // Summary tab already uses for this exact fact.
+          //
+          // ORDER MATTERS: only the FAILED read takes this branch. A genuinely
+          // new account has sourceFailed === false and still gets the friendly
+          // empty state below, which is the whole point.
+          //
+          // GATED ON `projects`, NOT ON THE LIST'S OWN EMPTINESS (review fix,
+          // 2026-09-07). This ListEmptyComponent fires in two states that are
+          // NOT "he has nothing": the status chips filter to `filteredProjects`
+          // (pick "Active" with only closed jobs and the list is empty while
+          // the book is full), and at tablet+ widths `data` is hard-wired to
+          // `[]` because the rows render as a table in ListFooterComponent.
+          // Gating the error copy on `sourceFailed` alone therefore told a GC
+          // sitting in a basement with twenty cached projects that they
+          // "didn't come back" — on desktop, directly above the table listing
+          // them. Same discipline report-inbox uses (`rows.length === 0`).
+          projects.length === 0 && sourceFailed ? (
+            <ErrorState
+              icon={<CloudOff size={40} color={themeColors.warningLabel} strokeWidth={1.6} />}
+              title="Couldn't reach MAGE"
+              body="Your projects didn't come back from the last read. Nothing has been deleted — this device just has nothing cached to show yet."
+              steps={[
+                'Check that you have signal or Wi-Fi.',
+                'Tap Try again below.',
+                'If it keeps failing, sign out and back in — the session may have expired.',
+              ]}
+              onRetry={retryRemoteReads}
+              testID="home-unreachable"
+            />
+          ) : (
+            <EmptyState
+              icon={<HardHat size={40} color={themeColors.accent} strokeWidth={1.6} />}
+              title="Build something"
+              message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail."
+              actionLabel="Create your first project"
+              onAction={handleCreatePress}
+              secondaryLabel={showDemoSeed ? 'Try a sample project (small or large)' : undefined}
+              onSecondaryAction={showDemoSeed ? handleSeedDemo : undefined}
+            />
+          )
         }
         showsVerticalScrollIndicator={false}
       />

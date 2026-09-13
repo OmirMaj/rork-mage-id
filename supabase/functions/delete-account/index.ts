@@ -308,10 +308,12 @@ const SAFE_DELETE_KEY = /^[A-Za-z0-9._:-]{1,128}$/;
  *
  * Rows persist a mix of shapes: public_bids.photo_urls / drawing_urls hold
  * full public URLs (utils/storage.ts uploadRfpAttachment returns
- * getPublicUrl), plan_sheets.image_uri holds a public URL from
- * convert-pdf-to-images, and newer writers persist the bare path. Accept all
- * three; return null for anything that is not ours (an http URL pointing at
- * some other host, or a file:// URI that never uploaded).
+ * getPublicUrl), plan_sheets.image_uri holds a bare PATH since audit DB-F11 and
+ * a permanent public URL from convert-pdf-to-images in every row written before
+ * it, and other newer writers persist the bare path. Accept all three; return
+ * null for anything that is not ours (an http URL pointing at some other host,
+ * or a file:// URI that never uploaded). The bare-path arm below is what keeps
+ * post-DB-F11 plan_sheets rows deletable — do not "tighten" it to URLs only.
  */
 function storagePathFromUrl(raw: unknown, bucket: string): string | null {
   if (typeof raw !== 'string' || raw.length === 0) return null;
@@ -566,10 +568,12 @@ serve(async (req) => {
         .map(r => String(r.id ?? '')).filter(Boolean));
 
       // Objects whose path does NOT start with a prefix we can walk:
-      //  - plan-sheets renders made before a project was picked land under the
-      //    SHARED `tmp/` folder (app/takeoff.tsx passes projectId ?? 'tmp'), so
-      //    a prefix walk would either miss them or delete other users' sheets.
-      //    plan_sheets.image_uri is the only record of which ones are ours.
+      //  - plan-sheets renders made before a project was picked landed under the
+      //    SHARED `tmp/` folder (app/takeoff.tsx used to pass projectId ?? 'tmp'
+      //    — DB-F11 removed that, but the objects already written there remain),
+      //    so a prefix walk would either miss them or delete other users'
+      //    sheets. plan_sheets.image_uri is the only record of which ones are
+      //    ours.
       //  - RFP attachments are under <uid>/, but reading photo_urls/drawing_urls
       //    also catches any row whose attachments were uploaded under a
       //    different prefix, which is the exact data (interior photos of a home)
@@ -587,7 +591,9 @@ serve(async (req) => {
         // Renders made before a project was picked share this folder. We cannot
         // prove ownership inside it, only that the row claiming the object is
         // ours — accepted because the alternative is leaving the departing
-        // user's drawings in a public bucket permanently.
+        // user's drawings in the bucket permanently. HISTORICAL ONLY since
+        // DB-F11: nothing new is written under tmp/, but the objects that are
+        // already there still have to be deletable.
         'tmp',
       ]);
       const explicitObjects: Array<{ bucket: string; path: string }> = [];

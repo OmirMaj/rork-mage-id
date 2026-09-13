@@ -58,8 +58,23 @@ export async function shareScheduleCsv(
   if (canShare) await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: filename });
 }
 
-export function buildScheduleShareUrl(projectName: string, projectStartDate: Date, tasks: ScheduleTask[]): string | null {
-  const payload = buildSharePayload(projectName, projectStartDate, tasks); // no opts → v1 token (decodable)
+export function buildScheduleShareUrl(
+  projectName: string,
+  projectStartDate: Date,
+  tasks: ScheduleTask[],
+  // The project calendar TRAVELS WITH THE LINK. Without it the payload carries
+  // no workingDaysPerWeek/nonWorkingDates, `cpmOptionsFromSharePayload` falls
+  // back to 5 and the recipient of a 6- or 7-day project's link is shown dates
+  // the sender never planned. The old call passed no opts at all, with a
+  // comment claiming that was needed to get a "decodable" v1 token — a
+  // workaround for `decodeShareToken` rejecting everything that was not v1,
+  // which is fixed: v1-v4 all decode now.
+  calendar?: { workingDaysPerWeek?: number; nonWorkingDates?: string[] },
+): string | null {
+  const payload = buildSharePayload(projectName, projectStartDate, tasks, {
+    workingDaysPerWeek: calendar?.workingDaysPerWeek,
+    nonWorkingDates: calendar?.nonWorkingDates,
+  });
   const res = tryEncodeShareToken(payload);
   if (res.kind !== 'inline') return null;
   // Public web-app host (app.mageid.app serves the Expo /shared-schedule route).

@@ -13,6 +13,14 @@ import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+// Route-level recovery for everything under (tabs). expo-router wraps a module
+// that exports `ErrorBoundary` in its own <Try>, so a crash in a tab screen is
+// contained here instead of unwinding to the root boundary in app/_layout.tsx —
+// which, being ABOVE the router, can only recover by restarting the JS bundle
+// (audit 2026-09-07, "Worth doing" #8). A screen with its own export overrides
+// this one; this is the floor.
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
+
 /**
  * TabIcon — wraps a tab icon with a focused-state indicator dot
  * underneath. The dot fades + scales in when the tab becomes active,
@@ -89,7 +97,7 @@ const tabIconStyles = StyleSheet.create({
 
 export default function TabLayout() {
   const layout = useResponsiveLayout();
-  const { total: attentionCount } = useBrainWatch();
+  const { total: attentionCount, sourceFailed } = useBrainWatch();
   const { colors: themeColors } = useTheme();
   const { userRole } = useCoreData();
   // Non-contractor personas get a stripped-down tab bar. The original
@@ -105,9 +113,33 @@ export default function TabLayout() {
   // used to be the Smart Inbox row count, so the badge said "11" while
   // Summary said "1" and the Brain Watch card said "5" (sim-audit #15).
   // The Inbox card carries its own count under its own scoped "Inbox" label.
-  const attentionBadge = attentionCount > 0
-    ? (attentionCount > 99 ? '99+' : String(attentionCount))
-    : undefined;
+  //
+  // …and that count is only a count when the read behind it landed. The hook
+  // carries `sourceFailed` for exactly this (RT-R1) and this call site was
+  // destructuring it away — so a GC whose session had expired got a clean,
+  // badge-free tab over a number nobody had actually fetched, which is the
+  // single most confident "you're fine" the app can say (audit 2026-09-07,
+  // "Worth doing" #8, the site batch 1 could not reach). '!' is the honest
+  // badge: something is unknown, not zero. The Brain Watch card and the
+  // desktop rail below it already say WHY in words.
+  const attentionBadge = sourceFailed
+    ? '!'
+    : attentionCount > 0
+      ? (attentionCount > 99 ? '99+' : String(attentionCount))
+      : undefined;
+
+  // VoiceOver position labels, stated explicitly.
+  //
+  // WHY — hands-on UI pass 2026-09-07, finding 7. BottomTabBar builds its
+  // default iOS label as `${label}, tab, ${index+1} of ${routes.length}` over
+  // state.routes, which counts EVERY registered screen, `href: null` included.
+  // Twelve are registered here for four visible tabs, and `estimate` sits
+  // between (home) and discover, so the bar announced "1, 2, 4, 5 of 12".
+  // Moving the 21 hidden routes out of the tab navigator is the architectural
+  // fix and is far too large for this; naming the four positions is exact.
+  const visibleTabCount = isMinimalPersona ? 2 : 4;
+  const tabA11yLabel = (label: string, position: number) =>
+    `${label}, tab, ${position} of ${visibleTabCount}`;
 
   // Right-rail "Action Required" column shows on wide desktops (>= 1280px
   // viewport). Below that we don't have horizontal room for a clean three-
@@ -200,6 +232,7 @@ export default function TabLayout() {
         name="summary"
         options={isMinimalPersona ? { href: null } : {
           title: 'Summary',
+          tabBarAccessibilityLabel: tabA11yLabel('Summary', 1),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={MageSummary} color={color} focused={focused} />
           ),
@@ -212,6 +245,12 @@ export default function TabLayout() {
           // property-owner hub (post a project, active RFPs, in-progress).
           // Contractors keep the original "Your Projects" label.
           title: isMinimalPersona ? 'Home' : 'Your Projects',
+          // A '!' badge reads as an exclamation mark and nothing else to
+          // VoiceOver, so the reason is stated in the label.
+          tabBarAccessibilityLabel: (isMinimalPersona
+            ? tabA11yLabel('Home', 1)
+            : tabA11yLabel('Your Projects', 2)
+          ) + (sourceFailed ? ", couldn't reach MAGE" : ''),
           tabBarBadge: attentionBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
@@ -230,6 +269,7 @@ export default function TabLayout() {
         name="discover"
         options={isMinimalPersona ? { href: null } : {
           title: 'Discover',
+          tabBarAccessibilityLabel: tabA11yLabel('Discover', 3),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={MageDiscover} color={color} focused={focused} />
           ),
@@ -239,6 +279,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Settings',
+          tabBarAccessibilityLabel: tabA11yLabel('Settings', isMinimalPersona ? 2 : 4),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Settings} color={color} focused={focused} />
           ),

@@ -14,6 +14,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
+import { neutralInk } from '@/components/ui';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
@@ -607,7 +608,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroSub: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: '#9AA3AD',
+    // Was the literal '#9AA3AD' — the DARK theme's textSecondary — sitting on
+    // `t.bg`, which is near-white in light mode. 2.55:1 on a 13pt line, on the
+    // FIRST screen anyone sees. neutralInk picks the same grey family by the
+    // background's luminance, so it clears AA in both themes and keeps the
+    // colour the design intended in dark (audit 2026-09-07, worth-doing #4).
+    color: neutralInk(t),
     letterSpacing: 0.2,
     marginTop: 14,
     zIndex: 1,

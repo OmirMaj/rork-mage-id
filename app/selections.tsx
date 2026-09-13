@@ -18,7 +18,7 @@ import {
   CheckCircle2, AlertTriangle, Clock, Package, PenTool,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -45,9 +45,17 @@ export default function SelectionsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject } = useProjects();
+  // Reached from the sidebar (CLIENT ▸ Selections), universal search or a deep
+  // link there is no projectId, so ToolProjectPicker sets one locally
+  // (field-ticket pattern). A pick outranks the param so a STALE id in the URL
+  // — deleted project, old shared link — can't make the picker inert.
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
+  const { getProject, projects } = useProjects();
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = projectId ? getProject(projectId) : undefined;
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
   const [categories, setCategories] = useState<SelectionCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,17 +199,18 @@ export default function SelectionsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Selections"
+          message="Selections live inside a project so each allowance ties back to the contract."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<PenTool size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="No selections set up yet"
-          message="Selections live inside a project so each allowance ties back to the contract. To open one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Selections in the project tile grid.',
             'Add categories (kitchen tile, lighting, etc.), set allowances, and let AI curate options for the homeowner.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

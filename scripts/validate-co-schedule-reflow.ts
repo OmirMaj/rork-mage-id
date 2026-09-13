@@ -428,23 +428,61 @@ console.log('\ndegenerate inputs:');
 // ── 11. A working calendar is honored ──────────────────────────────────────
 console.log('\ncalendar awareness:');
 {
-  // 2026-01-05 is a Monday. On a 5-day week a 3-day extension to a task that
+  // 2026-01-05 is a Monday. On a 5-day week a 2-day extension to a task that
   // ends Friday must push its successor across the weekend, not into it.
+  //
+  // SCALE (2026-09-11): `startDay` is a WORKING ORDINAL, so on this calendar
+  // ordinal 1 = Mon Jan 5 … 5 = Fri Jan 9, 6 = Mon Jan 12, 7 = Tue Jan 13,
+  // 8 = Wed Jan 14. This fixture used to author q at 8 and expect 10, which
+  // were the CALENDAR indices of those same two days (Mon Jan 12 → Wed Jan 14)
+  // back when the engine read `startDay` as a calendar index. The real-world
+  // dates the test is about are unchanged; only the numbering is.
   const s = schedule({
     startDate: '2026-01-05',
     workingDaysPerWeek: 5,
     tasks: [
-      task({ id: 'p', title: 'Frame walls', startDay: 1, durationDays: 5 }),
-      task({ id: 'q', title: 'Roof', startDay: 8, durationDays: 3, dependencies: ['p'] }),
+      task({ id: 'p', title: 'Frame walls', startDay: 1, durationDays: 5 }),   // Mon Jan 5 → Fri Jan 9
+      task({ id: 'q', title: 'Roof', startDay: 6, durationDays: 3, dependencies: ['p'] }), // Mon Jan 12
     ],
   });
   const res = applyCoScheduleReflow(s, co({ scheduleImpactDays: 2, scheduleImpactTaskIds: ['p'] }), DETERMINISTIC);
   ok('reflow runs on a 5-day calendar', res.plan.status === 'ready', res.plan.message);
   const q = res.nextSchedule!.tasks.find(t => t.id === 'q')!;
-  ok('the successor shift crosses the weekend (2 working days = 2 calendar days here)',
-    q.startDay === 10, `expected day 10 (Wed 14 Jan), got ${q.startDay}`);
+  ok('the successor shift crosses the weekend (2 working days, Mon 12 Jan → Wed 14 Jan)',
+    q.startDay === 8, `expected working ordinal 8 (Wed 14 Jan), got ${q.startDay}`);
   ok('the finish moves by working days, not raw days',
     res.plan.finishDeltaDays === 2, String(res.plan.finishDeltaDays));
+
+  // A shift that CROSSES a weekend. p runs Mon 5 – Wed 7 Jan (ordinals 1-3) and
+  // q is pinned to Fri 9 Jan (ordinal 5). Two extra days on p push it to Fri
+  // 9 Jan, so q moves to Mon 12 Jan — ONE working day, but THREE calendar days.
+  // `a.es - b.es` is a calendar delta; adding it to a working ordinal wrote
+  // ordinal 8 (Wed 14 Jan), two days further than the plan actually moved.
+  const s3 = schedule({
+    startDate: '2026-01-05',
+    workingDaysPerWeek: 5,
+    tasks: [
+      task({ id: 'p', title: 'Frame walls', startDay: 1, durationDays: 3 }),   // Mon 5 → Wed 7
+      task({ id: 'q', title: 'Roof', startDay: 5, durationDays: 2, dependencies: ['p'] }), // Fri 9
+    ],
+  });
+  const res3 = applyCoScheduleReflow(s3, co({ scheduleImpactDays: 2, scheduleImpactTaskIds: ['p'] }), DETERMINISTIC);
+  const q3 = res3.nextSchedule!.tasks.find(t => t.id === 'q')!;
+  ok('a successor pushed Fri → Mon moves ONE working day, not three calendar days',
+    q3.startDay === 6, `expected working ordinal 6 (Mon 12 Jan), got ${q3.startDay}`);
+
+  // …and the units are genuinely WORKING days, which the case above cannot
+  // tell apart (its 2-day slip happens not to cross a weekend at the finish).
+  // Here the finish moves Fri Jan 9 → Mon Jan 12: one working day, three
+  // calendar days. `after.projectFinish - before.projectFinish` returned 3.
+  const s2 = schedule({
+    startDate: '2026-01-05',
+    workingDaysPerWeek: 5,
+    tasks: [task({ id: 'p', title: 'Frame walls', startDay: 1, durationDays: 5 })],
+  });
+  const res2 = applyCoScheduleReflow(s2, co({ scheduleImpactDays: 1, scheduleImpactTaskIds: ['p'] }), DETERMINISTIC);
+  ok('a finish that slips Fri → Mon reports 1 working day, not 3 calendar days',
+    res2.plan.finishDeltaDays === 1, String(res2.plan.finishDeltaDays));
 }
 
 // ── 12. The screen copy matches the behaviour ──────────────────────────────

@@ -178,7 +178,12 @@ function MarginAlertsInner() {
             <BellRing size={16} color={actionable > 0 ? t.danger : t.success} strokeWidth={1.75} />
             <Text style={styles.summaryText}>
               {actionable > 0 ? (
-                <><Text style={styles.summaryStrong}>{actionable}</Text> job{actionable === 1 ? '' : 's'} need attention since you last looked.</>
+                // The verb agrees with the noun. "1 job need attention" fires on
+                // every single-alert case, which is the common case for a
+                // contractor running one to three jobs — i.e. the whole target
+                // market — on a screen whose entire job is to be believed about
+                // money (polish audit 2026-09-10, dead-ends #12).
+                <><Text style={styles.summaryStrong}>{actionable}</Text> job{actionable === 1 ? ' needs' : 's need'} attention since you last looked.</>
               ) : (
                 <>Good news only — recoveries since you last looked.</>
               )}

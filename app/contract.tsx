@@ -24,7 +24,7 @@ import {
   CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight, Receipt,
 } from 'lucide-react-native';
 import { MageContract } from '@/components/icons';
-import EmptyState from '@/components/EmptyState';
+import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import Paywall from '@/components/Paywall';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -37,9 +37,13 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   fetchActiveContract, saveContract, setContractStatus,
   buildDraftContract, buildProposalFromRevision, defaultPaymentSchedule,
+  contractTimeline, contractTimelineSentence, suggestContractTimeline,
 } from '@/utils/contractEngine';
+import DatePickerModal from '@/components/DatePickerModal';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import {
-  milestoneBillability, milestoneBlockMessage, deriveMilestoneInvoiceLine, milestoneInvoiceNote,
+  milestoneBillability, milestoneBillEffect,
+  contractBilledToDate, attributableContractBilling,
   type MilestoneBillability,
 } from '@/utils/billingFlowCore';
 import { generateUUID } from '@/utils/generateId';
@@ -110,8 +114,12 @@ function ContractScreenInner() {
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
-  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject } = useProjects();
+  // Reached from the sidebar (CLIENT ▸ Contracts), universal search or a deep
+  // link there is no projectId, so ToolProjectPicker sets one locally
+  // (field-ticket pattern). A pick outranks the param so a STALE id in the URL
+  // — deleted project, old shared link — can't make the picker inert.
+  const { projectId: paramProjectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
+  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject, getChangeOrdersForProject } = useProjects();
   // The converted_to_contract snapshot was building its cost book from closed
   // jobs ALONE — no receipts, no self-perform labor, no seeds — so it graded
   // itself against a thinner book than the wizard that produced the estimate.
@@ -120,13 +128,18 @@ function ContractScreenInner() {
   const laborSamples = useLaborCostSamples();
   const { seeds } = useCostSeeds();
   const { isFree } = useTierAccess();
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = projectId ? getProject(projectId) : undefined;
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
   const [contract, setContract] = useState<ProjectContract | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signatureModal, setSignatureModal] = useState(false);
+  const [startDatePicker, setStartDatePicker] = useState(false);
 
   // Load (or seed a draft for) this project's contract.
   useEffect(() => {
@@ -199,34 +212,73 @@ function ContractScreenInner() {
     return map;
   }, [projectInvoices]);
 
+  // ONE CONTRACT, ONE BILLED-TO-DATE — the direction this screen owns
+  // (MONEY-LEDGER-1, audit 2026-09-11). /bill-from-estimate was taught to see
+  // milestone billing; without this, THIS screen still could not see
+  // schedule-of-values billing, so a GC who billed the whole SOV there and
+  // then tapped "Create invoice" on the four milestones every contract is
+  // seeded with invoiced 200% of the contract. Pre-tax and excluding change
+  // orders — see `contractBilledToDate`.
+  const billedOnContract = useMemo(
+    () => contractBilledToDate(projectInvoices),
+    [projectInvoices],
+  );
+  // WHAT THE CEILING REFUSES ON is narrower than what the line above SHOWS
+  // (audit 2026-09-11, review round 3). `contractBilledToDate` counts every
+  // non-draft, non-change-order line — the right figure to print, the wrong
+  // one to block on: three milestones billed plus one $500 quick invoice
+  // refused the legitimate final draw on a $130,052 contract, saying the
+  // contract had been invoiced in full when 25% of it had not. A quick
+  // invoice records no mode on the row, so those dollars are unattributable BY
+  // CONSTRUCTION — the same thing app/bill-from-estimate.tsx's reconciliation
+  // banner says about them, on the same dollars. It warns; this must not block.
+  const attributableBilled = useMemo(
+    () => attributableContractBilling(projectInvoices),
+    [projectInvoices],
+  );
+  // Memoised, like every other derivation on this screen. It was inline at
+  // render, re-filtering and re-sorting the project's whole change-order list
+  // on every keystroke in the contract-value field.
+  const approvedChangeOrders = useMemo(
+    () => (projectId ? getChangeOrdersForProject(projectId) : [])
+      .filter(co => co.status === 'approved')
+      .sort((a, b) => a.number - b.number),
+    [projectId, getChangeOrdersForProject],
+  );
+
   const billabilityFor = useCallback((m: PaymentMilestone): MilestoneBillability => milestoneBillability({
     milestone: m,
     contractValue: contract?.contractValue ?? 0,
     contractStatus: contract?.status,
     linkedInvoiceIds: invoicesByMilestone.get(m.id),
-  }), [contract?.contractValue, contract?.status, invoicesByMilestone]);
+    contractBilledToDate: attributableBilled,
+  }), [contract?.contractValue, contract?.status, invoicesByMilestone, attributableBilled]);
 
   // Open the invoice editor pre-filled from this milestone. We do NOT flip the
   // milestone here — the invoice screen flips it once addInvoice() actually
   // runs, so a GC who opens the editor and backs out leaves it 'pending'.
   const handleCreateInvoiceFromMilestone = useCallback((m: PaymentMilestone) => {
     if (!contract || !projectId) return;
-    const bill = billabilityFor(m);
-    if (!bill.billable) {
+    // The decision — refuse, or compose — is made in utils/billingFlowCore.ts
+    // so it can be EXECUTED by a test; this handler only performs the effect it
+    // returns. The union is what makes the refusal binding: `effect.line` does
+    // not exist on the `refuse` arm, so removing the `return` below is a
+    // compile error rather than a homeowner billed 125% of the contract.
+    const effect = milestoneBillEffect(billabilityFor(m), m, contract);
+    if (effect.kind === 'refuse') {
       showAlert(
-        'Can’t bill this milestone',
-        milestoneBlockMessage(bill.reason!),
-        bill.existingInvoiceId
+        effect.title,
+        effect.message,
+        effect.existingInvoiceId
           ? [
               { text: 'Close', style: 'cancel' },
-              { text: 'Open invoice', onPress: () => router.push({ pathname: '/invoice', params: { projectId, invoiceId: bill.existingInvoiceId! } } as never) },
+              { text: 'Open invoice', onPress: () => router.push({ pathname: '/invoice', params: { projectId, invoiceId: effect.existingInvoiceId! } } as never) },
             ]
           : undefined,
       );
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const line = deriveMilestoneInvoiceLine(m, contract.contractValue);
     router.push({
       pathname: '/invoice',
       params: {
@@ -234,9 +286,9 @@ function ContractScreenInner() {
         // 'quick' keeps the editor to a single line if prefill parsing ever
         // fails, instead of dragging the whole estimate in behind the milestone.
         type: 'quick',
-        prefillLines: JSON.stringify([line]),
-        prefillNotes: milestoneInvoiceNote(m, contract.title),
-        milestoneId: m.id,
+        prefillLines: JSON.stringify([effect.line]),
+        prefillNotes: effect.note,
+        milestoneId: effect.milestoneId,
         contractId: contract.id,
       },
     } as never);
@@ -443,6 +495,11 @@ function ContractScreenInner() {
         const portalUrl = project ? portalShareUrl(portalSettings) : null;
         if (project && portalUrl && recipients.length > 0) {
           const companyName = settings?.branding?.companyName || 'MAGE ID';
+          // CONTRACT-TIME-1: the homeowner is being asked to counter-sign a
+          // completion date. Stated from the SAME helper the screen renders, so
+          // the email and the document can never name different days. Omitted
+          // entirely when either half is blank — never a half-stated timeline.
+          const emailTimeline = contractTimeline(contract.startDate, contract.durationDays);
           const senderName = settings?.branding?.contactName || companyName;
           const senderEmail = settings?.branding?.email;
           const greetingFirstName = (recipients[0].name ?? '').split(' ')[0] || 'there';
@@ -461,6 +518,7 @@ function ContractScreenInner() {
                  <strong style="color:#0B0D10;">Project:</strong> ${escapeHtml(project.name)}<br/>
                  ${project.location ? `<strong style="color:#0B0D10;">Location:</strong> ${escapeHtml(project.location)}<br/>` : ''}
                  <strong style="color:#0B0D10;">Contract value:</strong> ${escapeHtml(formatMoney(contract.contractValue ?? 0))}
+                 ${emailTimeline ? `<br/><strong style="color:#0B0D10;">Timeline:</strong> ${escapeHtml(emailTimeline.startLabel)} to ${escapeHtml(emailTimeline.completionLabel)} (${emailTimeline.durationDays} calendar days)` : ''}
                </p>`,
             ].join(''),
             cta: { label: 'Review & sign in your portal', href: portalUrl },
@@ -556,17 +614,18 @@ function ContractScreenInner() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <EmptyState
+        <ToolProjectPicker
+          toolName="Contracts"
+          message="A contract — scope, payment schedule, allowances, signatures — is written against one project."
+          projects={projects}
+          onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
           icon={<MageContract size={36} color={themeColors.accent} />}
-          title="No contract open yet"
-          message="Contracts (scope, payment schedule, allowances, signatures) live inside a project. To start one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Contracts inside the project tile grid.',
             'Edit the seeded draft, sign as the GC, and send to the homeowner for counter-signature.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );
@@ -582,7 +641,36 @@ function ContractScreenInner() {
 
   const isLocked = contract.status === 'sent' || contract.status === 'signed';
   const totalScheduled = contract.paymentSchedule.reduce((s, m) => s + (m.amount ?? 0), 0);
+  // MEASURED AGAINST THE ORIGINAL CONTRACT SUM, DELIBERATELY (MONEY-CONTRACT-1,
+  // audit 2026-09-11).
+  //
+  // The audit asked for this and the revised milestones to be measured against
+  // the REVISED sum. Following that would create the very defect the rest of
+  // this wave removes. The payment schedule divides the ORIGINAL agreement;
+  // an approved change order is billed on its OWN ledger — /bill-from-estimate
+  // renders a row per approved CO keyed `co:<id>` and
+  // utils/changeOrderBilling.changeOrderBillingState tracks its billed-through.
+  // Growing the milestones by the CO would bill every change order twice: once
+  // inside the enlarged milestone and once on its own row. It would also put
+  // every signed contract carrying a CO permanently into the mismatch banner
+  // and disable Sign & send.
+  //
+  // What WAS missing is that the screen said nothing about change orders at
+  // all, so a GC reading "Contract value $131,502" here had no way to
+  // reconcile it with the $151,502 his reports showed. The revised-contract
+  // card below states it, names each CO, and says where they bill.
   const scheduleMatchesValue = Math.abs(totalScheduled - contract.contractValue) < 1;
+
+  const approvedCoTotal = approvedChangeOrders.reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
+  const revisedContractSum = contract.contractValue + approvedCoTotal;
+
+  // CONTRACT-TIME-1: the two columns that existed, round-tripped, and were
+  // read by nothing. `timeline` is non-null only when BOTH halves are set —
+  // a completion date derived from a blank start is not a date.
+  const timeline = contractTimeline(contract.startDate, contract.durationDays);
+  // Offered, never applied. `basis` states the working→calendar conversion so
+  // the GC is not signing 90 working days under a 90-calendar-day label.
+  const timelineSuggestion = project && !timeline ? suggestContractTimeline(project) : null;
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
@@ -647,6 +735,131 @@ function ContractScreenInner() {
               placeholderTextColor={themeColors.textMuted}
             />
           </View>
+
+          {/* THE REVISED CONTRACT SUM (MONEY-CONTRACT-1). Before this, the
+              contract screen contained no reference to change orders at all,
+              so the figure a GC read here stopped tracking the job the day the
+              first CO was approved — while every report, the portal and the
+              AIA certificate moved. The AIA G701 form itself recites the
+              original sum, the net of previously authorised change orders and
+              the resulting sum; this says the same three things about the
+              agreement the GC is actually holding. */}
+          {approvedChangeOrders.length > 0 && (
+            <View style={styles.revisedCard} testID="revised-contract-sum">
+              <View style={styles.revisedRow}>
+                <Text style={styles.revisedLabel}>Original contract</Text>
+                <Text style={styles.revisedValue}>{formatMoney(contract.contractValue)}</Text>
+              </View>
+              {approvedChangeOrders.map(co => (
+                <View key={co.id} style={styles.revisedRow}>
+                  <Text style={styles.revisedCoLabel} numberOfLines={1}>
+                    CO #{co.number}{co.description ? ` — ${co.description}` : ''}
+                  </Text>
+                  <Text style={[
+                    styles.revisedValue,
+                    { color: co.changeAmount >= 0 ? themeColors.text : themeColors.success },
+                  ]}>
+                    {co.changeAmount >= 0 ? '+' : ''}{formatMoney(co.changeAmount)}
+                  </Text>
+                </View>
+              ))}
+              <View style={[styles.revisedRow, styles.revisedRowTotal]}>
+                <Text style={styles.revisedLabelTotal}>Current contract sum</Text>
+                <Text style={styles.revisedValueTotal}>{formatMoney(revisedContractSum)}</Text>
+              </View>
+              <Text style={styles.revisedCaption}>
+                The payment schedule below still divides the original contract. Approved change
+                orders are billed on their own lines in Bill from Estimate, so the milestones do
+                not grow — that would bill each change order twice.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Timeline — CONTRACT-TIME-1. Several states require a start date and
+            a completion date on a residential contract, and clause 7 binds a
+            change of timeline to a written Change Order for a timeline the
+            document did not state. Calendar days, because that is what
+            "substantial completion within N days" means to a homeowner. */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Timeline</Text>
+          <Text style={styles.cardHelper}>
+            When work starts and how long it runs. Both are binding terms — changes to either need a
+            signed Change Order (clause 7).
+          </Text>
+
+          <View style={styles.timelineRow}>
+            <View style={styles.timelineCol}>
+              <Text style={styles.timelineFieldLabel}>Start date</Text>
+              <TouchableOpacity
+                style={[styles.timelineField, isLocked && styles.inputDisabled]}
+                onPress={() => !isLocked && setStartDatePicker(true)}
+                disabled={isLocked}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Pick the contract start date"
+                testID="contract-start-date"
+              >
+                <Calendar size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={[styles.timelineFieldText, !contract.startDate && styles.timelineFieldPlaceholder]}>
+                  {contract.startDate ? formatCalendarDay(contract.startDate) : 'Pick a date'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.timelineCol}>
+              <Text style={styles.timelineFieldLabel}>Duration (calendar days)</Text>
+              <TextInput
+                style={[styles.input, { marginBottom: 0 }, isLocked && styles.inputDisabled]}
+                value={contract.durationDays ? String(contract.durationDays) : ''}
+                onChangeText={v => {
+                  const n = Number(v.replace(/[^0-9]/g, ''));
+                  updateContract('durationDays', n > 0 ? n : undefined);
+                }}
+                keyboardType="numeric"
+                editable={!isLocked}
+                placeholder="e.g. 120"
+                placeholderTextColor={themeColors.textMuted}
+                testID="contract-duration-days"
+              />
+            </View>
+          </View>
+
+          {timeline ? (
+            <Text style={styles.timelineSentence} testID="contract-timeline-sentence">
+              {contractTimelineSentence(timeline)}
+            </Text>
+          ) : (
+            // A blocked state that says WHICH half is missing, not "incomplete".
+            <Text style={styles.timelineMissing} testID="contract-timeline-missing">
+              {contract.startDate
+                ? 'Add a duration and this contract will state its completion date.'
+                : contract.durationDays
+                  ? 'Add a start date and this contract will state its completion date.'
+                  : 'No dates set — this contract will not state when work starts or finishes.'}
+            </Text>
+          )}
+
+          {timelineSuggestion && !isLocked ? (
+            <TouchableOpacity
+              style={styles.timelineSuggest}
+              onPress={() => {
+                setContract(prev => prev ? {
+                  ...prev,
+                  startDate: timelineSuggestion.startDate,
+                  durationDays: timelineSuggestion.durationDays,
+                } : prev);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              testID="contract-timeline-suggest"
+            >
+              <Text style={styles.timelineSuggestTitle}>
+                Use my schedule — {formatCalendarDay(timelineSuggestion.startDate)} to {timelineSuggestion.completionLabel}
+              </Text>
+              <Text style={styles.timelineSuggestBasis}>{timelineSuggestion.basis}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Scope */}
@@ -700,6 +913,22 @@ function ContractScreenInner() {
               />
             );
           })}
+
+          {/* What the OTHER ledger has already drawn on this contract
+              (MONEY-LEDGER-1). Without this line the cross-ledger refusal on a
+              milestone row arrives with no explanation on screen — the GC has
+              no way to see that /bill-from-estimate already billed the work. */}
+          {billedOnContract > 0.005 && (
+            <View style={styles.scheduleTotalRow}>
+              <Text style={styles.scheduleTotalLabel}>Already invoiced on this contract</Text>
+              <Text style={styles.scheduleTotalValue} testID="contract-billed-to-date">
+                {formatMoney(billedOnContract)}
+                {contract.contractValue > 0
+                  ? ` · ${formatMoney(Math.max(0, contract.contractValue - billedOnContract))} left`
+                  : ''}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.scheduleTotalRow}>
             <Text style={styles.scheduleTotalLabel}>Total scheduled</Text>
@@ -913,6 +1142,29 @@ function ContractScreenInner() {
         onSign={handleSignAndSend}
         signing={signing}
         defaultName={user?.name ?? user?.email ?? ''}
+      />
+
+      {/* CONTRACT-TIME-1. This render was MISSING on first pass: the field
+          above set `startDatePicker` true and nothing listened, so the start
+          date was a dead tap on every platform and the whole timeline card was
+          inert unless the project happened to have a schedule to seed from.
+          scripts/validate-money-definitions.ts §6 now asserts the render, not
+          just the control.
+
+          DatePickerModal emits a NOON-UTC instant; `.slice(0, 10)` takes the
+          day the GC actually tapped. `toCalendarDayString(new Date(iso))` reads
+          LOCAL components off that instant, which in UTC+13 is the NEXT day —
+          a contract commencing one day after the one he picked. */}
+      <DatePickerModal
+        visible={startDatePicker}
+        value={contract.startDate ?? ''}
+        allowFuture
+        title="Contract start date"
+        onClose={() => setStartDatePicker(false)}
+        onChange={(iso) => {
+          updateContract('startDate', iso.slice(0, 10));
+          setStartDatePicker(false);
+        }}
       />
     </View>
   );
@@ -1195,6 +1447,38 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   inputDisabled: { opacity: 0.7 },
   inputMultiline: { minHeight: 110, paddingTop: 11 },
+
+  // Timeline card (CONTRACT-TIME-1).
+  timelineRow: { flexDirection: 'row', gap: 10 },
+  timelineCol: { flex: 1, minWidth: 0 },
+  timelineFieldLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textSecondary,
+    marginBottom: 6,
+  },
+  timelineField: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
+    paddingHorizontal: 12, paddingVertical: 11,
+  },
+  timelineFieldText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  timelineFieldPlaceholder: { color: themeColors.textMuted },
+  // The sentence that goes on the document — same helper, so it reads exactly
+  // as it will in the homeowner's email.
+  timelineSentence: {
+    fontSize: Type.caption1.fontSize, color: themeColors.text, lineHeight: 18, marginTop: 12,
+  },
+  timelineMissing: {
+    fontSize: Type.caption1.fontSize, color: themeColors.warningLabel, lineHeight: 18, marginTop: 12,
+  },
+  // accentSoft fill with accentLabel ink: this is 11–13px type, and the raw
+  // accent behind or as white type misses AA (2.87:1).
+  timelineSuggest: {
+    marginTop: 12, padding: 12, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.line,
+  },
+  timelineSuggestTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: themeColors.accentLabel },
+  timelineSuggestBasis: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, marginTop: 4, lineHeight: 16 },
   inputTermsMultiline: { minHeight: 200, paddingTop: 11, fontSize: Type.caption1.fontSize, lineHeight: 18 },
 
   amountField: {
@@ -1306,6 +1590,30 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   scheduleTotalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
   scheduleTotalValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text },
   // Mismatch banner — its own row, amber tint, real "this is wrong" affordance
+  // MONEY-CONTRACT-1 — the revised-contract card.
+  revisedCard: {
+    marginTop: 14,
+    borderRadius: Tokens.radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: themeColors.line,
+    backgroundColor: themeColors.bg,
+    padding: 12,
+    gap: 6,
+  },
+  revisedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  revisedRowTotal: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: themeColors.line,
+    paddingTop: 8,
+    marginTop: 2,
+  },
+  revisedLabel: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
+  revisedCoLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
+  revisedValue: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '600' as const },
+  revisedLabelTotal: { fontSize: Type.subhead.fontSize, color: themeColors.text, fontWeight: '700' as const },
+  revisedValueTotal: { fontSize: Type.subhead.fontSize, color: themeColors.text, fontWeight: '800' as const },
+  revisedCaption: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 4 },
+
   scheduleMismatchBanner: {
     flexDirection: 'row',
     alignItems: 'center',

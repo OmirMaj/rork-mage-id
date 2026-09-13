@@ -17,7 +17,7 @@
 // anything that transitively does. Types only — plus utils/invoiceBilling.ts,
 // which is pure arithmetic with no imports of its own (MONEY-F5).
 
-import { invoiceOutstanding } from './invoiceBilling';
+import { invoiceOutstanding, billedAmountForLine } from './invoiceBilling';
 
 // ─── 1. Milestone → invoice ──────────────────────────────────────────
 
@@ -74,7 +74,8 @@ export type MilestoneBillBlockReason =
   | 'skipped'
   | 'zero_amount'
   | 'invoice_exists'
-  | 'contract_not_signed';
+  | 'contract_not_signed'
+  | 'contract_fully_billed';
 
 export interface MilestoneBillability {
   billable: boolean;
@@ -83,6 +84,17 @@ export interface MilestoneBillability {
   reason?: MilestoneBillBlockReason;
   /** The invoice already covering this milestone, when one was found. */
   existingInvoiceId?: string;
+  /**
+   * The arithmetic behind a `contract_fully_billed` refusal, so the message
+   * can state it instead of asserting a fact the reader cannot check.
+   *
+   * The first cut of this refusal said "this project has already been invoiced
+   * for the whole contract" on a project invoiced for 75% of it plus a $500
+   * extra — a sentence a GC can disprove in ten seconds by opening his own
+   * invoice list, which is how a guard rail teaches people to route around it.
+   * Present only on that reason.
+   */
+  ceiling?: { billed: number; contractValue: number; remaining: number };
 }
 
 export interface MilestoneBillabilityInput {
@@ -99,6 +111,137 @@ export interface MilestoneBillabilityInput {
    * milestone that has already been billed.
    */
   linkedInvoiceIds?: readonly string[];
+  /**
+   * Dollars already invoiced against the BASE CONTRACT on this project that
+   * can actually be ATTRIBUTED to it — i.e. what
+   * `attributableContractBilling` below returns. Pre-tax, excluding change
+   * orders, and excluding ad-hoc billing that names no contract scope.
+   *
+   * NOT `contractBilledToDate` (audit 2026-09-11, review round 3). That
+   * function counts EVERY non-draft, non-`co:` line, which is the right
+   * population to SHOW a GC ("already invoiced on this contract") and the
+   * wrong one to REFUSE on. Measured on the $130,052 fixture: three 25%
+   * milestones billed plus a single $500 quick invoice put the total at
+   * $98,039, leaving $32,013 against a final milestone of $32,513 — so a $500
+   * cleanup charge blocked a legitimate closeout draw, under a message that
+   * said the contract had been invoiced in full. app/bill-from-estimate.tsx's
+   * own banner states why that dollar cannot be judged: a quick invoice
+   * records no mode on the row, so ad-hoc billing is unattributable BY
+   * CONSTRUCTION. One screen may not BLOCK on the same dollars its sibling
+   * only WARNS about.
+   *
+   * THE OTHER HALF OF "ONE CONTRACT, ONE BILLED-TO-DATE" (audit 2026-09-11,
+   * review round 2). The first pass taught Bill-from-Estimate about milestone
+   * billing and stopped there, which closed exactly one direction. Run the
+   * other way — bill the whole schedule of values from /bill-from-estimate,
+   * then tap "Create invoice" on each of the four milestones every contract is
+   * seeded with — and nothing objected: `milestoneBillability` looked only at
+   * that milestone's own status and its own linked invoices, never at what the
+   * contract had already been billed. Measured on the $130,052 fixture: an SOV
+   * invoice for the whole contract, then four 25% milestones, totalled
+   * $260,104 — 200% of the contract, to a homeowner.
+   *
+   * OPTIONAL, and omitting it reproduces the old behaviour exactly, so a
+   * caller that has not been widened still compiles. It also still has the
+   * hole; app/contract.tsx passes it.
+   */
+  contractBilledToDate?: number;
+}
+
+/**
+ * Dollars invoiced against the BASE CONTRACT across every non-draft invoice on
+ * a project — the cross-ledger figure `milestoneBillability` measures a
+ * milestone against.
+ *
+ * PRE-TAX, because a payment schedule is written against a pre-tax contract
+ * value; summing `totalDue` would count sales tax as contract billing and
+ * block the last milestone on every taxed job. The population is therefore
+ * summed from LINES (through the same `billedAmountForLine` every other
+ * billed-to-date in this app uses, including its invoice-level anyPreScaled
+ * gate) rather than from the invoice's stored subtotal.
+ *
+ * CHANGE-ORDER LINES ARE EXCLUDED. A CO is additional contract value with its
+ * own billed-through (`billedAgainstChangeOrder`); counting CO billing against
+ * the base contract would consume the milestones' capacity and block a
+ * legitimate draw. The prefix is inlined rather than imported so this module
+ * keeps its one-import discipline (see the header) — utils/changeOrderBilling
+ * .ts owns `CO_BILL_KEY_PREFIX` and the two must stay equal; MONEY-LEDGER-1 in
+ * scripts/validate-money-definitions.ts asserts they do.
+ */
+export function contractBilledToDate(
+  invoices: readonly {
+    status?: string;
+    lineItems: readonly { total: number; billedPercent?: number | null; sourceEstimateItemId?: string | null }[];
+    type?: string;
+    progressPercent?: number | null;
+  }[],
+): number {
+  let sum = 0;
+  for (const inv of invoices) {
+    if (inv.status === 'draft') continue;
+    const anyPreScaled = inv.lineItems.some(l => l.billedPercent != null);
+    for (const li of inv.lineItems) {
+      if ((li.sourceEstimateItemId ?? '').startsWith('co:')) continue;
+      sum += billedAmountForLine(li, inv, anyPreScaled);
+    }
+  }
+  return toCents(sum);
+}
+
+/**
+ * The slice of `contractBilledToDate` that can be ATTRIBUTED to contract
+ * scope — the figure the milestone ceiling refuses on.
+ *
+ * THREE POPULATIONS COUNT, and each one names the contract:
+ *   1. a line carrying a `milestone:<id>` key, or an invoice carrying
+ *      `Invoice.sourceMilestoneId` — a draw against the payment schedule;
+ *   2. a line carrying a plain `sourceEstimateItemId` — a schedule-of-values
+ *      row raised by app/bill-from-estimate.tsx, which stamps that key and the
+ *      billed percentage on every line it writes;
+ *   3. every line on a `type: 'progress'` invoice — a native progress billing
+ *      is a percentage of the contract by definition.
+ *
+ * WHAT IS DELIBERATELY LEFT OUT: a line with no key on a non-progress invoice.
+ * That is a Quick Invoice or a hand-typed extra, and `Invoice.type` only ever
+ * persists as 'full' or 'progress', so nothing distinguishes a $500 "final
+ * cleanup" charge from a $130,000 hand-typed contract billing. Counting it
+ * refused a legitimate final milestone over an unrelated extra (the measured
+ * case is on `MilestoneBillabilityInput.contractBilledToDate`); leaving it out
+ * means a GC who bills the whole contract by hand and then taps the milestones
+ * is WARNED rather than STOPPED.
+ *
+ * That asymmetry is chosen, not conceded. The over-bill this ceiling exists to
+ * stop (audit 2026-09-11 S4) runs through the two paths MAGE itself puts on
+ * the contract screen — the milestone "Create invoice" action and the button
+ * that opens Bill-from-Estimate — and BOTH of those stamp a key. Hand-typed
+ * billing is the population app/bill-from-estimate.tsx already surfaces in its
+ * own reconciliation banner, and the two screens now agree on how to treat it:
+ * name it, do not adjudicate it. app/contract.tsx prints
+ * `contractBilledToDate` beside the schedule for exactly that reason, so the
+ * dollars are on screen even where they are not enforced.
+ */
+export function attributableContractBilling(
+  invoices: readonly {
+    status?: string;
+    sourceMilestoneId?: string | null;
+    lineItems: readonly { total: number; billedPercent?: number | null; sourceEstimateItemId?: string | null }[];
+    type?: string;
+    progressPercent?: number | null;
+  }[],
+): number {
+  let sum = 0;
+  for (const inv of invoices) {
+    if (inv.status === 'draft') continue;
+    const anyPreScaled = inv.lineItems.some(l => l.billedPercent != null);
+    const wholeInvoiceCounts = !!inv.sourceMilestoneId || inv.type === 'progress';
+    for (const li of inv.lineItems) {
+      const key = li.sourceEstimateItemId ?? '';
+      if (key.startsWith('co:')) continue;
+      if (!wholeInvoiceCounts && !key) continue;
+      sum += billedAmountForLine(li, inv, anyPreScaled);
+    }
+  }
+  return toCents(sum);
 }
 
 /**
@@ -109,7 +252,7 @@ export interface MilestoneBillabilityInput {
  * because the conflict is the one that would cost the client money.
  */
 export function milestoneBillability(input: MilestoneBillabilityInput): MilestoneBillability {
-  const { milestone, contractValue, contractStatus, linkedInvoiceIds } = input;
+  const { milestone, contractValue, contractStatus, linkedInvoiceIds, contractBilledToDate: billed } = input;
   const amount = milestoneBillableAmount(milestone, contractValue);
 
   // An invoice already points at this milestone — authoritative regardless of
@@ -139,11 +282,39 @@ export function milestoneBillability(input: MilestoneBillabilityInput): Mileston
   if (!(amount > 0)) {
     return { billable: false, amount, reason: 'zero_amount' };
   }
+  // THE CROSS-LEDGER CEILING. Checked LAST, after every reason that names this
+  // milestone specifically, because "you already billed this one" is a more
+  // useful sentence than "the contract is full" when both are true.
+  //
+  // It REFUSES rather than warns, for the same reason every other branch here
+  // does: the money it is protecting is a homeowner's, and the GC has two
+  // unblocked ways to bill anyway (raise it on /bill-from-estimate, which nets
+  // against the same ledger, or correct the contract value if THAT is what is
+  // stale). A refusal costs a tap; an over-bill costs the relationship.
+  if (typeof billed === 'number' && Number.isFinite(billed) && contractValue > 0) {
+    const counted = Math.max(0, billed);
+    const remaining = toCents(contractValue - counted);
+    if (amount > remaining + 0.005) {
+      return {
+        billable: false,
+        amount,
+        reason: 'contract_fully_billed',
+        ceiling: { billed: toCents(counted), contractValue: toCents(contractValue), remaining },
+      };
+    }
+  }
   return { billable: true, amount };
 }
 
 /** Human-readable explanation for a blocked milestone, for showAlert copy. */
-export function milestoneBlockMessage(reason: MilestoneBillBlockReason): string {
+export function milestoneBlockMessage(
+  reason: MilestoneBillBlockReason,
+  /** From `MilestoneBillability`: the numbers behind a ceiling refusal, and
+   *  the milestone's own amount. Optional — an older caller still compiles and
+   *  gets the figure-free sentence. */
+  ceiling?: MilestoneBillability['ceiling'],
+  amount = 0,
+): string {
   switch (reason) {
     case 'already_invoiced':
       return 'This milestone has already been invoiced. Open the existing invoice instead of billing it twice.';
@@ -157,6 +328,17 @@ export function milestoneBlockMessage(reason: MilestoneBillBlockReason): string 
       return 'Set a dollar amount (or a percentage of the contract value) on this milestone before invoicing it.';
     case 'contract_not_signed':
       return 'Milestones can only be invoiced once the contract is signed by both parties.';
+    case 'contract_fully_billed': {
+      // SAY THE ARITHMETIC (audit 2026-09-11, review round 3). Without the
+      // figures this sentence asserted "already invoiced for the whole
+      // contract" on projects that were not, and a refusal a GC can disprove
+      // is a refusal he learns to work around.
+      if (!ceiling) {
+        return 'Billing this milestone would take the total invoiced past the contract value. Check the invoices on this project first — if the contract value has changed, update it here and the schedule will follow.';
+      }
+      const m = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving ${m(ceiling.remaining)} — this milestone is ${m(amount)}. Billing it would take the total past the contract. Bill the remainder from Bill from Estimate, or update the contract value here if it has changed and the schedule will follow.`;
+    }
   }
 }
 
@@ -167,6 +349,45 @@ export interface MilestoneInvoiceLine {
   unit: string;
   unitPrice: number;
   total: number;
+  /** Namespaced billing key — see MILESTONE_BILL_KEY_PREFIX. */
+  sourceEstimateItemId: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MONEY-LEDGER-1 (audit 2026-09-11). ONE contract, ONE billed-to-date.
+//
+// `defaultPaymentSchedule` (utils/contractEngine.ts) seeds 25/25/25/25 on EVERY
+// contract, and app/contract.tsx puts the milestone "Create invoice" action and
+// a "Create first invoice" button that routes to /bill-from-estimate on the
+// SAME screen. A milestone invoice used to carry no billing key at all, so
+// app/bill-from-estimate.tsx — which attributes prior billing by
+// `sourceEstimateItemId` or an exact line-name match — could see none of it and
+// printed "Already billed $0.00" over 25/50/75/100% quick-fill buttons. A GC
+// who billed the 25% deposit milestone and then quick-filled 100% billed 125%
+// of the contract to a homeowner.
+//
+// The key is namespaced exactly the way utils/changeOrderBilling.ts namespaces
+// `co:<id>`, and for the same reason: a bare milestone id is a UUID off the
+// same generator as a LinkedEstimateItem.materialId, so an un-prefixed key
+// could collide with a real estimate row and bill-from-estimate would credit
+// the milestone's dollars against whichever line happened to share the id.
+//
+// Callers that resolve a key to an estimate item MUST treat a namespaced key as
+// "not an estimate item" — supabase/functions/_shared/qbo-mapping/invoice.ts
+// used to throw `item co:… not found` and fail the whole QuickBooks push for
+// every change-order invoice.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const MILESTONE_BILL_KEY_PREFIX = 'milestone:';
+
+/** Stable invoice-line key for a contract payment milestone. */
+export function milestoneBillKey(milestoneId: string): string {
+  return `${MILESTONE_BILL_KEY_PREFIX}${milestoneId}`;
+}
+
+/** True when this line was written by the milestone billing path. */
+export function isMilestoneBillKey(key: string | null | undefined): boolean {
+  return !!key && key.startsWith(MILESTONE_BILL_KEY_PREFIX);
 }
 
 /** Plain-English description of what triggered the milestone, for the line. */
@@ -188,6 +409,24 @@ export function milestoneTriggerText(m: MilestoneLike): string {
  * Deliberately NOT tagged with billedPercent: that field means "already scaled
  * by bill-from-estimate" and would flip progressSubtotal's anyPreScaled gate on
  * an invoice that has nothing to do with progress billing.
+ *
+ * It IS tagged with a namespaced `sourceEstimateItemId` (MONEY-LEDGER-1) — but
+ * read `billedAgainstMilestones` before you rely on that key for anything.
+ * This line is handed to app/invoice.tsx through the `prefillLines` URL param,
+ * and that screen's parser reconstructs each line from name / description /
+ * quantity / unit / unitPrice only, so the key does NOT reach the persisted
+ * invoice on today's one production path. What does reach it is
+ * `Invoice.sourceMilestoneId`, which app/invoice.tsx stamps at creation from
+ * the `milestoneId` param, and that is the identifier the billed-to-date
+ * function actually runs on.
+ *
+ * The key stays because it is the durable answer: it is the same namespacing
+ * `co:<id>` uses (utils/changeOrderBilling.ts), it survives any path that
+ * preserves line keys (bill-from-estimate writes its own lines, so it does),
+ * and it keeps milestone dollars out of the estimate namespace so no estimate
+ * row can be credited with them. Widening app/invoice.tsx's prefill parser to
+ * carry `sourceEstimateItemId` through is the follow-up that makes it live —
+ * see docs/audits/2026-09-11-handoff-money-to-wip.md.
  */
 export function deriveMilestoneInvoiceLine(m: MilestoneLike, contractValue: number): MilestoneInvoiceLine {
   const total = milestoneBillableAmount(m, contractValue);
@@ -201,13 +440,295 @@ export function deriveMilestoneInvoiceLine(m: MilestoneLike, contractValue: numb
     unit: 'lump',
     unitPrice: total,
     total,
+    sourceEstimateItemId: milestoneBillKey(m.id),
   };
+}
+
+/**
+ * Dollars already invoiced against contract payment milestones, across every
+ * NON-DRAFT invoice on the project — the milestone twin of
+ * `billedAgainstChangeOrder`.
+ *
+ * TWO populations are counted, and the SECOND one is the one that runs today.
+ *
+ *   1. Lines carrying the `milestone:<id>` key. Exact, per line, and the shape
+ *      every future path should write.
+ *   2. Invoices carrying `Invoice.sourceMilestoneId`. app/invoice.tsx stamps
+ *      this at creation from the contract screen's `milestoneId` param, and it
+ *      is the ONLY identifier that survives that screen's `prefillLines`
+ *      parser — which rebuilds each line from name/qty/unitPrice and drops
+ *      line keys entirely (see deriveMilestoneInvoiceLine). Counting only the
+ *      key would therefore have counted NOTHING on the live flow and left the
+ *      over-bill exactly where it was, as well as under-reporting every
+ *      contract already in flight.
+ *
+ * Under (2) the WHOLE invoice counts as milestone billing, not one line. A
+ * milestone invoice is a lump sum, so normally it has one line; if the GC
+ * added more in the editor they are counted too. That OVER-states milestone
+ * billing slightly, which shrinks what Bill-from-Estimate offers — the safe
+ * direction. Under-counting is what bills a homeowner twice.
+ *
+ * Drafts are excluded for the same reason they are everywhere else in this app
+ * (utils/wip.ts DEFINITION 1): a document issued to nobody has billed nothing.
+ */
+export function billedAgainstMilestones(
+  invoices: readonly {
+    status?: string;
+    sourceMilestoneId?: string | null;
+    lineItems: readonly { total: number; billedPercent?: number | null; sourceEstimateItemId?: string | null }[];
+    type?: string;
+    progressPercent?: number | null;
+  }[],
+): number {
+  let sum = 0;
+  for (const inv of invoices) {
+    if (inv.status === 'draft') continue;
+    const anyPreScaled = inv.lineItems.some(l => l.billedPercent != null);
+    const keyed = inv.lineItems.filter(li => isMilestoneBillKey(li.sourceEstimateItemId));
+    if (keyed.length > 0) {
+      for (const li of keyed) sum += billedAmountForLine(li, inv, anyPreScaled);
+      continue;
+    }
+    // Legacy: no key, but the invoice names the milestone it came from.
+    if (inv.sourceMilestoneId) {
+      for (const li of inv.lineItems) sum += billedAmountForLine(li, inv, anyPreScaled);
+    }
+  }
+  return toCents(sum);
+}
+
+/**
+ * Spread lump-sum milestone billing across the schedule-of-values rows
+ * Bill-from-Estimate offers, so "remaining" on that screen is remaining ON THE
+ * CONTRACT and a 100% quick-fill cannot bill past it.
+ *
+ * WHY THIS IS A SPREAD AND NOT AN ATTRIBUTION. A payment milestone is
+ * un-attributed by construction: "25% deposit on signing" is a claim against
+ * the whole contract, not against framing. There is no honest line to hang it
+ * on, and inventing one would misstate the per-row billed-through. What IS
+ * honest — and what protects the homeowner — is that the SUM of the remainders
+ * must equal the contract less everything billed against it, from either
+ * ledger. So the dollars are spread pro-rata over each row's remaining
+ * capacity, floored at that capacity, with whatever cannot fit re-spread over
+ * the rows that still have room.
+ *
+ * CHANGE-ORDER ROWS ARE DELIBERATELY EXCLUDED by the caller. A CO already has
+ * an exact billed-through (`billedAgainstChangeOrder`), and a milestone
+ * percentage is a percentage of the BASE contract value the schedule was
+ * written against — spreading deposit dollars onto a change order signed six
+ * weeks later would understate what is still owed on that CO.
+ *
+ * OVERFLOW IS RETURNED, NOT SWALLOWED. When milestone billing exceeds the
+ * whole SOV (a contract value negotiated above the estimate, or a GC who has
+ * already billed past the contract), every row floors at zero and the residue
+ * comes back so the screen can SAY so instead of quietly printing a remaining
+ * balance that does not exist.
+ */
+export interface MilestoneSpreadRow { key: string; remaining: number }
+export interface MilestoneSpreadResult {
+  /** key → dollars of milestone billing charged to that row. */
+  allocated: Record<string, number>;
+  /** Milestone dollars that would not fit anywhere. */
+  unallocated: number;
+}
+export function spreadMilestoneBilling(
+  rows: readonly MilestoneSpreadRow[],
+  milestoneBilled: number,
+): MilestoneSpreadResult {
+  const allocated: Record<string, number> = {};
+  for (const r of rows) allocated[r.key] = 0;
+  let pool = toCents(Math.max(0, milestoneBilled));
+  if (pool <= 0 || rows.length === 0) return { allocated, unallocated: pool };
+
+  // Capacity per row, mutated as the waterfall fills it.
+  const capacity = new Map<string, number>();
+  for (const r of rows) capacity.set(r.key, Math.max(0, r.remaining));
+
+  // Bounded waterfall. Each pass either exhausts the pool or saturates at
+  // least one row, so rows.length + 1 passes is a hard ceiling; the guard is
+  // here so a rounding pathology can never spin.
+  for (let pass = 0; pass <= rows.length && pool > 0.005; pass++) {
+    const open = rows.filter(r => (capacity.get(r.key) ?? 0) > 0.005);
+    if (open.length === 0) break;
+    const openTotal = open.reduce((s, r) => s + (capacity.get(r.key) ?? 0), 0);
+    if (openTotal <= 0.005) break;
+    let spentThisPass = 0;
+    for (const r of open) {
+      const cap = capacity.get(r.key) ?? 0;
+      const want = pool * (cap / openTotal);
+      const take = Math.min(cap, want);
+      capacity.set(r.key, toCents(cap - take));
+      allocated[r.key] = toCents((allocated[r.key] ?? 0) + take);
+      spentThisPass += take;
+    }
+    pool = toCents(pool - spentThisPass);
+    // Pro-rata within capacity can only under-spend (never over), so a pass
+    // that moved nothing means every open row is at its cap to the cent.
+    if (spentThisPass <= 0.005) break;
+  }
+  return { allocated, unallocated: Math.max(0, toCents(pool)) };
+}
+
+/**
+ * Apply milestone billing to the schedule-of-values rows a billing screen
+ * renders — spread it, charge it, and hand back what would not fit.
+ *
+ * WHY THIS LIVES HERE AND NOT IN THE SCREEN (audit 2026-09-11, review round 2).
+ * The spread itself (`spreadMilestoneBilling`) was pure and guarded; APPLYING
+ * it was eight lines of arithmetic inside app/bill-from-estimate.tsx, and bun
+ * cannot import a .tsx, so those eight lines could only ever be regex-checked.
+ * They were: changing `const share = allocated[r.key] ?? 0` to
+ * `0 * (allocated[r.key] ?? 0)` restored the full 125%-of-contract over-bill —
+ * every row keeping its whole remaining — with the guard suite still at
+ * 148 passed / 0 failed, because every assertion on that hunk was a regex for a
+ * call the mutation did not remove. Money arithmetic that a guard cannot
+ * EXECUTE is money arithmetic that has no guard.
+ *
+ * `isExcluded` names the rows the spread must skip. The caller passes
+ * `isChangeOrderBillKey`: a CO has an exact billed-through of its own and a
+ * milestone percentage is a percentage of the BASE contract, so spreading
+ * deposit dollars onto a change order signed six weeks later would understate
+ * what is still owed on it. Excluded rows are returned untouched and still
+ * appear in the result in their original order.
+ */
+export interface MilestoneChargeableRow {
+  key: string;
+  alreadyBilled: number;
+  remaining: number;
+  billPercent: number;
+}
+export function applyMilestoneBilling<T extends MilestoneChargeableRow>(
+  rows: readonly T[],
+  milestoneBilled: number,
+  isExcluded: (key: string) => boolean,
+): { rows: T[]; unallocated: number } {
+  if (!(milestoneBilled > 0.005)) return { rows: [...rows], unallocated: 0 };
+  const spreadable = rows.filter(r => !isExcluded(r.key));
+  const { allocated, unallocated } = spreadMilestoneBilling(
+    spreadable.map(r => ({ key: r.key, remaining: r.remaining })),
+    milestoneBilled,
+  );
+  const next = rows.map(r => {
+    const share = allocated[r.key] ?? 0;
+    if (share <= 0) return r;
+    const alreadyBilled = toCents(r.alreadyBilled + share);
+    const remaining = Math.max(0, toCents(r.remaining - share));
+    return {
+      ...r,
+      alreadyBilled,
+      remaining,
+      // A row with nothing left to bill must not arrive preselected at 30%.
+      billPercent: remaining > 0 ? r.billPercent : 0,
+    };
+  });
+  return { rows: next, unallocated };
+}
+
+/**
+ * How much of the contract the schedule of values does NOT reach
+ * (F4 / verifier C4, audit 2026-09-11).
+ *
+ * THE INVARIANT. `LinkedEstimateItem.lineTotal` is the MARKED-UP line total,
+ * so `Σ items.lineTotal === LinkedEstimate.grandTotal`.
+ * app/(tabs)/estimate/full.tsx honours it (`base * (1 + markup/100) * qty`).
+ *
+ * TWO shipped writers used to violate it — app/area-takeoff.tsx and
+ * app/plan-intelligence.tsx each appended an item whose `lineTotal` was the raw
+ * COST with `markup: 0` while bumping `grandTotal` by that cost PLUS its share
+ * of markup, and both persist through `commitEstimatePatch`, so the divergence
+ * landed on the project rather than in a draft. BOTH ARE FIXED (audit
+ * 2026-09-11): each now marks the appended line up at the estimate's own
+ * effective ratio, leaves at-cost categories alone, and rounds to the cent the
+ * way recomputeEstimate rounds. scripts/validate-invoice-billing.ts lifts both
+ * append blocks out of the shipped screens and RUNS them, so the invariant is
+ * measured rather than asserted here.
+ *
+ * This function stays, because that was never the only way a schedule can fail
+ * to reach the contract — an estimate can simply be missing scope, and the row
+ * set can be narrowed. The consequence is only visible where the estimate is
+ * BILLED: the schedule of values under-foots, every row bills to 100%, the
+ * screen prints "Remaining $0.00", and the margin on that scope is never
+ * invoiced. utils/aiaBilling.reconcileAIASov catches it on the AIA screen;
+ * this is the same catch for /bill-from-estimate.
+ *
+ * POSITIVE = the schedule reaches LESS than the contract, which is the
+ * direction that costs the GC money and the only one worth a banner. Negative
+ * (a schedule footing ABOVE the estimate total) is returned as 0: it means the
+ * caller mixed change-order rows into `rowTotal`, and inventing a warning out
+ * of the caller's own bookkeeping helps nobody.
+ */
+export function sovFootingShortfall(rowTotal: number, estimateGrandTotal: number): number {
+  if (!Number.isFinite(rowTotal) || !Number.isFinite(estimateGrandTotal)) return 0;
+  if (estimateGrandTotal <= 0) return 0;
+  return Math.max(0, toCents(estimateGrandTotal - rowTotal));
 }
 
 /** Note text seeded onto the invoice so the client sees what they're paying for. */
 export function milestoneInvoiceNote(m: MilestoneLike, contractTitle?: string): string {
   const doc = contractTitle?.trim() || 'the construction agreement';
   return `Payment milestone "${m.label?.trim() || 'Contract milestone'}" under ${doc}.`;
+}
+
+/**
+ * WHAT TAPPING "Create invoice" ON A MILESTONE ROW DOES — the whole decision,
+ * as a value.
+ *
+ * WHY THIS IS NOT INLINE IN app/contract.tsx (repair pass 2026-09-12). The
+ * refusal used to live in the screen as `if (!bill.billable) { showAlert(…);
+ * return; }`, and the only thing standing between a blocked milestone and the
+ * invoice editor was that one `return;`. A screen cannot be executed by
+ * `bun run test:money-definitions`, so the guard protecting it grepped for the
+ * token — and a grep cannot see control flow. Two mutations proved it: moving
+ * the `return;` into the alert's own "Open invoice" button, and weakening it to
+ * `if (bill.existingInvoiceId) return;`. Both left the `contract_fully_billed`
+ * refusal — the 125%-of-contract over-bill MONEY-LEDGER-1 exists to stop —
+ * falling straight through into the editor, and both kept the suite green.
+ *
+ * Returning a DISCRIMINATED UNION moves that decision somewhere a test can run
+ * it, and makes the fall-through a type error rather than a silent one: the
+ * navigation payload exists only on the `compose` arm, so a caller that does
+ * not stop on `refuse` cannot reach `.line` at all.
+ */
+export type MilestoneBillEffect =
+  | {
+      kind: 'refuse';
+      title: string;
+      message: string;
+      /** Present when the refusal can offer to open the invoice that caused it. */
+      existingInvoiceId?: string;
+    }
+  | {
+      kind: 'compose';
+      /** The single lump-sum line the invoice editor is prefilled with. */
+      line: MilestoneInvoiceLine;
+      /** Invoice note naming the milestone and the contract it sits under. */
+      note: string;
+      /** Stamped onto the invoice as `sourceMilestoneId` — the identifier
+       *  `billedAgainstMilestones` actually runs on. */
+      milestoneId: string;
+    };
+
+export function milestoneBillEffect(
+  bill: MilestoneBillability,
+  milestone: MilestoneLike,
+  contract: { contractValue: number; title?: string },
+): MilestoneBillEffect {
+  if (!bill.billable) {
+    return {
+      kind: 'refuse',
+      title: 'Can’t bill this milestone',
+      message: bill.reason
+        ? milestoneBlockMessage(bill.reason, bill.ceiling, bill.amount)
+        : 'This milestone can’t be invoiced right now.',
+      existingInvoiceId: bill.existingInvoiceId,
+    };
+  }
+  return {
+    kind: 'compose',
+    line: deriveMilestoneInvoiceLine(milestone, contract.contractValue),
+    note: milestoneInvoiceNote(milestone, contract.title),
+    milestoneId: milestone.id,
+  };
 }
 
 // ─── 2. Invoice reminders (dunning) ──────────────────────────────────

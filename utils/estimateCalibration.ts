@@ -11,8 +11,24 @@
 //  - Built on the SAME per-project tracing as estimate-accuracy: we call
 //    computeEstimateActuals per project rather than re-deriving attribution,
 //    so the two screens can never disagree about what a job actually cost.
-//  - Only lines with REAL actuals (paid-to-date traced onto the line) count.
-//    A category with bids but no payments yet proves nothing — excluded.
+//  - CLOSED JOBS ONLY, and only lines whose commitment has been SETTLED.
+//    This loop used to run over every project with no status filter and gate
+//    each line on `hasActual`, which is literally `actual > 0`. A line 30%
+//    paid contributed 30% of its cost against 100% of its bid, so `bias =
+//    actual / estimated` was systematically below 1 for any live job: ONE
+//    in-progress project with a $10,000 tile line and $3,000 paid produced
+//    "You over-estimate Tile by 70% across 1 job — Suggested correction:
+//    ×0.80", offered as a one-tap repricing and pushed into the LLM prompt as
+//    a grounding FACT on seven surfaces. It also meant the price book and the
+//    calibrator answered "what is your bid bias" from DIFFERENT populations —
+//    utils/costDatabase has always filtered to closed work. Both now use the
+//    same isClosedProject predicate and the same SETTLED_PAYMENT_RATIO.
+//  - Lines carrying approved sub CHANGE-ORDER dollars are excluded. A change
+//    order that bought more scope makes actual exceed bid for reasons that
+//    have nothing to do with how the GC prices work, and the correction it
+//    suggests would raise every future bid on a trade that was priced right.
+//    That is the SCOPE term utils/varianceDecomposition names as the central
+//    confound; the cost book excludes the same lines for the same reason.
 //  - Bias compares actual against the bid for the SAME scope (apples to
 //    apples at line level), never whole-estimate vs whole-spend.
 //  - Suggested multipliers are clamped to a sane 0.8–1.5 band: outside that,
@@ -23,7 +39,7 @@
 // from ProjectContext and re-run on every mutation.
 
 import type { Project, Commitment } from '@/types';
-import { computeEstimateActuals } from '@/utils/estimateActuals';
+import { computeEstimateActuals, isClosedProject } from '@/utils/estimateActuals';
 
 /** Within ±3% of bid, the category is considered calibrated. */
 const ALIGNED_BAND = 0.03;
@@ -36,11 +52,11 @@ export type CalibrationConfidence = 'low' | 'medium' | 'high';
 
 export interface CategoryCalibration {
   category: string;
-  /** Number of projects contributing real actuals to this category. */
+  /** Number of CLOSED projects contributing settled actuals to this category. */
   jobs: number;
   /** Sum of bid (estimated line cost) across contributing lines. */
   estimatedTotal: number;
-  /** Sum of actual (paid-to-date) attributed to those same lines. */
+  /** Sum of settled actual cost attributed to those same lines. */
   actualTotal: number;
   /** actual / estimated. 1.12 = work cost 12% more than you bid it. */
   bias: number;
@@ -124,13 +140,21 @@ export function computeCalibration(input: CalibrationInput): CalibrationReport {
   const contributingProjects = new Set<string>();
 
   for (const project of projects) {
+    // An unfinished job is not evidence about estimating accuracy — it is
+    // evidence about how far through the job you are. Same predicate the cost
+    // book uses, so the two engines can never disagree about the population.
+    if (!isClosedProject(project)) continue;
     const report = computeEstimateActuals(project, commitments);
     if (!report.hasEstimate || !report.hasActuals) continue;
 
     for (const line of report.lines) {
-      // Only lines with real paid actuals AND a real bid prove anything.
-      // bid <= 0 also guards the zero-denominator case.
-      if (!line.hasActual || line.bid <= 0) continue;
+      // Only a SETTLED line with a real bid proves anything. `hasActual` is
+      // just `actual > 0` — a mobilization deposit satisfies it — so the gate
+      // is `settled` (see SETTLED_PAYMENT_RATIO). bid <= 0 also guards the
+      // zero-denominator case.
+      if (!line.settled || line.actual <= 0 || line.bid <= 0) continue;
+      // Scope bought after the bid is not a pricing error. See the header.
+      if (line.changeOrderAmount !== 0) continue;
 
       // Same trade key as estimateActuals' rollup: category first, CSI fallback.
       const category = (line.category || line.csiDivision || 'Other').trim() || 'Other';

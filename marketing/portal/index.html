@@ -1524,7 +1524,7 @@
     .invoice-cta { align-items: flex-start; }
   }
 
-  /* ───────── AIA pay app card ───────── */
+  /* ───────── AIA-style pay app card ───────── */
   .aia-card {
     padding: 22px;
     background: linear-gradient(180deg, var(--cream-2) 0%, var(--surface) 100%);
@@ -2224,6 +2224,15 @@
     margin-bottom: 6px;
   }
 
+  /* Trademark notice under a rendered pay application. Must survive print —
+     the print rules below keep the drawer and drop everything else. */
+  .aia-trademark-note {
+    margin: 18px 0 0;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-2);
+  }
+
   /* AIA SOV table */
   .sov-table {
     width: 100%; font-size: 12px;
@@ -2490,7 +2499,7 @@
   .portal-footer a:hover { color: var(--amber-dark); }
 
   /* ───────── Print styles for AIA (drawer-based) ─────────
-     Designed for printing AIA G702/G703 pay applications, which the
+     Designed for printing AIA-style G702/G703 pay applications, which the
      homeowner opens in a side drawer. We hide #sections so only the
      drawer prints. These rules are scoped to NOT apply when the
      closeout binder print path is active (body.printing-binder), since
@@ -4221,6 +4230,58 @@
     }).join('');
   }
 
+  // ── ONE BILLING PERIOD IS ONE OBLIGATION ───────────────────────────────────
+  // A G702 and the progress invoice it certifies are the same money. Paying
+  // the INVOICE credits it and clears the invoice's own pay link, but nothing
+  // on the server clears the AIA side (stripe-webhook creditInvoice updates
+  // only `invoices`), so a bookkeeper who paid the invoice was left looking at
+  // a live Pay button for the same period — and the two links need not even
+  // have been minted for the same amount. The snapshot builder now withholds
+  // payLinkUrl in that case.
+  //
+  // WHAT THIS PAGE-LEVEL GATE IS AND IS NOT (corrected 2026-09-11). It was
+  // claimed to protect portals still running an OLD CACHED snapshot. It does
+  // not, and cannot: `invoiceId` and `payLinkAmount` are fields the SAME change
+  // added to the AIA snapshot row, so a snapshot published before the fix
+  // carries neither — aiaIsPaid short-circuits to false and aiaCanPay returns
+  // early on the missing amount. And any snapshot published AFTER the fix has
+  // already had payLinkUrl withheld by the builder, on the identical definition
+  // of settled (the row's own `invoice.balance` IS invoiceOutstanding). So this
+  // gate cannot presently change an outcome in either direction.
+  //
+  // It is kept anyway, as the page's own statement of the rule rather than as
+  // protection: the copy below ("Settled with invoice") is chosen HERE, and the
+  // builder is free to stop suppressing payLinkUrl — for a partially paid
+  // period, say — without the portal starting to offer a second Pay button for
+  // money already collected. It is a redundant check, and it is documented as
+  // one instead of being sold as a safety net it is not.
+  var SETTLED_INVOICE_IDS = {};
+  function noteSettledInvoices(invs) {
+    SETTLED_INVOICE_IDS = {};
+    (invs || []).forEach(function (i) {
+      var bal = typeof i.balance === 'number' ? i.balance : (i.total || 0) - (i.amountPaid || 0);
+      if (i.id && bal <= 0.01) SETTLED_INVOICE_IDS[i.id] = true;
+    });
+  }
+
+  /** Is this pay application settled — by its own paid_at, or by its invoice? */
+  function aiaIsPaid(a) {
+    return !!a.paidAt || !!(a.invoiceId && SETTLED_INVOICE_IDS[a.invoiceId]);
+  }
+
+  /** May the portal offer to collect money for this pay application?
+   *  MONEY-F2: a Stripe Payment Link charges the ONE amount it was minted for
+   *  every time it is opened, so a link whose minted amount no longer equals
+   *  what is owed must not be shown. A snapshot that predates payLinkAmount
+   *  carries none — trust the builder's own suppression in that case rather
+   *  than hiding every legitimate button on an older portal. */
+  function aiaCanPay(a) {
+    var due = a.currentPaymentDue || 0;
+    if (aiaIsPaid(a) || !a.payLinkUrl || due <= 0) return false;
+    if (a.payLinkAmount == null) return true;
+    return Math.abs(a.payLinkAmount - due) <= 0.01;
+  }
+
   function renderAIA(apps) {
     if (!apps || !apps.length) return emptyState('No pay applications shared yet.');
     return apps.map(function (a) {
@@ -4235,8 +4296,8 @@
       var due = a.currentPaymentDue || 0;
       // MONEY-F2: a pay app the Stripe webhook stamped `paidAt` is settled —
       // show that, never a second Pay button.
-      var aiaPaid = !!a.paidAt;
-      var canPay = !aiaPaid && !!a.payLinkUrl && due > 0;
+      var aiaPaid = aiaIsPaid(a);
+      var canPay = aiaCanPay(a);
       return (
         '<div class="aia-card' + (aiaPaid ? ' paid' : '') + '" data-aia="'+esc(a.id)+'" data-item-id="'+esc(a.id)+'">' +
           '<div class="row-main">' +
@@ -4277,7 +4338,8 @@
                   icn(ICONS.dollar, 14) + ' Pay ' + fmtMoney(due) +
                 '</button>'
               : aiaPaid
-                ? '<span class="pill pill-success">' + icn(ICONS.check, 12) + ' Paid ' + fmtDate(a.paidAt) + '</span>'
+                ? '<span class="pill pill-success">' + icn(ICONS.check, 12) +
+                    (a.paidAt ? ' Paid ' + fmtDate(a.paidAt) : ' Settled with invoice') + '</span>'
                 : '') +
           '</div>' +
           '<div class="aia-progress-ring">' +
@@ -4571,7 +4633,19 @@
       ? inv.retentionHeld
       : (typeof inv.retentionAmount === 'number' ? Math.max(0, inv.retentionAmount - retentionReleased) : 0);
     if (retentionHeld > 0) {
-      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage held'+(inv.retentionPercent ? ' ('+inv.retentionPercent+'%)' : '')+'</span><span class="detail-row-value num">−'+fmtMoney(retentionHeld, {dec:2})+'</span></div>';
+      // Name the BASIS, not just the percent. The arithmetic here is correct —
+      // retainage is withheld on the work value, i.e. the subtotal — but the
+      // label sat one row above a tax-inclusive "Total Due", so a homeowner
+      // multiplying 5% by the total on his phone got a different number and
+      // called to ask which one was wrong. Neither was; the label was
+      // (audit 2026-09-07, worth-doing #27).
+      var retLabel = 'Retainage held';
+      if (inv.retentionPercent) {
+        retLabel += ' (' + inv.retentionPercent + '% of ' +
+          (typeof inv.subtotal === 'number' ? 'the ' + fmtMoney(inv.subtotal, {dec:2}) + ' subtotal' : 'the subtotal') +
+          ')';
+      }
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">'+esc(retLabel)+'</span><span class="detail-row-value num">−'+fmtMoney(retentionHeld, {dec:2})+'</span></div>';
     }
     if (retentionReleased > 0) {
       totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage released — now payable</span><span class="detail-row-value num" style="color:var(--success)">'+fmtMoney(retentionReleased, {dec:2})+'</span></div>';
@@ -4731,7 +4805,20 @@
       '<div class="detail-block">' +
         '<div class="detail-block-title">G703 schedule of values</div>' +
         sovRows +
-      '</div>';
+      '</div>' +
+      // Word for word the notice the generated PDF carries
+      // (utils/aiaBilling.ts:2235) and the one app/aia-pay-app.tsx:2321 shows
+      // the GC on first use. It belongs here most of all: this drawer is the
+      // copy the OWNER reads and prints, and the owner is the party who finds
+      // out from their lender that an AIA-style certificate is not an AIA one.
+      // Inside the body rather than the footer because #drawer-footer is
+      // hidden by the print styles below.
+      '<p class="aia-trademark-note">' +
+        'MAGE&nbsp;ID produces AIA-style documents. AIA&reg; and &ldquo;AIA Document G702/G703&rdquo; are ' +
+        'registered trademarks of The American Institute of Architects, which is not affiliated with and ' +
+        'does not endorse MAGE&nbsp;ID. Some lenders and architects require the official AIA Contract ' +
+        'Documents &mdash; check with yours before you submit.' +
+      '</p>';
 
     // Drawer footer — Pay button (Stripe-hosted) takes precedence when a
     // payLinkUrl exists and there's a balance due. Print stays available
@@ -4739,23 +4826,24 @@
     var aiaDue = a.currentPaymentDue || 0;
     // MONEY-F2: `paidAt` (stamped by the Stripe webhook) wins over any link
     // that may still be on the record — a paid application shows Paid.
-    var aiaPaid = !!a.paidAt;
-    var aiaCanPay = !aiaPaid && !!a.payLinkUrl && aiaDue > 0;
+    var aiaPaid = aiaIsPaid(a);
+    var aiaCanPayNow = aiaCanPay(a);
     var footerHtml =
-      (aiaCanPay
+      (aiaCanPayNow
         ? '<a class="drawer-btn drawer-btn-primary" href="'+esc(a.payLinkUrl)+'" target="_blank" rel="noopener">' +
             icn(ICONS.dollar, 16) + ' Pay ' + fmtMoney(aiaDue) +
           '</a>'
         : aiaPaid
           ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
-              icn(ICONS.check, 16) + ' Paid ' + fmtDate(a.paidAt) +
+              icn(ICONS.check, 16) +
+              (a.paidAt ? ' Paid ' + fmtDate(a.paidAt) : ' Settled — this period was paid on the invoice') +
             '</button>'
           : '') +
       '<button class="drawer-btn drawer-btn-secondary" id="aia-print">' +
         icn(ICONS.print, 16) + ' Print / save PDF' +
       '</button>';
 
-    openDrawer('AIA G702 / G703 · App #' + a.applicationNumber, 'Period ending ' + fmtDate(a.periodTo), bodyHtml, footerHtml);
+    openDrawer('AIA-style G702 / G703 · App #' + a.applicationNumber, 'Period ending ' + fmtDate(a.periodTo), bodyHtml, footerHtml);
 
     var btn = document.getElementById('aia-print');
     if (btn) btn.addEventListener('click', function () { window.print(); });
@@ -5808,7 +5896,7 @@
 
   // ───────── Open House mode ─────────
   // When the URL carries ?openHouse=1, the portal hides every financial
-  // surface — budget, invoices, AIA pay apps, contract values, change-
+  // surface — budget, invoices, AIA-style pay apps, contract values, change-
   // order amounts, payment links — but keeps the visual project (Gantt,
   // photos, daily reports, recent activity, schedule). Lets the
   // homeowner share progress with parents / lenders / etc. without
@@ -6041,7 +6129,11 @@
       addSection('invoices', 'dollar', t('invoicesSectionTitle'), t('invoicesSectionSubtitle'), sections.invoices.length, renderInvoices(sections.invoices));
     }
     if (sections.aiaPayApps && sections.aiaPayApps.length) {
-      addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
+      // Must run BEFORE renderAIA and before any drawer opens — it is what
+      // tells the pay-app cards which periods have already been settled
+      // through the invoice list.
+      noteSettledInvoices(sections.invoices);
+      addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA-style G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
       addSection('schedule', 'calendar', t('scheduleSectionTitle'), t('scheduleSectionSubtitle'), sections.schedule.tasks.length, renderSchedule(sections.schedule));

@@ -94,7 +94,7 @@ const LIVE_BID_SOURCES: BidSource[] = [
   },
 ];
 
-type DiscoverTab = 'overview' | 'tools' | 'bids' | 'companies' | 'hire' | 'estimate' | 'schedule' | 'materials';
+type DiscoverTab = 'overview' | 'tools' | 'bids' | 'companies' | 'hire' | 'estimate' | 'schedule';
 
 interface TabDef {
   id: DiscoverTab;
@@ -114,10 +114,15 @@ const TABS: TabDef[] = [
   { id: 'hire', label: 'Direct Hire', icon: Briefcase },
   { id: 'estimate', label: 'Estimator', icon: MageAIMark },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
-  // 'materials' tile removed — the standalone Materials browser is
-  // redundant now that the Estimator surfaces the same category filter
-  // + cart + AI quick-estimate flow. The /materials route still exists
-  // for any deep links that still reference it.
+  // No Materials pill: the standalone browser is redundant now that the
+  // Estimator surfaces the same category filter + cart + AI quick-estimate
+  // flow. Retired the rest of the way on 2026-09-07 — the pill had been gone
+  // for months while handleTabPress still carried a `materials` route and
+  // app/(tabs)/discover/materials.tsx still re-exported the tab, so the strip
+  // named a destination nothing could reach and a duplicate route stayed
+  // registered. The screen itself lives on as the href:null /(tabs)/materials
+  // tab, reached from ⌘K and from a price-alert notification
+  // (utils/entityResolver.ts:236).
 ];
 
 function NavigationCard({
@@ -151,6 +156,8 @@ function NavigationCard({
         onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
         activeOpacity={1}
         style={styles.navCardInner}
+        accessibilityRole="button"
+        accessibilityLabel={count !== undefined ? `${title}, ${count}. ${subtitle}` : `${title}. ${subtitle}`}
       >
         <View style={[styles.navIconWrap, { backgroundColor: iconBg }]}>
           <Icon size={22} color={iconColor} />
@@ -194,7 +201,6 @@ export default function DiscoverScreen() {
       ...(HIRE_ENABLED ? { hire: '/(tabs)/discover/hire' } : {}),
       estimate: '/(tabs)/discover/estimate',
       schedule: '/(tabs)/discover/schedule',
-      materials: '/(tabs)/discover/materials',
     };
     if (routes[tab]) router.push(routes[tab] as any);
   }, [router]);
@@ -232,6 +238,9 @@ export default function DiscoverScreen() {
                 onPress={() => handleTabPress(tab.id)}
                 activeOpacity={0.7}
                 testID={`discover-tab-${tab.id}`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={tab.label}
               >
                 {TabIcon && <TabIcon size={14} color={isActive ? '#FFF' : themeColors.textSecondary} />}
                 <Text style={[styles.tabPillText, isActive && styles.tabPillTextActive]}>
@@ -258,6 +267,8 @@ export default function DiscoverScreen() {
             style={styles.quickAction}
             onPress={() => navigateTo('/post-bid')}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Post Bid"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
               <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
@@ -269,6 +280,8 @@ export default function DiscoverScreen() {
               style={styles.quickAction}
               onPress={() => navigateTo('/post-job')}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Post Job"
             >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
                 <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
@@ -280,6 +293,8 @@ export default function DiscoverScreen() {
             style={styles.quickAction}
             onPress={() => navigateTo('/(tabs)/settings')}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="My Profile"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
               {/* Runtime audit 2026-09-06, VIS-20: this tile shipped a
@@ -354,11 +369,11 @@ export default function DiscoverScreen() {
           onPress={() => navigateTo('/(tabs)/discover/schedule')}
         />
 
-        {/* Materials Pricing tile removed — redundant with the Estimator's
-            built-in material browse + cart. The Estimator surfaces the
-            same category filter and live prices, plus AI-suggested
-            quantity/markup directly into a cart. Route still works for
-            deep links: /(tabs)/discover/materials */}
+        {/* No Materials Pricing tile — redundant with the Estimator's built-in
+            material browse + cart, which surfaces the same category filter and
+            prices plus AI-suggested quantity/markup straight into a cart. The
+            /(tabs)/discover/materials alias that used to back this tile was
+            deleted on 2026-09-07; /(tabs)/materials is the one route. */}
 
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
@@ -459,6 +474,8 @@ export default function DiscoverScreen() {
               style={styles.bidSourceCard}
               onPress={() => openBidSource(source.url)}
               activeOpacity={0.7}
+              accessibilityRole="link"
+              accessibilityLabel={`${source.name}. ${source.description}. Opens in your browser.`}
             >
               <View style={styles.bidSourceTop}>
                 <View style={[styles.bidSourceDot, { backgroundColor: source.color }]} />

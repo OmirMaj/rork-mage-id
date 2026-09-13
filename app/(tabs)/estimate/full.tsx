@@ -17,7 +17,7 @@ import {
   HardHat, Boxes, ClipboardList, Ruler, Calculator, Gauge, GitCompare,
   ChevronRight,
  Wifi, PlusCircle, History, Star, FileUp, ScanSearch, Mic, BookOpen } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageCostDb } from '@/components/icons';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -259,6 +259,21 @@ export default function EstimateScreen() {
     }
   }, [costDb, projects, commitments]);
 
+  // AIEstimateValidator scores this estimate "against industry standards"
+  // (utils/aiService.ts:439) with nothing retrieved behind the phrase — no
+  // cost book, no history, no market. The GC's OWN measured bias answers the
+  // same question from traced actuals and is sitting in the repo uncalled
+  // (audit 2026-09-07, ai-features). It goes ABOVE the AI card, not behind
+  // it — the same arrangement Home uses, where the deterministic
+  // MorningBriefCard sits beside the AI briefing.
+  const validatorCalibration = useMemo(() => {
+    try {
+      return computeCalibration({ projects, commitments });
+    } catch {
+      return null;
+    }
+  }, [projects, commitments]);
+
   // getCatalogPrices, not the `getLivePrices` shim it replaced. The seed
   // argument that shim still accepts is ignored — there is nothing live to
   // seed — but a pricing call taking a seed is how the next reader concludes
@@ -417,7 +432,16 @@ export default function EstimateScreen() {
       baseRetailPrice: aiMat.unitPrice,
       baseBulkPrice: aiMat.unitPrice * 0.85,
       bulkMinQty: 10,
-      supplier: aiMat.brand || aiMat.priceSource || 'AI Found',
+      // A CONSTANT, never anything the model said. This was
+      // `aiMat.brand || aiMat.priceSource || 'AI Found'`, and `priceSource` was
+      // a model-filled schema field the prompt had explicitly asked to fill
+      // with "major suppliers like Home Depot, Lowe's". It renders as this
+      // row's supplier at :1296 and in the detail popup at :3077, is carried
+      // into estimate line items by estimate/review.tsx:185, and lands on the
+      // bid PDF the GC signs — so the client saw a named store that nobody
+      // ever contacted (audit 2026-09-07, money-trust). `sourceLabel` nine
+      // lines below has always told the truth; this line now agrees with it.
+      supplier: 'AI estimate',
       pricingModel: 'market',
       // Was 'AI Live Price'. Nothing was live: findMaterials asks the Gemini
       // relay, which has no browsing tool and no supplier feed. This label
@@ -2771,6 +2795,34 @@ export default function EstimateScreen() {
                 <Text style={[dStyles.summaryActionText, { color: Colors.infoLabel }]}>Compare</Text>
               </TouchableOpacity>
             </View>
+
+            {grandTotal > 0 && (
+              <View style={dStyles.calibrationCard} testID="estimate-calibration">
+                <View style={dStyles.calibrationHead}>
+                  <MageCostDb size={13} color={themeColors.accentLabel} />
+                  <Text style={dStyles.calibrationTitle}>How your bids have actually landed</Text>
+                </View>
+                {validatorCalibration?.hasData ? (
+                  <>
+                    {validatorCalibration.categories.slice(0, 3).map(c => (
+                      <Text key={c.category} style={dStyles.calibrationLine}>{c.detail}</Text>
+                    ))}
+                    <Text style={dStyles.calibrationChip}>
+                      Measured from {validatorCalibration.summary.categoryCount}{' '}
+                      {validatorCalibration.summary.categoryCount === 1 ? 'category' : 'categories'} with traced
+                      actuals across {validatorCalibration.summary.totalJobs}{' '}
+                      {validatorCalibration.summary.totalJobs === 1 ? 'job' : 'jobs'}. Not a market average —
+                      your own paid costs against your own bids.
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={dStyles.calibrationChip}>
+                    No traced actuals yet, so MAGE has nothing measured to check this bid against. Link
+                    payments to estimate lines on a finished job and this becomes your own bias, per trade.
+                  </Text>
+                )}
+              </View>
+            )}
 
             {grandTotal > 0 && (
               <AIEstimateValidator
@@ -5671,6 +5723,38 @@ const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
   summaryActions: {
     marginTop: 16,
     gap: 8,
+  },
+  // The deterministic half of the estimate review — measured bias, printed
+  // above the AI validator so the honest answer is read first.
+  calibrationCard: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    gap: 6,
+  },
+  calibrationHead: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
+  calibrationTitle: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.text,
+  },
+  calibrationLine: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.textSecondary,
+    lineHeight: 17,
+  },
+  calibrationChip: {
+    fontSize: Type.caption2.fontSize,
+    color: themeColors.textMuted,
+    lineHeight: 15,
   },
   summaryActionBtn: {
     flexDirection: 'row',

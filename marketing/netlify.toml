@@ -35,6 +35,31 @@
   to = "/architect/index.html"
   status = 200
 
+# Lien-waiver signing page — receives /lien-waiver/<waiverId>?t=<token> from the
+# email a GC sends his subcontractor. The page trades the token for the SEALED
+# document through lien_waiver_get_for_signing and posts the signature back.
+[[redirects]]
+  from = "/lien-waiver/*"
+  to = "/lien-waiver/index.html"
+  status = 200
+
+# Invitation to bid — /bid-invite/?t=<token>. The bare path is listed as well as
+# the wildcard because the emailed link has no path segment after the directory,
+# and without the exact rule Netlify serves the directory index by a different
+# route that skips this SPA rewrite. Both forms are in _redirects too; every
+# other tokenized page in this repo carries its rule in BOTH files, and a rule
+# present in only one of them is a 404 waiting on whichever wins (review
+# 2026-09-10).
+[[redirects]]
+  from = "/bid-invite"
+  to = "/bid-invite/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/bid-invite/*"
+  to = "/bid-invite/index.html"
+  status = 200
+
 [[redirects]]
   from = "/builders/*"
   to = "/builders/index.html"

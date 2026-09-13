@@ -102,7 +102,13 @@
   .sitenav .brand{display:flex;align-items:center;gap:8px;text-decoration:none}
   .sitenav .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
   .sitenav .brand span{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy);text-transform:uppercase}
-  .sitenav .nav-r{display:flex;align-items:center;gap:16px}
+  /* wrap, don't overflow: the nav went from three destinations to the site's
+     six on 2026-09-11, which at 13px measures wider than this 760px bar
+     between roughly 480 and 620px. Below 480px the rule further down
+     hides everything but Start free, so this only has to hold the band in
+     between. */
+  .sitenav{flex-wrap:wrap}
+  .sitenav .nav-r{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end;row-gap:8px}
   .sitenav .nav-r a{text-decoration:none;font-size:13px;font-weight:600;color:var(--muted)}
   .sitenav .nav-r a:hover{color:var(--navy)}
   .sitenav .nav-r a.start{color:var(--amber);border:1px solid rgba(255,106,26,0.5);border-radius:999px;padding:6px 14px}
@@ -110,6 +116,10 @@
   @media(max-width:480px){.sitenav .nav-r a:not(.start){display:none}}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
   .foot a{color:var(--muted)}
+  /* Sibling, not child — see the note on the strip itself. Without this the
+     links took the UA default blue instead of the footer's own colour. */
+  .trust-strip a{color:var(--muted);text-decoration:none}
+  .trust-strip a:hover{color:var(--navy)}
   .footnav{max-width:760px;margin:28px auto 0;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center}
   .footnav a{text-decoration:none;font-size:12.5px;font-weight:600;color:var(--muted)}
   .footnav a:hover{color:var(--navy)}
@@ -119,10 +129,17 @@
 <body>
 <nav class="sitenav" aria-label="Primary">
   <a href="/" class="brand"><span class="dot"></span><span>MAGE ID</span></a>
+  <!-- ONE NAV, EVERYWHERE — see the note on brain/index.html. This page was
+       the fifth variant: it dropped Features, Compare and Support, which are
+       the three a buyer comparing tools needs most, on a page whose whole job
+       is to be found by someone shopping. -->
   <div class="nav-r">
     <a href="/playbook.html">How it works</a>
+    <a href="/features/">Features</a>
+    <a href="/compare/">Compare</a>
     <a href="/pricing.html">Pricing</a>
     <a href="/demo.html">Demo</a>
+    <a href="/support.html">Support</a>
     <a href="https://app.mageid.app" class="start">Start free</a>
   </div>
 </nav>
@@ -268,6 +285,27 @@
     <a href="/support.html">Support</a>
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
+  </nav>
+  <!-- Trust strip, same markup and same four destinations as the other 32
+       pages. It was missing here and nothing caught it: this page has no
+       <footer> element (the footer is a <p class="foot"> plus a
+       <nav class="footnav">), so the derived "every page with a footer" check
+       could not see it, and the page was also exempt from the one-nav rule,
+       which is the other place the strip is checked. Removing the nav
+       exemption on 2026-09-11 is what surfaced it.
+       No colour INSIDE the markup, on purpose: the guard bans a literal
+       colour here so the strip can never be the one unreadable thing in a
+       footer. It takes the page's own footer link colour from the
+       `.trust-strip a` rule added next to `.foot a` above — this <nav> is a
+       SIBLING of <p class="foot">, not a child, so it inherits nothing from
+       it, and until 2026-09-12 the links rendered in the UA default blue.
+       var(--muted) #5b6775 measures 5.39:1 on this page's #FAF7F0 ground
+       (recomputed 2026-09-12), above the 4.5:1 AA floor at 12.5px. -->
+  <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+    <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+    <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+    <a href="/changelog.html" style="font-weight:600">Changelog</a>
+    <a href="/switch.html" style="font-weight:600">Switching</a>
   </nav>
   <p class="foot">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
 </div>

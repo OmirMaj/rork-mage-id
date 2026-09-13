@@ -10,13 +10,22 @@
 //   4. Resets cleanly on dismiss so the next open always starts fresh
 //      (the inline button's state machine could get wedged between
 //      taps; a modal that unmounts every time can't).
+//   5. KEEPS the recording when transcription fails. Until 2026-09-08 the
+//      recorded file's URI was read inside the try block and dropped on the
+//      floor, and the next tap started a brand-new recording — so a super
+//      dictating ninety seconds of a daily report in a basement lost all of
+//      it, and re-dictating failed identically because he was still in the
+//      basement. A failure now hands the audio to utils/audioTranscribeQueue,
+//      which stages it in documentDirectory and transcribes it when signal
+//      returns; the transcript comes back to THIS surface the next time it
+//      opens. The modal says "saved", never "transcribed", until it is.
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Pressable, Modal,
   Animated, ActivityIndicator, Platform, ScrollView,
 } from 'react-native';
-import { Mic, X, Square, AlertCircle } from 'lucide-react-native';
+import { Mic, X, Square, AlertCircle, CloudOff, CheckCircle2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -26,8 +35,43 @@ import * as Haptics from 'expo-haptics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { transcribeAudio } from '@/utils/transcribeAudio';
+import {
+  getContextDictation,
+  processAudioTranscribeQueue,
+  queueAudioTranscription,
+  takeTranscript,
+  type ContextDictationState,
+} from '@/utils/audioTranscribeQueue';
+import {
+  formatClipLength,
+  pendingNoticeMessage,
+  savedOfflineMessage,
+  voiceContextKey,
+  type AudioTranscribeTask,
+} from '@/utils/audioTranscribeCore';
 
-type Step = 'idle' | 'recording' | 'transcribing' | 'error';
+type Step = 'idle' | 'recording' | 'transcribing' | 'error' | 'saved';
+
+// Map our recorded extension to the mime type the STT endpoint expects. WAV is
+// the format that actually transcribes (M4A returns empty silently — confirmed
+// by direct testing). Keep .m4a/.caf in the lookup as a fallback so we're not
+// stuck if the recording format changes. Module scope because the salvage path
+// in stopAndTranscribe's catch has to reach it too, and a recording rescued
+// from an interrupted session still needs the right content type on the upload.
+const MIME_BY_EXT: Record<string, string> = {
+  wav: 'audio/wav',
+  m4a: 'audio/m4a',
+  caf: 'audio/x-caf',
+  aac: 'audio/aac',
+  mp3: 'audio/mpeg',
+  webm: 'audio/webm',
+};
+
+function mimeForUri(uri: string): string {
+  const parts = uri.split('?')[0].split('#')[0].split('.');
+  const ext = (parts.length > 1 ? parts[parts.length - 1] : 'wav').toLowerCase();
+  return MIME_BY_EXT[ext] || `audio/${ext}`;
+}
 
 interface Props {
   visible: boolean;
@@ -47,6 +91,14 @@ interface Props {
    * Each entry: { label, hint? } — hint is a short example/sub-text.
    */
   topicChecklist?: { label: string; hint?: string }[];
+  /**
+   * Which surface this dictation belongs to, so a recording saved offline
+   * comes back to the form that asked for it rather than to whichever screen
+   * happens to be open when signal returns. Defaults to the title + context
+   * line, which is already unique per form per project — so every existing
+   * caller gets the offline path without being changed.
+   */
+  queueKey?: string;
 }
 
 export default function VoiceCaptureModal({
@@ -55,14 +107,63 @@ export default function VoiceCaptureModal({
   contextLine,
   suggestions = [],
   topicChecklist,
+  queueKey,
 }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const recordingRef = useRef<any>(null);
+  // When the tap that started the recording happened, so the modal can tell
+  // the user how much dictation it is holding. expo-av's status object is gone
+  // once the recording is unloaded, and "saved" with no length reads like a
+  // guess.
+  const startedAtRef = useRef<number>(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+
+  const contextKey = queueKey ?? voiceContextKey(title, contextLine);
+  const contextLabel = contextLine ? `${title} — ${contextLine}` : title;
+  const [pendingClips, setPendingClips] = useState<AudioTranscribeTask[]>([]);
+  const [readyClip, setReadyClip] = useState<AudioTranscribeTask | null>(null);
+  const [draining, setDraining] = useState(false);
+  // The modal is kept mounted by its parent between opens, but the parent
+  // screen can unmount while a drain is still in the air; nothing below may
+  // setState after that.
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    // Raised on mount as well as lowered on unmount: React's dev-mode double
+    // invoke runs the cleanup once before the real mount, and a ref that only
+    // ever goes false would leave this instance permanently unable to show what
+    // it is holding.
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
+
+  const refreshQueued = useCallback(async (): Promise<ContextDictationState> => {
+    const empty: ContextDictationState = { pending: [], ready: [] };
+    try {
+      const state = await getContextDictation(contextKey);
+      if (!aliveRef.current) return state;
+      setPendingClips(state.pending);
+      setReadyClip(state.ready[0] ?? null);
+      return state;
+    } catch {
+      // Reading the queue is a convenience on this screen — never let it
+      // stop someone from recording.
+      return empty;
+    }
+  }, [contextKey]);
+
+  const transcribeNow = useCallback(async () => {
+    if (aliveRef.current) setDraining(true);
+    try {
+      await processAudioTranscribeQueue();
+    } catch {/* the queue keeps the work */}
+    if (aliveRef.current) setDraining(false);
+    await refreshQueued();
+  }, [refreshQueued]);
 
   // Fully reset when the modal opens — a previous session could have
   // left state hanging if dismissal happened mid-recording.
@@ -70,8 +171,16 @@ export default function VoiceCaptureModal({
     if (visible) {
       setStep('idle');
       setErrorMsg(null);
+      setSavedMsg(null);
       recordingRef.current = null;
       setRotatingIdx(0);
+      // Anything this surface dictated offline is shown the moment it opens,
+      // and a drain is attempted for it: the user came back to the same form,
+      // which is exactly when their words should be waiting.
+      void (async () => {
+        const state = await refreshQueued();
+        if (state.pending.length > 0) await transcribeNow();
+      })();
     } else {
       // Modal closing — make sure we don't leave a recording armed.
       void cleanupRecording();
@@ -124,6 +233,9 @@ export default function VoiceCaptureModal({
 
   const startRecording = useCallback(async () => {
     setErrorMsg(null);
+    // The previous take's "saved" card would otherwise sit under the pulsing
+    // record button and read as if THIS recording were already safe.
+    setSavedMsg(null);
     if (Platform.OS === 'web') {
       setErrorMsg('Voice dictation is not available on web. Use the iOS or Android app.');
       setStep('error');
@@ -184,6 +296,7 @@ export default function VoiceCaptureModal({
       });
       await recording.startAsync();
       recordingRef.current = recording;
+      startedAtRef.current = Date.now();
       setStep('recording');
       startPulse();
       // Web-only Haptics is a no-op anyway, and we already returned above
@@ -202,39 +315,37 @@ export default function VoiceCaptureModal({
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const recording = recordingRef.current;
     recordingRef.current = null;
+    const durationMs = startedAtRef.current > 0 ? Date.now() - startedAtRef.current : 0;
     if (!recording) {
       setErrorMsg('Recording was lost. Tap to start again.');
       setStep('error');
       return;
     }
+    // Held OUTSIDE the try, which is the whole fix: the URI used to be a local
+    // inside it, so the throw that a no-signal jobsite guarantees took the only
+    // reference to the recording with it.
+    let recordedUri: string | null = null;
+    let recordedMime = 'audio/wav';
     try {
       await recording.stopAndUnloadAsync();
       const { Audio } = require('expo-av');
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
       const uri = recording.getURI();
       if (!uri) throw new Error('Recording produced no file.');
+      recordedUri = uri;
 
       const uriParts = uri.split('.');
       const fileType = (uriParts[uriParts.length - 1] || 'wav').toLowerCase();
-      // Map our recorded extension to the mime type the Rork toolkit
-      // STT endpoint expects. WAV is the format that actually transcribes
-      // (M4A returns empty silently — confirmed by direct testing). Keep
-      // .m4a/.caf in the lookup as a fallback so we're not stuck if the
-      // recording format changes.
-      const mimeMap: Record<string, string> = {
-        wav: 'audio/wav',
-        m4a: 'audio/m4a',
-        caf: 'audio/x-caf',
-        aac: 'audio/aac',
-        mp3: 'audio/mpeg',
-        webm: 'audio/webm',
-      };
-      const mime = mimeMap[fileType] || `audio/${fileType}`;
+      const mime = mimeForUri(uri);
+      recordedMime = mime;
       // Transcribe through the MAGE STT proxy (utils/transcribeAudio) rather
       // than posting to the third-party endpoint directly — that keeps the
       // vendor host out of the shipped bundle.
       const transcript = await transcribeAudio({ uri, name: `recording.${fileType}`, type: mime });
       if (!transcript) {
+        // The server heard the upload and found no words. Queueing it would
+        // just get the same empty answer on every retry, so this one really is
+        // a re-record — unlike the failure below.
         setErrorMsg("Didn't catch any speech. Try again — speak a bit louder or closer to the mic.");
         setStep('error');
         return;
@@ -245,20 +356,79 @@ export default function VoiceCaptureModal({
       onClose();
     } catch (err) {
       const msg = (err as Error)?.message || String(err);
+      // stopAndUnloadAsync and setAudioModeAsync run BEFORE the assignment
+      // above, and both can throw — a phone call that interrupted the session
+      // leaves expo-av already unloaded, and unloading twice throws. The file
+      // is still on disk in that case, so ask the recorder for it one more time
+      // rather than walking into the exact discard this whole change removes.
+      if (!recordedUri) {
+        try {
+          const salvaged = recording.getURI?.();
+          if (salvaged) {
+            recordedUri = salvaged;
+            recordedMime = mimeForUri(salvaged);
+          }
+        } catch {/* the recorder is gone too — nothing to keep */}
+      }
+      // The upload failed — which on a jobsite usually means there is no
+      // signal, not that anything is wrong with the recording. Keep the audio
+      // and transcribe it later rather than making the user say it all again
+      // into the same dead bars.
+      if (recordedUri) {
+        const saved = await queueAudioTranscription({
+          localUri: recordedUri,
+          contentType: recordedMime,
+          contextKey,
+          contextLabel,
+          durationMs,
+        });
+        if (saved.saved && saved.task) {
+          setSavedMsg(savedOfflineMessage(saved.task));
+          setErrorMsg(null);
+          setStep('saved');
+          void refreshQueued();
+          return;
+        }
+        setErrorMsg(`Couldn't transcribe the recording, and this phone couldn't save it either. ${saved.reason ?? msg}`);
+        setStep('error');
+        return;
+      }
       setErrorMsg(`Couldn't transcribe the recording. ${msg}`);
       setStep('error');
     }
-  }, [stopPulse, onTranscriptReady, onClose]);
+  }, [stopPulse, onTranscriptReady, onClose, contextKey, contextLabel, refreshQueued]);
+
+  // Hand a transcript that finished in the background to the form that asked
+  // for it, and remove it from the queue in the same step so it can't be
+  // pasted in twice.
+  const applyReadyClip = useCallback(async () => {
+    if (!readyClip) return;
+    let text: string | null = null;
+    try {
+      text = await takeTranscript(readyClip.id);
+    } catch {
+      // Storage refused. The transcript is still in the queue, so the card
+      // stays and the user can tap again — nothing is lost by doing nothing.
+    }
+    if (!text) { await refreshQueued(); return; }
+    onTranscriptReady(text);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onClose();
+  }, [readyClip, onTranscriptReady, onClose, refreshQueued]);
 
   const handleMainPress = useCallback(() => {
-    if (step === 'idle' || step === 'error') void startRecording();
+    // 'saved' behaves like idle on purpose: the dictation that just failed is
+    // already on disk in the queue, so starting another recording no longer
+    // destroys it. That was the old bug — this tap used to be the thing that
+    // threw the ninety seconds away.
+    if (step === 'idle' || step === 'error' || step === 'saved') void startRecording();
     else if (step === 'recording') void stopAndTranscribe();
     // 'transcribing' — button disabled, ignore
   }, [step, startRecording, stopAndTranscribe]);
 
-  const isIdle = step === 'idle' || step === 'error';
   const isRecording = step === 'recording';
   const isTranscribing = step === 'transcribing';
+  const isSaved = step === 'saved';
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -273,6 +443,50 @@ export default function VoiceCaptureModal({
         </View>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+          {/* Dictation this surface saved offline and has since transcribed.
+              It leads the sheet because the user came back here to finish the
+              form it belongs to. */}
+          {!!readyClip && (
+            <View style={styles.readyCard}>
+              <CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />
+              <View style={{ flex: 1, gap: 8 }}>
+                <Text style={styles.readyTitle}>
+                  {formatClipLength(readyClip.durationMs)} you dictated offline is transcribed
+                </Text>
+                <Text style={styles.readyBody} numberOfLines={3}>“{readyClip.transcript}”</Text>
+                <TouchableOpacity
+                  onPress={() => { void applyReadyClip(); }}
+                  style={styles.readyBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Use the dictation you saved offline"
+                >
+                  <Text style={styles.readyBtnText}>Use it</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Still waiting for signal. Says saved, never says transcribed —
+              a super who reads "got it" and walks away has lost the report
+              just as surely as before, only later. */}
+          {pendingClips.length > 0 && (
+            <View style={styles.pendingCard}>
+              <CloudOff size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
+              <View style={{ flex: 1, gap: 8 }}>
+                <Text style={styles.pendingText}>{pendingNoticeMessage(pendingClips.length)}</Text>
+                <TouchableOpacity
+                  onPress={() => { void transcribeNow(); }}
+                  disabled={draining}
+                  style={[styles.pendingBtn, draining && { opacity: 0.6 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Transcribe the dictation saved on this phone"
+                >
+                  <Text style={styles.pendingBtnText}>{draining ? 'Trying…' : 'Transcribe now'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Suggestions — highlighted one rotates every 3.5s while idle.
               Showing a single rotating line keeps the modal visually
               calm (lots of suggestions = wall of italics) but still
@@ -359,10 +573,19 @@ export default function VoiceCaptureModal({
                 ? 'Transcribing your audio…'
                 : isRecording
                   ? 'Recording — tap to finish'
-                  : isIdle && step === 'error'
-                    ? 'Tap to try again'
-                    : 'Tap to start recording'}
+                  : isSaved
+                    ? 'Saved — tap to record another'
+                    : step === 'error'
+                      ? 'Tap to try again'
+                      : 'Tap to start recording'}
             </Text>
+
+            {!!savedMsg && (
+              <View style={styles.savedCard}>
+                <CloudOff size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+                <Text style={styles.savedText}>{savedMsg}</Text>
+              </View>
+            )}
 
             {!!errorMsg && (
               <View style={styles.errorCard}>
@@ -558,6 +781,91 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: '100%',
   },
   errorText: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    lineHeight: 18,
+  },
+  // The offline cards below stay on soft tints with ink-coloured labels: a
+  // signal fill used as a background is the anti-slop rule this repo already
+  // enforces elsewhere, and these two cards carry real sentences, not badges.
+  readyCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: t.successSoft,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: t.success + '40',
+    padding: 14,
+  },
+  readyTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: t.text,
+  },
+  readyBody: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textSecondary,
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  readyBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.success + '55',
+  },
+  readyBtnText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: t.successLabel,
+  },
+  pendingCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: t.line,
+    padding: 14,
+  },
+  pendingText: {
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    lineHeight: 18,
+  },
+  pendingBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.line,
+  },
+  pendingBtnText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: t.text,
+  },
+  savedCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.card,
+    padding: 12,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: t.line,
+    width: '100%',
+  },
+  savedText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
     color: t.text,

@@ -36,6 +36,7 @@ export function LevelingPreviewModal(props: {
 
   const finishText =
     projectFinishDelta > 0 ? `+${projectFinishDelta} days` : 'unchanged';
+  const pushCount = summary.shifts.filter(sh => sh.pushesFinish).length;
 
   return (
     <Modal
@@ -62,18 +63,25 @@ export function LevelingPreviewModal(props: {
 
           <Text style={styles.summaryLine}>
             {summary.shiftedCount} task(s) shift · finish {finishText} · biggest move {summary.maxShiftDays}d
+            {pushCount > 0 ? ` · ${pushCount} move(s) run out of float` : ''}
           </Text>
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {summary.shifts.map(shift => (
               <View key={shift.id} style={styles.shiftRow}>
-                <Text style={styles.shiftTitle} numberOfLines={1}>{shift.title}</Text>
-                <View style={styles.shiftMeta}>
-                  <Text style={styles.shiftDays}>Day {shift.fromDay} → {shift.toDay}</Text>
-                  <Text style={styles.shiftDelta}>
-                    {shift.deltaDays > 0 ? '+' : ''}{shift.deltaDays}d
-                  </Text>
+                <View style={styles.shiftHead}>
+                  <Text style={styles.shiftTitle} numberOfLines={1}>{shift.title}</Text>
+                  <View style={styles.shiftMeta}>
+                    <Text style={styles.shiftDays}>Day {shift.fromDay} → {shift.toDay}</Text>
+                    <Text style={[styles.shiftDelta, shift.pushesFinish && styles.shiftDeltaLate]}>
+                      {shift.deltaDays > 0 ? '+' : ''}{shift.deltaDays}d
+                    </Text>
+                  </View>
                 </View>
+                {/* WHY it moves. The engine knows; this used to discard it. */}
+                {shift.reason ? (
+                  <Text style={styles.shiftReason}>{shift.reason}</Text>
+                ) : null}
               </View>
             ))}
           </ScrollView>
@@ -131,16 +139,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   list: { flexGrow: 0 },
   shiftRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
     padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: t.line,
     marginBottom: Tokens.spacing.xxs + 2,
   },
+  shiftHead: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm },
   shiftTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   shiftMeta: { alignItems: 'flex-end' },
   shiftDays: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   shiftDelta: { fontSize: Type.footnote.fontSize, fontWeight: '900', color: t.accent, letterSpacing: -0.2, marginTop: 2 },
+  shiftDeltaLate: { color: t.danger },
+  shiftReason: {
+    marginTop: Tokens.spacing.xxs, fontSize: Type.caption2.fontSize,
+    lineHeight: (Type.caption2.fontSize ?? 11) + 5, color: t.textMuted,
+  },
 
   footer: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
   btn: {

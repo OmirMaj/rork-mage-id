@@ -131,6 +131,39 @@
     <priority>0.5</priority>
   </url>
 
+  <!-- Trust pages. These answer the two objections a buyer never raises out
+       loud — "there are no reviews" and "it's one guy" — plus the two queries
+       that actually convert at the bottom of the funnel: "is it still
+       maintained" and "how do I get my data out of [competitor]". Added
+       2026-09-11 along with the pages themselves. -->
+  <url>
+    <loc>https://mageid.app/proof.html</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://mageid.app/who-built-this.html</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://mageid.app/switch.html</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://mageid.app/changelog.html</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
   <!-- Legal (lower priority but should be indexed) -->
   <url>
     <loc>https://mageid.app/privacy.html</loc>

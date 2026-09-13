@@ -95,7 +95,7 @@ export default function AskMageScreen() {
 
   const {
     projects, invoices, leads, changeOrders, rfis,
-    commitments, dailyReports, permits, submittals, punchItems,
+    commitments, dailyReports, permits, submittals, punchItems, aiaPayApps,
     projectsLoaded,
   } = useProjects();
   const safety = useSafety();
@@ -114,13 +114,17 @@ export default function AskMageScreen() {
       rfis, leads, dailyReports, permits, submittals, punchItems,
       expiringCertifications: safety.expiringCertifications(todayISO) as OneMindBundle['expiringCertifications'],
       bidResponses,
+      // buildPipelineHorizon reads them for billed-to-date; without them a GC
+      // billing through G702/G703 shows a backlog overstated by everything he
+      // has already billed.
+      aiaPayApps,
       receipts,
       laborSamples,
       constraints: allConstraints,
     };
   }, [
     projects, commitments, changeOrders, invoices, rfis, leads, dailyReports,
-    permits, submittals, punchItems, safety, bidResponses, receipts, laborSamples,
+    permits, submittals, punchItems, safety, bidResponses, aiaPayApps, receipts, laborSamples,
     allConstraints,
   ]);
 

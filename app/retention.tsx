@@ -8,8 +8,9 @@ import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Lock, Unlock, FolderOpen, ChevronRight, AlertCircle, CheckCircle2,
-  TrendingUp, Receipt, ArrowLeft,
+  TrendingUp, Receipt, ArrowLeft, HelpCircle,
 } from 'lucide-react-native';
+import { FeatureExplainerSheet } from '@/components/FeatureExplainerSheet';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -46,9 +47,17 @@ export default function RetentionScreen() {
   const { projectId: scopeProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, invoices } = useProjects();
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(scopeProjectId ?? null);
+  const [explainerOpen, setExplainerOpen] = useState(false);
 
   const projectRetention = useMemo<ProjectRetention[]>(() => {
-    const relevantInvoices = invoices.filter(inv => (inv.retentionPercent ?? 0) > 0);
+    // Audit 2026-09-07 ("Worth doing" #27). This filtered on the STORED
+    // `retentionPercent` column, so an invoice that is genuinely holding money
+    // — a legacy row with a retentionAmount but no percent, or one whose
+    // percent was cleared after the fact — was missing from the Retention
+    // screen entirely while the money stayed withheld. The population is now
+    // the same helper that decides the amount: if effectiveRetentionHeld says
+    // this invoice holds a dollar, this screen shows it.
+    const relevantInvoices = invoices.filter(inv => effectiveRetentionHeld(inv) > 0);
     const byProject: Record<string, Invoice[]> = {};
     relevantInvoices.forEach(inv => {
       if (!byProject[inv.projectId]) byProject[inv.projectId] = [];
@@ -108,7 +117,39 @@ export default function RetentionScreen() {
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
+          // Audit 2026-09-07 ("Worth doing" #22/#27): "retention" is a term a
+          // residential GC may never have met, and nothing on this screen said
+          // what the percentage is taken OF.
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => setExplainerOpen(true)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="What is retention?"
+              testID="retention-explainer-chip"
+            >
+              <HelpCircle size={20} color={themeColors.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
+          ),
         }}
+      />
+
+      <FeatureExplainerSheet
+        visible={explainerOpen}
+        onClose={() => setExplainerOpen(false)}
+        term="Retention (Retainage)"
+        definition={
+          'Retention is a slice of every progress payment the client keeps back — commonly 5% or 10% — '
+          + 'until the job is substantially complete and the punch list is cleared. It is your money; '
+          + 'it is just being held. MAGE computes it on the WORK VALUE — the invoice subtotal, before '
+          + 'sales tax — because you remit that tax to the state whether or not the client holds '
+          + 'retention, so withholding against it would hold back money you have already paid out.'
+        }
+        whenToUse={[
+          'When a contract says the owner holds 5% or 10% until substantial completion',
+          'At closeout, to see exactly what is still owed to you across every job',
+          'Before you release retention to a sub — hold yours until yours is released',
+        ]}
       />
 
       <ScrollView
@@ -149,6 +190,19 @@ export default function RetentionScreen() {
             <Text style={styles.metricLabel}>Pending</Text>
           </View>
         </View>
+
+        {/* THE BASIS, stated where the figures are (audit 2026-09-07,
+            "Worth doing" #27). The arithmetic has been right since MISS-04 —
+            retainage is computed on the subtotal — but only app/invoice.tsx
+            ever said so, so a client reading "Retention held (5%)" next to a
+            tax-inclusive total multiplied it on his phone, got a different
+            number, and called. */}
+        {projectRetention.length > 0 && (
+          <Text style={styles.basisNote} testID="retention-basis-note">
+            Held on the work value — the invoice subtotal, before sales tax. Multiplying the percentage by
+            an invoice total that includes tax gives a larger number; that is not what is being held.
+          </Text>
+        )}
 
         {/* Explainer */}
         {projectRetention.length === 0 && (
@@ -248,8 +302,15 @@ export default function RetentionScreen() {
                           <Receipt size={14} color={themeColors.accent} strokeWidth={1.75} />
                         </View>
                         <View style={{ flex: 1 }}>
+                          {/* A row can now reach this screen on a stored
+                              retainage amount with no percent on file (see the
+                              effectiveRetentionHeld filter above), so the
+                              percent is only printed when there is one. */}
                           <Text style={styles.invoiceTitle}>
-                            Invoice #{inv.number} · {inv.retentionPercent}%
+                            Invoice #{inv.number}
+                            {(inv.retentionPercent ?? 0) > 0
+                              ? ` · ${inv.retentionPercent}% of work value`
+                              : ' · retainage on file'}
                           </Text>
                           <Text style={styles.invoiceMeta}>
                             {new Date(inv.issueDate).toLocaleDateString()}
@@ -300,6 +361,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   metricCard: { flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 12, borderWidth: 1, gap: 4, alignItems: 'flex-start' as const },
   metricValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 4 },
   metricLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const },
+
+  basisNote: {
+    marginHorizontal: 16, marginTop: -8, marginBottom: 16,
+    fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17,
+  },
 
   emptyState: { margin: 16, padding: 28, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line, alignItems: 'center' as const, gap: 10 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 6 },

@@ -568,9 +568,22 @@ export function aiaTotalsFromLines(
   for (const l of rows) {
     const completed = num(l.fromPreviousApp) + num(l.thisPeriod);
     const stored = num(l.materialsPresentlyStored);
+    const workRate = num(l.retainagePercent);
+    // G702 line 5b's rate is its OWN blank on the form. This function is a
+    // second copy of computeAIATotals' arithmetic (it exists so a hydrated row
+    // can be repaired without loading expo-print), and a copy that does not
+    // know about the split would recompute a DIFFERENT total retainage from
+    // the one the certificate was signed with — on exactly the rows that have
+    // no snapshot_totals to fall back on. `undefined` means "same as the
+    // completed-work rate", which is what every record saved before the field
+    // existed means; an explicit 0 is a real contract term and is honoured.
+    const storedRateRaw = l.storedRetainagePercent;
+    const storedRate = storedRateRaw == null || !Number.isFinite(Number(storedRateRaw))
+      ? workRate
+      : num(storedRateRaw);
     totalScheduledValue += num(l.scheduledValue);
     totalCompletedAndStored += completed + stored;
-    totalRetainage += (completed + stored) * (num(l.retainagePercent) / 100);
+    totalRetainage += completed * (workRate / 100) + stored * (storedRate / 100);
   }
   const totalEarnedLessRetainage = totalCompletedAndStored - totalRetainage;
   return {
@@ -595,15 +608,109 @@ export function aiaTotalsFromLines(
  * Portal lifecycle (`portal_state`) is layered on by the context, where
  * validate-portal-state-roundtrip guards it.
  */
+/**
+ * Certificate fields that have no column of their own, carried inside the
+ * `snapshot_totals` JSONB the table already has.
+ *
+ * WHY A SIDECAR AND NOT COLUMNS. Sending an unknown top-level key makes
+ * PostgREST reject the ENTIRE write, and utils/offlineQueue classifies that as
+ * transient and re-queues it — correctly, but it means an OTA that reaches
+ * devices before its migration is applied stops every AIA pay-app save on
+ * every device until someone runs the migration. This repo has been bitten by
+ * exactly that race (the punch-item regression the queue's isSchemaCacheError
+ * comment records), and applying a migration is owner-gated while an OTA is
+ * not. The sidecar needs no schema change at all.
+ *
+ * The key is namespaced so it can never collide with a totals field, and it is
+ * OMITTED ENTIRELY when nothing is set — a pay application that uses none of
+ * these writes a byte-identical row to the one it wrote before they existed.
+ *
+ * Migrating this to real columns later is a mechanical change: add the
+ * columns, write both, backfill from the sidecar, then stop reading it.
+ */
+const AIA_EXTRAS_FIELD = '__mageCertificate';
+// (Deliberately not named *_KEY: scripts/validate-storage-hygiene.ts discovers
+//  AsyncStorage keys by const NAME, and this is a JSONB field, not a key.)
+
+interface AiaCertificateExtras {
+  periodFrom?: string;
+  storedRetainagePercent?: number;
+  amountCertified?: number;
+  certifiedDate?: string;
+  certifiedExplanation?: string;
+  // The four-row CHANGE ORDER SUMMARY as it stood when the certificate was
+  // saved. It rides here because reprinting a SENT application must reproduce
+  // the document that went out; recomputing the table from today's
+  // change-order list restates it whenever a CO approved inside the period is
+  // entered after the fact.
+  changeOrderSummary?: SavedAIAPayApp['changeOrderSummary'];
+  notarize?: boolean;
+  notaryState?: string;
+  notaryCounty?: string;
+  /**
+   * Where column C came from. The screen prints a provenance note under the
+   * schedule of values and branches on it; without it on the record every
+   * REOPENED certificate took the "this project has no itemized estimate
+   * linked" branch, telling a GC whose job does have one to go and link it.
+   */
+  sovBasis?: SavedAIAPayApp['sovBasis'];
+}
+
+function aiaExtrasFor(a: SavedAIAPayApp): AiaCertificateExtras | null {
+  const extras: AiaCertificateExtras = {};
+  if (a.periodFrom) extras.periodFrom = a.periodFrom;
+  if (a.storedRetainagePercent != null) extras.storedRetainagePercent = a.storedRetainagePercent;
+  if (a.amountCertified != null) extras.amountCertified = a.amountCertified;
+  if (a.certifiedDate) extras.certifiedDate = a.certifiedDate;
+  if (a.certifiedExplanation) extras.certifiedExplanation = a.certifiedExplanation;
+  if (a.changeOrderSummary) extras.changeOrderSummary = a.changeOrderSummary;
+  if (a.notarize) extras.notarize = true;
+  if (a.notaryState) extras.notaryState = a.notaryState;
+  if (a.notaryCounty) extras.notaryCounty = a.notaryCounty;
+  if (a.sovBasis) extras.sovBasis = a.sovBasis;
+  return Object.keys(extras).length ? extras : null;
+}
+
+function readAiaExtras(snapshot: unknown): AiaCertificateExtras {
+  if (snapshot == null || typeof snapshot !== 'object') return {};
+  const raw = (snapshot as Record<string, unknown>)[AIA_EXTRAS_FIELD];
+  return raw != null && typeof raw === 'object' ? (raw as AiaCertificateExtras) : {};
+}
+
 export function aiaRowToSaved(r: Record<string, unknown>): SavedAIAPayApp {
   const createdAt = str(r.created_at);
   const lines = (r.lines as SavedAIAPayApp['lines'] | null) ?? [];
   const contractSumToDate = coerceRate(r.contract_sum_to_date, 0);
   const lessPreviousCertificates = coerceRate(r.less_previous_certificates, 0);
   const snapshot = r.snapshot_totals;
-  const totals = snapshot != null && typeof snapshot === 'object'
-    ? (snapshot as SavedAIAPayApp['totals'])
-    : aiaTotalsFromLines(lines, contractSumToDate, lessPreviousCertificates);
+  const extras = readAiaExtras(snapshot);
+  // The sidecar must never leak into `totals` — the portal snapshot and the
+  // WIP report both read that object, and an extra key on it is an extra key
+  // on every consumer.
+  const totals = (() => {
+    const fallback = () => aiaTotalsFromLines(lines, contractSumToDate, lessPreviousCertificates);
+    if (snapshot == null || typeof snapshot !== 'object') return fallback();
+    const { [AIA_EXTRAS_FIELD]: _extras, ...rest } = snapshot as Record<string, unknown>;
+    void _extras;
+    // THE SIDECAR MUST NOT DISABLE THE REPAIR PATH (review 2026-09-11).
+    //
+    // `savedToAiaRow` writes `{...(a.totals ?? {}), __mageCertificate: …}`, so
+    // a record that has NO totals but sets any certificate field (a period
+    // start, a notary county) still writes a NON-NULL snapshot_totals — an
+    // object whose only key is the sidecar. Stripping it then left `{}`, and
+    // the `snapshot == null` test above could no longer see that there were no
+    // totals to read. Downstream that is money: the next period seeds line 7
+    // from `priorAIA.totals?.totalEarnedLessRetainage ?? 0`, so a repaired
+    // record would have billed "less previous certificates = $0" — the exact
+    // failure MONEY-F1 opened for, reintroduced by a field that has nothing to
+    // do with totals.
+    //
+    // So the sidecar-stripped remainder only counts as totals when it actually
+    // carries the figure the rest of the app reads. Anything else falls
+    // through to recomputing from the lines, as it did before the sidecar.
+    const hasTotals = typeof (rest as { currentPaymentDue?: unknown }).currentPaymentDue === 'number';
+    return hasTotals ? (rest as SavedAIAPayApp['totals']) : fallback();
+  })();
   return {
     id: r.id as string,
     projectId: r.project_id as string,
@@ -627,6 +734,7 @@ export function aiaRowToSaved(r: Record<string, unknown>): SavedAIAPayApp {
     lines,
     notes: str(r.notes),
     totals,
+    ...extras,
     payLinkUrl: str(r.pay_link_url),
     payLinkId: str(r.pay_link_id),
     payLinkAmount: r.pay_link_amount == null ? undefined : coerceRate(r.pay_link_amount, 0),
@@ -642,10 +750,29 @@ export function aiaRowToSaved(r: Record<string, unknown>): SavedAIAPayApp {
  * the context adds `portal_state` (spread, never `?? null`, see the writer's
  * comment there) and user/tenant stamping stays explicit via `userId`.
  *
- * TODO(20260904100100): send pay_link_url / pay_link_id / pay_link_amount once
- * the migration is applied. Until then an unknown column makes PostgREST
- * reject the WHOLE upsert, and the offline queue would retry it forever.
- * `paid_at` is owned by the Stripe webhook and is never written from the app.
+ * THE PAY-LINK COLUMNS ARE SERVER-OWNED — do not add them here.
+ *
+ * The TODO that used to sit at this spot said to start writing pay_link_url /
+ * pay_link_id / pay_link_amount "once migration 20260904100100 is applied".
+ * That migration IS applied (it adds exactly those three columns to
+ * aia_pay_apps), so the stated blocker is gone — but writing them from the app
+ * would be wrong for a different and worse reason. supabase/functions/
+ * create-payment-link writes them server-side when it mints a link, and the
+ * Stripe webhook NULLS them the moment the link is paid or replaced (MONEY-F2 /
+ * F16). An app-side write of a locally-cached link would resurrect a link the
+ * webhook had just retired — a live Pay button for money already collected.
+ * The residue is that a local payLinkUrl can lag the server's, which is why
+ * `isLocked` on app/aia-pay-app.tsx errs toward locking.
+ *
+ * `paid_at` is owned by the Stripe webhook and is never written from the app,
+ * for the same reason.
+ *
+ * NEW CERTIFICATE FIELDS (period_from, stored retainage, AMOUNT CERTIFIED, the
+ * notary jurat) have no columns of their own and are NOT sent as top-level
+ * keys: an unknown column makes PostgREST reject the whole write, and the
+ * offline queue would (correctly, per its schema-cache rule) re-queue it until
+ * a migration lands. They ride inside the `lines` / `snapshot_totals` JSONB the
+ * table already has — see `aiaExtrasFor` below.
  */
 export function savedToAiaRow(a: SavedAIAPayApp, userId: string | null | undefined): Record<string, unknown> {
   const now = new Date().toISOString();
@@ -672,7 +799,11 @@ export function savedToAiaRow(a: SavedAIAPayApp, userId: string | null | undefin
     lines: a.lines ?? [],
     notes: a.notes ?? null,
     // MONEY-F1: the object carries `totals`; `snapshotTotals` never existed.
-    snapshot_totals: a.totals ?? null,
+    snapshot_totals: (() => {
+      const extras = aiaExtrasFor(a);
+      if (!extras) return a.totals ?? null;
+      return { ...(a.totals ?? {}), [AIA_EXTRAS_FIELD]: extras };
+    })(),
     created_at: a.createdAt ?? (a.savedAt || undefined) ?? now,
     updated_at: a.updatedAt ?? now,
   };

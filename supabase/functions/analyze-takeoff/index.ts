@@ -30,7 +30,11 @@
 //
 // Request body:
 // {
-//   pageUrls: string[];   // 1..N publicly-fetchable PNG URLs (rendered from PDF)
+//   pagePaths: string[];  // PREFERRED. 1..N `plan-sheets` storage paths; the
+//                         // bytes are read here with the service role.
+//   pageUrls?: string[];  // DEPRECATED (DB-F11), accepted for ONE release so an
+//                         // installed build that has not taken the OTA yet keeps
+//                         // working. Fetched through the urlGuard SSRF fence.
 //   projectName?: string;
 //   projectType?: string;
 //   squareFootage?: number;
@@ -46,6 +50,9 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS, type Tier } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
+import {
+  loadPlanSheetImageParts, selectPageSource, PlanSheetAccessError,
+} from "../_shared/planSheetBytes.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
@@ -122,7 +129,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface TakeoffRequest {
-  pageUrls: string[];
+  /** PREFERRED: `plan-sheets` storage paths, read with the service role. */
+  pagePaths?: string[];
+  /** DEPRECATED, one release (DB-F11). Delete with the `pageUrls` arm in
+   *  pageImageParts() once no installed build sends it. */
+  pageUrls?: string[];
   projectName?: string;
   projectType?: string;
   squareFootage?: number;
@@ -152,6 +163,22 @@ async function urlToInlineImagePart(url: string): Promise<{ inlineData: { mimeTy
   for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
   const data = btoa(binary);
   return { inlineData: { mimeType, data } };
+}
+
+/**
+ * The images for this request, in page order.
+ *
+ * PATHS WIN. A request carrying both (what the post-DB-F11 client sends, so the
+ * OTA is safe whichever order the function deploy and the OTA happen in) is
+ * served entirely from storage and never fetches a URL at all.
+ */
+async function pageImageParts(
+  req: TakeoffRequest,
+  userId: string,
+): Promise<{ inlineData: { mimeType: string; data: string } }[]> {
+  const { kind, values } = selectPageSource(req, 16);
+  if (kind === 'paths') return await loadPlanSheetImageParts(values, userId, MAX_PAGE_BYTES);
+  return await Promise.all(values.map(urlToInlineImagePart));
 }
 
 function buildPrompt(req: TakeoffRequest): string {
@@ -376,12 +403,9 @@ function pickActualModel(requested: ModelKey | undefined, tier: Tier): ModelKey 
   return chosen;
 }
 
-async function callTakeoffModel(req: TakeoffRequest, tier: Tier): Promise<{ data: unknown; modelUsed: ModelKey }> {
-  if (!req.pageUrls || req.pageUrls.length === 0) throw new Error('No page URLs provided.');
-  if (req.pageUrls.length > 16) throw new Error('Maximum 16 pages per request — split larger sets.');
-
+async function callTakeoffModel(req: TakeoffRequest, tier: Tier, userId: string): Promise<{ data: unknown; modelUsed: ModelKey }> {
   const modelUsed = pickActualModel(req.model, tier);
-  const imageParts = await Promise.all(req.pageUrls.map(urlToInlineImagePart));
+  const imageParts = await pageImageParts(req, userId);
 
   if (modelUsed === 'claude-sonnet-4-5') {
     return { data: await callClaude(req, imageParts), modelUsed };
@@ -779,8 +803,12 @@ serve(async (req) => {
 
   try {
     const body = await req.json() as TakeoffRequest;
-    if (!body || !Array.isArray(body.pageUrls)) {
-      return jsonResponse({ success: false, error: 'Missing pageUrls' }, 400);
+    // Either input is acceptable for one release; `pagePaths` is preferred and
+    // wins when both are present (DB-F11).
+    const hasPaths = Array.isArray(body?.pagePaths) && body.pagePaths.length > 0;
+    const hasUrls = Array.isArray(body?.pageUrls) && body.pageUrls.length > 0;
+    if (!body || (!hasPaths && !hasUrls)) {
+      return jsonResponse({ success: false, error: 'Missing pagePaths' }, 400);
     }
     // gemini-2.5-pro is Business AND Enterprise (was silently demoting
     // Enterprise via strict equality).
@@ -813,10 +841,15 @@ serve(async (req) => {
       }, 429);
     }
 
-    const { data, modelUsed } = await callTakeoffModel(body, auth.tier);
+    const { data, modelUsed } = await callTakeoffModel(body, auth.tier, auth.userId);
     const newUsed = await aiUsageIncrement(auth.userId, 'analyze_drawings');
     return jsonResponse({ success: true, data, modelUsed, usage: { used: newUsed, cap } });
   } catch (e) {
+    if (e instanceof PlanSheetAccessError) {
+      // Generic and 403 — never say whether the path was malformed or simply
+      // someone else's project (DB-F11).
+      return jsonResponse({ success: false, error: 'One or more plan sheets are not available on this account.' }, 403);
+    }
     if (e instanceof UrlValidationError) {
       // Generic — never echo the offending URL or an upstream status.
       return jsonResponse({ success: false, error: 'One or more image URLs are not allowed.' }, 400);

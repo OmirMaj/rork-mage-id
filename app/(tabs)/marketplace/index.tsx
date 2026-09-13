@@ -12,6 +12,7 @@ import {
   TreePine, Box, Home, Zap, Wrench, Layers, LayoutGrid, HardHat, Paintbrush, Leaf, Fence,
 } from 'lucide-react-native';
 import { MageMaterials } from '@/components/icons';
+import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -269,6 +270,17 @@ export default function MarketplaceScreen() {
         ListHeaderComponent={
           <View>
             <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
+            {/* NAV-07: this tab is registered `href: null`, so arriving from
+                Discover is a TAB SWITCH — React Navigation creates no back
+                button and no tab in the bar lights up. See
+                components/HiddenTabBackLink.tsx for why this names its
+                destination instead of being a bare chevron. */}
+            <HiddenTabBackLink
+              label="Tools"
+              href="/(tabs)/discover/tools"
+              style={styles.backToTools}
+              testID="marketplace-back-to-tools"
+            />
               <Text style={styles.largeTitle}>Marketplace</Text>
               <Text style={styles.subtitle}>Buy materials directly from suppliers</Text>
               {/* Preview banner — added during May 2026 launch audit. The
@@ -656,6 +668,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: themeColors.line,
   },
+  backToTools: { marginBottom: 6 },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,

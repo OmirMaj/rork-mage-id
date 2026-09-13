@@ -177,7 +177,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
                           {formatMoneyCompact(load!.earnedValue)} earned
                         </Text>
                       </View>
-                      <ChevronRight size={14} color={"#9AA3AD"} strokeWidth={1.75} />
+                      <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     </View>
                   );
                 })}

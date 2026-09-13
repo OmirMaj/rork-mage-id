@@ -7,6 +7,10 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { generateUUID } from './generateId';
+// CONTRACT-TIME-1: the timeline arithmetic lives in a react-native-free module
+// so a guard can EXECUTE it (this file imports @/lib/supabase). See the
+// re-export block below.
+import { suggestContractTimeline } from '@/utils/contractTimelineCore';
 import type {
   ProjectContract, PaymentMilestone, ContractAllowance,
   ContractSignature, ContractStatus,
@@ -123,6 +127,24 @@ export function defaultPaymentSchedule(contractValue: number): PaymentMilestone[
   ];
 }
 
+// ─── Contract timeline (start date + duration) ──────────────────────
+//
+// CONTRACT-TIME-1 — the arithmetic lives in utils/contractTimelineCore.ts so a
+// guard can EXECUTE it: this file imports @/lib/supabase, and bun cannot parse
+// a module that transitively pulls react-native. Re-exported here so the
+// screen keeps one import for the whole contract domain.
+
+export {
+  contractTimeline, contractTimelineSentence, suggestContractTimeline,
+  type ContractTimeline, type ContractTimelineSuggestion,
+} from '@/utils/contractTimelineCore';
+
+/** `{ startDate, durationDays }` from the project's schedule, or `{}`. */
+function timelineSeed(project: Project): Pick<ProjectContract, 'startDate' | 'durationDays'> {
+  const s = suggestContractTimeline(project);
+  return s ? { startDate: s.startDate, durationDays: s.durationDays } : {};
+}
+
 // Build a starter contract pre-filled from a project + (optionally) the
 // awarded bid response. Caller can edit any field before saving.
 export interface DraftContractInput {
@@ -141,8 +163,11 @@ export function buildDraftContract(input: DraftContractInput): Omit<ProjectContr
     version: 1,
     title: `${input.project.name} — Construction Agreement`,
     contractValue: value,
-    startDate: undefined,
-    durationDays: undefined,
+    // CONTRACT-TIME-1: seeded from the project's own schedule when it has one,
+    // so the two halves of the app agree on when the job runs. Still undefined
+    // when there is no schedule — the editor asks, and a blank beats a guess on
+    // a document that binds the completion date.
+    ...timelineSeed(input.project),
     scopeText: input.scopeText ?? input.project.description ?? '',
     termsText: DEFAULT_TERMS,
     warrantyText: DEFAULT_WARRANTY,
@@ -213,8 +238,9 @@ export function buildProposalFromRevision(
     version: 1,
     title: `${project.name} — Project Proposal`,
     contractValue: value,
-    startDate: undefined,
-    durationDays: undefined,
+    // CONTRACT-TIME-1 — same seed as buildDraftContract. A proposal that states
+    // when the work runs is the one that gets signed.
+    ...timelineSeed(project),
     scopeText,
     termsText: DEFAULT_TERMS,
     warrantyText: DEFAULT_WARRANTY,
@@ -374,6 +400,65 @@ export async function markMilestoneInvoiced(
     .eq('id', contractId);
   if (updErr) {
     console.warn('[contractEngine] markMilestoneInvoiced: write failed', updErr.message);
+    return 'failed';
+  }
+  return 'flipped';
+}
+
+/**
+ * The other half of markMilestoneInvoiced. Flip every milestone linked to an
+ * invoice to 'paid' when that invoice is paid.
+ *
+ * Built-but-unreachable #7 / worth-doing #16 (audit 2026-09-07). The milestone
+ * lifecycle stopped one step short: markMilestoneInvoiced wrote 'invoiced' and
+ * nothing anywhere wrote 'paid' outside two dev seeders. So computeContractPaid
+ * below always returned 0, and the two 'PAID' branches in app/contract.tsx
+ * (:1087 and :1201) could never render. A GC whose homeowner has paid the
+ * foundation draw still saw the milestone as merely billed, on the screen that
+ * is supposed to tell him where the contract stands.
+ *
+ * Keyed on the milestone's stored invoiceId, which markMilestoneInvoiced put
+ * there — not on amount or on order, either of which would match the wrong
+ * draw once a change order splits a milestone.
+ *
+ * Same read-verify-write discipline as its sibling: read the live row rather
+ * than patching a caller's snapshot, so a milestone that changed while the GC
+ * was in the invoice editor is not clobbered. Idempotent — re-running on an
+ * already-paid milestone reports success, because the caller retries after a
+ * dropped write.
+ */
+export async function markMilestonePaidByInvoice(
+  contractId: string,
+  invoiceId: string,
+): Promise<'flipped' | 'none' | 'not_found' | 'failed'> {
+  if (!isSupabaseConfigured) return 'failed';
+  const { data, error } = await supabase
+    .from('project_contracts')
+    .select('id,payment_schedule')
+    .eq('id', contractId)
+    .maybeSingle();
+  if (error || !data) {
+    console.warn('[contractEngine] markMilestonePaidByInvoice: contract not found', contractId, error?.message);
+    return 'not_found';
+  }
+
+  const schedule = ((data as { payment_schedule?: PaymentMilestone[] }).payment_schedule ?? []) as PaymentMilestone[];
+  const linked = schedule.filter(m => m.invoiceId === invoiceId);
+  if (linked.length === 0) return 'none';
+  // Already there — nothing to write, and reporting success keeps the caller's
+  // retry path from treating a settled milestone as a failure.
+  if (linked.every(m => m.status === 'paid')) return 'flipped';
+
+  const next = schedule.map(m => m.invoiceId === invoiceId && m.status !== 'paid'
+    ? { ...m, status: 'paid' as const, paidAt: new Date().toISOString() }
+    : m);
+
+  const { error: updErr } = await supabase
+    .from('project_contracts')
+    .update({ payment_schedule: next })
+    .eq('id', contractId);
+  if (updErr) {
+    console.warn('[contractEngine] markMilestonePaidByInvoice: write failed', updErr.message);
     return 'failed';
   }
   return 'flipped';

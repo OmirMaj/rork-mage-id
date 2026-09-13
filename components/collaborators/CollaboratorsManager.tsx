@@ -1,9 +1,28 @@
 // components/collaborators/CollaboratorsManager.tsx
 //
 // Invite + manage project collaborators (Live Schedule Collaboration Phase 1).
-// Owner-only controls; editors/viewers see the roster read-only. Inviting is
-// gated to Pro (below Pro → /paywall). Because the invite email is best-effort
-// (Resend may be unconfigured), we surface a copyable invite link too.
+// Owner-only controls; editors/viewers see the roster read-only. Because the
+// invite email is best-effort (Resend may be unconfigured), we surface a
+// copyable invite link too.
+//
+// ── WHAT IS GATED, AND WHAT IS DELIBERATELY NOT ─────────────────────────────
+// Inviting an ADMIN collaborator (editor / viewer — the roles that read
+// financials) is gated to Pro via schedule_collaboration. Inviting a FIELD
+// collaborator is NOT gated at any tier.
+//
+// This used to be wrong, and it was wrong in the expensive direction. The
+// canAccess('schedule_collaboration') check sat ABOVE the role, so it fired for
+// role 'field' too: a free-tier GC who picked "Field" and tapped Send Invite was
+// bounced to /paywall and could not add a single sub. The server would have
+// allowed it — supabase/functions/project-invite/index.ts:220 calls seatCheck()
+// only when isBillableRole(role) is true, so a field invite passes at every
+// tier — and utils/seatModel previewSeat('free', …, 'field') returns
+// allowed:true, which scripts/validate-seat-model.ts has asserted the whole
+// time. The CLIENT was the only thing refusing, and it refused the exact
+// promise the marketing site makes ("subcontractors are always free").
+//
+// So the tier check is now asked only about the roles it is actually about.
+// Keep it below the role test: a field invite must never reach /paywall.
 
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
@@ -17,6 +36,7 @@ import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { useProjectRole } from '@/hooks/useProjectRole';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/utils/roleBlinding';
 import { useAccountSeats } from '@/hooks/useAccountSeats';
+import { isBillableSeat } from '@/utils/seatModel';
 import { showAlert } from '@/utils/alert';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -44,7 +64,9 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
 
   const onInvite = useCallback(() => {
     if (!validEmail) return;
-    if (!canAccess('schedule_collaboration')) { router.push('/paywall'); return; }
+    // Role FIRST, tier second — see the header. Field invites are free at every
+    // tier and must never be bounced to the paywall.
+    if (isBillableSeat(inviteRole) && !canAccess('schedule_collaboration')) { router.push('/paywall'); return; }
     // Out of seats (or free tier). The edge function enforces the same limit
     // and would return 402, so route to the upgrade instead of firing a
     // request we know will fail.
@@ -167,7 +189,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
           <TouchableOpacity
             onPress={onInvite}
             disabled={!validEmail || invite.isPending}
-            style={[styles.inviteBtn, { backgroundColor: t.accent }, (!validEmail || invite.isPending) && { opacity: 0.5 }]}
+            style={[styles.inviteBtn, { backgroundColor: t.accentFill }, (!validEmail || invite.isPending) && { opacity: 0.5 }]}
             accessibilityRole="button"
             testID="collab-invite"
           >

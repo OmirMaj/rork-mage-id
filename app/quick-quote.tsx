@@ -15,6 +15,7 @@
 import React, { useMemo, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import * as Haptics from 'expo-haptics';
@@ -185,7 +186,7 @@ export default function QuickQuoteScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

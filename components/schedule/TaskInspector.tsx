@@ -28,11 +28,13 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
+import { calendarDayToDate } from '@/utils/cpm';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { TRADE_KEYS, tradeKeyForTask, tradeLabel, type TradeKey } from '@/utils/scheduleColors';
 import { showAlert } from '@/utils/alert';
+import { taskStatusInk, CHIP_TINT_SUFFIX } from '@/components/ui/ink';
 
 interface TaskInspectorProps {
   task: ScheduleTask | null;
@@ -43,18 +45,29 @@ interface TaskInspectorProps {
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
 }
 
+/**
+ * Render one of the engine's CALENDAR INDICES (es/ef/ls/lf) as a date. Routed
+ * through the shared converter so this panel, the grid and the Gantt cannot
+ * drift apart — the previous local copy was correct, but "correct and separate"
+ * is how the grid ended up a fortnight out from the engine in the first place.
+ */
 function dayToDate(startDate: Date, day: number): string {
   if (!Number.isFinite(day)) return '—';
-  const d = new Date(startDate);
-  d.setDate(d.getDate() + day - 1);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return calendarDayToDate(startDate, day)
+    .toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: string; color: string }[] = [
-  { value: 'not_started', label: 'Not started', color: "#9AA3AD" },
-  { value: 'in_progress', label: 'In progress', color: "#FF6A1A" },
-  { value: 'on_hold', label: 'On hold', color: Colors.warningLabel },
-  { value: 'done', label: 'Done', color: "#2E7D44" },
+// Labels only — the four INKS come from `taskStatusInk(themeColors)` at render
+// time. This table used to carry them, and all four were wrong on a light
+// screen: `not_started` was the dark theme's textSecondary (#9AA3AD, 2.55:1),
+// `in_progress` the raw brand accent (#FF6A1A, 2.87:1 — founder decision #1
+// routes text through accentLabel), and `Colors.warningLabel` is a getter, so
+// it froze to whichever theme was active at import.
+const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: string }[] = [
+  { value: 'not_started', label: 'Not started' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'on_hold', label: 'On hold' },
+  { value: 'done', label: 'Done' },
 ];
 
 export default function TaskInspector({
@@ -62,6 +75,7 @@ export default function TaskInspector({
 }: TaskInspectorProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const statusInk = taskStatusInk(themeColors);
   const [subscriberDraft, setSubscriberDraft] = useState('');
   const [tradeDropdownOpen, setTradeDropdownOpen] = useState(false);
 
@@ -164,7 +178,7 @@ export default function TaskInspector({
       <View style={styles.header}>
         <Info size={16} color={"#FF6A1A"} strokeWidth={1.75} />
         <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled task'}</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} strokeWidth={1.75} /></TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -176,6 +190,12 @@ export default function TaskInspector({
           <Row label="Early finish" value={cpmRow ? dayToDate(projectStartDate, cpmRow.ef) : '—'} />
           <Row label="Late start"   value={cpmRow ? dayToDate(projectStartDate, cpmRow.ls) : '—'} />
           <Row label="Late finish"  value={cpmRow ? dayToDate(projectStartDate, cpmRow.lf) : '—'} />
+          {/* Both floats are WORKING days on the task's own calendar, so these
+              two rows can be read against each other — free float ≤ total float
+              is a CPM invariant, and this is the pair where a P6 user checks it.
+              They used to be raw calendar-index subtractions computed
+              independently, so the same row could read "Total float 0d / Free
+              float 2d", which is not a state CPM can be in. */}
           <Row label="Total float"  value={cpmRow ? `${cpmRow.totalFloat}d` : '—'}
             valueColor={cpmRow?.isCritical ? "#C84038" : themeColors.text} />
           <Row label="Free float"   value={cpmRow ? `${cpmRow.freeFloat}d` : '—'} />
@@ -185,21 +205,26 @@ export default function TaskInspector({
         {/* Status picker — quick single-tap update without opening the grid. */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <Flag size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Flag size={12} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Status</Text>
           </View>
           <View style={styles.statusRow}>
             {STATUS_OPTIONS.map(opt => {
               const active = (task.status ?? 'not_started') === opt.value;
+              const ink = statusInk[opt.value];
               return (
                 <TouchableOpacity
                   key={opt.value}
-                  style={[styles.statusChip, active && { backgroundColor: opt.color + '22', borderColor: opt.color }]}
+                  /* CHIP_TINT_SUFFIX, not the '22' this shipped with: the inks
+                     are measured on an 8% wash (the app's chip idiom, pinned by
+                     validate-contrast check 5), and 13% drops on_hold to
+                     4.32:1 without any colour changing. */
+                  style={[styles.statusChip, active && { backgroundColor: ink + CHIP_TINT_SUFFIX, borderColor: ink }]}
                   onPress={() => onEdit(task.id, { status: opt.value })}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.statusDot, { backgroundColor: opt.color }]} />
-                  <Text style={[styles.statusChipText, active && { color: opt.color, fontWeight: '700' }]}>
+                  <View style={[styles.statusDot, { backgroundColor: ink }]} />
+                  <Text style={[styles.statusChipText, active && { color: ink, fontWeight: '700' }]}>
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
@@ -248,7 +273,7 @@ export default function TaskInspector({
         {/* Anchor summary — read-only here; the grid owns anchor editing. */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <Anchor size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Anchor size={12} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Anchor</Text>
           </View>
           {anchorPretty ? (
@@ -264,7 +289,7 @@ export default function TaskInspector({
         {/* Dependencies list */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <CalendarClock size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+            <CalendarClock size={12} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Predecessors</Text>
           </View>
           {depRows.length === 0 ? (
@@ -285,7 +310,7 @@ export default function TaskInspector({
         {(task.crew || (task.resourceIds && task.resourceIds.length > 0)) && (
           <View style={styles.section}>
             <View style={styles.sectionHeadRow}>
-              <Users size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+              <Users size={12} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Crew</Text>
             </View>
             {task.crew && <Row label="Crew" value={task.crew} />}
@@ -303,7 +328,7 @@ export default function TaskInspector({
         {/* Photos — camera + library, no upload (local URI). */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Camera size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Camera size={12} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Photos {task.photos && task.photos.length > 0 ? `(${task.photos.length})` : ''}</Text>
           </View>
           <View style={styles.photoGrid}>
@@ -344,7 +369,7 @@ export default function TaskInspector({
             (opposite of Buildertrend's email-everyone posture). */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Bell size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Bell size={12} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Notification list {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
           </View>
           <Text style={styles.notesText}>
@@ -355,7 +380,7 @@ export default function TaskInspector({
               value={subscriberDraft}
               onChangeText={setSubscriberDraft}
               placeholder="e.g. Volt Bros, joe@example.com"
-              placeholderTextColor={"#9AA3AD"}
+              placeholderTextColor={themeColors.textMuted}
               style={styles.subInput}
               onSubmitEditing={handleAddSubscriber}
               returnKeyType="done"
@@ -374,7 +399,7 @@ export default function TaskInspector({
                   <TouchableOpacity
                     onPress={() => handleRemoveSubscriber(s)}
                     hitSlop={4} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={11} color={"#9AA3AD"} strokeWidth={1.75} />
+                    <X size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ))}

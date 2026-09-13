@@ -14,7 +14,8 @@ import type { Project, ScheduleTask } from '@/types';
 import { buildScheduleFromTasks, mergeEditedSchedule, createId } from '@/utils/scheduleEngine';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { runCpm } from '@/utils/cpm';
+import { runCpm, previewStartDayBasisMigration, startDayBasisAnswerPatch } from '@/utils/cpm';
+import { StartDayBasisNotice } from '@/components/schedule/StartDayBasisNotice';
 import EmptyState from '@/components/EmptyState';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
 import { WeekStrip } from './WeekStrip';
@@ -32,7 +33,6 @@ import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
 import DatePickerModal from '@/components/DatePickerModal';
 import { parseCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
-import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import {
   resolveScheduleAnchor, startDayNumberFor,
   UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
@@ -134,6 +134,44 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
 
   const [showExport, setShowExport] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+
+  // Legacy day-scale disclosure — the `utils/scheduleRebase.ts` population.
+  // This screen's own `applyStartDate` used to be one of the three call sites
+  // that rewrote every `startDay` onto the calendar scale, so a schedule that
+  // got its anchor HERE is a candidate. The decision lives entirely in
+  // `previewStartDayBasisMigration`; this screen renders it and persists the
+  // answer. Reads the persisted tasks, which on this screen is `tasks`.
+  const startDayBasisPreview = useMemo(
+    () => previewStartDayBasisMigration({
+      tasks,
+      startDate: activeSchedule?.startDate,
+      workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule?.nonWorkingDates,
+      startDayBasis: activeSchedule?.startDayBasis,
+    }),
+    [tasks, activeSchedule?.startDate, activeSchedule?.workingDaysPerWeek,
+     activeSchedule?.nonWorkingDates, activeSchedule?.startDayBasis],
+  );
+  /**
+   * One write for both halves of the answer. NOT `saveTasks`: that routes
+   * through buildScheduleFromTasks + mergeEditedSchedule, which preserves the
+   * EXISTING (absent) `startDayBasis` by design — correct for an edit, wrong
+   * for the one write whose entire purpose is to set it. Declining stamps the
+   * flag and touches no task, which is what stops the question returning.
+   */
+  const answerStartDayBasis = useCallback((accept: boolean) => {
+    if (!selectedProject || !activeSchedule) return;
+    // The whole policy is in the patch (utils/cpm.startDayBasisAnswerPatch).
+    updateProject(selectedProject.id, {
+      schedule: {
+        ...activeSchedule,
+        projectId: selectedProject.id,
+        ...startDayBasisAnswerPatch(startDayBasisPreview, accept, activeSchedule),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [selectedProject, activeSchedule, startDayBasisPreview, updateProject]);
   const reportCpm = useMemo(
     // No anchor ⇒ NO scheduleStartDate: runCpm then stays in raw-day mode.
     // Passing today here flipped an undated schedule into calendar mode, which
@@ -272,23 +310,32 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   /**
    * Give an undated schedule a real anchor — the fix the banner offers.
    *
-   * Mirrors app/(tabs)/schedule/index.tsx setProjectStartDate exactly: a
-   * schedule with no startDate ran CPM in RAW-day mode, so its stored
-   * `startDay` values are working-day ORDINALS. Assigning an anchor flips the
-   * engine into calendar mode, where the same integers mean calendar days —
-   * every multi-day chain inflates (the finish-jump bug, 33 → 43 live on a
-   * 20-task schedule). rebaseRawToCalendar re-maps them first so the plan's
-   * shape survives; the scalars are then refreshed against the new anchor so
-   * the header does not read a stale finish until the next edit.
+   * Mirrors app/(tabs)/schedule/index.tsx setProjectStartDate exactly.
+   *
+   * There used to be a `rebaseRawToCalendar` call here. It existed because the
+   * CPM engine read `ScheduleTask.startDay` as a CALENDAR index: assigning the
+   * first anchor flipped the engine out of raw-day mode and every stored
+   * working-day ordinal silently reinterpreted as a calendar day, inflating
+   * each multi-day chain (the finish-jump bug, 33 → 43 live on a 20-task
+   * schedule).
+   *
+   * 2026-09-11: the engine now converts at its own `pins` line — `startDay` is
+   * a WORKING ORDINAL on both sides of the flip, so there is nothing to
+   * re-map. Re-mapping anyway DOUBLE-converts, and this screen writes the
+   * result through `updateProject`, so the corruption is persisted rather than
+   * merely displayed. Measured on A(10)->B(10)->C(5) authored at ordinals
+   * 1/11/21, 5-day week from Mon 2026-03-02: startDays 1,11,21 became 1,15,29
+   * and the finish moved Fri Apr 3 → Wed Apr 15.
+   *
+   * The scalars are still refreshed against the new anchor so the header does
+   * not read a stale finish until the next edit.
    */
   const applyStartDate = useCallback((pickedIso: string) => {
     if (!selectedProject || !activeSchedule) return;
     const day = parseCalendarDay(pickedIso);
     if (!day) { showAlert('Invalid date', 'Pick a day from the calendar.'); return; }
     const iso = toCalendarDayString(day);
-    const nextTasks = activeSchedule.startDate
-      ? activeSchedule.tasks
-      : rebaseRawToCalendar(activeSchedule.tasks, iso, activeSchedule.workingDaysPerWeek, activeSchedule.nonWorkingDates);
+    const nextTasks = activeSchedule.tasks;
     const cpm = runCpm(nextTasks, {
       scheduleStartDate: iso,
       workingDaysPerWeek: activeSchedule.workingDaysPerWeek,
@@ -399,6 +446,16 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Legacy day-scale disclosure. Renders null for every schedule that is
+          fine. Sits with the undated banner because both are statements about
+          the schedule as a whole, not about one tab. */}
+      <StartDayBasisNotice
+        preview={startDayBasisPreview}
+        projectStartDate={anchor.dated && anchor.iso ? (parseCalendarDay(anchor.iso) ?? null) : null}
+        onAnswer={answerStartDayBasis}
+        style={{ marginHorizontal: 16, marginTop: 10 }}
+      />
 
       {/* SCHED-NO-ANCHOR: say it, don't invent it. Rendered above the sub-tab
           content so it is present on Schedule, Living Plan, Progress and Team — the

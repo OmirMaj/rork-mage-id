@@ -377,7 +377,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             </View>
 
             <TouchableOpacity
-              style={[styles.subCta, { backgroundColor: themeColors.accent }]}
+              style={[styles.subCta, { backgroundColor: themeColors.accentFill }]}
               onPress={() => handleStartTrial('client_pm')}
               disabled={!!busy}
               activeOpacity={0.85}

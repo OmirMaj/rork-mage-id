@@ -5,6 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import type { AttentionItem } from '@/utils/summaryBriefing';
 
 interface NeedsYouProps {
@@ -48,7 +49,7 @@ export function NeedsYou({ items, onPressItem }: NeedsYouProps) {
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
-  card: { marginHorizontal: 16, marginBottom: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: t.line, padding: 14 },
+  card: { ...cardSurface(t, { radius: 'xl', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, marginBottom: 6 },
   iconSq: { width: 26, height: 26, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const },
   headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2 },

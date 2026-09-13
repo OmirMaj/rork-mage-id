@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0B0D10" />
+<meta name="robots" content="noindex" />
+<title>Sign a lien waiver — MAGE ID</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<style>
+  :root {
+    --ink: #0B0D10; --amber: #FF6A1A; --amber-dark: #E5570F;
+    --cream: #F4EFE6; --cream-2: #FAF7F0; --surface: #FFFFFF;
+    --bone: #E8DFCD; --bone-2: #F1EAD9;
+    --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
+    --success: #1E8E4A; --success-tint: #E8F5ED;
+    --warning: #C26A00; --warning-tint: #FFF4E0;
+    --error: #C0392B; --error-tint: #FBEAE7;
+    --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
+    --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
+    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--ff-sans); background: var(--cream); color: var(--text); line-height: 1.55; font-size: 15px; min-height: 100vh; }
+  .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+
+  .wrap { max-width: 780px; margin: 0 auto; padding: 24px 18px 64px; }
+  .brandbar { display: flex; align-items: center; gap: 10px; padding: 18px 0 22px; }
+  .brandmark { width: 34px; height: 34px; border-radius: 9px; background: var(--ink); color: var(--amber); display: inline-flex; align-items: center; justify-content: center; font-weight: 900; }
+  .brandbar span { font-size: 13px; color: var(--text-2); font-weight: 600; }
+
+  .card { background: var(--surface); border: 1px solid var(--bone-2); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 26px 24px; margin-bottom: 18px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--amber-dark); margin-bottom: 8px; }
+  h1 { font-family: var(--ff-serif); font-size: clamp(24px, 5vw, 32px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+  .lede { color: var(--text-2); font-size: 15px; margin-top: 10px; }
+
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 18px; }
+  .fact { background: var(--cream-2); border: 1px solid var(--bone-2); border-radius: var(--radius-md); padding: 11px 13px; }
+  .fact b { display: block; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+  .fact span { display: block; margin-top: 3px; font-size: 15px; font-weight: 700; }
+
+  .callout { border-radius: var(--radius-md); padding: 13px 15px; font-size: 13.5px; line-height: 1.55; margin-top: 16px; }
+  .callout.warn { background: var(--warning-tint); border: 1px solid rgba(194,106,0,0.35); }
+  .callout.ok { background: var(--success-tint); border: 1px solid rgba(30,142,74,0.3); }
+  .callout.bad { background: var(--error-tint); border: 1px solid rgba(192,57,43,0.3); }
+
+  /* A dead link and a page that is still loading must not look the same. The
+     state card takes the tint of what happened, so a sub who cannot sign sees
+     it before they read it. */
+  .card.bad { background: var(--error-tint); border-color: rgba(192,57,43,0.35); }
+  .card.warn { background: var(--warning-tint); border-color: rgba(194,106,0,0.35); }
+  .card.ok { background: var(--success-tint); border-color: rgba(30,142,74,0.3); }
+
+  .doc-frame { width: 100%; height: 62vh; min-height: 380px; border: 1px solid var(--bone); border-radius: var(--radius-md); background: var(--surface); }
+
+  label.field { display: block; margin-top: 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-muted); }
+  input[type="text"] { width: 100%; margin-top: 6px; padding: 12px 13px; font: inherit; font-size: 15px; color: var(--text); background: var(--cream-2); border: 1px solid var(--bone); border-radius: var(--radius-md); }
+  input[type="text"]:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+  .pad-wrap { margin-top: 8px; border: 1px dashed var(--bone); border-radius: var(--radius-md); background: var(--surface); position: relative; }
+  canvas#pad { display: block; width: 100%; height: 170px; touch-action: none; border-radius: var(--radius-md); }
+  .pad-hint { position: absolute; inset: auto 0 12px 0; text-align: center; font-size: 12px; color: var(--text-muted); pointer-events: none; }
+  .pad-tools { display: flex; justify-content: flex-end; padding: 0 10px 10px; }
+  .linkish { background: none; border: 0; font: inherit; font-size: 12.5px; color: var(--text-2); text-decoration: underline; cursor: pointer; padding: 4px; }
+
+  .consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
+  .consent input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--amber); flex: none; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 20px; padding: 15px 20px; font: inherit; font-size: 16px; font-weight: 700; color: #fff; background: var(--ink); border: 0; border-radius: 999px; cursor: pointer; }
+  .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .btn.secondary { color: var(--text); background: var(--cream-2); border: 1px solid var(--bone); }
+
+  .footnote { font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.6; }
+  .center { text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brandbar"><span class="brandmark">M</span><span>MAGE ID</span></div>
+
+  <!-- Loading / failure states. A link with no token, a revoked token and a
+       waiver that is already signed are three different situations and each
+       gets its own sentence — a single "something went wrong" is what makes a
+       sub email the GC instead of signing. -->
+  <div class="card" id="state-card">
+    <div class="eyebrow">Lien waiver</div>
+    <h1 id="state-title">Opening your waiver…</h1>
+    <p class="lede" id="state-body">One moment.</p>
+    <noscript>
+      <p class="lede">This page needs JavaScript to fetch and display your waiver. Turn it on for
+      mageid.app and reload, or reply to the email and ask the contractor to send the waiver as a PDF.</p>
+    </noscript>
+  </div>
+
+  <!-- The document + signing form -->
+  <div id="signing" hidden>
+    <div class="card">
+      <div class="eyebrow" id="form-eyebrow">Lien waiver</div>
+      <h1 id="doc-title">Review and sign</h1>
+      <p class="lede" id="doc-sub"></p>
+      <div class="facts" id="facts"></div>
+      <div class="callout warn">
+        <strong>Read this before you sign.</strong> A lien waiver gives up rights. An
+        <em>unconditional</em> waiver is enforceable against you even if the money never arrives. If you have not
+        been paid the amount shown, do not sign — reply to the email that sent you here.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">The document</div>
+      <p class="lede" style="margin-bottom:14px;">This is exactly what you are signing.</p>
+      <!-- sandbox="" — no scripts, no forms, no same-origin. The GC's app
+           composed this HTML; it is displayed, never trusted. -->
+      <iframe class="doc-frame" id="doc-frame" sandbox="" title="The lien waiver you are being asked to sign"></iframe>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">Your signature</div>
+      <label class="field" for="signer-name">Your full legal name</label>
+      <input type="text" id="signer-name" autocomplete="name" placeholder="Jordan Reyes" />
+      <label class="field" for="signer-title">Your title</label>
+      <input type="text" id="signer-title" autocomplete="organization-title" placeholder="Owner / Foreman" />
+
+      <label class="field">Draw your signature</label>
+      <div class="pad-wrap">
+        <canvas id="pad"></canvas>
+        <div class="pad-hint" id="pad-hint">Sign here with your finger or mouse</div>
+        <div class="pad-tools"><button type="button" class="linkish" id="pad-clear">Clear</button></div>
+      </div>
+
+      <div class="consent">
+        <input type="checkbox" id="consent" />
+        <label for="consent" id="consent-label"></label>
+      </div>
+
+      <button class="btn" id="submit" disabled>Sign this waiver</button>
+      <p class="footnote" id="submit-note"></p>
+    </div>
+  </div>
+
+  <!-- Post-signature -->
+  <div id="done" hidden>
+    <div class="card center">
+      <div class="eyebrow">Signed</div>
+      <h1>Your waiver is signed</h1>
+      <p class="lede" id="done-body"></p>
+      <button class="btn secondary" id="download">Open a copy to save or print</button>
+      <!-- This line used to promise the contractor had been mailed the signed
+           copy. Nothing mails them: the signature is written to the waiver and
+           they see it in MAGE ID next time they open the job. Promising the
+           mail was the same overclaim the marketing page was fixed for. -->
+      <p class="footnote" id="done-note">Save a copy for your own records — this page is the only place you will
+      see it. Your signature is on the contractor's copy of this waiver in MAGE ID.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // Public-by-design values — the same anon key every other MAGE ID static
+  // page ships. Reads and writes here are gated by the per-waiver token in the
+  // URL, checked server-side inside the RPC; the anon key alone opens nothing.
+  var SUPABASE_URL  = 'https://nteoqhcswappxxjlpvap.supabase.co';
+  var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+
+  // Mirrors utils/lienWaiverEngine.ts. Change one, change both.
+  var FETCH_RPC = 'lien_waiver_get_for_signing';
+  var SIGN_RPC  = 'lien_waiver_submit_signature';
+  var CONSENT_VERSION = '2026-09-esign-v1';
+  var CONSENT_TEXT =
+    'I agree to sign this lien waiver electronically. I understand my electronic signature is legally binding, '
+    + 'the same as signing on paper, under the federal E-SIGN Act and my state’s Uniform Electronic Transactions Act. '
+    + 'I have read the document above and I am the person named as the claimant, or I am authorised to sign for them.';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  };
+  var money = function (n) {
+    var v = Number(n);
+    if (!isFinite(v)) return '—';
+    return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Set the moment the signature is accepted, and read by the "open a copy"
+  // button. Null before then, so a copy taken by any other route cannot claim a
+  // signature that has not been made.
+  var signedRecord = null;
+  function signedAttestationHtml() {
+    if (!signedRecord) return '';
+    return '<div style="margin:24px 40px;padding:14px 16px;border:2px solid #0B0D10;border-radius:8px;'
+      + 'font:12px -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;line-height:1.6;color:#0B0D10">'
+      + '<strong>Signed electronically.</strong> ' + esc(signedRecord.name)
+      + (signedRecord.title ? ', ' + esc(signedRecord.title) : '')
+      + ' — ' + esc(new Date(signedRecord.at).toLocaleString())
+      + '.<br/>Consent record ' + esc(signedRecord.consentVersion)
+      + '. This copy was produced for the signer by MAGE ID; the contractor holds the same waiver with this '
+      + 'signature on it.</div>';
+  }
+
+  function showState(title, body, kind) {
+    $('signing').hidden = true;
+    $('done').hidden = true;
+    $('state-card').hidden = false;
+    $('state-title').textContent = title;
+    $('state-body').textContent = body;
+    // Remove the previous tint before adding this one. Without the remove, a
+    // page that failed once and then recovered would still be wearing the red.
+    $('state-card').classList.remove('bad', 'warn', 'ok');
+    if (kind) $('state-card').classList.add(kind);
+  }
+
+  // A calendar day, printed as one. `new Date('2026-08-31')` is UTC midnight,
+  // which renders as August 30 anywhere west of Greenwich — and this is the
+  // date that says how far the release the sub is signing actually runs.
+  function calDay(value) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value == null ? '' : value));
+    if (!m) return String(value == null ? '' : value);
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // The waiver id comes out of ?w= first and the path second.
+  //
+  // The emailed link is /lien-waiver/?w=<id>&t=<token>, addressed as a
+  // directory, because a request for the directory resolves to this index.html
+  // before any redirect rule is consulted — while /lien-waiver/<id> only works
+  // while the rewrite rule survives in BOTH marketing/netlify.toml and
+  // marketing/_redirects (netlify.toml is processed first and ends in a `/*` →
+  // /404.html catch-all, so a rule present in only one file 404s). The path
+  // form is still read here so a link already sitting in a sub's inbox opens.
+  function waiverIdFromUrl() {
+    try {
+      var q = new URLSearchParams(window.location.search).get('w');
+      if (q) return q;
+    } catch (e) { /* fall through to the path */ }
+    try {
+      var m = (window.location.pathname || '').match(/\/lien-waiver\/([^\/?#]+)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (e) { return ''; }
+  }
+  function tokenFromQuery() {
+    try { return new URLSearchParams(window.location.search).get('t') || ''; }
+    catch (e) { return ''; }
+  }
+
+  function rpc(name, body) {
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + SUPABASE_ANON,
+      },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      return r.text().then(function (text) {
+        var parsed = null;
+        try { parsed = text ? JSON.parse(text) : null; } catch (e) { parsed = null; }
+        return { ok: r.ok, status: r.status, body: parsed, raw: text };
+      });
+    });
+  }
+
+  // ───────── Signature pad ─────────
+  // Strokes are captured as SVG path data because that is what
+  // ContractSignature.signaturePaths holds and what the PDF renderer draws —
+  // a PNG here would not render on the waiver the GC prints.
+  var pad = $('pad'), ctx = null, drawing = false, paths = [], current = '';
+  var PAD_W = 400, PAD_H = 120;   // the viewBox the PDF renders these in
+
+  function sizePad() {
+    if (!pad) return;
+    var ratio = window.devicePixelRatio || 1;
+    var cssW = pad.clientWidth || 320;
+    pad.width = Math.round(cssW * ratio);
+    pad.height = Math.round(170 * ratio);
+    ctx = pad.getContext('2d');
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0B0D10';
+    redraw();
+  }
+
+  function padPoint(evt) {
+    var rect = pad.getBoundingClientRect();
+    var p = evt.touches && evt.touches[0] ? evt.touches[0] : evt;
+    return { x: p.clientX - rect.left, y: p.clientY - rect.top, w: rect.width, h: rect.height };
+  }
+
+  function toViewBox(pt) {
+    return {
+      x: Math.round((pt.x / Math.max(1, pt.w)) * PAD_W * 10) / 10,
+      y: Math.round((pt.y / Math.max(1, pt.h)) * PAD_H * 10) / 10,
+    };
+  }
+
+  var lastCss = null;
+  function startStroke(evt) {
+    evt.preventDefault();
+    drawing = true;
+    var pt = padPoint(evt); var v = toViewBox(pt);
+    current = 'M' + v.x + ' ' + v.y;
+    lastCss = pt;
+    $('pad-hint').style.display = 'none';
+  }
+  function moveStroke(evt) {
+    if (!drawing) return;
+    evt.preventDefault();
+    var pt = padPoint(evt); var v = toViewBox(pt);
+    current += ' L' + v.x + ' ' + v.y;
+    if (ctx && lastCss) {
+      ctx.beginPath(); ctx.moveTo(lastCss.x, lastCss.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+    }
+    lastCss = pt;
+  }
+  function endStroke() {
+    if (!drawing) return;
+    drawing = false;
+    if (current && current.indexOf('L') > 0) paths.push(current);
+    current = ''; lastCss = null;
+    // A single tap draws nothing and stores nothing, but startStroke has already
+    // hidden the prompt — leaving a sub looking at an empty box with no
+    // instruction and a button that will not enable. Put it back.
+    if (paths.length === 0) $('pad-hint').style.display = '';
+    refreshSubmit();
+  }
+  function redraw() {
+    if (!ctx || !pad) return;
+    ctx.clearRect(0, 0, pad.width, pad.height);
+    var rect = pad.getBoundingClientRect();
+    paths.forEach(function (d) {
+      var pts = d.replace(/[ML]/g, ' ').trim().split(/\s+/);
+      ctx.beginPath();
+      for (var i = 0; i + 1 < pts.length; i += 2) {
+        var x = (parseFloat(pts[i]) / PAD_W) * rect.width;
+        var y = (parseFloat(pts[i + 1]) / PAD_H) * rect.height;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+  }
+
+  function refreshSubmit() {
+    var ready = $('signer-name').value.trim().length >= 2 && paths.length > 0 && $('consent').checked;
+    $('submit').disabled = !ready;
+    $('submit-note').textContent = ready
+      ? ''
+      : 'Type your name, draw your signature and tick the consent box to enable signing.';
+  }
+
+  // ───────── Load ─────────
+  var waiverId = waiverIdFromUrl();
+  var token = tokenFromQuery();
+
+  if (!waiverId || !token) {
+    showState(
+      'This link is incomplete',
+      'The signing link needs the code that came after "?t=" in the email. Open the link from the email again '
+      + 'rather than retyping it, or ask the contractor to resend it.',
+      'warn'
+    );
+    return;
+  }
+
+  rpc(FETCH_RPC, { p_waiver_id: waiverId, p_access_token: token }).then(function (res) {
+    if (!res.ok || !res.body || res.body.ok !== true) {
+      // PostgREST puts a plpgsql `raise exception 'x'` in `message` with
+      // SQLSTATE P0001, answered as HTTP 400. The RPC raises
+      // `lien_waiver_denied` and nothing else on a bad or short token, so that
+      // exact string — not a guess at one — is what distinguishes "this link is
+      // dead" from "the server is having a bad day".
+      var reason = (res.body && (res.body.message || res.body.error)) || '';
+      if (res.status === 404 || /PGRST202|does not exist/.test(res.raw || '')) {
+        showState(
+          'Signing is not switched on yet',
+          'This account has not had the lien-waiver signing update applied. Ask the contractor to send you the '
+          + 'waiver as a PDF in the meantime.',
+          'warn'
+        );
+        return;
+      }
+      if (reason.indexOf('lien_waiver_denied') !== -1) {
+        showState(
+          'This link no longer works',
+          'A signing link is replaced every time the contractor sends a new one, so an older email stops working. '
+          + 'Open the most recent email, or ask the contractor to resend the link.',
+          'bad'
+        );
+        return;
+      }
+      showState(
+        'We could not open this waiver',
+        'Something went wrong at our end — nothing you did. Reload this page, and if it still will not open, '
+        + 'ask the contractor to resend the signing link.',
+        'bad'
+      );
+      return;
+    }
+    render(res.body);
+  }).catch(function () {
+    showState(
+      'We could not reach the server',
+      'You may be offline. Check your connection and reload this page — nothing has been signed.',
+      'bad'
+    );
+  });
+
+  function render(w) {
+    if (w.status === 'signed' || w.status === 'received' || w.signed_at) {
+      // signed_at IS an instant, so new Date() is the right reader for it —
+      // unlike through_date, which is a calendar day (see calDay).
+      showState(
+        'This waiver is already signed',
+        'It was signed on ' + new Date(w.signed_at || Date.now()).toLocaleDateString()
+        + '. Nothing more to do — it is already on the contractor\'s copy of this job.',
+        'ok'
+      );
+      return;
+    }
+    if (w.status === 'voided') {
+      showState('This waiver was voided', 'The contractor cancelled it. There is nothing to sign, and you have '
+        + 'given up nothing.', 'warn');
+      return;
+    }
+
+    $('state-card').hidden = true;
+    $('signing').hidden = false;
+
+    // Keyed off the CITATION, never the state: a sealed record with a state and
+    // no citation is a general-form job, and announcing it as "California
+    // statutory form · " would tell the signer the document follows a statute
+    // it does not. The two are joined rather than concatenated so a missing
+    // state name cannot leave the line starting with a space and a separator.
+    $('form-eyebrow').textContent = w.statute_citation
+      ? [w.state_name ? w.state_name + ' statutory form' : 'Statutory form', w.statute_citation].join(' · ')
+      : 'General-form lien waiver';
+    $('doc-title').textContent = w.waiver_title || 'Lien waiver';
+    $('doc-sub').textContent = (w.company_name || 'The contractor') + ' is asking you to sign this for '
+      + (w.project_name || 'the project') + '.';
+
+    var facts = [
+      { k: 'Claimant', v: esc(w.sub_name || '') },
+      { k: 'Amount', v: money(w.paid_amount) },
+      { k: 'Through', v: esc(calDay(w.through_date)) },
+      { k: 'Project', v: esc(w.project_name || '') },
+    ];
+    $('facts').innerHTML = facts.map(function (f) {
+      return '<div class="fact"><b>' + esc(f.k) + '</b><span>' + f.v + '</span></div>';
+    }).join('');
+
+    // The document is the bytes the GC sealed at request time. Rendering them
+    // rather than rebuilding the form here is what keeps ONE copy of the
+    // statutory wording in the product — a second copy in this file would
+    // drift, and a drifted statutory form is void in the five states that
+    // prescribe one.
+    $('doc-frame').setAttribute('srcdoc', w.document_html || '<p>The contractor did not attach the document.</p>');
+
+    $('consent-label').textContent = CONSENT_TEXT;
+
+    sizePad();
+    window.addEventListener('resize', sizePad);
+    pad.addEventListener('mousedown', startStroke);
+    pad.addEventListener('mousemove', moveStroke);
+    window.addEventListener('mouseup', endStroke);
+    pad.addEventListener('touchstart', startStroke, { passive: false });
+    pad.addEventListener('touchmove', moveStroke, { passive: false });
+    pad.addEventListener('touchend', endStroke);
+    $('pad-clear').addEventListener('click', function () {
+      paths = []; current = ''; redraw();
+      $('pad-hint').style.display = '';
+      refreshSubmit();
+    });
+    $('signer-name').addEventListener('input', refreshSubmit);
+    $('consent').addEventListener('change', refreshSubmit);
+    refreshSubmit();
+
+    $('download').addEventListener('click', function () {
+      var win = window.open('', '_blank');
+      // A blocked popup used to return here silently, so the button simply did
+      // nothing and the sub had no copy and no idea why.
+      if (!win) {
+        $('done-note').textContent = 'Your browser blocked the new window. Allow pop-ups for mageid.app and '
+          + 'tap again, or take a screenshot of the document above.';
+        return;
+      }
+      // The sealed document plus, once they have signed, an attestation of the
+      // signature they just gave. The sealed bytes were composed BEFORE the
+      // signature existed, so a bare copy of them is a document the sub cannot
+      // tell apart from the unsigned one they were sent — and under E-SIGN the
+      // copy they get to keep is the point of the exercise.
+      win.document.write((w.document_html || '') + signedAttestationHtml());
+      win.document.close();
+      win.print();
+    });
+
+    $('submit').addEventListener('click', function () {
+      $('submit').disabled = true;
+      $('submit').textContent = 'Signing…';
+      var signedAt = new Date().toISOString();
+      var consentRecord = [
+        'MAGE ID lien waiver e-signature consent',
+        'version: ' + CONSENT_VERSION,
+        'waiver: ' + waiverId,
+        'signer: ' + $('signer-name').value.trim(),
+        'title: ' + $('signer-title').value.trim(),
+        'accepted_at: ' + signedAt,
+        'user_agent: ' + (navigator.userAgent || ''),
+        'text: ' + CONSENT_TEXT,
+      ].join('\n');
+
+      rpc(SIGN_RPC, {
+        p_waiver_id: waiverId,
+        p_access_token: token,
+        p_signer_name: $('signer-name').value.trim(),
+        p_signer_title: $('signer-title').value.trim(),
+        // JSON.stringify, NOT the raw array. `lien_waiver_submit_signature`
+        // declares `p_signature_paths text` and stores it with
+        // jsonb_build_object, so what lands in sub_signature.signaturePaths is
+        // a STRING either way — handing PostgREST an array just leaves the
+        // encoding to it. Stringifying here makes the stored shape one this
+        // page chose, and utils/lienWaiverDocument.ts parses exactly it back
+        // into the strokes the PDF draws.
+        p_signature_paths: JSON.stringify(paths),
+        p_consent_record: consentRecord,
+        p_consent_version: CONSENT_VERSION,
+        p_consent_accepted: true,
+        p_user_agent: (navigator.userAgent || '').slice(0, 200),
+      }).then(function (res) {
+        if (!res.ok || !res.body || res.body.ok !== true) {
+          var why = (res.body && (res.body.message || res.body.error)) || '';
+          $('submit').disabled = false;
+          $('submit').textContent = 'Sign this waiver';
+          // Three refusals the RPC can raise, and each one asks the signer for
+          // something different. A single "try again" on a revoked link sends a
+          // sub round that loop forever.
+          if (why.indexOf('lien_waiver_consent_required') !== -1) {
+            $('submit-note').textContent = 'Tick the box above to agree to sign electronically. '
+              + 'Nothing has been signed.';
+          } else if (why.indexOf('lien_waiver_signer_required') !== -1) {
+            $('submit-note').textContent = 'Type your full legal name above. Nothing has been signed.';
+          } else if (why.indexOf('lien_waiver_denied') !== -1) {
+            $('submit-note').textContent = 'This signing link has been replaced — the contractor sent a newer '
+              + 'one. Open the most recent email and sign there. Nothing has been signed here.';
+          } else {
+            $('submit-note').textContent = 'That did not go through. Check your connection and try again — '
+              + 'nothing has been signed.';
+          }
+          return;
+        }
+        signedRecord = {
+          name: $('signer-name').value.trim(),
+          title: $('signer-title').value.trim(),
+          at: res.body.signed_at || signedAt,
+          consentVersion: CONSENT_VERSION,
+        };
+        $('signing').hidden = true;
+        $('done').hidden = false;
+        $('done-body').textContent = 'Signed ' + new Date(res.body.signed_at || signedAt).toLocaleString()
+          + '. ' + (w.company_name || 'The contractor') + ' can see it on this job in MAGE ID.';
+      }).catch(function () {
+        $('submit').disabled = false;
+        $('submit').textContent = 'Sign this waiver';
+        $('submit-note').textContent = 'We could not reach the server. Nothing has been signed — try again.';
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

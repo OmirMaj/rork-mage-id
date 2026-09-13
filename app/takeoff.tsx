@@ -6,10 +6,19 @@
 //
 // Flow: idle → uploading → analyzing → review.
 //
-// Uploads go through utils/pdfRenderClient.uploadAndRenderPdf, which
-// hits the convert-pdf-to-images edge function and returns public PNG
-// URLs. Those URLs are then handed to analyze-takeoff via
-// utils/takeoffAnalyzer.analyzeTakeoff.
+// Uploads go through utils/pdfRenderClient.uploadAndRenderPdf, which hits the
+// convert-pdf-to-images edge function and returns, per page, a durable
+// `storagePath` in the `plan-sheets` bucket plus a short-lived signed `viewUrl`
+// for the thumbnail. The PATHS are what go to analyze-takeoff (DB-F11: the
+// function downloads the bytes itself with the service role).
+//
+// A PROJECT IS REQUIRED to upload. This screen used to pass
+// `projectId: pickedProjectId ?? 'tmp'`, which parked live construction
+// drawings under a SHARED `tmp/` bucket prefix that no per-project membership
+// policy can ever admit — and convert-pdf-to-images has answered that with a
+// 403 ("project not owned by caller") ever since its IDOR guard landed, so the
+// standalone upload was already dead server-side and only looked alive here.
+// The "Standalone" option is gone; the blocked upload card says why.
 //
 // Edits: per-row quantity overrides are kept in local state keyed by
 // the AI's row id. Persistence is Phase 2b — for now the override only
@@ -39,7 +48,9 @@ import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
-import { uploadAndRenderPdf, countPdfPages, type RenderedPlanPage } from '@/utils/pdfRenderClient';
+import {
+  uploadAndRenderPdf, countPdfPages, resolveRenderedPages, type RenderedPlanPage,
+} from '@/utils/pdfRenderClient';
 import { confirmQuotaFits } from '@/utils/quotaPrecheck';
 import { TakeoffQuotaBadge } from '@/components/TakeoffQuotaBadge';
 import { useUsageStatus } from '@/hooks/useUsageStatus';
@@ -50,6 +61,12 @@ import { buildBuyoutDrafts, type BuyoutPackageDraft } from '@/utils/takeoffToBuy
 import {
   loadFieldVerifications, appendFieldVerification, deleteFieldVerification,
 } from '@/utils/fieldVerificationStorage';
+import {
+  pendingMeasuredRows, pendingMeasuredNotice, latestMeasurementByRow,
+} from '@/utils/fieldMeasuredQuantity';
+import {
+  takeoffRowKey, takeoffQuantityOfRecord, type TakeoffRowSection,
+} from '@/utils/takeoffPricing';
 import { markFirstTakeoffDone } from '@/utils/onboardingProgress';
 import { recordCorrection } from '@/utils/takeoffCorrections';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -145,6 +162,23 @@ function TakeoffInner() {
     [pickedProjectId, getProject],
   );
 
+  /**
+   * Why the upload is blocked, or null when it is available (DB-F11).
+   *
+   * A drawing has to live in a project's folder in the `plan-sheets` bucket —
+   * that folder is the tenant boundary the storage policy is evaluated against,
+   * so there is no project-less place to put one. Rather than upload into a
+   * shared prefix (what `'tmp'` did) or throw, the card states the reason and
+   * points at the fix, and it distinguishes "you have projects, pick one" from
+   * "you have none yet, make one" because those need different actions.
+   */
+  const uploadBlockedReason = useMemo(() => {
+    if (pickedProjectId) return null;
+    return projects.length === 0
+      ? 'Create a project first. Drawings are stored in that project’s folder, so only you and the people you share the job with can open them.'
+      : 'Pick a project above. Drawings are stored in that project’s folder, so only you and the people you share the job with can open them.';
+  }, [pickedProjectId, projects.length]);
+
   // Load any persisted takeoff for the active project (or standalone) on
   // mount + whenever the user switches projects. If there's saved data,
   // jump straight to review mode so the user picks up where they left off.
@@ -153,11 +187,16 @@ function TakeoffInner() {
     (async () => {
       const saved = await loadTakeoff(pickedProjectId);
       if (cancelled || !saved) return;
+      // A saved takeoff's page `viewUrl`s are long expired (and a takeoff saved
+      // before DB-F11 has none at all) — re-sign from the durable storagePath
+      // so the "Pages the AI read" thumbnails and the inspector still render.
+      const restoredPages = await resolveRenderedPages(saved.pages ?? []);
+      if (cancelled) return;
       setResult(saved.result);
       setOverrides(saved.overrides ?? {});
       setRejected(saved.rejected ?? {});
       setModelUsed(saved.modelUsed);
-      setPages(saved.pages ?? []);
+      setPages(restoredPages);
       setUploadedFileName(saved.fileName);
       setStep('review');
     })();
@@ -192,6 +231,14 @@ function TakeoffInner() {
 
   const handlePick = useCallback(async () => {
     setError(null);
+    // DB-F11. The bucket folder IS the tenant boundary, so there is no
+    // project-less place to put a drawing. uploadAndRenderPdf refuses a
+    // non-project prefix and the edge function 403s it; say so here, before the
+    // file picker, rather than after a multi-MB upload.
+    if (!pickedProjectId) {
+      setError(uploadBlockedReason ?? 'Pick a project before uploading drawings.');
+      return;
+    }
     try {
       // Tier gate — AI Takeoff is Pro-only. The server hard-gates every step
       // (convert-pdf-to-images, analyze-takeoff) to Pro+, so a free user is
@@ -228,7 +275,7 @@ function TakeoffInner() {
 
       const rendered = await uploadAndRenderPdf({
         fileUri: asset.uri,
-        projectId: pickedProjectId ?? 'tmp',
+        projectId: pickedProjectId,
         fileName: asset.name,
         dpi: 150,
         maxPages: 16,
@@ -240,7 +287,9 @@ function TakeoffInner() {
 
       setStep('analyzing');
       const { result: takeoff, modelUsed: usedModel } = await analyzeTakeoff({
-        pageUrls: rendered.map(p => p.publicUrl),
+        pagePaths: rendered.map(p => p.storagePath),
+        // Legacy, one release: an un-redeployed function still needs URLs.
+        pageUrls: rendered.map(p => p.viewUrl),
         projectName: project?.name,
         projectType: project?.type,
         squareFootage: project?.squareFootage,
@@ -261,10 +310,16 @@ function TakeoffInner() {
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [pickedProjectId, project, pickedModel, router, refreshQuota, tier]);
+  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, router, refreshQuota, tier]);
 
   const handleMatchSpecs = useCallback(async () => {
     if (!result) return;
+    // Same rule as the drawings upload: the spec book is rendered into the
+    // project's plan-sheets folder, so it needs a real project id (DB-F11).
+    if (!pickedProjectId) {
+      setSpecMatchError(uploadBlockedReason ?? 'Pick a project before uploading a spec book.');
+      return;
+    }
     setSpecMatchError(null);
     setSpecMatchLoading(true);
     try {
@@ -281,7 +336,7 @@ function TakeoffInner() {
       // Render PDF → PNG pages.
       const rendered = await uploadAndRenderPdf({
         fileUri: asset.uri,
-        projectId: pickedProjectId ?? 'tmp',
+        projectId: pickedProjectId,
         fileName: asset.name,
         dpi: 150,
         maxPages: 24,
@@ -294,7 +349,8 @@ function TakeoffInner() {
       // when the takeoff was Sonnet so the spec match still runs.
       const specModel = pickedModel === 'claude-sonnet-4-5' ? 'gemini-2.5-pro' : pickedModel;
       const { result: spec } = await analyzeSpecBook({
-        pageUrls: rendered.map(p => p.publicUrl),
+        pagePaths: rendered.map(p => p.storagePath),
+        pageUrls: rendered.map(p => p.viewUrl),
         targetCodes,
         projectName: project?.name,
         model: specModel,
@@ -307,7 +363,7 @@ function TakeoffInner() {
     } finally {
       setSpecMatchLoading(false);
     }
-  }, [result, pickedProjectId, project, pickedModel]);
+  }, [result, pickedProjectId, uploadBlockedReason, project, pickedModel]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
@@ -458,10 +514,10 @@ function TakeoffInner() {
         const next = { ...prev };
         const sweep = <T extends { id: string; confidence: TakeoffConfidence }>(
           items: T[],
-          section: string,
+          section: TakeoffRowSection,
         ) => {
           for (const it of items) {
-            if (shouldDrop(it.confidence)) next[`${section}:${it.id}`] = true;
+            if (shouldDrop(it.confidence)) next[takeoffRowKey(section, it.id)] = true;
           }
         };
         sweep(result.walls, 'walls');
@@ -495,14 +551,37 @@ function TakeoffInner() {
     setVerifications(next);
   }, [pickedProjectId]);
 
-  const verificationsByRow = useMemo(() => {
-    const map = new Map<string, TakeoffFieldVerification>();
-    // Newest verification per row wins (verifications are stored newest-first).
-    for (const v of verifications) {
-      if (!map.has(v.rowKey)) map.set(v.rowKey, v);
-    }
-    return map;
-  }, [verifications]);
+  // Newest verification per row wins. The stamp decides, not the array order:
+  // storage happens to prepend, but "happens to" is not an invariant, and the
+  // row the GC re-measured is the one whose number now prices the job.
+  const verificationsByRow = useMemo(
+    () => latestMeasurementByRow(verifications),
+    [verifications],
+  );
+
+  /**
+   * Rows the GC measured on site where the tape disagrees with the quantity
+   * that is actually pricing the work — i.e. the measurements still sitting in
+   * AsyncStorage doing nothing (audit 2026-09-11, F6). Counted out loud on the
+   * review screen so the data cannot go quiet again; each row is adopted from
+   * its own verification modal, with the delta on screen.
+   *
+   * A rejected row returns null: it prices nothing and teaches the cost book
+   * nothing, so an unapplied measurement on it is not a pending decision.
+   */
+  const pendingMeasured = useMemo(
+    () => pendingMeasuredRows({
+      verifications,
+      // One shared decision, not a second copy of it: the SAME function
+      // app/takeoff-estimate prices from. When these were two inline copies
+      // they disagreed for three of the seven sections, so a measurement the
+      // GC adopted here stopped this notice while the pricer ignored it.
+      quantityOfRecord: (rowKey) => takeoffQuantityOfRecord(
+        { overrides, rejected }, rowKey, findRowMeta(rowKey)?.aiValue ?? null,
+      ),
+    }),
+    [verifications, overrides, rejected, findRowMeta],
+  );
 
   const handlePreviewBuyouts = useCallback(() => {
     if (!result) return;
@@ -511,13 +590,13 @@ function TakeoffInner() {
     // by filtering at this boundary we keep that pure function simple.
     const filtered: TakeoffResult = {
       ...result,
-      walls: result.walls.filter(w => !rejected[`walls:${w.id}`]),
-      floorAreas: result.floorAreas.filter(f => !rejected[`floor:${f.id}`]),
-      doors: result.doors.filter(d => !rejected[`doors:${d.id}`]),
-      windows: result.windows.filter(w => !rejected[`windows:${w.id}`]),
-      finishes: result.finishes.filter(f => !rejected[`finish:${f.id}`]),
-      fixtures: result.fixtures.filter(f => !rejected[`fixture:${f.id}`]),
-      bulkMaterials: result.bulkMaterials.filter(b => !rejected[`bulk:${b.id}`]),
+      walls: result.walls.filter(w => !rejected[takeoffRowKey('walls', w.id)]),
+      floorAreas: result.floorAreas.filter(f => !rejected[takeoffRowKey('floor', f.id)]),
+      doors: result.doors.filter(d => !rejected[takeoffRowKey('doors', d.id)]),
+      windows: result.windows.filter(w => !rejected[takeoffRowKey('windows', w.id)]),
+      finishes: result.finishes.filter(f => !rejected[takeoffRowKey('finish', f.id)]),
+      fixtures: result.fixtures.filter(f => !rejected[takeoffRowKey('fixture', f.id)]),
+      bulkMaterials: result.bulkMaterials.filter(b => !rejected[takeoffRowKey('bulk', b.id)]),
     };
     const drafts = buildBuyoutDrafts(filtered, specMatch, { overrides });
     setBuyoutDrafts(drafts);
@@ -638,17 +717,11 @@ function TakeoffInner() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>Project (optional context)</Text>
+              <Text style={styles.cardLabel}>Project (required)</Text>
               <Text style={styles.cardHelper}>
-                Picking a project lets the AI cross-check the SF figure and flag wall heights when they don&apos;t match your scope.
+                Drawings are stored in the project&apos;s own folder, so only your team can open them. Picking the project also lets the AI cross-check the SF figure and flag wall heights when they don&apos;t match your scope.
               </Text>
               <View style={styles.chipRow}>
-                <TouchableOpacity
-                  style={[styles.chip, !pickedProjectId && styles.chipActive]}
-                  onPress={() => setPickedProjectId(undefined)}
-                >
-                  <Text style={[styles.chipText, !pickedProjectId && styles.chipTextActive]}>Standalone</Text>
-                </TouchableOpacity>
                 {projects.slice(0, 6).map(p => (
                   <TouchableOpacity
                     key={p.id}
@@ -663,7 +736,14 @@ function TakeoffInner() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.uploadCard} onPress={handlePick} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.uploadCard}
+              onPress={handlePick}
+              activeOpacity={0.85}
+              disabled={!!uploadBlockedReason}
+              accessibilityState={{ disabled: !!uploadBlockedReason }}
+              testID="takeoff-upload-card"
+            >
               <View style={styles.uploadIcon}>
                 <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
               </View>
@@ -679,6 +759,15 @@ function TakeoffInner() {
                 Each page is rendered to PNG and read by MAGE&apos;s vision engine. Uploaded drawings live in your project plans bucket.
               </Text>
             </TouchableOpacity>
+
+            {/* A blocked button that says why (standing rule) — and names the
+                action, not just the obstacle. */}
+            {!!uploadBlockedReason && (
+              <View style={styles.blockedNote} testID="takeoff-upload-blocked">
+                <ShieldAlert size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.blockedNoteText}>{uploadBlockedReason}</Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.sisterToolCard}
@@ -765,6 +854,7 @@ function TakeoffInner() {
             verificationsByRow={verificationsByRow}
             onCaptureVerification={handleCaptureVerification}
             onDeleteVerification={handleDeleteVerification}
+            pendingMeasuredCount={pendingMeasured.length}
             rejected={rejected}
             rejectedCount={rejectedCount}
             onToggleReject={toggleReject}
@@ -933,6 +1023,7 @@ function ResultView({
   specMatch, specMatchLoading, specMatchError, onMatchSpecs, onClearSpecs,
   onPreviewBuyouts,
   verificationsByRow, onCaptureVerification, onDeleteVerification,
+  pendingMeasuredCount,
   rejected, rejectedCount, onToggleReject, onBulkReject, onRestoreAllRejected,
 }: {
   result: TakeoffResult;
@@ -958,6 +1049,10 @@ function ResultView({
   verificationsByRow: Map<string, TakeoffFieldVerification>;
   onCaptureVerification: (v: TakeoffFieldVerification) => void;
   onDeleteVerification: (id: string) => void;
+  /** Rows measured on site whose measurement is NOT yet the quantity of
+   *  record — so the estimate, and the rate this job will teach, still rest on
+   *  the drawing. */
+  pendingMeasuredCount: number;
   rejected: RejectedRows;
   rejectedCount: number;
   onToggleReject: (rowKey: string) => void;
@@ -978,35 +1073,35 @@ function ResultView({
   // the LF + SF + buyout numbers immediately.
   const totalWallLF = useMemo(
     () => sumOverridable(
-      result.walls.filter(w => !rejected[keyFor('walls', w.id)]),
-      w => w.lengthFt, w => keyFor('walls', w.id), overrides,
+      result.walls.filter(w => !rejected[takeoffRowKey('walls', w.id)]),
+      w => w.lengthFt, w => takeoffRowKey('walls', w.id), overrides,
     ),
     [result.walls, overrides, rejected],
   );
   const totalWallAreaSF = useMemo(
     () => result.walls
-      .filter(w => !rejected[keyFor('walls', w.id)])
-      .reduce((s, w) => s + (overridden(overrides, keyFor('walls', w.id), w.lengthFt) * w.heightFt * 2), 0),
+      .filter(w => !rejected[takeoffRowKey('walls', w.id)])
+      .reduce((s, w) => s + (overridden(overrides, takeoffRowKey('walls', w.id), w.lengthFt) * w.heightFt * 2), 0),
     [result.walls, overrides, rejected],
   );
   const totalFloorSF = useMemo(
     () => sumOverridable(
-      result.floorAreas.filter(f => !rejected[keyFor('floor', f.id)]),
-      f => f.areaSqFt, f => keyFor('floor', f.id), overrides,
+      result.floorAreas.filter(f => !rejected[takeoffRowKey('floor', f.id)]),
+      f => f.areaSqFt, f => takeoffRowKey('floor', f.id), overrides,
     ),
     [result.floorAreas, overrides, rejected],
   );
   const totalDoors = useMemo(
     () => sumOverridable(
-      result.doors.filter(d => !rejected[keyFor('doors', d.id)]),
-      d => d.count, d => keyFor('doors', d.id), overrides,
+      result.doors.filter(d => !rejected[takeoffRowKey('doors', d.id)]),
+      d => d.count, d => takeoffRowKey('doors', d.id), overrides,
     ),
     [result.doors, overrides, rejected],
   );
   const totalWindows = useMemo(
     () => sumOverridable(
-      result.windows.filter(w => !rejected[keyFor('windows', w.id)]),
-      w => w.count, w => keyFor('windows', w.id), overrides,
+      result.windows.filter(w => !rejected[takeoffRowKey('windows', w.id)]),
+      w => w.count, w => takeoffRowKey('windows', w.id), overrides,
     ),
     [result.windows, overrides, rejected],
   );
@@ -1102,6 +1197,19 @@ function ResultView({
         />
       )}
 
+      {/* FIELD MEASUREMENTS STILL DOING NOTHING. The GC went to the site,
+          measured, and the number disagrees with what is pricing the work —
+          which means the sub's price will be divided by the drawing at
+          closeout. Says so, and points at the row that owns the decision. */}
+      {pendingMeasuredCount > 0 && (
+        <View style={styles.measuredNotice}>
+          <Ruler size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+          <Text style={styles.measuredNoticeText}>
+            {pendingMeasuredNotice(pendingMeasuredCount)}
+          </Text>
+        </View>
+      )}
+
       {showProTeaser && (
         <TouchableOpacity style={styles.teaserCard} onPress={onUpgrade} activeOpacity={0.85}>
           <View style={styles.teaserHead}>
@@ -1143,8 +1251,8 @@ function ResultView({
               onPress={() => onInspectPage(d.page)}
               activeOpacity={0.85}
             >
-              {page?.publicUrl && (
-                <Image source={{ uri: page.publicUrl }} style={styles.drawingThumb} resizeMode="cover" />
+              {!!page?.viewUrl && (
+                <Image source={{ uri: page.viewUrl }} style={styles.drawingThumb} resizeMode="cover" />
               )}
               <View style={{ flex: 1 }}>
                 <View style={styles.drawingHead}>
@@ -1172,22 +1280,22 @@ function ResultView({
           {result.walls.map(w => (
             <EditableRow
               key={w.id}
-              rowKey={keyFor('walls', w.id)}
+              rowKey={takeoffRowKey('walls', w.id)}
               title={w.description}
               subtitle={w.typeCode ? `Type ${w.typeCode} · ${w.heightFt} ft tall` : `${w.heightFt} ft tall`}
-              quantity={overridden(overrides, keyFor('walls', w.id), w.lengthFt)}
+              quantity={overridden(overrides, takeoffRowKey('walls', w.id), w.lengthFt)}
               unit="LF"
               confidence={w.confidence}
               sourcePages={w.sourcePages}
               notes={w.notes}
-              onChangeQuantity={v => onSetOverride(keyFor('walls', w.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('walls', w.id), v)}
               originalQuantity={w.lengthFt}
               onInspectPage={onInspectPage}
               specEntry={w.typeCode ? specLookup.get(w.typeCode) : undefined}
-              verification={verificationsByRow.get(keyFor('walls', w.id))}
+              verification={verificationsByRow.get(takeoffRowKey('walls', w.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('walls', w.id)]}
+              rejected={!!rejected[takeoffRowKey('walls', w.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1204,22 +1312,22 @@ function ResultView({
           {result.floorAreas.map(f => (
             <EditableRow
               key={f.id}
-              rowKey={keyFor('floor', f.id)}
+              rowKey={takeoffRowKey('floor', f.id)}
               title={f.roomName}
               subtitle={f.finishCode ? `Finish ${f.finishCode} · CH ${f.ceilingHeightFt} ft` : `CH ${f.ceilingHeightFt} ft`}
-              quantity={overridden(overrides, keyFor('floor', f.id), f.areaSqFt)}
+              quantity={overridden(overrides, takeoffRowKey('floor', f.id), f.areaSqFt)}
               unit="SF"
               confidence={f.confidence}
               sourcePages={f.sourcePages}
               notes={f.notes}
-              onChangeQuantity={v => onSetOverride(keyFor('floor', f.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('floor', f.id), v)}
               originalQuantity={f.areaSqFt}
               onInspectPage={onInspectPage}
               specEntry={f.finishCode ? specLookup.get(f.finishCode) : undefined}
-              verification={verificationsByRow.get(keyFor('floor', f.id))}
+              verification={verificationsByRow.get(takeoffRowKey('floor', f.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('floor', f.id)]}
+              rejected={!!rejected[takeoffRowKey('floor', f.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1236,21 +1344,21 @@ function ResultView({
           {result.doors.map(d => (
             <EditableRow
               key={d.id}
-              rowKey={keyFor('doors', d.id)}
+              rowKey={takeoffRowKey('doors', d.id)}
               title={d.mark ? `${d.mark} — ${d.description}` : d.description}
               subtitle={`${d.widthIn}" × ${d.heightIn}"`}
-              quantity={overridden(overrides, keyFor('doors', d.id), d.count)}
+              quantity={overridden(overrides, takeoffRowKey('doors', d.id), d.count)}
               unit="EA"
               confidence={d.confidence}
               sourcePages={d.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('doors', d.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('doors', d.id), v)}
               originalQuantity={d.count}
               onInspectPage={onInspectPage}
               specEntry={d.mark ? specLookup.get(d.mark) : undefined}
-              verification={verificationsByRow.get(keyFor('doors', d.id))}
+              verification={verificationsByRow.get(takeoffRowKey('doors', d.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('doors', d.id)]}
+              rejected={!!rejected[takeoffRowKey('doors', d.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1267,21 +1375,21 @@ function ResultView({
           {result.windows.map(w => (
             <EditableRow
               key={w.id}
-              rowKey={keyFor('windows', w.id)}
+              rowKey={takeoffRowKey('windows', w.id)}
               title={w.mark ? `${w.mark} — ${w.description}` : w.description}
               subtitle={`${w.widthIn}" × ${w.heightIn}"`}
-              quantity={overridden(overrides, keyFor('windows', w.id), w.count)}
+              quantity={overridden(overrides, takeoffRowKey('windows', w.id), w.count)}
               unit="EA"
               confidence={w.confidence}
               sourcePages={w.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('windows', w.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('windows', w.id), v)}
               originalQuantity={w.count}
               onInspectPage={onInspectPage}
               specEntry={w.mark ? specLookup.get(w.mark) : undefined}
-              verification={verificationsByRow.get(keyFor('windows', w.id))}
+              verification={verificationsByRow.get(takeoffRowKey('windows', w.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('windows', w.id)]}
+              rejected={!!rejected[takeoffRowKey('windows', w.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1330,20 +1438,20 @@ function ResultView({
           {result.bulkMaterials.map(b => (
             <EditableRow
               key={b.id}
-              rowKey={keyFor('bulk', b.id)}
+              rowKey={takeoffRowKey('bulk', b.id)}
               title={b.description}
-              quantity={overridden(overrides, keyFor('bulk', b.id), b.quantity)}
+              quantity={overridden(overrides, takeoffRowKey('bulk', b.id), b.quantity)}
               unit={b.unit.toUpperCase()}
               confidence={b.confidence}
               sourcePages={b.sourcePages}
               notes={b.notes}
-              onChangeQuantity={v => onSetOverride(keyFor('bulk', b.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('bulk', b.id), v)}
               originalQuantity={b.quantity}
               onInspectPage={onInspectPage}
-              verification={verificationsByRow.get(keyFor('bulk', b.id))}
+              verification={verificationsByRow.get(takeoffRowKey('bulk', b.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('bulk', b.id)]}
+              rejected={!!rejected[takeoffRowKey('bulk', b.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1497,20 +1605,20 @@ function FinishesSection({
           {items.map(f => (
             <EditableRow
               key={f.id}
-              rowKey={keyFor('finish', f.id)}
+              rowKey={takeoffRowKey('finish', f.id)}
               title={f.code ? `${f.code} — ${f.description}` : f.description}
-              quantity={overridden(overrides, keyFor('finish', f.id), f.quantity)}
+              quantity={overridden(overrides, takeoffRowKey('finish', f.id), f.quantity)}
               unit={f.unit.toUpperCase()}
               confidence={f.confidence}
               sourcePages={f.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('finish', f.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('finish', f.id), v)}
               originalQuantity={f.quantity}
               onInspectPage={onInspectPage}
               specEntry={f.code ? specLookup.get(f.code) : undefined}
-              verification={verificationsByRow.get(keyFor('finish', f.id))}
+              verification={verificationsByRow.get(takeoffRowKey('finish', f.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('finish', f.id)]}
+              rejected={!!rejected[takeoffRowKey('finish', f.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1560,20 +1668,20 @@ function FixturesSection({
           {items.map(f => (
             <EditableRow
               key={f.id}
-              rowKey={keyFor('fixture', f.id)}
+              rowKey={takeoffRowKey('fixture', f.id)}
               title={f.mark ? `${f.mark} — ${f.description}` : f.description}
-              quantity={overridden(overrides, keyFor('fixture', f.id), f.count)}
+              quantity={overridden(overrides, takeoffRowKey('fixture', f.id), f.count)}
               unit="EA"
               confidence={f.confidence}
               sourcePages={f.sourcePages}
-              onChangeQuantity={v => onSetOverride(keyFor('fixture', f.id), v)}
+              onChangeQuantity={v => onSetOverride(takeoffRowKey('fixture', f.id), v)}
               originalQuantity={f.count}
               onInspectPage={onInspectPage}
               specEntry={f.mark ? specLookup.get(f.mark) : undefined}
-              verification={verificationsByRow.get(keyFor('fixture', f.id))}
+              verification={verificationsByRow.get(takeoffRowKey('fixture', f.id))}
               onCaptureVerification={onCaptureVerification}
               onDeleteVerification={onDeleteVerification}
-              rejected={!!rejected[keyFor('fixture', f.id)]}
+              rejected={!!rejected[takeoffRowKey('fixture', f.id)]}
               onToggleReject={onToggleReject}
             />
           ))}
@@ -1745,11 +1853,46 @@ function EditableRow({
         {onCaptureVerification && (
           <TakeoffFieldVerifyButton
             rowKey={rowKey}
-            aiQuantity={quantity}
+            currentQuantity={quantity}
             unit={unit}
             existing={verification}
             onCapture={onCaptureVerification}
             onDelete={onDeleteVerification}
+            // THE MEASUREMENT'S ONLY ROUTE OUT (audit 2026-09-11, F6). Adopting
+            // it goes through the same setter the quantity field uses, so it
+            // lands in `overrides` — the quantity of record. From there:
+            // app/takeoff-estimate's resolver (runPricing) feeds overrides into
+            // buildPricingPrompt, the priced lines that come back carry that
+            // quantity (takeoff-estimate.tsx:378), buildItems (:505) writes it
+            // as the saved estimate line's `quantity`, and utils/costDatabase
+            // divides a closed commitment by exactly that. Before this prop the
+            // measured quantity was written to AsyncStorage and read by nothing
+            // at all.
+            //
+            // THE HALF THAT WAS SEVERED UNTIL 2026-09-12: both ends spelled the
+            // row key in their own local helper, and three of the seven
+            // sections did not match (finish/fixture/bulk here vs
+            // finishes/fixtures/bulkMaterials there). An adopted drywall or
+            // fixture measurement cleared the "still priced off the plan"
+            // notice and was then dropped on the way to the pricer, and a
+            // REJECTED row of those three sections was priced anyway. Both
+            // sides now call utils/takeoffPricing.takeoffRowKey /
+            // takeoffQuantityOfRecord — one typed section list, round-tripped
+            // for all seven sections in validate-cost-seed §17i.
+            //
+            // HONEST ABOUT THE ONE SOFT LINK: the pricer is an AI call, so the
+            // hand-off from override to line quantity is a prompt, not a copy —
+            // one takeoff row may come back as several lines, and the GC can
+            // still edit a quantity on the review list. What is guaranteed is
+            // that the number the estimate is BUILT FROM is the one he
+            // measured, not the one the drawing said.
+            //
+            // Measured end to end at the engine: the same $6,000 drywall buyout
+            // teaches $2.50/SF over a 2,400 SF plan read and $2.31/SF over the
+            // 2,600 SF the GC actually measured — an 8.3% permanent
+            // overstatement of his own cost, on one job
+            // (scripts/validate-estimate-cost-basis §6k).
+            onUseMeasured={onChangeQuantity}
           />
         )}
       </View>
@@ -1940,10 +2083,6 @@ function SpecMatchCard({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function keyFor(section: string, id: string): string {
-  return `${section}:${id}`;
-}
-
 function overridden(map: QuantityOverrides, key: string, fallback: number): number {
   const v = map[key];
   return Number.isFinite(v) ? (v as number) : fallback;
@@ -2058,6 +2197,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   uploadCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
   uploadHint: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+
+  blockedNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10, marginTop: -4, marginBottom: 14,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line,
+  },
+  blockedNoteText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
@@ -2223,6 +2370,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
+  measuredNotice: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: themeColors.warningSoft,
+    borderRadius: Tokens.radius.panel, padding: 14,
+    borderWidth: 1, borderColor: themeColors.warningLabel + '33',
+    marginBottom: 22,
+  },
+  measuredNoticeText: {
+    flex: 1, fontSize: Type.footnote.fontSize, lineHeight: 18,
+    color: themeColors.text, fontWeight: '600',
+  },
   teaserCard: {
     backgroundColor: themeColors.accent + '0D',
     borderRadius: Tokens.radius.panel, padding: 16,

@@ -45,9 +45,13 @@ export function PortalStatusPill({ portalState, itemUpdatedAt }: Props) {
     new Date(itemUpdatedAt).getTime() > new Date(s.sentAt).getTime();
 
   if (status === 'draft') {
+    // accentLabel, not accent. The raw brand hue over its own 13%-alpha tint
+    // composites to #FFEBE0 behind #FF6A1A ink — 2.49:1, measured in the
+    // 2026-09-07 audit, against a 4.5:1 floor for 12pt text. The DOT keeps the
+    // raw accent: it is non-text chrome and lives under the 3:1 rule.
     return <View style={[styles.pill, { backgroundColor: colors.accent + '22' }]}>
       <View style={[styles.dot, { backgroundColor: colors.accent }]} />
-      <Text style={[styles.label, { color: colors.accent }]}>Draft</Text>
+      <Text style={[styles.label, { color: colors.accentLabel }]}>Draft</Text>
     </View>;
   }
   if (status === 'recalled') {

@@ -232,6 +232,55 @@ function fullInput(over: Partial<BuildConsumerPassportInput> = {}): BuildConsume
 const P: ConsumerPassport = buildConsumerPassport(fullInput());
 
 // ─────────────────────────────────────────────────────────────────────
+console.log('\nconsumer passport — a bucket path never reaches the homeowner:');
+// ─────────────────────────────────────────────────────────────────────
+//
+// The existing PM_FINAL / W_HVAC fixtures both carry `file://…`, which PASSES
+// the scheme test — so deleting ownerSafeDocumentUri outright left every one of
+// them green. This is the fixture that can actually fail.
+//
+// What it guards: since photo uploads moved to Supabase Storage, an
+// attachmentUri / documentUri is a BUCKET PATH whose FIRST SEGMENT IS THE
+// CONTRACTOR'S AUTH USER ID. The homeowner cannot open it, and it discloses an
+// internal identifier into a document written for someone outside the tenant.
+// A bucket path has no scheme, so the predicate drops it.
+const CONTRACTOR_UID = '9f1c2d3e-4a5b-6c7d-8e9f-0a1b2c3d4e5f';
+const BUCKET_PATH = `${CONTRACTOR_UID}/proj-a/permit-scan.pdf`;
+const leaky = buildConsumerPassport(fullInput({
+  permits: [mkPermit({ id: 'pm-leak', permitNumber: 'B-LEAK', status: 'approved', attachmentUri: BUCKET_PATH })],
+  warranties: [mkWarranty({ id: 'w-leak', title: 'Leaky Warranty', documentUri: BUCKET_PATH })],
+}));
+const leakyJson = JSON.stringify(leaky);
+expectTrue(
+  "the contractor's auth uid appears NOWHERE in the passport",
+  !leakyJson.includes(CONTRACTOR_UID),
+);
+expectTrue(
+  'no bucket path survives anywhere in the passport',
+  !leakyJson.includes('permit-scan.pdf'),
+);
+expect(
+  'a permit whose only scan is a bucket path contributes no document row',
+  leaky.documents.filter((d) => d.id.startsWith('document:permit:pm-leak')).length,
+  0,
+);
+expect(
+  'a warranty whose only document is a bucket path contributes no document row',
+  leaky.documents.filter((d) => d.id.startsWith('document:warranty:w-leak')).length,
+  0,
+);
+// …and the same fixture with a real scheme still comes through, so the gate is
+// a filter and not an accidental blanket drop.
+const openable = buildConsumerPassport(fullInput({
+  permits: [mkPermit({ id: 'pm-ok', permitNumber: 'B-OK', status: 'approved', attachmentUri: 'https://cdn.example.com/permit.pdf' })],
+  warranties: [],
+}));
+expectTrue(
+  'a fetchable https document still reaches the homeowner',
+  JSON.stringify(openable).includes('https://cdn.example.com/permit.pdf'),
+);
+
+// ─────────────────────────────────────────────────────────────────────
 console.log('\nconsumer passport — totality:');
 // ─────────────────────────────────────────────────────────────────────
 

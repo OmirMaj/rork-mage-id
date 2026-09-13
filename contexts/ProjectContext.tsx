@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus } from '@/types';
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite, getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
@@ -38,6 +39,10 @@ import {
 } from '@/utils/photoUploadCore';
 import { queuePhotoUpload } from '@/utils/photoUploadQueue';
 import { resolvePhotoUrls, deleteProjectPhotoObject } from '@/utils/storage';
+import {
+  carryDeviceLocalPlanSheetUris, durablePlanSheetValue, localPlanSheetValue,
+  planSheetRowUris, resolvePlanSheetUrls,
+} from '@/utils/planSheetUrls';
 import { warrantyStatus } from '@/utils/workflowPipelines';
 
 // ─── Photo durability ────────────────────────────────────────────────────────
@@ -128,6 +133,24 @@ async function buildPhotoUrlResolver(storedValues: (string | undefined)[]): Prom
     return { uri: stored ?? '', storagePath: undefined };
   };
 }
+
+// ─── Plan-sheet durability (audit DB-F11) ────────────────────────────────────
+// `plan_sheets.image_uri` used to hold the PERMANENT PUBLIC url that
+// convert-pdf-to-images returned from getPublicUrl() on the public `plan-sheets`
+// bucket. Construction drawings were therefore readable forever by anyone who
+// ever saw a link — no expiry, no revocation when a sheet was superseded or a
+// project deleted.
+//
+// Same two-value split as the photo helpers above: the DATABASE and the local
+// cache get the storage PATH, and the renderable url is signed on READ. Every
+// existing consumer of `sheet.imageUri` (plan-viewer, area-takeoff,
+// plan-intelligence, compare-drawings, the mobile schedule's LivingFloorPlan /
+// PlanZoneEditor, planPrefetch, planShareToken, askYourPlans) keeps working
+// unchanged because the signing happens here, at the single hydration point.
+
+// `durablePlanSheetValue` is the write-side half and lives in
+// utils/planSheetUrls.ts next to the resolvers, so a guard can execute it
+// without loading this 5,000-line provider.
 
 const PROJECTS_KEY = 'mageid_projects';
 const SETTINGS_KEY = 'mageid_settings';
@@ -233,6 +256,18 @@ type CoreDataValue = {
   /** True once projects have hydrated from storage/network. Distinguishes
    *  "still loading" from "not found" for deep-linked detail screens. */
   projectsLoaded: boolean;
+  /** RT-R1: MAGE could not be reached as this user on the last probe. Every
+   *  loader in this file swallows a failed read and serves the local cache
+   *  (30 `if (!error && data && data.length > 0)` fallthroughs), which is
+   *  right for offline-first and means an empty array here is EITHER "you
+   *  have nothing" OR "every read 401'd". A surface that makes an absolute
+   *  claim about the user's own book — "No projects yet", "you haven't
+   *  posted anything" — must gate that claim on this being false, or a GC
+   *  who reinstalls sees his entire book of work reported as deleted. */
+  sourceFailed: boolean;
+  /** Re-run every read this provider owns, plus the probe that reported the
+   *  failure. What a Retry button on a `sourceFailed` surface calls. */
+  retryRemoteReads: () => void;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
@@ -506,6 +541,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const userEmail = user?.email ?? null;
+  // RT-R1: the one place that asks "can this device reach MAGE as this user
+  // right now?". It lives HERE, in the context whose loaders swallow the
+  // errors, so any screen reading project data can gate an absolute claim on
+  // it without also mounting the attention hook (audit 2026-09-07 "Do now"
+  // #1 — the signal existed and half its consumers dropped it).
+  const reachability = useMageReachability();
 
   const [projects, setProjects] = useState<Project[]>([]);
   // True once the projects query has settled AND local state has been hydrated
@@ -692,6 +733,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               locationLatitude: r.location_latitude != null ? Number(r.location_latitude) : undefined,
               locationLongitude: r.location_longitude != null ? Number(r.location_longitude) : undefined,
               locationGeocodedAt: (r.location_geocoded_at as string | null) ?? undefined,
+              // THE ZONING CONFIRM IS DEVICE-LOCAL, AND THIS LINE IS WHY IT
+              // SURVIVES AT ALL. `projects` has no structured_address column, so
+              // structuredAddress is in neither the upsert payload below nor
+              // this mapper's inputs — and without carrying the device's cached
+              // copy forward, `saveLocal(PROJECTS_KEY, merged)` a few lines down
+              // overwrote it with undefined and DESTROYED every zoning confirm
+              // on the next successful fetch. (The first version of that fix
+              // claimed "no DB mapping exists … so it persists with no
+              // migration". No mapping means the opposite: it is wiped.)
+              // Deliberately device-scoped, not synced: a real fix is a column +
+              // payload + mapper + migration, which this pass did not take on.
+              // The gate still re-checks the confirm against the CURRENT
+              // (server-synced) location, so a carried confirm cannot outlive
+              // an address change made on another device — it reads stale.
+              structuredAddress: cached?.structuredAddress,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               estimate: (pick('estimate', r.estimate, cached?.estimate) ?? null) as Project['estimate'],
               schedule: r.schedule as Project['schedule'],
@@ -1932,8 +1988,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // MONEY-F1: the data columns hydrate through the pure, round-trip-
               // tested mapper — snapshot_totals → totals (this used to be dropped,
               // so the second pay app of a project crashed on priorAIA.totals and
-              // WIP read $0 billed), plus pay_link_* / paid_at read defensively
-              // until migration 20260904100100 lands. utils/projectContextPure.ts.
+              // WIP read $0 billed), plus pay_link_* / paid_at, which ARE real
+              // columns (migration 20260904100100, applied) and are read here but
+              // written only by create-payment-link and the Stripe webhook — see
+              // savedToAiaRow's comment for why the app must not write them.
+              // The certificate fields with no columns of their own (PERIOD FROM,
+              // line 5b's rate, AMOUNT CERTIFIED, the notary jurat) come back
+              // through the same mapper, out of the snapshot_totals sidecar.
+              // utils/projectContextPure.ts.
               ...aiaRowToSaved(r),
               // portal_state MUST be read back. It is written on insert and on every
               // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
@@ -4647,9 +4709,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // MONEY-F1: data columns come from the round-trip-tested pure writer —
     // `snapshot_totals: a.totals`. The old `a.snapshotTotals` never existed, so
     // every saved pay app wrote NULL and lost its totals on the next launch.
-    // TODO(20260904100100): send pay_link_url / pay_link_id / pay_link_amount
-    // once the migration is applied — an unknown column makes PostgREST reject
-    // the WHOLE upsert, and the offline queue would retry it forever.
+    // The pay-link columns are deliberately NOT written from here — see
+    // savedToAiaRow's own comment for why that is now a correctness choice
+    // rather than a pending migration.
     ...savedToAiaRow(a, userId),
     // Spread, not `?? null`. PostgREST writes only the keys present in the
     // payload, so omitting an undefined portalState PRESERVES the server value.
@@ -4664,14 +4726,79 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       ...app,
       portalState: app.portalState ?? initialPortalState('aia_pay_app', app.projectId),
     };
-    const dedup = aiaPayApps.filter(a => !(a.projectId === finalApp.projectId && a.applicationNumber === finalApp.applicationNumber));
+    // DE-DUPE ON WHAT THE RECORD *IS*, NOT ON A NUMBER DERIVED FROM IT.
+    //
+    // This used to key on (projectId, applicationNumber) — which agreed with
+    // the screen's own identity only until app/aia-pay-app.tsx moved that
+    // identity onto `invoiceId` (so a reopen updates the certificate it
+    // reopened) and, in the same change, made APPLICATION NO. a field the GC
+    // is actively invited to edit. The two keys then disagreed: typing a
+    // number another saved pay app already held DELETED that record from local
+    // state while the new one kept its own id, and since the write is an
+    // upsert of the NEW id nothing removed the other row on the server — so it
+    // came back on the next refetch as a duplicate application number, and
+    // (getAIAPayAppsForProject sorting applicationNumber DESC) could become
+    // payApps[0], the WIP report's contract baseline.
+    //
+    // `id` first: a re-save of a record we already hold is the same record.
+    // `invoiceId` next: one billing period is one certificate. applicationNumber
+    // remains ONLY for legacy rows that predate invoiceId, so a record written
+    // before the screen was invoice-keyed still replaces itself rather than
+    // doubling.
+    const sameRecord = (a: SavedAIAPayApp) => {
+      if (a.projectId !== finalApp.projectId) return false;
+      if (a.id === finalApp.id) return true;
+      if (finalApp.invoiceId && a.invoiceId) return a.invoiceId === finalApp.invoiceId;
+      if (!a.invoiceId && !finalApp.invoiceId) return a.applicationNumber === finalApp.applicationNumber;
+      return false;
+    };
+    const dedup = aiaPayApps.filter(a => !sameRecord(a));
     const updated = [finalApp, ...dedup];
     setAiaPayApps(updated);
     saveAiaPayAppsMutation.mutate(updated);
-    // Upsert: app screen always saves as new ID per draft so insert is correct;
-    // if the user re-saves the same id (rare), the table PK guards from dupes
-    // and Supabase will return a 409 we ignore.
-    if (canSync && userId) void supabaseWrite('aia_pay_apps', 'insert', aiaPayAppToRow(finalApp));
+    // A DISPLACED RECORD MUST LEAVE THE SERVER TOO. The legacy branch above can
+    // drop a row whose id is NOT finalApp.id (a pre-invoiceId record at the
+    // same application number). Dropping it only from local state left it on
+    // aia_pay_apps, where the next server-first load brought it back as a
+    // second certificate for one period — the duplicate this de-dupe exists to
+    // prevent, reintroduced by the de-dupe itself.
+    const displaced = aiaPayApps.filter(a => sameRecord(a) && a.id !== finalApp.id);
+    if (canSync && userId) {
+      displaced.forEach(a => { void supabaseWrite('aia_pay_apps', 'delete', { id: a.id }); });
+    }
+    // UPSERT, not insert.
+    //
+    // The old comment here said the screen "always saves as new ID per draft so
+    // insert is correct", and accepted that a re-save of the same id returns a
+    // 409 "we ignore". Neither half held. buildSavedRecord reuses the existing
+    // record's id precisely so a re-save UPDATES the certificate, so the second
+    // save of any pay application WAS that case. utils/offlineQueue's own
+    // 'upsert' branch spells the consequence out: "a plain insert on an
+    // existing PK fails with a duplicate-key violation … so the edit would
+    // silently never reach the server (and the server-first load would then
+    // revert it locally)." Both of the queue's insert paths agree — the direct
+    // write drops it as a non-network failure, and a queued re-send reads a
+    // `_pkey` 23505 as "already landed" (isAlreadyLandedInsert) and discards
+    // it as SUCCESS. So the corrected certificate lived on one device only,
+    // and the next server-first load reverted it there too.
+    //
+    // Not literally silent, and the difference matters when reading a bug
+    // report: the direct path does raise a generic "Couldn't save
+    // (aia_pay_apps)" toast and a Sentry event. What it cannot do is tell the
+    // GC that the figure he just corrected on a signed certificate is not the
+    // figure the portal is showing his owner.
+    //
+    // Upsert is the correct semantic for a row this user owns and is editing.
+    // It cannot clobber someone else's row — aia_pay_apps is user-scoped by RLS
+    // (policy aia_pay_apps_owner_all, migration 20260518120000) — and the
+    // DB-level freeze trigger (migration 20260728120000) still rejects any
+    // update to a CERTIFIED application's financial columns (raising
+    // check_violation, which the queue classifies non-transient and therefore
+    // does NOT retry forever), so this widens the write path without widening
+    // what may be rewritten. addAIAPayApp is the only upsert writer of this
+    // table; the portal send/recall path writes portal_state through 'update',
+    // which the trigger permits by design.
+    if (canSync && userId) void supabaseWrite('aia_pay_apps', 'upsert', aiaPayAppToRow(finalApp));
     return finalApp;
   }, [aiaPayApps, saveAiaPayAppsMutation, canSync, userId, aiaPayAppToRow, initialPortalState]);
 
@@ -5275,6 +5402,24 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setPlanMarkups(lMarkups);
     setPlanCalibrations(lCals);
 
+    // DB-F11. The cached sheets hold storage PATHS (see the saveLocal below), so
+    // they need signing before anything can render them. Do it right after the
+    // instant paint and before the server round-trip, so a slow or failing
+    // fetch still leaves a viewable set of plans rather than a blank list.
+    //
+    // KNOWN LIMIT, deliberately not papered over: with the bucket private and
+    // the device offline, nothing can sign and the sheets do not render. Photos
+    // survive that case because the capture device keeps a `localUri`; plan
+    // sheets arrive from the server and have no local copy. Giving them one
+    // (download-on-import, same shape as photoUploadQueue in reverse) is the
+    // follow-up — it is not something a signed URL can fix.
+    if (lSheets.length > 0) {
+      const cachedSigned = await resolvePlanSheetUrls(lSheets.map(s => s.imageUri));
+      if (cachedSigned.size > 0) {
+        setPlanSheets(lSheets.map(s => ({ ...s, ...planSheetRowUris(s.imageUri, cachedSigned) })));
+      }
+    }
+
     if (!canSync) return;
     try {
       const [sheets, pins, markups, cals] = await Promise.all([
@@ -5285,11 +5430,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       ]);
 
       if (!sheets.error && sheets.data?.length) {
+        // DB-F11. Sign every stored plan-sheet path in ONE batched request
+        // before mapping, so the rest of the app keeps reading `imageUri`.
+        // A row that cannot be signed — offline, or the held migration not
+        // applied yet so there is still no SELECT policy — keeps whatever it
+        // stored, which for a legacy row is a public URL that still renders.
+        const sheetSigned = await resolvePlanSheetUrls(
+          sheets.data.map((r: Record<string, unknown>) => (r.image_uri as string) ?? ''),
+        );
         const mapped = sheets.data.map((r: Record<string, unknown>) => ({
           id: r.id as string, projectId: r.project_id as string,
           name: (r.name as string) ?? '',
           sheetNumber: (r.sheet_number as string | null) ?? undefined,
-          imageUri: (r.image_uri as string) ?? '',
+          // planSheetRowUris is the extracted, guarded mapper: signed url for
+          // rendering + a storagePath ONLY when the key is project-scoped.
+          ...planSheetRowUris(r.image_uri as string, sheetSigned),
           pageNumber: r.page_number == null ? undefined : Number(r.page_number),
           width: r.width == null ? undefined : Number(r.width),
           height: r.height == null ? undefined : Number(r.height),
@@ -5298,8 +5453,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           superseded: r.superseded == null ? undefined : Boolean(r.superseded),
           createdAt: r.created_at as string, updatedAt: r.updated_at as string,
         })) as PlanSheet[];
-        setPlanSheets(mapped);
-        await saveLocal(PLAN_SHEETS_KEY, mapped);
+        // A photo-library import has no storage object, so its row holds '' —
+        // keep this device's copy rather than blanking what the user just saw.
+        const merged = carryDeviceLocalPlanSheetUris(mapped, lSheets);
+        setPlanSheets(merged);
+        // The LOCAL cache gets the durable value, never the signed URL: a cached
+        // signature outlives its TTL and comes back as a dead image on the next
+        // offline open (utils/storage.ts:11-14 is the same bug, in Postgres).
+        await saveLocal(PLAN_SHEETS_KEY, merged.map(s => ({
+          ...s, imageUri: localPlanSheetValue(s.storagePath, s.imageUri),
+        })));
       }
 
       if (!pins.error && pins.data?.length) {
@@ -5361,7 +5524,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const persistPlanSheets = useCallback((list: PlanSheet[]) => {
     setPlanSheets(list);
-    void saveLocal(PLAN_SHEETS_KEY, list);
+    // In MEMORY the sheets carry the renderable (signed) url; on DISK they carry
+    // the durable path — a cached signature would expire and come back as a dead
+    // image. DB-F11.
+    //
+    // localPlanSheetValue, not durablePlanSheetValue: the DISK copy keeps a
+    // device-local `file://` when that is all a sheet has (app/plans.tsx
+    // `confirmImport` — a photo of a plan, never uploaded). Postgres still gets
+    // '' for that sheet; the cache is the device that took it.
+    void saveLocal(PLAN_SHEETS_KEY, list.map(s => ({
+      ...s, imageUri: localPlanSheetValue(s.storagePath, s.imageUri),
+    })));
   }, []);
   const persistDrawingPins = useCallback((list: DrawingPin[]) => {
     setDrawingPins(list);
@@ -5443,7 +5616,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       void supabaseWrite('plan_sheets', 'insert', {
         id: fresh.id, user_id: userId, project_id: fresh.projectId,
         name: fresh.name, sheet_number: fresh.sheetNumber ?? null,
-        image_uri: fresh.imageUri, page_number: fresh.pageNumber ?? null,
+        // The PATH, never the signed url and never the old permanent public one.
+        // This column is what DB-F11 was about.
+        image_uri: durablePlanSheetValue(fresh.storagePath, fresh.imageUri),
+        page_number: fresh.pageNumber ?? null,
         width: fresh.width ?? null, height: fresh.height ?? null,
         revision: fresh.revision ?? null,
         previous_sheet_id: fresh.previousSheetId ?? null,
@@ -5463,7 +5639,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       const patch: Record<string, unknown> = { updated_at: now };
       if (updates.name !== undefined) patch.name = updates.name;
       if (updates.sheetNumber !== undefined) patch.sheet_number = updates.sheetNumber;
-      if (updates.imageUri !== undefined) patch.image_uri = updates.imageUri;
+      if (updates.imageUri !== undefined || updates.storagePath !== undefined) {
+        const current = planSheets.find(s => s.id === id);
+        patch.image_uri = durablePlanSheetValue(
+          updates.storagePath ?? current?.storagePath,
+          updates.imageUri ?? current?.imageUri,
+        );
+      }
       if (updates.pageNumber !== undefined) patch.page_number = updates.pageNumber;
       if (updates.width !== undefined) patch.width = updates.width;
       if (updates.height !== undefined) patch.height = updates.height;
@@ -5825,17 +6007,35 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
+  // RT-R1 retry. Every query this provider owns is keyed `[table, userId]`, so
+  // a predicate catches all of them without a hand-maintained list that goes
+  // stale the next time a table is added here. The probe is refetched too, so
+  // a successful retry clears the "couldn't reach MAGE" row that offered it.
+  // The predicate deliberately also sweeps the handful of sibling per-user
+  // queries in that shape (crew_members, notificationFeed, accountSeats…):
+  // this is a user-tapped "retry everything", not a targeted invalidation,
+  // and those reads failed for the same reason the ones here did.
+  const retryRemoteReads = useCallback(() => {
+    void queryClient.refetchQueries({ queryKey: MAGE_REACHABILITY_QUERY_KEY });
+    if (!userId) return;
+    void queryClient.invalidateQueries({
+      predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.length === 2 && q.queryKey[1] === userId,
+    });
+  }, [queryClient, userId]);
+
   // ── Bucket memos ─────────────────────────────────────────────────────────────
   const coreData = useMemo<CoreDataValue>(() => ({
     projects: sortedProjects, settings, hasSeenOnboarding, userRole,
     isLoading: projectsQuery.isLoading || settingsQuery.isLoading || onboardingQuery.isLoading || userRoleQuery.isLoading,
     projectsLoaded,
+    sourceFailed: reachability.failed,
+    retryRemoteReads,
     addProject, updateProject, deleteProject, getProject, updateSettings,
     addCollaborator, removeCollaborator,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
+  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, reachability.failed, retryRemoteReads, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
     changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject,

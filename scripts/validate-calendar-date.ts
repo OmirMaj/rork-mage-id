@@ -379,6 +379,8 @@ for (const tz of TIMEZONES) {
 interface Allowed { file: string; line: string; reason: string; added: string }
 const ALLOWED: Allowed[] = [
   // ── Full ISO instants (written with toISOString()), never a bare day ──
+  { file: 'app/wip-report.tsx', line: "Date.parse(raw.updated_at ?? '')", added: '2026-09-08',
+    reason: 'wip_cost_overrides.updated_at is a timestamptz — an INSTANT, not a calendar day. It is parsed to milliseconds only to decide which of two devices wrote last (string compare over mixed offsets would let the laptop\'s newer figure lose to the phone\'s older one, which is the failure the override sync exists to fix). No day is ever named from it.' },
   { file: 'app/daily-report.tsx', line: 'new Date(reportDate)', added: '2026-09-04',
     reason: 'reportDate is an instant — useState(new Date().toISOString()) / DatePickerModal.onChange(picked.toISOString()); daily_reports.date is a text column that round-trips it unchanged' },
   // `new Date(lastReport.date)` used to sit here. It is gone: DFR-CARRY-LABEL
@@ -442,8 +444,10 @@ const ALLOWED: Allowed[] = [
   { file: 'app/project-detail.tsx', line: 'new Date(dr.date)', added: '2026-09-04', reason: 'DailyFieldReport.date instant (see app/daily-report.tsx)' },
   { file: 'app/project-detail.tsx', line: 'new Date(b.date)', added: '2026-09-04', reason: 'DFR sort key over instants' },
   { file: 'app/project-detail.tsx', line: 'new Date(a.date)', added: '2026-09-04', reason: 'DFR sort key, other operand' },
-  { file: 'components/AIInvoicePredictor.tsx', line: 'new Date(inv.dueDate)', added: '2026-09-04', reason: 'Invoice.dueDate instant' },
-  { file: 'components/AIInvoicePredictor.tsx', line: 'new Date(lastPayment.date)', added: '2026-09-04', reason: 'payment record date instant (app/invoice.tsx handleMarkPaid / handleReleaseRetention)' },
+  // Two sibling entries (new Date(inv.dueDate), new Date(lastPayment.date)) were
+  // removed 2026-09-07: the per-client prediction rewrite deleted both call
+  // sites, and an ALLOWED entry with no live site is a blind entry — it would
+  // silently re-permit the parse if someone reintroduced it.
   { file: 'components/AIInvoicePredictor.tsx', line: 'new Date(invoice.dueDate)', added: '2026-09-04', reason: 'Invoice.dueDate instant' },
   { file: 'components/NextStepHero.tsx', line: 'new Date(r.dateSubmitted ?? Date.now())', added: '2026-09-04', reason: 'RFI.dateSubmitted instant (app/rfi.tsx:287, dateSubmitted: now)' },
   // ── Clones of a Date instance (the parameter is typed Date), not parses ──
@@ -454,7 +458,6 @@ const ALLOWED: Allowed[] = [
   { file: 'components/schedule/LookaheadView.tsx', line: 'new Date(date)', added: '2026-09-04', reason: 'getMonday(date: Date) clone' },
   { file: 'components/schedule/VerticalGantt.tsx', line: 'new Date(projectStartDate)', added: '2026-09-04', reason: 'projectStartDate is a Date prop; clone before setDate()' },
   { file: 'components/schedule/mobile/WeekStrip.tsx', line: 'new Date(selectedDate)', added: '2026-09-04', reason: 'selectedDate is a Date; clone before shifting a week' },
-  { file: 'components/schedule/TaskInspector.tsx', line: 'new Date(startDate)', added: '2026-09-04', reason: 'dayToDate(startDate: Date, …) clone' },
   { file: 'components/schedule/WeatherReschedulePrompt.tsx', line: 'new Date(startDate)', added: '2026-09-04', reason: 'clone of the local `startDate` Date inside the push loop (:57)' },
   { file: 'components/schedule/WeatherReschedulePrompt.tsx', line: 'new Date(projectStartDate)', added: '2026-09-04', reason: 'projectStartDate is a Date prop; clone before setDate() (:95)' },
 ];

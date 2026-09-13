@@ -16,7 +16,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -37,6 +37,7 @@ import InlineVoiceFill from '@/components/InlineVoiceFill';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import ReferralPrompt from '@/components/ReferralPrompt';
 import InstantBidProposalModal from '@/components/InstantBidProposalModal';
+import { quotedFromTouches } from '@/utils/leadQuoteCore';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseLeadFromTranscript, pickIfEmpty, titleCase } from '@/utils/voiceFormParsers';
 
@@ -92,13 +93,22 @@ export default function LeadDetailScreen() {
   const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
-  useBrainFabLift(bottomBarH);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = bottomBarH;
+  useBrainFabLift(fabLift);
   const router = useRouter();
   const { leadId, mode } = useLocalSearchParams<{ leadId?: string; mode?: string }>();
   const { getLead, addLead, updateLead, deleteLead, addLeadTouch, convertLeadToProject, settings } = useProjects();
 
   const isNew = mode === 'new' || !leadId;
   const existing = !isNew && leadId ? getLead(leadId) : null;
+  // The last Instant Bid quote, recovered from the activity log — the only
+  // durable store it has until Lead carries a quotedAmount (QUOTE-PERSIST-1).
+  const quoted = useMemo(() => quotedFromTouches(existing?.touches), [existing?.touches]);
 
   const [name, setName] = useState(existing?.name ?? '');
   const [phone, setPhone] = useState(existing?.phone ?? '');
@@ -263,7 +273,7 @@ export default function LeadDetailScreen() {
     <>
       <Stack.Screen options={{ title: isNew ? 'New lead' : existing?.name ?? 'Lead', headerLargeTitle: false }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView {...fabScroll} style={styles.root} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} keyboardShouldPersistTaps="handled">
+        <ScrollView {...fabScroll} style={styles.root} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
           {/* Quick actions row */}
           {existing && (
             <View style={styles.quickRow}>
@@ -441,13 +451,32 @@ export default function LeadDetailScreen() {
             <Text style={styles.fieldLabel}>Scope notes</Text>
             <TextInput style={[styles.input, styles.multilineInput]} value={scope} onChangeText={setScope} placeholder="Anything specific the homeowner mentioned" placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
+            {/* QUOTE-PERSIST-1 (audit 2026-09-07): what YOU quoted, beside what
+                THEY said they'd spend. The two are different numbers and the
+                screen used to show only theirs — the Instant Bid quote lived
+                as one sentence in the timeline and nowhere a GC would look.
+                Read back from the activity log because Lead has no
+                quotedAmount column yet; see InstantBidProposalModal's header. */}
+            {quoted && (
+              <View style={styles.quotedCard} testID="lead-quoted-card">
+                <View style={styles.quotedTop}>
+                  <Text style={styles.quotedLabel}>You quoted</Text>
+                  <Text style={styles.quotedAmount}>${quoted.amount.toLocaleString('en-US')}</Text>
+                </View>
+                <Text style={styles.quotedMeta}>
+                  Sent {new Date(quoted.occurredAt).toLocaleDateString()} · from your activity log
+                </Text>
+                {quoted.detail ? <Text style={styles.quotedDetail} numberOfLines={3}>{quoted.detail}</Text> : null}
+              </View>
+            )}
+
             <View style={styles.budgetRow}>
               <View style={{ flex: 1, marginRight: 6 }}>
-                <Text style={styles.fieldLabel}>Budget min</Text>
+                <Text style={styles.fieldLabel}>Budget min (theirs)</Text>
                 <TextInput style={styles.input} value={budgetMin} onChangeText={setBudgetMin} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               </View>
               <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={styles.fieldLabel}>Budget max</Text>
+                <Text style={styles.fieldLabel}>Budget max (theirs)</Text>
                 <TextInput style={styles.input} value={budgetMax} onChangeText={setBudgetMax} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               </View>
             </View>
@@ -669,6 +698,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   multilineInput: { minHeight: 80 },
   budgetRow: { flexDirection: 'row', marginTop: 4 },
+
+  // "You quoted" (QUOTE-PERSIST-1). successSoft/successLabel rather than the
+  // accent: #FF6A1A behind or under this size of type misses AA (2.87:1).
+  quotedCard: {
+    marginTop: 14, padding: 12, borderRadius: Tokens.radius.md,
+    backgroundColor: t.successSoft, borderWidth: 1, borderColor: t.line,
+  },
+  quotedTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  quotedLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.successLabel,
+    textTransform: 'uppercase' as const, letterSpacing: 0.6,
+  },
+  quotedAmount: { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, fontVariant: ['tabular-nums' as const] },
+  quotedMeta: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 4 },
+  quotedDetail: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 6, lineHeight: 16 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8,

@@ -38,7 +38,11 @@ import {
   type SeededRate, type SeededRateDraft,
 } from '../utils/costSeedCore';
 import { buildCostDatabase, lookupRate } from '../utils/costDatabase';
-import { matchOwnRate, normalizeUnit, priceSourceLabel } from '../utils/takeoffPricing';
+import {
+  matchOwnRate, normalizeUnit, priceSourceLabel,
+  TAKEOFF_ROW_SECTIONS, takeoffRowKey, takeoffQuantityResolver,
+} from '../utils/takeoffPricing';
+import { priceTakeoff } from '../utils/takeoffEstimate';
 import { REQUIRED_TIER } from '../utils/featureTiers';
 import { computeEstimateConfidence } from '../utils/estimateConfidence';
 import { buildEstimateSnapshotPayload } from '../utils/brain/estimateSnapshot';
@@ -449,8 +453,15 @@ ok('…and its empty cost book points at the fix instead of just confessing',
   'the "priced from market averages" state must be actionable');
 ok('the cost database empty state offers seeding as step one',
   /'\/cost-seed'/.test(src('app/cost-database.tsx')));
+// Matched on the LAST argument, not on the whole list. This assertion used to
+// pin `(projects, commitments ?? [], [], [], seeds)` verbatim — i.e. it pinned
+// the two EMPTY streams as well, so threading receipts and clocked labor into
+// this screen (audit 2026-09-11, F10/C8) failed a guard whose subject is seeds.
+// That is the same self-defeating shape §12 already corrected for the levelBids
+// callers. The stream shape is pinned positionally in §17e, where it belongs.
 ok('the takeoff pricer sees seeds too',
-  /buildCostDatabase\(projects, commitments \?\? \[\], \[\], \[\], seeds\)/.test(src('app/takeoff-estimate.tsx')));
+  /buildCostDatabase\([^;]*?,\s*seeds\s*\)/.test(src('app/takeoff-estimate.tsx')),
+  (/buildCostDatabase\([^;]*?\)/.exec(src('app/takeoff-estimate.tsx')) ?? ['<no call found>'])[0]);
 
 // Tenant safety: a new mageid_* per-user key that isn't wiped on sign-out
 // leaks one contractor's pricing to the next person on a shared device.
@@ -684,8 +695,12 @@ const CALLER_HANDOFFS: { caller: string; pattern: RegExp; why: string }[] = [
   { caller: 'app/copilot.tsx', pattern: /receipts, laborSamples, seeds \}/, why: 'ctx bag → estimateGrounding' },
   { caller: 'app/submit-bid-response.tsx', pattern: /laborSamples, seeds \}/, why: 'groundingContext → instantBid' },
   { caller: 'components/InstantBidProposalModal.tsx', pattern: /laborSamples, seeds \}/, why: 'groundingContext → instantBid' },
-  { caller: 'app/bid-leveling.tsx', pattern: /levelBids\(\{ pkg, bids, projects, commitments, receipts, seeds \}\)/, why: '→ bidLevelingEngine' },
-  { caller: 'app/buyout-package.tsx', pattern: /levelBids\(\{ pkg, bids, projects, commitments, receipts, seeds \}\)/, why: '→ bidLevelingEngine' },
+  // Matched on "levelBids({ … seeds })", not on the exact bag: pinning the
+  // whole argument list made ADDING a stream (laborSamples) fail an assertion
+  // whose subject is seeds — a guard that punishes the fix it is meant to
+  // protect. The labor stream has its own pin in §17e.
+  { caller: 'app/bid-leveling.tsx', pattern: /levelBids\(\{[^}]*\bseeds\b[^}]*\}\)/, why: '→ bidLevelingEngine' },
+  { caller: 'app/buyout-package.tsx', pattern: /levelBids\(\{[^}]*\bseeds\b[^}]*\}\)/, why: '→ bidLevelingEngine' },
   { caller: 'components/AIChangeOrderImpact.tsx', pattern: /analyzeChangeOrderImpact\([^;]*laborSamples, seeds\)/, why: '→ aiService' },
   { caller: 'app/contract.tsx', pattern: /buildEstimateSnapshotPayload\([^;]*seeds\)/, why: '→ estimateSnapshot' },
 ];
@@ -1104,5 +1119,1101 @@ expect('a rate that survived a cross-device merge is still a claim',
   lookupRate(syncedDb, 'Framing', 'SF')?.provenance, 'seeded');
 expect('…and still counts zero closed jobs', syncedDb.jobsAnalyzed, 0);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// §15. THE FIREWALL WHERE A BREACH CANNOT BE TAKEN BACK — AND THE THREE DOORS
+//      IT WAS NEVER BUILT AGAINST
+//
+// Everything above defends one direction: a rate the contractor STATED must
+// not be shown to him as a rate we MEASURED. Four holes were found in the
+// 2026-09-11 audit, and this section is each of them stated as behaviour:
+//
+//   1. PUBLISHING. app/cost-database built the Cost Truth inputs from
+//      db.entries with NO provenance filter, and hooks/useCostBenchmark
+//      upserted every row into cost_benchmark_samples — which
+//      public.public_cost_index reads. A contractor who turned the Public
+//      Price Index on published his GUESSES into an index utils/costTruth
+//      describes as "real paid rates, not catalog averages" and this screen
+//      sells as "the data RSMeans charges thousands for". Every other
+//      firewall protects one tenant's screen; this one leaves the tenant.
+//   2. THE UNIT. costSeedCore canonicalises a seed's unit to SF/LF/EA/HR and
+//      pins that canon to takeoffPricing.normalizeUnit, but the book's own key
+//      and lookupRate were exact lowercase string matches, while
+//      constants/materials.ts spells the same unit "sq ft". So the seed and
+//      the closed job that should have corrected it landed in TWO ROWS, the
+//      screen showed one trade twice at two prices, and the empty state's
+//      promise — "every closed job corrects what you seeded" — was false for
+//      every catalog-unit trade.
+//   3. A SIGNED CONTRACT READ AS A COST. jobCount counts distinct projects
+//      among non-seed samples regardless of basis, so a book where NOTHING
+//      had been paid still said "MEASURED · 4 jobs".
+//   4. A STATED PRICE ON A MEASURED QUANTITY. Clocked hours are real; the
+//      $/hr is the one number the GC typed in settings, so every sample
+//      agrees with every other by construction — and the book called that
+//      ±0% spread and 'high' confidence.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── 1. PUBLISHING. Source-level, like §12, because the failure is structural:
+//      what the screen hands the hook, and what the hook agrees to send.
+const costDbSrc = src('app/cost-database.tsx');
+ok('the Cost Truth inputs are filtered to EARNED rates before they leave the screen',
+  /benchInputs[\s\S]{0,400}?provenance === 'earned'/.test(costDbSrc),
+  (/const benchInputs[\s\S]{0,300}/.exec(costDbSrc) ?? ['<not found>'])[0]);
+ok('…and to rates with at least one measured job behind them',
+  /benchInputs[\s\S]{0,400}?jobCount \?\? 0\) >= 1/.test(costDbSrc));
+const benchHook = src('hooks/useCostBenchmark.ts');
+ok('the hook re-checks it, so a new screen cannot leak by forgetting the filter',
+  /function isPublishableRate/.test(benchHook) &&
+  /provenance !== 'earned'\) return false/.test(benchHook));
+// …AND ITS SECOND HALF. This grep used to stop at the provenance line, so
+// replacing the jobCount test with `return true;` left the whole file green —
+// and per the unfiled-receipt case below, jobCount is the half that an
+// un-filed receipt defeats.
+ok('…including the "at least one measured job" half of the same check',
+  /isPublishableRate[\s\S]{0,400}?return \(e\.jobCount \?\? 0\) >= 1;/.test(benchHook),
+  (/function isPublishableRate[\s\S]{0,300}/.exec(benchHook) ?? ['<not found>'])[0]);
+ok('…and the upsert sends the FILTERED list, not every key it was handed',
+  /const rows = contributions\.map/.test(benchHook) &&
+  !/const rows = keys\.map/.test(benchHook));
+// …AND `contributions` IS ACTUALLY THE FILTER. The three greps above all
+// survived replacing `keys.filter(isPublishableRate)` with plain `keys`:
+// isPublishableRate still existed, `rows` still read `contributions`, and the
+// hook published every seeded rate it was handed. A guard that certifies a
+// defeated filter is worse than no guard, so the wiring itself is pinned.
+ok('…and `contributions` is the filtered list, not an alias for every key',
+  /const contributions = useMemo\(\(\) => keys\.filter\(isPublishableRate\), \[keys\]\);/.test(benchHook),
+  (/const contributions[^\n]*/.exec(benchHook) ?? ['<not found>'])[0]);
+ok('…while READING the benchmark is still allowed for every rate (that leaks nothing)',
+  /keys\.map\(async \(k\)/.test(benchHook));
+
+// ── 2. THE UNIT. Behavioural: one seed, one closed job, one row.
+const ALIAS_SEEDS = draftsToSeeds([{ trade: 'Framing', unit: 'SF', rate: 8, raw: '' }], { now: NOW, method: 'manual' });
+const catalogUnitEstimate = {
+  id: 'est-alias',
+  items: [{
+    materialId: 'm0', name: 'Wall framing', category: 'Framing', unit: 'sq ft',
+    quantity: 1000, unitPrice: 7, bulkPrice: 7, markup: 15, usesBulk: false,
+    lineTotal: 7 * 1.15 * 1000, supplier: '',
+  }],
+  globalMarkup: 15, baseTotal: 7000, markupTotal: 1050, grandTotal: 8050, createdAt: NOW,
+} as unknown as LinkedEstimate;
+const aliasProject = {
+  id: 'p-alias', name: 'Elm St', status: 'completed', closedAt: '2026-01-10',
+  linkedEstimate: catalogUnitEstimate,
+} as unknown as Project;
+const aliasCommitment = {
+  id: 'c-alias', projectId: 'p-alias', status: 'signed',
+  amount: 7500, changeAmount: 0, paidToDate: 7500, linkedEstimateItems: ['m0'],
+} as unknown as Commitment;
+const aliasBook = buildCostDatabase([aliasProject], [aliasCommitment], [], [], ALIAS_SEEDS);
+expect('an SF seed and a "sq ft" closed job land in ONE row, not two',
+  aliasBook.entries.filter(e => e.trade.toLowerCase() === 'framing').length, 1);
+expect('…and that row is mixed — the measurement met the claim',
+  lookupRate(aliasBook, 'Framing', 'SF')?.provenance, 'mixed');
+expect('…however the caller spells the unit',
+  lookupRate(aliasBook, 'Framing', 'sq ft')?.provenance, 'mixed');
+expect('…and "SQFT" resolves there too', lookupRate(aliasBook, 'Framing', 'SQFT')?.provenance, 'mixed');
+ok('the measured job dominates the stated rate on the merged row (1000 SF vs 1 vote)',
+  Math.abs((lookupRate(aliasBook, 'Framing', 'SF')?.personalRate ?? 0) - 7.5) < 0.01,
+  String(lookupRate(aliasBook, 'Framing', 'SF')?.personalRate));
+// A unit that means something DIFFERENT must still stay apart.
+expect('an EA rate never merges into an SF row',
+  lookupRate(buildCostDatabase(emptyProjects, emptyCommitments, [], [
+    { ...realSample, unit: 'EA', actualUnit: 99 },
+  ], []), 'Framing', 'SF'), null);
+
+// ── 3. SIGNED IS NOT MEASURED.
+const signedProjects = [1, 2, 3, 4].map(i => ({
+  id: `p-signed-${i}`, name: `Signed ${i}`, status: 'completed', closedAt: `2026-01-0${i}`,
+  linkedEstimate: catalogUnitEstimate,
+} as unknown as Project));
+const signedCommitments = signedProjects.map((p, i) => ({
+  id: `c-signed-${i}`, projectId: p.id, status: 'signed',
+  amount: 7500, changeAmount: 0, paidToDate: 0, linkedEstimateItems: ['m0'],
+} as unknown as Commitment));
+const signedBook = buildCostDatabase(signedProjects, signedCommitments);
+const signedEntry = lookupRate(signedBook, 'Framing', 'sq ft');
+expect('four signed subs are four real jobs', signedEntry?.jobCount, 4);
+expect('…but nothing has been paid, and the entry says so', signedEntry?.earnedBasis, 'contracted');
+expect('…so the chip reads SIGNED, not MEASURED',
+  rateProvenanceChipModel(signedEntry)?.label, 'SIGNED · 4 jobs');
+expect('…in a tone that is not the measured one',
+  rateProvenanceChipModel(signedEntry)?.tone, 'contracted');
+ok('…and the takeoff sentence says the same thing in its own words',
+  priceSourceLabel('yours', matchOwnRate({ description: 'Framing', unit: 'sq ft' }, signedBook.entries))
+    .includes('signed, not yet paid'),
+  priceSourceLabel('yours', matchOwnRate({ description: 'Framing', unit: 'sq ft' }, signedBook.entries)));
+// Pay one of them and the claim upgrades — the tone tracks the evidence.
+const paidBook = buildCostDatabase(signedProjects, signedCommitments.map((c, i) =>
+  (i === 0 ? { ...c, paidToDate: 7500 } as Commitment : c)));
+expect('one settled payment upgrades the basis to paid',
+  lookupRate(paidBook, 'Framing', 'sq ft')?.earnedBasis, 'paid');
+expect('…and only then may the chip say MEASURED',
+  rateProvenanceChipModel(lookupRate(paidBook, 'Framing', 'sq ft'))?.tone, 'measured');
+ok("tone 'measured' still requires provenance 'earned' — the original firewall, unbroken",
+  [SEEDED_ONLY, EARNED_ONLY, signedBook, paidBook]
+    .flatMap(db => db.entries)
+    .every(e => rateProvenanceChipModel(e)?.tone !== 'measured' || e.provenance === 'earned'));
+
+// …AND THE SHEET BEHIND THE CHIP, WHICH IS WHERE THE CLAIM IS ACTUALLY MADE.
+//
+// The first version of this fix stopped at the label. The drill-down sheet
+// branched on `model.provenance`, and 'contracted' IS provenance 'earned', so
+// the four-signed-subs book above rendered a chip reading "SIGNED · 4 jobs"
+// over a body reading "Measured on 4 closed jobs of your own. This is what
+// this scope actually cost you — not a catalog price and not a number anyone
+// typed in", with a Fact labelled "Measured average". The chip told the truth
+// and the thing you tap it to read did not — a worse failure than the original,
+// because the sheet is the detail a contractor opens when he doubts the chip.
+// Tone is the only classification that separates them, so the sheet must
+// branch on tone, and the contracted body must not contain the word.
+const chipSrc = src('components/estimate/RateProvenanceChip.tsx');
+ok('the drill-down sheet has a body of its own for a SIGNED rate',
+  /model\.tone === 'contracted' \?/.test(chipSrc),
+  (/\{model\.(tone|provenance)[\s\S]{0,120}/.exec(chipSrc) ?? ['<not found>'])[0]);
+// Strip the JSX comments before reading the copy: the branch's own comment
+// QUOTES the forbidden phrases in order to forbid them, and a guard that
+// cannot tell a rule from a violation of it is not a guard.
+const contractedBody = ((/model\.tone === 'contracted' \? \([\s\S]*?\n {12}\) :/.exec(chipSrc) ?? [''])[0])
+  .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+ok('…and it is a real body, not an empty branch', contractedBody.length > 400, `${contractedBody.length} chars`);
+// The test is the CLAIM, not the token. "…turns it into a measured rate" names
+// what would upgrade this rate and is the opposite of claiming it already is
+// one; "Measured on N closed jobs", "Measured average" and "actually cost you"
+// are the measured branch's assertions and may not appear here.
+for (const claim of ['Measured on', 'Measured average', 'actually cost you', 'cost you']) {
+  ok(`…and never makes the measured branch's claim ${JSON.stringify(claim)}`,
+    contractedBody.length > 400 && !contractedBody.includes(claim),
+    contractedBody.slice(0, 500));
+}
+ok('…and says instead that nothing has been paid against it',
+  /not yet what you\s*\n?\s*paid/.test(contractedBody) && /Nothing settled yet/.test(contractedBody));
+ok('…while the measured branch still DOES make that claim (so the test is not vacuous)',
+  /Measured on \{model\.jobCount\} closed job/.test(chipSrc) && /Measured average/.test(chipSrc));
+// The seeded branch must be reached by tone too, or a future basis added to
+// 'earned' falls through into the measured copy exactly as 'contracted' did.
+ok('the seeded body is gated on its tone as well, not on provenance alone',
+  /model\.tone === 'stated' && model\.provenance === 'seeded' \?/.test(chipSrc));
+
+// ── 4. A STATED PRICE IS NOT A MEASURED SPREAD.
+const laborBook = buildCostDatabase(emptyProjects, emptyCommitments, [], [1, 2, 3, 4, 5, 6].map(i => ({
+  projectId: `lp${i}`, projectName: `Job ${i}`, trade: 'Labor — Framing', unit: 'hour',
+  quantity: 24, bidUnit: 0, actualUnit: 65, basis: 'actual' as const,
+  closedAt: `2026-01-0${i}`, source: 'labor_rate' as const,
+})), []);
+const laborEntry = laborBook.entries[0];
+expect('six shifts at one typed rate compute a spread of exactly 0', laborEntry.variability, 0);
+expect('…which is arithmetic, not observation, and the entry says so',
+  laborEntry.spreadMeaningful, false);
+ok('…so it can never buy "high" confidence (it used to)', laborEntry.confidence !== 'high',
+  laborEntry.confidence);
+expect('a single closed job also has no meaningful spread',
+  lookupRate(buildCostDatabase(emptyProjects, emptyCommitments, [], [realSample], []), 'Framing', 'SF')?.spreadMeaningful,
+  false);
+ok('two genuinely different measured jobs DO have one',
+  lookupRate(buildCostDatabase(emptyProjects, emptyCommitments, [], [
+    realSample, { ...realSample, projectId: 'p2', actualUnit: 18, closedAt: '2026-02-01' },
+  ], []), 'Framing', 'SF')?.spreadMeaningful === true);
+ok('the cost-database card only prints ± when the spread is meaningful',
+  /e\.spreadMeaningful && e\.variability > 0 \?/.test(costDbSrc) &&
+  !/<Text style=\{styles\.rateSub\}>±\{Math\.round\(e\.variability \* 100\)\}%<\/Text>\s*<\/View>/.test(costDbSrc));
+
+// …ON ALL FOUR SURFACES THAT BUILD A BAND FROM THE SAME NUMBER, not two of
+// them. utils/takeoffEstimate collapsed a single-sample entry to a low/high
+// range of "$X–$X" (a claim of precision nobody measured) and turned two typed
+// seeds at $4 and $6 into a real-looking ±20%, while the card and
+// takeoffPricing had already learned not to. Two surfaces disagreeing about
+// whether a spread is real is the same asymmetry the flag was added to end.
+// (components/estimate/RateProvenanceChip is source-pinned below; it needs a
+// mounted book entry to test behaviourally.)
+{
+  const single = buildCostDatabase(emptyProjects, emptyCommitments, [], [realSample], []);
+  const onePriced = priceTakeoff(single, 'Framing', 'SF' as never, 100);
+  expect('takeoffEstimate prints NO range for a single sample (it printed $X–$X)',
+    [onePriced.low, onePriced.high, onePriced.variability], [null, null, null]);
+  ok('…while it still prices the line', (onePriced.amount ?? 0) > 0, String(onePriced.amount));
+  const seedBand = buildCostDatabase(emptyProjects, emptyCommitments, [], [], draftsToSeeds([
+    { trade: 'Tile', unit: 'SF', rate: 4, raw: '' },
+    { trade: 'Tile', unit: 'SF', rate: 6, raw: '' },
+  ], { now: NOW, method: 'manual' }));
+  const seedPriced = priceTakeoff(seedBand, 'Tile', 'SF' as never, 100);
+  ok('…and none for two STATED rates that differ (a ±20% band out of typed numbers)',
+    seedPriced.low === null && seedPriced.high === null,
+    `variability=${lookupRate(seedBand, 'Tile', 'SF')?.variability} low=${seedPriced.low} high=${seedPriced.high}`);
+  const twoReal = buildCostDatabase(emptyProjects, emptyCommitments, [], [
+    realSample, { ...realSample, projectId: 'p2', actualUnit: 18, closedAt: '2026-02-01' },
+  ], []);
+  const realPriced = priceTakeoff(twoReal, 'Framing', 'SF' as never, 100);
+  ok('…but two genuinely different measured jobs DO get a range (the test is not just "never")',
+    realPriced.low !== null && realPriced.high !== null && realPriced.low < realPriced.high,
+    `${realPriced.low}–${realPriced.high}`);
+}
+ok('the estimate-row chip reads the same flag as the other three surfaces',
+  /entry\.spreadMeaningful \?\? \(entry\.variability > 0\)/.test(chipSrc),
+  (/const (hasSpread|spread) =[\s\S]{0,160}/.exec(chipSrc) ?? ['<not found>'])[0]);
+// …AND THE TAKEOFF SENTENCE, ON THE FIXTURE THAT CAN ACTUALLY SEE IT. Every
+// stated-price fixture above prices at ONE typed rate, so variability is
+// exactly 0 and the surviving `&& variability > 0` term hides whether
+// spreadMeaningful is consulted at all: forcing takeoffPricing's hasSpread to
+// `true` left this file green. The distinguishing case is a GC who RAISED his
+// loaded labor rate mid-year — two jobs at $65/hr and $85/hr, both prices he
+// typed, variability 13.3% that measures his own settings screen and nothing
+// about the work.
+{
+  const raisedRate = buildCostDatabase(emptyProjects, emptyCommitments, [], [1, 2].map(i => ({
+    projectId: `pr${i}`, projectName: `Job ${i}`, trade: 'Framing', unit: 'SF',
+    quantity: 100, bidUnit: 0, actualUnit: i === 1 ? 65 : 85, basis: 'actual' as const,
+    closedAt: `2026-0${i}-01`, source: 'labor_rate' as const,
+  })), []);
+  const raisedEntry = lookupRate(raisedRate, 'Framing', 'SF')!;
+  ok('two DIFFERENT typed rates do produce a non-zero variability…', raisedEntry.variability > 0.1,
+    String(raisedEntry.variability));
+  expect('…which is still not an observation', raisedEntry.spreadMeaningful, false);
+  const sentence = priceSourceLabel('yours', matchOwnRate({ description: 'Framing', unit: 'SF' }, raisedRate.entries));
+  ok('…so the takeoff sentence prints no ± band for it', !sentence.includes('±'), sentence);
+  ok('…and neither does takeoffEstimate',
+    priceTakeoff(raisedRate, 'Framing', 'SF' as never, 100).low === null);
+  // Same shape, genuinely measured: the band must come back, or the rule is
+  // just "never print a band".
+  const measuredSpread = buildCostDatabase(emptyProjects, emptyCommitments, [], [1, 2].map(i => ({
+    projectId: `pm${i}`, projectName: `Job ${i}`, trade: 'Framing', unit: 'SF',
+    quantity: 100, bidUnit: 0, actualUnit: i === 1 ? 65 : 85, basis: 'actual' as const,
+    closedAt: `2026-0${i}-01`,
+  })), []);
+  ok('…while two genuinely measured jobs at the same two numbers DO print one',
+    priceSourceLabel('yours', matchOwnRate({ description: 'Framing', unit: 'SF' }, measuredSpread.entries)).includes('±'),
+    priceSourceLabel('yours', matchOwnRate({ description: 'Framing', unit: 'SF' }, measuredSpread.entries)));
+}
+ok('…and the KPI no longer calls a receipt project a closed job',
+  /with cost data/.test(costDbSrc) && !/\{db\.jobsAnalyzed\} closed job/.test(costDbSrc));
+// …AND THE "READ, BUT NOT PRICED" CARD, WHICH COUNTED SAMPLES AS JOBS. A
+// package buyout split across two estimate lines of ONE closed job produces
+// two samples; the card printed "2 jobs seen" for them, on the screen whose
+// entire subject is that these counts are honest. Its ± fallback had the
+// mirror-image bug: it printed jobCount as "N sample(s)".
+ok('the awaiting card counts DISTINCT PROJECTS, not samples',
+  /new Set\(e\.samples\.map\(s => s\.projectId\)\.filter\(Boolean\)\)\.size/.test(costDbSrc) &&
+  !/\{e\.samples\.length\} job/.test(costDbSrc),
+  (/const jobsSeen[\s\S]{0,120}/.exec(costDbSrc) ?? ['<not found>'])[0]);
+ok('…and nothing on this screen labels a job count "samples"',
+  !/\$\{e\.jobCount\} sample/.test(costDbSrc) && !/\{e\.jobCount\} sample/.test(costDbSrc));
+// The fixture behind it, so the numbers above are not hypothetical: one closed
+// job, one $13,200 package commitment attributed to two Framing lines.
+{
+  const pkgEstimate = {
+    id: 'est-pkg',
+    items: [
+      { materialId: 'pa', name: 'Framing A', category: 'Framing', unit: 'SF', quantity: 1_000, unitPrice: 5, bulkPrice: 5, markup: 15, usesBulk: false, lineTotal: 5 * 1.15 * 1_000, supplier: '' },
+      { materialId: 'pb', name: 'Framing B', category: 'Framing', unit: 'SF', quantity: 500, unitPrice: 12, bulkPrice: 12, markup: 15, usesBulk: false, lineTotal: 12 * 1.15 * 500, supplier: '' },
+    ],
+    globalMarkup: 15, baseTotal: 11_000, markupTotal: 1_650, grandTotal: 12_650, createdAt: NOW,
+  } as unknown as LinkedEstimate;
+  const pkgBook = buildCostDatabase(
+    [{ id: 'p-pkg', name: 'Pkg', status: 'completed', closedAt: '2026-03-01', linkedEstimate: pkgEstimate } as unknown as Project],
+    [{ id: 'c-pkg', projectId: 'p-pkg', status: 'signed', amount: 13_200, changeAmount: 0, paidToDate: 13_200, linkedEstimateItems: ['pa', 'pb'] } as unknown as Commitment],
+  );
+  const awaitingRow = (pkgBook.entriesAwaitingEvidence ?? [])[0];
+  ok('a package buyout leaves an awaiting row to render', !!awaitingRow);
+  expect('…built from two samples', awaitingRow?.samples.length, 2);
+  expect('…that are ONE job (the card said "2 jobs seen")',
+    new Set((awaitingRow?.samples ?? []).map(s => s.projectId).filter(Boolean)).size, 1);
+}
+
+// ── AND THE COUNT ITSELF. A receipt filed against no job is not a job.
+//
+// The headline `jobsAnalyzed` was taught this first and the PER-ENTRY jobCount
+// was not, which left the defect fully alive one level down: jobCount is what
+// the MEASURED chip prints, what the blend weight uses, what the AI prompt
+// cites, and — the one that cannot be taken back — what the cross-contractor
+// publish gate reads. A single receipt snapped in the truck and never filed
+// against a job produced jobCount 1, "MEASURED · 1 job", and a rate eligible
+// for the public index. So every one of those four is asserted here, not just
+// the headline.
+const orphanReceipt = {
+  id: 'r-orphan', projectId: '', vendor: 'Supply Co', receiptDate: '2026-01-05',
+  createdAt: NOW, status: 'reviewed',
+  lines: [{ id: 'l1', description: '2x4', category: 'Framing', quantity: 100, unit: 'ea', unitPrice: 6.2, lineTotal: 620 }],
+} as never;
+const orphanBook = buildCostDatabase(emptyProjects, emptyCommitments, [orphanReceipt]);
+expect('an unassigned receipt does not become a job in the headline',
+  orphanBook.jobsAnalyzed, 0);
+ok('…but its price is still learned', orphanBook.entries.length > 0);
+const orphanEntry = orphanBook.entries[0];
+expect('…and it is not a job in the ENTRY count either (it was 1)', orphanEntry.jobCount, 0);
+expect('…so the chip says nothing at all rather than "MEASURED · 1 job"',
+  rateProvenanceChipModel(orphanEntry), null);
+// The publish gate, mirrored. hooks/useCostBenchmark.isPublishableRate cannot
+// be imported here (it pulls in React and the Supabase client), so the
+// predicate is restated — and the two source-level greps above pin the real
+// one to this exact shape, both halves of it, so the mirror cannot drift.
+const wouldPublish = (e: { personalRate: number; provenance?: string; jobCount?: number }) =>
+  e.personalRate > 0 && e.provenance === 'earned' && (e.jobCount ?? 0) >= 1;
+ok('…and it is refused by the cross-contractor publish gate (it passed it)',
+  !wouldPublish(orphanEntry),
+  `provenance=${orphanEntry.provenance} jobCount=${orphanEntry.jobCount} rate=${orphanEntry.personalRate}`);
+ok('…while a receipt that IS filed against a job still publishes (the gate is not just "no")',
+  wouldPublish(buildCostDatabase(emptyProjects, emptyCommitments, [
+    { ...(orphanReceipt as unknown as Record<string, unknown>), projectId: 'p-real' } as never,
+  ]).entries[0]));
+
+// ── AND lastSeen IS A MEASUREMENT DATE, NOT A TYPING DATE.
+// The seed carries an `asOf` — a date the CONTRACTOR typed on his rate sheet.
+// It is not a date we measured anything, so it must never be reported as the
+// last time this trade was seen; sorted[0] used to hand it straight over.
+const freshSeed = draftsToSeeds(
+  [{ trade: 'Framing', unit: 'SF', rate: 12.5, raw: '', asOf: '2026-09-01' }],
+  { now: '2026-09-01T00:00:00.000Z', method: 'manual' },
+);
+ok('the seed fixture really does carry a newer stamp than the measured job',
+  (seedsToCostSamples(freshSeed)[0]?.closedAt ?? '') > '2022-03-01',
+  seedsToCostSamples(freshSeed)[0]?.closedAt);
+const staleMeasured = lookupRate(
+  buildCostDatabase(emptyProjects, emptyCommitments, [], [{ ...realSample, closedAt: '2022-03-01' }], freshSeed),
+  'Framing', 'SF',
+);
+ok('a seed stamped this month does not become "last measured this month"',
+  (staleMeasured?.lastSeen ?? '').startsWith('2022'), staleMeasured?.lastSeen);
+expect('a seeded-only entry reports no measurement date at all',
+  lookupRate(SEEDED_ONLY, 'Framing', 'SF')?.lastSeen, '');
+
+// ── AND THE MODEL IS TOLD IN JOBS, NEVER IN SAMPLES.
+const aiSrc = src('utils/aiService.ts');
+ok('the change-order prompt counts EVIDENCE in measured jobs, not raw samples',
+  /measured job/.test(aiSrc) && !/\$\{e\.sampleCount\} samples/.test(aiSrc));
+ok('…and a MIXED rate is named as part-stated, not cited as history alone',
+  /provenance === 'mixed'/.test(aiSrc) && /STARTED FROM A RATE THE GC SET HIMSELF/.test(aiSrc));
+ok('…so a mixed entry pushes the "rates you set yourself" grounding chip too',
+  /const anySeeded = relatedEntries\.some\(e => e\.provenance !== 'earned'\)/.test(aiSrc));
+// …AND THE OTHER HALF OF THAT SAME CHIP. `anyEarned` was narrowed to
+// `provenance === 'earned'` at the same time, so a set of only MIXED entries
+// — a rate the GC seeded PLUS the closed jobs that corrected it — pushed the
+// seed chip ALONE and never "your cost history", although those entries do
+// have measured jobs behind them. F12 asked for the seed chip ALONGSIDE the
+// history chip, not instead of it. jobCount is the honest test: it is >= 1
+// exactly when a real job teaches the rate, and 0 for the one 'earned' case
+// that has nothing measured (an unfiled receipt, projectId '').
+ok('…and a mixed entry ALSO pushes the "your cost history" chip (it pushed only the seed one)',
+  /const anyEarned = relatedEntries\.some\(e => \(e\.jobCount \?\? 0\) >= 1\)/.test(aiSrc),
+  (/const anyEarned[^\n]*/.exec(aiSrc) ?? ['<not found>'])[0]);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §16. THE TWO UNIT TABLES MUST AGREE — NOT JUST FOR SQUARE FEET
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// §15.2 pins the SF case behaviourally, and SF happened to be the one unit both
+// alias tables already spelled the same way. costSeedCore's table is the rich
+// one ('linft', 'square', 'sqyd', 'each', 'pcs'…) and takeoffPricing's carried a
+// handful of tokens — a difference that did not matter while normalizeUnit only
+// decided whether a takeoff line could borrow a rate, and mattered enormously
+// the moment utils/costDatabase started keying the BOOK on it. Measured on the
+// pre-fix tree: a Trim seed in LF plus one closed Trim job on a 'lin ft' catalog
+// line (constants/materials.ts spells it that way) produced `trim|linft`
+// (earned, 1 job, $4.50) AND `trim|lf` (seeded, $5.00) — the same trade twice at
+// two prices, lookupRate returning the earned row or the seeded one depending on
+// how the caller spelled the unit, and the empty state's promise that "every
+// closed job corrects what you seeded" false for every catalog unit that is not
+// square feet. The behavioural case below is the LF one; the parity assertion
+// above it is the general rule, so the next unit to drift fails here first.
+
+console.log('\n16. the unit canon, beyond square feet:');
+
+{
+  // PARITY. For every token either table knows, both must land on the same
+  // canonical unit. canonicalSeedUnit returns the DISPLAY label ('LF'), so the
+  // comparison is normalizeUnit(canon) vs normalizeUnit(raw).
+  const tokens = [
+    'SF', 'sq ft', 'sqft', 'square feet', 'ft2',
+    'LF', 'lin ft', 'lnft', 'lft', 'linear foot', 'lineal feet',
+    'EA', 'each', 'pcs', 'piece', 'item', 'qty',
+    'HR', 'hour', 'hours', 'man hour',
+    'CY', 'cu yd', 'cubic yard', 'yd3', 'CF', 'cu ft',
+    'SY', 'sq yd', 'square yard', 'SQ', 'square', 'squares',
+    'TON', 'tons', 'GAL', 'gallon', 'BF', 'board foot',
+    'LS', 'lump sum', 'lot', 'DAY', 'days', 'WK', 'week', 'MO', 'month',
+  ];
+  const drift = tokens
+    .map(tok => ({ tok, canon: canonicalSeedUnit(tok) }))
+    .filter(x => x.canon != null && normalizeUnit(x.canon!) !== normalizeUnit(x.tok))
+    .map(x => `${x.tok} → seed '${x.canon}' (${normalizeUnit(x.canon!)}) vs takeoff '${normalizeUnit(x.tok)}'`);
+  expect('every unit a contractor might type canonicalises the same way in both tables', drift, []);
+
+  // And every unit spelling the material catalog actually ships, because those
+  // are the strings that reach a real estimate line.
+  const catalogUnits = [...new Set(
+    [...src('constants/materials.ts').matchAll(/unit:\s*'([^']+)'/g)].map(m => m[1]),
+  )];
+  ok('the catalog ships enough unit spellings for this to mean something',
+    catalogUnits.length >= 10, `${catalogUnits.length}: ${catalogUnits.join(', ')}`);
+  const catalogDrift = catalogUnits
+    .map(u => ({ u, canon: canonicalSeedUnit(u) }))
+    .filter(x => x.canon != null && normalizeUnit(x.canon!) !== normalizeUnit(x.u))
+    .map(x => `${x.u} → '${x.canon}' vs '${normalizeUnit(x.u)}'`);
+  expect('every catalog unit spelling resolves to the seed canon', catalogDrift, []);
+}
+
+{
+  // BEHAVIOUR. One trade, one row — with the LF spelling that used to split it.
+  const trimSeed = draftsToSeeds(
+    [{ trade: 'Trim', unit: 'LF', rate: 5, raw: '' }],
+    { now: NOW, method: 'manual' },
+  );
+  const trimEstimate = {
+    id: 'est-trim',
+    items: [{
+      materialId: 'tr', name: 'Base trim', category: 'Trim', unit: 'lin ft',
+      quantity: 400, unitPrice: 4, bulkPrice: 4, markup: 15, usesBulk: false,
+      lineTotal: 4 * 1.15 * 400, supplier: 'Acme',
+    }],
+    globalMarkup: 15, baseTotal: 1_600, markupTotal: 240, grandTotal: 1_840,
+    createdAt: NOW,
+  } as unknown as LinkedEstimate;
+  const trimProject = {
+    id: 'p-trim', name: 'Trim Job', status: 'completed', closedAt: '2026-02-01',
+    linkedEstimate: trimEstimate,
+  } as unknown as Project;
+  const trimCommitments = [{
+    id: 'c-trim', projectId: 'p-trim', status: 'signed',
+    amount: 1_800, changeAmount: 0, paidToDate: 1_800, linkedEstimateItems: ['tr'],
+  }] as unknown as Commitment[];
+
+  const trimBook = buildCostDatabase([trimProject], trimCommitments, [], [], trimSeed);
+  const trimRows = trimBook.entries.filter(e => e.trade.toLowerCase() === 'trim');
+  expect('an LF seed and a "lin ft" closed job land in ONE row (they were two)',
+    trimRows.length, 1);
+  expect('…and measurement is what that row reports', trimRows[0]?.provenance, 'mixed');
+  expect('…with the closed job counted exactly once', trimRows[0]?.jobCount, 1);
+  expect('…and every spelling of the unit resolves to it',
+    [
+      lookupRate(trimBook, 'Trim', 'LF')?.key,
+      lookupRate(trimBook, 'Trim', 'lin ft')?.key,
+      lookupRate(trimBook, 'Trim', 'lnft')?.key,
+    ],
+    ['trim|lf', 'trim|lf', 'trim|lf']);
+  ok('…and the measured $4.50 dominates the stated $5.00 (400 LF vs 1 vote)',
+    Math.abs((trimRows[0]?.personalRate ?? 0) - 4.5) < 0.01, String(trimRows[0]?.personalRate));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §17. THE PINS THE LAST PASS DID NOT LEAVE BEHIND
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Every block below was written after a mutation test proved the existing
+// guards were GREEN while the thing they describe was broken. That is the
+// worst failure mode a guard file has — it certifies a fix it never exercises
+// — so each one names the exact edit that used to slip through.
+
+console.log('\n17. the pins the last pass did not leave behind:');
+
+{
+  // ── 17a. A SEED IS NOT A SAMPLE FOR THE ± BAND ────────────────────────────
+  // `spreadMeaningful` states the rule "fewer than two clean priced samples ⇒
+  // a dispersion statistic is undefined, not zero". The count ran over `learn`,
+  // which deliberately KEEPS seeds (they are the prior), and `allStatedPrice`
+  // used `.every`, so the product's primary cold-start shape — one typed rate
+  // plus one closed job — scored 2 priced samples with allStatedPrice false and
+  // published a band. Measured before the fix: ±5% off jobCount 1.
+  const trimSeed17 = draftsToSeeds(
+    [{ trade: 'Trim', unit: 'LF', rate: 9, raw: '' }],
+    { now: NOW, method: 'manual' },
+  );
+  const trimEst17 = {
+    id: 'e17', items: [{
+      materialId: 'tr', name: 'Base trim', category: 'Trim', unit: 'LF',
+      quantity: 400, unitPrice: 4.5, bulkPrice: 4.5, markup: 15, usesBulk: false,
+      lineTotal: 4.5 * 1.15 * 400, supplier: 'Acme',
+    }],
+    globalMarkup: 15, baseTotal: 1_800, markupTotal: 270, grandTotal: 2_070, createdAt: NOW,
+  } as unknown as LinkedEstimate;
+  const trimProj17 = {
+    id: 'p-trim17', name: 'Trim Job', status: 'completed', closedAt: '2026-02-01',
+    linkedEstimate: trimEst17,
+  } as unknown as Project;
+  const trimCom17 = [{
+    id: 'c-trim17', projectId: 'p-trim17', status: 'signed',
+    amount: 1_800, changeAmount: 0, paidToDate: 1_800, linkedEstimateItems: ['tr'],
+  }] as unknown as Commitment[];
+
+  const seedPlusJob = lookupRate(buildCostDatabase([trimProj17], trimCom17, [], [], trimSeed17), 'Trim', 'LF')!;
+  ok('the seed+one-job fixture really is the mixed cold-start shape',
+    seedPlusJob.provenance === 'mixed' && seedPlusJob.jobCount === 1,
+    `${seedPlusJob.provenance} / ${seedPlusJob.jobCount} job(s)`);
+  ok('…and it genuinely has a non-zero variability to print, so this is not vacuous',
+    seedPlusJob.variability > 0, String(seedPlusJob.variability));
+  expect('one typed seed + ONE closed job is not a measured spread (it printed ±5%)',
+    seedPlusJob.spreadMeaningful, false);
+  // …and the seed must not buy the 'high' confidence label either.
+  ok('…so the entry cannot reach "high" confidence on that arithmetic',
+    seedPlusJob.confidence !== 'high', seedPlusJob.confidence);
+  // TWO real jobs at different rates DO produce a measured spread — otherwise
+  // the assertion above is satisfied by a flag that is always false.
+  const trimProj17b = {
+    ...(trimProj17 as unknown as Record<string, unknown>),
+    id: 'p-trim17b', closedAt: '2026-03-01',
+  } as unknown as Project;
+  const trimCom17b = [
+    trimCom17[0],
+    { id: 'c-trim17b', projectId: 'p-trim17b', status: 'signed', amount: 2_400, changeAmount: 0, paidToDate: 2_400, linkedEstimateItems: ['tr'] },
+  ] as unknown as Commitment[];
+  const twoJobs = lookupRate(
+    buildCostDatabase([trimProj17, trimProj17b], trimCom17b, [], [], trimSeed17),
+    'Trim', 'LF',
+  )!;
+  ok('…while TWO measured jobs at different rates do publish a band',
+    twoJobs.spreadMeaningful === true && twoJobs.variability > 0,
+    `${twoJobs.spreadMeaningful} / ${twoJobs.variability}`);
+}
+
+{
+  // ── 17b. A LABOR SAMPLE WITH NO PROJECT IS NOT A JOB ──────────────────────
+  // The receipt half of this (`if (receipt.projectId) jobs.add(...)`) is pinned
+  // in §15. The labor half was not: reverting `if (s.projectId)` to the
+  // unconditional `jobs.add(s.projectId)` left cost-seed, estimate-cost-basis
+  // and labor-samples all green while a crew sample carrying projectId ''
+  // (buildLaborSamples emits one for any time entry not filed against a job)
+  // put the empty string into the Set and the screen read "1 closed job".
+  const orphanLabor = [{
+    projectId: '', projectName: 'Unassigned', trade: 'Labor — Framing', unit: 'hour',
+    quantity: 8, bidUnit: 0, actualUnit: 65, basis: 'actual' as const,
+    closedAt: '2026-02-01', source: 'labor_rate' as const,
+  }];
+  const orphanLaborBook = buildCostDatabase([], [], [], orphanLabor, []);
+  expect('an unfiled crew shift does not become "1 job with cost data"',
+    orphanLaborBook.jobsAnalyzed, 0);
+  ok('…while its hourly rate is still learned (the sample is not thrown away)',
+    (lookupRate(orphanLaborBook, 'Labor — Framing', 'hour')?.personalRate ?? 0) === 65);
+  expect('…and a shift that IS filed against a job still counts as one',
+    buildCostDatabase([], [], [], [{ ...orphanLabor[0], projectId: 'p-real' }], []).jobsAnalyzed, 1);
+}
+
+{
+  // ── 17c. THE TAKEOFF SENTENCE HONOURS spreadMeaningful ────────────────────
+  // priceSourceLabel reads `match.spreadMeaningful ?? (match.variability > 0)`.
+  // Reverting it to the bare `match.variability > 0` left cost-seed and
+  // takeoff-pricing green — nothing exercised a match whose variability is
+  // non-zero while the spread behind it is arithmetic rather than observation.
+  // Two clocked shifts, one with overtime, are exactly that: the hours differ,
+  // the rate is the single number the GC typed in settings.
+  const otLabor = [
+    { projectId: 'p-ot', projectName: 'OT', trade: 'Labor — Framing', unit: 'hour', quantity: 8, bidUnit: 0, actualUnit: 65, basis: 'actual' as const, closedAt: '2026-02-01', source: 'labor_rate' as const },
+    { projectId: 'p-ot', projectName: 'OT', trade: 'Labor — Framing', unit: 'hour', quantity: 12, bidUnit: 0, actualUnit: 78, basis: 'actual' as const, closedAt: '2026-02-02', source: 'labor_rate' as const },
+  ];
+  const otBook = buildCostDatabase([], [], [], otLabor, []);
+  const otEntry = lookupRate(otBook, 'Labor — Framing', 'hour')!;
+  ok('the overtime fixture really does carry a non-zero variability',
+    otEntry.variability > 0, String(otEntry.variability));
+  expect('…which is arithmetic, not observation', otEntry.spreadMeaningful, false);
+  const otMatch = matchOwnRate({ description: 'Labor Framing', unit: 'hour' }, otBook.entries);
+  ok('matchOwnRate carries the flag through to the takeoff layer',
+    otMatch != null && otMatch.spreadMeaningful === false, JSON.stringify(otMatch));
+  ok('…and the match really does carry a printable variability',
+    (otMatch?.variability ?? 0) > 0, String(otMatch?.variability));
+  const otLabel = priceSourceLabel('yours', otMatch);
+  ok('the takeoff price sentence prints NO ± band for a stated-rate spread (it printed ±9%)',
+    !/±/.test(otLabel), otLabel);
+  // …and a genuinely measured spread still prints one.
+  const spreadBook = buildCostDatabase([], [], [], [1, 2, 3].map(i => ({
+    projectId: `sp${i}`, projectName: `J${i}`, trade: 'Drywall', unit: 'SF',
+    quantity: 1_000, bidUnit: 2, actualUnit: 2 + i * 0.5, basis: 'actual' as const,
+    closedAt: `2026-01-0${i}`,
+  })), []);
+  const spreadMatch = matchOwnRate({ description: 'Drywall', unit: 'SF' }, spreadBook.entries);
+  ok('…and the control fixture matched at all', spreadMatch != null && spreadMatch.spreadMeaningful === true,
+    JSON.stringify(spreadMatch));
+  const spreadLabel = priceSourceLabel('yours', spreadMatch);
+  ok('…while a real measured spread still prints its band', /±/.test(spreadLabel), spreadLabel);
+}
+
+{
+  // ── 17d. THE "NO UNIT" SENTINEL IS ITS OWN BUCKET ─────────────────────────
+  // costDatabase keys the book through takeoffPricing.normalizeUnit, whose
+  // alias table maps the token 'unit' → 'ea'. This module's own sentinel for
+  // "the line carried no unit" IS the literal string 'unit' (`(l.unit ||
+  // 'unit')`), so routing it through the aliases pooled every unit-less line
+  // into the trade's EACH row: a $40,000 lump line and a $100/each line merged
+  // into one row at $3,727.27, and lookupRate(trade,'each') returned it. §16
+  // pins catalog SPELLINGS; it cannot see the sentinel, because the sentinel is
+  // not a unit anybody types.
+  const mixedUnitEst = {
+    id: 'e17d', items: [
+      { materialId: 'u0', name: 'Posts', category: 'Framing', unit: 'each', quantity: 10, unitPrice: 100, bulkPrice: 100, markup: 15, usesBulk: false, lineTotal: 100 * 1.15 * 10, supplier: '' },
+      { materialId: 'u1', name: 'Misc', category: 'Framing', unit: '', quantity: 1, unitPrice: 40_000, bulkPrice: 40_000, markup: 15, usesBulk: false, lineTotal: 40_000 * 1.15, supplier: '' },
+    ],
+    globalMarkup: 15, baseTotal: 41_000, markupTotal: 6_150, grandTotal: 47_150, createdAt: NOW,
+  } as unknown as LinkedEstimate;
+  const mixedUnitBook = buildCostDatabase(
+    [{ id: 'p-u17', name: 'U', status: 'completed', closedAt: '2026-02-01', linkedEstimate: mixedUnitEst } as unknown as Project],
+    [
+      { id: 'cu0', projectId: 'p-u17', status: 'signed', amount: 1_000, changeAmount: 0, paidToDate: 1_000, linkedEstimateItems: ['u0'] },
+      { id: 'cu1', projectId: 'p-u17', status: 'signed', amount: 40_000, changeAmount: 0, paidToDate: 40_000, linkedEstimateItems: ['u1'] },
+    ] as unknown as Commitment[],
+  );
+  expect('a unit-less line keeps its own row instead of merging into EACH',
+    mixedUnitBook.entries.map(e => e.key).sort(), ['framing|ea', 'framing|unit']);
+  expect('…so the EACH rate is the EACH rate, not a $3,727 blend',
+    lookupRate(mixedUnitBook, 'Framing', 'each')?.personalRate, 100);
+  expect('…and an empty-unit lookup resolves to the unit-less row, never to EACH',
+    [
+      lookupRate(mixedUnitBook, 'Framing', '')?.key,
+      lookupRate(mixedUnitBook, 'Framing', 'unit')?.key,
+    ],
+    ['framing|unit', 'framing|unit']);
+}
+
+{
+  // ── 17e. THE COST-BOOK CENSUS PINS ALL FIVE ARGUMENTS, NOT JUST `seeds` ───
+  // §12 regex-matches `buildCostDatabase(..., seeds)`, so it pins the LAST
+  // argument and nothing else. Reverting app/estimate-confidence.tsx from
+  // `(projects, commitments, receipts, laborSamples, seeds)` back to
+  // `(..., [], seeds)` left cost-seed and estimate-cost-basis green — and that
+  // is the whole bug class the self-perform work was about: a book handed only
+  // some of the cost streams answers differently from a full one, so the SAME
+  // trade+unit key carries a different story on every screen. The engine now
+  // refuses to DERIVE an installed rate out of a partial book (see the BOTH
+  // COST STREAMS note in utils/costDatabase) — but that is not the same as
+  // silence: when a receipt shares the scope's unit (board, sheathing,
+  // flooring, siding, roofing) a receipts-only book still answers that key
+  // with the MATERIAL price, 48% under the full book, measured in
+  // validate-estimate-cost-basis §6i. So the four names below are still a
+  // WRONG PRICE on those trades, not a missing one, and the end state is one
+  // useCostBook() assembly (audit 2026-09-11, F10/C8; repair 2026-09-12, F1).
+  //
+  // The census is deliberately one-directional. A consumer recorded as FULL
+  // may never regress to partial; the PARTIAL set may shrink but never grow.
+  // So threading labor into one of the remaining five passes this guard, and
+  // dropping it out of any of the eleven fails it.
+  type Argv = { receipts: boolean; labor: boolean };
+  /** Every file that builds its own book. Same 16 as §12's consumer list. */
+  const CENSUS_FILES = COST_BOOK_CONSUMERS.map(c => c.file).filter(f => /buildCostDatabase\(/.test(src(f)));
+  /** Known-partial as of 2026-09-11 (audit F10/C8). This list may only shrink.
+   *  app/takeoff-estimate.tsx left it on 2026-09-11: it was the only consumer
+   *  passing NEITHER stream, and it sat three lines under a comment promising
+   *  "a price here and a price there can never disagree". */
+  const KNOWN_PARTIAL: Record<string, Argv> = {
+    'app/area-takeoff.tsx': { receipts: true, labor: false },
+    'app/cost-xray.tsx': { receipts: true, labor: false },
+    'app/daily-report.tsx': { receipts: true, labor: false },
+    'components/BidConfidenceBadge.tsx': { receipts: true, labor: false },
+  };
+  /** Positional args of the first buildCostDatabase( call in a file. */
+  const argsOf = (rel: string): string[] | null => {
+    const body = src(rel);
+    const at = body.indexOf('buildCostDatabase(');
+    if (at < 0) return null;
+    let depth = 0, i = at + 'buildCostDatabase'.length;
+    const start = i + 1;
+    for (; i < body.length; i++) {
+      if (body[i] === '(') depth++;
+      else if (body[i] === ')') { depth--; if (depth === 0) break; }
+    }
+    const inner = body.slice(start, i);
+    const out: string[] = [];
+    let d = 0, cur = '';
+    for (const ch of inner) {
+      if ('([{'.includes(ch)) d++;
+      else if (')]}'.includes(ch)) d--;
+      if (ch === ',' && d === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  };
+  const isEmptyArg = (a: string | undefined) => a === undefined || /^\[\s*\]$/.test(a);
+  const shapeOf = (f: string): Argv | null => {
+    const a = argsOf(f);
+    return a ? { receipts: !isEmptyArg(a[2]), labor: !isEmptyArg(a[3]) } : null;
+  };
+
+  ok('the census covers every §12 consumer that builds its own book',
+    CENSUS_FILES.length >= 15, `${CENSUS_FILES.length} of ${COST_BOOK_CONSUMERS.length}`);
+  const missing = CENSUS_FILES.filter(f => shapeOf(f) === null);
+  expect('…and every one of them still has a parseable call', missing, []);
+
+  // (1) No consumer outside the known-partial list may drop a cost stream.
+  const regressed = CENSUS_FILES
+    .filter(f => !(f in KNOWN_PARTIAL))
+    .map(f => ({ f, s: shapeOf(f)! }))
+    .filter(x => !x.s.receipts || !x.s.labor)
+    .map(x => `${x.f}: receipts ${x.s.receipts}, labor ${x.s.labor}`);
+  expect('every cost-book consumer outside the known-partial list builds a COMPLETE book', regressed, []);
+
+  // (2) The known-partial list may only shrink. A file that has been fixed is
+  //     reported by name so the list gets tightened rather than quietly drifting.
+  const stillPartial = Object.keys(KNOWN_PARTIAL).filter(f => {
+    const g = shapeOf(f);
+    return g != null && (!g.receipts || !g.labor);
+  });
+  const nowFixed = Object.keys(KNOWN_PARTIAL).filter(f => !stillPartial.includes(f));
+  ok(`the known-partial list is still accurate (${stillPartial.length} partial, ${nowFixed.length} since fixed)`,
+    nowFixed.length === 0,
+    nowFixed.length ? `these now build a full book — delete them from KNOWN_PARTIAL: ${nowFixed.join(', ')}` : '');
+
+  // (3) And the two screens whose fix this wave actually made are named, so a
+  //     revert of either is a failure with its own sentence rather than a
+  //     line in a list.
+  for (const f of ['app/cost-database.tsx', 'app/estimate-confidence.tsx', 'app/takeoff-estimate.tsx']) {
+    const g = shapeOf(f)!;
+    ok(`${f} passes BOTH receipts and clocked labor (a labor-less book prices no self-perform trade)`,
+      g.receipts && g.labor, JSON.stringify(argsOf(f)?.slice(2, 4)));
+  }
+  // …and the hooks that fill those two arguments are actually mounted in the
+  // screen. The positional shape above reads NAMES: `receipts` and
+  // `laborSamples` could be `[]` consts and the census would score the book
+  // complete. This is the same hollow-green the section's own note (4) makes
+  // about the engine side.
+  //
+  // A PRESENCE GREP FOR THE HOOK IS NOT ENOUGH — it was the assertion this
+  // report presented as the thing that closes hollow-green, and it does not.
+  // `const laborSamples = useLaborCostSamples();` → `useLaborCostSamples();
+  // const laborSamples: never[] = [];` keeps the grep green while the hook's
+  // value is thrown on the floor and the book is labor-less again (verifier
+  // mutation N2, 2026-09-12: 482/0 GREEN). So the BINDING is resolved: the
+  // identifier sitting in the positional argument must be the one the hook's
+  // return was destructured or assigned into, and it must be declared exactly
+  // once, so a second `const <name> = []` cannot shadow it.
+  /** The identifier a hook's return is bound to, destructured or direct. */
+  const hookBinding = (body: string, hook: string): string | null => {
+    const m = new RegExp(
+      `const\\s+(?:\\{\\s*([A-Za-z_$][\\w$]*)[^}]*\\}|([A-Za-z_$][\\w$]*))\\s*(?::[^=]+?)?=\\s*${hook}\\(\\)`,
+    ).exec(body);
+    return m ? (m[1] ?? m[2] ?? null) : null;
+  };
+  /** How many times that identifier is `const`-declared in the file. */
+  const declCount = (body: string, id: string): number =>
+    (body.match(new RegExp(`const\\s+(?:\\{[^}]*\\b${id}\\b[^}]*\\}|${id}\\b)`, 'g')) ?? []).length;
+  for (const f of ['app/cost-database.tsx', 'app/estimate-confidence.tsx', 'app/takeoff-estimate.tsx']) {
+    const body = src(f);
+    const a = argsOf(f)!;
+    const streams: [string, string, number][] = [
+      ['useMaterialReceipts', 'receipts', 2],
+      ['useLaborCostSamples', 'clocked labor', 3],
+    ];
+    for (const [hook, label, pos] of streams) {
+      const bound = hookBinding(body, hook);
+      const arg = (a[pos] ?? '').trim();
+      const used = bound != null && new RegExp(`\\b${bound}\\b`).test(arg);
+      const once = bound != null && declCount(body, bound) === 1;
+      ok(`${f} passes the value ${hook}() returned as its ${label} argument`,
+        bound != null && used && once,
+        bound == null
+          ? `${hook}() result is not bound to anything — its value is discarded`
+          : `bound to \`${bound}\`, argument ${pos} is \`${arg}\`, ${declCount(body, bound)} declaration(s) of that name`);
+    }
+  }
+
+  // (4) AND THE CALLER SIDE, because for a pure engine the argument name is
+  //     not the evidence. utils/bidLevelingEngine now reads
+  //     `buildCostDatabase(projects, commitments, receipts, laborSamples, seeds)`,
+  //     which the shape check above scores as a complete book — but
+  //     `laborSamples` there is an OPTIONAL parameter that defaults to [], and
+  //     it is the screen that decides whether anything arrives in it. Pinning
+  //     only the engine would be a hollow green of exactly the kind this
+  //     section exists to delete. §12's CALLER_HANDOFFS pins the same bags for
+  //     `seeds`; this pins the labor stream in them.
+  const LABOR_HANDOFFS: { caller: string; pattern: RegExp; why: string }[] = [
+    { caller: 'app/judges.tsx', pattern: /receipts, laborSamples, seeds \}/, why: 'ctx bag → runJudges' },
+    { caller: 'app/copilot.tsx', pattern: /receipts, laborSamples, seeds \}/, why: 'ctx bag → estimateGrounding' },
+    { caller: 'app/submit-bid-response.tsx', pattern: /receipts, laborSamples, seeds \}/, why: 'groundingContext → instantBid' },
+    { caller: 'components/InstantBidProposalModal.tsx', pattern: /receipts, laborSamples, seeds \}/, why: 'groundingContext → instantBid' },
+    { caller: 'components/AIChangeOrderImpact.tsx', pattern: /analyzeChangeOrderImpact\([^;]*receipts, laborSamples, seeds\)/, why: '→ aiService' },
+    { caller: 'app/contract.tsx', pattern: /buildEstimateSnapshotPayload\([^;]*receipts, laborSamples, seeds\)/, why: '→ estimateSnapshot' },
+  ];
+  for (const h of LABOR_HANDOFFS) {
+    ok(`${h.caller} hands the clocked-labor stream onward too (${h.why})`, h.pattern.test(src(h.caller)));
+  }
+  // The two that do NOT, recorded by name rather than left implicit. Same
+  // one-directional rule: fixing one fails this line, which is the prompt to
+  // delete it; a THIRD caller losing the stream fails the block above.
+  const LEVEL_CALLERS_WITHOUT_LABOR = ['app/bid-leveling.tsx', 'app/buyout-package.tsx'];
+  const levelFixed = LEVEL_CALLERS_WITHOUT_LABOR.filter(f => /levelBids\(\{[^}]*laborSamples/.test(src(f)));
+  ok(`the two levelBids callers still omit laborSamples (${LEVEL_CALLERS_WITHOUT_LABOR.length} known, ${levelFixed.length} since fixed)`,
+    levelFixed.length === 0,
+    levelFixed.length ? `these now pass it — delete them from LEVEL_CALLERS_WITHOUT_LABOR: ${levelFixed.join(', ')}` : '');
+  ok('…and neither has quietly stopped passing the streams it DOES have',
+    LEVEL_CALLERS_WITHOUT_LABOR.every(f => /levelBids\(\{ pkg, bids, projects, commitments, receipts,[^}]*seeds \}\)/.test(src(f))));
+
+  // (5) AND THE PROMPT bidLevelingEngine BUILDS FROM THAT BOOK. Both honesty
+  //     fixes went into utils/aiService and not into this one: it printed
+  //     `${e.sampleCount} samples` (seed + rejected outliers + the samples the
+  //     derivation disqualified) and `${db.jobsAnalyzed} closed job(s)
+  //     analyzed` (jobsAnalyzed counts receipt and labor projects, which are
+  //     usually still running) — into the identical kind of LLM fact block,
+  //     as proof.
+  const ble = src('utils/bidLevelingEngine.ts');
+  ok('the bid-leveling prompt counts evidence in measured JOBS, not raw samples',
+    /measured job/.test(ble) && !/\$\{e\.sampleCount\} samples/.test(ble));
+  ok('…and says "jobs with cost data", never "closed jobs analyzed"',
+    /\} with cost data/.test(ble) && !/closed job\$\{[^}]*\} analyzed/.test(ble),
+    (/THE GC'S OWN RATES[^`]*/.exec(ble) ?? ['<header not found>'])[0]);
+  // EVERY SURFACE, NOT FOUR OF THEM. The 'contracted' distinction (a book
+  // where every sample is a signed sub nobody has paid) landed on
+  // app/cost-database, utils/takeoffPricing, utils/aiService and
+  // utils/bidLevelingEngine and was left off the surfaces that make the same
+  // claim to a MODEL: the copilot estimate interview, the instant bid, and the
+  // central groundingFactLine the estimate wizard and the full estimator both
+  // go through. Half-applying a two-branch honesty fix is the failure mode
+  // this campaign has hit repeatedly, so each surface is pinned BY NAME, and
+  // they all read one shared constant so the hedge cannot drift into four
+  // different sentences.
+  const gchip = src('utils/groundingChip.ts');
+  ok('the signed-but-unpaid hedge is defined once, and says what it means',
+    /export const CONTRACTED_NOTE = ', signed but not yet paid';/.test(gchip),
+    (/CONTRACTED_NOTE[^\n]*/.exec(gchip) ?? ['<not found>'])[0]);
+  for (const [file, label] of [
+    ['utils/bidLevelingEngine.ts', 'the bid-leveling prompt'],
+    ['utils/aiService.ts', 'the change-order prompt'],
+    ['utils/groundingChip.ts', 'the central grounding fact line'],
+    ['utils/copilot/estimate/estimateGrounding.ts', 'the copilot estimate interview'],
+    ['utils/instantBid.ts', 'the instant bid'],
+  ] as const) {
+    const f = src(file);
+    ok(`${label} names a signed-but-unpaid rate as such`,
+      /earnedBasis === 'contracted'/.test(f) && /CONTRACTED_NOTE/.test(f),
+      `${file}: expected \`earnedBasis === 'contracted' ? CONTRACTED_NOTE : ''\``);
+  }
+  // …and the two that print a JOB COUNT to a model must carry it INSIDE the
+  // same parenthetical, or the model reads "3 jobs" and the hedge separately.
+  ok('…and the fact line puts it next to the job count, not in another clause',
+    /\$\{plural\(jobs, 'job'\)\}\$\{basis\}\)/.test(gchip),
+    (/return `\$\{e\.trade\} runs[^`]*`/.exec(gchip) ?? ['<not found>'])[0]);
+  // ── 17f. THE SCREEN COPY THAT CARRIES THE HONESTY CLAIM ───────────────────
+  // Source-level, and deliberately so: these are rendered strings with no pure
+  // function behind them, and reverting each one left every behavioural guard
+  // in the repo green. (test:app-slop is not a substitute — it was RED at
+  // baseline for an unrelated reason in another file, so it proves nothing.)
+  const cdb = src('app/cost-database.tsx');
+  ok('the price-book screen still renders the "Read, but not priced" section',
+    /awaiting\.length > 0 \?/.test(cdb) && /Read, but not priced/.test(cdb),
+    'a trade whose only samples were disqualified must be SHOWN with its reason, not silently missing');
+  ok('…counting JOBS, not samples, on those cards',
+    /new Set\(e\.samples\.map\(s => s\.projectId\)\.filter\(Boolean\)\)\.size/.test(cdb));
+  ok('a settled payment is labelled "paid", never "actual"',
+    /case 'actual': return 'paid';/.test(cdb));
+  ok('…and a signed-but-unpaid sample is labelled "signed"',
+    /return 'signed';/.test(cdb));
+  ok('…and the footnote explains the paid/signed distinction to the contractor',
+    /A part-paid contract is never read as a finished cost\./.test(cdb));
+  const cal = src('app/estimate-calibration.tsx');
+  ok('the calibration empty state says FINISHED jobs only, and why',
+    /FINISHED jobs/.test(cal) && /A job still running only tells you how far through it you are/.test(cal));
+  ok('…and its steps end on the settlement rule the engine actually enforces',
+    /a deposit is not a cost/.test(cal));
+
+  // ── 17g. THE TAPE MEASURE'S ONLY ROUTE INTO THE DENOMINATOR (audit F6) ────
+  // scripts/validate-estimate-cost-basis §6k proves the two ENDS behaviourally:
+  // utils/fieldMeasuredQuantity decides correctly, and a book built over the
+  // measured quantity learns $2.31/SF where the drawing taught $2.50. Neither
+  // of those can see whether the middle is connected — and "read by nothing"
+  // is exactly the defect being closed, so the connection is the assertion.
+  //
+  // Each line below was checked by deleting the code it names and watching this
+  // block go red.
+  const fmMod = src('utils/fieldMeasuredQuantity.ts');
+  const fvBtn = src('components/TakeoffFieldVerifyButton.tsx');
+  const tko = src('app/takeoff.tsx');
+
+  // (1) THE BUTTON EXISTS AND IS DRIVEN BY THE MODULE, not by a second copy of
+  //     the tolerance. The 5% used to live inline here and governed a colour.
+  ok('the verify modal offers to adopt the measurement',
+    /onUseMeasured\?\.\(adopt\.measured\)/.test(fvBtn),
+    'the adopt button must call onUseMeasured with the number the module vouched for');
+  // The GATE is not grepped for, it is executed: §6k runs adoptOffer over a
+  // disagreeing verdict, an agreeing one and the no-writer case. All this line
+  // pins is that the component asks that function instead of re-deriving the
+  // rule inline — which is what it used to do, and what made the rule
+  // unrunnable.
+  ok('…gated on the module’s executable offer, not on a locally re-derived tolerance',
+    /const verdict = measurementVerdict\(currentQuantity, existing\)/.test(fvBtn)
+    && /const adopt = adoptOffer\(verdict, unit, !!onUseMeasured\)/.test(fvBtn)
+    && !/Math\.abs\(delta\) \/ Math\.max\(1, /.test(fvBtn),
+    (/const adopt[^\n]*/.exec(fvBtn) ?? ['<no adopt>'])[0]);
+  // The RENDERED Text, not just the identifier: `{adopt.label}` also appears as
+  // the button's accessibilityLabel, so grepping for the identifier alone stayed
+  // green while the visible label was replaced with a hardcoded string — the
+  // module's copy no longer reaching the screen at all.
+  ok('…and the label + consequence sentence come from the module §6k pins',
+    /<Text style=\{styles\.adoptBtnText\}>\{adopt\.label\}<\/Text>/.test(fvBtn)
+    && /<Text style=\{styles\.adoptNote\}>\{adopt\.consequence\}<\/Text>/.test(fvBtn),
+    'the visible label and the sentence under it must be the module\'s strings');
+
+  // (2) THE SCREEN BINDS IT TO THE QUANTITY SETTER. This is the whole join: the
+  //     row's onChangeQuantity is what the manual edit commits through, so
+  //     adopting lands in `overrides` — which app/takeoff-estimate prices, which
+  //     the saved estimate line carries, which utils/costDatabase divides by.
+  //     A second, private mechanism would be a fresh place for the number to go
+  //     missing, so it must be the SAME setter.
+  ok('app/takeoff.tsx binds the adopt tap to the row’s quantity setter',
+    /onUseMeasured=\{onChangeQuantity\}/.test(tko),
+    'without this prop the measured quantity is a photo caption again');
+  ok('…and that setter is the one a manual quantity edit already commits through',
+    /onChangeQuantity\(n\);/.test(tko) && /onChangeQuantity: \(v: number\) => void;/.test(tko),
+    'if adopting used its own writer, §6k would prove a path nothing takes');
+  ok('…and it is handed the OVERRIDE-AWARE quantity, so an adopted measurement stops asking',
+    /currentQuantity=\{quantity\}/.test(tko) && !/aiQuantity=/.test(tko),
+    'passing the raw AI read would re-offer a measurement the GC already applied');
+
+  // (3) AND THE ROWS STILL RESTING ON THE DRAWING ARE COUNTED OUT LOUD, so the
+  //     data cannot go quiet the way it did for the whole of its first life.
+  ok('the review screen counts the measurements that are not yet the quantity of record',
+    /pendingMeasuredRows\(\{/.test(tko) && /pendingMeasuredCount=\{pendingMeasured\.length\}/.test(tko));
+  ok('…and renders the sentence that says the estimate is still using the plan',
+    /pendingMeasuredNotice\(pendingMeasuredCount\)/.test(tko)
+    && /pendingMeasuredCount > 0 &&/.test(tko));
+  // Rejected rows are skipped by the SHARED resolver, which §17i executes for
+  // all seven sections. This line pins only that the screen delegates to it —
+  // the rule used to be inlined here as `if (rejected[rowKey]) return null;`,
+  // a body a mutation could collapse to `return null` with every guard green
+  // (verifier mutation H1, 2026-09-12).
+  ok('…skipping rejected rows, which price nothing and teach nothing',
+    /quantityOfRecord: \(rowKey\) => takeoffQuantityOfRecord\(\s*\{ overrides, rejected \}, rowKey, findRowMeta\(rowKey\)\?\.aiValue \?\? null,\s*\)/.test(tko),
+    'the pending-rows memo must call the shared resolver with the screen\'s own '
+    + 'overrides/rejected maps and the row\'s AI read — an inline copy is what '
+    + 'diverged from the pricer for three of the seven sections');
+  // AND THE MEASUREMENTS IT IS ASKED ABOUT. `latestMeasurementByRow(verifications)`
+  // is the single point where every row's verification prop comes from;
+  // substituting `[] as typeof verifications` there kills the entire adopt UI
+  // and left cost-seed 482/0 and estimate-cost-basis 168/0 green (verifier
+  // mutation H2). No pure-function guard can see a caller pass an empty array,
+  // so the expression is pinned verbatim, together with the state binding it
+  // must read and the three writers that fill it.
+  ok('…and the row verifications come from the loaded state, not from a literal',
+    /const verificationsByRow = useMemo\(\s*\(\) => latestMeasurementByRow\(verifications\),\s*\[verifications\],\s*\);/.test(tko)
+    && /const \[verifications, setVerifications\] = useState<TakeoffFieldVerification\[\]>\(\[\]\);/.test(tko)
+    && /setVerifications\(await loadFieldVerifications\(|setVerifications\(next\);/.test(tko)
+    && /pendingMeasuredRows\(\{\s*verifications,/.test(tko),
+    (/latestMeasurementByRow\([^)]*\)/.exec(tko) ?? ['<not found>'])[0]);
+
+  // (4) AND NOTHING APPLIES A MEASUREMENT BEHIND THE GC'S BACK. The capture
+  //     modal's own placeholder invites a partial number ("used 25 ft tape"),
+  //     and auto-adopting one into a row that aggregates an elevation would
+  //     divide a sub's contract by 25 instead of 480 and stamp it measured.
+  //     The module therefore exports no writer at all: it describes, and the
+  //     tap writes.
+  // Stated as what the module CANNOT reach rather than as a naming rule: the
+  // previous shape banned `export function adopt*(`, which is a rule about
+  // spelling — it had to special-case adoptMeasurementCopy, and it would have
+  // gone red on adoptOffer, a pure describer. A module with no imports at all
+  // and no reference to any store cannot write a quantity whatever its
+  // functions are called.
+  // Comments stripped first: this module explains AsyncStorage at length in its
+  // header, and an assertion about what the CODE can reach must not be
+  // satisfiable — or breakable — by prose.
+  const fmCode = fmMod.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok('utils/fieldMeasuredQuantity can write nothing — no imports, no store, no setter',
+    !/^\s*import\s/m.test(fmCode)
+    && !/overrides\[/.test(fmCode)
+    && !/AsyncStorage|setOverride|updateProject|saveTakeoff/.test(fmCode),
+    'a silent writer here is how a 19x rate gets published as "measured"');
+  // …AND IT CANNOT BE HANDED A PLACE TO PUT THINGS. The reachability rule above
+  // replaced a naming rule (`!/export function (apply|adopt)[A-Za-z]*\(/`), and
+  // that swap was a net coverage LOSS for the one hazard this section names:
+  // `export function adoptAll(rows, write: (k: string, n: number) => void)` —
+  // a bulk auto-adopt that needs no import and touches no store, because the
+  // caller hands it the setter — passed the reachability rule with 482/0 green
+  // (verifier mutations N3/N4, 2026-09-12). Both rules now stand.
+  //
+  // A SINK, NOT A SPELLING. `pendingMeasuredRows` legitimately takes a callback
+  // (`quantityOfRecord: (rowKey: string) => number | null`) — it ASKS a
+  // question and uses the answer. A `=> void` parameter asks nothing back; it
+  // is somewhere to put a number, which is the only shape a writer can have in
+  // an import-less module.
+  ok('…and cannot be HANDED one either — no exported function takes a `=> void` sink',
+    !/=>\s*void/.test(fmCode),
+    'a `write`/`onApply` callback parameter is a writer with the import removed');
+  // The retired naming rule, restored with its special cases stated rather than
+  // dropped. adoptOffer and adoptMeasurementCopy are pure describers — they
+  // return the label and the offer; the tap does the writing.
+  const PURE_DESCRIBERS = ['adoptOffer', 'adoptMeasurementCopy'];
+  const writerNames = [...fmCode.matchAll(/export function ((?:apply|adopt|write|commit|save|set|push|sync)[A-Za-z]*)\(/g)]
+    .map(m => m[1])
+    .filter(n => !PURE_DESCRIBERS.includes(n));
+  expect('…and exports nothing named like a writer beyond the two pure describers',
+    writerNames, []);
+  ok('…and the takeoff screen never sets an override from a measurement on its own',
+    !/setOverride\([^)]*measured/i.test(tko) && !/measuredQuantity/.test(tko),
+    'the only writer is the explicit tap in the verification modal');
+
+  // ── 17h. THE SILENCE THAT NOW HAS A SENTENCE (audit Issue 8, open half) ───
+  // scripts/validate-estimate-cost-basis §6l proves the engine refuses a
+  // payment with no contract sum behind it, proves the detector finds it, and
+  // pins the sentence verbatim. What neither can see is whether the price book
+  // RENDERS it — and rendering is the entire fix, since the engine's behaviour
+  // was already correct and already silent.
+  ok('the price book tells the contractor which payments taught it nothing',
+    /commitmentsMissingContractSum\(projects, commitments\)/.test(cdb)
+    && /missingContractSumNotice\(missingSums\)/.test(cdb)
+    && /missingSums\.length > 0 &&/.test(cdb),
+    'a refused payment must say why it was refused, or the refusal is invisible degradation');
+  ok('…and names the job and the vendor, so the GC knows which record to fix',
+    /\{r\.projectName\} · \{r\.vendorName \|\| r\.description \|\| 'commitment'\}/.test(cdb),
+    'a count with no rows is not actionable');
+
+  // ── 17i. THE ROW KEY, ROUND-TRIPPED (audit repair 2026-09-12, B1/H1/H2) ───
+  // THE DEFECT. app/takeoff.tsx wrote override and rejection keys as
+  // `walls|floor|doors|windows|finish|fixture|bulk` + ':' + id. app/takeoff-
+  // estimate.tsx's prompt builder read `walls|floor|doors|windows|finishes|
+  // fixtures|bulkMaterials`. Three of the seven did not match, and BOTH
+  // SPELLINGS LOOK CORRECT IN ISOLATION — which is exactly why no source grep
+  // in this file, or anywhere else, could see it. All 61 guards were green.
+  //
+  // What it cost: a GC who stood in the room, measured a drywall run, tapped
+  // "Use 2,600 SF as the quantity" and watched the "rows still priced off the
+  // plan" notice clear was then priced off the plan. And a finish, fixture or
+  // bulk row he explicitly REJECTED was still sent to the pricer and still
+  // priced, because `apply` drops a row only when the rejection key hits.
+  //
+  // So the key is executed, both directions, for every section — the write
+  // side's key function feeding the read side's resolver, which is the join
+  // the two screens now share. A rename of a section on one side alone makes
+  // this block red.
+  {
+    const SECTIONS = [...TAKEOFF_ROW_SECTIONS];
+    expect('the seven takeoff sections are the spellings already on disk',
+      SECTIONS,
+      ['walls', 'floor', 'doors', 'windows', 'finish', 'fixture', 'bulk']);
+
+    // A written override, read back through the pricer's resolver.
+    const overrides: Record<string, number> = {};
+    for (const sec of SECTIONS) overrides[takeoffRowKey(sec, 'r1')] = 2_600;
+    const rejected: Record<string, true> = {};
+    for (const sec of SECTIONS) rejected[takeoffRowKey(sec, 'r9')] = true;
+    const resolve = takeoffQuantityResolver({ overrides, rejected });
+
+    const adopted = SECTIONS.map(sec => `${sec}=${resolve(sec, 'r1', 2_400)}`);
+    expect('every adopted field measurement reaches the pricer, all seven sections',
+      adopted,
+      SECTIONS.map(sec => `${sec}=2600`));
+
+    const dropped = SECTIONS.map(sec => `${sec}=${resolve(sec, 'r9', 2_400)}`);
+    expect('…and every rejected row is dropped, all seven sections',
+      dropped,
+      SECTIONS.map(sec => `${sec}=null`));
+
+    // An untouched row still prices off the plan, and a row with nothing behind
+    // it prices nothing rather than pricing zero.
+    expect('an untouched row keeps the plan quantity', resolve('finish', 'r2', 480), 480);
+    expect('a row with no usable read prices nothing, not zero',
+      resolve('finish', 'r3', Number.NaN), null);
+
+    // AND THE TWO SCREENS STILL SPEAK THIS ONE VOCABULARY. The round-trip above
+    // proves the function; these two prove nobody has quietly gone back to a
+    // local helper with its own spellings, which is the only way the original
+    // defect could return.
+    const sectionsIn = (body: string, call: RegExp): string[] =>
+      [...new Set([...body.matchAll(call)].map(m => m[1]))].sort();
+    const wrote = sectionsIn(tko, /takeoffRowKey\('([a-zA-Z]+)'/g);
+    const read = sectionsIn(src('app/takeoff-estimate.tsx'), /apply\('([a-zA-Z]+)'/g);
+    expect('app/takeoff.tsx writes only the seven canonical sections', wrote, [...SECTIONS].sort());
+    expect('…and app/takeoff-estimate.tsx reads exactly the same seven', read, [...SECTIONS].sort());
+    ok('…through the shared resolver, not a second local copy of the rule',
+      /const apply = takeoffQuantityResolver\(t\);/.test(src('app/takeoff-estimate.tsx'))
+      && !/rejected\[`\$\{section\}:\$\{id\}`\]/.test(src('app/takeoff-estimate.tsx')),
+      'a local `apply` here is what diverged from the writer for three sections');
+  }
+}
+
+// THE SUMMARY AND THE EXIT CODE LIVE AT THE BOTTOM OF THE FILE, ALWAYS.
+// They used to sit between §16 and §17 — an append landed after them — so
+// every assertion below the line printed its ✗ and the script still exited 0.
+// A guard that cannot fail the build is not a guard; this file lost §17
+// entirely that way, and would lose §18 the same way. Anything appended goes
+// ABOVE this block.
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

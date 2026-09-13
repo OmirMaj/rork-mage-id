@@ -82,7 +82,7 @@ export default function AcceptInvite() {
             <Text style={[styles.title, { color: t.text }]}>You're in!</Text>
             <Text style={[styles.sub, { color: t.textSecondary }]}>You can now collaborate on this project.</Text>
             <TouchableOpacity
-              style={[styles.btn, { backgroundColor: t.accent }]}
+              style={[styles.btn, { backgroundColor: t.accentFill }]}
               onPress={() => (projectId ? router.replace({ pathname: '/project-detail', params: { id: projectId } }) : router.replace('/'))}
               accessibilityRole="button"
             >
@@ -93,7 +93,7 @@ export default function AcceptInvite() {
           <>
             <Text style={[styles.title, { color: t.text }]}>You've been invited to collaborate</Text>
             <Text style={[styles.sub, { color: t.textSecondary }]}>Sign in or create a free account to accept. Your invite stays valid — you can re-open this link after signing in.</Text>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: t.accent }]} onPress={() => router.push('/login')} accessibilityRole="button">
+            <TouchableOpacity style={[styles.btn, { backgroundColor: t.accentFill }]} onPress={() => router.push('/login')} accessibilityRole="button">
               <Text style={styles.btnText}>Sign in to accept</Text>
             </TouchableOpacity>
           </>

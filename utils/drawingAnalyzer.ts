@@ -73,7 +73,22 @@ export const MODEL_DISPLAY: Record<AnalyzerModel, { label: string; tagline: stri
 };
 
 interface AnalyzeOpts {
-  pageUrls: string[];
+  /**
+   * Storage PATHS inside the `plan-sheets` bucket — the PREFERRED input.
+   *
+   * DB-F11: handing a server a fetchable URL is the weaker design. It needs the
+   * object readable by URL, the signature can expire mid-analysis, and it keeps
+   * an SSRF-shaped surface open. The function runs with the SERVICE ROLE, so it
+   * can download the bytes itself and needs no URL at all.
+   */
+  pagePaths: string[];
+  /**
+   * DEPRECATED, one release only. An installed build keeps sending these until
+   * the OTA lands, so the function still accepts them; sending both here means
+   * the OTA is safe whichever order the function deploy and the OTA happen in.
+   * Delete this field (and the server's `pageUrls` arm) next release.
+   */
+  pageUrls?: string[];
   projectName?: string;
   projectType?: string;
   squareFootage?: number;
@@ -89,7 +104,7 @@ export interface AnalyzeResponse {
 }
 
 export async function analyzeDrawings(opts: AnalyzeOpts): Promise<AnalyzeResponse> {
-  if (!opts.pageUrls || opts.pageUrls.length === 0) {
+  if (!opts.pagePaths || opts.pagePaths.length === 0) {
     throw new Error('No drawing pages to analyze.');
   }
   const { data, error } = await invokeWithTimeout<{

@@ -23,6 +23,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useEstimateCalibration } from '@/hooks/useEstimateCalibration';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -84,19 +85,36 @@ function EstimateConfidenceInner() {
   // backedCost only counts medium/high-confidence lines, and a seeded-only
   // entry is always 'low' (jobCount 0). The number stays earned-only.
   const { seeds } = useCostSeeds();
+  // Self-perform labor. This screen used to build its book with `[]` here while
+  // app/cost-database passed the real samples, so the two screens answered the
+  // same question from different data: with crew hours missing, a trade the GC
+  // self-performs has no installed rate at all, and the lines he prices from his
+  // own crew read as "no history" on the one screen that grades his estimate.
+  // One book, one answer — the comment app/takeoff-estimate already makes and
+  // this screen could not keep.
+  const laborSamples = useLaborCostSamples();
   const { corrections } = useEstimateCalibration();
 
   const project = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
   const report = useMemo(() => {
     if (!project) return null;
-    const db = buildCostDatabase(projects, commitments, receipts, [], seeds);
+    const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
     return computeEstimateConfidence(project, db);
-  }, [project, projects, commitments, receipts, seeds]);
+  }, [project, projects, commitments, receipts, laborSamples, seeds]);
 
   // The payoff of the cost-learning moat: preview what applying the GC's saved
   // per-category corrections would do to THIS estimate. Only offered when a
   // correction actually matches a line here.
+  //
+  // IDEMPOTENCE. `corrections` does not change when the CTA is tapped, so this
+  // memo re-ran against the ALREADY-corrected estimate and the CTA came back
+  // with the same multiplier: three taps on a ×1.20 Tile correction took a
+  // $1,200 estimate to $2,073.60, each time behind a dialog that reads "lines
+  // will be re-priced from your job history" with plausible new numbers.
+  // applyCalibrationToEstimate now stamps the correction set it applied and
+  // returns changedCount 0 / alreadyApplied for a repeat, so the CTA below
+  // hides itself. A genuinely DIFFERENT correction still applies.
   const calibPreview = useMemo(() => {
     if (!project?.linkedEstimate || corrections.length === 0) return null;
     return applyCalibrationToEstimate(project.linkedEstimate, corrections);
@@ -168,6 +186,16 @@ function EstimateConfidenceInner() {
               </Text>
             </View>
           </View>
+
+          {calibPreview?.alreadyApplied && (
+            <View style={styles.disclose}>
+              <CheckCircle2 size={15} color={t.success} strokeWidth={1.9} />
+              <Text style={styles.discloseText}>
+                Your cost corrections are already applied to this estimate. Restore the previous
+                version from the estimate&rsquo;s history if you want them off.
+              </Text>
+            </View>
+          )}
 
           {calibPreview && calibPreview.changedCount > 0 && (
             <TouchableOpacity

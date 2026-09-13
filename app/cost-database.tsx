@@ -25,7 +25,10 @@ import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
-import { buildCostDatabase, type CostBookEntry } from '@/utils/costDatabase';
+import {
+  buildCostDatabase, commitmentsMissingContractSum, missingContractSumNotice,
+  type CostBookEntry, type CostSample,
+} from '@/utils/costDatabase';
 import { useCostBenchmark } from '@/hooks/useCostBenchmark';
 import CostTruthChip from '@/components/CostTruthChip';
 import { Type } from '@/constants/typography';
@@ -37,6 +40,58 @@ function formatRate(n: number): string {
   if (n >= 100) return `$${n.toFixed(0)}`;
   return `$${n.toFixed(2)}`;
 }
+
+/** "Mar 2024" for a measured-sample stamp; '' when there is nothing to date. */
+function measuredMonth(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+}
+
+/** What a sample rests on, in the contractor's words. 'actual' means a payment
+ *  that SETTLED the commitment — a deposit falls back to "signed". */
+function sampleBasisLabel(basis: CostSample['basis']): string {
+  switch (basis) {
+    case 'actual': return 'paid';
+    case 'seeded': return 'you set this';
+    case 'self_perform': return 'your crew + materials';
+    default: return 'signed';
+  }
+}
+
+/** Why a sample is shown but not averaged. Two very different reasons. */
+function excludedSampleLabel(reason: CostSample['excludedReason']): string {
+  switch (reason) {
+    case 'change_order': return 'change order · not a unit price';
+    case 'package_allocation': return 'package price · not a unit price';
+    case 'material_component': return 'material price · not the installed rate';
+    default: return 'one-off · not in rate';
+  }
+}
+
+function notRateEvidenceNote(samples: CostSample[]): string {
+  const co = samples.some(s => s.excludedReason === 'change_order');
+  const pkg = samples.some(s => s.excludedReason === 'package_allocation');
+  const parts: string[] = [];
+  if (co) {
+    parts.push('A change order added scope after the bid, so the extra dollars sit over the original quantity — that number is not what a unit costs, so it is shown but never averaged.');
+  }
+  if (pkg) {
+    parts.push('This sub was bought out as one package across several estimate lines. Splitting that price back across the lines just reproduces your own estimate, so it teaches no unit rate.');
+  }
+  return parts.join(' ');
+}
+
+/** The material-price exclusion gets its OWN sentence for the same reason the
+ *  two above do: these samples are neither weird jobs nor non-prices. They are
+ *  correct material prices — they just are not what this row measures, and the
+ *  row's own number is partly made of them. */
+const MATERIAL_COMPONENT_NOTE =
+  'This rate is what the scope costs INSTALLED — your crew\u2019s hours plus the materials. '
+  + 'The material prices are kept here for the record but never averaged into it: a board '
+  + 'price and an installed price are different numbers, and mixing them would drag your '
+  + 'rate below what the work actually costs you.';
 
 export default function CostDatabaseScreen() {
   const router = useRouter();
@@ -81,8 +136,22 @@ function CostDatabaseInner() {
 
   // Cost Truth: contribute my learned rates + read the cross-contractor
   // regional benchmark (aggregate-only, k-anonymized).
+  //
+  // ONLY MEASURED RATES ARE PUBLISHED. This used to map db.entries with no
+  // provenance filter, and useCostBenchmark upserts every row it is handed
+  // into cost_benchmark_samples — which public.public_cost_index reads. So a
+  // contractor who turned the Public Price Index on published the rates he
+  // TYPED as if they were paid rates, into an index utils/costTruth describes
+  // to every other contractor as "real paid rates, not catalog averages" and
+  // this screen sells as "the data RSMeans charges thousands for". The seed
+  // firewall is enforced everywhere a rate is DISPLAYED; this was the one path
+  // where a breach is irreversible, because it leaves the tenant. The hook
+  // re-checks the same rule (defence in depth), so a new screen cannot leak by
+  // forgetting this filter.
   const benchInputs = useMemo(
-    () => db.entries.map((e) => ({ trade: e.trade, unit: e.unit, personalRate: e.personalRate })),
+    () => db.entries
+      .filter((e) => e.provenance === 'earned' && (e.jobCount ?? 0) >= 1)
+      .map((e) => ({ trade: e.trade, unit: e.unit, personalRate: e.personalRate, provenance: e.provenance, jobCount: e.jobCount })),
     [db.entries],
   );
   const { statsFor, publicOptIn, setPublicOptIn } = useCostBenchmark(benchInputs);
@@ -99,6 +168,25 @@ function CostDatabaseInner() {
   const confColor = (c: CostBookEntry['confidence']) =>
     c === 'high' ? t.success : c === 'medium' ? t.accent : t.textMuted;
 
+  // Trades we READ off a closed job and deliberately refused to price (every
+  // sample behind them was a change-order-bearing commitment or a package
+  // price). They are not in `entries` so nothing can quote a $0.00 rate, but
+  // they must still be visible — a job that silently vanished from the book
+  // would be exactly the invisible degradation this screen exists to prevent.
+  const awaiting = db.entriesAwaitingEvidence ?? [];
+
+  // …and the hole the book CANNOT show as a row, because the line never became
+  // a sample: a finished job with money paid against a commitment that has no
+  // contract amount. The engine refuses that payment as rate evidence on
+  // purpose (taking it raw is the 10x deposit error from the other side), and
+  // until now refusing it was completely silent — the GC paid a sub, closed the
+  // job, and his prices learned nothing with no sentence saying why. Open half
+  // of the audit's Issue 8.
+  const missingSums = useMemo(
+    () => commitmentsMissingContractSum(projects, commitments),
+    [projects, commitments],
+  );
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -114,7 +202,7 @@ function CostDatabaseInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      {db.entries.length === 0 ? (
+      {db.entries.length === 0 && awaiting.length === 0 ? (
         <EmptyState
           icon={<MageCostDb size={36} color={t.accent} />}
           title="No price history yet"
@@ -157,8 +245,12 @@ function CostDatabaseInner() {
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Trades</Text>
               <Text style={styles.kpiValue}>{db.tradesTracked}</Text>
+              {/* "closed jobs" was a lie on this line: jobsAnalyzed counts any
+                  project with a snapped receipt or a clocked shift too, so a
+                  GC with six live jobs and no closeouts read "6 closed jobs".
+                  Say what is actually counted. */}
               <Text style={styles.kpiSub}>
-                {db.jobsAnalyzed} closed job{db.jobsAnalyzed === 1 ? '' : 's'}
+                {db.jobsAnalyzed} job{db.jobsAnalyzed === 1 ? '' : 's'} with cost data
                 {(db.tradesSeededOnly ?? 0) > 0 ? ` · ${db.tradesSeededOnly} you set` : ''}
               </Text>
             </View>
@@ -210,6 +302,21 @@ function CostDatabaseInner() {
             </View>
           )}
 
+          {missingSums.length > 0 && (
+            <View style={styles.gapCard} testID="cost-db-missing-contract-sum">
+              <Text style={styles.gapTitle}>Payments that taught nothing</Text>
+              <Text style={styles.gapBody}>{missingContractSumNotice(missingSums)}</Text>
+              {missingSums.slice(0, 4).map(r => (
+                <Text key={r.commitmentId} style={styles.gapRow} numberOfLines={1}>
+                  {r.projectName} · {r.vendorName || r.description || 'commitment'} · {formatRate(r.paidToDate)} paid
+                </Text>
+              ))}
+              {missingSums.length > 4 && (
+                <Text style={styles.gapRow}>+{missingSums.length - 4} more</Text>
+              )}
+            </View>
+          )}
+
           <Text style={styles.sectionTitle}>By trade · unit</Text>
           {db.entries.map(e => {
             const isOpen = expanded.has(e.key);
@@ -238,8 +345,21 @@ function CostDatabaseInner() {
                         ? null
                         : <Text style={{ color: cc }}> · {e.confidence}</Text>}
                       {e.provenance === 'mixed' ? ' · started from your set rate' : ''}
+                      {/* Signed subs with nothing paid out yet. Real evidence,
+                          but not a measured cost — the header used to be the
+                          one place that did not say so, while every sample row
+                          below already read "signed". */}
+                      {e.provenance !== 'seeded' && e.earnedBasis === 'contracted'
+                        ? ' · signed, not yet paid'
+                        : ''}
                       {e.excludedSampleCount && e.excludedSampleCount > 0
                         ? ` · ${e.excludedSampleCount} one-off set aside`
+                        : ''}
+                      {e.notRateEvidenceCount && e.notRateEvidenceCount > 0
+                        ? ` · ${e.notRateEvidenceCount} not a unit price`
+                        : ''}
+                      {e.materialComponentCount && e.materialComponentCount > 0
+                        ? ` · ${e.materialComponentCount} material price${e.materialComponentCount === 1 ? '' : 's'} set aside`
                         : ''}
                     </Text>
                     {e.provenance === 'seeded' ? (
@@ -255,7 +375,23 @@ function CostDatabaseInner() {
                   </View>
                   <View style={styles.rateBox}>
                     <Text style={styles.rateVal}>{formatRate(e.suggestedRate)}</Text>
-                    <Text style={styles.rateSub}>±{Math.round(e.variability * 100)}%</Text>
+                    {/* The ± band is a claim about repeatability. From one
+                        sample it is undefined, not zero — this printed
+                        "$2.00 ±0%" after a single job — and from six clocked
+                        shifts at one typed rate it is arithmetic, not
+                        observation. utils/takeoffPricing already suppressed
+                        it; this card did not. spreadMeaningful decides. */}
+                    {e.spreadMeaningful && e.variability > 0 ? (
+                      <Text style={styles.rateSub}>±{Math.round(e.variability * 100)}%</Text>
+                    ) : (
+                      // jobCount is JOBS. Printing it as "N samples" on the one
+                      // screen whose whole subject is that the counts are
+                      // honest was the mirror image of the bug below: an entry
+                      // with one job and five receipt lines read "1 sample".
+                      <Text style={styles.rateSub}>
+                        {e.jobCount > 0 ? `${e.jobCount} job${e.jobCount === 1 ? '' : 's'}` : 'no spread yet'}
+                      </Text>
+                    )}
                   </View>
                   {isOpen ? <ChevronDown size={18} color={t.textMuted} strokeWidth={1.75} /> : <ChevronRight size={18} color={t.textMuted} strokeWidth={1.75} />}
                 </TouchableOpacity>
@@ -283,6 +419,17 @@ function CostDatabaseInner() {
                       <Text style={styles.detailLabel}>Suggested next bid</Text>
                       <Text style={[styles.detailVal, { color: t.accent }]}>{formatRate(e.suggestedRate)}/{e.unit}</Text>
                     </View>
+                    {/* WHEN. lastSeen was computed and read by nothing, so a
+                        returning contractor could not tell that the rate
+                        pricing his next bid was measured four years ago.
+                        Seeds are excluded from it — a date you typed on a rate
+                        sheet is not a date we measured anything. */}
+                    {measuredMonth(e.lastSeen) ? (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Last measured</Text>
+                        <Text style={styles.detailVal}>{measuredMonth(e.lastSeen)}</Text>
+                      </View>
+                    ) : null}
                     <Text style={styles.samplesTitle}>Samples</Text>
                     {e.samples.map((s, i) => (
                       <View key={`${s.projectId}-${i}`} style={styles.sampleRow}>
@@ -291,8 +438,8 @@ function CostDatabaseInner() {
                           {formatRate(s.actualUnit)}
                           <Text style={styles.sampleBasis}>
                             {s.excludedFromRate
-                              ? ' one-off · not in rate'
-                              : ` ${s.basis === 'actual' ? 'actual' : s.basis === 'seeded' ? 'you set this' : 'signed'}`}
+                              ? ` ${excludedSampleLabel(s.excludedReason)}`
+                              : ` ${sampleBasisLabel(s.basis)}`}
                           </Text>
                         </Text>
                       </View>
@@ -300,9 +447,22 @@ function CostDatabaseInner() {
                     {e.excludedSampleCount && e.excludedSampleCount > 0 ? (
                       <Text style={styles.excludedNote}>
                         A job that came in far off your usual is kept here for the record but left
-                        out of the learned rate, so one bad week (weather, a change order, a typo)
-                        can&rsquo;t skew your next bid.
+                        out of the learned rate, so one bad week (weather, a typo) can&rsquo;t skew
+                        your next bid.
                       </Text>
+                    ) : null}
+                    {/* A DIFFERENT sentence for a different exclusion. These
+                        samples are not weird jobs — they are numbers that
+                        cannot be a unit price at all, and explaining them with
+                        the one-off-blowout line would be a lie about the
+                        contractor's work. */}
+                    {e.notRateEvidenceCount && e.notRateEvidenceCount > 0 ? (
+                      <Text style={styles.excludedNote}>
+                        {notRateEvidenceNote(e.samples)}
+                      </Text>
+                    ) : null}
+                    {e.materialComponentCount && e.materialComponentCount > 0 ? (
+                      <Text style={styles.excludedNote}>{MATERIAL_COMPONENT_NOTE}</Text>
                     ) : null}
                   </View>
                 )}
@@ -310,10 +470,34 @@ function CostDatabaseInner() {
             );
           })}
 
+          {awaiting.length > 0 ? (
+            <View style={styles.awaitingSection}>
+              <Text style={styles.sectionTitle}>Read, but not priced</Text>
+              {awaiting.map(e => {
+                // SAMPLES ARE NOT JOBS. A package buyout split across two
+                // estimate lines of ONE closed job produces two samples, and
+                // this card printed "2 jobs seen" for them — on the screen
+                // whose entire subject is that the counts here are honest.
+                const jobsSeen = new Set(e.samples.map(s => s.projectId).filter(Boolean)).size;
+                return (
+                <View key={e.key} style={styles.awaitingCard}>
+                  <Text style={styles.cardTrade} numberOfLines={1}>{e.trade}</Text>
+                  <Text style={styles.cardMeta}>
+                    per {e.unit} · {jobsSeen} job{jobsSeen === 1 ? '' : 's'} seen · no unit rate yet
+                  </Text>
+                  <Text style={styles.excludedNote}>{notRateEvidenceNote(e.samples)}</Text>
+                </View>
+                );
+              })}
+            </View>
+          ) : null}
+
           <Text style={styles.note}>
             Suggested rate blends your most recent bid assumption toward your measured actuals
-            as you close more jobs (more samples = more weight on reality). &ldquo;Actual&rdquo; samples are
-            paid-to-date; &ldquo;signed&rdquo; samples fall back to the committed sub/PO amount.
+            as you close more jobs (more samples = more weight on reality). &ldquo;Paid&rdquo; samples are
+            payments that settled the sub contract; &ldquo;signed&rdquo; samples are the committed sub/PO
+            amount on a closed job, which is what that scope cost you even before the cheque clears.
+            A part-paid contract is never read as a finished cost.
           </Text>
         </ScrollView>
       )}
@@ -357,6 +541,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   kpiSub: { fontSize: Type.caption1.fontSize, color: t.textMuted },
 
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 10 },
+
+  gapCard: {
+    backgroundColor: t.warningSoft, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.warningLabel + '33',
+    padding: 14, marginBottom: 16, gap: 6,
+  },
+  gapTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.warningLabel },
+  gapBody: { fontSize: Type.caption1.fontSize, lineHeight: 17, color: t.text },
+  gapRow: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600' as const },
 
   card: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.card,
@@ -403,6 +596,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   excludedNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 6, fontStyle: 'italic' as const },
 
   note: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 8 },
+
+  awaitingSection: { marginTop: 18 },
+  awaitingCard: {
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line, marginBottom: 8, padding: 12, gap: 2,
+  },
 
   accuracySection: {
     marginBottom: 20,

@@ -280,10 +280,10 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
           <Text style={styles.subtitle}>Cached · tap refresh to re-score</Text>
         </View>
         <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Refresh">
-          <RefreshCw size={14} color={"#9AA3AD"} strokeWidth={1.75} />
+          <RefreshCw size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Settings">
-          <Settings size={14} color={"#9AA3AD"} strokeWidth={1.75} />
+          <Settings size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -299,7 +299,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <View style={[styles.barFill, { width: `${Math.min(100, score.matchScore)}%`, backgroundColor: color }]} />
           </View>
           <View style={styles.winRow}>
-            <Target size={12} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Target size={12} color={themeColors.textMuted} strokeWidth={1.75} />
             {winPct !== null ? (
               <Text style={styles.winText}>
                 <Text style={styles.winPct}>{winPct}%</Text> est. win probability
@@ -312,7 +312,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
           </View>
           {histFacts.decidedCount > 0 && histFacts.decidedCount < 3 && (
             <View style={styles.histRow}>
-              <BookOpen size={10} color={"#9AA3AD"} strokeWidth={1.75} />
+              <BookOpen size={10} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.histText}>{histFacts.decidedCount} decided bid{histFacts.decidedCount === 1 ? '' : 's'} tracked so far</Text>
             </View>
           )}

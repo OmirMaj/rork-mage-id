@@ -6,7 +6,7 @@
 //   3. How much worse will it get?
 //   4. What's actually signed vs. still open?
 //
-// Data flow: pulls commitments/invoices/changeOrders from ProjectContext,
+// Data flow: pulls commitments/changeOrders/receipts/time entries from ProjectContext,
 // feeds them into `computeJobCost` (utils/jobCostEngine.ts), and renders
 // the result. No network calls here — everything's in-memory from existing
 // state. Adding a commitment from this screen triggers a recompute on the
@@ -23,7 +23,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, Minus, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
-  CheckCircle2, Clock, Calculator, Activity, Receipt, RefreshCw,
+  CheckCircle2, Clock, Calculator, Activity, Receipt, RefreshCw, FileDown,
 } from 'lucide-react-native';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import * as Haptics from 'expo-haptics';
@@ -44,12 +44,17 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import {
-  computeJobCost, formatMoney, formatMoneyFull, describeVariance,
+  computeJobCost, formatMoney, formatMoneyFull, describeVariance, EQUIPMENT_HOURS_PER_DAY,
   type JobCostLine, type JobCostSummary, type VarianceDisplay,
 } from '@/utils/jobCostEngine';
-import type { Commitment, CommitmentType } from '@/types';
+import type {
+  Commitment, CommitmentType, ChangeOrder, MaterialReceipt, TimeEntry,
+  Equipment, Permit, Subcontractor,
+} from '@/types';
+import { calendarDayStart } from '@/utils/calendarDate';
 import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import { sharePurchaseOrderPDF } from '@/utils/purchaseOrderPdf';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -88,8 +93,15 @@ function JobCostingInner() {
   const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const {
-    getProject, commitments, invoices, changeOrders,
+    getProject, commitments, changeOrders,
     addCommitment, updateCommitment, deleteCommitment, subcontractors, projects,
+    // MONEY-EQP-1 / MONEY-PMT-1: machine time and permit fees are ACTUAL cost.
+    // Both were captured and posted nowhere, so a self-perform excavation ran
+    // a $450/day machine for six days and read $0 on this screen.
+    equipment, permits,
+    // Deliveries give a purchase order its "required by" date — the only real
+    // one the app holds. settings carries the branding the PO prints under.
+    deliveries, settings,
   } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
@@ -121,13 +133,39 @@ function JobCostingInner() {
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
-    return computeJobCost({ project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier });
-  }, [project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier]);
+    // No `invoices`: client payments are revenue, not job cost (MONEY-DEF-1).
+    //
+    // `subcontractors` IS load-bearing (JOBCOST-PHASE-1, audit 2026-09-11).
+    // The commitment editor on this very screen writes `subcontractorId` for a
+    // subcontract and leaves `vendorName` undefined, so the roster is the ONLY
+    // signal that can join an in-app subcontract to the estimate line it
+    // bought out. Without it the engine cannot resolve the buyout and the rows
+    // read "Electrical — Unbudgeted, $22,600 committed" beside an untouched
+    // "subcontractor — $22,600 budgeted, $0 committed", while the headline
+    // absorbs the difference — measured on a $57,200 estimate with a $40,000
+    // electrical subcontract against a $22,600 subcontractor line: passing the
+    // roster reports $13,800 over (EAC $71,000), omitting it reports $0 (EAC
+    // $57,200). $13,800, not the $40,000 − $22,600 this comment used to claim:
+    // the buyout folds that line into the ELECTRICAL bucket, which already
+    // carries $3,600 of cans, so the bucket budget is $26,200. Both figures are
+    // asserted in scripts/validate-money-definitions.ts.
+    return computeJobCost({
+      project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier,
+      equipment, permits, subcontractors,
+    });
+  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
     [commitments, projectId],
   );
+
+  // Everything the phase drill-down resolves ids against. Same arrays the
+  // engine was handed, so a row can never name a record the summary did not
+  // actually count (MONEY-DRILL-1).
+  const drillRecords: PhaseDrillRecords = useMemo(() => ({
+    commitments, changeOrders, receipts, timeEntries, equipment, permits, subcontractors,
+  }), [commitments, changeOrders, receipts, timeEntries, equipment, permits, subcontractors]);
 
   const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds), [projects, commitments, receipts, laborSamples, seeds]);
   const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
@@ -135,6 +173,35 @@ function JobCostingInner() {
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);
   const [showAdd, setShowAdd] = useState<boolean>(false);
   const [selectedPhase, setSelectedPhase] = useState<JobCostLine | null>(null);
+
+  // Issue the purchase order. Until now the app recorded a PO number for the
+  // budget math and left the GC to place the order by phone — while
+  // app/material-receipt.tsx matched delivered receipts back to a PO the
+  // product had never issued.
+  const [issuingPo, setIssuingPo] = useState<string | null>(null);
+  const poBranding = useMemo(() => ({
+    companyName:   settings?.branding?.companyName ?? 'MAGE ID',
+    contactName:   settings?.branding?.contactName ?? '',
+    phone:         settings?.branding?.phone ?? '',
+    email:         settings?.branding?.email ?? '',
+    address:       settings?.branding?.address ?? '',
+    licenseNumber: settings?.branding?.licenseNumber ?? '',
+    tagline:       settings?.branding?.tagline ?? '',
+    logoUri:       settings?.branding?.logoUri,
+  }), [settings]);
+
+  const handleIssuePO = useCallback(async (c: Commitment) => {
+    if (!project) return;
+    setIssuingPo(c.id);
+    try {
+      await sharePurchaseOrderPDF(c, project, poBranding, subcontractors, deliveries);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      showAlert('Could not build the PO', e instanceof Error ? e.message : 'Try again.');
+    } finally {
+      setIssuingPo(null);
+    }
+  }, [project, poBranding, subcontractors, deliveries]);
 
   const handleDelete = useCallback((id: string) => {
     const exec = () => {
@@ -158,7 +225,7 @@ function JobCostingInner() {
         <ToolHeader eyebrow="JOB COSTING · MAGE ID" title="Job Costing" />
         <ToolProjectPicker
           toolName="Job Costing"
-          message="Job costing rolls up commitments, invoices, and change orders for one project at a time."
+          message="Job costing rolls up commitments, receipts, crew hours and change orders for one project at a time."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
@@ -359,6 +426,22 @@ function JobCostingInner() {
         {summary.biggestVariances.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Biggest variances</Text>
+            {/* JOBCOST-PHASE-1 (audit 2026-09-11). The headline takes the
+                uncommitted floor ONCE over the whole job, so spend the
+                estimate never priced is absorbed by budget that has not been
+                committed yet — until the job runs out of it. The rows below
+                still show that spend, correctly. Printing both with nothing
+                between them is two answers to "am I over" in one render, which
+                is the defect this wave removed BETWEEN screens; it may not
+                come back inside one. */}
+            {summary.absorbedVariance > 1 && (
+              <Text style={styles.varianceAbsorbed} testID="absorbed-variance">
+                {formatMoney(summary.absorbedVariance)} of what these rows show is spend your
+                estimate did not price. The headline above absorbs it into budget you have not
+                committed yet, so it is not counted as an overrun — it will be if the rest of the
+                job commits in full.
+              </Text>
+            )}
             {summary.biggestVariances.map(p => (
               <TouchableOpacity key={p.phase} style={styles.varianceRow} onPress={() => setSelectedPhase(p)}>
                 <View style={{ flex: 1 }}>
@@ -414,6 +497,12 @@ function JobCostingInner() {
               <Text style={styles.addLinkText}>Add</Text>
             </TouchableOpacity>
           </View>
+          {projectCommitments.some(c => c.type === 'purchase_order') && (
+            <Text style={styles.footerNote}>
+              Tap the download icon on a purchase order to issue it as a PDF — vendor, ship-to,
+              line items, order total and required-by date, ready to send.
+            </Text>
+          )}
           {projectCommitments.length === 0 ? (
             <View style={styles.emptyBox}>
               <FileSignature size={22} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -450,6 +539,20 @@ function JobCostingInner() {
                     {formatMoney(c.amount + (c.changeAmount ?? 0))}
                   </Text>
                   <StatusChip status={c.status} />
+                  {c.type === 'purchase_order' && (
+                    <TouchableOpacity
+                      onPress={() => { void handleIssuePO(c); }}
+                      hitSlop={8}
+                      style={styles.deleteBtn}
+                      disabled={issuingPo === c.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Issue purchase order ${c.number || ''}`}
+                    >
+                      {issuingPo === c.id
+                        ? <ActivityIndicator size="small" color={themeColors.accent} />
+                        : <FileDown size={14} color={themeColors.accent} strokeWidth={1.75} />}
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
                     <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -459,9 +562,24 @@ function JobCostingInner() {
           )}
         </View>
 
+        {/* JOBCOST-CO-COST-1 and JOBCOST-PHASE-1 both changed what these two
+            sentences describe, so both sentences changed with them. The old
+            copy said "Budget includes approved change orders" (they now enter
+            at cost, not at the price the owner signed) and "uncommitted budget
+            is a floor" (it is now ONE floor over the whole job, not one per
+            phase). A footer that describes the previous arithmetic is worse
+            than no footer. */}
         <Text style={styles.footerNote}>
-          Budget includes approved change orders. Actual is sum of invoice payments. EAC assumes
-          remaining committed work lands at signed price; uncommitted budget is a floor.
+          Budget includes approved change orders at their estimated COST — a change order&apos;s
+          dollar value is a sell price, and this is a cost budget, so it enters at that price times
+          this job&apos;s own cost ratio (the same convention the WIP report uses). Actual is money
+          you have paid OUT — subcontract and PO payments, snapped supplier receipts, priced crew
+          hours, logged equipment days at each machine&apos;s day rate, and permit fees. Payments
+          your client makes to you are revenue and are counted nowhere on this screen. EAC assumes
+          remaining committed work lands at signed price, and takes the uncommitted budget as a
+          floor ONCE across the whole job — so buying out a trade at its estimate changes nothing,
+          and spend your estimate never priced is absorbed by budget still uncommitted rather than
+          reported as an overrun. Tap any phase to see the records behind it.
         </Text>
       </ScrollView>
 
@@ -490,11 +608,15 @@ function JobCostingInner() {
         }}
       />
 
-      {/* Phase detail modal */}
+      {/* Phase detail modal — MONEY-DRILL-1: the sheet names WHICH records
+          built the line, and opens them. */}
       <PhaseDetailModal
         line={selectedPhase}
         summary={summary}
+        records={drillRecords}
+        projectId={projectId ?? ''}
         onClose={() => setSelectedPhase(null)}
+        onOpenCommitment={setEditingCommitment}
       />
     </View>
   );
@@ -709,7 +831,52 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
       signedDate,
       phase: phase.trim() || undefined,
       subcontractorId: type === 'subcontract' ? (subId || undefined) : undefined,
-      vendorName: type === 'purchase_order' ? (vendorName.trim() || undefined) : undefined,
+      // WHO THE COMMITMENT IS WITH, WRITTEN DOWN — not just pointed at
+      // (JOBCOST-PHASE-1 close-out, audit 2026-09-11).
+      //
+      // This used to write `undefined` for every subcontract, so the ONLY
+      // record of the counterparty was a `subcontractorId` pointing into the
+      // roster. utils/jobCostEngine.ts joins a commitment to the estimate line
+      // it bought out on four signals; the roster one (signal 2) needs the
+      // caller to hand it `subcontractors`, and only THIS screen does. Every
+      // other production caller — utils/livingEstimate.ts, utils/
+      // marginRiskScore.ts, utils/portalSnapshot.ts — builds its own argument
+      // object with no roster in it, and wiring them means widening three
+      // public interfaces and thirteen call sites in eight files.
+      //
+      // Storing the name makes signal 4 (`vendorName` ↔ the estimate line's
+      // `supplier`) fire instead, which needs nothing from the caller. Measured
+      // on the JOBCOST-PHASE-1 fixture — a $40,000 electrical subcontract
+      // against a $26,200 electrical bucket, roster NOT passed:
+      //   • before: variance $0, EAC $57,200, rows read "electrical $3,600
+      //     budget / $40,000 committed / over" beside an untouched
+      //     "subcontractor $22,600 budget / $0 committed";
+      //   • after:  variance $13,800, EAC $71,000, ONE electrical row at
+      //     $26,200 / $40,000 — byte-identical to the roster-passed result.
+      // Through utils/livingEstimate.ts, the same job moves from margin
+      // $22,800 / "healthy" to $9,000 / "critical", so the margin-fade alert
+      // fires on the job it was written for. Both asserted in
+      // scripts/validate-money-definitions.ts (MONEY-PHASE-WIRED-1).
+      //
+      // It is also just true: `Commitment.vendorName` is "who the commitment is
+      // with", and for a subcontract that is the sub's company name. Every
+      // reader already prefers the roster when it has one
+      // (`sub?.companyName ?? c.vendorName` here and in the drill-down,
+      // app/material-receipt.tsx's counterparty), so the two agree by
+      // construction and no rendered string changes. Two readers that could
+      // not resolve a subcontract at all now can: app/lien-waivers.tsx
+      // prefilled a blank sub name, and app/handover.tsx's waiver-coverage
+      // check could only ever match a subcontract by companyId.
+      //
+      // Re-saving an existing subcontract backfills it. A record saved before
+      // this and never edited keeps the old behaviour, which is why the roster
+      // stays load-bearing on this screen and MONEY-PHASE-WIRED-1 still pins
+      // that this call passes it.
+      vendorName: type === 'purchase_order'
+        ? (vendorName.trim() || undefined)
+        : (subcontractors.find(s => s.id === subId)?.companyName?.trim()
+          || vendorName.trim()
+          || undefined),
       status: existing?.status ?? 'active',
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -822,15 +989,243 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Phase drill-down modal
 // ─────────────────────────────────────────────────────────────
 
-function PhaseDetailModal({ line, summary, onClose }: {
+/**
+ * The records behind one phase, resolved from the id arrays the engine now
+ * returns (MONEY-DRILL-1). Everything here is already in memory on this
+ * screen — the drill-down is a lookup, not a fetch.
+ */
+// Not exported: app/ files are Expo Router routes, and a route module's public
+// surface is its default export.
+interface PhaseDrillRecords {
+  commitments: Commitment[];
+  changeOrders: ChangeOrder[];
+  receipts: MaterialReceipt[];
+  timeEntries: TimeEntry[];
+  equipment: Equipment[];
+  permits: Permit[];
+  subcontractors: Subcontractor[];
+}
+
+interface DrillRow {
+  id: string;
+  title: string;
+  detail: string;
+  /** Right-hand figure. Omitted where a single record splits across phases and
+   *  no honest per-phase figure exists (see buildPhaseDrill). */
+  amount?: string;
+  onPress?: () => void;
+}
+
+interface DrillGroup {
+  key: string;
+  label: string;
+  rows: DrillRow[];
+  /** Shown under the group when the amounts need a caveat. */
+  note?: string;
+}
+
+/**
+ * 'Sep 4' for any of the five date shapes this sheet formats.
+ *
+ * `calendarDayStart`, NOT `Date.parse` — the fields arrive in BOTH shapes and
+ * a bare parse gets one of them wrong in each direction. `Permit.appliedDate`
+ * and `TimeEntry.date` are bare 'YYYY-MM-DD' (todayCalendarDay /
+ * `toISOString().split('T')[0]`), which `Date.parse` reads as UTC midnight and
+ * `toLocaleDateString` then prints as the PREVIOUS day everywhere west of
+ * Greenwich — a shift logged Sep 4 listed under Sep 3, beside the money it
+ * cost. `ChangeOrder.date` and `EquipmentUtilizationEntry.date` are full
+ * `toISOString()` instants, which a blanket `parseCalendarDay` would read a
+ * day early east of it. calendarDayStart is the helper that does neither.
+ */
+const shortDate = (value?: string): string => {
+  const d = calendarDayStart(value);
+  if (!d) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+/**
+ * Turn one phase's source ids into named, openable rows.
+ *
+ * MONEY-DRILL-1 (audit 2026-09-07, "worth doing" #25): this sheet used to print
+ * "Commitments 3, Material receipts 7" with no tap target, so a PM reading
+ * "Electrical over by $9,200" had to reconcile by hand in another tab — the
+ * work the tool was bought to remove.
+ *
+ * An id with no matching record is DROPPED, not rendered as a blank row: the
+ * record was deleted after the summary was computed, and a row that opens
+ * nothing is worse than one fewer row. The group label therefore counts rows
+ * it can actually show, never `sources.x.length`.
+ *
+ * Material receipts carry no amount on purpose. An unlinked receipt is split
+ * per line across phases by the engine, so this phase holds only SOME of the
+ * document's dollars; printing the document total beside a $3,000 phase would
+ * be a number that reconciles to nothing. Vendor, date and document number
+ * identify the paper — which is the question being asked.
+ */
+function buildPhaseDrill(
+  line: JobCostLine,
+  records: PhaseDrillRecords,
+  open: {
+    commitment: (c: Commitment) => void;
+    changeOrder: (co: ChangeOrder) => void;
+    receipts: () => void;
+    equipment: (equipmentId: string) => void;
+    permits: () => void;
+    crew: () => void;
+  },
+): DrillGroup[] {
+  const groups: DrillGroup[] = [];
+
+  const commitmentRows: DrillRow[] = [];
+  for (const id of line.sources.commitments) {
+    const c = records.commitments.find(x => x.id === id);
+    if (!c) continue;
+    const sub = c.subcontractorId ? records.subcontractors.find(s => s.id === c.subcontractorId) : undefined;
+    const vendor = sub?.companyName ?? c.vendorName ?? '—';
+    const signed = c.amount + (c.changeAmount ?? 0);
+    const paid = Math.max(0, c.paidToDate ?? 0);
+    commitmentRows.push({
+      id,
+      title: `${c.number || '—'} · ${c.description || '(no description)'}`,
+      detail: `${vendor} · ${c.type === 'subcontract' ? 'Subcontract' : 'PO'}`,
+      // Paid FIRST: this sheet's Actual row is the sum of these, and showing
+      // the signed amount alone is what made "Committed" and "Actual paid"
+      // impossible to trace back to a record.
+      amount: `${formatMoneyFull(paid)} paid of ${formatMoneyFull(signed)}`,
+      onPress: () => open.commitment(c),
+    });
+  }
+  if (commitmentRows.length > 0) {
+    groups.push({ key: 'commitments', label: `Commitments (${commitmentRows.length})`, rows: commitmentRows });
+  }
+
+  const coRows: DrillRow[] = [];
+  for (const id of line.sources.changeOrders) {
+    const co = records.changeOrders.find(x => x.id === id);
+    if (!co) continue;
+    coRows.push({
+      id,
+      title: `CO #${co.number} · ${co.description || '(no description)'}`,
+      detail: `Approved · ${shortDate(co.date)}`,
+      amount: formatMoney(co.changeAmount, { sign: true }),
+      onPress: () => open.changeOrder(co),
+    });
+  }
+  if (coRows.length > 0) {
+    groups.push({ key: 'changeOrders', label: `Change orders (${coRows.length})`, rows: coRows, note: 'Change orders move BUDGET, not actual cost.' });
+  }
+
+  const receiptRows: DrillRow[] = [];
+  for (const id of line.sources.receipts) {
+    const rec = records.receipts.find(x => x.id === id);
+    if (!rec) continue;
+    receiptRows.push({
+      id,
+      title: rec.vendor || 'Supplier receipt',
+      detail: [rec.documentNumber, shortDate(rec.receiptDate ?? rec.createdAt)].filter(Boolean).join(' · '),
+      onPress: open.receipts,
+    });
+  }
+  if (receiptRows.length > 0) {
+    groups.push({
+      key: 'receipts',
+      label: `Material receipts (${receiptRows.length})`,
+      rows: receiptRows,
+      note: 'A receipt splitting across categories lands part of its total on more than one phase, so no single figure is shown here.',
+    });
+  }
+
+  const crewRows: DrillRow[] = [];
+  for (const id of line.sources.timeEntries) {
+    const e = records.timeEntries.find(x => x.id === id);
+    if (!e) continue;
+    crewRows.push({
+      id,
+      title: `${e.workerName || 'Crew'} · ${e.trade || 'crew'}`,
+      detail: `${shortDate(e.date)} · ${e.totalHours}h${e.overtimeHours > 0 ? ` (${e.overtimeHours}h OT)` : ''}`,
+      onPress: open.crew,
+    });
+  }
+  if (crewRows.length > 0) {
+    groups.push({ key: 'timeEntries', label: `Crew shifts, self-perform (${crewRows.length})`, rows: crewRows });
+  }
+
+  const equipRows: DrillRow[] = [];
+  for (const id of line.sources.equipment) {
+    const machine = records.equipment.find(m => (m.utilizationLog ?? []).some(u => u.id === id));
+    const entry = machine?.utilizationLog?.find(u => u.id === id);
+    if (!machine || !entry) continue;
+    // Clamped the same way the engine clamps before summing, so the rows foot
+    // to the phase total. A negative hoursUsed contributes $0 there and must
+    // not print a credit here.
+    const hours = Number.isFinite(entry.hoursUsed) ? Math.max(0, entry.hoursUsed) : 0;
+    equipRows.push({
+      id,
+      title: machine.name || `${machine.make} ${machine.model}`.trim(),
+      detail: `${shortDate(entry.date)} · ${hours}h${entry.operatorName ? ` · ${entry.operatorName}` : ''}`,
+      amount: formatMoneyFull((hours / EQUIPMENT_HOURS_PER_DAY) * machine.dailyRate),
+      onPress: () => open.equipment(machine.id),
+    });
+  }
+  if (equipRows.length > 0) {
+    groups.push({
+      key: 'equipment',
+      label: `Equipment days (${equipRows.length})`,
+      rows: equipRows,
+      // The one overlap this stream has, said out loud. Nothing links an
+      // Equipment record to a Commitment, so a rental logged as hours AND
+      // entered as a PO is counted twice and only the GC can see it.
+      note: `Charged at each machine's day rate, ${EQUIPMENT_HOURS_PER_DAY} logged hours to the day. If you also entered a rental invoice as a PO or a receipt, that money is on this job twice — keep the hours or the invoice, not both.`,
+    });
+  }
+
+  const permitRows: DrillRow[] = [];
+  for (const id of line.sources.permits) {
+    const p = records.permits.find(x => x.id === id);
+    if (!p) continue;
+    permitRows.push({
+      id,
+      title: `${p.type.replace(/_/g, ' ')}${p.permitNumber ? ` · ${p.permitNumber}` : ''}`,
+      detail: [p.jurisdiction, shortDate(p.appliedDate)].filter(Boolean).join(' · '),
+      amount: formatMoneyFull(p.fee),
+      onPress: open.permits,
+    });
+  }
+  if (permitRows.length > 0) {
+    groups.push({ key: 'permits', label: `Permit fees (${permitRows.length})`, rows: permitRows });
+  }
+
+  return groups;
+}
+
+function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCommitment }: {
   line: JobCostLine | null;
   summary: JobCostSummary;
+  records: PhaseDrillRecords;
+  projectId: string;
   onClose: () => void;
+  onOpenCommitment: (c: Commitment) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   if (!line) return null;
   const v = describeVariance(line.variance);
+  const groups = buildPhaseDrill(line, records, {
+    commitment: (c) => { onClose(); onOpenCommitment(c); },
+    changeOrder: (co) => { onClose(); router.push({ pathname: '/change-order', params: { projectId, coId: co.id } } as never); },
+    // /material-receipt has no per-receipt route; it opens on the project and
+    // lists them, which is still the right screen to land on.
+    receipts: () => { onClose(); router.push({ pathname: '/material-receipt', params: { projectId } } as never); },
+    equipment: (equipmentId) => { onClose(); router.push({ pathname: '/equipment-detail', params: { equipmentId } } as never); },
+    permits: () => { onClose(); router.push({ pathname: '/permits', params: { projectId } } as never); },
+    // /time-tracking, NOT /crew. These rows ARE TimeEntry records, and
+    // app/crew.tsx is the crew-member directory — it never renders a shift, so
+    // the first cut of this landed a GC on a roster and left him hunting for
+    // the 8 hours he had just tapped. app/time-tracking.tsx owns the same
+    // TIME_ENTRIES_STORAGE_KEY this screen mirrors and takes `projectId`.
+    crew: () => { onClose(); router.push({ pathname: '/time-tracking', params: { projectId } } as never); },
+  });
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -839,7 +1234,10 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <Text style={styles.modalTitle}>{line.phase}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
-          <View style={{ padding: 16 }}>
+          {/* flexShrink so the sheet's own maxHeight:90% squeezes the LIST,
+              not the footer — a phase with 30 receipts used to push Close off
+              the bottom of the screen. */}
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16 }}>
             <DetailRow label="Budget" value={formatMoneyFull(line.budget)} />
             <DetailRow label="Committed" value={formatMoneyFull(line.committed)} />
             <DetailRow label="Actual paid" value={formatMoneyFull(line.actual)} />
@@ -852,17 +1250,43 @@ function PhaseDetailModal({ line, summary, onClose }: {
               bold
             />
             <View style={styles.detailDivider} />
-            <DetailRow label="Commitments" value={`${line.sources.commitments}`} />
-            <DetailRow label="Invoices contributed" value={`${line.sources.invoices}`} />
-            <DetailRow label="COs contributed" value={`${line.sources.changeOrders}`} />
-            {line.sources.receipts > 0 && <DetailRow label="Material receipts" value={`${line.sources.receipts}`} />}
-            {line.sources.timeEntries > 0 && <DetailRow label="Crew shifts (self-perform)" value={`${line.sources.timeEntries}`} />}
+
+            {groups.length === 0 ? (
+              <Text style={styles.detailNote} testID="phase-drill-empty">
+                Nothing has landed on this phase yet — it is showing its estimate budget alone.
+              </Text>
+            ) : (
+              groups.map(g => (
+                <View key={g.key} style={styles.drillGroup} testID={`phase-drill-${g.key}`}>
+                  <Text style={styles.drillGroupLabel}>{g.label}</Text>
+                  {g.rows.map(row => (
+                    <TouchableOpacity
+                      key={row.id}
+                      style={styles.drillRow}
+                      onPress={row.onPress}
+                      disabled={!row.onPress}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${row.title}. ${row.detail}`}
+                    >
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.drillRowTitle} numberOfLines={1}>{row.title}</Text>
+                        {row.detail ? <Text style={styles.drillRowDetail} numberOfLines={1}>{row.detail}</Text> : null}
+                      </View>
+                      {row.amount ? <Text style={styles.drillRowAmount}>{row.amount}</Text> : null}
+                      {row.onPress ? <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} /> : null}
+                    </TouchableOpacity>
+                  ))}
+                  {g.note ? <Text style={styles.drillGroupNote}>{g.note}</Text> : null}
+                </View>
+              ))
+            )}
 
             <Text style={styles.detailNote}>
               This phase is {((line.budget / Math.max(1, summary.budget)) * 100).toFixed(1)}% of
               the project budget. Burn ratio {(line.burnRatio * 100).toFixed(0)}%.
             </Text>
-          </View>
+          </ScrollView>
 
           <View style={styles.modalFooter}>
             <TouchableOpacity onPress={onClose} style={styles.btnPrimary}>
@@ -976,6 +1400,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   varianceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
   varianceSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
+  // JOBCOST-PHASE-1 — what the rows show and the headline does not.
+  varianceAbsorbed: {
+    fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginBottom: 8,
+  },
   varianceDelta: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Phase bar
@@ -1064,6 +1492,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   detailValue: { fontSize: Type.footnote.fontSize, color: t.text, fontVariant: ['tabular-nums'] },
   detailDivider: { height: 1, backgroundColor: t.line, marginVertical: 6 },
   detailNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 14, lineHeight: 15 },
+
+  // Phase drill-down (MONEY-DRILL-1). textSecondary, not textMuted, on the
+  // detail line: this is the vendor/date that identifies the record, not a hint.
+  drillGroup: { marginTop: 14 },
+  drillGroupLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
+  },
+  drillRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 10, minHeight: 44,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.surfaceAlt, marginBottom: 6,
+  },
+  drillRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  drillRowDetail: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
+  drillRowAmount: {
+    fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text,
+    fontVariant: ['tabular-nums'],
+  },
+  drillGroupNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 2 },
 });
 
 // This is exported so other screens can embed a mini job-cost summary if needed.

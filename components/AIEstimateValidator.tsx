@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView,
 } from 'react-native';
@@ -9,6 +9,8 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useProjects } from '@/contexts/ProjectContext';
+import { computeCalibration } from '@/utils/estimateCalibration';
 import { validateEstimate, type EstimateValidationResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
@@ -39,10 +41,21 @@ export default React.memo(function AIEstimateValidator(props: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
+  // The GC's OWN measured estimating bias, from his finished jobs. Passed into
+  // the prompt so the validator scores against his history instead of an
+  // "industry standard" the relay cannot source. `hasData` is false until at
+  // least one category has real actuals — the prompt handles that case by
+  // saying so rather than inventing a benchmark.
+  const { projects, commitments } = useProjects();
+  const calibration = useMemo(
+    () => computeCalibration({ projects, commitments }),
+    [projects, commitments],
+  );
   const router = useRouter();
   const [result, setResult] = useState<EstimateValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleValidate = useCallback(async () => {
     if (isLoading) return;
@@ -53,6 +66,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       return;
     }
 
+    setError(null);
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -65,31 +79,45 @@ export default React.memo(function AIEstimateValidator(props: Props) {
         props.itemCount,
         props.hasContingency,
         props.location,
+        calibration,
       );
       await recordAIUsage('smart', 'estimateValidation');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
       setIsExpanded(true);
     } catch (err) {
+      // Name the failure — this catch was console-only, so a GC checking a bid
+      // before sending it saw the button spin and then nothing at all, with no
+      // way to tell a dropped connection from a dead feature (audit
+      // 2026-09-07, ai-features).
       console.error('[AI Estimate] Validation failed:', err);
+      setError(`Couldn't review this estimate. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, props, tier, router]);
+  }, [isLoading, props, tier, router, calibration]);
 
   if (!result) {
     return (
-      <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
-        {isLoading ? (
-          <ActivityIndicator size="small" color={"#FF6A1A"} />
-        ) : (
-          <Search size={16} color={"#FF6A1A"} strokeWidth={1.75} />
-        )}
-        <Text style={styles.triggerText}>
-          {isLoading ? 'Validating...' : 'AI Validate Estimate'}
-        </Text>
-        <MageAIMark size={14} color={"#FF6A1A"} />
-      </TouchableOpacity>
+      <View>
+        <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color={"#FF6A1A"} />
+          ) : (
+            <Search size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+          )}
+          <Text style={styles.triggerText}>
+            {isLoading ? 'Validating...' : error ? 'Retry AI Validate Estimate' : 'AI Validate Estimate'}
+          </Text>
+          <MageAIMark size={14} color={"#FF6A1A"} />
+        </TouchableOpacity>
+        {error ? (
+          <View style={styles.errorRow}>
+            <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -143,6 +171,24 @@ export default React.memo(function AIEstimateValidator(props: Props) {
           )}
 
           <Text style={styles.summary}>{result.summary}</Text>
+
+          {/* The grounding chip. A score is only worth reading if the reader
+              knows what it was measured against — and until 2026-09-08 this
+              panel scored against "industry standards", which is a benchmark
+              the relay cannot source. Now it either names the GC's own finished
+              jobs, or says plainly that it has none of his history yet. */}
+          <Text style={styles.groundingChip}>
+            {calibration.hasData
+              ? `Scored against your own ${calibration.summary.totalJobs} finished ${calibration.summary.totalJobs === 1 ? 'job' : 'jobs'} across ${calibration.summary.categoryCount} measured ${calibration.summary.categoryCount === 1 ? 'category' : 'categories'}, not an industry average.`
+              : 'No finished jobs measured yet, so this is a general sanity check — not a read on how YOUR jobs land. It gets specific once a job closes out with actuals.'}
+          </Text>
+
+          {error ? (
+            <View style={styles.errorRow}>
+              <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
           <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
             {isLoading ? <ActivityIndicator size="small" color={"#FF6A1A"} /> : null}
@@ -245,11 +291,37 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: t.textSecondary,
   },
+  groundingChip: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    lineHeight: 15,
+    marginTop: 8,
+  },
   summary: {
     fontSize: Type.footnote.fontSize,
     color: t.textSecondary,
     lineHeight: 19,
     fontStyle: 'italic' as const,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    // dangerSoft, not the static `Colors.errorLight`: that tint is a baked
+    // LIGHT value while `dangerLabel` themes, so inside this factory dark mode
+    // put #FF5A51 ink on pale pink at 2.78:1. The themed pair measures 4.77:1
+    // light / 4.79:1 dark (constants/colors.ts).
+    backgroundColor: t.dangerSoft,
+    borderRadius: Tokens.radius.md,
+    padding: 12,
+    marginBottom: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    color: t.dangerLabel,
+    fontWeight: '500' as const,
+    lineHeight: 18,
   },
   revalidateBtn: {
     flexDirection: 'row',

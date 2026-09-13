@@ -19,7 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ShieldCheck, CheckCircle2, AlertTriangle, ChevronLeft, Save, Send,
+  ShieldCheck, CheckCircle2, ChevronLeft, Save, Send,
   DollarSign, HardHat, FileText, Plus, Trash2, BadgeCheck,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -33,12 +33,20 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import ErrorState from '@/components/ErrorState';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import type {
   PrequalPacket, PrequalFinancials, PrequalSafetyRecord,
   PrequalInsurance, PrequalLicense,
 } from '@/types';
 
 // ─────────────────────────────────────────────────────────────
+
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8). This is the ONE
+// screen where restarting the bundle is unrecoverable: the sub arrived on a
+// magic link with no account, so a restart lands him on the signed-out root
+// with no way back to his own packet.
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Maps a prequal_packets row (snake_case) to PrequalPacket (camelCase).
 // Mirrors the inline mapper at contexts/ProjectContext.tsx:495 — kept in
@@ -78,6 +86,7 @@ export default function PrequalFormScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string }>();
   const token = typeof params.token === 'string' ? params.token : '';
+  const insets = useSafeAreaInsets();
   const { subcontractors } = useProjects();
 
   // Finding 10.1 — Call the SECURITY DEFINER RPC instead of relying on the
@@ -87,7 +96,11 @@ export default function PrequalFormScreen() {
   // header comment actually work.
   const [packet, setPacket] = useState<PrequalPacket | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'missing' | 'error'>('loading');
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Holds the CLASSIFIED copy, not `error.message` — the sub used to be shown
+  // the raw PostgREST string as the whole explanation.
+  const [loadError, setLoadError] = useState<{ title: string; body: string } | null>(null);
+  // Bumped by the retry button so the lookup effect re-runs.
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     if (!token) { setLoadState('missing'); return; }
@@ -98,7 +111,8 @@ export default function PrequalFormScreen() {
       });
       if (cancelled) return;
       if (error) {
-        setLoadError(error.message);
+        console.warn('[prequal-form] packet lookup failed:', rawErrorMessage(error));
+        setLoadError(describeError(error, { action: 'open your prequal packet' }));
         setLoadState('error');
         return;
       }
@@ -110,7 +124,7 @@ export default function PrequalFormScreen() {
       setLoadState('ok');
     })();
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, reloadNonce]);
 
   // Sub is best-effort — for authed GCs the subcontractors array is
   // populated; for anon subs it's empty and we fall back to "your company".
@@ -134,8 +148,14 @@ export default function PrequalFormScreen() {
       p_status: next.status,
     });
     if (error) {
-      console.warn('[prequal-form] save RPC failed:', error.message);
-      showAlert('Save failed', error.message);
+      // The raw PostgREST text goes to the log, where an engineer reads it.
+      // The sub — filling this out on a phone between job sites — gets a
+      // sentence and a next step instead (audit 2026-09-07, "Worth doing" #7).
+      // keptLocally: the form's useState still holds every field, and the
+      // 800ms autosave will retry on his next keystroke.
+      console.warn('[prequal-form] save RPC failed:', rawErrorMessage(error));
+      const copy = describeError(error, { action: 'save your prequal packet', keptLocally: true });
+      showAlert(copy.title, copy.body);
       return;
     }
     if (data !== true) {
@@ -155,21 +175,39 @@ export default function PrequalFormScreen() {
       </View>
     );
   }
+  // ErrorState is the shared primitive now (components/ErrorState.tsx) — it is
+  // a lift of the one that used to live at the bottom of this file, so every
+  // other screen gets the same load-failure branch (audit 2026-09-07,
+  // "Worth doing" #8). It renders centered inside its parent, so the screen
+  // still owns the root background, the safe-area inset and the header hide.
   if (loadState === 'missing' || !packet) {
-    return <ErrorState
-      title={!token ? 'Missing link' : 'Link expired or invalid'}
-      body={!token
-        ? 'This page was opened without a valid token. Open the invite link from your email again.'
-        : 'We couldn\'t find a prequalification packet for this link, or it has expired. Ask your GC to resend the invite.'}
-      onBack={() => router.back()}
-    />;
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ErrorState
+          title={!token ? 'Missing link' : 'Link expired or invalid'}
+          body={!token
+            ? 'This page was opened without a valid token. Open the invite link from your email again.'
+            : 'We couldn\'t find a prequalification packet for this link, or it has expired. Ask your GC to resend the invite.'}
+          onBack={() => router.back()}
+          testID="prequal-missing"
+        />
+      </View>
+    );
   }
   if (loadState === 'error') {
-    return <ErrorState
-      title="Couldn't load packet"
-      body={loadError ?? 'A network or server error occurred. Try again in a moment.'}
-      onBack={() => router.back()}
-    />;
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ErrorState
+          title={loadError?.title ?? "That didn't go through"}
+          body={loadError?.body ?? 'MAGE couldn\'t open your prequal packet. Try again in a moment.'}
+          onRetry={() => { setLoadError(null); setLoadState('loading'); setReloadNonce(n => n + 1); }}
+          onBack={() => router.back()}
+          testID="prequal-load-failed"
+        />
+      </View>
+    );
   }
 
   return <PrequalFormInner packet={packet} subCompanyName={sub?.companyName ?? 'your company'} onSave={saveViaRpc} onExit={() => router.back()} />;
@@ -189,6 +227,9 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Own router: the outer screen's `router` is not in scope here, and the
+  // sub-profile link on the submitted state needs to push.
+  const router = useRouter();
   const [financials, setFinancials] = useState<PrequalFinancials>(packet.financials);
   const [safety, setSafety] = useState<PrequalSafetyRecord>(packet.safety);
   const [insurance, setInsurance] = useState<PrequalInsurance>(packet.insurance);
@@ -519,12 +560,32 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       {/* Submit footer */}
       <View style={[styles.submitBar, { paddingBottom: 12 + insets.bottom }]}>
         {isSubmitted ? (
-          <View style={styles.submittedChip}>
-            <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
-            <Text style={styles.submittedText}>
-              {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
-            </Text>
-          </View>
+          <>
+            <View style={styles.submittedChip}>
+              <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
+              <Text style={styles.submittedText}>
+                {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
+              </Text>
+            </View>
+            {/* The sub has just handed over insurance, licences and safety
+                history and, until now, got nothing of their own back — they did
+                the GC's paperwork and left. /sub-profile is exactly that
+                something (work history across every GC who hired them, a
+                shareable credential, a referral for their OTHER GCs) and it had
+                ZERO click paths in the product; search only. This and
+                app/claim-crew.tsx are where a tradesperson actually lands
+                (audit 2026-09-07, built-but-unreachable #13). */}
+            <TouchableOpacity
+              style={styles.subProfileLink}
+              onPress={() => router.push('/sub-profile')}
+              accessibilityRole="link"
+              accessibilityLabel="See your own work history and reliability across every contractor who has hired you"
+            >
+              <Text style={styles.subProfileLinkText}>
+                See your work history across every contractor who has hired you
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity
             style={[styles.submitBtn, preview.overall !== 'pass' && styles.submitBtnDisabled]}
@@ -552,22 +613,10 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
 // ─────────────────────────────────────────────────────────────
 // Primitives
 
-function ErrorState({ title, body, onBack }: { title: string; body: string; onBack: () => void }) {
-  const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.root, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <AlertTriangle size={32} color={Colors.warningLabel} strokeWidth={1.75} />
-      <Text style={styles.errorTitle}>{title}</Text>
-      <Text style={styles.errorBody}>{body}</Text>
-      <TouchableOpacity onPress={onBack} style={styles.errorBtn}>
-        <Text style={styles.errorBtnText}>Close</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
+// The local ErrorState that used to live here moved to
+// components/ErrorState.tsx — unchanged in shape, generalised on onRetry /
+// steps / icon so the ~150 screens with no load-failure branch at all can use
+// it (audit 2026-09-07, "Worth doing" #8).
 
 function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
   const { colors: themeColors } = useTheme();
@@ -718,9 +767,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.successLight,
   },
   submittedText: { color: t.success, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  subProfileLink: { paddingTop: 10, paddingBottom: 2, alignItems: 'center' as const },
+  subProfileLinkText: { color: t.accentLabel, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, textAlign: 'center' as const },
 
+  // Still used by the "Loading…" branch above; the failure branches render
+  // components/ErrorState.tsx, which carries its own type + button styles.
   errorTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 12 },
   errorBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
-  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
-  errorBtnText: { color: '#FFFFFF', fontWeight: '700' },
 });

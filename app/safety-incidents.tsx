@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ShieldAlert, Plus, X, Trash2, AlertTriangle, ChevronLeft, Check, Mic,
+  Camera, Images,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -32,9 +33,20 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { isOshaRecordable } from '@/utils/safety/osha';
-import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from '@/lib/supabase';
+import { PhotoThumbGrid, burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
+import { queuePhotoUpload, cancelPhotoUpload } from '@/utils/photoUploadQueue';
+import {
+  buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, looksLikeStoragePath, photoExtFromUri,
+} from '@/utils/photoUploadCore';
+import { resolvePhotoUrls } from '@/utils/storage';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
+
+/** Photos one incident report can carry. Eight is a scene, a hazard, the
+ *  equipment, the corrective action and a couple of angles — past that it is a
+ *  photo album, not a record an OSHA inspector will read. */
+const MAX_INCIDENT_PHOTOS = 8;
 
 const TYPE_OPTIONS: { value: SafetyIncidentType; label: string }[] = [
   { value: 'injury', label: 'Injury' },
@@ -148,7 +160,23 @@ function SafetyIncidentsInner() {
   const [fatality, setFatality] = useState(false);
   const [correctiveActions, setCorrectiveActions] = useState<IncidentCorrectiveAction[]>([]);
   const [peopleInvolved, setPeopleInvolved] = useState<IncidentPerson[]>([]);
+  // INCIDENT-PHOTO (audit 2026-09-07 "worth doing" #11). photoUrls had this
+  // useState, a `photo_urls` column, a field on SafetyIncident and a sync path
+  // in SafetyContext — and NO WRITER anywhere in the app. The one record OSHA
+  // reads back to you was the only safety surface with no way to attach an
+  // image, while app/safety-hazards.tsx has had one since it shipped.
+  //
+  // What goes IN this array is the DURABLE value — the `project-photos` bucket
+  // path once the bytes are staged for upload, and only a device-local URI
+  // when there is no cloud to stage into (signed-out / unconfigured, which is
+  // also exactly when SafetyContext writes nothing to the server). A `file://`
+  // in a synced column means nothing on the inspector's laptop, the office
+  // desktop, or this phone after a reinstall.
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  // Durable value → something this device can actually render right now: the
+  // local original while the bytes are still queued, a signed URL once they
+  // have landed. Session-only; never persisted, never sent.
+  const [photoPreviews, setPhotoPreviews] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<SafetyIncidentStatus>('open');
 
   // AI draft-from-notes.
@@ -176,7 +204,7 @@ function SafetyIncidentsInner() {
     setDescription(''); setLocation('');
     setTreatment('none'); setDaysAway(''); setDaysRestricted(''); setOshaIllnessType('injury');
     setRestrictedDuty(false); setLostConsciousness(false); setFatality(false);
-    setCorrectiveActions([]); setPeopleInvolved([]); setPhotoUrls([]);
+    setCorrectiveActions([]); setPeopleInvolved([]); setPhotoUrls([]); setPhotoPreviews({});
     setStatus('open'); setDraftNotes(''); setDrafting(false);
   }, []);
 
@@ -205,6 +233,163 @@ function SafetyIncidentsInner() {
     setPeopleInvolved(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
+  // ── Incident photos ──────────────────────────────────────────────────
+  //
+  // The bytes never block the form. queuePhotoUpload copies the file into
+  // documentDirectory (which the OS does not reclaim) and uploads whenever the
+  // network next allows, so a photo taken in a trench with no signal is safe
+  // the moment the shutter closes — the same contract the project gallery and
+  // punch list already run on.
+
+  /**
+   * Hand a freshly-captured file to the upload queue and return the value the
+   * incident record should hold.
+   *
+   * Falls back to the local URI only when there is nothing to stage INTO — no
+   * session, or Supabase not configured. In that state SafetyContext's
+   * `canSync` is false too, so the incident is local-only anyway and a local
+   * URI is the honest, and the only useful, thing to store.
+   */
+  const stageIncidentPhoto = useCallback((localUri: string): string => {
+    const userId = user?.id;
+    if (!userId || !projectId || !isSupabaseConfigured || !isDeviceLocalUri(localUri)) return localUri;
+    // Namespaced so a permit scan, a punch photo and an incident photo for the
+    // same project can never collide on one object key.
+    const recordId = `incident-${generateUUID()}`;
+    const ext = photoExtFromUri(localUri);
+    const storagePath = buildPhotoStoragePath(userId, projectId, recordId, ext);
+    void queuePhotoUpload({
+      photoId: recordId, userId, projectId, localUri, storagePath,
+      contentType: contentTypeForExt(ext),
+    });
+    // Remember which queue task this path belongs to, so removing the tile can
+    // un-queue it. Scoped to THIS editing session on purpose — see
+    // removeIncidentPhoto for why a saved photo's path must never be in here.
+    stagedThisSessionRef.current.set(storagePath, recordId);
+    return storagePath;
+  }, [user?.id, projectId]);
+
+  // How many photos are attached RIGHT NOW. `photoUrls` is a render-old value
+  // inside attachIncidentPhoto: handleIncidentLibrary loops over the picked
+  // assets, and on web captureBurst does the same (one multi-select dialog IS
+  // the burst there) — several calls with no render in between, so the state
+  // the callback closes over never moves and cannot be the thing the cap is
+  // measured against. The ref moves synchronously, which is what makes it
+  // possible to decide BEFORE any bytes are staged.
+  const photoCountRef = useRef(0);
+  useEffect(() => { photoCountRef.current = photoUrls.length; }, [photoUrls]);
+
+  // storagePath → queue photoId, for photos staged during THIS edit only.
+  // A ref, not state: nothing renders from it, and it must be readable
+  // synchronously by a remove that happens between renders.
+  const stagedThisSessionRef = useRef<Map<string, string>>(new Map());
+
+  const attachIncidentPhoto = useCallback((localUri: string) => {
+    // The cap is enforced here, before staging, and NOT inside the setState
+    // updater. Staging is what hands the bytes to the upload queue, so a ninth
+    // photo the updater silently dropped was still copied into
+    // documentDirectory and uploaded to `project-photos` — an object no
+    // incident row will ever reference and nothing ever deletes. Refusing early
+    // costs nothing: captureBurst and pickPhotoBatch are told how many slots
+    // are left before they open, so this only fires when something got past
+    // them.
+    if (photoCountRef.current >= MAX_INCIDENT_PHOTOS) return;
+    photoCountRef.current += 1;
+    // Staged OUTSIDE the state updater on purpose. A setState updater must be
+    // pure — React is free to call it twice (it does, under StrictMode), and
+    // staging inside one would queue the same photo for upload twice under two
+    // different object keys.
+    const durable = stageIncidentPhoto(localUri);
+    setPhotoPreviews(m => ({ ...m, [durable]: localUri }));
+    setPhotoUrls(prev => [...prev, durable]);
+  }, [stageIncidentPhoto]);
+
+  // Taking a photo off the report un-queues the upload it started. Without
+  // this, attach-then-remove-before-save left the bytes in the queue, the flush
+  // uploaded them anyway, and one unreferenced object sat in the contractor's
+  // own folder of `project-photos` forever — nothing deletes it because nothing
+  // knows it exists. An incident report, where the reporter is deciding what
+  // belongs in an OSHA record, is exactly where people attach and then think
+  // better of it.
+  //
+  // ONLY photos staged during THIS edit are cancellable, and that restriction
+  // is the whole safety argument. Opening a SAVED incident puts that incident's
+  // own storage paths into `photoUrls`; a user who removes a tile and then
+  // backs out without saving must not have touched anything the saved record
+  // still points at. Those paths were never put in the session map, so they are
+  // not found and nothing happens to them.
+  //
+  // Second layer, deliberately: cancelPhotoUpload only drops a PENDING task and
+  // unlinks the local copy. It never deletes from the bucket. So even a path
+  // that somehow matched could not destroy an image that had already landed.
+  // The cancel happens OUTSIDE the setState updater, for the same reason
+  // attachIncidentPhoto stages outside one: React may call an updater twice
+  // (it does under StrictMode), so a side effect inside would run twice.
+  // Reading `photoUrls[idx]` directly is correct here in a way it is NOT in
+  // attachIncidentPhoto — a remove is one tile tap per render, and `idx` came
+  // from the list this render drew, so the render-old array is the array the
+  // index refers to.
+  const removeIncidentPhoto = useCallback((idx: number) => {
+    const path = photoUrls[idx];
+    const photoId = path ? stagedThisSessionRef.current.get(path) : undefined;
+    if (path && photoId) {
+      stagedThisSessionRef.current.delete(path);
+      // Fire-and-forget: the tile comes off the report either way, and a failed
+      // cancel is a leaked object, never a lost edit.
+      void cancelPhotoUpload(photoId).catch(() => {/* the object stays; nothing the user can act on */});
+    }
+    setPhotoUrls(prev => prev.filter((_, i) => i !== idx));
+  }, [photoUrls]);
+
+  const handleIncidentCamera = useCallback(async () => {
+    const remaining = MAX_INCIDENT_PHOTOS - photoUrls.length;
+    if (remaining <= 0) {
+      showAlert('Photo limit', `An incident report holds ${MAX_INCIDENT_PHOTOS} photos. Remove one to add another.`);
+      return;
+    }
+    // Burst: the camera re-opens after each shot. An incident scene is
+    // photographed from several angles in one pass, in the few minutes before
+    // it gets cleaned up.
+    const outcome = await captureBurst({ remaining, onCaptured: ({ uri }) => attachIncidentPhoto(uri) });
+    const note = burstSummary(outcome.captured, outcome.stoppedBy, `${MAX_INCIDENT_PHOTOS}-photo`);
+    if (note) showAlert(outcome.captured > 0 ? 'Photos attached' : 'Camera', note);
+  }, [photoUrls.length, attachIncidentPhoto]);
+
+  const handleIncidentLibrary = useCallback(async () => {
+    const remaining = MAX_INCIDENT_PHOTOS - photoUrls.length;
+    if (remaining <= 0) {
+      showAlert('Photo limit', `An incident report holds ${MAX_INCIDENT_PHOTOS} photos. Remove one to add another.`);
+      return;
+    }
+    const picked = await pickPhotoBatch({ remaining });
+    for (const a of picked) attachIncidentPhoto(a.uri);
+  }, [photoUrls.length, attachIncidentPhoto]);
+
+  // Sign the bucket paths on an incident opened for edit. `project-photos` is
+  // private, so a stored path is not renderable on its own; a path we cannot
+  // sign (offline, expired) simply stays out of the map and its tile renders
+  // as an empty frame rather than a broken one.
+  useEffect(() => {
+    const unresolved = photoUrls.filter(v => looksLikeStoragePath(v) && !photoPreviews[v]);
+    if (unresolved.length === 0) return;
+    let cancelled = false;
+    void resolvePhotoUrls(unresolved).then(map => {
+      if (cancelled || map.size === 0) return;
+      setPhotoPreviews(prev => {
+        const next = { ...prev };
+        for (const [path, url] of map) next[path] = url;
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [photoUrls, photoPreviews]);
+
+  /** What each attached photo renders as, in order. */
+  const incidentPhotoPreviews = useMemo(
+    () => photoUrls.map(v => photoPreviews[v] ?? (looksLikeStoragePath(v) ? '' : v)),
+    [photoUrls, photoPreviews],
+  );
+
   const openEdit = useCallback((inc: SafetyIncident) => {
     setEditingIncident(inc);
     setType(inc.type); setSeverity(inc.severity); setOccurredAt(inc.occurredAt);
@@ -212,7 +397,8 @@ function SafetyIncidentsInner() {
     setTreatment(inc.treatment); setDaysAway(String(inc.daysAway || ''));
     setDaysRestricted(String(inc.daysRestricted || '')); setOshaIllnessType(inc.oshaIllnessType ?? 'injury');
     setRestrictedDuty(inc.restrictedDuty); setLostConsciousness(inc.lostConsciousness); setFatality(inc.fatality);
-    setCorrectiveActions(inc.correctiveActions); setPeopleInvolved(inc.peopleInvolved); setPhotoUrls(inc.photoUrls);
+    setCorrectiveActions(inc.correctiveActions); setPeopleInvolved(inc.peopleInvolved);
+    setPhotoUrls(inc.photoUrls); setPhotoPreviews({});
     setStatus(inc.status); setDraftNotes(''); setDrafting(false);
     setShowForm(true);
   }, []);
@@ -342,11 +528,23 @@ function SafetyIncidentsInner() {
                 </TouchableOpacity>
               </View>
 
-              {item.correctiveActions.length > 0 ? (
-                <Text style={styles.cardSummary}>
-                  {doneCount}/{item.correctiveActions.length} action{item.correctiveActions.length === 1 ? '' : 's'}
-                </Text>
-              ) : null}
+              <View style={styles.cardSummaryRow}>
+                {item.correctiveActions.length > 0 ? (
+                  <Text style={styles.cardSummary}>
+                    {doneCount}/{item.correctiveActions.length} action{item.correctiveActions.length === 1 ? '' : 's'}
+                  </Text>
+                ) : null}
+                {/* An OSHA record either has the scene attached or it doesn't,
+                    and that is worth knowing from the list. */}
+                {item.photoUrls.length > 0 ? (
+                  <View style={styles.cardPhotoTag}>
+                    <Camera size={11} color={themeColors.textSecondary} strokeWidth={1.75} />
+                    <Text style={styles.cardSummary}>
+                      {item.photoUrls.length} photo{item.photoUrls.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -462,6 +660,41 @@ function SafetyIncidentsInner() {
                     <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. 3rd floor east" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
+
+                {/* Photos — the scene as it was, before it gets cleaned up. */}
+                <View style={styles.stepsHeader}>
+                  <Text style={styles.fieldLabel}>Photos</Text>
+                  <Text style={styles.photoCount}>{photoUrls.length} of {MAX_INCIDENT_PHOTOS}</Text>
+                </View>
+                <View style={styles.photoBtnRow}>
+                  <TouchableOpacity
+                    style={styles.photoBtn}
+                    onPress={handleIncidentCamera}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Take incident photos"
+                    testID="incident-photo-camera"
+                  >
+                    <Camera size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
+                    <Text style={styles.photoBtnText}>Take photos</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.photoBtn}
+                    onPress={handleIncidentLibrary}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Attach photos from library"
+                    testID="incident-photo-library"
+                  >
+                    <Images size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
+                    <Text style={styles.photoBtnText}>From library</Text>
+                  </TouchableOpacity>
+                </View>
+                <PhotoThumbGrid
+                  uris={incidentPhotoPreviews}
+                  onRemove={removeIncidentPhoto}
+                  testIDPrefix="incident-photo"
+                />
 
                 {/* OSHA inputs */}
                 <Text style={styles.sectionLabel}>OSHA classification</Text>
@@ -592,6 +825,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cardTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },
   cardMeta: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
   cardSummary: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  cardSummaryRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, flexWrap: 'wrap' as const },
+  cardPhotoTag: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   oshaBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '18' },
   oshaBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.accent },
@@ -605,6 +840,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
+  photoCount: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  photoBtnRow: { flexDirection: 'row' as const, gap: 8, marginTop: 8 },
+  // accentSoft fill with the accentLabel foreground: the brand orange behind
+  // white text is 2.87:1 and fails AA, so a tinted button carries the coloured
+  // LABEL instead (5.86:1). Same pairing as the other secondary actions here.
+  photoBtn: {
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
+    gap: 6, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accentSoft,
+  },
+  photoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
   sectionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text, marginTop: 12, marginBottom: 2 },
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   aiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, paddingVertical: 13, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill },

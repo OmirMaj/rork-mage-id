@@ -14,6 +14,7 @@ import { illustrativeMonthly } from '@/utils/financing';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
+import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 import type {
   FinancingConfig,
   ProposalTier,
@@ -189,8 +190,12 @@ function buildInstantBidGrounding(
       const biasNote = Math.abs(e.bidBias) > 0.05
         ? ` (you run ${e.bidBias > 0 ? '+' : ''}${(e.bidBias * 100).toFixed(0)}% vs your bid)`
         : '';
+      // A book where every sample is a signed sub nobody has paid is real
+      // evidence, but "from your N jobs" reads as a measured cost to the model
+      // narrating it. Same qualifier every other prompt surface uses.
+      const basisNote = e.earnedBasis === 'contracted' ? CONTRACTED_NOTE : '';
         facts.push(
-          `${e.trade}: $${e.suggestedRate.toFixed(2)}/${e.unit} from your ${e.jobCount} job${e.jobCount === 1 ? '' : 's'}${biasNote}.`,
+          `${e.trade}: $${e.suggestedRate.toFixed(2)}/${e.unit} from your ${e.jobCount} job${e.jobCount === 1 ? '' : 's'}${basisNote}${biasNote}.`,
         );
       rateCount++;
     }

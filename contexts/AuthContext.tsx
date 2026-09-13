@@ -10,6 +10,7 @@ import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
 import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
 import { processOfflineQueue, getOfflineQueue, clearOfflineQueue, retainOfflineQueueForUser } from '@/utils/offlineQueue';
 import { processPhotoUploadQueue, clearPhotoUploadQueue, retainPhotoUploadQueueForUser } from '@/utils/photoUploadQueue';
+import { clearAudioTranscribeQueue, retainAudioTranscribeQueueForUser } from '@/utils/audioTranscribeQueue';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -286,6 +287,10 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean; keepLastU
       // documentDirectory — the previous user's jobsite photos.
       await clearOfflineQueue();
       await clearPhotoUploadQueue();
+      // Same class as the photo queue: an untranscribed dictation exists nowhere
+      // else, and clearAudioTranscribeQueue also unlinks the staged recordings
+      // under documentDirectory — the previous tenant's voice, on this device.
+      await clearAudioTranscribeQueue();
     } catch (err) {
       console.log('[Auth] Failed to clear offline queue:', err);
     }
@@ -630,11 +635,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         void readLastUser().then(async (last) => {
           if (last) return;
           const dropUntagged = Platform.OS === 'web';
-          const [text, photos] = await Promise.all([
+          const [text, photos, audio] = await Promise.all([
             retainOfflineQueueForUser(u.id, { dropUntagged }),
             retainPhotoUploadQueueForUser(u.id, { dropUntagged }),
+            retainAudioTranscribeQueueForUser(u.id, { dropUntagged }),
           ]);
-          if (text.readFailed || photos.readFailed) {
+          if (text.readFailed || photos.readFailed || audio.readFailed) {
             // A8: storage refused one of the reads, so that queue is untouched
             // and unexamined. Stamping the marker now would vouch for entries
             // nobody has looked at. Leave it unwritten — the next flush then
@@ -757,6 +763,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           // came back moments after being dropped.
           await clearOfflineQueue();
           await clearPhotoUploadQueue();
+          await clearAudioTranscribeQueue();
         } catch (err) {
           console.log('[Auth] Failed to drop the previous user\'s offline queues:', err);
         }

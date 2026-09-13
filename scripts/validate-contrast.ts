@@ -38,6 +38,17 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
+// Check 12 measures the REAL derived palette, not a regex of it. Both modules
+// are import-free leaves (no react-native, no bundler), so bun loads them the
+// same way scripts/validate-schedule-colors.ts already loads constants/colors.
+import { Colors, Theme, deriveAccentPalette, BRAND_ACCENT } from '../constants/colors';
+import { THEME_PRESETS } from '../types';
+// Check 15b RUNS the two label pickers instead of reading their source. Both
+// are leaves for bun's purposes — utils/scheduleColors pulls only
+// constants/colors, components/ui/ink and a type — which is why
+// scripts/validate-schedule-colors.ts already imports the first of them.
+import { barLabelColorFor } from '../utils/scheduleColors';
+import { labelOn, INK_ON_LIGHT_FILL } from '../components/ui/ink';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -68,6 +79,19 @@ function walk(dir: string): string[] {
 function collectFiles(dirs: string[]): string[] {
   return dirs.flatMap((d) => walk(join(ROOT, d)));
 }
+
+/**
+ * Roots for the COLOUR passes (checks 1, 1b, 1c, 3).
+ *
+ * They walked ['app','components'] until the 2026-09-07 audit: a palette does
+ * not stop being a palette because it lives in a helper, and utils/ ships
+ * several (scheduleEngine's PHASE_COLORS, summaryBriefing's project colours,
+ * scheduleReportHtml's inline CSS) straight into rendered screens and PDFs.
+ * The SHAPE passes below (BrandBackdrop coupling, the FAB corner, header
+ * titles, identity tiles) stay on app/components on purpose — they are about
+ * rendered screens, and a util has none.
+ */
+const COLOR_ROOTS = ['app', 'components', 'utils', 'hooks', 'contexts', 'lib'];
 
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
@@ -170,7 +194,7 @@ function isInert(v: string): boolean {
 type Hit = { file: string; line: number; expr: string; key: string };
 const sameTokenHits: Hit[] = [];
 
-for (const file of collectFiles(['app', 'components'])) {
+for (const file of collectFiles(COLOR_ROOTS)) {
   const src = readFileSync(file, 'utf8');
   for (let i = 0; i < src.length; i++) {
     if (src[i] !== '{') continue;
@@ -234,14 +258,21 @@ ok(
 const LABEL_SUFFIX = /^(Text|Label|Title|Value|Name|Txt|Sub|Caption)$/;
 const pairHits: string[] = [];
 
-for (const file of collectFiles(['app', 'components'])) {
-  const src = readFileSync(file, 'utf8');
-  const entries = [...src.matchAll(/^\s{2}(\w+):\s*\{/gm)];
+/**
+ * The two-space-indented `name: { … }` entries of a file's StyleSheet(s), split
+ * into fills, label colours and line numbers.
+ *
+ * Checks 1b and 1c(a)/(b) each built this inline; pass 1c(c) did not have it at
+ * all, which is the whole reason six white-on-accent buttons shipped past this
+ * guard (audit 2026-09-07): their fill is inline JSX and their label is a
+ * StyleSheet entry, so neither half could see the other. One table, three
+ * callers.
+ */
+function styleTable(src: string) {
   const bgOf = new Map<string, string>();
   const fgOf = new Map<string, string>();
   const lineOf = new Map<string, number>();
-
-  for (const e of entries) {
+  for (const e of src.matchAll(/^\s{2}(\w+):\s*\{/gm)) {
     const name = e[1];
     const bodyStart = e.index! + e[0].length;
     let depth = 1;
@@ -257,6 +288,12 @@ for (const file of collectFiles(['app', 'components'])) {
     const mfg = /(?<!background)(?<![A-Za-z])color\s*:\s*/.exec(body);
     if (mfg) fgOf.set(name, readValue(body, mfg.index + mfg[0].length));
   }
+  return { bgOf, fgOf, lineOf };
+}
+
+for (const file of collectFiles(COLOR_ROOTS)) {
+  const src = readFileSync(file, 'utf8');
+  const { bgOf, fgOf, lineOf } = styleTable(src);
 
   for (const [container, bgv] of bgOf) {
     if (isInert(bgv)) continue;
@@ -310,10 +347,53 @@ function isRawAccentFill(v: string): boolean {
 /** Does `v` resolve to white / near-white / the cream bg used as a label colour? */
 function isWhiteish(v: string): boolean {
   const s = v.trim().replace(/;$/, '');
-  if (/^'#(FFF|FFFFFF|FEFEFE|FEFFFE|FFFFFE|FDFDFD)'$/i.test(s)) return true;
+  // Both quote styles: app/punch-list.tsx:1070 writes `color: "#FFFFFF"` and
+  // escaped this check for years on the quote character alone (audit 2026-09-07).
+  if (/^["']#(FFF|FFFFFF|FEFEFE|FEFFFE|FFFFFE|FDFDFD)["']$/i.test(s)) return true;
   if (/\.textOnAccent$/.test(s)) return true;            // token = #FFFFFF
   if (/^(t|themeColors|colors|c|Colors|C|theme|colours)\.bg$/.test(s)) return true; // cream, 2.70:1 — worse
   return false;
+}
+
+/**
+ * The source range of the JSX element whose OPEN TAG contains `at` — its own
+ * subtree, and nothing after it.
+ *
+ * Pass (c) used a 400-character window ending at the first `</`, which is both
+ * too loose (it can run into the next sibling) and too tight (it stops before a
+ * label that sits behind a self-closing icon). Returns null when `at` is not
+ * inside a JSX open tag at all, e.g. a plain object literal in a util.
+ */
+function jsxElementRange(src: string, at: number): { start: number; end: number } | null {
+  let start = -1;
+  for (let i = at; i >= 0; i--) {
+    if (src[i] === '<' && /[A-Za-z]/.test(src[i + 1] ?? '')) { start = i; break; }
+  }
+  if (start < 0) return null;
+  const tag = /^<([A-Za-z][\w.]*)/.exec(src.slice(start, start + 60))?.[1];
+  if (!tag) return null;
+  // End of the open tag = the first `>` at brace depth 0, so the `>` inside an
+  // arrow function in a prop expression (`onPress={() => …}`) does not end it.
+  let depth = 0;
+  let openEnd = -1;
+  for (let i = start + 1; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') depth--;
+    else if (ch === '>' && depth === 0) { openEnd = i; break; }
+  }
+  if (openEnd < 0 || openEnd < at) return null;
+  if (src[openEnd - 1] === '/') return { start, end: openEnd };
+  // Balanced close, counting nested same-name tags.
+  const re = new RegExp(`<(/?)${tag.replace(/\./g, '\\.')}\\b`, 'g');
+  re.lastIndex = openEnd;
+  let nest = 1;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) {
+    nest += m[1] === '/' ? -1 : 1;
+    if (nest === 0) return { start, end: m.index };
+  }
+  return { start, end: src.length };
 }
 
 const whiteOnAccentHits: string[] = [];
@@ -321,30 +401,10 @@ const whiteOnAccentHits: string[] = [];
 // (a) StyleSheet pairs — a `fooBtn` fill on raw accent + its `fooBtnText` label
 //     coloured white. Reuse the same container/label pairing as check 1b, but
 //     match ACROSS tokens (fill=accent, label=white) rather than fill===label.
-for (const file of collectFiles(['app', 'components'])) {
+for (const file of collectFiles(COLOR_ROOTS)) {
   const rel = relative(ROOT, file);
   const src = readFileSync(file, 'utf8');
-  const entries = [...src.matchAll(/^\s{2}(\w+):\s*\{/gm)];
-  const bgOf = new Map<string, string>();
-  const fgOf = new Map<string, string>();
-  const lineOf = new Map<string, number>();
-
-  for (const e of entries) {
-    const name = e[1];
-    const bodyStart = e.index! + e[0].length;
-    let depth = 1;
-    let bodyEnd = bodyStart;
-    for (let j = bodyStart; j < src.length; j++) {
-      if (src[j] === '{') depth++;
-      else if (src[j] === '}') { depth--; if (depth === 0) { bodyEnd = j; break; } }
-    }
-    const body = src.slice(bodyStart, bodyEnd);
-    lineOf.set(name, src.slice(0, e.index!).split('\n').length);
-    const mbg = /backgroundColor\s*:\s*/.exec(body);
-    if (mbg) bgOf.set(name, readValue(body, mbg.index + mbg[0].length));
-    const mfg = /(?<!background)(?<![A-Za-z])color\s*:\s*/.exec(body);
-    if (mfg) fgOf.set(name, readValue(body, mfg.index + mfg[0].length));
-  }
+  const { bgOf, fgOf, lineOf } = styleTable(src);
 
   for (const [container, bgv] of bgOf) {
     if (!isRawAccentFill(bgv)) continue;
@@ -361,8 +421,7 @@ for (const file of collectFiles(['app', 'components'])) {
   // (b) A single style entry that BOTH fills on raw accent AND colours its own
   //     text white (e.g. `permTitle: { backgroundColor: t.accent, color: '#FFF' }`
   //     — rare, but the fg===bg check would miss it since the tokens differ).
-  for (const e of entries) {
-    const name = e[1];
+  for (const name of lineOf.keys()) {
     const bg = bgOf.get(name);
     const fg = fgOf.get(name);
     if (bg && fg && isRawAccentFill(bg) && isWhiteish(fg)) {
@@ -374,16 +433,31 @@ for (const file of collectFiles(['app', 'components'])) {
 }
 
 // (c) Inline JSX — `<Foo style={[.., { backgroundColor: t.accent }]}>` whose
-//     child <Text>/<Icon> carries an inline white `color:`. This pass scans ONLY
-//     the JSX regions (everything OUTSIDE the file's `StyleSheet.create({...})`
-//     blocks — those are handled precisely by (a)/(b), so scanning them here
-//     would double-report and mis-pair unrelated style entries). For each inline
-//     raw-accent fill, look for a white foreground inline within the SAME JSX
-//     element (bounded by the element's own open-tag/children, not a downstream
-//     sibling).
-for (const file of collectFiles(['app', 'components'])) {
+//     label is white. This pass scans ONLY the JSX regions (everything OUTSIDE
+//     the file's `StyleSheet.create({...})` blocks — those are handled precisely
+//     by (a)/(b), so scanning them here would double-report and mis-pair
+//     unrelated style entries).
+//
+//     TWO GAPS CLOSED 2026-09-07, both found by hand while this check printed
+//     PASS on six shipping buttons:
+//
+//     • The label may live in the StyleSheet while the fill is inline —
+//       `style={[styles.btn, { backgroundColor: t.accent }]}` with
+//       `<Text style={styles.btnText}>` and `btnText: { color: '#FFF' }`. That
+//       split falls between (a) (needs a StyleSheet fill) and (c) (used to need
+//       an inline label), which is exactly where app/accept-invite.tsx's two
+//       buttons — the first screen an invited collaborator ever sees — sat.
+//       The style table is now resolved for this pass too.
+//
+//     • The window was "from the fill to the next `</`, max 400 chars", which
+//       cannot tell a child from a downstream sibling and stops short of a
+//       label sitting behind a self-closing icon (app/bid-detail.tsx's "Apply"
+//       renders <ExternalLink /> before its <Text>). It is now the element's
+//       own subtree, resolved by tag.
+for (const file of collectFiles(COLOR_ROOTS)) {
   const rel = relative(ROOT, file);
   const raw = stripComments(readFileSync(file, 'utf8'));
+  const { bgOf, fgOf } = styleTable(raw);
 
   // Blank out every `StyleSheet.create( … )` body so the inline scan can't see
   // StyleSheet properties (preserve offsets/line count by overwriting with spaces).
@@ -402,56 +476,82 @@ for (const file of collectFiles(['app', 'components'])) {
   }
   const src = chars.join('');
 
-  const bgRe = /backgroundColor\s*:\s*([A-Za-z_][\w.]*)/g;
+  // Read the WHOLE value, not just the leading token: `t.accent + '20'` is an
+  // 8% tint, not a solid brand-hue field, and a regex that stopped at the token
+  // read it as one (app/(tabs)/materials/index.tsx:289 false-failed on exactly
+  // that while this check was being repaired).
+  const bgRe = /backgroundColor\s*:\s*/g;
   let m: RegExpExecArray | null;
   while ((m = bgRe.exec(src))) {
-    if (!isRawAccentFill(m[1])) continue;
-    // Bound the search window to this JSX element: from the fill to the next
-    // element close `</` (or 400 chars, whichever is sooner) — tight enough that
-    // a white colour on an unrelated sibling element is not swept in.
-    const close = src.indexOf('</', m.index);
-    const windowEnd = close < 0 ? Math.min(src.length, m.index + 400) : Math.min(close, m.index + 400);
-    const win = src.slice(m.index, windowEnd);
-    // Require a `color:` (style-object property, colon) — a TEXT label. A bare
-    // `color=` JSX attribute is an ICON prop (lucide `<Check color={...}/>`), which
-    // is non-text chrome governed by the 3:1 rule, not this text check — excluding
+    const fill = readValue(src, m.index + m[0].length);
+    if (!isRawAccentFill(fill)) continue;
+    const range = jsxElementRange(src, m.index);
+    // No resolvable element (a plain object literal outside JSX) keeps the old
+    // conservative 400-char window rather than scanning to end of file.
+    const win = src.slice(m.index, range ? range.end : Math.min(src.length, m.index + 400));
+
+    // A `color:` STYLE PROPERTY (colon) is a TEXT label. A bare `color=` JSX
+    // attribute is an ICON prop (lucide `<Check color={...}/>`), which is
+    // non-text chrome governed by the 3:1 rule, not this text check — excluding
     // it is what keeps active-state checkbox/icon toggles from false-failing.
-    const fgInline = /(?<!background)(?<![A-Za-z])color\s*:\s*('#(?:FFF|FFFFFF|FEFEFE)'|[A-Za-z_][\w.]*\.textOnAccent|(?:t|themeColors|colors|c|Colors)\.bg)\b/i.exec(win);
-    if (fgInline) {
+    let label: string | null = null;
+    for (const f of win.matchAll(/(?<!background)(?<![A-Za-z])color\s*:\s*([^,\n}]+)/g)) {
+      if (isWhiteish(f[1])) { label = f[1].trim(); break; }
+    }
+    // …or the label is a StyleSheet entry referenced somewhere in this element.
+    if (!label) {
+      for (const sm of win.matchAll(/styles\.(\w+)/g)) {
+        const fg = fgOf.get(sm[1]);
+        if (fg && isWhiteish(fg)) { label = `styles.${sm[1]} (${fg})`; break; }
+      }
+    }
+    if (label) {
       const line = src.slice(0, m.index).split('\n').length;
       whiteOnAccentHits.push(
-        `${rel}:${line}  inline backgroundColor: ${m[1]} with white foreground ${fgInline[1]} — 2.87:1; use accentFill`,
+        `${rel}:${line}  inline backgroundColor: ${fill} with white foreground ${label} — 2.87:1; use accentFill`,
       );
     }
+  }
+
+  // (d) The MIRROR IMAGE of (c): the fill is a StyleSheet entry and the label is
+  //     written inline — `<View style={styles.badge}><Text style={{ color:'#FFF' }}>`
+  //     with `badge: { backgroundColor: t.accent }`. Pass (a) pairs a StyleSheet
+  //     fill only with a StyleSheet label named `<container><Suffix>`, and (c)
+  //     needs the fill inline, so this split fell between all three — the same
+  //     shape as the split that let app/accept-invite.tsx ship two illegible
+  //     CTAs, just the other way round (found reviewing that repair 2026-09-07).
+  //     Scoped to the element's own subtree, so a white label on an unrelated
+  //     sibling is not swept in.
+  for (const sm of src.matchAll(/styles\.(\w+)/g)) {
+    const fill = bgOf.get(sm[1]);
+    if (!fill || !isRawAccentFill(fill)) continue;
+    const range = jsxElementRange(src, sm.index!);
+    if (!range) continue;   // not a JSX usage — a bare reference in code
+    const win = src.slice(sm.index!, range.end);
+    let label: string | null = null;
+    for (const f of win.matchAll(/(?<!background)(?<![A-Za-z])color\s*:\s*([^,\n}]+)/g)) {
+      if (isWhiteish(f[1])) { label = f[1].trim(); break; }
+    }
+    if (!label) continue;
+    const line = src.slice(0, sm.index!).split('\n').length;
+    whiteOnAccentHits.push(
+      `${rel}:${line}  styles.${sm[1]} fills on ${fill} with inline white foreground ${label} — 2.87:1; use accentFill`,
+    );
   }
 }
 
 const uniqWhiteAccent = [...new Map(whiteOnAccentHits.map((h) => [h, h])).values()];
 
-// Two files carry this defect but are OWNED BY A DIFFERENT BRANCH's integrator
-// and are contractually off-limits to the brand-orange work
-// (app/coi-vault.tsx and app/(tabs)/settings/**). The defect is REAL and is
-// still surfaced below as a WARNING so it is never silently lost — but this
-// guard does not FAIL the build for a file this branch may not edit. Any NEW
-// white-on-accent introduced anywhere else DOES fail. Trim this list to []
-// the moment those files are fixed and the warning becomes a hard failure again.
-const QUARANTINED = [/^app\/coi-vault\.tsx:/, /^app\/\(tabs\)\/settings\//];
-const isQuarantined = (h: string) => QUARANTINED.some((re) => re.test(h));
-const actionable = uniqWhiteAccent.filter((h) => !isQuarantined(h));
-const quarantined = uniqWhiteAccent.filter(isQuarantined);
-
+// There is no quarantine list any more. app/coi-vault.tsx and app/(tabs)/
+// settings/** were carved out while another branch's integrator owned them, and
+// the carve-out outlived the ownership: both are clean, so the exemption was
+// doing nothing except standing ready to swallow the next defect in those two
+// paths. Every hit fails, everywhere (audit 2026-09-07).
 ok(
   'no white/near-white TEXT sits on the raw accent fill (use accentFill, AA 4.5:1)',
-  actionable.length === 0,
-  actionable.join('\n        '),
+  uniqWhiteAccent.length === 0,
+  uniqWhiteAccent.join('\n        '),
 );
-if (quarantined.length > 0) {
-  console.log(
-    '  WARN  ' + quarantined.length + ' pre-existing white-on-accent defect(s) in integrator-owned, ' +
-    'off-limits file(s) — NOT fixed here, surfaced for the owner:\n        ' +
-    quarantined.join('\n        '),
-  );
-}
 
 // ── Check 2: the on-ink hero palette stays bound to BrandBackdrop ───────────
 //
@@ -529,7 +629,9 @@ ok(
 // slab, and where same-token text sits on it, invisible. Five sites shipped
 // this; all now use the real rgba token `neutralSoft` directly. This check
 // pins that: it fails if either rgba foreground token is alpha-suffixed
-// anywhere in app/ or components/.
+// anywhere the app draws from — the same COLOR_ROOTS as checks 1/1b/1c. It was
+// left on ['app','components'] when they were widened on 2026-09-07, which is
+// the identical blind spot one check over (review, same day).
 //
 // PRECISE by construction: only textSecondary and textMuted are rgba foreground
 // tokens. Every other suffixable token (accent, danger, success, info, …) is a
@@ -544,7 +646,7 @@ const RGBA_FG_SUFFIX = [
   /\$\{[^}]*\b(?:textSecondary|textMuted)\b[^}]*\}[0-9A-Fa-f]{2}/,
 ];
 const suffixHits: string[] = [];
-for (const file of collectFiles(['app', 'components'])) {
+for (const file of collectFiles(COLOR_ROOTS)) {
   const src = stripComments(readFileSync(file, 'utf8'));
   src.split('\n').forEach((line, i) => {
     if (RGBA_FG_SUFFIX.some((re) => re.test(line))) {
@@ -739,11 +841,38 @@ ok(
 // Deliberately NOT in this set:
 //   • `accent` / `primary` — founder decision #1 keeps the brand hue #FF6A1A
 //     for large non-text chrome under the 3:1 rule; its text companions are
-//     `accentLabel` (checked) and `accentFill` (white-on-fill, check 1c).
+//     `accentLabel` and `accentFill`, which since 2026-09-07 are DERIVED per
+//     hue rather than frozen in Theme.light/dark and are measured for all nine
+//     presets by check 12 below. Leaving `accentLabel` in the list here would
+//     have been worse than removing it: THEME[theme].accentLabel is now
+//     undefined and the loop's `if (!fg) continue` would have skipped it in
+//     silence, which is the failure mode this whole file exists to prevent.
 //   • `Theme.*.danger` and `Colors.success/warning/error/info` — the SOLID
 //     signal hues for dots, bars and icons. Their text companions are the
 //     *Label tokens, which ARE checked.
-const CHIP_TINT = 0x15 / 255; // the '15' suffix the chips actually ship
+// READ out of components/ui/ink.ts, not typed here. TaskInspector and
+// components/schedule/mobile/TaskDetailSheet both paint their selected chip as
+// `ink + CHIP_TINT_SUFFIX`, so the wash this file measures has to be the wash
+// the app paints. Frozen as a literal, somebody thinning the suffix to '08'
+// would leave checks 5, 14 and 15 all certifying an 8% wash that no longer
+// ships — the exact shape of drift this file exists to stop.
+const CHIP_TINT = (() => {
+  const m = /export const CHIP_TINT_SUFFIX\s*=\s*'([0-9a-fA-F]{2})'/.exec(
+    stripComments(read('components/ui/ink.ts')),
+  );
+  if (!m) {
+    failures += 1;
+    console.error(
+      "  FAIL  components/ui/ink.ts no longer exports a two-hex-digit CHIP_TINT_SUFFIX — " +
+      'every chip ratio below would be measured at a wash the app does not paint',
+    );
+    return 0x15 / 255;
+  }
+  return parseInt(m[1], 16) / 255;
+})();
+/** The same wash as a percentage, so the failure messages below cannot go on
+ *  saying "8%" after somebody changes the suffix. */
+const CHIP_TINT_PCT = `${Math.round(CHIP_TINT * 100)}%`;
 
 function chipRatio(label: string, ground: string): number | null {
   const fg = parseColor(label);
@@ -754,7 +883,7 @@ function chipRatio(label: string, ground: string): number | null {
 }
 
 const chipFailures: string[] = [];
-const THEME_CHIP_TOKENS = ['success', 'info', 'accentLabel', 'successLabel', 'warningLabel', 'dangerLabel'] as const;
+const THEME_CHIP_TOKENS = ['success', 'info', 'successLabel', 'warningLabel', 'dangerLabel'] as const;
 for (const theme of ['light', 'dark'] as const) {
   const surface = THEME[theme].surface;
   for (const token of THEME_CHIP_TOKENS) {
@@ -762,7 +891,7 @@ for (const theme of ['light', 'dark'] as const) {
     if (!fg || !surface) continue;
     const r = chipRatio(fg, surface);
     if (r !== null && r < AA) {
-      chipFailures.push(`Theme.${theme}.${token} (${fg}) as a label on its own 8% tint over surface = ${round2(r)}:1  — needs ${AA}:1`);
+      chipFailures.push(`Theme.${theme}.${token} (${fg}) as a label on its own ${CHIP_TINT_PCT} tint over surface = ${round2(r)}:1  — needs ${AA}:1`);
     }
   }
 }
@@ -777,7 +906,7 @@ for (const theme of ['light', 'dark'] as const) {
     if (!surface) continue;
     const r = chipRatio(fg, surface);
     if (r !== null && r < AA) {
-      chipFailures.push(`Colors.${token} (${fg}) as a label on its own 8% tint over surface [${theme}] = ${round2(r)}:1  — needs ${AA}:1`);
+      chipFailures.push(`Colors.${token} (${fg}) as a label on its own ${CHIP_TINT_PCT} tint over surface [${theme}] = ${round2(r)}:1  — needs ${AA}:1`);
     }
   }
 }
@@ -802,7 +931,7 @@ for (const theme of ['light', 'dark'] as const) {
     const tint = composite({ rgb: f.rgb, a: CHIP_TINT }, g.rgb);
     const r = contrast(k.rgb, tint);
     if (r < AA) {
-      chipFailures.push(`Colors.${inkTok} (${ink}) on a Colors.${fillTok} 8% tint over surface [${theme}] = ${round2(r)}:1  — needs ${AA}:1`);
+      chipFailures.push(`Colors.${inkTok} (${ink}) on a Colors.${fillTok} ${CHIP_TINT_PCT} tint over surface [${theme}] = ${round2(r)}:1  — needs ${AA}:1`);
     }
   }
 }
@@ -985,8 +1114,9 @@ ok(
 // UniversalMicButton.tsx does exactly that at `insets.bottom + 70 + 52 + 12`
 // (y[134,180], 8pt above the Brain FAB's top) and must not be flagged. So the
 // check resolves each candidate's inline `bottom` offset and fails only on an
-// actual overlap. An offset it cannot resolve statically (a prop, a variable)
-// is reported as a WARN naming the reason, never as a silent pass.
+// actual overlap. An offset it cannot resolve statically is its own FAILURE
+// below — it was a WARN until 2026-09-07, and the one circle it could not
+// measure is precisely the one that went a release unmeasured.
 
 const BRAIN_BOTTOM = 70;   // BrainFab.tsx fabWrap: insets.bottom + 70 + lift
 const BRAIN_HEIGHT = 56;
@@ -995,18 +1125,78 @@ const BRAIN_TOP = BRAIN_BOTTOM + BRAIN_HEIGHT;
 type Corner = { where: string; style: string; height: number; offset: number | null; raw: string };
 
 /**
- * Sum a `bottom:` expression of the form `insets.bottom + 70 + 52 + 12`
- * (Platform ternaries and other non-numeric terms make it unresolvable).
+ * Every static value a bare identifier term can hold: its `= N` default in the
+ * component's own props destructuring, plus every `name={N}` passed by a caller.
+ * Null when any of them is not a literal number — then the geometry genuinely
+ * is not computable from source and the check must say so.
  */
-function resolveBottomOffset(expr: string): number | null {
+function identifierValues(name: string, src: string, callers: string[]): number[] | null {
+  const vals: number[] = [];
+  const def = new RegExp(`[{,]\\s*${name}\\s*=\\s*([^,}]+)`).exec(src);
+  if (def) {
+    if (!/^\d+$/.test(def[1].trim())) return null;
+    vals.push(Number(def[1].trim()));
+  }
+  // Only props passed to a component THIS file exports count. `bottomOffset` is
+  // also a VoiceFieldButton prop, and app/(tabs)/schedule/index.tsx passes it a
+  // non-literal there — a name-only scan folded that in and declared HelpFab's
+  // geometry uncomputable.
+  const tags = [...src.matchAll(/export\s+(?:default\s+)?(?:const|function|class)\s+([A-Z]\w*)/g)].map((m) => m[1]);
+  if (tags.length === 0) return vals.length > 0 ? vals : null;
+  for (const f of callers) {
+    const s = readFileSync(f, 'utf8');
+    for (const tag of tags) {
+      const tagRe = new RegExp(`<${tag}\\b`, 'g');
+      let t: RegExpExecArray | null;
+      while ((t = tagRe.exec(s))) {
+        // The open tag ends at the first `>` at brace depth 0 (an arrow in a
+        // prop expression must not close it early).
+        let depth = 0;
+        let end = -1;
+        for (let i = t.index + t[0].length; i < s.length; i++) {
+          if (s[i] === '{') depth++;
+          else if (s[i] === '}') depth--;
+          else if (s[i] === '>' && depth === 0) { end = i; break; }
+        }
+        if (end < 0) continue;
+        const prop = new RegExp(`\\b${name}=\\{([^}]*)\\}`).exec(s.slice(t.index, end));
+        if (!prop) continue;
+        const v = prop[1].trim();
+        if (!/^\d+$/.test(v)) return null;
+        vals.push(Number(v));
+      }
+    }
+  }
+  return vals.length > 0 ? vals : null;
+}
+
+/**
+ * Sum a `bottom:` expression of the form `insets.bottom + 70 + 52 + 12`.
+ *
+ * A bare identifier term is resolved through `identifierValues` and folded in
+ * at its SMALLEST value, because the smallest offset is the worst case for an
+ * overlap. That is not a nicety: components/HelpFab.tsx writes
+ * `insets.bottom + bottomOffset + 16`, which this could not sum, and the check
+ * reported it as an unresolved WARN and passed the build — so the one floating
+ * circle it could not measure was the one it never measured (audit 2026-09-07).
+ */
+const MAX_BOTTOM_INSET = 34;   // iPhone home-indicator portrait inset
+
+function resolveBottomOffset(expr: string, src: string, callers: string[]): number | null {
   const e = expr.trim().replace(/\s+/g, ' ');
-  if (!/^[\w.]*insets\.bottom/.test(e) && !/insets\.bottom/.test(e)) return null;
-  const rest = e.slice(e.indexOf('insets.bottom') + 'insets.bottom'.length);
-  if (rest.trim() === '') return 0;
-  let total = 0;
+  // A sum with no `insets.bottom` is measured from the SCREEN edge while this
+  // check's band is measured from the safe-area origin, so it converts by
+  // subtracting the biggest inset in the fleet — the worst case, the one that
+  // can collide. Returning null for it made the hard failure below reject
+  // `bottom: 200` as "not a static sum", which is the most static sum there is
+  // (review 2026-09-07).
+  const hasInset = /insets\.bottom/.test(e);
+  const rest = hasInset ? e.slice(e.indexOf('insets.bottom') + 'insets.bottom'.length) : e;
+  if (rest.trim() === '') return hasInset ? 0 : null;
+  let total = hasInset ? 0 : -MAX_BOTTOM_INSET;
   const terms = rest.split('+');
-  if (terms[0].trim() !== '') return null;
-  for (const t of terms.slice(1)) {
+  if (hasInset && terms[0].trim() !== '') return null;
+  for (const t of hasInset ? terms.slice(1) : terms) {
     const v = t.trim().replace(/[,\]}]+$/, '');
     if (/^\d+$/.test(v)) { total += Number(v); continue; }
     // A platform/branch bump such as `(Platform.OS === 'web' ? 48 : 0)` only
@@ -1014,12 +1204,18 @@ function resolveBottomOffset(expr: string): number | null {
     // branch: the worst case for an overlap is the one we must clear.
     const tern = /^\(.*\?\s*(\d+)\s*:\s*(\d+)\s*\)$/.exec(v);
     if (tern) { total += Math.min(Number(tern[1]), Number(tern[2])); continue; }
+    if (/^[A-Za-z_]\w*$/.test(v)) {
+      const vals = identifierValues(v, src, callers);
+      if (!vals) return null;
+      total += Math.min(...vals);
+      continue;
+    }
     return null;
   }
-  return total;
+  return Math.max(0, total);
 }
 
-function floatingCorner(files: string[]): Corner[] {
+function floatingCorner(files: string[], callers: string[]): Corner[] {
   const found: Corner[] = [];
   for (const file of files) {
     const src = readFileSync(file, 'utf8');
@@ -1050,13 +1246,13 @@ function floatingCorner(files: string[]): Corner[] {
       let offset: number | null = null;
       let raw = '(no inline bottom — style carries none either)';
       const inStyle = /(?:^|[{,\s])bottom:\s*([^,\n}]+)/.exec(body);
-      if (inStyle) { raw = inStyle[1].trim(); offset = resolveBottomOffset(raw); }
+      if (inStyle) { raw = inStyle[1].trim(); offset = resolveBottomOffset(raw, src, callers); }
       let u: RegExpExecArray | null;
       while ((u = useRe.exec(src))) {
         const b = /(?:^|[{,\s])bottom:\s*([^,\n}]+)/.exec(u[1]);
         if (!b) continue;
         raw = b[1].trim();
-        offset = resolveBottomOffset(raw);
+        offset = resolveBottomOffset(raw, src, callers);
         break;
       }
       found.push({
@@ -1071,10 +1267,9 @@ function floatingCorner(files: string[]): Corner[] {
   return found;
 }
 
-const allCorners = [
-  ...floatingCorner(collectFiles(['app'])),
-  ...floatingCorner(collectFiles(['components'])),
-].filter((c) => !c.where.startsWith('components/brain/BrainFab.tsx'));
+const screenFiles = collectFiles(['app', 'components']);
+const allCorners = floatingCorner(screenFiles, screenFiles)
+  .filter((c) => !c.where.startsWith('components/brain/BrainFab.tsx'));
 
 const collides = (c: Corner) =>
   c.offset !== null && c.offset < BRAIN_TOP && c.offset + c.height > BRAIN_BOTTOM;
@@ -1091,14 +1286,19 @@ ok(
   cornerHits.join('\n        '),
 );
 
+// An offset this guard cannot resolve used to print as a WARN and pass. A check
+// that cannot check is not a check: the one circle it could not measure sat
+// uncomputed through a release. Unresolvable is now a FAILURE — either express
+// the offset as a sum this can add (numbers, a Platform ternary, or a prop with
+// a numeric default) or the geometry has to be verified some other way.
 const unresolved = allCorners.filter((c) => c.offset === null);
-if (unresolved.length > 0) {
-  console.log(
-    '  WARN  ' + unresolved.length + ' floating circle(s) in that corner whose bottom offset is not a ' +
-    'static number, so the overlap cannot be computed here — check them by hand:\n        ' +
-    unresolved.map((c) => `${c.where}  styles.${c.style}  bottom: ${c.raw}`).join('\n        '),
-  );
-}
+ok(
+  'every floating circle in that corner has a computable bottom offset',
+  unresolved.length === 0,
+  unresolved
+    .map((c) => `${c.where}  styles.${c.style}  bottom: ${c.raw}  — not a sum this can add, so the overlap with the Brain FAB cannot be computed. It takes a literal number, \`insets.bottom + N\`, a Platform ternary of two numbers, or a prop whose default and every caller are numeric.`)
+    .join('\n        '),
+);
 
 // ── Check 9: a screen must not print its own native header title again ──────
 //
@@ -1197,6 +1397,808 @@ ok(
   'every native header title style carries the app typeface (Fraunces)',
   headerFailures.length === 0,
   headerFailures.join('\n        '),
+);
+
+// ── Check 12: every theme preset's DERIVED accent family clears AA ─────────
+//
+// Audit 2026-09-07, "Do next" 4. Settings → APP THEME ships nine presets and
+// promised "Customize the app's accent colors to match your brand", but the
+// five accent tokens every screen draws in were '#FF6A1A' literals frozen
+// inside Theme.light / Theme.dark, so picking Navy repainted the ~420
+// `Colors.primary|accent` reads and left the ~3,395 `t.accent*` reads orange.
+// The family is now solved per hue in constants/colors.ts, which moves the
+// risk: a hue that is legible for the brand orange is not legible for
+// Charcoal, and NOTHING in the type system says a solved value made its
+// budget. This check is what makes the feature safe to ship.
+//
+// It calls the real deriveAccentPalette — so it fails if the solver breaks,
+// if a preset names a hue no lightness of which can clear AA, and (via the
+// distinctness check) if someone "fixes" a failure by collapsing every preset
+// back onto the brand family.
+//
+// Budgets, taken from the token comments in constants/colors.ts:
+//   accentLabel  coloured TEXT — AA 4.5:1 on bg / surface / surfaceAlt AND on
+//                the accentSoft wash of itself over each (the app's chip idiom)
+//   accentFill   a BUTTON, so TWO budgets: white text on it at AA 4.5:1, AND
+//                the button itself visible as a shape at WCAG 1.4.11's 3:1
+//                against bg / surface / surfaceAlt. Measuring only the first
+//                is what let the original fix through review with a Charcoal
+//                dark-mode CTA at 1.19:1 on the page — a black slab carrying
+//                floating white text, at 461 call sites (review 2026-09-07).
+//                No founder-decision exemption here: unlike `accent` this is
+//                an interactive control, not decoration.
+//   accent       nominally large non-text chrome, but 373 of the 588
+//                `color: …accent` sites are text, so in the DARK theme it
+//                carries the AA 4.5:1 text budget the brand hue already meets
+//                there (#FF6A1A is 5.78:1 on its worst dark ground). In the
+//                LIGHT theme the brand sits at 2.50:1 on surfaceAlt and
+//                founder decision #1 keeps it there, so the light floor is
+//                only "no preset may be harder to see than the brand already
+//                is" (review 2026-09-07)
+//   accentSoft   a WASH, so it must stay translucent — an opaque value here
+//                would silently turn every chip tint into a solid block
+
+const PRESET_AA = 4.5;
+// Dark is the AA text bar, not 3:1 — see the accent note above. A picked hue
+// solved to a bare 3:1 would have taken every accent-coloured caption in dark
+// mode from the brand's 5.78:1 to ~3.05:1 (review 2026-09-07).
+const PRESET_CHROME_FLOOR = { light: 2.4, dark: 4.5 } as const;
+// A button boundary is a UI component, not chrome — 3:1 in BOTH themes.
+const PRESET_FILL_FLOOR = 3.0;
+const WHITE: RGB = [255, 255, 255];
+
+// Solver probes, swept alongside the real presets.
+//
+// The nine shipped hues are all mid-to-dark, so every one of them clears the
+// white-on-accentFill budget at its own lightness without the solver moving a
+// step — which means the preset sweep alone cannot tell a working fill solve
+// from a broken one. (Measured: reversing the accentFill search direction left
+// all nine passing.) These probes are the hues the presets do not cover — pale
+// enough that the fill MUST darken, dark enough that the dark-theme chrome MUST
+// lighten — so the guard exercises the solver rather than only the data. They
+// are not offered to users; they exist to fail here first.
+const SOLVER_PROBES = [
+  { id: 'probe-pale-amber', primary: '#FFE08A' },
+  { id: 'probe-pale-cyan', primary: '#7FE3FF' },
+  { id: 'probe-near-black', primary: '#0A0A0A' },
+] as const;
+
+const accentFailures: string[] = [];
+const seenAccents = new Map<string, string>();
+
+for (const theme of ['light', 'dark'] as const) {
+  const base = Theme[theme] as unknown as Record<string, string>;
+  const grounds = (['bg', 'surface', 'surfaceAlt'] as const).map((g) => {
+    const c = parseColor(base[g]);
+    return { name: g, hex: base[g], rgb: c ? c.rgb : ([0, 0, 0] as RGB) };
+  });
+
+  for (const preset of [...THEME_PRESETS, ...SOLVER_PROBES]) {
+    const fam = deriveAccentPalette(preset.primary, theme);
+    const label = `${preset.id}/${theme}`;
+
+    const accentC = parseColor(fam.accent);
+    const labelC = parseColor(fam.accentLabel);
+    const fillC = parseColor(fam.accentFill);
+    const softC = parseColor(fam.accentSoft);
+    if (!accentC || !labelC || !fillC || !softC) {
+      accentFailures.push(`${label}: unparseable family ${JSON.stringify(fam)}`);
+      continue;
+    }
+
+    // accentSoft must stay a wash of the accent it belongs to.
+    if (softC.a >= 1) {
+      accentFailures.push(`${label}: accentSoft ${fam.accentSoft} is opaque — every chip tint becomes a solid block`);
+    }
+
+    // accentLabel — bare grounds, then the accentSoft wash over each.
+    for (const g of grounds) {
+      const bare = contrast(labelC.rgb, g.rgb);
+      if (bare < PRESET_AA) {
+        accentFailures.push(`${label}: accentLabel ${fam.accentLabel} on ${g.name} ${g.hex} = ${round2(bare)}:1 — needs ${PRESET_AA}:1`);
+      }
+      const tint = composite(softC, g.rgb);
+      const onTint = contrast(labelC.rgb, tint);
+      if (onTint < PRESET_AA) {
+        accentFailures.push(`${label}: accentLabel ${fam.accentLabel} on its accentSoft wash over ${g.name} = ${round2(onTint)}:1 — needs ${PRESET_AA}:1`);
+      }
+    }
+
+    // accentFill — white text sits on it, AND it is the primary button, so it
+    // also has to be visible as a shape against the page it is a button on.
+    const white = contrast(fillC.rgb, WHITE);
+    if (white < PRESET_AA) {
+      accentFailures.push(`${label}: white text on accentFill ${fam.accentFill} = ${round2(white)}:1 — needs ${PRESET_AA}:1`);
+    }
+    const worstFill = Math.min(...grounds.map((g) => contrast(fillC.rgb, g.rgb)));
+    if (worstFill < PRESET_FILL_FLOOR) {
+      accentFailures.push(
+        `${label}: accentFill ${fam.accentFill} is ${round2(worstFill)}:1 on its worst ${theme} ground — ` +
+        `needs ${PRESET_FILL_FLOOR}:1. The primary button is an invisible slab with white text floating on it.`,
+      );
+    }
+
+    // accent — non-text chrome, worst ground of its own theme.
+    const worstChrome = Math.min(...grounds.map((g) => contrast(accentC.rgb, g.rgb)));
+    if (worstChrome < PRESET_CHROME_FLOOR[theme]) {
+      accentFailures.push(
+        `${label}: accent ${fam.accent} is ${round2(worstChrome)}:1 on its worst ${theme} ground — ` +
+        `needs ${PRESET_CHROME_FLOOR[theme]}:1. An icon or progress bar in this hue disappears into the page.`,
+      );
+    }
+
+    // Two presets that resolve to one accent means the picker stopped picking.
+    // Probes are exempt: they are never offered, so a collision with one is
+    // not a picker defect.
+    if (preset.id.startsWith('probe-')) continue;
+    const prior = seenAccents.get(`${theme}|${fam.accent.toUpperCase()}`);
+    if (prior && prior !== preset.id) {
+      accentFailures.push(
+        `${label}: accent ${fam.accent} is identical to preset "${prior}" — ` +
+        `two presets paint the same app, so the picker is not applying the chosen hue.`,
+      );
+    }
+    seenAccents.set(`${theme}|${fam.accent.toUpperCase()}`, preset.id);
+  }
+}
+
+// The brand must be one of the presets, or the default the app boots in is not
+// a thing the picker can express (and check 12 would not be measuring it).
+if (!THEME_PRESETS.some((p) => p.primary.toUpperCase() === BRAND_ACCENT)) {
+  accentFailures.push(`no preset carries the brand hue ${BRAND_ACCENT} — the default palette is unreachable from the picker`);
+}
+
+ok(
+  "every theme preset's derived accent family clears AA on the grounds it lands on",
+  accentFailures.length === 0,
+  accentFailures.join('\n        '),
+);
+
+// ── Check 12b: the accent family is DERIVED, and the picker reaches it ─────
+//
+// The maths above only protects values that are actually built per hue. Two
+// regressions would make it vacuous, and both are one careless edit away —
+// re-freezing an accent literal back into Theme.light/dark (where it silently
+// wins over the derived one, because ThemeContext spreads the base FIRST), or
+// dropping the merge in ThemeContext and returning Theme[resolved] again,
+// which is exactly the state this finding was filed against.
+
+const derivationFailures: string[] = [];
+
+const themeObjSrc = (() => {
+  const at = colorsSrc.indexOf('export const Theme');
+  if (at < 0) return '';
+  const end = colorsSrc.indexOf('\n};', at);
+  return stripComments(colorsSrc.slice(at, end < 0 ? undefined : end));
+})();
+for (const tok of ['accent', 'accentHot', 'accentSoft', 'accentLabel', 'accentFill']) {
+  if (new RegExp(`\\b${tok}\\s*:`).test(themeObjSrc)) {
+    derivationFailures.push(
+      `constants/colors.ts: Theme declares \`${tok}\` again — a frozen accent token overrides the derived ` +
+      `family for all nine presets, which is the defect audit 2026-09-07 "Do next" 4 was filed against`,
+    );
+  }
+}
+
+const themeCtxSrc = stripComments(read('contexts/ThemeContext.tsx'));
+if (!/deriveAccentPalette\(/.test(themeCtxSrc)) {
+  derivationFailures.push('contexts/ThemeContext.tsx no longer builds the palette with deriveAccentPalette() — every screen is back on the frozen accent');
+}
+if (!/subscribeCustomPrimary\(/.test(themeCtxSrc)) {
+  derivationFailures.push('contexts/ThemeContext.tsx no longer subscribes to the picker — a saved theme would need an app restart to appear');
+}
+
+// Boot must only re-apply a hue this file has actually measured. `theme_colors`
+// is a jsonb column older builds wrote with a different preset list, and an
+// unknown hue would repaint the whole app in something check 12 never swept
+// while Settings displayed MAGE Orange as the selection (review 2026-09-07).
+const themeBootSrc = stripComments(read('app/_layout.tsx'));
+const loaderCall = /setCustomPrimary\(([^)]*)\)/.exec(themeBootSrc);
+if (!loaderCall) {
+  derivationFailures.push('app/_layout.tsx no longer restores the saved hue on boot — a picked theme would not survive a relaunch');
+} else if (
+  // Not `/THEME_PRESETS/` — that string is satisfied by the import line at the
+  // top of app/_layout.tsx, so the check passed with the gate itself deleted
+  // (proved by mutation, review 2026-09-07). The lookup has to be CALLED, and
+  // the value handed to setCustomPrimary has to be something other than the
+  // stored hue passed straight through.
+  !/THEME_PRESETS\.(some|find|includes|indexOf)\(/.test(themeBootSrc) ||
+  /^[\w.]*themeColors\.\w+$/.test(loaderCall[1].trim())
+) {
+  derivationFailures.push(
+    `app/_layout.tsx applies the stored hue (\`setCustomPrimary(${loaderCall[1].trim()})\`) without checking it against ` +
+    'THEME_PRESETS — a retired preset from an older build would paint the whole app in a hue no guard has measured',
+  );
+}
+
+// The DEFAULT may not drift. Every screen the product has ever shipped is
+// drawn in these five values, and check 12 above only proves a family clears
+// AA — a brand family re-solved a step of lightness away would clear it too,
+// and would restyle the entire app on a refactor nobody reviewed as a redesign.
+// Pinned here, in the theme's own terms, and asserted through the SAME entry
+// point the app calls (lowercase included: a `theme_colors` row could carry
+// either spelling).
+const BRAND_EXPECTED: Record<'light' | 'dark', Record<string, string>> = {
+  light: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.12)', accentLabel: '#B23E08', accentFill: '#BC440C' },
+  dark: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.16)', accentLabel: '#FF6A1A', accentFill: '#BC440C' },
+};
+for (const theme of ['light', 'dark'] as const) {
+  for (const seed of [BRAND_ACCENT, BRAND_ACCENT.toLowerCase()]) {
+    const fam = deriveAccentPalette(seed, theme) as unknown as Record<string, string>;
+    for (const [tok, want] of Object.entries(BRAND_EXPECTED[theme])) {
+      if ((fam[tok] ?? '').toUpperCase() !== want.toUpperCase()) {
+        derivationFailures.push(
+          `deriveAccentPalette('${seed}', '${theme}').${tok} is ${fam[tok]} — the shipped default is ${want}. ` +
+          'The no-custom-colour palette must stay the measured brand family, not a re-solve of it.',
+        );
+      }
+    }
+  }
+}
+
+const settingsSrc = stripComments(read('app/(tabs)/settings/index.tsx'));
+if (!/setCustomPrimary\(/.test(settingsSrc)) {
+  derivationFailures.push('app/(tabs)/settings/index.tsx no longer sets the chosen hue — the APP THEME picker writes nothing');
+}
+if (/restarting the app/i.test(settingsSrc)) {
+  derivationFailures.push('app/(tabs)/settings/index.tsx still tells the user to restart for theme changes — the palette is live, so the instruction is false');
+}
+
+ok(
+  'the accent family stays derived per hue and the picker still reaches it',
+  derivationFailures.length === 0,
+  derivationFailures.join('\n        '),
+);
+
+// ── Check 13: a DARK-theme ink literal, hardcoded onto whatever theme runs ──
+//
+// 2026-09-07 audit, "worth doing" 4. `#9AA3AD` is `Theme.dark.textSecondary`,
+// and it was written as a bare literal in 82 places across 21 rendered screens
+// — placeholder text, chevrons, close buttons, status-palette entries — all of
+// which render in the LIGHT theme too, where it measures 2.23-2.56:1. It looks
+// right in a diff (it IS the app's secondary grey) and it is wrong half the
+// time the app is open.
+//
+// DERIVED, not listed: the offending values are read out of `Theme.dark` and
+// filtered to the ones that (a) are a solid hex, (b) are an INK token —
+// `textSecondary` / `textMuted`, the two whose only job is foreground, so a
+// legitimate use as a FILL cannot produce a false positive — and (c) actually
+// fail AA on the light theme's own grounds, computed here rather than asserted.
+// Rename or re-value the token and this check follows it.
+//
+// Three narrowings, each for a real shape in this repo and not for convenience:
+//   • `.tsx` only. The same string appears in `utils/emailLayout.ts` as `FOG`,
+//     an email-template colour on a dark HTML ground that RN never renders.
+//   • the hex must be a COMPLETE quoted string literal. The HTML that several
+//     screens build inline (`style="…color:#9AA3AD;…"`) carries it mid-string,
+//     is emailed rather than rendered, and is not this defect.
+//   • a file that paints an opaque INK GROUND in a real RN style is skipped:
+//     app/login.tsx's hero sits on `backgroundColor: '#0B0D10'`, where this
+//     value measures 6.98:1 and is correct. The exemptions are PRINTED, not
+//     silent — a silent allowlist is how the guards came to certify drift.
+
+const INK_TOKENS = ['textSecondary', 'textMuted'] as const;
+
+/** Dark ink values that are a solid hex AND fail AA on every light ground. */
+const darkInkLiterals: { token: string; hex: string; worst: number }[] = [];
+for (const token of INK_TOKENS) {
+  const hex = THEME.dark[token];
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) continue;
+  const ratios = GROUNDS
+    .map((g) => (THEME.light[g] ? ratioOn(hex, THEME.light[g]) : null))
+    .filter((r): r is number => r !== null);
+  if (ratios.length === 0) continue;
+  if (Math.max(...ratios) < AA) darkInkLiterals.push({ token, hex, worst: Math.min(...ratios) });
+}
+if (darkInkLiterals.length === 0) {
+  // Not a pass. Either the tokens were renamed or they are no longer hex, and
+  // in both cases this check is scanning for nothing while printing PASS.
+  failures += 1;
+  console.error('  FAIL  no dark ink token resolves to a failing hex — check 13 has nothing to look for');
+}
+
+/** Does this file paint an opaque ink field in a REAL RN style (not HTML)? */
+const INK_GROUND = new RegExp(
+  `backgroundColor:\\s*['"](?:${[THEME.dark.bg, THEME.dark.surface].filter(Boolean).join('|')})['"]|<BrandBackdrop\\s*/>`,
+  'i',
+);
+
+const darkInkHits: string[] = [];
+const darkInkExempt: string[] = [];
+for (const file of collectFiles(COLOR_ROOTS)) {
+  if (!file.endsWith('.tsx')) continue;
+  const rel = relative(ROOT, file);
+  const src = stripComments(readFileSync(file, 'utf8'));
+  const onInk = INK_GROUND.test(src);
+  for (const { token, hex, worst } of darkInkLiterals) {
+    const re = new RegExp(`(['"])${hex}\\1`, 'gi');
+    for (const m of src.matchAll(re)) {
+      const line = src.slice(0, m.index!).split('\n').length;
+      if (onInk) { darkInkExempt.push(`${rel}:${line}  ${hex} — file paints an ink ground`); continue; }
+      darkInkHits.push(
+        `${rel}:${line}  ${hex} is Theme.dark.${token} — ${round2(worst)}:1 on this app's light surfaces. ` +
+        'Use the theme token, or components/ui/ink.ts neutralInk(t) where it must stay a hex.',
+      );
+    }
+  }
+}
+if (darkInkExempt.length > 0) {
+  console.log(`  NOTE  ${darkInkExempt.length} dark-ink literal(s) allowed because their file paints an ink ground:`);
+  for (const e of darkInkExempt) console.log(`        ${e}`);
+}
+ok(
+  'no dark-theme ink token is hardcoded as a literal on a rendered screen',
+  darkInkHits.length === 0,
+  darkInkHits.join('\n        '),
+);
+
+
+// ── Check 14: components/ui/ink.ts is measured, not asserted ────────────────
+//
+// The module that decides "what colour is legible ON this fill" and "what is
+// the neutral for this ground" is itself a place a wrong number can hide, and
+// its doc comment quotes ratios that would rot silently. So its values are read
+// out of the source and re-derived here against the real theme table:
+//
+//   • `neutralInk` must clear AA on all three grounds of the theme it is FOR,
+//     AND carry an AA label when used as a fill (it is: a status dot, a
+//     selected chip), AND survive the app's own 8% chip wash. All three ship.
+//   • `labelOn` must be a MEASUREMENT — this re-derives its choice from the
+//     WCAG maths rather than trusting it. `utils/scheduleColors.ts:
+//     barLabelColorFor` used to answer the same question with a YIQ≥150
+//     brightness proxy and put white on #8E9299 at 3.12:1; it now delegates
+//     here, which check 15b keeps it doing.
+//   • `taskStatusInk` must resolve to TOKENS, never literals — a literal there
+//     is how the two schedule surfaces got two different palettes in the first
+//     place, and it would also freeze the eight non-default accent presets out.
+
+/** CIE L*a*b* (D65) of an sRGB colour, for perceptual distance. */
+function labOf(hex: string): [number, number, number] | null {
+  const c = parseColor(hex);
+  if (!c) return null;
+  const l = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+  const [r, g, b] = c.rgb.map(l);
+  const X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  const Y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const [fx, fy, fz] = [f(X), f(Y), f(Z)];
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+function deltaE(a: string, b: string): number | null {
+  const A = labOf(a);
+  const B = labOf(b);
+  if (!A || !B) return null;
+  return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
+}
+const MIN_INK_DELTA_E = 30;
+
+const inkSrc = stripComments(read('components/ui/ink.ts'));
+const inkFailures: string[] = [];
+
+/**
+ * What `taskStatusInk` actually resolves to, filled in by check 14 below and
+ * consumed by check 15. Shared rather than re-parsed: check 15 holds the same
+ * four inks to a DIFFERENT floor (they also ship as bare dots), and a second
+ * copy of the "read the mapping, don't assume it" logic is exactly how the
+ * first version of check 14 ended up certifying a table the file no longer had.
+ */
+const STATUS_INK_RESOLVED: Record<'light' | 'dark', Record<string, string>> = { light: {}, dark: {} };
+
+// labelOn's dark candidate, READ rather than assumed. Hardcoding #1F2937 here
+// would let the module swap it for a lighter ink and still be certified by this
+// check — the same shape of hole that let `in_progress` be re-pointed silently.
+const darkCandidate = /INK_ON_LIGHT_FILL\s*=\s*'(#[0-9a-fA-F]{6})'/.exec(inkSrc)?.[1];
+if (!darkCandidate) {
+  inkFailures.push('components/ui/ink.ts no longer exports a readable INK_ON_LIGHT_FILL — this check cannot re-derive labelOn');
+}
+const DARK_CANDIDATE_RGB = parseColor(darkCandidate ?? '#1F2937')?.rgb ?? [31, 41, 55];
+
+/** The same decision labelOn makes, re-derived from the WCAG maths. */
+function labelOnRef(fill: string): string {
+  const f = parseColor(fill);
+  if (!f) return '#FFFFFF';
+  return contrast(f.rgb, [255, 255, 255]) >= contrast(f.rgb, DARK_CANDIDATE_RGB)
+    ? '#FFFFFF'
+    : (darkCandidate ?? '#1F2937');
+}
+
+if (!/export function labelOn\(/.test(inkSrc)) {
+  inkFailures.push('components/ui/ink.ts no longer exports labelOn — the schedule and equipment status chips depend on it');
+}
+
+const neutralPair = /luminance\(t\.bg\)\s*>\s*0\.5\s*\?\s*'(#[0-9a-fA-F]{6})'\s*:\s*'(#[0-9a-fA-F]{6})'/.exec(inkSrc);
+if (!neutralPair) {
+  inkFailures.push('components/ui/ink.ts: neutralInk no longer picks between two hex literals by ground luminance — this check cannot read it');
+} else {
+  const forTheme = { light: neutralPair[1], dark: neutralPair[2] } as const;
+  for (const theme of ['light', 'dark'] as const) {
+    const ink = forTheme[theme];
+    for (const g of GROUNDS) {
+      const bg = THEME[theme][g];
+      const r = bg ? ratioOn(ink, bg) : null;
+      if (r !== null && r < AA) {
+        inkFailures.push(`neutralInk ${theme} (${ink}) on ${g} ${bg} = ${round2(r)}:1  — needs ${AA}:1`);
+      }
+    }
+    const f = parseColor(ink);
+    const l = parseColor(labelOnRef(ink));
+    if (f && l) {
+      const r = contrast(f.rgb, l.rgb);
+      if (r < AA) inkFailures.push(`neutralInk ${theme} (${ink}) as a fill carries only ${round2(r)}:1 — needs ${AA}:1`);
+    }
+    const cr = THEME[theme].surface ? chipRatio(ink, THEME[theme].surface) : null;
+    if (cr !== null && cr < AA) {
+      inkFailures.push(`neutralInk ${theme} (${ink}) as a label on its own ${CHIP_TINT_PCT} tint = ${round2(cr)}:1 — needs ${AA}:1`);
+    }
+  }
+}
+
+const tsi = /export function taskStatusInk\([\s\S]*?\{\s*return\s*\{([\s\S]*?)\};/.exec(inkSrc);
+if (!tsi) {
+  inkFailures.push('components/ui/ink.ts: taskStatusInk is no longer readable — this check cannot verify it');
+} else {
+  for (const m of tsi[1].matchAll(/(\w+):\s*([^,\n]+)/g)) {
+    if (/#[0-9a-fA-F]{3,8}/.test(m[2])) {
+      inkFailures.push(
+        `taskStatusInk.${m[1]} is a literal (${m[2].trim()}) — it must resolve to a theme token so both themes and all nine accent presets follow it`,
+      );
+    }
+  }
+  // Every ink it can produce ships BOTH ways: as the unselected chip's label on
+  // the sheet, and as the selected chip's fill under labelOn. Hardcoding white
+  // on that fill is the exact defect this replaced (white on #34C759 = 2.22:1).
+  // WHICH token each status maps to is READ, not assumed. The first version of
+  // this check hardcoded { successLabel, warningLabel, info, neutral } and so
+  // measured a table the file no longer had to contain: swapping
+  // `in_progress: t.info` back to `t.accentLabel` — the exact design mistake
+  // the ΔE note below warns about — passed it green. Read the mapping first,
+  // then measure whatever it actually says.
+  const inkExprs = [...tsi[1].matchAll(/(\w+)\s*:\s*([^,\n]+)/g)].map((m) => [m[1], m[2].trim()] as const);
+  const STATUSES = ['not_started', 'in_progress', 'on_hold', 'done'];
+  for (const s of STATUSES) {
+    if (!inkExprs.some(([k]) => k === s)) inkFailures.push(`taskStatusInk no longer maps \`${s}\` — a chip for that status would paint \`undefined\``);
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    const resolved: Record<string, string | undefined> = {};
+    for (const [status, expr] of inkExprs) {
+      if (/^neutralInk\(/.test(expr)) {
+        resolved[status] = neutralPair ? (theme === 'light' ? neutralPair[1] : neutralPair[2]) : undefined;
+        continue;
+      }
+      const tok = /^t\.(\w+)$/.exec(expr);
+      if (!tok) {
+        inkFailures.push(`taskStatusInk.${status} is \`${expr}\` — this check can only measure \`t.<token>\` or \`neutralInk(t)\`, so it cannot certify what ships`);
+        continue;
+      }
+      // BRAND_EXPECTED covers the accent family, which is DERIVED per preset and
+      // so is absent from the Theme literal table — without it `t.accentLabel`
+      // would fail here for the wrong reason (unreadable) instead of the right
+      // one (ΔE 6.5 from warningLabel).
+      const hex = THEME[theme][tok[1]] ?? BRAND_EXPECTED[theme][tok[1]];
+      if (!hex) {
+        inkFailures.push(`taskStatusInk.${status} reads Theme.${theme}.${tok[1]}, which constants/colors.ts does not define`);
+        continue;
+      }
+      resolved[status] = hex;
+    }
+    for (const [status, hex] of Object.entries(resolved)) {
+      if (hex) STATUS_INK_RESOLVED[theme][status] = hex;
+    }
+    for (const [name, hex] of Object.entries(resolved)) {
+      if (!hex) { inkFailures.push(`taskStatusInk cannot resolve ${name} in ${theme}`); continue; }
+      const f = parseColor(hex);
+      const l = parseColor(labelOnRef(hex));
+      if (f && l) {
+        const r = contrast(f.rgb, l.rgb);
+        if (r < AA) inkFailures.push(`taskStatusInk ${theme}.${name} (${hex}) as a chip FILL carries only ${round2(r)}:1 — needs ${AA}:1`);
+      }
+      const bare = THEME[theme].surface ? ratioOn(hex, THEME[theme].surface) : null;
+      if (bare !== null && bare < AA) {
+        inkFailures.push(`taskStatusInk ${theme}.${name} (${hex}) as the unselected chip's label on surface = ${round2(bare)}:1 — needs ${AA}:1`);
+      }
+      // The wash TaskInspector actually paints: `ink + CHIP_TINT_SUFFIX` under
+      // a label of the same ink. Two of the four (info, neutralInk) are outside
+      // check 5's THEME_CHIP_TOKENS list, so nothing else measures them here.
+      const cr = THEME[theme].surface ? chipRatio(hex, THEME[theme].surface) : null;
+      if (cr !== null && cr < AA) {
+        inkFailures.push(`taskStatusInk ${theme}.${name} (${hex}) as a label on its own ${CHIP_TINT_PCT} chip wash = ${round2(cr)}:1 — needs ${AA}:1`);
+      }
+    }
+
+    // …and the four have to be tellable APART. Legible-but-identical is still
+    // broken, and this is not hypothetical: the obvious pick for in_progress
+    // was `accentLabel`, which is what TaskInspector used. In the light theme
+    // that is #B23E08 against warningLabel #B84A00 — ΔE 6.5, one burnt orange
+    // rendered twice, in adjacent chips, for two opposite states. Check 5b
+    // above catches this class for the SIGNAL fills; the label inks needed the
+    // same rule, and hue-plus-luminance cannot express it (a neutral grey has
+    // no hue, so it scores 24° from amber and would false-positive).
+    //
+    // CIE76 ΔE, with the threshold anchored to the palette that shipped, not
+    // fitted to pass: the signal palette's tightest legitimate cross-role pair
+    // (warning #FF9500 vs error #FF3B30) is 48.4, this table's tightest is
+    // 45.2, and the regression check 5b was written for scores 23.9.
+    const inks = Object.entries(resolved).filter(([, v]) => !!v) as [string, string][];
+    for (let i = 0; i < inks.length; i++) {
+      for (let j = i + 1; j < inks.length; j++) {
+        const d = deltaE(inks[i][1], inks[j][1]);
+        if (d !== null && d < MIN_INK_DELTA_E) {
+          inkFailures.push(
+            `taskStatusInk ${theme}: ${inks[i][0]} (${inks[i][1]}) and ${inks[j][0]} (${inks[j][1]}) are ` +
+            `ΔE ${round2(d)} apart — needs ${MIN_INK_DELTA_E}. Two states would render as one colour side by side.`,
+          );
+        }
+      }
+    }
+  }
+}
+
+ok(
+  'components/ui/ink.ts clears AA in both directions, in both themes',
+  inkFailures.length === 0,
+  inkFailures.join('\n        '),
+);
+
+
+// ── Check 15: a colour with NO text beside it clears 1.4.11's 3:1 ──────────
+//
+// Every ratio above this line is a TEXT ratio. Nothing in this file measured
+// WCAG 2.1 SC 1.4.11 (Non-text Contrast), which holds a graphical object whose
+// colour carries the meaning — a bare status dot, a swatch, an icon stroke, a
+// control's boundary — to 3:1 against what it sits on. That gap is not
+// academic: check 5's own exclusion list says in as many words that
+// `Theme.*.danger` and the solid signal hues are "for dots, bars and icons"
+// and then checks only their text companions, so a red dot could have been
+// re-tinted to anything at all and every check here would still have gone
+// green. It is also why the signal/ink split on the schedule status chips
+// could not be settled either way: the ink half had a floor and the graphic
+// half had none.
+//
+// The set is enumerated, not scanned, because a scan cannot resolve a colour
+// through `useTheme()` at build time — and a check that cannot see what ships
+// is the failure mode this file keeps documenting. What is in it:
+//
+//   • `Theme.<theme>.success | danger | info` — the solid signal hues, held
+//     against all three grounds of THEIR OWN theme (a dark token on a light
+//     ground is check 13's job, not this one). Worst today: light danger
+//     #C84038 on surfaceAlt at 4.32:1, dark danger #FF5A51 on surfaceAlt at
+//     5.39:1.
+//   • The four `taskStatusInk` inks, read out of ink.ts by check 14 above.
+//     app/(tabs)/schedule/index.tsx paints these as LABEL-LESS dots — the
+//     resource-row task dot (:1434) and the predecessor/successor dots
+//     (:3350/:3363) — where the hue is the only carrier. Worst today: light
+//     on_hold #B84A00 on surfaceAlt at 4.56:1.
+//   • The same four as the SELECTED chip's 1px border, measured against the
+//     `+ CHIP_TINT_SUFFIX` wash it encloses as well as the surface outside it.
+//     A chip border is a control boundary, which 1.4.11 covers explicitly, and
+//     the inside edge is the one nothing else here looks at.
+//
+// DELIBERATELY OUT, with the numbers, so the exclusion is a decision and not
+// an oversight:
+//
+//   • The Gantt BAR fills (`Colors.statusFills`, `Colors.tradeColors`). They
+//     fail this floor today — on_hold #FF9500 on the row background
+//     InteractiveGantt paints (`themeColors.surface`, #FFFFFF in light) is
+//     2.20:1, and `tradeColors.finish` #F4EFE6 is 1.15:1, i.e. a bar the same
+//     colour as the row. But a bar is not a bare dot: it carries a text label
+//     held to AA by `barLabelColorFor`, a length, a position on a dated axis
+//     and a legend, so the hue is a redundant encoding rather than the sole
+//     carrier. Putting them in this check would have meant either failing the
+//     build on a deliberate design ("SOLID, saturated fills so a bar reads as
+//     a strong block at any zoom" — constants/colors.ts) or quietly lowering
+//     the threshold until they passed. Recorded here instead; see the audit
+//     note in the handoff.
+//   • `Theme.*.line`. A hairline separator is decoration under 1.4.11, and the
+//     light one (rgba(43,48,56,0.12) → ~1.2:1 on surface) is meant to be.
+
+const NON_TEXT = 3;
+const SIGNAL_GRAPHIC_TOKENS = ['success', 'danger', 'info'] as const;
+const graphicFailures: string[] = [];
+
+for (const theme of ['light', 'dark'] as const) {
+  const dots: [string, string][] = [];
+
+  for (const token of SIGNAL_GRAPHIC_TOKENS) {
+    const hex = THEME[theme][token];
+    if (!hex) {
+      graphicFailures.push(`Theme.${theme}.${token} is missing from constants/colors.ts — a signal hue must resolve to a hex to be measurable as a dot`);
+      continue;
+    }
+    dots.push([`Theme.${theme}.${token}`, hex]);
+  }
+
+  // Read from check 14's parse, not re-derived. If that parse produced
+  // nothing, this check would silently measure three colours instead of seven
+  // and still print PASS — which is the shape of hole the file exists to close.
+  const statusInks = Object.entries(STATUS_INK_RESOLVED[theme]);
+  for (const s of ['not_started', 'in_progress', 'on_hold', 'done']) {
+    if (!STATUS_INK_RESOLVED[theme][s]) {
+      graphicFailures.push(`taskStatusInk.${s} did not resolve in ${theme} — check 15 cannot measure the schedule's status dot, so it is not measuring what ships`);
+    }
+  }
+  for (const [status, hex] of statusInks) dots.push([`taskStatusInk.${status} [${theme}]`, hex]);
+
+  for (const [name, hex] of dots) {
+    for (const g of GROUNDS) {
+      const bg = THEME[theme][g];
+      const r = bg ? ratioOn(hex, bg) : null;
+      if (r === null) {
+        graphicFailures.push(`${name} (${hex}) on ${g}: unparseable`);
+        continue;
+      }
+      if (r < NON_TEXT) {
+        graphicFailures.push(`${name} (${hex}) as a bare dot on ${g} ${bg} = ${round2(r)}:1 — needs ${NON_TEXT}:1 (WCAG 1.4.11). With no label beside it the colour is the whole signal.`);
+      }
+    }
+  }
+
+  // The selected chip's border against the wash it encloses. Outside edge is
+  // already covered by the ground loop above.
+  const surface = THEME[theme].surface;
+  const g = surface ? parseColor(surface) : null;
+  for (const [status, hex] of statusInks) {
+    const f = parseColor(hex);
+    if (!f || !g || g.a < 1) continue;
+    const wash = composite({ rgb: f.rgb, a: CHIP_TINT }, g.rgb);
+    const r = contrast(f.rgb, wash);
+    if (r < NON_TEXT) {
+      graphicFailures.push(`taskStatusInk.${status} [${theme}] (${hex}) as the selected chip's border against its own wash = ${round2(r)}:1 — needs ${NON_TEXT}:1 (WCAG 1.4.11, control boundary).`);
+    }
+  }
+}
+
+// …and the surfaces that PAINT those graphics have to read them from the
+// measured source, or the numbers above certify a table nothing renders.
+//
+// `utils/scheduleEngine.ts:getStatusColor` is the raw iOS palette
+// (#34C759 / #007AFF / #FF9500 / #8E8E93) with none of the above applied: as a
+// dot on white those are 2.22 / 4.02 / 2.20 / 3.26:1, two of them under this
+// check's own floor. It is still exported because consumers outside the
+// schedule's mobile surfaces have not been moved, so this is a RATCHET, not a
+// ban: the two files below are the known remainder, and the check fails when a
+// third joins them. components/schedule/mobile/TaskDetailSheet.tsx was on this
+// list until 2026-09-08 and is deliberately off it now — put it back and this
+// fails, which is the point.
+const RAW_STATUS_PALETTE_ALLOWED = new Set([
+  'components/schedule/GanttChart.tsx',
+  'app/client-view.tsx',
+]);
+
+/**
+ * Does this file reach `utils/scheduleEngine.ts:getStatusColor`?
+ *
+ * Named AND namespace imports, because only checking the braces left the
+ * ratchet open to a one-line edit that reads as an import tidy-up: drop the
+ * name out of `{ … }`, write `import * as engine from '@/utils/scheduleEngine'`
+ * and call `engine.getStatusColor(task.status)`, and the raw 2.20:1 palette is
+ * back on a rendered surface with every check still green.
+ *
+ * Anchored on the IMPORT, never on the bare name, so the two screens that
+ * declare their own local `getStatusColor` over their own tokens
+ * (app/submittal.tsx, app/(tabs)/subs/index.tsx) cannot false-positive — they
+ * do not import scheduleEngine at all.
+ */
+function reachesRawStatusPalette(src: string): boolean {
+  const named = /import\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"][^'"]*utils\/scheduleEngine['"]/g;
+  for (const m of src.matchAll(named)) {
+    if (/\bgetStatusColor\b/.test(m[1])) return true;
+  }
+  const namespaced = /import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s*from\s*['"][^'"]*utils\/scheduleEngine['"]/g;
+  for (const m of src.matchAll(namespaced)) {
+    if (new RegExp(`\\b${m[1]}\\s*\\.\\s*getStatusColor\\b`).test(src)) return true;
+  }
+  return false;
+}
+
+const rawPaletteHits: string[] = [];
+for (const file of collectFiles(COLOR_ROOTS)) {
+  const rel = relative(ROOT, file).split('\\').join('/');
+  if (RAW_STATUS_PALETTE_ALLOWED.has(rel)) continue;
+  if (!reachesRawStatusPalette(stripComments(readFileSync(file, 'utf8')))) continue;
+  rawPaletteHits.push(`${rel} uses scheduleEngine's getStatusColor — use taskStatusInk + statusInkFor (utils/scheduleColors.ts), which are the values checked above`);
+}
+// The other half of a ratchet: an entry that no longer needs to be here has to
+// come off, or the list quietly becomes a permanent exemption. Tested on
+// getStatusColor specifically, not on "imports anything from scheduleEngine" —
+// a migrated file almost always keeps importing getPhaseColor/getStatusLabel
+// beside it (TaskDetailSheet still does), so the looser test would have called
+// a fully migrated allowlist entry current forever.
+for (const rel of RAW_STATUS_PALETTE_ALLOWED) {
+  let src: string | null = null;
+  try {
+    src = readFileSync(join(ROOT, rel), 'utf8');
+  } catch {
+    // Reading it inline would abort the whole script on ENOENT with a bun
+    // stack trace, taking checks 15 and 15b down with it and telling the
+    // reader nothing about what to do.
+    rawPaletteHits.push(`${rel} is on RAW_STATUS_PALETTE_ALLOWED but no longer exists — drop the entry`);
+    continue;
+  }
+  if (!reachesRawStatusPalette(stripComments(src))) {
+    rawPaletteHits.push(`${rel} no longer uses getStatusColor — drop it from RAW_STATUS_PALETTE_ALLOWED so the ratchet keeps tightening`);
+  }
+}
+graphicFailures.push(...rawPaletteHits);
+
+ok(
+  'non-text graphics (status dots, chip borders) clear WCAG 1.4.11 3:1 on their ground',
+  graphicFailures.length === 0,
+  graphicFailures.join('\n        '),
+);
+
+
+// ── Check 15b: the Gantt bar label is the BETTER of the two candidates ─────
+//
+// The counterpart to check 14's `labelOn` re-derivation, for the one caller
+// that had its own answer. `barLabelColorFor` scored YIQ against a 150
+// threshold; YIQ is a brightness proxy, not a ratio, so it fell to the white
+// branch on the `not_started` bar fill #8E9299 at 145.6 and shipped a 3.12:1
+// label — and on the brand amber #FF6A1A, `tradeColors.general`, at 2.87:1.
+//
+// This CALLS the function over the fills InteractiveGantt:2033 actually hands
+// it (`statusColorForTask` → the theme's success/info plus
+// `Colors.statusFills`, or `colorForTask` → `Colors.tradeColors`) rather than
+// pattern-matching its body. A source pin was the first version of this check
+// and it was too weak in both directions: `void labelOn(hex); return
+// '#FFFFFF';` satisfied a "must call labelOn" grep while shipping the old bug,
+// and a correct measured implementation written inline would have failed it.
+//
+// The assertion is OPTIMALITY, not a fixed floor: for every fill, the colour
+// returned must have at least the contrast of the other candidate. That is the
+// whole promise `labelOn` makes ("never worse"), and it is checkable without
+// pretending the palette clears AA — three fills cannot, in EITHER colour, and
+// no label picker can fix that: `Colors.statusFills.in_progress` #007AFF tops
+// out at 4.02:1, `tradeColors.roofing` #EF5350 at 4.21:1 and
+// `tradeColors.closeout` #7986CB at 4.25:1. Fixing those means re-valuing the
+// fills in constants/colors.ts, which is a visible redesign of the Gantt and
+// not something a guard can quietly demand.
+const barLabelFailures: string[] = [];
+const BAR_FILLS: [string, string][] = [
+  ...Object.entries(Colors.statusFills).map(([k, v]) => [`Colors.statusFills.${k}`, v] as [string, string]),
+  ...Object.entries(Colors.tradeColors).map(([k, v]) => [`Colors.tradeColors.${k}`, v] as [string, string]),
+];
+for (const theme of ['light', 'dark'] as const) {
+  for (const token of ['success', 'info'] as const) {
+    const hex = THEME[theme][token];
+    if (hex) BAR_FILLS.push([`Theme.${theme}.${token}`, hex]);
+  }
+}
+if (BAR_FILLS.length < 16) {
+  barLabelFailures.push(`only ${BAR_FILLS.length} bar fills resolved — the palettes moved, so this check is not measuring what the Gantt paints`);
+}
+for (const [name, fill] of BAR_FILLS) {
+  const got = barLabelColorFor(fill);
+  const want = labelOn(fill);
+  if (got !== want) {
+    barLabelFailures.push(`barLabelColorFor(${name} ${fill}) = ${got} but components/ui/ink.ts labelOn says ${want} — a bar and a chip on the same fill would print different ink`);
+  }
+  const rGot = ratioOn(got, fill);
+  const rWhite = ratioOn('#FFFFFF', fill);
+  const rInk = ratioOn(INK_ON_LIGHT_FILL, fill);
+  if (rGot === null || rWhite === null || rInk === null) {
+    barLabelFailures.push(`${name} (${fill}) or its label is unparseable — cannot certify the bar label`);
+    continue;
+  }
+  const best = Math.max(rWhite, rInk);
+  if (rGot < best - 1e-9) {
+    barLabelFailures.push(`barLabelColorFor(${name} ${fill}) picks ${got} at ${round2(rGot)}:1 when the other candidate reaches ${round2(best)}:1 — that is the YIQ mis-sort (it scored #8E9299 at 145.6 and called it dark)`);
+  }
+}
+// Belt and braces on the shape that caused it, named so the next reader knows
+// what "a threshold" meant here.
+const barLabelSrc = stripComments(read('utils/scheduleColors.ts'));
+const barLabelFn = /export function barLabelColorFor\([\s\S]*?\n\}/.exec(barLabelSrc)?.[0];
+if (!barLabelFn) {
+  barLabelFailures.push('utils/scheduleColors.ts no longer exports a readable barLabelColorFor — InteractiveGantt still calls it, so this check cannot certify the label it paints');
+} else if (/\byiq\b|299|587|114/i.test(barLabelFn)) {
+  barLabelFailures.push('barLabelColorFor has a YIQ brightness proxy in it again — that is the 145.6-scores-as-light bug (white on #8E9299 at 3.12:1, on #FF6A1A at 2.87:1)');
+}
+ok(
+  'the Gantt bar label is the better-measured of the two candidates on every fill',
+  barLabelFailures.length === 0,
+  barLabelFailures.join('\n        '),
 );
 
 console.log('');

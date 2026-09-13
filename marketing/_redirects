@@ -6,6 +6,20 @@
 # never sent to the server.
 /sub-portal/*  /sub-portal/index.html  200
 
+# Route all /lien-waiver/<waiverId> URLs to the waiver signing page. The
+# waiver id is in the path and the access token is in ?t= — both are read
+# by the page and checked server-side inside the token-gated RPCs. Without
+# this rule the catch-all below serves a 404 to every sub we email.
+/lien-waiver/*  /lien-waiver/index.html  200
+
+# Invitation to bid. The invite token rides in ?t=, so the path is always
+# exactly /bid-invite/ and Netlify would normally serve the directory index
+# before any rule fires. This is stated explicitly anyway: the link is the
+# entire feature — a sub who lands on the 404 page has no other way in, and
+# every failure the RPC raises looks identical to "the GC withdrew it".
+/bid-invite      /bid-invite/index.html  200
+/bid-invite/*    /bid-invite/index.html  200
+
 # Catch-all 404 (marketing-audit M3). Was previously `/* /index.html 200` —
 # unknown URLs got served the homepage with status 200, which hurt SEO
 # (search engines couldn't drop dead URLs from the index) and UX (typos

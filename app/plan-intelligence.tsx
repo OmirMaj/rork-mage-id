@@ -22,7 +22,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -41,12 +41,17 @@ import Paywall from '@/components/Paywall';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import EmptyState from '@/components/EmptyState';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
+import { localPlanSheetValue, resolvePlanSheetUrl } from '@/utils/planSheetUrls';
 import { analyzePlanRooms } from '@/utils/photoAnalyzer';
 import {
   buildPlanRooms, learnFromSession, roomsToEstimateLines, planRoomTotals,
   memorySummary, ROOM_TYPE_LABELS, type PlanRoom,
 } from '@/utils/planIntelligence';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
+// The canonical at-cost rule (labor / assemblies carry no markup), shared with
+// the estimator and the voice-edit recompute rather than restated here.
+import { isAtCostLine } from '@/utils/copilot/estimateEdit/estimateOps';
+import { roundCents } from '@/utils/invoiceBilling';
 import { generateUUID } from '@/utils/generateId';
 import { formatMoney } from '@/utils/formatters';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
@@ -103,7 +108,13 @@ function PlanIntelligenceInner() {
   const [imageAspect, setImageAspect] = useState(1.4);
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
-  useBrainFabLift(phase === 'review' && rooms.length > 0 ? bottomBarH : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = phase === 'review' && rooms.length > 0 ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
   const [editing, setEditing] = useState<PlanRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [taught, setTaught] = useState(false);
@@ -125,13 +136,19 @@ function PlanIntelligenceInner() {
 
   // Restore the last confirmed session for this project, if any.
   const session = projectId ? getSession(projectId) : null;
-  const restoreSession = useCallback(() => {
+  const restoreSession = useCallback(async () => {
     if (!session) return;
     setRooms(session.rooms);
     setSheetId(session.planSheetId ?? null);
     if (session.imageUri) {
-      setImageUri(session.imageUri);
-      measureAspect(session.imageUri);
+      // DB-F11: the session stores the DURABLE value (a plan-sheet storage
+      // path), so mint a fresh signed url here. A saved session outlives any
+      // signature by design — it is "where the GC left off", reopened weeks
+      // later — which is exactly why the signed url must not be the thing on
+      // disk. Anything that is not a plan-sheet reference comes back unchanged.
+      const uri = await resolvePlanSheetUrl(session.imageUri);
+      setImageUri(uri);
+      measureAspect(uri);
     }
     setPhase('review');
   }, [session, measureAspect]);
@@ -146,6 +163,19 @@ function PlanIntelligenceInner() {
     setPhase('analyzing');
     try {
       const { rooms: raw } = await analyzePlanRooms({
+        // DELIBERATELY still a URL (DB-F11 switched the four DRAWING analyzers to
+        // storage paths). Two inputs reach here and analyze-photos already
+        // handles both — verify in utils/photoAnalyzer.ts callAnalyzePhotos:190:
+        //   • a plan sheet, which is a SIGNED url after ProjectContext hydration.
+        //     It goes out as photoUrls and the server fetches it; urlGuard allows
+        //     it because the host is our own Supabase project.
+        //   • a photo the user just picked out of the library (pickFromLibrary),
+        //     which has no storage object anywhere. callAnalyzePhotos splits
+        //     local from remote and base64-ENCODES the local ones inline, so this
+        //     never becomes a file:// on the wire and never hits urlGuard.
+        // analyze-photos serves every photo flow in the app as well as this one,
+        // so teaching it plan-sheets paths would mean teaching it two buckets for
+        // one caller. Revisit if this screen ever becomes plan-sheet-only.
         photoUrls: [uri],
         projectName: project?.name,
         projectType: project?.type,
@@ -186,7 +216,12 @@ function PlanIntelligenceInner() {
     saveSession({
       projectId,
       planSheetId: sheetId ?? undefined,
-      imageUri: imageUri ?? undefined,
+      // DB-F11: never the signed url. `mageid_plan_room_sessions` is AsyncStorage
+      // and a session is reopened long after any 7-day TTL, so persist the
+      // storage path and re-sign in restoreSession — the same split the plan
+      // sheets themselves use. A library pick (no storage object) keeps its
+      // device-local URI, which is all it has ever had.
+      imageUri: localPlanSheetValue(undefined, imageUri ?? undefined) || undefined,
       rooms,
       updatedAt: new Date().toISOString(),
     });
@@ -200,34 +235,60 @@ function PlanIntelligenceInner() {
     const lines = roomsToEstimateLines(rooms);
     if (lines.length === 0) return;
     const est = project.linkedEstimate;
-    const items: LinkedEstimateItem[] = lines.map(l => ({
-      materialId: generateUUID(),
-      name: l.name,
-      category: l.category,
-      unit: l.unit,
-      quantity: l.quantity,
-      unitPrice: l.unitPrice,
-      bulkPrice: l.unitPrice,
-      markup: 0,
-      usesBulk: false,
-      lineTotal: l.lineTotal,
-      supplier: '',
-    }));
-    const addedBase = items.reduce((s, i) => s + i.lineTotal, 0);
-    // Preserve the estimate's existing effective markup ratio, same as the
-    // visual-takeoff add flow — don't recompute markup policy from scratch.
-    const ratio = est.baseTotal > 0 ? est.markupTotal / est.baseTotal : 0;
-    const addedMarkup = addedBase * ratio;
+    // ── MARKUP LIVES INSIDE lineTotal (AIA-F11) ───────────────────────────
+    //
+    // Same defect and same fix as app/area-takeoff.tsx — see the long comment
+    // there for the measured numbers. In short: `lineTotal` is the SELL value
+    // of the line so that Σ items.lineTotal === grandTotal, because
+    // utils/aiaBilling.buildAIASovLines builds G703 column C from `lineTotal`
+    // while G702 line 3 is `grandTotal`. Pushing `markup: 0` with a COST
+    // lineTotal while raising grandTotal by cost + markup made the printed
+    // certificate under-foot by exactly the markup, forever.
+    //
+    // Preserve the estimate's existing effective markup ratio — don't
+    // recompute markup policy from scratch — and give at-cost categories none,
+    // which is the rule recomputeEstimate would enforce anyway.
+    // --- BEGIN plan append ---
+    // Lifted and EXECUTED by scripts/validate-invoice-billing.ts. Keep the
+    // sentinels: the validator exits 1 if they go missing rather than quietly
+    // stopping checking that this screen's lines foot to the contract.
+    const addedBase = lines.reduce((s, l) => s + l.lineTotal, 0);
+    const items: LinkedEstimateItem[] = lines.map((l) => {
+      const ratio = !isAtCostLine({ category: l.category }) && est.baseTotal > 0
+        ? est.markupTotal / est.baseTotal
+        : 0;
+      const markupPct = ratio * 100;
+      return {
+        materialId: generateUUID(),
+        name: l.name,
+        category: l.category,
+        unit: l.unit,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        bulkPrice: l.unitPrice,
+        markup: markupPct,
+        usesBulk: false,
+        // Rounded the way recomputeEstimate rounds, so a later voice edit is a
+        // no-op rather than a cent of drift on the contract value.
+        lineTotal: roundCents(l.lineTotal * (1 + markupPct / 100)),
+        supplier: '',
+      };
+    });
+    const addedSell = roundCents(items.reduce((s, i) => s + i.lineTotal, 0));
+    const addedMarkup = roundCents(addedSell - addedBase);
     const next: LinkedEstimate = {
       ...est,
       items: [...est.items, ...items],
-      baseTotal: est.baseTotal + addedBase,
-      markupTotal: est.markupTotal + addedMarkup,
-      grandTotal: est.grandTotal + addedBase + addedMarkup,
+      baseTotal: roundCents(est.baseTotal + addedBase),
+      markupTotal: roundCents(est.markupTotal + addedMarkup),
+      grandTotal: roundCents(est.grandTotal + addedSell),
     };
+    // --- END plan append ---
     updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Added from Plan Intelligence' }));
     handleTeach();
-    setAddedNote(`${items.length} room line${items.length === 1 ? '' : 's'} · ${formatMoney(addedBase)} added to the estimate`);
+    // The contract value moved by the SELL total, so that is the figure to
+    // confirm. Naming the cost here was the on-screen half of the same defect.
+    setAddedNote(`${items.length} room line${items.length === 1 ? '' : 's'} · ${formatMoney(addedSell)} added to the estimate`);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, rooms, updateProject, handleTeach]);
 
@@ -266,7 +327,7 @@ function PlanIntelligenceInner() {
           ]}
         />
       ) : (
-        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* Memory status — the trust-builder. */}
           <View style={styles.memoryChip}>
             <GraduationCap size={14} color={trainedLine ? t.accent : t.textMuted} strokeWidth={1.75} />
@@ -307,7 +368,7 @@ function PlanIntelligenceInner() {
               ) : (
                 <>
                   {session && (
-                    <TouchableOpacity style={styles.resumeCard} onPress={restoreSession} activeOpacity={0.85}>
+                    <TouchableOpacity style={styles.resumeCard} onPress={() => void restoreSession()} activeOpacity={0.85}>
                       <MageAIMark size={16} color={t.accent} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resumeTitle}>Resume last session</Text>

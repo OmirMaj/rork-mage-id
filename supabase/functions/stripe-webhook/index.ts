@@ -476,6 +476,11 @@ const isNotFound = (code: string | undefined) => code === "PGRST116" || code ===
  * own link (when the money arrived through an AIA pay app's link) is retired
  * on Stripe as well.
  */
+// --- BEGIN creditInvoice ---------------------------------------------------
+// Lifted and EXECUTED by scripts/validate-invoice-billing.ts against a fake
+// Db. A regex over this file cannot see an early return above the AIA mirror;
+// running the function can. Keep these sentinels — the validator exits 1 if
+// they go missing rather than quietly stopping checking.
 async function creditInvoice(
   supabase: Db,
   invoiceId: string,
@@ -574,11 +579,69 @@ async function creditInvoice(
     await deactivatePaymentLink(inv.pay_link_id, eventAccount);
   }
 
+  // ── ONE BILLING PERIOD IS ONE OBLIGATION (audit 2026-09-11, F2/C1) ────────
+  //
+  // The AIA→invoice direction has been handled since MONEY-F16
+  // (handleAiaPayAppCompleted stamps paid_at, nulls the pay app's pay_link_*
+  // and then calls this function). The reverse was not: paying the INVOICE
+  // credited it and cleared only the INVOICE's link, so an AIA pay application
+  // certifying the same period kept a LIVE, chargeable Stripe Payment Link.
+  // A bookkeeper pays the invoice; anyone in the owner's office who opens the
+  // portal later pays it again, for whatever amount that link was minted at.
+  //
+  // The app and the portal both refuse to RENDER that button now, but a
+  // read-side suppression cannot un-take a charge Stripe has already accepted,
+  // and a snapshot cached before the payment still carries the old row. This
+  // is the write-side mirror of handleAiaPayAppCompleted above.
+  //
+  // Best-effort and non-fatal: the invoice is already credited, and returning
+  // an error here would make Stripe retry an event whose money has landed.
+  // Skipped for the aia_pay_app route, which has just done exactly this to the
+  // row it came from.
+  if (via !== "aia_pay_app") {
+    try {
+      const { data: sibling, error: sibErr } = await supabase
+        .from("aia_pay_apps")
+        .select("id, pay_link_id, pay_link_url, paid_at")
+        .eq("invoice_id", invoiceId)
+        .is("paid_at", null);
+      if (sibErr) {
+        console.error("[stripe-webhook] aia_pay_apps lookup failed for invoice", invoiceId, sibErr.message);
+      } else {
+        for (const row of (sibling ?? []) as { id: string; pay_link_id?: string | null; pay_link_url?: string | null }[]) {
+          const { error: aiaErr } = await supabase
+            .from("aia_pay_apps")
+            .update({
+              paid_at: now,
+              payment_intent_id: session.payment_intent ?? null,
+              // The trigger from migration 20260728120000 permits all four of
+              // these on a certified row by design.
+              pay_link_url: null,
+              pay_link_id: null,
+              pay_link_amount: null,
+            })
+            .eq("id", row.id);
+          if (aiaErr) {
+            console.error("[stripe-webhook] Failed to settle aia_pay_app", row.id, aiaErr.message);
+            continue;
+          }
+          console.log("[stripe-webhook] Settled aia_pay_app", row.id, "with its invoice", invoiceId);
+          if (row.pay_link_id && row.pay_link_id !== session.payment_link) {
+            await deactivatePaymentLink(row.pay_link_id, eventAccount);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[stripe-webhook] aia_pay_apps mirror threw for invoice", invoiceId, (e as Error)?.message);
+    }
+  }
+
   return {
     ok: true, duplicate: false, amountReceived, newAmountPaid, totalDue, newStatus,
     retentionAmount, retentionReleased,
   };
 }
+// --- END creditInvoice ---
 
 async function handleCheckoutCompleted(
   supabase: Db,

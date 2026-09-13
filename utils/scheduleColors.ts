@@ -16,6 +16,7 @@
 
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
+import { labelOn, taskStatusInk } from '@/components/ui/ink';
 import type { ScheduleTask, TaskStatus, TradeKey } from '@/types';
 
 export type { TradeKey };  // re-export so existing imports `import { type TradeKey } from '@/utils/scheduleColors'` still work
@@ -117,21 +118,63 @@ export const STATUS_KEYS: readonly TaskStatus[] = [
  *
  * Several trade fills are light — `finish` is #F4EFE6 (almost white), and
  * `demo` (yellow), `electrical`/`plumbing` (cyan) and `landscaping` (green)
- * are bright too — so the old always-white bar label was invisible/low-
- * contrast on them. This returns near-black for light fills and white for
- * dark ones, using the YIQ brightness heuristic with a 150 threshold that we
- * hand-checked against every `tradeColors` entry (orange/red/brown/purple →
- * white; cream/yellow/cyan/light-green → dark).
+ * are bright too — so the always-white bar label this replaced was invisible
+ * on them.
+ *
+ * This used to answer that with a YIQ≥150 brightness proxy. YIQ is not a
+ * contrast ratio, so it gets the mid-tones wrong: on the `not_started` bar
+ * fill #8E9299 it scored 145.6, fell to the white branch, and put a 3.12:1
+ * label on the bar — under the 4.5:1 floor an 11pt bar label has to clear.
+ * `labelOn` measures both candidates and returns the winner, so it is never
+ * worse. Re-measured over the fills InteractiveGantt actually hands it — the
+ * theme's success/info, `Colors.statusFills` and `Colors.tradeColors` — it
+ * flips four and improves all four: statusFills.not_started #8E9299 3.12→4.70,
+ * tradeColors.roofing 3.49→4.21, tradeColors.closeout 3.45→4.25, and the brand
+ * amber #FF6A1A — `tradeColors.general`, the fill every un-inferred task lands
+ * on in trade mode — 2.87→5.12. That last one is the visible change: a
+ * `general` bar's label goes from white to the near-black ink, which is the
+ * same trade founder-decision #1 makes everywhere else (keep the hue, fix the
+ * type on it).
+ *
+ * Three fills still cannot clear AA in EITHER colour and no label picker can
+ * fix them — statusFills.in_progress #007AFF tops out at 4.02:1, roofing at
+ * 4.21 and closeout at 4.25. That is a fill-value problem in
+ * constants/colors.ts, and validate-contrast check 15b records it rather than
+ * pretending the palette passes.
+ *
+ * Kept as a named wrapper rather than replaced at the call site: this is the
+ * schedule module's answer to "what colour is this bar's text", and
+ * InteractiveGantt reads it from here alongside the fill it pairs with.
  */
 export function barLabelColorFor(hex: string): string {
-  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
-  if (!m) return '#FFFFFF';
-  const int = parseInt(m[1], 16);
-  const r = (int >> 16) & 255;
-  const g = (int >> 8) & 255;
-  const b = int & 255;
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 150 ? '#1F2937' : '#FFFFFF';
+  return labelOn(hex);
+}
+
+/**
+ * The four status inks, looked up TOTALLY.
+ *
+ * `taskStatusInk` is a plain Record, so `inks[status]` is only as safe as the
+ * type says — and `ScheduleTask['status']` is required by the type but not by
+ * the data: a schedule persisted before the field existed hydrates without it,
+ * which is why TaskInspector reads `task.status ?? 'not_started'`. An
+ * undefined key returns undefined, and `undefined + CHIP_TINT_SUFFIX` is the
+ * string "undefined15" — RN's normalizeColor rejects that, so the chip loses
+ * its fill and border entirely instead of falling back to grey.
+ *
+ * `utils/scheduleEngine.ts:getStatusColor`, which the mobile sheet used to
+ * call, was total — it had a `default:` arm — so swapping it for a Record
+ * lookup would have quietly dropped that. The chip row it feeds today happens
+ * not to need it (it maps over a literal status list, so the key is always
+ * good); the surfaces that key off `task.status` itself do, which is why
+ * app/(tabs)/schedule/index.tsx wrote the same `?? 'not_started'` rule inline
+ * at :195. It lives here so the next surface reuses it rather than deriving a
+ * third copy — and so the one that already exists has somewhere to collapse
+ * onto.
+ */
+export type TaskStatusInks = ReturnType<typeof taskStatusInk>;
+
+export function statusInkFor(inks: TaskStatusInks, status: TaskStatus | null | undefined): string {
+  return inks[status ?? 'not_started'] ?? inks.not_started;
 }
 
 const TRADE_LABELS: Record<TradeKey, string> = {

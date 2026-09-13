@@ -60,7 +60,12 @@ import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
-import { matchOwnRate, priceSourceLabel, pricingProvenance, type OwnRateMatch } from '@/utils/takeoffPricing';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import {
+  matchOwnRate, priceSourceLabel, pricingProvenance, takeoffQuantityResolver,
+  type OwnRateMatch, type TakeoffRowSection,
+} from '@/utils/takeoffPricing';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { loadTakeoff, type PersistedTakeoff } from '@/utils/takeoffStorage';
 import { mageAI } from '@/utils/mageAI';
@@ -68,6 +73,12 @@ import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+
+// Route-level recovery (audit 2026-09-07, "Worth doing" #8). This screen holds
+// twenty minutes of AI pricing in component state; a crash used to restart the
+// bundle and take all of it, at the initial route.
+export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
 interface PricedLine {
   id: string;
@@ -254,15 +265,34 @@ function TakeoffEstimateInner() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, updateProject, settings, commitments } = useProjects();
-  // The contractor's own learned rates. Same engine that powers the Cost
-  // Database screen, so a price here and a price there can never disagree.
+  // The contractor's own learned rates. Same engine, and now the same five
+  // streams, as the Cost Database screen — so the two screens answer a given
+  // trade+unit key with the SAME number rather than with two different ones.
+  //
+  // WHAT THAT DOES NOT PROMISE (audit repair 2026-09-12, H3). Agreeing is not
+  // the same as being right. Both screens now inherit the same known
+  // contamination in the shared engine — most sharply, a material receipt
+  // filed in the estimate line's own unit lifts the learned installed rate
+  // (framing|SF read $4.49 with receipts against $2.33 from receipts alone in
+  // the guard fixture). That is one book with one answer, which is what this
+  // wiring was for; it is not a claim that the answer is clean.
   // Cold-start seeds (hooks/useCostSeeds): rates the GC stated before they'd
   // closed a job here. matchOwnRate counts a seed as one unit of evidence, so
   // a seeded book prices the takeoff instead of falling through to the catalog.
   const { seeds } = useCostSeeds();
+  // ALL FIVE STREAMS, because "can never disagree" was not true of a book built
+  // from two of them (audit 2026-09-11, F10/C8). This call passed `[]` for
+  // receipts AND `[]` for labor three lines under the comment above, and
+  // utils/costDatabase's self-perform derivation needs both: with neither it
+  // emits nothing for a self-performed trade, so a GC who frames his own walls
+  // got a rate on the Cost Database screen and silence here — the same
+  // trade+unit key answering differently on two screens, which is the exact
+  // failure the comment above promises cannot happen.
+  const { receipts } = useMaterialReceipts();
+  const laborSamples = useLaborCostSamples();
   const costBook = useMemo(
-    () => buildCostDatabase(projects, commitments ?? [], [], [], seeds),
-    [projects, commitments, seeds],
+    () => buildCostDatabase(projects, commitments ?? [], receipts, laborSamples, seeds),
+    [projects, commitments, receipts, laborSamples, seeds],
   );
 
   const project = useMemo(() =>
@@ -309,13 +339,14 @@ function TakeoffEstimateInner() {
       // omit confidence + sourcePages so the model focuses on numbers, not
       // metadata. We DO send rejected/overrides so the user's manual fixes
       // make it into the prompt.
-      const overrides = t.overrides ?? {};
-      const rejected = t.rejected ?? {};
-      const apply = (section: string, id: string, fallback: number) => {
-        if (rejected[`${section}:${id}`]) return null;  // skip rejected rows
-        const o = overrides[`${section}:${id}`];
-        return typeof o === 'number' ? o : fallback;
-      };
+      // The quantity of record, resolved by the SAME function app/takeoff.tsx
+      // uses to decide what is pricing a row (utils/takeoffPricing). This was
+      // a local copy until 2026-09-12 and it spelled three of the seven
+      // sections differently from the writer — `finishes`/`fixtures`/
+      // `bulkMaterials` against the persisted `finish`/`fixture`/`bulk` — so
+      // for those sections an adopted field measurement was dropped and a
+      // rejected row was priced anyway. The section name is now a type.
+      const apply = takeoffQuantityResolver(t);
 
       // settings.location is a free-form string set in app settings
       // (e.g. "Austin, TX"). We pass it through as a regional pricing
@@ -377,7 +408,12 @@ function TakeoffEstimateInner() {
       }
       setLines(cleaned);
     } catch (e) {
-      setPricingError(e instanceof Error ? e.message : String(e));
+      // The banner used to print the thrown text verbatim — a GC watching a
+      // 20-second AI pricing run got "Failed to fetch" or a relay's JSON blob
+      // as the whole story (audit 2026-09-07, "Worth doing" #7). The takeoff
+      // itself is untouched by a failed pricing pass, hence keptLocally.
+      console.warn('[takeoff-estimate] pricing failed:', rawErrorMessage(e));
+      setPricingError(describeError(e, { action: 'price this takeoff', keptLocally: true }).body);
     } finally {
       setPricing(false);
     }
@@ -515,7 +551,13 @@ function TakeoffEstimateInner() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
-      showAlert('Save failed', e instanceof Error ? e.message : String(e));
+      // Was `e.message` as the entire body — the audit's named example
+      // (2026-09-07, "Worth doing" #7): forty priced lines on screen and a
+      // PGRST204 schema string as the only explanation, with no answer to the
+      // one question he has. The lines are still in state, so he can retry.
+      console.warn('[takeoff-estimate] replace failed:', rawErrorMessage(e));
+      const copy = describeError(e, { action: 'save this estimate to the project', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       setSaving(false);
     }
@@ -551,7 +593,11 @@ function TakeoffEstimateInner() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
-      showAlert('Save failed', e instanceof Error ? e.message : String(e));
+      // Same defect, append path. The existing estimate is untouched when the
+      // patch throws, and the takeoff lines are still on screen.
+      console.warn('[takeoff-estimate] append failed:', rawErrorMessage(e));
+      const copy = describeError(e, { action: 'add these lines to the estimate', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       setSaving(false);
     }
@@ -973,7 +1019,7 @@ function countQuantities(t: PersistedTakeoff): number {
  */
 function buildPricingPrompt(
   t: PersistedTakeoff,
-  apply: (section: string, id: string, fallback: number) => number | null,
+  apply: (section: TakeoffRowSection, id: string, fallback: number) => number | null,
   locationHint?: string,
 ): string {
   const r = t.result;
@@ -1004,19 +1050,19 @@ function buildPricingPrompt(
     .join('\n');
 
   const finishLines = r.finishes
-    .map(f => ({ ...f, qty: apply('finishes', f.id, f.quantity) }))
+    .map(f => ({ ...f, qty: apply('finish', f.id, f.quantity) }))
     .filter(f => f.qty !== null)
     .map(f => `  - ${f.qty} ${f.unit.toUpperCase()} · ${f.surface}: ${f.description}${f.code ? ` (${f.code})` : ''}`)
     .join('\n');
 
   const fixtureLines = r.fixtures
-    .map(f => ({ ...f, count: apply('fixtures', f.id, f.count) }))
+    .map(f => ({ ...f, count: apply('fixture', f.id, f.count) }))
     .filter(f => f.count !== null)
     .map(f => `  - ${f.count} EA · ${f.category}: ${f.description}${f.mark ? ` (${f.mark})` : ''}`)
     .join('\n');
 
   const bulkLines = r.bulkMaterials
-    .map(b => ({ ...b, qty: apply('bulkMaterials', b.id, b.quantity) }))
+    .map(b => ({ ...b, qty: apply('bulk', b.id, b.quantity) }))
     .filter(b => b.qty !== null)
     .map(b => `  - ${b.qty} ${b.unit.toUpperCase()} · ${b.description}${b.notes ? ` · ${b.notes}` : ''}`)
     .join('\n');

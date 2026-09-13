@@ -9,7 +9,15 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import type { ScheduleTask, TaskStatus } from '@/types';
-import { getPhaseColor, getStatusLabel, getStatusColor, createId } from '@/utils/scheduleEngine';
+import { getPhaseColor, getStatusLabel, createId } from '@/utils/scheduleEngine';
+// Not scheduleEngine's getStatusColor: that returns the raw iOS palette
+// (#34C759 / #007AFF / #FF9500 / #8E8E93), which fails AA in both directions
+// here — as the chip's own label on its wash (2.22 / 4.02 / 2.20 / 3.26:1 on
+// white) and again for the white the chip used to invert to. These are the
+// measured inks the Pro scheduler's inspector already paints, so the same task
+// now reads the same colour on the phone and on the desktop.
+import { taskStatusInk, CHIP_TINT_SUFFIX } from '@/components/ui/ink';
+import { statusInkFor } from '@/utils/scheduleColors';
 import { Tokens } from '@/constants/designTokens';
 import { TaskChecklist } from './TaskChecklist';
 import { PercentSlider } from './PercentSlider';
@@ -61,6 +69,9 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Resolved once per theme change rather than per chip: `colors` is memoised
+  // by ThemeContext, and the status row rebuilds this on every render otherwise.
+  const statusInks = useMemo(() => taskStatusInk(colors), [colors]);
   const [tab, setTab] = useState<DetailTab>('overview');
   const [title, setTitle] = useState('');
   const [crew, setCrew] = useState('');
@@ -218,12 +229,19 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
 
                   <Text style={[styles.gLbl, { marginTop: 14 }]}>Status</Text>
                   <View style={styles.statusRow}>
-                    {STATUSES.map((s) => (
-                      <TouchableOpacity key={s} onPress={() => setStatus(s)}
-                        style={[styles.statusChip, task.status === s ? { backgroundColor: getStatusColor(s) + '22', borderColor: getStatusColor(s) } : null]}>
-                        <Text style={[styles.statusChipText, task.status === s ? { color: getStatusColor(s) } : null]}>{getStatusLabel(s)}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {STATUSES.map((s) => {
+                      const ink = statusInkFor(statusInks, s);
+                      return (
+                        <TouchableOpacity key={s} onPress={() => setStatus(s)}
+                          /* CHIP_TINT_SUFFIX, not the '22' this shipped with —
+                             13% deepens the wash enough to drop the on_hold ink
+                             to 4.32:1 under its own label. Same fix as
+                             TaskInspector's chips, same constant. */
+                          style={[styles.statusChip, task.status === s ? { backgroundColor: ink + CHIP_TINT_SUFFIX, borderColor: ink } : null]}>
+                          <Text style={[styles.statusChipText, task.status === s ? { color: ink } : null]}>{getStatusLabel(s)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
 
                   <View style={[styles.pctHeaderRow, { marginTop: 14 }]}><Text style={styles.gLbl}>% Complete</Text><Text style={styles.gVal}>{pctDraft}%</Text></View>

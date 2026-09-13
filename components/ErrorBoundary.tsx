@@ -1,7 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react-native';
+import { AlertTriangle, RefreshCw, Home, ChevronLeft } from 'lucide-react-native';
 import * as Sentry from '@sentry/react-native';
+import { router } from 'expo-router';
 
 interface Props {
   children: ReactNode;
@@ -118,11 +119,18 @@ export default class ErrorBoundary extends Component<Props, State> {
 // values that work in both themes against a neutral background.
 function ErrorFallback({
   error, message, onReset, onGoHome,
+  primaryLabel = 'Restart at Home',
+  primaryIcon = <Home size={16} color="#FFFFFF" strokeWidth={2} />,
 }: {
   error: Error | null;
   message?: string;
   onReset: () => void;
   onGoHome: () => void;
+  /** RouteErrorFallback re-labels the primary button: inside the router the
+   *  way out is one screen back, not a bundle restart. The testID stays put —
+   *  see the button below. */
+  primaryLabel?: string;
+  primaryIcon?: ReactNode;
 }) {
   return (
     /* The card grew with this fix (errorBox 80 -> 200pt, plus a second 47pt
@@ -164,11 +172,19 @@ function ErrorFallback({
           onPress={onGoHome}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Restart at home"
+          accessibilityLabel={primaryLabel}
+          // LITERAL, on BOTH cards, and it must stay that way: this exact
+          // string is what validate-contrast Check 7 (MISS-03) greps this file
+          // for as the proof that the crash screen offers a route out and not
+          // just a re-crash. Routing it through a prop default took that guard
+          // — and therefore all 231 of ship-check — red, because the string
+          // then only existed in single quotes in a parameter list (review
+          // 2026-09-07). The route card is told apart by its own wrapper
+          // testID, not by re-labelling this button.
           testID="error-boundary-home"
         >
-          <Home size={16} color="#FFFFFF" strokeWidth={2} />
-          <Text style={fallbackStyles.homeText}>Restart at Home</Text>
+          {primaryIcon}
+          <Text style={fallbackStyles.homeText}>{primaryLabel}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={fallbackStyles.retryButton}
@@ -183,6 +199,81 @@ function ErrorFallback({
         </TouchableOpacity>
       </View>
     </ScrollView>
+  );
+}
+
+/**
+ * RouteErrorFallback — the SAME card, one route down, so a crash in one screen
+ * costs one screen.
+ *
+ * WHY. Audit 2026-09-07, "Worth doing" #8: the boundary above is the only one
+ * in the repo and it wraps the whole tree, which is exactly why its own comment
+ * has to explain that recovery means restarting the JS bundle — while the
+ * fallback is up, the router is unmounted and there is nothing for
+ * `router.back()` to act on. A render bug in one card halfway through a daily
+ * report therefore blanked and restarted the entire app at its initial route,
+ * with every unsaved field gone.
+ *
+ * expo-router already has the mechanism: a route (or layout) module that
+ * exports `ErrorBoundary` gets wrapped in its own `<Try>`, so the failure is
+ * contained to that route and the router above it stays mounted. Adopt it with
+ * one line at the top of a screen:
+ *
+ *   export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
+ *
+ * `retry` is expo-router's own — it clears the caught error and re-renders the
+ * route, which is the right first move for a transient render failure and is
+ * NOT the useless retry MISS-03 removed above (that one re-rendered a whole
+ * tree whose state had already deadlocked).
+ *
+ * Same no-theme discipline as ErrorFallback: this can be rendering because the
+ * theme stack itself threw. And `<Try>` does not report anywhere, so the
+ * capture that ErrorBoundary.componentDidCatch does for the root has to happen
+ * here — once per distinct error, not on every re-render.
+ */
+export function RouteErrorFallback({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  React.useEffect(() => {
+    console.log('[RouteErrorFallback] Caught route error:', error?.message);
+    Sentry.captureException(error, { tags: { boundary: 'route' } });
+  }, [error]);
+
+  const goBack = React.useCallback(() => {
+    // Mirrors hooks/useSafeBack (UX-F18): on a screen opened as the FIRST
+    // route — a notification cold start, a fresh web tab — `back()` is an
+    // unhandled GO_BACK and the button would do nothing on the one screen
+    // whose entire job is to offer a way out.
+    try {
+      if (router.canGoBack()) { router.back(); return; }
+      router.replace('/(tabs)/(home)');
+      // …and clear the caught error, because the replace may be a no-op.
+      // <Try> holds `error` in ITS OWN component state, keyed to this route
+      // (expo-router/build/views/Try.js) — navigating does not reset it. The
+      // home screen is the app's initial route, so a crash there is exactly
+      // the case where canGoBack() is false and the replace target is the
+      // route already on screen: without this, the primary button on the most
+      // likely crash site in the app did visibly nothing (review fix,
+      // 2026-09-07). Retrying re-renders the destination; a transient failure
+      // clears, a deterministic one lands back on this card, which is honest.
+      void retry();
+    } catch {
+      // The router itself is what crashed. Leave the user on the card with
+      // Try Again rather than throwing inside the fallback.
+    }
+  }, [retry]);
+
+  return (
+    // The wrapper carries the route card's identity so the button underneath
+    // can keep the literal testID the contrast guard pins (see above).
+    <View style={fallbackStyles.scroll} testID="route-error-fallback">
+      <ErrorFallback
+        error={error}
+        message="This screen ran into a problem. The rest of the app is fine — go back and try it again."
+        onReset={() => { void retry(); }}
+        onGoHome={goBack}
+        primaryLabel="Go Back"
+        primaryIcon={<ChevronLeft size={16} color="#FFFFFF" strokeWidth={2} />}
+      />
+    </View>
   );
 }
 

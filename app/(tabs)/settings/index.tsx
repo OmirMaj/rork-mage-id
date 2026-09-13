@@ -10,7 +10,7 @@ import {
   MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat, Gem } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Badge } from '@/components/ui/Badge';
-import { Colors, setCustomColors } from '@/constants/colors';
+import { Colors, setCustomPrimary, deriveAccentPalette } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -126,7 +126,7 @@ export default function SettingsScreen() {
   const { user, logout, deleteAccount, isAuthenticated, signingOut } = useAuth();
   const queryClient = useQueryClient();
   const { tier } = useTierAccess();
-  const { colors: themeColors } = useTheme();
+  const { colors: themeColors, resolved: resolvedTheme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const [aiUsed, setAiUsed] = useState(0);
@@ -375,10 +375,15 @@ export default function SettingsScreen() {
       pdfNaming: pdfNaming.enabled ? pdfNaming : undefined,
     });
     if (themePreset) {
-      setCustomColors(themePreset.primary, themePreset.accent);
+      // Only the hue: the accent family (accent / accentHot / accentSoft /
+      // accentLabel / accentFill) is derived from it, and ThemeContext is
+      // subscribed, so this repaints the app now. It used to write a hue that
+      // reached about a tenth of the accent call sites, which is why the alert
+      // below asked for a restart that could not have finished the job either.
+      setCustomPrimary(themePreset.primary);
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Saved', 'Your settings have been updated. Theme changes will fully apply after restarting the app.');
+    showAlert('Saved', 'Your settings have been updated.');
   }, [location, taxRate, contingency, updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, selectedTheme, biometricsEnabled, pdfNaming]);
 
   const handleClearAll = useCallback(() => {
@@ -1053,35 +1058,69 @@ export default function SettingsScreen() {
         ) : null}
 
         <Text style={styles.sectionHeader}>APP THEME</Text>
+        {/* The last sentence is honest, and temporary: 64 chrome sites across
+            56 files still paint the brand hex directly (header tints, some
+            icons and chevrons), so a user who picks Navy WILL still meet
+            orange. Delete it when those literals are on the token
+            (review 2026-09-07). */}
         <Text style={styles.sectionSubtext}>
-          Customize the app's accent colors to match your brand.
+          Sets the accent color across the app — buttons, links, chips and highlights.
+          Each swatch is a tone that hue actually resolves to in the theme you are in.
+          A few screens still show the brand orange.
         </Text>
         <View style={styles.group}>
           <View style={{ padding: 16 }}>
             <View style={styles.themeGrid}>
-              {THEME_PRESETS.map(theme => (
-                <TouchableOpacity
-                  key={theme.id}
-                  style={[
-                    styles.themeChip,
-                    selectedTheme === theme.id && styles.themeChipActive,
-                  ]}
-                  onPress={() => {
-                    setSelectedTheme(theme.id);
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.themeSwatches}>
-                    <View style={[styles.themeSwatch, { backgroundColor: theme.primary }]} />
-                    <View style={[styles.themeSwatch, { backgroundColor: theme.accent }]} />
-                  </View>
-                  <Text style={[
-                    styles.themeChipLabel,
-                    selectedTheme === theme.id && { color: theme.primary, fontWeight: '700' as const },
-                  ]}>{theme.label}</Text>
-                </TouchableOpacity>
-              ))}
+              {THEME_PRESETS.map(theme => {
+                // Preview the family this hue actually resolves to in the theme
+                // the user is looking at, not the raw preset hexes: the second
+                // swatch used to be a decorative secondary that painted nothing,
+                // and the selected label used to be `theme.primary`, which for
+                // the brand orange is 2.87:1 — the picker's own label failed AA.
+                const preview = deriveAccentPalette(theme.primary, resolvedTheme);
+                return (
+                  <TouchableOpacity
+                    key={theme.id}
+                    style={[
+                      styles.themeChip,
+                      // The selected chip is outlined in the hue it WOULD apply,
+                      // not the one currently in force, so the choice previews
+                      // itself before Save.
+                      selectedTheme === theme.id && [styles.themeChipActive, { borderColor: preview.accent }],
+                    ]}
+                    onPress={() => {
+                      setSelectedTheme(theme.id);
+                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    {/* The button fill only earns its OWN swatch when it is a
+                        different tone. Its two budgets (white text at 4.5:1,
+                        and 3:1 against the page) often land it right on the
+                        accent — today that is 8 of the 9 presets in the LIGHT
+                        theme, and none of them in dark, where the accent is
+                        lightened to stay legible as text and so parts company
+                        with the fill — and two identical squares read as a
+                        rendering fault, not a palette. One tone gets one wide
+                        swatch so the labels still line up across the grid
+                        (review 2026-09-07). */}
+                    {preview.accentFill.toLowerCase() === preview.accent.toLowerCase() ? (
+                      <View style={styles.themeSwatches}>
+                        <View style={[styles.themeSwatch, styles.themeSwatchWide, { backgroundColor: preview.accent }]} />
+                      </View>
+                    ) : (
+                      <View style={styles.themeSwatches}>
+                        <View style={[styles.themeSwatch, { backgroundColor: preview.accent }]} />
+                        <View style={[styles.themeSwatch, { backgroundColor: preview.accentFill }]} />
+                      </View>
+                    )}
+                    <Text style={[
+                      styles.themeChipLabel,
+                      selectedTheme === theme.id && { color: preview.accentLabel, fontWeight: '700' as const },
+                    ]}>{theme.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </View>
@@ -2711,6 +2750,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: Tokens.radius.xs,
+  },
+  // 20 + 20 + the 4pt gap: a hue whose accent and button fill are the same tone
+  // shows one swatch of exactly the width two would have taken, so every chip
+  // in the grid starts its label at the same x.
+  themeSwatchWide: {
+    width: 44,
   },
   themeChipLabel: {
     fontSize: Type.footnote.fontSize,

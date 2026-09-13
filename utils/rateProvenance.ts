@@ -42,8 +42,24 @@
 import type { CostBookEntry } from '@/utils/costDatabase';
 import { isSeedSample } from '@/utils/costSeedCore';
 
-/** 'measured' is reachable ONLY from provenance 'earned'. That is the firewall. */
-export type RateProvenanceTone = 'measured' | 'stated';
+/**
+ * 'measured' is reachable ONLY from provenance 'earned' AND an earned basis
+ * that has actually been PAID. That is the firewall.
+ *
+ * 'contracted' is the tone added between the two: earned evidence, real jobs,
+ * nothing settled yet. It exists because jobCount counts distinct projects
+ * among non-seed samples regardless of basis, so a book in which every sample
+ * was a SIGNED sub that nobody has paid still emitted "MEASURED · 4 jobs". The
+ * seed firewall was built against one threat — rates the GC typed — and a
+ * signed contract read as a cost walked in through a different door. A signed
+ * sub is real evidence; it is just a different kind, and the product's claim
+ * is that we never blur the two.
+ *
+ * Surfaces treat anything that is not 'measured' as the neutral treatment, so
+ * this is additive: a caller that has not been taught about 'contracted' gives
+ * it the neutral styling, which is the correct answer.
+ */
+export type RateProvenanceTone = 'measured' | 'contracted' | 'stated';
 
 export interface RateProvenanceChipModel {
   provenance: 'earned' | 'seeded' | 'mixed';
@@ -60,6 +76,13 @@ export interface RateProvenanceChipModel {
 export interface ProvenanceInput {
   provenance: 'earned' | 'seeded' | 'mixed';
   jobCount: number;
+  /**
+   * What the earned half rests on (utils/costDatabase CostBookEntry). Omitted
+   * by a caller that does not carry it, in which case the classification falls
+   * back to the pre-existing jobCount-only behaviour — additive, never a
+   * silent downgrade of an entry that genuinely has paid samples.
+   */
+  earnedBasis?: 'paid' | 'contracted' | 'stated';
 }
 
 /**
@@ -77,13 +100,18 @@ export interface ProvenanceInput {
 export function provenanceClaimModel(
   input: ProvenanceInput,
 ): RateProvenanceChipModel | null {
-  const { provenance, jobCount } = input;
+  const { provenance, jobCount, earnedBasis } = input;
   const jobs = `${jobCount} job${jobCount === 1 ? '' : 's'}`;
 
   if (provenance === 'earned') {
     // jobCount EXCLUDES seed samples by construction. An 'earned' entry that
     // still counts zero measured jobs has nothing to claim, so it says nothing.
     if (jobCount < 1) return null;
+    // Signed, not settled. Real jobs, real contracts — but calling it MEASURED
+    // would be claiming a payment that has not happened.
+    if (earnedBasis === 'contracted') {
+      return { provenance: 'earned', label: `SIGNED · ${jobs}`, tone: 'contracted', jobCount };
+    }
     return { provenance: 'earned', label: `MEASURED · ${jobs}`, tone: 'measured', jobCount };
   }
   if (provenance === 'mixed') {
@@ -106,7 +134,11 @@ export function rateProvenanceChipModel(
   entry: CostBookEntry | null | undefined,
 ): RateProvenanceChipModel | null {
   if (!entry || !entry.provenance) return null;
-  return provenanceClaimModel({ provenance: entry.provenance, jobCount: entry.jobCount ?? 0 });
+  return provenanceClaimModel({
+    provenance: entry.provenance,
+    jobCount: entry.jobCount ?? 0,
+    earnedBasis: entry.earnedBasis,
+  });
 }
 
 function monthLabel(iso: string): string {

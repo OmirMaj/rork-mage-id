@@ -179,7 +179,19 @@ export default function ClientOutboxScreen() {
     switch (k) {
       case 'change_order': return `/change-order?id=${id}&projectId=${pid}`;
       case 'invoice':      return `/invoice?id=${id}&projectId=${pid}`;
-      case 'aia_pay_app':  return `/aia-pay-app?id=${id}&projectId=${pid}`;
+      // aia-pay-app is INVOICE-keyed: it reads `invoiceId`, never `id`, and our
+      // itemId here is the pay app's own id. Passing `?id=<payAppId>` therefore
+      // opened the screen with nothing selected — the row looked live and
+      // landed the GC on the period chooser. Resolve the invoice the pay app
+      // was billed from (same as app/documents.tsx). It is optional on
+      // SavedAIAPayApp, so an unlinked pay app falls back to the project and
+      // the chooser at least opens on the right job.
+      case 'aia_pay_app': {
+        const invoiceId = aiaPayApps.find(a => a.id === id)?.invoiceId;
+        return invoiceId
+          ? `/aia-pay-app?invoiceId=${invoiceId}&projectId=${pid}`
+          : `/aia-pay-app?projectId=${pid}`;
+      }
       case 'rfi':          return `/rfi?id=${id}&projectId=${pid}`;
       case 'submittal':    return `/submittal?id=${id}&projectId=${pid}`;
       case 'daily_report': return `/daily-report?id=${id}&projectId=${pid}`;

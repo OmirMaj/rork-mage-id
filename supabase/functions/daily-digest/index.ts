@@ -8,8 +8,9 @@
 //   - Header counts of activity in the last 24h (messages, COs, invoices,
 //     selections, etc.)
 //   - Top 5 active projects by event count, each with their latest event
-//   - "Quiet day" message if nothing happened — we still send so the user
-//     trusts the cadence (but only on weekdays — silence on weekends)
+//   - NOTHING when there is nothing. A digest with no events is not sent at
+//     all; see the note in processGc for why the old weekday "Quiet day."
+//     send was removed.
 //
 // Why opt-in: instant emails already cover every event. The digest is for
 // GCs who want a daily wrap-up they can scan before bed / in the morning.
@@ -195,8 +196,9 @@ function buildDigestEmail(opts: {
     ? emailStatCard(statRows + emailStatRow('Total updates', String(totalEvents), { emphasize: true }))
     : '';
 
-  const isQuiet = totalEvents === 0;
-
+  // No quiet-day branch. processGc returns before it ever reaches this
+  // function when totalEvents is 0, and leaving a rendered "Quiet day." here
+  // would be a working empty-digest template one `if` away from shipping again.
   // Build per-event-type tiles for the top groups (max 4) so the digest
   // includes a glance at WHAT happened, not just a count.
   const tilesHtml = groups.slice(0, 4).map(g => {
@@ -225,26 +227,27 @@ function buildDigestEmail(opts: {
       </table>`;
   }).join('');
 
-  const bodyHtml = isQuiet
-    ? `<p style="margin:0;">No events to report — quiet day on the jobs. Tomorrow's recap will land at the same time.</p>`
-    : `
+  const bodyHtml = `
       ${statCardHtml}
       ${tilesHtml ? `<p style="margin:18px 0 6px;font-weight:700;color:#0B0D10;">Most active</p>${tilesHtml}` : ''}
       ${emailDivider()}
-      <p style="margin:0;color:#4A5159;font-size:13px;">This recap is built from the events that hit your notification feed in the last 24 hours. Open MAGE ID to see everything in context.</p>
+      <p style="margin:0;color:#4A5159;font-size:13px;">This recap covers the client- and sub-facing activity that reached your notification feed in the last 24 hours. Your schedule, RFIs and field reports are in the morning briefing.</p>
     `;
 
   return wrapEmailHtml({
-    preheader: isQuiet
-      ? `${date} · Quiet day. No new activity.`
-      : `${date} · ${totalEvents} update${totalEvents === 1 ? '' : 's'} across your projects.`,
+    preheader: `${date} · ${totalEvents} update${totalEvents === 1 ? '' : 's'} across your projects.`,
     eyebrow: 'Daily digest',
-    title: isQuiet ? 'Quiet day.' : `${totalEvents} update${totalEvents === 1 ? '' : 's'} today`,
-    subtitle: `${date} — your once-a-day recap of activity across your jobs.`,
+    title: `${totalEvents} update${totalEvents === 1 ? '' : 's'} today`,
+    subtitle: `${date} — client and sub activity across your jobs.`,
     bodyHtml,
-    cta: isQuiet ? undefined : { label: 'Open MAGE ID', href: APP_BASE },
+    cta: { label: 'Open MAGE ID', href: APP_BASE },
     companyName: companyName ?? undefined,
-    sender: { name: contactName ?? companyName ?? undefined, email, phone: phone ?? undefined },
+    // No `sender` block. That footer renders "Sent by <name> · <email> ·
+    // <phone>. Replies go to them, not us." — copy written for a HOMEOWNER
+    // receiving a contractor's email, so they know who to reply to. This digest
+    // goes to the GC himself, so it printed his own name, his own address and
+    // his own phone number back at him and told him replies would reach
+    // himself. Reported from a real inbox, 2026-09-08.
     unsubscribe: { recipientEmail: email, eventKey: 'daily_digest', enabled: true },
   });
 }
@@ -257,13 +260,27 @@ async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' |
   const groups = groupEvents(outbox);
   const totalEvents = groups.reduce((s, g) => s + g.count, 0);
 
-  // Suppress quiet-day digests on weekends so we don't ping users with
-  // "nothing happened" on Sunday morning. Mon-Fri quiet days still send
-  // because the cadence reassurance is valuable mid-week.
-  const dayOfWeek = new Date().getUTCDay(); // 0 = Sun, 6 = Sat
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  if (totalEvents === 0 && isWeekend) {
-    return { id: gc.id, status: 'skipped_already', reason: 'quiet_weekend' };
+  // A digest with nothing in it does not get sent. Full stop.
+  //
+  // This used to send on weekdays with the body "No events to report — quiet
+  // day on the jobs", on the theory that the cadence itself was reassuring and
+  // only weekends deserved silence. A real inbox falsified that on 2026-09-08:
+  // a giant serif "Quiet day." over one sentence of nothing, which reads as a
+  // broken template, not as reassurance. And the cost is not neutral — a
+  // recurring email that is empty most days teaches the reader to archive the
+  // subject line on sight, so the mornings that DO carry an unanswered client
+  // message or a signed change order get archived with them. The cadence the
+  // quiet send was protecting is the thing it was destroying.
+  //
+  // Note what "nothing" means here, because it is narrower than it sounds: this
+  // digest is built ONLY from notification_outbox — portal messages, CO
+  // approvals, budget proposals, sub invoices, RFP awards. Schedule, RFIs,
+  // DFRs and weather belong to the sibling morning-digest function, which does
+  // query them. So "no events" means "nothing hit the notification feed", not
+  // "nothing happened on the jobs" — one more reason not to assert a quiet day
+  // in the reader's inbox.
+  if (totalEvents === 0) {
+    return { id: gc.id, status: 'skipped_already', reason: 'no_events' };
   }
 
   const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -277,9 +294,8 @@ async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' |
     date,
   });
 
-  const subject = totalEvents > 0
-    ? `Daily digest · ${totalEvents} update${totalEvents === 1 ? '' : 's'} on your jobs`
-    : `Daily digest · Quiet day on your jobs`;
+  // totalEvents is always > 0 here — processGc returned above otherwise.
+  const subject = `Daily digest · ${totalEvents} update${totalEvents === 1 ? '' : 's'} on your jobs`;
 
   const r = await resendSend(RESEND_API_KEY, {
     to: gc.email,

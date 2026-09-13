@@ -8,6 +8,22 @@
 // "Mark proposal sent" logs a touch on the lead and advances it to the
 // 'proposal' stage — keeping MAGE ID the system of record for the
 // relationship (the anti-leakage moat).
+//
+// QUOTE-PERSIST-1 (audit 2026-09-07, "worth doing" #15). That touch used to be
+// ONE SENTENCE — "Sent Instant Bid proposal — Better $48,000." — and nothing
+// else. The tier inclusions, the assumptions and the grounding basis were
+// discarded the moment the sheet closed, so a GC asked three weeks later what
+// he had quoted could not answer from the app, and convertLeadToProject still
+// seeded targetBudget from the HOMEOWNER's budget range rather than the GC's
+// own number.
+//
+// The proper fix is a `quotedAmount` (plus tier + sentAt) on Lead, which needs
+// types/index.ts, the leads row mapping in contexts/ProjectContext.tsx and a
+// `quoted_amount` column — none of which this change can reach. Until then the
+// touch log is the only store that survives a sync, so the WHOLE quote is
+// written into it in a fixed, parseable shape (`quoteTouchBody` below) and read
+// back with `quotedFromTouches`. That is a workaround and is labelled as one:
+// when the column lands, both helpers should be deleted, not extended.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator, Platform, TextInput} from 'react-native';
@@ -27,6 +43,10 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import type { Lead, TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney, parseLenientNumber } from '@/utils/formatters';
+// QUOTE-PERSIST-1: the quote body and its reader live in a react-native-free
+// module so scripts/validate-money-definitions.ts can EXECUTE them. See that
+// file's header for why the quote lives in the touch log at all.
+import { quoteTouchBody } from '@/utils/leadQuoteCore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -178,7 +198,9 @@ export default function InstantBidProposalModal({
   const handleMarkSent = useCallback(() => {
     if (!proposal || !lead) return;
     const tier = proposal.tiers.find(t => t.key === selectedTier) ?? recommendedTierOf(proposal);
-    addLeadTouch(lead.id, 'email', `Sent Instant Bid proposal — ${tier.label} ${formatMoney(tier.amount)}.`);
+    // QUOTE-PERSIST-1: the WHOLE quote, not a summary sentence. This is the
+    // only store that survives a sync until Lead carries a quotedAmount.
+    addLeadTouch(lead.id, 'email', quoteTouchBody(tier, proposal));
     // Advance to 'proposal' if still earlier in the funnel (don't regress won/lost).
     if (lead.stage === 'new' || lead.stage === 'qualified') {
       updateLead(lead.id, { stage: 'proposal' });

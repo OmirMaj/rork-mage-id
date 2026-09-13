@@ -87,7 +87,7 @@
           <tbody>
             <tr>
               <td class="compare-row-feature">Price</td>
-              <td class="col-mage compare-yes">Free tier, then $29/mo Pro · $79/mo Business &mdash; published, in the App Store</td>
+              <td class="col-mage compare-yes">Free tier, then $29/mo Pro &middot; $79/mo Business &mdash; published on our <a href="/pricing.html">pricing page</a>, where you can read it without talking to anyone</td>
               <td class="compare-no">No public pricing. Volume-based annual quotes negotiated per account.<sup>1</sup></td>
             </tr>
             <tr>
@@ -137,7 +137,11 @@
             </tr>
             <tr>
               <td class="compare-row-feature">Signing up</td>
-              <td class="col-mage compare-yes">Self-serve. Paying in 90 seconds, cancel anytime.</td>
+              <!-- Was "Self-serve. Paying in 90 seconds, cancel anytime." —
+                   false on both channels (no App Store listing; the web till
+                   is still on a sandbox payment key). Says what actually
+                   happens now. -->
+              <td class="col-mage compare-yes">Open it in a browser and run a job the same afternoon &mdash; no demo, no quote, no contract, and the price is on our <a href="/pricing.html">pricing page</a> rather than behind a call. Being straight about the other half: paid plans aren't self-serve yet, so you email us and we turn Pro or Business on. Still no contract and still no sales call &mdash; just an honest one-day wait instead of a checkout page.</td>
               <td class="compare-no">Sales-led: demo, custom quote, annual contract</td>
             </tr>
           </tbody>
@@ -168,6 +172,7 @@
           <p class="moat-kicker">03 · It reschedules</p>
           <h3>Around the weather, automatically</h3>
           <p>Rain hits your slab pour, MAGE pushes the affected work and cascades the schedule for you &mdash; and logs the delay day. Procore's AI tells you a delay is <em>likely</em>. MAGE moves the job. That's the difference between a warning and a tool.</p>
+          <p style="font-size:13px;opacity:.8;">The honest half: this needs a live forecast for the jobsite. Where we cannot get one, the app marks the day <strong>SIMULATED WEATHER</strong> and <a href="/features/scheduling.html#weather">refuses to write it into the delay log</a> &mdash; a delay record with no evidence behind it is worse than no record.</p>
         </div>
       </div>
     </section>
@@ -224,8 +229,8 @@
             </tr>
             <tr style="background: #FFF6E8;">
               <td class="compare-row-feature col-mage"><strong>MAGE ID Pro</strong></td>
-              <td class="col-mage compare-yes"><strong>$348/yr</strong> &mdash; $0 setup, $0 training</td>
-              <td class="col-mage compare-yes">Nothing. Monthly, cancel anytime, from the App Store.</td>
+              <td class="col-mage compare-yes"><strong>$348/yr</strong> month-to-month at $29/mo &mdash; $0 setup, $0 training. There is a cheaper annual plan; <a href="/pricing.html#annual">the pricing page carries it</a></td>
+              <td class="col-mage compare-yes">Nothing. Monthly, cancel any time in Settings &mdash; and export every project, estimate, invoice, report and photo to a portable file on your way out.</td>
             </tr>
           </tbody>
         </table>
@@ -300,6 +305,28 @@
       </div>
       <p class="legal">© MAGE ID. Build it. Bill it. Track every dollar.</p>
     </div>
+        <!-- STANDING TRUST STRIP — on every public page, deliberately.
+           Three of the four pages it links did not exist: the site had no
+           about/founder page, no acknowledgement that it has zero reviews, and
+           no dated changelog, in a category where vendor abandonment is a
+           named switching reason. Volunteering the weakness in the footer is
+           what makes the rest of the site's claims readable. Inserted by hand
+           on each page rather than by script at runtime so it is in the HTML a
+           crawler and a no-JS reader both see. -->
+      <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
+        <!-- The framing text is inside the link on purpose. As a separate
+             muted <span> it inherited each footer's secondary grey, which on
+             the light-ground pages (builders/) measured 2.80:1 against the
+             cream background — under the 4.5:1 AA floor at this size. Every
+             glyph now takes the page's own link colour, which each footer has
+             already tuned to be legible on its own ground (16.99:1 on cream,
+             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             thing in the footer. -->
+        <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
+        <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
+        <a href="/changelog.html" style="font-weight:600">Changelog</a>
+        <a href="/switch.html" style="font-weight:600">Switching</a>
+      </nav>
   </footer>
 
   <div class="legend" style="max-width: 960px; margin: 0 auto 40px;">

@@ -1,5 +1,7 @@
 import type { ScheduleTask, DependencyLink, ProjectSchedule, ScheduleRiskItem, ScheduleBaseline } from '@/types';
+import { PHASE_PALETTE, PHASE_FALLBACK } from '@/constants/colors';
 import { generateUUID } from '@/utils/generateId';
+import { isWorkingDayOfWeek } from '@/utils/cpm';
 
 export const PHASE_OPTIONS = [
   'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
@@ -13,29 +15,14 @@ export const PHASE_OPTIONS = [
 // uses the same color, and dimmed/baseline ghosts use the color at low
 // alpha. Pick colors with enough hue separation that two adjacent phases
 // don't blur together at small bar widths.
-export const PHASE_COLORS: Record<string, string> = {
-  'Site Work':    '#3B82F6', // blue
-  'Demo':         '#EF4444', // red
-  'Foundation':   '#10B981', // emerald
-  'Framing':      '#A855F7', // purple
-  'Roofing':      '#06B6D4', // cyan
-  'MEP':          '#F59E0B', // amber
-  'Plumbing':     '#0EA5E9', // sky
-  'Electrical':   '#EAB308', // yellow
-  'HVAC':         '#14B8A6', // teal
-  'Insulation':   '#F97316', // orange
-  'Drywall':      '#94A3B8', // slate
-  'Interior':     '#EC4899', // pink
-  'Finishes':     '#22C55E', // green
-  'Landscaping':  '#84CC16', // lime
-  'Inspections':  '#F59E0B', // amber (matches MEP — they share the inspection cadence)
-  // 'General' is the DEFAULT phase every quick-added task lands in, so its
-  // color is effectively the app's "default task" color. The old indigo
-  // (#6366F1) made the whole schedule read as a second accent family next
-  // to the ink+amber system (sim-audit slop #5). Warm stone keeps it
-  // neutral — real trades keep their categorical hues.
-  'General':      '#7A7266', // warm stone (neutral — uncategorized work)
-};
+// Re-exported from constants/colors.ts (2026-09-07). The table itself moved
+// there because scripts/validate-app-slop.ts bans purple/pink hexes outside
+// constants/ as generic-AI slop — but these are a CATEGORICAL DATA PALETTE
+// whose whole job is hue separation between adjacent Gantt bars, and the
+// guard's own rule is "theme via constants/colors.ts only". Recolouring the
+// chart to satisfy a brand rule would have cost the separation it depends on.
+// The name is kept so the four call sites do not churn.
+export const PHASE_COLORS = PHASE_PALETTE;
 
 export function createId(_prefix: string): string {
   return generateUUID();
@@ -171,11 +158,19 @@ export function getHealthColor(score: number): string {
 }
 
 /**
- * Advances `start` by `days` working days. Weekends are skipped when
- * `workingDaysPerWeek < 7`. When `nonWorkingDates` (ISO YYYY-MM-DD) is passed
- * in, those calendar days are also skipped — used to model holidays, rain
- * days, and site closures. We keep the signature backwards-compatible: old
- * callers passing just three args get weekend-only behavior.
+ * Advances `start` by `days` working days. Which days count is
+ * `cpm.isWorkingDayOfWeek` — THE weekend rule, shared with the engine's own
+ * `isWorkingDay` so a date label and the plan behind it cannot disagree. This
+ * function used to inline `workingDaysPerWeek < 7 && (dow === 0 || dow === 6)`,
+ * which made a 6-day project's every rendered date, CSV row and .ics event
+ * refuse the Saturdays the engine had already scheduled (measured: working
+ * ordinal 11 on a 6-day week from Mon 2026-03-02 was Fri Mar 13 to the engine
+ * and Mon Mar 16 here).
+ *
+ * When `nonWorkingDates` (ISO YYYY-MM-DD) is passed in, those calendar days are
+ * also skipped — used to model holidays, rain days, and site closures. We keep
+ * the signature backwards-compatible: old callers passing just three args get
+ * weekend-only behavior.
  */
 export function addWorkingDays(
   start: Date,
@@ -190,9 +185,7 @@ export function addWorkingDays(
   let added = 0;
   while (added < days) {
     result.setDate(result.getDate() + 1);
-    const dow = result.getDay();
-    const weekendSkip = workingDaysPerWeek < 7 && (dow === 0 || dow === 6);
-    if (weekendSkip) continue;
+    if (!isWorkingDayOfWeek(result.getDay(), workingDaysPerWeek)) continue;
     if (blocked) {
       const iso = `${result.getFullYear()}-${String(result.getMonth() + 1).padStart(2, '0')}-${String(result.getDate()).padStart(2, '0')}`;
       if (blocked.has(iso)) continue;
@@ -414,6 +407,20 @@ export function buildScheduleFromTasks(
     healthScore,
     riskItems,
     baseline: existingBaseline ?? null,
+    // DELIBERATELY NOT stamping `startDayBasis` here. An earlier draft did, on
+    // the theory that everything this function authors is on the working-ordinal
+    // scale. It cannot promise that: `recalculateStartDays` leaves a task with
+    // no dependency links sitting on whatever `startDay` it arrived with
+    // (scheduleEngine.ts:50-53), and the caller can skip the resolver entirely
+    // by passing `opts.criticalPathDays`. So on a legacy schedule the flag would
+    // have been a forged confirmation — and three live call sites write
+    // `{ ...existingSchedule, ...built }` over the real record
+    // (app/(tabs)/construction-ai/index.tsx x2, app/schedule-review.tsx), which
+    // would have retired the one-time re-anchor offer for exactly the schedules
+    // that need it. `startDayBasis` now means one thing only: THE USER ANSWERED.
+    // Nothing is lost by its absence here — `cpm.detectStartDayBasis` reads a
+    // freshly built schedule as working ordinals from the data itself, which
+    // scripts/validate-startdate-rebase.ts proves by executing this function.
     updatedAt,
   };
 }
@@ -478,7 +485,7 @@ export function getBaselineVariance(task: ScheduleTask, baseline: ScheduleBaseli
 export function getPhaseColor(phase: string): string {
   // Unknown phases fall back to the same neutral as 'General' — an unmapped
   // phase is uncategorized work, not a new accent color.
-  return PHASE_COLORS[phase] || '#7A7266';
+  return PHASE_COLORS[phase] || PHASE_FALLBACK;
 }
 
 export function generateWbsCodes(tasks: ScheduleTask[]): ScheduleTask[] {

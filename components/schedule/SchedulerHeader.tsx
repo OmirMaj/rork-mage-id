@@ -14,10 +14,11 @@
 
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { StatusPill } from './StatusPill';
 import { useScheduler, type ViewScale } from './SchedulerContext';
 import { computePillStatus } from '@/utils/scheduleHealth';
@@ -37,7 +38,12 @@ export function SchedulerHeader({
   onExportPress,
   onBaselinePress,
 }: SchedulerHeaderProps) {
-  useTheme();
+  // Was a bare `useTheme()` over a module-scope StyleSheet — the header bar,
+  // its KPI chips and the view-scale picker all froze their Colors.surface/
+  // text/border at import, so the top of the Pro Scheduler stayed white in
+  // dark mode (audit 2026-09-07). This hook is what actually rebuilds them.
+  const { colors: t } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { bp } = useResponsive();
   const { tasks, cpm, schedule, viewScale, setViewScale } = useScheduler();
 
@@ -101,7 +107,7 @@ export function SchedulerHeader({
   const vColor = v.tone === 'behind' ? Colors.pillLate
                : v.tone === 'slightlyBehind' ? Colors.pillAtRisk
                : v.tone === 'ahead' || v.tone === 'onPace' ? Colors.pillOnTrack
-               : Colors.textSecondary;
+               : t.textSecondary;
 
   if (bp === 'phone') {
     const slipLabel = cpm.slipDaysVsBaseline == null
@@ -179,6 +185,7 @@ export function SchedulerHeader({
 }
 
 function Kpi({ label, value, color }: { label: string; value: string; color?: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.kpi}>
       <Text style={styles.kpiLabel}>{label}</Text>
@@ -188,6 +195,7 @@ function Kpi({ label, value, color }: { label: string; value: string; color?: st
 }
 
 function KpiChip({ label, value, color }: { label: string; value: string; color?: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.chip}>
       <Text style={styles.chipLabel}>{label.toUpperCase()}</Text>
@@ -199,6 +207,7 @@ function KpiChip({ label, value, color }: { label: string; value: string; color?
 const VIEW_SCALE_ORDER: ReadonlyArray<ViewScale> = ['days', 'weeks', 'months'];
 
 function ViewScalePicker({ value, onChange }: { value: ViewScale; onChange: (s: ViewScale) => void }) {
+  const styles = useThemedStyles(makeStyles);
   const next = (): ViewScale => {
     const idx = VIEW_SCALE_ORDER.indexOf(value);
     return VIEW_SCALE_ORDER[(idx + 1) % VIEW_SCALE_ORDER.length];
@@ -211,6 +220,7 @@ function ViewScalePicker({ value, onChange }: { value: ViewScale; onChange: (s: 
 }
 
 function ProgressDonut({ percent }: { percent: number }) {
+  const { colors: t } = useTheme();
   const size = 32;
   const stroke = 5;
   const r = (size - stroke) / 2;
@@ -221,7 +231,7 @@ function ProgressDonut({ percent }: { percent: number }) {
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size}>
         <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
-          <Circle cx={size / 2} cy={size / 2} r={r} stroke={Colors.fillTertiary} strokeWidth={stroke} fill="none" />
+          <Circle cx={size / 2} cy={size / 2} r={r} stroke={t.neutralSoft} strokeWidth={stroke} fill="none" />
           <Circle
             cx={size / 2} cy={size / 2} r={r}
             stroke={Colors.tradeColors.general}
@@ -236,36 +246,36 @@ function ProgressDonut({ percent }: { percent: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: {
     padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomColor: t.line,
+    backgroundColor: t.surface,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { fontSize: 22, fontWeight: '700', color: Colors.text, letterSpacing: -0.3, flex: 1 },
-  subtitle: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },
+  title: { fontSize: 22, fontWeight: '700', color: t.text, letterSpacing: -0.3, flex: 1 },
+  subtitle: { fontSize: 11, color: t.textSecondary, marginTop: 4 },
   kpiStrip: { flexDirection: 'row', alignItems: 'flex-end', gap: 24, marginTop: 14, flexWrap: 'wrap' },
   verdictChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
   verdictChipDot: { width: 8, height: 8, borderRadius: Tokens.radius.full },
-  verdictChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, maxWidth: 240 },
+  verdictChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, maxWidth: 240 },
   kpi: { gap: 2 },
-  kpiLabel: { fontSize: 9, color: Colors.textSecondary, letterSpacing: 0.8, fontWeight: '700' },
-  kpiValue: { fontSize: 14, color: Colors.text, fontWeight: '600' },
+  kpiLabel: { fontSize: 9, color: t.textSecondary, letterSpacing: 0.8, fontWeight: '700' },
+  kpiValue: { fontSize: 14, color: t.text, fontWeight: '600' },
   kpiWithDonut: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   spacer: { flex: 1 },
   pickerGroup: { gap: 4 },
-  picker: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: Colors.surfaceAlt, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
-  pickerText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
+  picker: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: t.surfaceAlt, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line },
+  pickerText: { fontSize: 11, color: t.text, fontWeight: '500' },
 
   // ---- Phone layout ----
   phoneRoot: {
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomColor: t.line,
+    backgroundColor: t.surface,
   },
   phoneMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   phoneChipRail: { marginTop: 10 },
@@ -280,13 +290,13 @@ const styles = StyleSheet.create({
   },
   phoneExportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
   chip: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: 9,
     paddingHorizontal: 11,
     paddingVertical: 7,
     marginRight: 6,
     minWidth: 74,
   },
-  chipLabel: { fontSize: 8, color: Colors.textSecondary, letterSpacing: 0.5, fontWeight: '700' },
-  chipValue: { fontSize: 13, color: Colors.text, fontWeight: '700', marginTop: 2 },
+  chipLabel: { fontSize: 8, color: t.textSecondary, letterSpacing: 0.5, fontWeight: '700' },
+  chipValue: { fontSize: 13, color: t.text, fontWeight: '700', marginTop: 2 },
 });

@@ -59,6 +59,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
   // Track whether the user was blocked by a paywall so the modal can show
   // the upgrade message instead of just spinning forever.
   const [paywallReason, setPaywallReason] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = useCallback(async () => {
     if (isLoading || projects.length === 0) return;
@@ -71,6 +72,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
     }
     setIsLoading(true);
     setPaywallReason(null);
+    setError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const data = await generateWeeklySummary(projects);
@@ -78,17 +80,36 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
     } catch (err) {
+      // Name the failure. This catch was console-only, and the sheet's only
+      // other states are "analyzing" and "no projects to analyze" — so a GC
+      // who opened Full Analysis on a dropped connection watched the loader
+      // vanish into an empty page (audit 2026-09-07, ai-features).
       console.error('[AI Weekly] Failed:', err);
+      setError(`Couldn't analyze your portfolio. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
     } finally {
       setIsLoading(false);
     }
   }, [isLoading, projects, subscriptionTier]);
 
+  // `!error` is load-bearing: without it a failed run re-enters this effect the
+  // moment setIsLoading(false) lands and the sheet retries forever, spending a
+  // smart-tier call per pass.
   React.useEffect(() => {
-    if (visible && !result && !isLoading && !paywallReason && projects.length > 0) {
+    if (visible && !result && !isLoading && !paywallReason && !error && projects.length > 0) {
       handleGenerate();
     }
-  }, [visible, result, isLoading, paywallReason, projects.length, handleGenerate]);
+  }, [visible, result, isLoading, paywallReason, error, projects.length, handleGenerate]);
+
+  // …and dropping it on dismiss is what keeps that gate from becoming a dead
+  // end. Home mounts this component unconditionally and only toggles `visible`
+  // (app/(tabs)/(home)/index.tsx:1114), so `error` outlives the modal: without
+  // this, a GC who hit one dropped connection got the "Analysis didn't run"
+  // page every time they reopened Full Analysis for the rest of the session —
+  // the auto-run above is gated on the very error it is showing. Reopening the
+  // sheet IS a gesture.
+  React.useEffect(() => {
+    if (!visible) setError(null);
+  }, [visible]);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -98,7 +119,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             <MageAIMark size={18} color={"#FF6A1A"} />
             <Text style={styles.headerTitle}>Full Project Analysis</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={"#9AA3AD"} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {paywallReason ? (
@@ -106,6 +127,20 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             <MageAIMark size={40} color={"#FF6A1A"} />
             <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>Pro Feature</Text>
             <Text style={[styles.loadingSubtext, { marginTop: 8, textAlign: 'center', paddingHorizontal: 24 }]}>{paywallReason}</Text>
+          </View>
+        ) : error && !result ? (
+          <View style={styles.loadingState}>
+            <AlertTriangle size={28} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={[styles.headerTitle, { textAlign: 'center' }]}>Analysis didn&apos;t run</Text>
+            <Text style={[styles.loadingSubtext, { textAlign: 'center', paddingHorizontal: 32 }]}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => { setError(null); handleGenerate(); }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <Text style={styles.retryBtnText}>Try again</Text>
+            </TouchableOpacity>
           </View>
         ) : isLoading && !result ? (
           <View style={styles.loadingState}>
@@ -324,6 +359,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loadingSubtext: {
     fontSize: Type.bodyCompact.fontSize,
     color: t.textSecondary,
+  },
+  retryBtn: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: Tokens.radius.md,
+    // accentFill (#BC440C, 5.29:1), never the 2.87:1 accent, behind white.
+    backgroundColor: t.accentFill,
+  },
+  retryBtnText: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: '#FFF',
   },
   scroll: {
     flex: 1,

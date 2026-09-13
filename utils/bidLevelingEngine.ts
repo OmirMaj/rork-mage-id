@@ -31,8 +31,9 @@
 
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
-import { buildCostDatabase } from '@/utils/costDatabase';
+import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
+import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 import type { BidPackage, BidPackageBid, Project, Commitment, MaterialReceipt } from '@/types';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -83,6 +84,17 @@ interface LevelOpts {
   commitments?: Commitment[];
   /** Snapped material receipts — additive learned rates. */
   receipts?: MaterialReceipt[];
+  /**
+   * Self-perform labor samples (hooks/useLaborRates useLaborCostSamples).
+   *
+   * WHY THIS EXISTS. This engine used to hand buildCostDatabase `[]` here
+   * while every estimating surface handed it the real thing, and the book is
+   * a function of what it is handed: a trade the GC self-performs is priced
+   * from clocked hours + receipts, so the SAME trade+unit key came back with a
+   * rate on the estimate screen and NO rate here (docs/audits 2026-09-11,
+   * "one book, one answer"). One book means one set of inputs.
+   */
+  laborSamples?: CostSample[];
   /** Cold-start seeds (hooks/useCostSeeds) — rates the GC stated before they
    *  had closed-job history here. Without them a seeded GC levels bids against
    *  an EMPTY cost book and every adjustment falls back to 'market_guess'. */
@@ -91,16 +103,23 @@ interface LevelOpts {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Build a compact cost-book block for the prompt.  Returns an empty string
- *  when there are no closed jobs yet (cold start — graceful). */
-function buildCostBookFacts(
+/**
+ * Build a compact cost-book block for the prompt.  Returns an empty string
+ * when the book can price nothing yet (cold start — graceful).
+ *
+ * Exported for the validators: this is a string handed to an LLM as PROOF, and
+ * every honesty claim about it has to be assertable without calling Gemini.
+ * See scripts/validate-cost-seed.ts §17.
+ */
+export function buildCostBookFacts(
   pkg: BidPackage,
   projects: Project[],
   commitments: Commitment[],
   receipts: MaterialReceipt[],
+  laborSamples: CostSample[],
   seeds: SeededRate[],
 ): { facts: string; entryCount: number; seededCount: number } {
-  const db = buildCostDatabase(projects, commitments, receipts, [], seeds);
+  const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
   if (db.entries.length === 0) return { facts: '', entryCount: 0, seededCount: 0 };
 
   // Surface entries relevant to this package's trade / CSI.  We match
@@ -130,20 +149,36 @@ function buildCostBookFacts(
       : e.bidBias < -0.05
         ? `, you bid HIGH by ${Math.round(Math.abs(e.bidBias) * 100)}%`
         : '';
-    return `  • ${e.trade} / ${e.unit}: $${e.suggestedRate.toFixed(2)}/unit (${e.sampleCount} samples, ${confLabel}${bias})`;
+    // EVIDENCE IS COUNTED IN MEASURED JOBS, NOT IN SAMPLES. sampleCount is the
+    // raw row count of the group: it includes the seed the GC typed, the
+    // outliers the engine rejected, and — since 2026-09 — the change-order and
+    // package-allocation samples the derivation explicitly disqualified as
+    // unit-rate evidence. Every one of those OVERSTATES what was measured, to
+    // a model that is being handed this block as proof. jobCount is the number
+    // of distinct real projects behind the rate, which is the thing the claim
+    // is actually about. (utils/aiService made this same correction; this
+    // prompt builder is the other one.)
+    const jobs = `${e.jobCount} measured job${e.jobCount === 1 ? '' : 's'}`;
+    // …and a signed sub nobody has paid is real evidence of a different kind.
+    const basis = e.earnedBasis === 'contracted' ? CONTRACTED_NOTE : '';
+    return `  • ${e.trade} / ${e.unit}: $${e.suggestedRate.toFixed(2)}/unit (${jobs}${basis}, ${confLabel}${bias})`;
   });
 
   const seededCount = topEntries.filter(e => e.provenance === 'seeded').length;
-  // jobsAnalyzed already excludes seeds by construction, so this header stays
-  // true even for a book that is entirely self-reported ("0 closed jobs").
-  const facts = `THE GC'S OWN RATES (${db.jobsAnalyzed} closed job${db.jobsAnalyzed === 1 ? '' : 's'} analyzed):\n${lines.join('\n')}`;
+  // "CLOSED JOBS" WAS THE WRONG NOUN. jobsAnalyzed does exclude seeds — that
+  // half of the old comment was true — but it also counts a project that
+  // reached the book only through a snapped supplier receipt or a clocked
+  // crew shift, and this engine passes both. Those jobs are usually still
+  // RUNNING. app/cost-database.tsx was changed off this same sentence for the
+  // same reason; the number is honest, the label was not.
+  const facts = `THE GC'S OWN RATES (${db.jobsAnalyzed} job${db.jobsAnalyzed === 1 ? '' : 's'} with cost data):\n${lines.join('\n')}`;
   return { facts, entryCount: topEntries.length, seededCount };
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
-  const { pkg, bids, projects = [], commitments = [], receipts = [], seeds = [] } = opts;
+  const { pkg, bids, projects = [], commitments = [], receipts = [], laborSamples = [], seeds = [] } = opts;
   // Leveling requires at least 2 bids — otherwise there's nothing to
   // normalize against. The screen guards this too, but utilities exposed
   // module-wide should defend themselves (code-review #5).
@@ -151,7 +186,7 @@ export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
 
   // Build cost-book grounding block.
   const { facts: costBookFacts, entryCount: costBookEntries, seededCount: costBookSeeded } = buildCostBookFacts(
-    pkg, projects, commitments, receipts, seeds,
+    pkg, projects, commitments, receipts, laborSamples, seeds,
   );
 
   // Build the prompt with each bid's raw text.

@@ -218,8 +218,10 @@ function renderDigestHtml(opts: {
   todayDateLabel: string;
   briefings: ProjectBriefing[];
   openRfisCount: number;
+  /** Required for the in-body unsubscribe link — see the note at the bottom. */
+  recipientEmail: string;
 }): string {
-  const { userName, todayDateLabel, briefings, openRfisCount } = opts;
+  const { userName, todayDateLabel, briefings, openRfisCount, recipientEmail } = opts;
 
   const projectBlocks = briefings.length === 0
     ? `<p style="margin:0;color:${STONE};">No active projects today. Enjoy the quiet.</p>`
@@ -269,7 +271,15 @@ function renderDigestHtml(opts: {
     bodyHtml: `${rfiLine}${projectBlocks}`,
     // No CTA — the digest is read-only context. User opens the app via
     // the in-app inbox row that lands at the same time.
-    unsubscribe: { eventKey: 'daily_digest', enabled: true },
+    //
+    // `recipientEmail` is not optional here even though the type allows it:
+    // buildUnsubscribeUrl returns null without it, so this recurring opt-in
+    // email rendered with NO visible unsubscribe link and no "manage email
+    // preferences" link at all. The List-Unsubscribe HEADER was always correct
+    // (sendDigestEmail passes the address to resendSend), so bulk-sender
+    // compliance held — but a reader on a client that does not surface that
+    // header had nothing to click (found 2026-09-08).
+    unsubscribe: { recipientEmail, eventKey: 'daily_digest', enabled: true },
   });
 }
 
@@ -334,6 +344,18 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
     .eq('user_id', userId)
     .eq('status', 'open');
 
+  // No job in progress means a briefing has nothing to be about — there is no
+  // schedule to read, no weather that matters and no crew on site. Sending
+  // "No active projects today. Enjoy the quiet." every morning is the same
+  // mistake daily-digest was making: an email that is empty most days teaches
+  // the reader to archive the subject line on sight, so the mornings that DO
+  // carry a critical-path task get archived with them (found 2026-09-08).
+  //
+  // Only the OUTBOUND channels are suppressed. The in-app inbox row below still
+  // writes — it costs the user nothing, it is pulled rather than pushed, and it
+  // is what keeps the cadence honest for someone who goes looking.
+  const hasNothingToSay = activeProjects.length === 0 && (openRfisCount ?? 0) === 0;
+
   // Fan out weather lookups in parallel — bounded concurrency by project count.
   const briefings: ProjectBriefing[] = [];
   for (const p of activeProjects) {
@@ -351,6 +373,7 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
     todayDateLabel,
     briefings,
     openRfisCount: openRfisCount ?? 0,
+    recipientEmail: profile.email ?? '',
   });
 
   const totalTasksToday = briefings.reduce((sum, b) => sum + b.todayTasks.length, 0);
@@ -361,9 +384,11 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
 
   let emailStatus: string | null = null;
   let sent = false;
-  if (channels.email !== false && profile.email) {
+  if (channels.email !== false && profile.email && !hasNothingToSay) {
     sent = await sendDigestEmail(profile.email, html, todayDateLabel);
     emailStatus = sent ? 'sent' : 'failed';
+  } else if (hasNothingToSay) {
+    emailStatus = 'skipped_nothing_to_report';
   }
 
   // Push: the phone-side doorbell. data.kind === 'morning_brief' lands the
@@ -371,7 +396,7 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
   // channel (it's the device surface — email is the durable copy).
   let pushStatus: string | null = null;
   let pushResp: unknown = null;
-  if (channels.in_app !== false && profile.push_token) {
+  if (channels.in_app !== false && profile.push_token && !hasNothingToSay) {
     const pushResult = await sendPush(profile.push_token, title, summary, { kind: 'morning_brief' });
     pushStatus = pushResult.ok ? 'sent' : 'failed';
     pushResp = pushResult.resp ?? null;

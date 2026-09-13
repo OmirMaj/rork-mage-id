@@ -30,6 +30,10 @@ interface FeatureRow {
   free: boolean;
   pro: boolean;
   business: boolean;
+  /** Printed in the Free column instead of the X, for a row whose free tier is
+   *  a NUMBER rather than a yes/no. Only the project row needs it today; see
+   *  the comment on that row. */
+  freeNote?: string;
 }
 
 /**
@@ -53,7 +57,7 @@ interface FeatureRow {
  */
 type FeatureRowSpec =
   | { label: string; key: FeatureKey }
-  | { label: string; free: boolean; pro: boolean; business: boolean };
+  | { label: string; free: boolean; pro: boolean; business: boolean; freeNote?: string };
 
 function toFeatureRow(spec: FeatureRowSpec): FeatureRow {
   if (!('key' in spec)) return spec;
@@ -80,8 +84,19 @@ function toFeatureRow(spec: FeatureRowSpec): FeatureRow {
 // and QuickBooks sync rows were removed entirely — those features aren't
 // built. See utils/owner.ts comment for the gating rules.
 const FEATURE_SPECS: FeatureRowSpec[] = [
-  // Ungated — no FeatureKey exists because nothing checks one.
-  { label: 'Unlimited Projects', free: true, pro: true, business: true },
+  // Free is capped at ONE active project. This row said `free: true` — i.e.
+  // "Unlimited Projects, included on Free" — while hooks/useTierAccess.ts
+  // maxProjects.free = 1 blocks the second one, and the block is headed with
+  // the literal string from this table. So the pricing screen made the promise
+  // that the app then broke, in the same session, to the same person. The cap
+  // is the published product (marketing/pricing.html "1 active project";
+  // Settings' own FAQ says the same), so the table is what was wrong.
+  // freeNote prints the number rather than an X, because "no projects on Free"
+  // would be the opposite lie.
+  // NOTE the label is load-bearing: scripts/validate-paywall-feature-matrix.ts
+  // allow-lists hand-typed rows BY LABEL, so renaming this row without editing
+  // that allowlist fails ship-check.
+  { label: 'Unlimited Projects', free: false, pro: true, business: true, freeNote: '1' },
   { label: 'Manual Estimates', free: true, pro: true, business: true },
   { label: 'Manual Daily Reports', free: true, pro: true, business: true },
   { label: 'AI Cost Estimator', key: 'ai_estimate_wizard' },
@@ -150,7 +165,11 @@ const AI_LIMITS: AILimitRow[] = [
   { label: 'Construction Answers /mo', free: '—', pro: '—', business: '100', enterprise: '300' },
 ];
 
-function FeatureCheck({ available, colors }: { available: boolean; colors: ThemeColors }) {
+function FeatureCheck({ available, note, colors }: { available: boolean; note?: string; colors: ThemeColors }) {
+  // A note wins over the icon: "1" says more about a capped tier than a cross.
+  if (note) {
+    return <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '700', color: colors.text }}>{note}</Text>;
+  }
   return available
     ? <CheckCircle size={16} color={colors.success} strokeWidth={1.75} />
     : <XCircle size={16} color={colors.textMuted} strokeWidth={1.75} />;
@@ -253,6 +272,12 @@ export default function PaywallScreen() {
   // When RC offerings failed to load (isFallbackPricing), purchase CTAs
   // can't process IAP — Alert the notice instead of silently dead-ending.
   const FALLBACK_NOTICE_TEXT = 'In-app purchasing is currently unavailable. Check your connection and try again.';
+
+  // Android ships too (app.mageid.android), and RevenueCat buys through Google
+  // Play there. Naming the wrong store in a refusal is a small lie told at the
+  // worst moment — when the contractor is trying to work out whether the
+  // problem is him or us.
+  const storeName = Platform.OS === 'android' ? 'Play Store' : 'App Store';
 
   const handleRestore = useCallback(async () => {
     // Restore must ALWAYS work — it only needs RC configured, not offerings
@@ -396,12 +421,12 @@ export default function PaywallScreen() {
                   </View>
                 )}
                 <Button
-                  label="Subscribe"
+                  label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
                   onPress={() => {
                     if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
                     void handlePurchasePro();
                   }}
-                  disabled={isPurchasing}
+                  disabled={isPurchasing || isFallbackPricing}
                   loading={isPurchasing || packagesStillLoading}
                   size="sm"
                   fullWidth
@@ -434,12 +459,12 @@ export default function PaywallScreen() {
                   </View>
                 )}
                 <Button
-                  label="Subscribe"
+                  label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
                   onPress={() => {
                     if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
                     void handlePurchaseBusiness();
                   }}
-                  disabled={isPurchasing}
+                  disabled={isPurchasing || isFallbackPricing}
                   loading={isPurchasing || packagesStillLoading}
                   size="sm"
                   fullWidth
@@ -472,12 +497,12 @@ export default function PaywallScreen() {
                   </View>
                 )}
                 <Button
-                  label="Subscribe"
+                  label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
                   onPress={() => {
                     if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
                     void handlePurchaseEnterprise();
                   }}
-                  disabled={isPurchasing}
+                  disabled={isPurchasing || isFallbackPricing}
                   loading={isPurchasing || packagesStillLoading}
                   size="sm"
                   fullWidth
@@ -490,8 +515,15 @@ export default function PaywallScreen() {
 
         {isFallbackPricing && (
           <View style={styles.fallbackNotice}>
+            {/* Was "Prices shown are estimates. In-app purchasing is currently
+                unavailable." Both halves were wrong to say next to a Subscribe
+                button: the numbers below are the published list rate (see the
+                fallback comment above), not estimates, and the second sentence
+                named no cause and offered no way out. */}
             <Text style={styles.fallbackNoticeText}>
-              Prices shown are estimates. In-app purchasing is currently unavailable.
+              {`We can't reach the ${storeName} right now, so a subscription can't be started. `}
+              Your plan and your data are unaffected — try again in a minute, or tap Restore
+              if you have already paid.
             </Text>
           </View>
         )}
@@ -508,7 +540,7 @@ export default function PaywallScreen() {
             <View key={f.label} style={styles.compareRow}>
               <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{f.label}</Text>
               <View style={[styles.compareCell, styles.compareCenterCell]}>
-                <FeatureCheck available={f.free} colors={themeColors} />
+                <FeatureCheck available={f.free} note={f.freeNote} colors={themeColors} />
               </View>
               <View style={[styles.compareCell, styles.compareCenterCell]}>
                 <FeatureCheck available={f.pro} colors={themeColors} />
@@ -785,7 +817,7 @@ function WebPaywallView({
             {FEATURES.map((row, i) => (
               <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: i < FEATURES.length - 1 ? 1 : 0, borderColor: themeColors.line }}>
                 <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{row.label}</Text>
-                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.free} colors={themeColors} /></View>
+                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.free} note={row.freeNote} colors={themeColors} /></View>
                 <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.pro} colors={themeColors} /></View>
                 <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.business} colors={themeColors} /></View>
               </View>

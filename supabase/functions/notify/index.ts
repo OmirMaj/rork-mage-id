@@ -1243,6 +1243,65 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       break;
     }
 
+    // Invitation to bid. The sub has no account and no app: the email IS the
+    // product surface. Without this branch `notify` fell through to `default:`
+    // and returned 200 {ok:false, reason:'unknown_event'} — which
+    // utils/notifyClient.ts read as success, so the GC was told the invite had
+    // been emailed when nothing was ever sent (review 2026-09-10).
+    case 'bid_invite_sent': {
+      const subEmail = strOrNull(payload.sub_email);
+      const inviteUrl = strOrNull(payload.invite_url);
+      const pkgName = (payload.package_name as string) || 'this package';
+      const scope = (payload.scope_description as string) || '';
+      const csi = (payload.csi_division as string) || '';
+      const phase = (payload.phase as string) || '';
+      const subName = (payload.sub_name as string) || 'there';
+      // No estimate_budget anywhere in this branch, for the same reason
+      // bid_invite_get withholds it: the GC's own number in front of the people
+      // bidding against it anchors every bid just under it.
+      if (!subEmail || !inviteUrl) {
+        await sbInsert('notification_outbox', {
+          event_type: event, source_table: source_table ?? null, source_id: source_id ?? null,
+          recipient_kind: 'sub', recipient_email: subEmail,
+          email_status: 'skipped_no_email', payload,
+        }).catch(() => {});
+        break;
+      }
+      const html = wrapEmailHtml({
+        preheader: `${gc.company_name ?? 'A contractor'} is asking you to price ${pkgName} on ${projectName}.`,
+        eyebrow: 'Invitation to bid',
+        title: `You're invited to bid on ${escapeHtml(pkgName)}`,
+        subtitle: `${escapeHtml(String(subName))} — ${escapeHtml(gc.company_name ?? 'a contractor')} wants your number on ${escapeHtml(projectName)}. No account, no app: open the link, read the scope, type your price.`,
+        bodyHtml: `
+          ${emailStatCard(`${emailStatRow('Package', escapeHtml(pkgName))}${csi ? emailStatRow('CSI division', escapeHtml(csi)) : ''}${phase ? emailStatRow('Phase', escapeHtml(phase)) : ''}${emailStatRow('Project', escapeHtml(projectName))}`)}
+          ${scope ? `<p style="margin:0 0 14px;"><strong>Scope:</strong> ${escapeHtml(scope)}</p>` : ''}
+          <p style="margin:0;color:#9AA3AD;font-size:13px;">This link is yours — anyone who has it can file a bid under your name, so please don't forward it. It stops working 30 days from today.</p>
+        `,
+        cta: { label: 'Open the invitation', href: inviteUrl },
+        companyName: gc.company_name ?? undefined,
+        sender: { name: gc.contact_name ?? gc.company_name ?? undefined, email: gc.email ?? undefined, phone: gc.phone ?? undefined },
+        project: { name: projectName, location: projectCtx.location },
+        unsubscribe: { recipientEmail: subEmail, eventKey: 'bid_invite', enabled: true },
+      });
+      const r = await sendIfNotSuppressed({
+        to: subEmail,
+        subject: `Invitation to bid \u00b7 ${pkgName} \u00b7 ${projectName}`,
+        html,
+        fromCompanyName: gc.company_name ?? undefined,
+        replyTo: (payload.reply_to as string) || gc.email || undefined,
+        unsubscribe: { recipientEmail: subEmail, eventKey: 'bid_invite', enabled: true },
+        eventKey: 'bid_invite',
+      });
+      await sbInsert('notification_outbox', {
+        event_type: event, source_table: source_table ?? null, source_id: source_id ?? null,
+        recipient_kind: 'sub', recipient_email: subEmail,
+        email_status: r.suppressed ? 'suppressed_unsubscribed' : (r.ok ? 'sent' : 'failed'),
+        email_response: r.resp, payload,
+        delivered_at: r.ok ? new Date().toISOString() : null,
+      }).catch(() => {});
+      break;
+    }
+
     default:
       return { ok: false, reason: 'unknown_event', event };
   }

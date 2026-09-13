@@ -78,7 +78,10 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
 
   const runCsv = async () => { if (busy) return; setBusy(true); try { await shareScheduleCsv(tasks, startDate, project.name, { workingDaysPerWeek: project.schedule?.workingDaysPerWeek, nonWorkingDates: project.schedule?.nonWorkingDates }); onClose(); } catch (e) { showAlert('Export failed', e instanceof Error ? e.message : 'Try again.'); } finally { setBusy(false); } };
   const runShare = async () => {
-    const url = buildScheduleShareUrl(project.name, startDate, tasks);
+    const url = buildScheduleShareUrl(project.name, startDate, tasks, {
+      workingDaysPerWeek: project.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project.schedule?.nonWorkingDates,
+    });
     if (!url) { showAlert('Schedule too large', 'This schedule is too large for a quick link — export a PDF instead.'); return; }
     try { const { Share } = await import('react-native'); await shareText({ message: `${project.name} schedule: ${url}`, url }); onClose(); } catch { /* cancelled */ }
   };

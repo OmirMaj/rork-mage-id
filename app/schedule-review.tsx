@@ -12,7 +12,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, AlertTriangle, RefreshCcw, Check } from 'lucide-react-native';
@@ -64,7 +64,13 @@ export default function ScheduleReviewScreen() {
   const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
-  useBrainFabLift(bottomBarH);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = bottomBarH;
+  useBrainFabLift(fabLift);
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { getProject, updateProject, projects } = useProjects();
@@ -388,7 +394,7 @@ export default function ScheduleReviewScreen() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: 120 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryRow}>
           <MageAIMark size={16} color={t.accent} />
           <Text style={styles.summaryText}>

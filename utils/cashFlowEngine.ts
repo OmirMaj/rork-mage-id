@@ -1,6 +1,9 @@
-import type { Invoice, ChangeOrder } from '@/types';
+import type { Invoice, ChangeOrder, Commitment, Project } from '@/types';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 import { netBalanceDue, pendingRetentionHeld } from '@/utils/invoiceBilling';
+import { commitmentUnpaid } from '@/utils/jobCostEngine';
+import { addWorkingDays } from '@/utils/scheduleEngine';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
 export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
@@ -13,6 +16,26 @@ export interface CashFlowExpense {
   category: ExpenseCategory;
   startDate: string;
   endDate?: string;
+  /**
+   * The signed Commitment this row is the money for. One field, used from
+   * both ends:
+   *
+   *   • On a DERIVED row (`derived: true`) it names the commitment the row was
+   *     generated from.
+   *   • On a HAND-TYPED row the GC sets it to say "this line IS my draw
+   *     schedule for that sub", and buildCommittedOutflows then generates
+   *     nothing for that commitment — his dates beat our even spread, and the
+   *     money is counted once.
+   */
+  commitmentId?: string;
+  /**
+   * True when buildCommittedOutflows generated this row from a commitment
+   * rather than the GC typing it. Derived rows are rebuilt from the
+   * commitments on every forecast and are never persisted into
+   * `mage_cashflow_data`, so they cannot accumulate on disk or be edited into
+   * a second copy of the same money.
+   */
+  derived?: boolean;
 }
 
 export interface ExpectedPayment {
@@ -38,7 +61,22 @@ export interface CashFlowWeek {
 export interface CashFlowSummary {
   totalIncome: number;
   totalExpenses: number;
-  netProfit: number;
+  /**
+   * CASH IN MINUS CASH OUT over the horizon. This is NOT profit and was called
+   * `netProfit` until the 2026-09-07 audit's do-next #12b.
+   *
+   * A change in cash ignores accrual in both directions: an owner's deposit is
+   * counted as gain the week it lands even though none of the work is done,
+   * and a materials prepay is counted as loss even though the material is an
+   * asset sitting in the yard. Work performed but not yet billed contributes
+   * nothing at all. A GC who read "Net Profit" off this screen and repeated
+   * the figure to his accountant or to a lender was being misled by the label
+   * rather than by the arithmetic — the number is right, the word was wrong.
+   *
+   * Job profit lives in utils/jobCostEngine.ts (budget vs cost) and the WIP
+   * report; this field must never be rendered under a profit label.
+   */
+  netCashChange: number;
   lowestBalance: number;
   lowestBalanceWeek: number;
   highestBalance: number;
@@ -146,6 +184,267 @@ function shouldExpenseOccurInWeek(
     default:
       return false;
   }
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Everything buildCommittedOutflows needs to turn signed commitments into
+ * dated outflow. Pure input — no storage, no network.
+ */
+export interface CommittedOutflowInput {
+  /** Signed subcontracts and POs. Draft ones are skipped, matching
+   *  computeJobCost's own filter. */
+  commitments: Commitment[];
+  /** Projects, for the schedule that dates each commitment's draw. */
+  projects: Project[];
+  /** The GC's hand-entered expense rows. Only read to find rows that CLAIM a
+   *  commitment, which suppresses that commitment's derived row. */
+  expenses: CashFlowExpense[];
+  /** Injectable clock so the guard can pin the week arithmetic. */
+  now?: Date;
+}
+
+export interface CommittedOutflows {
+  /** Derived expense rows, ready to concat onto the GC's own list before
+   *  calling generateForecast. */
+  scheduled: CashFlowExpense[];
+  /** Committed balance we could NOT honestly put on a week — the job carries no
+   *  schedule, or it is finished and the balance is a record nobody closed out.
+   *  Deliberately absent from the weekly runway and surfaced beside it, the way
+   *  retention is. */
+  undated: number;
+  /** Commitments behind `undated`, so the screen can name them. */
+  undatedCommitmentIds: string[];
+  /** Commitments that produced nothing because a hand-entered expense claims
+   *  them. */
+  suppressedCommitmentIds: string[];
+  /** Hand-entered rows in a commitment-shaped category (subcontractor /
+   *  materials) that name no commitment, so we cannot tell whether they are a
+   *  second copy of money now being pulled in automatically. Counted and
+   *  shown, never silently removed. */
+  ambiguousManualCount: number;
+  /** The ids of exactly those rows. The count alone tells the GC a duplicate
+   *  may exist without telling him WHERE, which leaves him deleting rows at
+   *  random on a solvency screen; the screen marks these rows in place. */
+  ambiguousManualIds: string[];
+}
+
+/**
+ * Drop rows this engine generated, keeping only what the GC typed.
+ *
+ * Derived rows are a VIEW of the live commitments, recomputed on every
+ * forecast. If one ever reached storage it would be counted twice from then on
+ * — once as the frozen copy on disk and again as the commitment it came from —
+ * and it would keep the amount it had the day it was written, so paying the sub
+ * down would not shrink it. utils/cashFlowStorage.ts runs this on both the read
+ * and the write path, which also cleans up any row a previous build left
+ * behind.
+ */
+export function stripDerivedExpenses(expenses: CashFlowExpense[]): CashFlowExpense[] {
+  return expenses.filter(e => !e.derived);
+}
+
+/**
+ * The last calendar day the project's schedule still has work on, or null when
+ * the schedule cannot date itself.
+ *
+ * CALENDAR day derived from WORKING days: `totalDurationDays` counts working
+ * days, so it goes through utils/scheduleEngine.addWorkingDays — the same
+ * function the Gantt draws with, including the project's own non-working
+ * dates. Treating a 60-working-day schedule as 60 calendar days would pull
+ * roughly three weeks of subcontract draw forward into weeks the crew will not
+ * have worked, on the one screen where being early with an outflow is the
+ * cheap error and being late is the expensive one.
+ */
+function scheduleFinishDay(project: Project): Date | null {
+  const schedule = project.schedule;
+  if (!schedule) return null;
+  const start = parseCalendarDay(schedule.startDate);
+  if (!start) return null;
+  const duration = Number.isFinite(schedule.totalDurationDays)
+    ? Math.floor(schedule.totalDurationDays)
+    : 0;
+  if (duration <= 0) return null;
+  const perWeek = Number.isFinite(schedule.workingDaysPerWeek) && schedule.workingDaysPerWeek > 0
+    ? schedule.workingDaysPerWeek
+    : 5;
+  const finish = addWorkingDays(start, duration - 1, perWeek, schedule.nonWorkingDates);
+  finish.setHours(0, 0, 0, 0);
+  return finish;
+}
+
+/**
+ * Turn signed commitments into the outflow rows the forecast was missing.
+ *
+ * THE DEFECT THIS CLOSES (audit 2026-09-07, do-next #12b). The income side of
+ * this screen is fully automatic — invoices and expected payments flow in on
+ * their own — while the expense side counted ONLY rows the GC typed by hand.
+ * Signed subcontracts and POs, the largest committed outflow a GC has, never
+ * appeared at all. Automatic on the money coming in and manual on the money
+ * going out biases every forecast toward solvency, which is the exact
+ * direction that hurts on the one screen whose job is "can I make payroll on
+ * Friday" — and the bias propagated, because the morning brief
+ * (hooks/useMorningBrief.ts) and the AI fact blocks (utils/oneMind/
+ * factBlocks.ts) read this same projection.
+ *
+ * THE MONEY. `commitmentUnpaid` comes from utils/jobCostEngine.ts rather than
+ * being re-derived here, so "what have I still got to pay this sub" has ONE
+ * definition in the app: signed amount + approved CO revisions − the paid
+ * rollup. Snapped material receipts are NOT netted out of it — that helper's
+ * doc gives the full reason, but the short of it is that a receipt is a
+ * supplier invoice rather than a payment, nothing in generateForecast spends
+ * it, and receipts never leave the device that snapped them.
+ *
+ * HOW A DUPLICATE IS PREVENTED, exactly. There are three doors and each is
+ * shut deliberately:
+ *
+ *   1. A hand-entered row that carries `commitmentId` claims that commitment,
+ *      and the commitment then generates nothing. The match is on ID and
+ *      nothing else — never on a name, an amount or a category, because a
+ *      fuzzy match that fires wrongly DELETES real outflow from a solvency
+ *      screen, which is worse than the double count it was trying to avoid.
+ *   2. Derived rows are regenerated from the commitments on every forecast and
+ *      are never written back into `mage_cashflow_data` (app/cash-flow.tsx
+ *      concatenates them at forecast time and persists only
+ *      `cashFlowData.expenses`), so they cannot accumulate on disk, and
+ *      re-running this builder over its own output adds nothing.
+ *   3. `commitmentUnpaid` nets the paid rollup, so a draw already sent is not
+ *      forecast again. It does NOT net snapped receipts: there is no third
+ *      count to remove, because generateForecast never spends a receipt.
+ *
+ * The door that CANNOT be shut from here is a legacy hand-typed row that is
+ * the same money as a commitment but names no id — the GC's "Framing sub —
+ * Miller Bros, $12,000/mo" typed before commitments existed. Guessing at those
+ * would be door 1's fuzzy match by another name, so they are counted as typed
+ * and returned in `ambiguousManualIds` for the screen to mark in place.
+ *
+ * TIMING. A commitment carries `signedDate` and no payment dates at all, so
+ * the draw is spread evenly across the project's remaining schedule — a
+ * subcontract is billed as the work proceeds, and the schedule is the only
+ * real signal in the app for when that work happens. Where there is no such
+ * signal the money is NOT given an invented date: it goes to `undated` and is
+ * reported beside the runway, following the same rule this file already applies
+ * to retention — a forecast that names a date it cannot know is worse than one
+ * that admits the money is not scheduled yet. Two cases reach `undated`:
+ *
+ *   • The project carries no usable schedule.
+ *
+ *   • The job is OVER — the project is completed/closed, or the commitment
+ *     itself is closed. `paidToDate` is only maintained by the server trigger
+ *     on sub-submitted invoices, so a sub paid by check outside the portal
+ *     leaves a full balance sitting on a finished contract forever. Dating that
+ *     balance to week 0 put the whole of every historic subcontract into THIS
+ *     week, on every open of the screen, for the rest of the account's life —
+ *     a permanent false Danger that teaches the GC to ignore the one screen he
+ *     must not ignore. It is still real money if he genuinely never paid it, so
+ *     it is reported rather than dropped.
+ */
+export function buildCommittedOutflows({
+  commitments, projects, expenses, now = new Date(),
+}: CommittedOutflowInput): CommittedOutflows {
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  const claimed = new Set(
+    expenses
+      .filter(e => !e.derived && typeof e.commitmentId === 'string' && e.commitmentId.length > 0)
+      .map(e => e.commitmentId as string),
+  );
+  const ambiguousManualIds = expenses
+    .filter(e => !e.derived && !e.commitmentId && (e.category === 'subcontractor' || e.category === 'materials'))
+    .map(e => e.id);
+
+  const projectById = new Map(projects.map(p => [p.id, p]));
+
+  const scheduled: CashFlowExpense[] = [];
+  const undatedCommitmentIds: string[] = [];
+  const suppressedCommitmentIds: string[] = [];
+  let undated = 0;
+
+  for (const c of commitments) {
+    // A draft is not signed, so nothing is owed on it yet. Same filter
+    // computeJobCost uses.
+    if (c.status === 'draft') continue;
+    if (claimed.has(c.id)) {
+      suppressedCommitmentIds.push(c.id);
+      continue;
+    }
+
+    const remaining = commitmentUnpaid(c);
+    if (remaining <= 0) continue;
+
+    const project = projectById.get(c.projectId);
+    // A finished job's leftover balance is a record nobody closed out, not a
+    // payment due in some particular week — see the `undated` note above for
+    // why dating it to week 0 made the screen cry wolf permanently.
+    const jobIsOver = c.status === 'closed'
+      || project?.status === 'completed' || project?.status === 'closed';
+    const finish = project && !jobIsOver ? scheduleFinishDay(project) : null;
+    if (!finish) {
+      undated += remaining;
+      undatedCommitmentIds.push(c.id);
+      continue;
+    }
+
+    const who = c.vendorName?.trim() || c.description?.trim() || 'Committed work';
+    const name = `${who} · ${c.number} (committed)`;
+    // A subcontract is labour, a PO is material. The category only drives the
+    // expense-list grouping and colour, never the arithmetic.
+    const category: ExpenseCategory = c.type === 'purchase_order' ? 'materials' : 'subcontractor';
+
+    if (finish.getTime() <= todayMs) {
+      // The schedule says this job should already be finished, so whatever is
+      // left on the contract is due now rather than on some future week. Week
+      // 0 is the conservative read on a solvency screen — the same clamp
+      // generateForecast makes for an overdue receivable, pointed the other
+      // way.
+      scheduled.push({
+        id: `committed-${c.id}`,
+        name,
+        amount: remaining,
+        frequency: 'one_time',
+        category,
+        startDate: today.toISOString(),
+        commitmentId: c.id,
+        derived: true,
+      });
+      continue;
+    }
+
+    // Whole forecast weeks the draw window still covers. generateForecast's
+    // week w runs from midnight on today+7w, so a weekly row fires in weeks
+    // 0..floor(daysOut / 7) — dividing by exactly that count makes the spread
+    // sum back to `remaining` over the window instead of over- or
+    // under-spending it. Math.round on the day difference absorbs the hour a
+    // DST boundary adds or removes between two midnights.
+    const daysOut = Math.round((finish.getTime() - todayMs) / MS_PER_DAY);
+    const weeksRemaining = Math.max(1, Math.floor(daysOut / 7) + 1);
+    const endOfFinishDay = new Date(finish);
+    endOfFinishDay.setHours(23, 59, 59, 999);
+
+    scheduled.push({
+      id: `committed-${c.id}`,
+      name,
+      amount: remaining / weeksRemaining,
+      frequency: 'weekly',
+      category,
+      startDate: today.toISOString(),
+      // An instant, not a bare calendar day: shouldExpenseOccurInWeek compares
+      // it against week boundaries with `new Date(...)`, and a 'YYYY-MM-DD'
+      // string parses as UTC midnight, which is the previous evening anywhere
+      // west of Greenwich — it would drop the last week of the draw.
+      endDate: endOfFinishDay.toISOString(),
+      commitmentId: c.id,
+      derived: true,
+    });
+  }
+
+  return {
+    scheduled, undated, undatedCommitmentIds, suppressedCommitmentIds,
+    ambiguousManualCount: ambiguousManualIds.length, ambiguousManualIds,
+  };
 }
 
 export function generateForecast(
@@ -304,6 +603,118 @@ export function generateForecast(
 }
 
 /**
+ * Did any money actually move inside this forecast?
+ *
+ * THE ROW COUNT IS NOT EVIDENCE. generateForecast above pushes one row per week
+ * unconditionally — twelve rows come back from a brand-new account with no
+ * invoices, no expenses and no expected payments in it — so `weeks.length` says
+ * how long the horizon is and nothing whatsoever about whether there was
+ * anything to forecast. app/cash-flow.tsx read it as evidence anyway
+ * (`if (forecast.length === 0) → 'Setup'`), which made its no-data branch
+ * unreachable and printed a green "Healthy" verdict beside a $0 balance on both
+ * an empty account and a seeded one (rendered audit 2026-09-10). Ask this
+ * instead of counting rows.
+ *
+ * Dollars, not items: a hand-typed expense row with no amount in it produces an
+ * expenseItem and moves no cash, and it must not buy a verdict. `!== 0` rather
+ * than `> 0` so a negative amount someone typed still reads as movement rather
+ * than as silence.
+ *
+ * Cash MOVEMENT, both directions — this is inflow-or-outflow, not revenue and
+ * not cost. A week of nothing but bills going out is signal; it is what a
+ * 'Watch' or a 'Danger' reading is made of.
+ */
+export function forecastHasCashMovement(weeks: CashFlowWeek[]): boolean {
+  return weeks.some(w => w.totalIncome !== 0 || w.totalExpenses !== 0);
+}
+
+/**
+ * WHY nothing landed in the horizon — so the screen can name the missing input
+ * instead of guessing at it.
+ *
+ * The guess is the failure this closes. The first cut of the no-forecast state
+ * printed one fixed sentence, "Add your bank balance, an unpaid invoice, or a
+ * recurring bill and this becomes a real forecast", to everybody — and the
+ * rendered check of 2026-09-10 caught it beside "Current Balance $48,250", and
+ * again beside "Total Pending $26,000 · Sources 1". It asked for things the GC
+ * had already given it. Worse, the promise itself is one the code cannot keep:
+ * a starting balance moves no money, so forecastHasCashMovement above cannot
+ * flip because someone typed one in. Naming an input that would not have
+ * helped is the same category of lie as the "Healthy" verdict this screen was
+ * just fixed for; it is just quieter.
+ *
+ * Order is by what the GC can act on first, and every branch is something this
+ * function can actually see:
+ *   • undated_commitments   — signed money, no schedule to hang it on.
+ *   • bills_without_amounts — rows he typed and left blank. Hand-typed only:
+ *     the derived commitment rows are never in `expenses`.
+ *   • nothing_dated_on_file — no bills, no receivable, no expected payment.
+ *   • everything_falls_outside — there IS money on file and none of it lands:
+ *     a draft invoice (unsent), or dates before/after the window.
+ *
+ * Dollars, not rows, throughout: a blank amount is not a bill, and a paid
+ * invoice is not a receivable. Amounts are COST on the expense side and
+ * REVENUE on the income side, and the `!== 0` tests keep a negative (a credit
+ * memo, a backcharge) counted as money on file rather than as silence.
+ */
+export type EmptyForecastReason =
+  | { kind: 'undated_commitments'; amount: number }
+  | { kind: 'bills_without_amounts'; count: number }
+  | { kind: 'nothing_dated_on_file' }
+  | { kind: 'everything_falls_outside' };
+
+export function diagnoseEmptyForecast(input: {
+  /** buildCommittedOutflows().undated — committed dollars with no schedule. */
+  undatedCommitted: number;
+  /** Hand-typed rows only, exactly as stored; derived rows are not in here. */
+  expenses: CashFlowExpense[];
+  expectedPayments: ExpectedPayment[];
+  invoices: Invoice[];
+}): EmptyForecastReason {
+  const undated = Number.isFinite(input.undatedCommitted) ? input.undatedCommitted : 0;
+  if (undated > 0) return { kind: 'undated_commitments', amount: undated };
+
+  const unpriced = input.expenses.filter(e => !Number.isFinite(e.amount) || e.amount === 0).length;
+  if (unpriced > 0) return { kind: 'bills_without_amounts', count: unpriced };
+
+  const hasPricedBill = input.expenses.some(e => Number.isFinite(e.amount) && e.amount !== 0);
+  const hasIncomeOnFile =
+    input.expectedPayments.some(p => Number.isFinite(p.amount) && p.amount !== 0) ||
+    // The same two functions generateForecast uses, so "on file" here and
+    // "forecastable" there cannot drift apart and leave the screen asking for
+    // an invoice it is already reading. A draft counts as on file — it is
+    // unsent, not absent, and that is what the copy says.
+    input.invoices.some(inv => getEffectiveInvoiceStatus(inv) !== 'paid' && netBalanceDue(inv) > 0);
+
+  if (!hasPricedBill && !hasIncomeOnFile) return { kind: 'nothing_dated_on_file' };
+  return { kind: 'everything_falls_outside' };
+}
+
+/**
+ * A typed money box → dollars, or null when the box does not hold a number.
+ *
+ * `parseFloat(text) || 0` is the trap this closes, and this screen had it in
+ * three places. An empty box, a stray letter, a lone '-' all became 0, and a
+ * recorded $0 is indistinguishable from a deliberate one: the Add Expense
+ * sheet closed with a success haptic on a bill with no amount, and Edit
+ * Balance would overwrite a real bank balance with zero if the box was
+ * cleared. Callers refuse the save on null rather than inventing the number.
+ *
+ * Thousands separators are accepted ONLY in the US grouping this app formats
+ * with. "1200,50" is a decimal comma across most of Europe, and stripping
+ * commas blindly would record it as 120050 — a hundredfold error, written down
+ * as a fact about someone's money. Anything ambiguous is refused and retyped.
+ */
+export function parseMoneyInput(text: string): number | null {
+  const stripped = text.replace(/[$\s]/g, '');
+  if (stripped.length === 0) return null;
+  const degrouped = /^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(stripped) ? stripped.replace(/,/g, '') : stripped;
+  if (degrouped.includes(',')) return null;
+  const n = Number(degrouped);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * Retention dollars billed but contractually held back, across open invoices.
  *
  * This money is real and the GC will eventually get it — it is simply not on
@@ -355,7 +766,7 @@ export function calculateSummary(weeks: CashFlowWeek[]): CashFlowSummary {
   return {
     totalIncome,
     totalExpenses,
-    netProfit: totalIncome - totalExpenses,
+    netCashChange: totalIncome - totalExpenses,
     lowestBalance: lowestBalance === Infinity ? 0 : lowestBalance,
     lowestBalanceWeek,
     highestBalance: highestBalance === -Infinity ? 0 : highestBalance,

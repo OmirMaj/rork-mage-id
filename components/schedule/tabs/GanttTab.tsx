@@ -22,7 +22,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GridPaneDefault from '../GridPane';
 import InteractiveGanttDefault from '../InteractiveGantt';
 import { useScheduler } from '../SchedulerContext';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsive } from '@/utils/useResponsive';
@@ -111,6 +112,9 @@ export function GanttTab({
   onBulkSetCrew,
   onBulkAskAI,
 }: GanttTabProps) {
+  // Built per theme: the split-pane chrome (divider, layout bar, phone FAB)
+  // baked its Colors.surface/surfaceAlt/border at import (audit 2026-09-07).
+  const styles = useThemedStyles(makeStyles);
   const { tasks } = useScheduler();
   const { bp } = useResponsive();
   const insets = useSafeAreaInsets();
@@ -123,6 +127,8 @@ export function GanttTab({
           tasks={tasks as ScheduleTask[]}
           cpm={cpm}
           projectStartDate={projectStartDate}
+          workingDaysPerWeek={workingDaysPerWeek}
+          nonWorkingDates={nonWorkingDates}
           onEdit={onEdit}
           onDeleteTask={onDeleteTask}
           onOutline={onOutline}
@@ -172,6 +178,8 @@ export function GanttTab({
             tasks={tasks as ScheduleTask[]}
             cpm={cpm}
             projectStartDate={projectStartDate}
+            workingDaysPerWeek={workingDaysPerWeek}
+            nonWorkingDates={nonWorkingDates}
             onEdit={onEdit}
             onDeleteTask={onDeleteTask}
             onOutline={onOutline}
@@ -191,6 +199,14 @@ export function GanttTab({
         <View style={styles.grid}>
           <GridPaneDefault
             tasks={tasks as ScheduleTask[]}
+            // The SAME CpmResult the Gantt beside it draws from. Without this
+            // the grid re-ran the engine itself, and its own run has no
+            // `taskCalendars` and no `criticalFloatThresholdDays` — so a
+            // per-resource calendar and the near-critical threshold applied to
+            // one half of the split view and not the other. Dates already
+            // agreed (GridPane's fallback is calendar-aware), which is exactly
+            // why nothing caught it.
+            cpm={cpm}
             projectStartDate={projectStartDate}
             workingDaysPerWeek={workingDaysPerWeek}
             nonWorkingDates={nonWorkingDates}
@@ -217,6 +233,8 @@ export function GanttTab({
             tasks={tasks as ScheduleTask[]}
             cpm={cpm}
             projectStartDate={projectStartDate}
+            workingDaysPerWeek={workingDaysPerWeek}
+            nonWorkingDates={nonWorkingDates}
             onEdit={onEdit}
             onDeleteTask={onDeleteTask}
             onOutline={onOutline}
@@ -253,14 +271,14 @@ export function GanttTab({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   nonPhoneRoot: { flex: 1 },
   // Local layout segmented control — mirrors the retired top-toolbar pane
   // toggle (schedule-pro PaneBtn) so the Timeline tab now owns all five modes.
   layoutBar: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.sm,
     padding: 2,
     margin: 12,
@@ -271,15 +289,17 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.xs,
   },
   layoutBtnActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   layoutBtnText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   layoutBtnTextActive: {
-    color: Colors.accent,
+    // accentLabel, not accent: this is a caption-size LABEL on t.surface, where
+    // the brand #FF6A1A measures 2.87:1.
+    color: t.accentLabel,
   },
   row: { flex: 1, flexDirection: 'row' },
   // Used for the 'gantt' layout (single full-width child).
@@ -287,7 +307,7 @@ const styles = StyleSheet.create({
   grid: {
     width: '38%',
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: Colors.border,
+    borderRightColor: t.line,
   },
   gantt: { flex: 1 },
   phoneRoot: { flex: 1 },

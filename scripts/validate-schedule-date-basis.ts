@@ -842,9 +842,30 @@ console.log('\nthe migrated surfaces call the one rule:');
     ['components/schedule/mobile/MobileScheduleScreen.tsx',
       /<DatePickerModal[\s\S]{0,400}?onChange=\{\(iso\) => applyStartDate\(iso\.slice\(0, 10\)\)\}/,
       'OFFERS to set the start date'],
+    // 2026-09-11: the OPPOSITE assertion. This used to demand a
+    // `rebaseRawToCalendar` call here. That helper compensated for the CPM
+    // engine reading `ScheduleTask.startDay` as a CALENDAR index; the engine
+    // now converts at its own `pins` line, so `startDay` is a WORKING ORDINAL
+    // on both sides of the anchor flip and re-mapping DOUBLE-converts. Both
+    // this screen and app/(tabs)/schedule/index.tsx persist the result through
+    // updateProject, so it was stored corruption, not a display artefact:
+    // A(10)->B(10)->C(5) at ordinals 1/11/21 on a 5-day week from
+    // Mon 2026-03-02 became 1,15,29 and the finish moved Apr 3 → Apr 15.
+    //
+    // 2026-09-12, and this line is still the whole truth about the CODE: the
+    // call must stay gone. The DATA it already rewrote is a separate problem
+    // with a separate remedy — `cpm.detectStartDayBasis` classifies an affected
+    // schedule from its own rows, `StartDayBasisNotice` offers the one-time
+    // re-anchor with the measured before/after finish, and
+    // `ProjectSchedule.startDayBasis` records the answer so it is asked once.
+    // All of it is proved by scripts/validate-startdate-rebase.ts; none of it
+    // belongs on this screen, which is why nothing below changed.
     ['components/schedule/mobile/MobileScheduleScreen.tsx',
-      /rebaseRawToCalendar\(activeSchedule\.tasks, iso, activeSchedule\.workingDaysPerWeek, activeSchedule\.nonWorkingDates\)/,
-      're-maps raw working-day ordinals when the first anchor is set'],
+      /^(?![\s\S]*rebaseRawToCalendar)[\s\S]*$/,
+      'does NOT re-map startDay when the first anchor is set (the engine converts)'],
+    ['app/(tabs)/schedule/index.tsx',
+      /^(?![\s\S]*rebaseRawToCalendar)[\s\S]*$/,
+      'does NOT re-map startDay when the first anchor is set (the engine converts)'],
     ['components/schedule/mobile/MobileScheduleList.tsx',
       /startDate: string \| null;/, 'accepts a null anchor'],
     ['components/schedule/mobile/MobileScheduleList.tsx',

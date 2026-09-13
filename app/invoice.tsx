@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, ActivityIndicator, type LayoutChangeEvent} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -78,7 +78,7 @@ import {
 } from '@/utils/invoiceBilling';
 import { billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { formatMoney } from '@/utils/formatters';
-import { markMilestoneInvoiced } from '@/utils/contractEngine';
+import { markMilestoneInvoiced, markMilestonePaidByInvoice } from '@/utils/contractEngine';
 import {
   reminderEligibility, reminderBlockMessage, reminderSentLabel, dunningStageLabel,
 } from '@/utils/billingFlowCore';
@@ -1015,6 +1015,32 @@ function InvoiceInner() {
       });
     }
 
+    // Close the milestone lifecycle. markMilestoneInvoiced wrote 'invoiced'
+    // when this invoice was created; until now NOTHING wrote 'paid', so
+    // computeContractPaid always returned 0 and the two PAID branches on the
+    // contract screen (:1087, :1201) could never render — a GC whose homeowner
+    // had paid the foundation draw still saw it as merely billed, on the screen
+    // whose whole job is telling him where the contract stands
+    // (audit 2026-09-07, built-but-unreachable #7).
+    //
+    // Keyed on `sourceContractId` stored on the invoice at :521, NOT the
+    // `contractId` route param — that param only exists when the GC arrived
+    // from the contract screen's one-tap flow, and a payment is almost always
+    // recorded later, from the invoice list, with no params at all.
+    //
+    // Only when the invoice is fully settled: a partial payment has not paid
+    // the draw. Fire-and-forget, like the re-mint above — the payment is
+    // already recorded, and a failed flip must never roll it back.
+    if (newStatus === 'paid' && existingInvoice.sourceContractId) {
+      void markMilestonePaidByInvoice(existingInvoice.sourceContractId, existingInvoice.id)
+        .then((outcome) => {
+          if (outcome === 'failed' || outcome === 'not_found') {
+            console.warn('[Invoice] milestone paid-flip did not land:', outcome);
+          }
+        })
+        .catch((err) => { console.warn('[Invoice] milestone paid-flip threw:', err); });
+    }
+
     setShowPaymentModal(false);
     setPaymentAmount('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1324,7 +1350,13 @@ function InvoiceInner() {
     || effectiveStatus === 'sent'
     || effectiveStatus === 'partially_paid'
     || effectiveStatus === 'overdue';
-  useBrainFabLift(!isLocked ? bottomBarH : 0);
+  // ONE value for the lift and the padding. The bar is position:'absolute'
+  // over the scroll, so the container still reaches the window bottom while the
+  // FAB rides `fabLift` above its resting +70..+126 — the last row has to clear
+  // BOTH. Reviewed 2026-09-07: seven screens had padded for the FAB and not for
+  // the bar it was sitting on, burying roughly a bar-height of content.
+  const fabLift = !isLocked ? bottomBarH : 0;
+  useBrainFabLift(fabLift);
   // Money can be recorded on any invoice the client has seen that is not yet
   // settled. Effective, not stored, status — so a legacy row stored 'paid' with
   // a balance reopened by a retention release still offers Record Payment and
@@ -1385,7 +1417,7 @@ function InvoiceInner() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           {...fabScroll}
-          contentContainerStyle={[{ paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}
+          contentContainerStyle={[{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

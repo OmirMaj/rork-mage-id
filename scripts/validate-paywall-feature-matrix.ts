@@ -54,7 +54,17 @@ const src = readFileSync(join(ROOT, 'app', 'paywall.tsx'), 'utf8');
 // The rows whose access is genuinely not one FeatureKey. Anything else that
 // hand-types columns is the defect this guard exists to stop.
 const LITERAL_ROW_ALLOWLIST: Record<string, string> = {
-  'Unlimited Projects': 'ungated — nothing checks a FeatureKey',
+  // NOT ungated, and the old reason here is exactly what kept certifying a
+  // false row. The cap is real — hooks/useTierAccess.ts maxProjects.free = 1 —
+  // it simply is not expressed as a FeatureKey, which is the only thing this
+  // guard knows how to read. While the reason said "ungated", the row could sit
+  // at `free: true` and pass, advertising Unlimited Projects as a Free feature
+  // on the very screen that blocks the second one (polish audit 2026-09-10).
+  // The allowlist now records WHY it is unverifiable and what the truth is, so
+  // the next reader checks maxProjects instead of trusting the word "ungated".
+  'Unlimited Projects':
+    'gated by hooks/useTierAccess maxProjects (free = 1), not by a FeatureKey — '
+    + 'so this guard cannot verify it; the row must carry free: false + freeNote "1"',
   'Manual Estimates': 'ungated — nothing checks a FeatureKey',
   'Manual Daily Reports': 'ungated — nothing checks a FeatureKey',
   'AI Takeoff (PDF → LF/SF)': "metered by FEATURE_CONFIG.aiTakeoff (proOnly), not a tier gate",
@@ -121,6 +131,28 @@ ok('…and therefore shows a check in the Pro column',
   !!planViewer && tierMeetsRequirement('pro', REQUIRED_TIER.plan_markup),
   `plan_markup is '${REQUIRED_TIER.plan_markup}' — if that is intentional, the ` +
   'gates at app/plans.tsx and app/plan-viewer.tsx must move with it');
+
+// ── the one row the allowlist cannot verify, pinned by hand ────────────────
+//
+// "Unlimited Projects" is gated by hooks/useTierAccess maxProjects (free = 1),
+// not by a FeatureKey, so the FeatureKey machinery above is structurally blind
+// to it. It sat at `free: true` — advertising Unlimited Projects as included on
+// Free, on the very screen whose block modal is headed with that same string —
+// and the allowlist's word "ungated" is what let it. An allowlist entry is a
+// hole; if the hole is unavoidable, the value on the other side of it should
+// still be pinned.
+{
+  const row = /\{\s*label:\s*'Unlimited Projects'[^}]*\}/.exec(src)?.[0] ?? '';
+  ok('the Unlimited Projects row exists and is still hand-findable',
+    row.length > 0,
+    'renamed or removed — update this check and the allowlist entry together');
+  ok('…and Free is NOT marked as including unlimited projects',
+    /free:\s*false/.test(row),
+    `maxProjects.free is 1, so free: true here contradicts the cap AND marketing/pricing.html. Row: ${row}`);
+  ok('…and the Free column says what the free tier actually gets',
+    /freeNote:\s*'1'/.test(row),
+    'a bare unchecked box tells the contractor nothing; the cap is 1, so say 1');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

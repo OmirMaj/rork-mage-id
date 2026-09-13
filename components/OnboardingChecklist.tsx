@@ -45,6 +45,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { getFreeTrialsRemaining } from '@/utils/aiRateLimiter';
 
 const DISMISSED_KEY = 'mageid_onboarding_checklist_dismissed_v2';
 /** Hide the panel automatically when at least this many items are done.
@@ -74,6 +76,13 @@ interface ChecklistItem {
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   href: string;
   cta: string;
+  /** Right-side count shown before the CTA — e.g. how many free AI estimates
+   *  are left on "Try it". A metered offer that never shows its meter is an
+   *  ambush when it runs out. */
+  meta?: string;
+  /** Set when the step cannot be done yet. The row goes untappable and says
+   *  why, rather than sending the user to a screen that dead-ends on him. */
+  heldReason?: string;
 }
 
 function OnboardingChecklistImpl({
@@ -82,7 +91,13 @@ function OnboardingChecklistImpl({
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
   const [dismissed, setDismissed] = useState<boolean | null>(null);
+  // Free gets TWO AI estimates for life. The row that spends them is labelled
+  // "Try it free" and never said how many were left, so the meter only became
+  // visible at zero — from the user's side, an ambush. Read-only: this counts,
+  // it never spends.
+  const [freeEstimatesLeft, setFreeEstimatesLeft] = useState<number | null>(null);
   const enter = useState(() => new Animated.Value(0))[0];
 
   // Check the dismissed flag once on mount. We render null until we know
@@ -99,6 +114,18 @@ function OnboardingChecklistImpl({
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (tier !== 'free') { setFreeEstimatesLeft(null); return; }
+      try {
+        const left = await getFreeTrialsRemaining('aiEstimateWizard');
+        if (!cancelled) setFreeEstimatesLeft(left);
+      } catch { /* no badge is fine; a failed read must not hide the row */ }
+    })();
+    return () => { cancelled = true; };
+  }, [tier]);
 
   useEffect(() => {
     if (dismissed === false) {
@@ -119,6 +146,12 @@ function OnboardingChecklistImpl({
       Icon: Mic,
       href: '/estimate-wizard',
       cta: 'Try it free',
+      // Named precisely, because this row offers TWO metered things and only
+      // one of them is counted here: voice capture has its own allowance.
+      meta: freeEstimatesLeft === null ? undefined
+        : freeEstimatesLeft === 0 ? 'AI estimates used up'
+        : freeEstimatesLeft === 1 ? '1 AI estimate left'
+        : `${freeEstimatesLeft} AI estimates left`,
     },
     {
       key: 'project',
@@ -151,8 +184,12 @@ function OnboardingChecklistImpl({
       Icon: Receipt,
       href: '/invoice',
       cta: 'New invoice',
+      // Invoices live inside a project — /invoice renders "No projects yet" for
+      // an account with none. Handing a brand-new user a tappable "New invoice"
+      // that lands on that is a step which cannot be done in the order given.
+      heldReason: projectCount === 0 ? 'after your first project' : undefined,
     },
-  ], [triedWowFeature, companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount]);
+  ], [triedWowFeature, companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount, freeEstimatesLeft]);
 
   const doneCount = items.filter(i => i.done).length;
   const total = items.length;
@@ -172,6 +209,7 @@ function OnboardingChecklistImpl({
   }, [enter]);
 
   const handleTap = useCallback((item: ChecklistItem) => {
+    if (item.heldReason) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     router.push(item.href as never);
   }, [router]);
@@ -200,9 +238,13 @@ function OnboardingChecklistImpl({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Get up and running</Text>
+            {/* "About 2 minutes" was false for a list whose fourth step is
+                Stripe's identity check — /payments-setup's own screen says the
+                review takes "an hour, sometimes a few minutes". Promise the
+                part we control. */}
             <Text style={styles.subtitle}>
               {doneCount === 0
-                ? '5 quick steps. About 2 minutes.'
+                ? '5 steps. The first three take about two minutes; Stripe takes longer.'
                 : `${doneCount} of ${total} done — keep going.`}
             </Text>
           </View>
@@ -220,9 +262,11 @@ function OnboardingChecklistImpl({
           return (
             <TouchableOpacity
               key={item.key}
-              style={[styles.item, item.done && styles.itemDone]}
+              style={[styles.item, item.done && styles.itemDone, !!item.heldReason && styles.itemHeld]}
               onPress={() => handleTap(item)}
-              activeOpacity={0.85}
+              activeOpacity={item.heldReason ? 1 : 0.85}
+              disabled={!!item.heldReason}
+              accessibilityState={{ disabled: !!item.heldReason }}
               testID={`onboarding-checklist-${item.key}`}
             >
               <View style={styles.itemLeft}>
@@ -237,10 +281,15 @@ function OnboardingChecklistImpl({
                 </Text>
               </View>
               {!item.done && (
-                <View style={styles.itemCta}>
-                  <Text style={styles.itemCtaText}>{item.cta}</Text>
-                  <ArrowRight size={12} color={colors.accent} strokeWidth={1.75} />
-                </View>
+                item.heldReason ? (
+                  <Text style={styles.itemHeldText}>{item.heldReason}</Text>
+                ) : (
+                  <View style={styles.itemCta}>
+                    {item.meta ? <Text style={styles.itemMetaText}>{item.meta}</Text> : null}
+                    <Text style={styles.itemCtaText}>{item.cta}</Text>
+                    <ArrowRight size={12} color={colors.accent} strokeWidth={1.75} />
+                  </View>
+                )
               )}
             </TouchableOpacity>
           );
@@ -327,4 +376,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accentSoft,
   },
   itemCtaText: { fontSize: Type.caption2.fontSize, color: t.accentLabel, fontWeight: '700' as const },
+  itemMetaText: { fontSize: Type.caption2.fontSize, color: t.accentLabel, fontWeight: '600' as const, opacity: 0.8 },
+  itemHeld: { opacity: 0.7 },
+  itemHeldText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const },
 });

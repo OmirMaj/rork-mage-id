@@ -26,6 +26,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
+import { neutralInk } from '@/components/ui/ink';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -213,7 +214,7 @@ function COIVaultInner() {
 
           {subCOIs.length === 0 ? (
             <View style={styles.emptyState}>
-              <MageCOI size={36} color={"#9AA3AD"} />
+              <MageCOI size={36} color={themeColors.textMuted} />
               <Text style={styles.emptyTitle}>No COIs yet</Text>
               <Text style={styles.emptyBody}>
                 Upload the sub's Certificate of Insurance — MAGE ID will read the dates,
@@ -271,7 +272,7 @@ function COIVaultInner() {
               )}
               {complianceSummary.missing > 0 && (
                 <View style={[styles.compliancePill, { backgroundColor: themeColors.surfaceAlt }]}>
-                  <Text style={[styles.compliancePillText, { color: "#9AA3AD" }]}>
+                  <Text style={[styles.compliancePillText, { color: themeColors.textSecondary }]}>
                     {complianceSummary.missing} no COI on file
                   </Text>
                 </View>
@@ -290,7 +291,7 @@ function COIVaultInner() {
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {subcontractors.length === 0 ? (
           <View style={styles.emptyState}>
-            <Shield size={36} color={"#9AA3AD"} strokeWidth={1.75} />
+            <Shield size={36} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No subs yet</Text>
             <Text style={styles.emptyBody}>
               Add subs from the Subcontractors screen first, then come back here to upload their COIs.
@@ -299,7 +300,7 @@ function COIVaultInner() {
         ) : (
           subcontractors.map(sub => {
             const stat = subStatus.get(sub.id) ?? { worst: 'none' as const };
-            const { Icon, color, label } = statusToVisuals(stat.worst);
+            const { Icon, color, label } = statusToVisuals(stat.worst, themeColors);
             const expiry: DerivedStatus = stat.latest
               ? coiStatus(stat.latest, Date.now())
               : { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
@@ -357,7 +358,7 @@ function COICard({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const v = coi.validation;
-  const { Icon, color, label } = statusToVisuals(v?.overallStatus ?? 'warn');
+  const { Icon, color, label } = statusToVisuals(v?.overallStatus ?? 'warn', themeColors);
   return (
     <View style={styles.coiCard}>
       <View style={styles.coiHeader}>
@@ -382,7 +383,7 @@ function COICard({
           {v.issues.map((iss, i) => {
             const sevColor = iss.severity === 'critical' ? "#C84038"
                             : iss.severity === 'warning' ? Colors.warning
-                            : "#9AA3AD";
+                            : neutralInk(themeColors);
             return (
               <View key={i} style={styles.findingRow}>
                 <View style={[styles.findingDot, { backgroundColor: sevColor }]} />
@@ -422,7 +423,7 @@ function COICard({
         value={coi.notes ?? ''}
         onChangeText={t => onUpdate({ notes: t })}
         placeholder="Anything specific about this COI..."
-        placeholderTextColor={"#9AA3AD"}
+        placeholderTextColor={themeColors.textMuted}
         multiline
       />
     </View>
@@ -431,7 +432,11 @@ function COICard({
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none'): {
+// Takes the theme because 'none' is the NEUTRAL, and a neutral has to invert
+// between themes. It returned the dark theme's textSecondary (#9AA3AD), which
+// is the colour of the "No COI" label AND of the icon on its own `+ '15'` wash
+// — 2.5:1 on a light card, on the row that says a sub is uninsured.
+function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none', t: ThemeColors): {
   Icon: typeof Shield;
   color: string;
   label: string;
@@ -441,7 +446,7 @@ function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none'): {
     case 'warn': return { Icon: ShieldAlert, color: Colors.warningLabel,        label: 'Review needed' };
     case 'fail': return { Icon: ShieldX,     color: "#C84038",          label: 'Action required' };
     case 'none':
-    default:     return { Icon: Shield,      color: "#9AA3AD",      label: 'No COI' };
+    default:     return { Icon: Shield,      color: neutralInk(t),      label: 'No COI' };
   }
 }
 

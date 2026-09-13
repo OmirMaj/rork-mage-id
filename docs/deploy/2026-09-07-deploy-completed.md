@@ -153,3 +153,184 @@ Each now has a guard that fails on the exact defect, all mutation-tested:
 them to the `editor` tier, `100900` to `field`. Both are individually
 idempotent, which is the trap: re-running `100400` later silently reverts the
 field tier. **`100900` must always be last of the pair.**
+
+---
+
+# Gate for the NEXT ship (added 2026-09-08)
+
+## Deploy the `ai` edge function BEFORE the next OTA. Not optional.
+
+The deployed function is **v37**, and it still carries
+
+```ts
+const FEATURE_MIN_RANK: Record<string, number> = {
+  aiEstimateWizard: 1,    // pro
+```
+
+The branch removes that floor and re-registers `aiEstimateWizard` explicitly in
+`KNOWN_FEATURES` (removing a floor also removed the registration, because that
+Set is built from `...Object.keys(FEATURE_MIN_RANK)`).
+
+The client half is already on the branch. `app/estimate-wizard.tsx:400` now
+sends `'aiEstimateWizard'` as the feature tag, and `app/takeoff-estimate.tsx:337`
+sends the same. Before 2026-09-07 the wizard sent no tag at all, so the server
+scored it as `general` and no floor ever fired — that accident is the only
+reason free onboarding has ever worked.
+
+So the two halves are now in a strict order:
+
+| order | state | what a free user gets from /estimate-wizard |
+|---|---|---|
+| today (v37 server, shipped client) | untagged | works — scored `general` |
+| **OTA first** (v37 server, branch client) | tagged, floor live | **403 `tier_required`** |
+| deploy first (v38 server, shipped client) | untagged | works — scored `general` |
+| deploy then OTA | tagged, no floor | works |
+
+The third row is why deploying first is safe: removing a floor is strictly
+permissive and cannot break a client that predates the tag. The second row is
+the one that ships a broken app — and it breaks **the last tap of onboarding**
+(`app/onboarding.tsx:233` routes every new account into
+`/estimate-wizard?onboarding=1`), i.e. the activation moment, for every free
+user.
+
+```bash
+supabase functions deploy ai --project-ref nteoqhcswappxxjlpvap
+```
+
+Verify it took before OTA'ing — the deployed source must NOT contain
+`aiEstimateWizard: 1`:
+
+```bash
+supabase functions download ai --project-ref nteoqhcswappxxjlpvap -o /tmp/ai-check && grep -c 'aiEstimateWizard: 1' /tmp/ai-check/index.ts
+```
+
+Expect `0`. `grep -c 'aiEstimateWizard'` should still be ≥ 1 — the id must
+remain in `KNOWN_FEATURES`, or every AI estimate 400s instead.
+
+Nothing else on this branch changes any edge function; `ai` is the whole
+server-side delta (`git diff --name-only origin/main...HEAD -- supabase/functions/`).
+
+---
+
+# Why the daily brief was empty (traced 2026-09-08, from a real inbox)
+
+The founder reported the emailed daily brief as "terrible. Nothing good" —
+a giant serif **"Quiet day."** over one sentence saying nothing.
+
+## There are two daily digests, and only the thin one was reaching the inbox
+
+| function | reads | cron | state before 2026-09-07 |
+|---|---|---|---|
+| `morning-digest` | today's schedule tasks, yesterday's DFRs, open RFIs, hyperlocal weather | `5 * * * *` | **401 at the gateway. Never ran.** |
+| `daily-digest` | `notification_outbox` only | `0 13 * * *` | ran daily, sent 20 emails |
+
+`morning-digest` is the substantive one. Its cron POSTs with `x-cron-secret`
+and no bearer JWT, and the function was deployed with `verify_jwt: true`, so
+the **gateway rejected every call before the function ran**:
+
+```
+2026-09-07T13:05:02  POST | 401 | .../functions/v1/morning-digest
+2026-09-07T12:05:02  POST | 401 | .../functions/v1/morning-digest
+```
+
+This is exactly the EDGE-F1/F2 class `CLAUDE.md` warns about: a pg_cron target
+redeployed without `--no-verify-jwt` silently resets the flag to `true`. It had
+been failing this way for months — `notification_outbox` holds **zero**
+`morning_brief` rows in its entire history, while the profile has had
+`digest_enabled = true` since 2026-08-06.
+
+**The 2026-09-07 deploy fixed it.** `supabase/config.toml` now pins the flag,
+and the same endpoint has returned 200 on every hourly run since 18:05 UTC:
+
+```
+2026-09-08T05:05:02  POST | 200 | .../functions/v1/morning-digest
+… every hour back to 2026-09-07T18:05
+```
+
+It has reported `{"ok":true,"fired":0}` on each of those, which is correct —
+the only enabled profile has `digest_hour = 9` in `America/New_York`, and every
+run since the fix has been 8pm–1am ET. **The first genuine morning briefing
+lands at 13:05 UTC (9:05am ET) on 2026-09-08.** Nothing more to do; watch for a
+`morning_brief` row.
+
+## What was actually wrong with the email that DID arrive
+
+`daily-digest` reads `notification_outbox` and nothing else. That table has
+**one** event type in it — `daily_digest_sent`, its own send marker. There has
+never been a portal message, CO approval, budget proposal, sub invoice or RFP
+award. So `totalEvents` was 0 on all 20 sends and every one of them rendered
+the quiet-day template.
+
+Three fixes on this branch:
+
+1. **An empty digest is no longer sent at all.** The old code sent on weekdays
+   on the theory that the cadence was reassuring. It is the opposite: an email
+   that is empty most mornings teaches the reader to archive the subject line
+   on sight, so the mornings that *do* carry an unanswered client message get
+   archived with them. The quiet-day body, subject and preheader are deleted
+   rather than left behind a flag.
+2. **The self-addressed sender footer is gone.** `wrapEmailHtml`'s `sender`
+   block renders *"Sent by <name> · <email> · <phone>. Replies go to them, not
+   us."* — copy for a homeowner reading a contractor's email. On a digest
+   addressed to the GC it printed his own name, address and phone back at him
+   and told him replies would reach himself.
+3. **One brand per header.** The right-hand `MAGE ID` pill means "sent THROUGH
+   MAGE ID" and only makes sense opposite a contractor's own name. It rendered
+   unconditionally, so any email with no `companyName` showed the wordmark on
+   the left and the identical wordmark in a pill on the right.
+
+Five checks in `scripts/validate-email-honesty.ts` pin all three, each
+mutation-tested (re-add the empty send, restore the quiet body, restore the
+sender block, restore the unconditional pill, restore the empty subject —
+all five fail the guard).
+
+**Deploy note:** `daily-digest` and `_shared/email.ts` both changed, so
+`daily-digest` needs a redeploy. `_shared/email.ts` is bundled into every
+function that imports it, so the header fix reaches other emails only as those
+functions are redeployed.
+
+---
+
+# Two migrations written and NOT applied (2026-09-08)
+
+Both are new tables plus policies — additive, nothing dropped, nothing altered
+on an existing table. Neither has any effect until its client half ships, and
+each is independently safe to apply early.
+
+### `20260908120000_bid_package_invites.sql` — invitation to bid
+
+Unblocks worth-doing #24. `bid_package_bids` carries one policy,
+`user_id = auth.uid()`, so a subcontractor — who has no account — could never
+write a bid; every competing bid in the buyout matrix is typed by the GC. This
+adds `bid_package_invites` (owner-scoped RLS, `anon` gets nothing) and two
+SECURITY DEFINER RPCs granted to `anon`:
+
+- `bid_invite_get(token)` — the package scope only. Deliberately **not**
+  `estimate_budget`: handing the GC's own number to the people bidding against
+  it would anchor every bid just under it.
+- `bid_invite_submit(token, …)` — inserts into `bid_package_bids` stamping
+  `user_id` **from the invite row**, never from the caller. That is the line
+  that lets an owner-scoped table accept a write from someone with no account
+  without widening the policy for everyone else.
+
+Both raise `bid_invite_denied` on any failure so a caller cannot tell "no such
+invite" from "wrong token". Modelled on `sub_portal_submit_invoice`.
+
+### `20260908120100_cashflow_and_wip_overrides_sync.sql` — stop a bank-facing number reverting
+
+The WIP cost-to-date override lives only in AsyncStorage. A GC types $340,000 of
+self-performed labor into it on the laptop, opens WIP on his phone where the map
+is empty, and the screen falls back to the subs-plus-materials lower bound. He
+freezes the period and exports it — and the locked period **does** sync, so what
+reaches his surety is a schedule that quietly reverted to a number he had
+already corrected, with nothing on screen saying so.
+
+`wip_cost_overrides` is one row per project, not one blob per user, so
+correcting Henderson on the phone cannot wipe the Ridgeline override typed on
+the laptop an hour earlier. `cash_flow_settings` keeps `expenses` and
+`expected_payments` as jsonb, which **is** last-writer-wins on those two lists —
+stated in the migration header, and the client must not describe them as merged.
+
+Apply with the Supabase MCP `apply_migration`, never `supabase db push` (the
+migration history is divergent, and four migrations in `supabase/migrations/held/`
+must not be swept into a push).

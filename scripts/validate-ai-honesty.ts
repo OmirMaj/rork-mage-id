@@ -38,7 +38,16 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 let pass = 0, fail = 0;
-function ok(n: string, cond: boolean) { if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n); } }
+// `why` is optional and printed only on failure. It used to be absent, so a
+// failing check said nothing but its own title — and the titles are short
+// because they are read in a passing list. Every other validator in this repo
+// prints the reason; this one now does too.
+function ok(n: string, cond: boolean, why?: string) {
+  if (cond) { pass++; console.log('  ✓', n); return; }
+  fail++;
+  console.log('  ✗', n);
+  if (why) console.log('        ' + why);
+}
 
 type Prov = 'earned' | 'seeded' | 'mixed' | undefined;
 const entry = (trade: string, provenance: Prov, over: Record<string, unknown> = {}) => ({
@@ -96,6 +105,21 @@ ok('seeded line says stated / self-reported and never "on your jobs"', (() => {
 ok('earned line cites the measured job count', (() => {
   const l = groundingFactLine(entry('Tile', 'earned', { jobCount: 3, confidence: 'high' }));
   return /on your jobs/.test(l) && /3 jobs/.test(l) && /high confidence/.test(l);
+})());
+// A BOOK NOBODY HAS PAID YET. Every sample behind it is a signed sub or PO
+// with no payment against it (utils/costDatabase earnedBasis 'contracted').
+// Real evidence, different in kind from a paid cost — and "runs $X on your
+// jobs (3 jobs)" is precisely the sentence a model paraphrases into "you paid
+// this". app/cost-database, takeoffPricing, aiService and bidLevelingEngine
+// were taught the distinction; this, the central fact line the estimate
+// wizard and the full estimator both go through, was not.
+ok('a signed-but-unpaid book says so, inside the same parenthetical', (() => {
+  const l = groundingFactLine(entry('Tile', 'earned', { jobCount: 3, earnedBasis: 'contracted' }));
+  return /3 jobs, signed but not yet paid\)/.test(l);
+})(), groundingFactLine(entry('Tile', 'earned', { jobCount: 3, earnedBasis: 'contracted' })));
+ok('…and a PAID book is not hedged (the qualifier is a claim too)', (() => {
+  const l = groundingFactLine(entry('Tile', 'earned', { jobCount: 3, earnedBasis: 'paid' }));
+  return !/signed but not yet paid/.test(l);
 })());
 
 console.log('\nbuildGroundingFacts (review B1 — one bundle per run):');
@@ -227,6 +251,30 @@ console.log('\nsource assertions:');
   const full = src('app/(tabs)/estimate/full.tsx');
   ok('estimator (re-review A2): Quick Estimate grounds through selectGroundingEntries with the run hints, not entries.slice(0, 6)', !/costDb\.entries\.slice\(0, 6\)/.test(full) && /selectGroundingEntries\(costDb\.entries, hints, 6\)/.test(full) && /groundingFor=\{quickEstimateGroundingFor\}/.test(full));
   ok('estimator: the bundle is built by buildGroundingFacts — measured count, groundingFactLine wording, calibration as a fact', /buildGroundingFacts\(/.test(full) && !/rateCount: costDb\.entries\.length/.test(full) && !/on your jobs \(\$\{e\.confidence\}/.test(full));
+  // AI-F(audit 2026-09-07, ai-features): AIEstimateValidator scores the bid
+  // "against industry standards" with nothing retrieved behind the phrase,
+  // while computeCalibration — measured bias from TRACED actuals only — sat
+  // uncalled. The deterministic answer now renders above the AI card, the way
+  // MorningBriefCard sits beside the AI briefing on Home.
+  ok('estimator: the measured calibration is computed for the validator, not just for Quick Estimate', /const validatorCalibration = useMemo\(/.test(full) && (full.match(/computeCalibration\(\{ projects, commitments \}\)/g) ?? []).length >= 2);
+  ok('estimator: it renders ABOVE the AI validator, not after it', (() => {
+    const cal = full.indexOf('testID="estimate-calibration"');
+    const val = full.indexOf('<AIEstimateValidator');
+    return cal > 0 && val > 0 && cal < val;
+  })());
+  // Counted, not merely present. A bare `.test()` passed a mutation that
+  // swapped the rendered NUMBER for the word "several" and left the count only
+  // in the singular/plural ternary beside it — the chip said "several jobs"
+  // and the guard reported green (verified 2026-09-07). Each figure has to
+  // appear twice: once as the value, once to pluralise its own noun.
+  ok('estimator: the calibration chip prints the measured category and job COUNTS, not a vague quantity', (full.match(/validatorCalibration\.summary\.categoryCount/g) ?? []).length >= 2 && (full.match(/validatorCalibration\.summary\.totalJobs/g) ?? []).length >= 2 && /traced\s*\n?\s*actuals/.test(full));
+  ok('estimator: the chip refuses the market-average framing', /Not a market average/.test(full) && /your own paid costs against your own bids/.test(full));
+  ok('estimator: an empty book says it has nothing measured rather than scoring anyway', /hasData \?/.test(full) && /No traced actuals yet/.test(full));
+  const pred = src('components/AIInvoicePredictor.tsx');
+  ok('invoice predictor: the chip is the same history object the prompt was built from', /paymentHistoryForInvoice\(invoice, allInvoices\)/.test(pred) && /totalInvoices: history\.paidInvoices/.test(pred) && (pred.match(/history\.summary/g) ?? []).length >= 2);
+  ok('invoice predictor: an absent predicted date renders as absent, not as a blank accent slot', /const predictedDate = result\.predictedPaymentDate\.trim\(\)/.test(pred) && /No date returned/.test(pred));
+  const equip = src('components/AIEquipmentAdvice.tsx');
+  ok('equipment advice: the chip cites the log rows and the rate it multiplied, and names the recall it cannot source', /utilization \{equipment\.utilizationLog\.length === 1 \? 'entry' : 'entries'\}/.test(equip) && /at your \$\{equipment\.dailyRate\.toLocaleString\(\)\}\/day rate/.test(equip) && /no equipment price feed/.test(equip));
   const ai = src('utils/aiService.ts');
   ok('quick estimate prompt (review 4): no "LEARNED RATES FROM YOUR JOBS" heading; measured vs stated spelled out', !/LEARNED RATES FROM YOUR JOBS/.test(ai) && /MEASURED on their jobs or STATED/.test(ai) && /never call a stated rate history/.test(ai));
   const code = src('app/(tabs)/construction-ai/index.tsx');
@@ -250,6 +298,67 @@ console.log('\nsource assertions:');
   ok('probe (review 9): no per-observer refetchInterval — one ref-counted ticker, foreground-gated', !/refetchInterval:/.test(probe) && /acquireTicker/.test(probe) && /releaseTicker/.test(probe));
   const rail = src('components/DesktopActionRail.tsx');
   ok('desktop rail (review 8): "All caught up" requires !sourceFailed, same copy as the card', /sourceFailed \?/.test(rail) && /Couldn't reach MAGE — showing what's on this/.test(rail));
+}
+
+// ── the estimate validator scores against HIS numbers, not "industry" ──────
+//
+// Theme 4 of the 2026-09-07 audit — "the engine is uncalled where it matters
+// most". utils/estimateCalibration.ts measures, per category, how this GC's
+// finished jobs actually landed against what he estimated, and had eight
+// consumers. The estimate VALIDATOR was not one of them: it asked a
+// browsing-less relay to score the bid "against industry standards", i.e. a
+// benchmark nobody in the conversation holds, for a contractor whose real bias
+// is sitting measured in the repo.
+{
+  const svc = src('utils/aiService.ts');
+  ok('validateEstimate no longer asks for a benchmark the relay cannot source',
+    !/Validate this estimate against industry standards/.test(svc),
+    '"industry standards" is an invented number wearing a confident label');
+  ok('validateEstimate takes the calibration report and builds a grounding block',
+    /calibration\?: CalibrationReport \| null/.test(svc) && /function calibrationGrounding\(/.test(svc));
+  ok('the grounding block tells the model his own history OUTRANKS a general average',
+    /Where they disagree, his own history wins/.test(svc));
+  ok('with no measured history it says so instead of inventing one',
+    /do not invent a benchmark you cannot source/.test(svc),
+    'an empty grounding block silently becomes permission to make a number up');
+
+  const panel = src('components/AIEstimateValidator.tsx');
+  ok('the caller actually computes and passes the calibration',
+    /computeCalibration\(\{ projects, commitments \}\)/.test(panel) && /\n\s*calibration,\n/.test(panel),
+    'a grounding parameter nothing passes is the same ungrounded panel with extra code');
+  ok('the panel carries a grounding chip naming what the score was measured against',
+    /groundingChip/.test(panel) && /not an industry average/.test(panel) && /No finished jobs measured yet/.test(panel));
+}
+
+// ── Plan Review cites the ADOPTED edition, not "general IRC/IBC" ──────────
+//
+// Same theme-4 pattern as the estimate validator above. Code Check resolved the
+// jurisdiction's adopted code and showed a chip saying which; Plan Review — one
+// toggle to its left, in the same screen, on the same jobsite — asked the model
+// for "general IRC/IBC guidance". A GC does not build to a general IRC. He
+// builds to the edition his AHJ adopted, and the two differ in exactly the
+// places a plan examiner stops him.
+{
+  const fn = src('supabase/functions/analyze-plan-code/index.ts');
+  ok('the plan-review prompt accepts a jurisdiction block',
+    /jurisdictionBlock\?: string;/.test(fn) && /const juris = req\.jurisdictionBlock/.test(fn));
+  ok('…and instructs the model to cite the adopted edition when it has one',
+    /Cite the ADOPTED edition named above/.test(fn) && /Never invent a local amendment that is not listed/.test(fn));
+  ok('…while keeping the honest fallback when there is no adoption record',
+    /give general IRC\/IBC guidance and do not invent local amendments/.test(fn),
+    'without a resolved jurisdiction the prompt must stay general, not guess an edition');
+  ok('an empty block does not leave a blank line in the prompt',
+    /\]\.filter\(Boolean\)\.join/.test(fn));
+
+  const screen = src('app/(tabs)/construction-ai/index.tsx');
+  ok('Plan Review resolves the jurisdiction from ITS OWN project, not the Code Check field',
+    /resolveCodeJurisdiction\(jobsiteAddressForProject\(planProject\)\)/.test(screen),
+    'the two tabs answer questions about different jobs and must not share one resolution');
+  ok('…and actually passes the block to the reviewer',
+    /jurisdictionBlock: planGrounding\.promptBlock/.test(screen),
+    'a grounding parameter nothing passes is the same ungrounded feature with extra code');
+  ok('…and shows a chip naming the code the sheet was checked against',
+    /testID="plan-review-jurisdiction-chip"/.test(screen) && /planGrounding\.chipLabel/.test(screen));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

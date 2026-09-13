@@ -16,13 +16,16 @@
 //
 // RT-R1: the builders read contexts that swallow fetch errors and serve the
 // local cache, so an empty set can mean "quiet" OR "every read 401'd". The
-// hook therefore also carries `sourceFailed` from useMageReachability, and a
-// surface that says "all clear" must gate on it.
+// hook therefore also carries `sourceFailed`, and a surface that says "all
+// clear" must gate on it. It is FORWARDED from ProjectContext (which owns the
+// probe, because it owns the loaders that do the swallowing) rather than
+// re-derived here — one fact, one owner, and a screen that shows project data
+// without the attention set can gate on the same flag through useCoreData
+// (audit 2026-09-07 "Do now" #1).
 
 import { useMemo } from 'react';
 import { useCoreData, useFinancialsData, useDocsData, useFieldData } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
-import { useMageReachability } from '@/hooks/useMageReachability';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import {
   scheduleAttention,
@@ -51,12 +54,11 @@ export interface BrainWatchResult {
 }
 
 export function useBrainWatch(): BrainWatchResult {
-  const { projects } = useCoreData();
+  const { projects, sourceFailed } = useCoreData();
   const { invoices, changeOrders } = useFinancialsData();
   const { getPermitsForProject } = useDocsData();
   const { punchItems } = useFieldData();
   const safety = useSafety();
-  const reachability = useMageReachability();
 
   const items: AttentionItem[] = useMemo(() => {
     const nowMs = Date.now();
@@ -86,7 +88,7 @@ export function useBrainWatch(): BrainWatchResult {
 
   const summary = useMemo(() => summarize(items), [items]);
 
-  return { items, total: summary.total, byKind: summary.byKind, sourceFailed: reachability.failed };
+  return { items, total: summary.total, byKind: summary.byKind, sourceFailed };
 }
 
 export default useBrainWatch;

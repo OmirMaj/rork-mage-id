@@ -6,7 +6,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { assertPeriodEditable } from '@/utils/wip';
-import type { WipPeriod, WipSnapshotRow, WipPortfolio } from '@/types';
+import type { WipSnapshotRowWithSources, WipPeriodWithSources } from '@/utils/wip';
+import type { WipPortfolio } from '@/types';
+
+// PROVENANCE IS PART OF THE SNAPSHOT, SO IT IS PART OF THE TYPE (audit
+// 2026-09-11). This context declared its rows as `WipSnapshotRow[]` while
+// app/wip-report.tsx hands it `WipSnapshotRowWithSources[]`. The `sources`
+// field survived only because it is the same object at runtime — nothing in
+// the declared type said it had to. Any refactor that mapped the rows on the
+// way through (a normaliser, a `.map(pick(...))`, a second caller building
+// rows by hand) would drop provenance silently, after which every footnote in
+// the exported PDF falls back to WIP_SOURCE_UNRECORDED, the CSV's three Source
+// columns go with it, and no guard in the repo notices — the one place the
+// feature the audit calls best-in-category can be lost without a red line
+// anywhere. The whole context is now typed on the sourced row.
+type Period = WipPeriodWithSources;
 
 const WIP_PERIODS_KEY = 'mageid_wip_periods';
 
@@ -28,7 +42,7 @@ async function loadLocal<T>(key: string, fallback: T): Promise<T> {
 
 // Maps a WipPeriod to the snake_case wip_periods row shape. rows/portfolio are
 // stored as JSONB; supabase-js serializes the objects for the jsonb columns.
-function toRow(p: WipPeriod, userId: string | undefined) {
+function toRow(p: Period, userId: string | undefined) {
   return {
     id: p.id,
     user_id: userId ?? null,
@@ -45,14 +59,17 @@ function toRow(p: WipPeriod, userId: string | undefined) {
 
 // Inverse of toRow: a snake_case Supabase row → camelCase WipPeriod. Null
 // columns hydrate as undefined (not null) to match the optional-field types.
-function fromRow(r: Record<string, unknown>): WipPeriod {
+function fromRow(r: Record<string, unknown>): Period {
   return {
     id: r.id as string,
     periodEndDate: r.period_end_date as string,
     createdAt: r.created_at as string,
     createdBy: (r.created_by as string | null) ?? undefined,
     companyId: (r.company_id as string | null) ?? undefined,
-    rows: (r.rows as WipSnapshotRow[] | null) ?? [],
+    // The jsonb column round-trips whatever was written — provenance AND the
+    // watch flags frozen with the row (WipSnapshotRow.flags) — and the cast has
+    // to say so or the read path becomes the place either is lost.
+    rows: (r.rows as WipSnapshotRowWithSources[] | null) ?? [],
     portfolioTotals: r.portfolio_totals as WipPortfolio,
     notes: (r.notes as string | null) ?? undefined,
     lockedAt: (r.locked_at as string | null) ?? undefined,
@@ -62,7 +79,7 @@ function fromRow(r: Record<string, unknown>): WipPeriod {
 export const [WipProvider, useWip] = createContextHook(() => {
   const { user } = useAuth();
   const userId = user?.id;
-  const [periods, setPeriods] = useState<WipPeriod[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]);
   const hydratedRef = useRef(false);
 
   // Hydrate whenever the tenant changes. Clear first so a prior account's
@@ -89,7 +106,7 @@ export const [WipProvider, useWip] = createContextHook(() => {
             // cache's local-only ids in so an unsynced snapshot isn't dropped
             // from the view (or clobbered in the cache) until the queue flushes.
             const cloudIds = new Set(mapped.map((p) => p.id));
-            const localOnly = (await loadLocal<WipPeriod[]>(key, []))
+            const localOnly = (await loadLocal<Period[]>(key, []))
               .filter((p) => p && typeof p.id === 'string' && !cloudIds.has(p.id));
             if (cancelled) return;
             const merged = [...localOnly, ...mapped];
@@ -100,7 +117,7 @@ export const [WipProvider, useWip] = createContextHook(() => {
           }
         } catch { /* fall through to local cache */ }
       }
-      const stored = await loadLocal<WipPeriod[]>(key, []);
+      const stored = await loadLocal<Period[]>(key, []);
       if (cancelled) return;
       if (Array.isArray(stored)) {
         setPeriods(stored.filter((p) => p && typeof p.id === 'string'));
@@ -110,7 +127,7 @@ export const [WipProvider, useWip] = createContextHook(() => {
     return () => { cancelled = true; };
   }, [userId]);
 
-  const persist = useCallback(async (next: WipPeriod[]) => {
+  const persist = useCallback(async (next: Period[]) => {
     setPeriods(next);
     try { await AsyncStorage.setItem(periodsKey(userId), JSON.stringify(next)); }
     catch { /* AsyncStorage failure is non-fatal for in-memory state */ }
@@ -118,13 +135,14 @@ export const [WipProvider, useWip] = createContextHook(() => {
 
   const addPeriod = useCallback((input: {
     periodEndDate: string;
-    rows: WipSnapshotRow[];
+    /** Rows WITH their provenance — see the note at the top of this file. */
+    rows: WipSnapshotRowWithSources[];
     portfolioTotals: WipPortfolio;
     notes?: string;
     companyId?: string;
-  }): WipPeriod => {
+  }): Period => {
     const now = new Date().toISOString();
-    const period: WipPeriod = {
+    const period: Period = {
       id: generateUUID(),
       createdAt: now,
       createdBy: userId,
@@ -150,12 +168,12 @@ export const [WipProvider, useWip] = createContextHook(() => {
 
   const updatePeriod = useCallback((
     id: string,
-    updates: Partial<Pick<WipPeriod, 'rows' | 'portfolioTotals' | 'notes'>>,
+    updates: Partial<Pick<Period, 'rows' | 'portfolioTotals' | 'notes'>>,
   ): boolean => {
     const target = periods.find((p) => p.id === id);
     if (!target) return false;
     if (assertPeriodEditable(target).blocked) return false; // locked → immutable
-    const merged: WipPeriod = { ...target, ...updates };
+    const merged: Period = { ...target, ...updates };
     void persist(periods.map((p) => (p.id === id ? merged : p)));
     if (userId) {
       void supabaseWrite('wip_periods', 'update', {

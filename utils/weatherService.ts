@@ -43,6 +43,12 @@ export interface DayForecast {
   source: ForecastSource;
 }
 
+// The lucide replacement for the emoji map below lives in
+// utils/weatherIcons.ts, NOT here: this module has no runtime imports on
+// purpose (scripts/validate-weather-provenance.ts imports getSimulatedForecast
+// from it, and pulling react-native in through lucide killed that guard at
+// parse time — review, 2026-09-07).
+
 const CONDITION_ICONS: Record<DayForecast['condition'], string> = {
   clear: '☀️',
   cloudy: '☁️',
@@ -52,6 +58,26 @@ const CONDITION_ICONS: Record<DayForecast['condition'], string> = {
   wind: '💨',
 };
 
+/**
+ * @deprecated Emoji-as-icon. Render `CONDITION_ICON[condition]`
+ * (utils/weatherIcons.ts) instead.
+ *
+ * Still exported because seven call sites render its return value inside a
+ * `<Text>` and swapping them is a component change, not a data change — no
+ * line numbers here, they drifted within a day of being written: the six files
+ * are app/(tabs)/schedule/index.tsx, components/schedule/TodayView.tsx (twice),
+ * LookaheadView.tsx, VerticalGantt.tsx, WeatherRescheduleModal.tsx and
+ * WeatherReschedulePrompt.tsx, plus GanttChart.tsx and WeatherReschedulePrompt
+ * again for the two that read the baked `DayForecast.icon` field instead of
+ * calling this. `grep -rn getConditionIcon app components` is the live list.
+ *
+ * Two of those sites render `{icon} {label}` in one string, so the emoji
+ * cannot be blanked — the component has to replace it. When the last one moves
+ * to CONDITION_ICON, delete this function, CONDITION_ICONS and the `icon`
+ * field on DayForecast together; scripts/validate-weather-icons.ts holds the
+ * ceiling that stops the emoji spreading in the meantime and prints the two
+ * numbers to lower.
+ */
 export function getConditionIcon(condition: DayForecast['condition']): string {
   return CONDITION_ICONS[condition] ?? '☀️';
 }

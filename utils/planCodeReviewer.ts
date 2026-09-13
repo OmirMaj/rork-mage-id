@@ -46,6 +46,15 @@ export async function imageUriToBase64(uri: string): Promise<{ base64: string; m
   if (uri.startsWith('file:') || uri.startsWith('/') || uri.startsWith('blob:')) {
     return { base64: await readAsBase64(uri), mimeType: mimeFromExt(uri) };
   }
+  // Anything that is not a fetchable remote URL stops here. A bare storage PATH
+  // is not one (DB-F11: an unsignable plan sheet reaches this function as
+  // `<uuid>/sheet-page-1.png`), and downloadAsync on it throws.
+  // The caller (app/(tabs)/construction-ai) surfaces this message in an alert,
+  // so say what to do rather than letting downloadAsync throw "unable to
+  // download <uuid>/sheet-page-1.png" at the user.
+  if (!/^https?:\/\//i.test(uri)) {
+    throw new Error('That plan sheet could not be opened — reconnect and reopen the plan, then try again.');
+  }
   // remote http(s). On web there is no cache directory to download INTO, but
   // fetch can read the URL directly — so skip the download-then-read dance
   // entirely. Previously `${undefined}plan-review-...` produced a garbage path
@@ -94,6 +103,10 @@ export async function reviewPlanCode(opts: {
   mimeType: string;
   location?: string;
   projectType?: string;
+  /** `JurisdictionGrounding.promptBlock` from utils/codeJurisdiction. Built on
+   *  the client because that is where the adoption table lives; passed verbatim
+   *  so the prompt and the grounding chip carry the same text. */
+  jurisdictionBlock?: string;
 }): Promise<PlanCodeResult> {
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;

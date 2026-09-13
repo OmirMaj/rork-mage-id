@@ -39,6 +39,7 @@ import {
   buildLookahead, buildWeeklyWorkPlan, computePpc, ppcBand, ppcHistory, ppcTrend,
   type TaskWindowCalendar,
   varianceBreakdown, currentWeekStart, addWeeks, formatWeekRange, taskWindow,
+  buildScheduledStartDays,
   CONSTRAINT_LABELS, VARIANCE_LABELS,
   type Readiness, type ConstraintCategory, type VarianceReason,
 } from '@/utils/lastPlanner';
@@ -46,6 +47,11 @@ import {
   groupCommitmentsByCrew, buildCrewMessage, buildCrewEmailHtml, dispatchSubject,
   type CommittedTaskInput, type CrewDispatchGroup,
 } from '@/utils/crewDispatch';
+import {
+  findCrossProjectClashes, clashesInvolving, clashesForTask, describeClashes,
+  digestClashes, summarizeClashDays, weekWindow,
+  type CrossProjectClash,
+} from '@/utils/crossProjectLoad';
 import { sendEmail } from '@/utils/emailService';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
@@ -103,6 +109,23 @@ function LastPlannerInner() {
   const lp = useLastPlanner(projectId);
   const [tab, setTab] = useState<Tab>('lookahead');
   const [weekStart, setWeekStart] = useState<string>(currentWeekStart());
+
+  // Cross-project double-bookings for the week on screen. This is the ONE place
+  // in the app where a commitment becomes a promise to a sub, so it is the last
+  // honest moment to notice that the same sub is already promised to another job
+  // that day. Nothing upstream can catch it: the CPM engine, the health score
+  // and the swimlanes all level resources INSIDE a single schedule, so two
+  // green schedules can each be perfectly consistent and still send one crew to
+  // two addresses on Monday.
+  const resolveSubName = useCallback(
+    (id: string) => getSubcontractor(id)?.companyName,
+    [getSubcontractor],
+  );
+  const weekClashes = useMemo<CrossProjectClash[]>(() => {
+    if (!projectId) return [];
+    const all = findCrossProjectClashes(projects, { ...weekWindow(weekStart), resolveSubName });
+    return clashesInvolving(all, projectId);
+  }, [projects, projectId, weekStart, resolveSubName]);
 
   // Modals
   const [constraintFor, setConstraintFor] = useState<ScheduleTask | null>(null);
@@ -226,6 +249,7 @@ function LastPlannerInner() {
               setWeekStart={setWeekStart} constraints={lp.constraints} commitments={lp.commitments}
               onToggleCommit={(taskId, committed) => lp.setCommit(taskId, weekStart, committed)}
               onReview={setReviewFor}
+              projectId={project.id} clashes={weekClashes}
               projectName={project.name} gcName={gcName}
               getSub={getSubcontractor} dispatches={lp.dispatches} onDispatched={lp.markDispatched}
               t={t} styles={styles}
@@ -334,17 +358,33 @@ function LookaheadView({ tasks, startDate, constraints, calendar, onAddConstrain
 }
 
 // ── This Week (weekly work plan) ──
-function startLabelFor(task: ScheduleTask, startDate: string, calendar?: TaskWindowCalendar): string | undefined {
-  const win = taskWindow(task, startDate, calendar);
+/**
+ * The date printed next to a committed task in the crew dispatch.
+ *
+ * `scheduledEs` is REQUIRED, not optional, and that is deliberate:
+ * buildWeeklyWorkPlan files the row under the week CPM schedules it in, so a
+ * label built from the authored pin puts a contradiction on the same row. On
+ * the guard's own fixture (FOUND 20d -> FRAME 10d pinned at ordinal 11) the
+ * scheduled window starts Mon Mar 30 while the pin window starts Thu Mar 12 —
+ * the row appeared under the Mar 30 week and read "Thu, Mar 12".
+ */
+function startLabelFor(
+  task: ScheduleTask,
+  startDate: string,
+  calendar: TaskWindowCalendar | undefined,
+  scheduledEs: Map<string, number>,
+): string | undefined {
+  const win = taskWindow(task, startDate, calendar, scheduledEs.get(task.id));
   if (!win) return undefined;
   return new Date(win.startMs).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
-function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constraints, commitments, onToggleCommit, onReview, projectName, gcName, getSub, dispatches, onDispatched, t, styles }: {
+function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constraints, commitments, onToggleCommit, onReview, projectId, clashes, projectName, gcName, getSub, dispatches, onDispatched, t, styles }: {
   tasks: ScheduleTask[]; startDate: string; weekStart: string; calendar: TaskWindowCalendar;
   setWeekStart: (w: string) => void;
   constraints: ReturnType<typeof useLastPlanner>['constraints']; commitments: ReturnType<typeof useLastPlanner>['commitments'];
   onToggleCommit: (taskId: string, committed: boolean) => void; onReview: (task: ScheduleTask) => void;
+  projectId: string; clashes: CrossProjectClash[];
   projectName: string; gcName?: string;
   getSub: (id: string) => { companyName?: string; contactName?: string; email?: string; phone?: string } | null;
   dispatches: ReturnType<typeof useLastPlanner>['dispatches'];
@@ -355,6 +395,21 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
   const ppc = useMemo(() => computePpc(commitments, weekStart), [commitments, weekStart]);
   const committedCount = wwp.filter(e => e.committed).length;
   const [sending, setSending] = useState<string | null>(null);
+  // Commits this screen refused, and the ones the GC then overrode. Keyed by
+  // week AND task, and session-only on purpose: an override is a judgement
+  // about one specific Monday ("I'm sending a second crew"), not a standing
+  // opinion about the task, so it must not follow the task into another week or
+  // into tomorrow's session — by then the other job may have moved.
+  const clashAckKey = useCallback((taskId: string) => `${weekStart}|${taskId}`, [weekStart]);
+  const [blocked, setBlocked] = useState<Record<string, boolean>>({});
+  const [overridden, setOverridden] = useState<Record<string, boolean>>({});
+  const clashDigest = useMemo(() => digestClashes(clashes), [clashes]);
+  // Same engine run buildWeeklyWorkPlan does internally, so the dispatch label
+  // and the week the row was filed under come from one CPM answer.
+  const scheduledEs = useMemo(
+    () => buildScheduledStartDays(tasks, startDate, calendar),
+    [tasks, startDate, calendar],
+  );
 
   // Group committed tasks by crew for the "send the week" push.
   const crews = useMemo<CrewDispatchGroup[]>(() => {
@@ -363,10 +418,10 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
       .map(e => ({
         taskId: e.task.id, title: e.task.title,
         assignedSubId: e.task.assignedSubId, assignedSubName: e.task.assignedSubName,
-        crew: e.task.crew, startLabel: startLabelFor(e.task, startDate, calendar),
+        crew: e.task.crew, startLabel: startLabelFor(e.task, startDate, calendar, scheduledEs),
       }));
     return groupCommitmentsByCrew(committed, getSub);
-  }, [wwp, startDate, calendar, getSub]);
+  }, [wwp, startDate, calendar, getSub, scheduledEs]);
 
   const sentAtFor = useCallback((crewKey: string) =>
     dispatches.find(d => d.crewKey === crewKey && d.weekStart === weekStart)?.sentAt,
@@ -409,6 +464,28 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
         <TouchableOpacity onPress={() => setWeekStart(addWeeks(weekStart, 1))} hitSlop={10} style={styles.weekNavBtn}><ChevronRight size={18} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
+      {clashDigest.length > 0 ? (
+        <View style={styles.clashBanner}>
+          <View style={styles.warnRow}>
+            <CalendarOff size={14} color={t.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.clashBannerTitle}>
+              {clashDigest.length === 1
+                ? 'A crew is booked on two jobs this week'
+                : `${clashDigest.length} crews are booked on two jobs this week`}
+            </Text>
+          </View>
+          {clashDigest.map(d => (
+            <Text key={d.resourceKey} style={styles.clashText}>
+              <Text style={{ fontWeight: '800' }}>{d.resourceLabel}</Text>
+              {` — ${d.jobNames.join(' + ')} · ${summarizeClashDays(d.dateISOs)}`}
+            </Text>
+          ))}
+          <Text style={styles.clashBannerHint}>
+            Committing that work here promises a crew that is already promised somewhere else.
+          </Text>
+        </View>
+      ) : null}
+
       {ppc.committed > 0 && (ppc.completed > 0 || wwp.some(e => e.outcome)) ? (
         <View style={[styles.ppcInline, { borderColor: bandColor(ppcBand(ppc.ppc), t) }]}>
           <Text style={[styles.ppcInlineNum, { color: bandColor(ppcBand(ppc.ppc), t) }]}>{Math.round(ppc.ppc * 100)}%</Text>
@@ -424,13 +501,33 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
           {wwp.map(e => {
             const m = readinessMeta(e.readiness, t);
             const reviewed = !!e.outcome;
+            // Every cross-project double-booking this one task is responsible for,
+            // said once per OTHER JOB rather than once per contested day: a sub
+            // booked Monday through Thursday is one problem to solve, and four
+            // near-identical sentences on one card is how a real warning gets
+            // skimmed past.
+            const taskClashes = clashesForTask(clashes, projectId, e.task.id);
+            const clashReasons = describeClashes(taskClashes, projectId);
+            // Refuse the FIRST tap while this crew is promised to another job on
+            // one of these days. The GC has to read the other job's name and the
+            // day before the promise can be made — that is the whole point of
+            // catching it here rather than on the jobsite Monday morning.
+            const commitBlocked = taskClashes.length > 0 && !e.committed && !overridden[clashAckKey(e.task.id)];
             return (
-              <View key={e.task.id} style={[styles.taskCard, e.committed && { borderColor: t.accent + '66' }]}>
+              <View key={e.task.id} style={[styles.taskCard, e.committed && { borderColor: t.accent + '66' }, commitBlocked && { borderColor: t.danger + '66' }]}>
                 <View style={styles.taskHead}>
                   <TouchableOpacity
-                    style={[styles.commitBox, e.committed && { backgroundColor: t.accent, borderColor: t.accent }]}
-                    onPress={() => { onToggleCommit(e.task.id, !e.committed); haptic(); }}
+                    style={[styles.commitBox, e.committed && { backgroundColor: t.accent, borderColor: t.accent }, commitBlocked && { borderColor: t.danger }]}
+                    onPress={() => {
+                      if (commitBlocked) {
+                        setBlocked(b => ({ ...b, [clashAckKey(e.task.id)]: true }));
+                        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        return;
+                      }
+                      onToggleCommit(e.task.id, !e.committed); haptic();
+                    }}
                     accessibilityRole="checkbox" accessibilityState={{ checked: e.committed }}
+                    accessibilityHint={commitBlocked ? clashReasons.join(' ') : undefined}
                   >
                     {e.committed ? <Check size={13} color={Colors.textOnAccent} strokeWidth={1.75} /> : null}
                   </TouchableOpacity>
@@ -445,6 +542,37 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
 
                 {e.committed && e.readiness === 'constrained' && !reviewed ? (
                   <View style={styles.warnRow}><AlertTriangle size={12} color={t.accentHot} strokeWidth={1.75} /><Text style={styles.warnText}>{e.openConstraints} open constraint{e.openConstraints === 1 ? '' : 's'} — clear before relying on this.</Text></View>
+                ) : null}
+
+                {taskClashes.length > 0 ? (
+                  <View style={styles.clashCard}>
+                    <View style={styles.warnRow}>
+                      <CalendarOff size={12} color={t.dangerLabel} strokeWidth={1.75} />
+                      <Text style={styles.clashTitle}>{e.committed ? 'Committed, but double-booked' : 'Double-booked'}</Text>
+                    </View>
+                    {clashReasons.map(reason => (
+                      <Text key={reason} style={styles.clashText}>{reason}</Text>
+                    ))}
+                    {blocked[clashAckKey(e.task.id)] && commitBlocked ? (
+                      <>
+                        <Text style={styles.clashText}>
+                          Not committed. Move one of the two, or commit anyway if you are putting a second crew on it.
+                        </Text>
+                        {/* An override, not a wall. A name match is not proof the sub
+                            can't split crews, and a block with no way through just
+                            gets routed around by un-assigning the sub — which
+                            deletes the data this detector runs on. */}
+                        <TouchableOpacity
+                          style={styles.clashOverride}
+                          onPress={() => { setOverridden(o => ({ ...o, [clashAckKey(e.task.id)]: true })); onToggleCommit(e.task.id, true); haptic(); }}
+                          activeOpacity={0.85}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.clashOverrideText}>Commit anyway</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : null}
+                  </View>
                 ) : null}
 
                 {e.committed ? (
@@ -491,7 +619,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                       <View style={[styles.crewBtn, { borderColor: t.line }]}><Text style={[styles.crewBtnText, { color: t.textMuted }]}>Assign a sub</Text></View>
                     ) : (
                       <TouchableOpacity
-                        style={[styles.crewBtn, sentAt ? { borderColor: t.success } : { borderColor: t.accent, backgroundColor: t.accent }]}
+                        style={[styles.crewBtn, sentAt ? { borderColor: t.success } : { borderColor: t.accentFill, backgroundColor: t.accentFill }]}
                         onPress={() => handleSend(g)}
                         disabled={sending === g.key}
                         activeOpacity={0.85}
@@ -741,6 +869,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   commitBox: { width: 24, height: 24, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: t.line, alignItems: 'center' as const, justifyContent: 'center' as const },
   warnRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
   warnText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.accentHot, lineHeight: 15 },
+
+  // Cross-project double-booking. dangerSoft/dangerLabel rather than a baked
+  // hex so the tint follows the theme and the text stays contrast-checked on it.
+  clashBanner: { backgroundColor: t.dangerSoft, borderRadius: Tokens.radius.card, padding: 12, marginBottom: 12, gap: 5 },
+  clashBannerTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: t.dangerLabel },
+  clashBannerHint: { fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 15, marginTop: 2 },
+  clashCard: { backgroundColor: t.dangerSoft, borderRadius: Tokens.radius.sm, padding: 10, gap: 5 },
+  clashTitle: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.dangerLabel },
+  clashText: { fontSize: Type.caption1.fontSize, color: t.dangerLabel, lineHeight: 17 },
+  clashOverride: { alignSelf: 'flex-start' as const, borderWidth: 1.5, borderColor: t.dangerLabel, borderRadius: Tokens.radius.full, paddingHorizontal: 13, paddingVertical: 6, marginTop: 3 },
+  clashOverrideText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.dangerLabel },
   reviewBtns: { flexDirection: 'row' as const, gap: 8 },
   reviewBtn: { flex: 1, borderWidth: 1.5, borderRadius: Tokens.radius.full, paddingVertical: 9, alignItems: 'center' as const },
   reviewBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },

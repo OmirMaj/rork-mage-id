@@ -146,14 +146,61 @@ for (const root of ROOTS) {
   }
 }
 
+// ── THE INVERSE RULE ───────────────────────────────────────────────────────
+//
+// Everything above catches a hardcoded LIGHT FILL under inverting text. This
+// catches the mirror: the DARK theme's own `textSecondary` literal, '#9AA3AD',
+// pasted into a themed StyleSheet where it lands on a light surface.
+//
+// It is the same class of mistake and it was far more common — the 2026-09-07
+// audit counted 82 instances, worst in app/equipment-detail.tsx (13),
+// components/schedule/TaskInspector.tsx (10), app/warranties.tsx (8) and
+// app/coi-vault.tsx (6). On a near-white background that literal measures
+// 2.2–2.6:1, well under the 4.5:1 floor, and it survived every existing check
+// because nothing here looked for a FOREGROUND literal.
+//
+// Only RN style values are matched (`color: '#9AA3AD'`). Deliberately NOT
+// flagged: the same string inside a comment explaining this very fix, and
+// inside email/PDF HTML (utils/emailLayout.ts, utils/emailService.ts,
+// app/warranty-walk.tsx) where there is no theme to read and a literal is the
+// only option.
+//
+// The replacement is `neutralInk(t)` from components/ui/ink.ts, which picks the
+// same grey family from the background's luminance so it clears AA in light and
+// keeps the intended colour in dark.
+const DARK_TEXT_SECONDARY = '#9AA3AD';
+const FG_LITERAL_RE = new RegExp(`color:\\s*'${DARK_TEXT_SECONDARY}'`, 'i');
+const strandedFg: { file: string; line: number }[] = [];
+for (const root of ROOTS) {
+  for (const file of walk(root)) {
+    const src = readFileSync(file, 'utf8');
+    if (!src.includes(DARK_TEXT_SECONDARY)) continue;
+    // Themed files only: an unthemed screen has no token to reach for, and
+    // validate-app-slop owns the "this file should be themed at all" question.
+    if (!/ThemeColors|useTheme|useThemedStyles/.test(src)) continue;
+    src.split('\n').forEach((ln, i) => {
+      const code = ln.replace(/\/\/.*$/, '');
+      if (FG_LITERAL_RE.test(code)) strandedFg.push({ file, line: i + 1 });
+    });
+  }
+}
+
 const unexpected = findings.filter(f => !ALLOW[f.file] && !ALLOW_STYLE[`${f.file}::${f.style}`]);
 
 console.log('\ntheme surface-pair guard (inverting theme text on a hardcoded light fill):');
 console.log(`  scanned ${scannedLight} light hardcoded background(s) in themed files`);
-if (unexpected.length === 0) {
+if (strandedFg.length > 0) {
+  console.error(`\n  FAIL  ${strandedFg.length} themed style(s) hardcode the DARK theme's textSecondary as a foreground.`);
+  console.error(`        '${DARK_TEXT_SECONDARY}' measures 2.2-2.6:1 on a light surface — under the 4.5:1 floor.`);
+  console.error('        Use neutralInk(t) from @/components/ui, which picks the grey by background luminance.\n');
+  for (const f of strandedFg) console.error(`        ${f.file}:${f.line}`);
+}
+if (unexpected.length === 0 && strandedFg.length === 0) {
   console.log('  PASS  none pair an inverting foreground token with a hardcoded light fill');
+  console.log(`  PASS  no themed style hardcodes '${DARK_TEXT_SECONDARY}' as a foreground`);
   process.exit(0);
 }
+if (unexpected.length === 0) process.exit(1);
 
 console.error(`  FAIL  ${unexpected.length} surface(s) strand inverting theme text on a light fill.`);
 console.error('        These read fine in light mode and VANISH in dark mode.');

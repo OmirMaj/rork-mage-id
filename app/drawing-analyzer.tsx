@@ -83,12 +83,38 @@ function DrawingAnalyzerInner() {
     [pickedProjectId, getProject],
   );
 
+  /**
+   * Why the upload is blocked, or null when it is available (DB-F11).
+   *
+   * Same rule as app/takeoff.tsx: the project folder in the `plan-sheets`
+   * bucket is the tenant boundary, so a drawing cannot be uploaded without one.
+   * "Pick one" and "make one" are different actions, so they get different copy.
+   */
+  const uploadBlockedReason = useMemo(() => {
+    if (pickedProjectId) return null;
+    return projects.length === 0
+      ? 'Create a project first. Drawings are stored in that project\u2019s folder, so only you and the people you share the job with can open them.'
+      : 'Pick a project above. Drawings are stored in that project\u2019s folder, so only you and the people you share the job with can open them.';
+  }, [pickedProjectId, projects.length]);
+
   const handlePick = useCallback(async () => {
     setError(null);
 
     // Pre-flight rate-limit check. Drawing Analysis is Pro+ only on free
     // tier (PDFs through Gemini Pro vision are 5-10x cost of text). Pro
     // Estimator counts as 'smart', Standard counts as 'fast'.
+    // DB-F11: a drawing is stored in its project's folder in the `plan-sheets`
+    // bucket — that folder is the tenant boundary the storage policy is
+    // evaluated against, so there is no project-less place to put one. The
+    // screen used to pass `projectId: pickedProjectId ?? 'tmp'`, a SHARED
+    // prefix no membership policy can admit (and one convert-pdf-to-images has
+    // 403'd since its IDOR guard landed). Say it before the picker, not after
+    // the upload.
+    if (!pickedProjectId) {
+      setError(uploadBlockedReason ?? 'Pick a project before uploading drawings.');
+      return;
+    }
+
     const requestTier: 'fast' | 'smart' = pickedModel === 'gemini-2.5-pro' ? 'smart' : 'fast';
     const limit = await checkAILimit(tier, requestTier, 'drawingAnalysis');
     if (!limit.allowed) {
@@ -112,7 +138,7 @@ function DrawingAnalyzerInner() {
       // Render the PDF to PNG pages via the existing pipeline.
       const rendered = await uploadAndRenderPdf({
         fileUri: asset.uri,
-        projectId: pickedProjectId ?? 'tmp',
+        projectId: pickedProjectId,
         fileName: asset.name,
         dpi: 150,
         maxPages: 12,
@@ -122,7 +148,9 @@ function DrawingAnalyzerInner() {
       // Hand off to the analyzer with project context + chosen model.
       setStep('analyzing');
       const { result: analysis, modelUsed: usedModel } = await analyzeDrawings({
-        pageUrls: rendered.map(p => p.publicUrl),
+        pagePaths: rendered.map(p => p.storagePath),
+        // Legacy, one release: an un-redeployed function still needs URLs.
+        pageUrls: rendered.map(p => p.viewUrl),
         projectName: project?.name,
         projectType: project?.type,
         squareFootage: project?.squareFootage,
@@ -142,7 +170,7 @@ function DrawingAnalyzerInner() {
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [pickedProjectId, project, pickedModel, tier]);
+  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, tier]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
@@ -253,20 +281,14 @@ function DrawingAnalyzerInner() {
           </View>
         )}
 
-        {/* Project picker (optional context) */}
+        {/* Project picker — required: it is the storage folder, not just context */}
         {step === 'idle' && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Project (optional context)</Text>
+            <Text style={styles.cardLabel}>Project (required)</Text>
             <Text style={styles.cardHelper}>
-              Adding a project tells the AI your square footage, location, and quality tier so the unit pricing is regional + tier-appropriate.
+              Drawings are stored in the project&apos;s own folder, so only your team can open them. The project also tells the AI your square footage, location, and quality tier so the unit pricing is regional + tier-appropriate.
             </Text>
             <View style={styles.chipRow}>
-              <TouchableOpacity
-                style={[styles.chip, !pickedProjectId && styles.chipActive]}
-                onPress={() => setPickedProjectId(undefined)}
-              >
-                <Text style={[styles.chipText, !pickedProjectId && styles.chipTextActive]}>Standalone</Text>
-              </TouchableOpacity>
               {projects.slice(0, 6).map(p => (
                 <TouchableOpacity
                   key={p.id}
@@ -284,7 +306,14 @@ function DrawingAnalyzerInner() {
 
         {/* Upload card */}
         {step === 'idle' && (
-          <TouchableOpacity style={styles.uploadCard} onPress={handlePick} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.uploadCard}
+            onPress={handlePick}
+            activeOpacity={0.85}
+            disabled={!!uploadBlockedReason}
+            accessibilityState={{ disabled: !!uploadBlockedReason }}
+            testID="analyzer-upload-card"
+          >
             <View style={styles.uploadIcon}>
               <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
             </View>
@@ -300,6 +329,14 @@ function DrawingAnalyzerInner() {
               Each page is converted to an image and read by MAGE&apos;s vision engine. Drawings are stored in your project&apos;s plans bucket.
             </Text>
           </TouchableOpacity>
+        )}
+
+        {/* A blocked button that says why, and names the action. */}
+        {step === 'idle' && !!uploadBlockedReason && (
+          <View style={styles.blockedNote} testID="analyzer-upload-blocked">
+            <ShieldAlert size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.blockedNoteText}>{uploadBlockedReason}</Text>
+          </View>
         )}
 
         {step === 'idle' && (
@@ -545,9 +582,9 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
             : themeColors.danger;
           return (
             <View key={idx} style={styles.drawingCard}>
-              {page?.publicUrl && (
+              {!!page?.viewUrl && (
                 <Image
-                  source={{ uri: page.publicUrl }}
+                  source={{ uri: page.viewUrl }}
                   style={styles.drawingThumb}
                   resizeMode="cover"
                 />
@@ -807,6 +844,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   uploadCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
   uploadHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+
+  blockedNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
+  },
+  blockedNoteText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 16 },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,

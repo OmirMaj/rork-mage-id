@@ -31,9 +31,17 @@ import { showAlert } from '@/utils/alert';
 interface Props {
   /** Optional: visual variant. 'compact' shows just the icon + number; 'full' adds the word "queued". */
   variant?: 'compact' | 'full';
+  /**
+   * Set when the pill floats over page content instead of sitting in a header
+   * (app/_layout.tsx mounts it that way app-wide). The pill's own fill is a 12%
+   * orange wash designed to composite over a solid header ground; over a
+   * scrolling list the content behind it reads straight through the badge. This
+   * lays an opaque surface under it so the count stays legible on any screen.
+   */
+  floating?: boolean;
 }
 
-export default function OfflineSyncPill({ variant = 'compact' }: Props) {
+export default function OfflineSyncPill({ variant = 'compact', floating = false }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const depth = useOfflineQueueDepth();
@@ -51,7 +59,12 @@ export default function OfflineSyncPill({ variant = 'compact' }: Props) {
   if (depth === 0) return null;
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityLabel={`${depth} changes queued for sync`}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityLabel={`${depth} changes queued for sync`}
+      style={floating ? styles.floatingGround : undefined}
+    >
       <View style={styles.pill}>
         <CloudOff size={12} color={Colors.warningLabel} strokeWidth={1.75} />
         <Text style={styles.text}>
@@ -68,6 +81,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: 'rgba(255, 159, 27, 0.12)',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
     borderWidth: 1, borderColor: 'rgba(255, 159, 27, 0.35)',
+  },
+  // Opaque ground UNDER the pill's 12% wash, for the app-wide floating mount
+  // only. The wash was drawn to composite over a solid header; floating over a
+  // scrolling list, the content behind reads straight through the count. A
+  // parent layer rather than a replacement background keeps the warm tint
+  // exactly as it looks in a header, with no per-theme colour arithmetic — and
+  // it lives on the pill, not on a wrapper in app/_layout.tsx, so it vanishes
+  // with the pill at queue depth 0 instead of leaving an empty chip on every
+  // screen.
+  floatingGround: {
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.full,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
   },
   text: {
     color: Colors.warningLabel,

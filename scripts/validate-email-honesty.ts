@@ -211,5 +211,65 @@ ok('composer_opened is not reported as a send',
 ok('sendViaResend counts attachments it could not encode',
   /attachmentsDropped = encoded\.length - attachments\.length/.test(serviceSrc));
 
+// ── daily-digest: never send an email with nothing in it ───────────────────
+//
+// Reported from a real inbox on 2026-09-08: a giant serif "Quiet day." over one
+// sentence of nothing. The send was deliberate — the function's own header
+// argued the cadence was reassuring on weekdays — and it is exactly backwards.
+// An email that is empty most mornings teaches the reader to archive the
+// subject line on sight, so the mornings that DO carry an unanswered client
+// message get archived with them.
+//
+// Two things are pinned here. The empty send itself, and the SELF-ADDRESSED
+// footer: wrapEmailHtml's `sender` block renders "Sent by <name> · <email> ·
+// <phone>. Replies go to them, not us." That copy is for a homeowner reading a
+// contractor's email. On this digest, which goes to the GC himself, it printed
+// his own name, address and phone back at him and told him replies would reach
+// himself.
+// Comments stripped before matching. The fix's own comments QUOTE the strings
+// being banned, to explain why they went — a check that cannot tell code from
+// prose fires on its own documentation and teaches people to delete the
+// explanation rather than keep the fix.
+const stripComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const digestSrc = stripComments(readFileSync(join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8'));
+
+ok('daily-digest returns before building an email when there are no events',
+  /if \(totalEvents === 0\) \{[\s\S]{0,200}?return \{[^}]*status: 'skipped_already'/.test(digestSrc),
+  'a digest with zero events must not be sent at all — see this check\'s comment');
+ok('no quiet-day body template survives to be re-enabled',
+  !/No events to report/.test(digestSrc) && !/isQuiet/.test(digestSrc),
+  'a rendered empty-digest template is one `if` away from shipping again');
+ok('the subject line no longer has an empty-digest form',
+  !/Quiet day on your jobs/.test(digestSrc));
+ok('daily-digest passes no `sender` block (it is addressed to the GC himself)',
+  !/^\s*sender:\s*\{/m.test(digestSrc),
+  'the sender footer says "Replies go to them, not us" — on a self-addressed digest that is the reader');
+
+// ── morning-digest: the same two rules ─────────────────────────────────────
+const morningSrc = stripComments(readFileSync(join(ROOT, 'supabase/functions/morning-digest/index.ts'), 'utf8'));
+
+ok('morning-digest suppresses email + push when there is nothing to report',
+  /const hasNothingToSay = /.test(morningSrc)
+  && /channels\.email !== false && profile\.email && !hasNothingToSay/.test(morningSrc)
+  && /profile\.push_token && !hasNothingToSay/.test(morningSrc),
+  '"No active projects today. Enjoy the quiet." is the same empty send daily-digest was making');
+ok('…but the in-app inbox row still writes on a quiet day',
+  /if \(channels\.in_app !== false\) \{[\s\S]{0,200}?notification_outbox/.test(morningSrc),
+  'the inbox row is pulled, not pushed — suppressing it would hide the cadence from someone who goes looking');
+ok('the morning briefing body carries a working unsubscribe link',
+  /unsubscribe: \{ recipientEmail, eventKey: 'daily_digest'/.test(morningSrc),
+  'buildUnsubscribeUrl returns null without recipientEmail, so the visible link and the ' +
+  'preferences link vanish from a recurring opt-in email');
+
+// ── the shared shell: one brand per header ─────────────────────────────────
+// The right-hand "MAGE ID" pill means "sent THROUGH MAGE ID" and only makes
+// sense opposite a contractor's own name. It used to render unconditionally, so
+// every email with no companyName showed the wordmark twice.
+const shellSrc = stripComments(readFileSync(join(ROOT, 'supabase/functions/_shared/email.ts'), 'utf8'));
+ok('the MAGE ID header pill renders only when the email is co-branded',
+  /\$\{isCobranded \? `<span[^`]*MAGE&nbsp;ID<\/span>` : ''\}/.test(shellSrc),
+  'an un-co-branded email prints the wordmark on the left and the same wordmark in a pill on the right');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -12,7 +12,9 @@ import {
   FileText,
   Users,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -44,6 +46,10 @@ function ScheduleShareSheet({
   projectName,
   companyName,
 }: ScheduleShareSheetProps) {
+  // Built per theme: the sheet baked Colors.surface/text/textSecondary at
+  // import, so it slid up as a white card in dark mode (audit 2026-09-07).
+  const { colors: t } = useTheme();
+  const st = useThemedStyles(makeStyles);
   const [isGenerating, setIsGenerating] = useState(false);
   const [shareMode, setShareMode] = useState<'full' | 'trade'>('full');
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
@@ -193,7 +199,7 @@ function ScheduleShareSheet({
               <Share2 size={18} color={Colors.primary} strokeWidth={1.75} />
               <Text style={st.headerTitle}>Share Schedule</Text>
             </View>
-            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={st.modeRow}>
@@ -201,14 +207,14 @@ function ScheduleShareSheet({
               style={[st.modeBtn, shareMode === 'full' && st.modeBtnActive]}
               onPress={() => setShareMode('full')}
             >
-              <FileText size={14} color={shareMode === 'full' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
+              <FileText size={14} color={shareMode === 'full' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />
               <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full Schedule</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[st.modeBtn, shareMode === 'trade' && st.modeBtnActive]}
               onPress={() => setShareMode('trade')}
             >
-              <Users size={14} color={shareMode === 'trade' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
+              <Users size={14} color={shareMode === 'trade' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />
               <Text style={[st.modeBtnText, shareMode === 'trade' && st.modeBtnTextActive]}>By Trade</Text>
             </TouchableOpacity>
           </View>
@@ -251,19 +257,19 @@ function ScheduleShareSheet({
   );
 }
 
-const st = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
     gap: 14,
   },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 4 },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: t.neutralSoft, alignSelf: 'center', marginBottom: 4 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
 
   modeRow: { flexDirection: 'row', gap: 8 },
   modeBtn: {
@@ -274,10 +280,10 @@ const st = StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
   },
   modeBtnActive: { backgroundColor: Colors.primary },
-  modeBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  modeBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   modeBtnTextActive: { color: '#FFF' },
 
   phaseScroll: { marginVertical: 2 },
@@ -289,11 +295,11 @@ const st = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.neutralSoft,
   },
   phaseChipActive: { backgroundColor: Colors.primary + '18', borderWidth: 1, borderColor: Colors.primary },
   phaseChipDot: { width: 6, height: 6, borderRadius: 3 },
-  phaseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  phaseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   phaseChipTextActive: { color: Colors.primary },
 
   shareBtn: {

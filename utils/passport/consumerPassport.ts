@@ -341,6 +341,44 @@ function clean(s: string | number | undefined | null): string {
   return String(s ?? '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * A document link that is safe to hand the OWNER, or nothing at all.
+ *
+ * Since the 2026-09-07 staging fix `Permit.attachmentUri` normally holds a
+ * `project-photos` BUCKET PATH, and that bucket is private: the value is not a
+ * URL anything can follow, and its first path segment is the CONTRACTOR'S auth
+ * user id. Passing it through into a record the owner keeps forever therefore
+ * hands them a link that cannot open AND discloses an internal id — in the one
+ * file whose whole job is deciding what may cross that boundary.
+ *
+ * Signing it is the right answer and it is not reachable from here: that needs
+ * supabase.storage.createSignedUrls (utils/storage.ts resolvePhotoUrls), which
+ * is async and hits the network, while this module is synchronous and pure by
+ * contract and every caller builds a passport in one expression. So a bucket
+ * path is OMITTED rather than emitted broken — the permit itself still appears
+ * with its number, jurisdiction and dates, it just carries no document link. A
+ * caller that wants the scans in the passport resolves them first and passes
+ * the signed URL in `attachmentUri`.
+ *
+ * What this does NOT promise is that every value it keeps opens on someone
+ * else's machine. A `file://` or `content://` — what the staging helper falls
+ * back to when there is no session or no Supabase to stage into — is this
+ * device's path and only this device's. It is kept because the passport is
+ * rendered in-app on that same device, where it resolves, and because dropping
+ * it would take the scan away from exactly the local-only account that has
+ * nowhere else to keep it. It carries no auth user id, which is the disclosure
+ * this function is here to stop.
+ */
+function ownerSafeDocumentUri(value: string | undefined): string {
+  const v = clean(value);
+  // Decided by the scheme rather than by re-testing the shape of a bucket path
+  // (utils/photoUploadCore looksLikeStoragePath), because this module is pinned
+  // to type-only imports so it stays bun-runnable and provably pure, and
+  // because getting it wrong should fail SILENT rather than leak: a bucket path
+  // has no scheme, so anything unrecognised is dropped, not passed along.
+  return /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : '';
+}
+
 /** Strip `$1,200` / `$4.5k` style figures out of text lifted from an internal
  *  contract document, so a subcontract amount typed into a scope description
  *  can never reach the homeowner. */
@@ -488,6 +526,14 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
 
   // ── Warranties ─────────────────────────────────────────────────────
   const warranties: PassportWarranty[] = warrantiesIn.map((w) => {
+    // Same gate as the permit scan. `Warranty.documentUri` has no writer in the
+    // app today — it only round-trips through `warranties.document_uri` — so
+    // nothing is known about what a row actually holds, and the first screen
+    // that wires an attachment picker to it will store what every other picker
+    // in this codebase now stores: a `project-photos` path whose first segment
+    // is the contractor's auth user id. Deciding that here, once, is cheaper
+    // than discovering it in the owner's copy of the record later.
+    const doc = ownerSafeDocumentUri(w.documentUri);
     const endDate = isoDay(w.endDate) || null;
     const daysRemaining = daysFromNow(endDate, nowMs);
     let state: WarrantyState = 'unknown';
@@ -508,7 +554,7 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
       durationMonths: Number.isFinite(w.durationMonths) ? w.durationMonths : 0,
       ...(clean(w.coverageDetails) ? { coverageDetails: clean(w.coverageDetails) } : {}),
       ...(clean(w.exclusions) ? { exclusions: clean(w.exclusions) } : {}),
-      ...(clean(w.documentUri) ? { documentUri: clean(w.documentUri) } : {}),
+      ...(doc ? { documentUri: doc } : {}),
       state,
       daysRemaining,
       // Claim COUNT only — WarrantyClaim.cost is internal and never emitted.
@@ -519,23 +565,26 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
   // ── Permits ────────────────────────────────────────────────────────
   // Permit.fee is deliberately NOT carried: it is part of the contractor's
   // internal cost buildup. The owner's money lives in `receipts`.
-  const permits: PassportPermit[] = permitsIn.map((p) => ({
-    id: p.id,
-    projectId: p.projectId,
-    projectName: nameOf(p.projectId),
-    type: clean(p.type) || 'other',
-    permitNumber: clean(p.permitNumber) || null,
-    jurisdiction: clean(p.jurisdiction),
-    status: clean(p.status),
-    appliedDate: isoDay(p.appliedDate) || null,
-    approvedDate: isoDay(p.approvedDate) || null,
-    expiresDate: isoDay(p.expiresDate) || null,
-    inspectionDate: isoDay(p.inspectionDate) || null,
-    ...(clean(p.phase) ? { phase: clean(p.phase) } : {}),
-    ...(clean(p.attachmentUri) ? { documentUri: clean(p.attachmentUri) } : {}),
-    isFinaled: p.status === 'inspection_passed',
-    daysUntilExpiry: daysFromNow(p.expiresDate, nowMs),
-  })).sort(byDateDesc<PassportPermit>((p) => p.approvedDate ?? p.appliedDate));
+  const permits: PassportPermit[] = permitsIn.map((p) => {
+    const scan = ownerSafeDocumentUri(p.attachmentUri);
+    return {
+      id: p.id,
+      projectId: p.projectId,
+      projectName: nameOf(p.projectId),
+      type: clean(p.type) || 'other',
+      permitNumber: clean(p.permitNumber) || null,
+      jurisdiction: clean(p.jurisdiction),
+      status: clean(p.status),
+      appliedDate: isoDay(p.appliedDate) || null,
+      approvedDate: isoDay(p.approvedDate) || null,
+      expiresDate: isoDay(p.expiresDate) || null,
+      inspectionDate: isoDay(p.inspectionDate) || null,
+      ...(clean(p.phase) ? { phase: clean(p.phase) } : {}),
+      ...(scan ? { documentUri: scan } : {}),
+      isFinaled: p.status === 'inspection_passed',
+      daysUntilExpiry: daysFromNow(p.expiresDate, nowMs),
+    };
+  }).sort(byDateDesc<PassportPermit>((p) => p.approvedDate ?? p.appliedDate));
 
   // ── Equipment / appliances (model numbers the owner will need) ──────
   const warrantyMatch = (projectId: string, ...needles: string[]) => {

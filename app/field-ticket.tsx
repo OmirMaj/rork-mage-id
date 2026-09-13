@@ -130,7 +130,7 @@ function FieldTicketInner() {
   const styles = useThemedStyles(makeStyles);
 
   const {
-    projectId, ticketId, sourceDailyReportId, prefillWork, prefillReason, start,
+    projectId: paramProjectId, ticketId, sourceDailyReportId, prefillWork, prefillReason, start,
   } = useLocalSearchParams<{
     projectId?: string;
     ticketId?: string;
@@ -150,10 +150,22 @@ function FieldTicketInner() {
   // Opened from the Tools hub / search / a deep link there is no projectId, so
   // the ToolProjectPicker sets one locally — same pattern as ai-punch and
   // compare-drawings, which keeps the choice out of the URL.
+  //
+  // The pick has to outrank the param, never the other way round. The param is
+  // whatever the link that opened this screen happened to carry, and it can be
+  // dead — a deleted project, a URL someone shared last month; pickedProjectId
+  // is the choice the user just made in the picker, a second ago, from a list
+  // of projects that exist. With `paramProjectId ?? pickedProjectId` a dead id
+  // keeps winning after every tap, so the rows visibly do nothing and the
+  // screen is stuck on the picker forever. scripts/validate-project-scoped-
+  // screens.ts holds this file up as the reference the other eight are
+  // measured against, so getting the order wrong here propagates.
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
-  const activeProjectId = projectId ?? pickedProjectId ?? '';
+  const activeProjectId = pickedProjectId ?? paramProjectId ?? '';
 
   const project = useMemo(() => getProject(activeProjectId), [activeProjectId, getProject]);
+  /** The URL named a project that doesn't exist — different from "no id". */
+  const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const tickets = useMemo(
     () => (activeProjectId ? getFieldTicketsForProject(activeProjectId) : []),
     [activeProjectId, getFieldTicketsForProject],
@@ -482,6 +494,7 @@ function FieldTicketInner() {
           message="Capture extra work and get it signed on site, before anyone forgets it happened."
           projects={projects}
           onPick={setPickedProjectId}
+          staleProjectId={staleProjectId}
         />
       </View>
     );
