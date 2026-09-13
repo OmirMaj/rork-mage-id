@@ -105,7 +105,10 @@ import {
   type CodeVerdict,
   type LocalAdoption,
   type StateAdoption,
+  iccViewerUrl,
+  iccVolumeVerdict,
 } from '../utils/codeJurisdiction';
+import { ALL_AMENDMENTS } from '../utils/codeAmendments';
 
 type Row = StateAdoption | LocalAdoption;
 
@@ -243,9 +246,12 @@ function pdfToText(bytes: Uint8Array): { ok: true; text: string } | { ok: false;
 }
 
 type Fetched =
-  | { ok: true; text: string; kind: 'html' | 'pdf' }
-  /** `manual` = nothing is wrong with the network, this source needs a human. */
-  | { ok: false; why: string; manual?: boolean };
+  | { ok: true; text: string; kind: 'html' | 'pdf'; status: number }
+  /** `manual` = nothing is wrong with the network, this source needs a human.
+   *  `status` is the HTTP status when one arrived, null when nothing did — the
+   *  ICC pass below needs to tell a dead volume id (4xx) from a host that was
+   *  simply down (5xx, timeout), because only the second is forgivable. */
+  | { ok: false; why: string; manual?: boolean; status: number | null };
 
 /** One fetch per URL per run — rows share citations, and several of these
  *  hosts rate-limit. */
@@ -266,12 +272,14 @@ async function fetchTextUncached(url: string): Promise<Fetched> {
       redirect: 'follow',
       signal: AbortSignal.timeout(60_000),
     });
-    if (!res.ok) return { ok: false, why: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, why: `HTTP ${res.status}`, status: res.status };
     const buf = new Uint8Array(await res.arrayBuffer());
     const head = new TextDecoder().decode(buf.slice(0, 5));
     if (head.startsWith('%PDF')) {
       const pdf = pdfToText(buf);
-      return pdf.ok ? { ok: true, text: respacePdfText(pdf.text), kind: 'pdf' } : { ok: false, why: pdf.why, manual: true };
+      return pdf.ok
+        ? { ok: true, text: respacePdfText(pdf.text), kind: 'pdf', status: res.status }
+        : { ok: false, why: pdf.why, manual: true, status: res.status };
     }
     // An HTML body from a URL that ends .pdf is an ERROR PAGE, never the
     // document. Verified 2026-09-07: web.archive.org serves the executed Dallas
@@ -285,11 +293,11 @@ async function fetchTextUncached(url: string): Promise<Fetched> {
     // the fabricated edition got in. So refuse to read it: `unreachable` is a
     // verdict the committed receipt is allowed to cover, `unconfirmed` is not.
     if (/\.pdf(?:[?#]|$)/i.test(new URL(url).pathname + new URL(url).search)) {
-      return { ok: false, why: 'the URL ends .pdf but the body is not a PDF — an error page, not the document' };
+      return { ok: false, why: 'the URL ends .pdf but the body is not a PDF — an error page, not the document', status: res.status };
     }
-    return { ok: true, text: htmlToText(new TextDecoder('utf-8', { fatal: false }).decode(buf)), kind: 'html' };
+    return { ok: true, text: htmlToText(new TextDecoder('utf-8', { fatal: false }).decode(buf)), kind: 'html', status: res.status };
   } catch (err) {
-    return { ok: false, why: err instanceof Error ? err.message : String(err) };
+    return { ok: false, why: err instanceof Error ? err.message : String(err), status: null };
   }
 }
 
@@ -561,6 +569,138 @@ for (const row of rows) {
   console.log(`${bad ? '✗' : '·'} ${who}\n    ${row.sourceUrl}\n${lines.join('\n')}`);
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// PASS 2 — the ICC volume ids the chip links to.
+//
+// THE RULE ITSELF IS NOT HERE. It is `iccVolumeVerdict` in
+// utils/codeJurisdiction.ts, pure and driven by validate-code-jurisdiction.ts
+// without a network, because a rule that only ever runs inside a network
+// script is a rule nobody can put a red test on. This pass fetches; that
+// function judges.
+//
+// Two signals, and neither alone is enough. An id that no longer exists
+// answers HTTP 404 with the generic "Digital Codes" shell (measured
+// 2026-09-13 on IECC2015P1, which is the real id IECC2015 plus the P1 suffix
+// every other volume here carries) — and a 404 is
+// counted WRONG here, never `unreachable`, because `unreachable` is exactly
+// what the committed receipt forgives and a dead link must not be forgiven.
+// A volume whose TITLE stops naming the row's edition is the other half: 200,
+// alive, and now sending a contractor to the wrong book, which is worse than
+// no link at all.
+// ─────────────────────────────────────────────────────────────────────
+
+let volOk = 0, volBad = 0, volUnreachable = 0;
+const volumeSeen = new Set<string>();
+for (const row of rows) {
+  for (const c of row.codes) {
+    if (!c.iccVolumeId || volumeSeen.has(c.iccVolumeId)) continue;
+    volumeSeen.add(c.iccVolumeId);
+    const url = iccViewerUrl(c.iccVolumeId);
+    // fetchText already returns TEXT, not HTML, so there is no <title> tag left
+    // to read — the volume title is simply the first thing on the page. The
+    // first draft of this check looked for <title> and fell through to a
+    // 120-character slice of the body, which reported both correct volumes as
+    // WRONG. A false WRONG is the worst output this tool has (see the same
+    // note on the .pdf guard above): it teaches whoever runs it next to
+    // overrule the checker.
+    const got = url ? await fetchText(url) : null;
+    const verdict = iccVolumeVerdict({
+      volumeId: c.iccVolumeId,
+      recordedTitle: c.iccVolumeTitle,
+      edition: c.edition,
+      status: got === null ? null : got.status,
+      text: got !== null && got.ok ? got.text : '',
+      why: got !== null && !got.ok ? got.why : undefined,
+    });
+    if (verdict.verdict === 'unreachable') {
+      console.log(`· ICC volume ${c.iccVolumeId}: unreachable (${verdict.why})`);
+      volUnreachable += 1;
+    } else if (verdict.verdict === 'wrong') {
+      const title = got !== null && got.ok ? got.text.replace(/\s+/g, ' ').trim().slice(0, 120) : '(no body)';
+      console.log(
+        `✗ ICC volume ${c.iccVolumeId} (${labelOf(row)} ${c.family} ${c.edition}): ` +
+        `${verdict.why}\n    got: "${title}"\n    had: "${c.iccVolumeTitle ?? ''}"`,
+      );
+      volBad += 1;
+    } else {
+      volOk += 1;
+    }
+  }
+}
+console.log(`\nICC volumes: ${volOk} confirmed by title, ${volBad} WRONG, ${volUnreachable} unreachable`);
+
+// ─────────────────────────────────────────────────────────────────────
+// PASS 3 — the state-amendment table behind the citation ladder.
+//
+// Same discipline as the editions above, one level down: fetch the page the
+// row was read off and confirm it still says what the row claims. Two things
+// are checked, and the second is the one that matters — a section number that
+// no longer appears on its own cited page is precisely the "real URL beside a
+// recalled claim" shape, and here it would be printed under a badge that says
+// STATE AMENDMENT.
+// ─────────────────────────────────────────────────────────────────────
+
+let amOk = 0, amBad = 0, amUnreachable = 0;
+for (const a of ALL_AMENDMENTS) {
+  const who = `${a.state} ${a.family} ${a.section} (${a.cite})`;
+  const got = await fetchText(a.sourceUrl);
+  if (!got.ok) {
+    // dos.ny.gov 403s every script; the hand-read rows say so in `readBy`.
+    console.log(`· ${who}: unreachable (${got.why}) — read by: ${a.readBy}`);
+    amUnreachable += 1;
+    continue;
+  }
+  // COMPARE ON LETTERS AND DIGITS ONLY.
+  //
+  // The rows were read off the page by hand and this script re-reads it
+  // through an HTML-to-text pipeline, so the two disagree about whitespace,
+  // bullet glyphs and where a </span> boundary becomes a space — "706.4 Fire-resistance rating.Fire walls" in one and
+  // "…rating. Fire walls" in the other. A literal comparison reported six
+  // perfectly good rows as drifted on the first run. Flattening to [a-z0-9]
+  // removes every one of those differences and removes nothing that could let
+  // unrelated text pass: 60 consecutive alphanumeric characters from the
+  // middle of a legal paragraph do not occur by accident.
+  const flat = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const text = flat(got.text);
+  const secOk = text.includes(flat(a.section));
+  const q = flat(a.amendmentText);
+  const probe = q.length > 120 ? q.slice(Math.floor(q.length / 3), Math.floor(q.length / 3) + 60) : q;
+  const quoteOk = !probe || text.includes(probe);
+
+  // THERE WAS A THIRD CHECK HERE, AND IT IS GONE WITH ITS SUBJECT.
+  //
+  // The two checks above confirm the section number and a slice of the quote
+  // are still on the page. On 2026-09-13 this pass printed "141 amendments
+  // confirmed on the page, 0 WRONG" while 19 of those rows were labelled IBC
+  // and were in fact Washington's amendments to the INTERNATIONAL EXISTING
+  // BUILDING CODE. Both checks passed on every one of them, because both were
+  // true: right page, right number, right text — wrong book. A receipt that
+  // certifies only the properties that were never in doubt is worse than no
+  // receipt, because it gets quoted as proof the table is correct.
+  //
+  // The third check re-fetched each row's `familyEvidence` (the register's own
+  // block heading) at its `familyCite`. It only ever had anything to read on
+  // generated rows; those rows, that generator and those two fields have all
+  // been withdrawn. Every surviving row states its volume as a `codeName` that
+  // must match utils/codeJurisdiction.ts's adoption record exactly, which the
+  // offline validator checks and which is not a claim a fetch can settle.
+  //
+  // What this pass certifies is therefore narrower than it once claimed, and
+  // saying so is the point: the page still says the number, and the page still
+  // says the words. Which book it is remains a human's reading.
+
+  if (secOk && quoteOk) {
+    amOk += 1;
+  } else {
+    amBad += 1;
+    const why = !secOk
+      ? 'the section number is no longer on its own cited page'
+      : 'the quoted amendment text is no longer on the page';
+    console.log(`✗ ${who}: ${why}\n    ${a.sourceUrl}`);
+  }
+}
+console.log(`amendments: ${amOk} confirmed on the page, ${amBad} WRONG, ${amUnreachable} unreachable`);
+
 // A row deleted from the table must not keep a receipt — stale evidence for a
 // jurisdiction nobody serves any more is exactly the kind of thing that gets
 // copied back in later.
@@ -606,4 +746,13 @@ if (tally.unconfirmed > 0) {
   console.log('\nAn UNCONFIRMED claim is not allowed to ship. Either cite a page that states it');
   console.log('(AdoptedCode.sourceUrl can point one code at its own document), or delete the claim.');
 }
-process.exit(failures > 0 ? 1 : 0);
+if (volBad > 0) {
+  console.log('\nA WRONG ICC VOLUME means the chip is offering a contractor the wrong book.');
+  console.log('Re-fetch /content/<id>, record the title it actually returns, or drop iccVolumeId.');
+}
+if (amBad > 0) {
+  console.log('\nA WRONG AMENDMENT ROW means the citation ladder is printing STATE AMENDMENT over');
+  console.log('something its own cited page no longer says. Re-read the page and fix or drop the row');
+  console.log('in utils/codeAmendments.ts — there is no generator to re-run.');
+}
+process.exit(failures + volBad + amBad > 0 ? 1 : 0);

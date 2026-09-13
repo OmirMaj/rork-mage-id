@@ -45,7 +45,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
-import type { LeadTimeSource, LeadTimeConfidence } from '@/utils/automation/leadTimeLibrary';
+import { leadTimeChipText } from '@/utils/automation/leadTimeLibrary';
 import type { ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
 import type { ZoningUnknownFacts } from '@/utils/automation/jurisdiction';
 
@@ -94,21 +94,6 @@ export interface AutoScheduleReviewSheetProps {
   onConfirmZoning?: (district: string) => void;
 }
 
-const SOURCE_LABEL: Record<LeadTimeSource, string> = {
-  default: 'Typical',
-  jurisdiction: 'Jurisdiction',
-  learned: 'Learned',
-  // An AI-sized guess grounded only in free-text location — NOT a jurisdiction
-  // fact. The chip says so and asks the contractor to confirm it.
-  ai_estimate: 'AI estimate',
-};
-
-const CONFIDENCE_LABEL: Record<LeadTimeConfidence, string> = {
-  low: 'low confidence',
-  med: 'medium confidence',
-  high: 'high confidence',
-};
-
 /** Provenance chip for a lead time — source + confidence, never a bare number.
  *  This is the "guess carries provenance" discipline made visible. An
  *  `ai_estimate` lead is an unverified LLM guess, so it renders with an explicit
@@ -121,11 +106,11 @@ function LeadTimeChip({
   line: ReviewLine;
   styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
-  const { source, confidence, days } = line.leadTime;
-  const isAiEstimate = source === 'ai_estimate';
-  const text = isAiEstimate
-    ? `~${days}d lead · ${SOURCE_LABEL[source]} · confirm`
-    : `${days}d lead · ${SOURCE_LABEL[source]} · ${CONFIDENCE_LABEL[confidence]}`;
+  const isAiEstimate = line.leadTime.source === 'ai_estimate';
+  // Wording lives in utils/automation/leadTimeLibrary.ts, beside the provenance
+  // union itself, so this sheet and the Construction AI Roadmap tab cannot
+  // describe the same lead two different ways.
+  const text = leadTimeChipText(line.leadTime);
   return (
     <View
       style={[styles.chip, isAiEstimate && styles.chipEstimate]}

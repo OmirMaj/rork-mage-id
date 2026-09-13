@@ -22,7 +22,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Animated, Easing, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Animated, Easing, ActivityIndicator, Linking,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +33,7 @@ import {
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
   Clock, Scale, MessageCircleQuestion, CalendarClock, Check, XCircle,
+  ExternalLink, Landmark, ClipboardList, FileQuestion, Quote,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -47,10 +48,21 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import CodeCheckLoader from '@/components/CodeCheckLoader';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
-import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, scopeSummary } from '@/utils/permitRoadmap';
+import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, scopeSummary, type RoadmapLead } from '@/utils/permitRoadmap';
+import {
+  inspectionHistoryFactsFor,
+  type InspectionHistoryGrounding,
+} from '@/utils/permitInspectionFacts';
+import {
+  resolvePermitReviewLead,
+  resolveInspectionLead,
+  leadTimeFactsFor,
+  type ResolvedRoadmapLead,
+} from '@/utils/automation/learnedLeadTime';
 import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
 import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
 import { showAlert } from '@/utils/alert';
@@ -68,10 +80,22 @@ import {
   issuingAuthorityForAddress,
   jobsiteAddressForProject,
   sameJobsiteAddress,
+  viewerUrlToOpen,
   EMPTY_JOBSITE_ADDRESS,
   type JobsiteAddress,
   type JurisdictionGrounding,
+  type ResolvedCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
+// THE LADDER. Every citation below is labelled with how much MAGE actually
+// verified about it — see the header of utils/codeAmendments.ts for the four
+// rungs and, more importantly, for what is deliberately NOT built and why.
+// Nothing here weakens the model-recall chip: rungs 3 and 4 are still recall
+// and still say so, in the same place and at the same size as before.
+import {
+  citationEvidenceFor,
+  rungSummaryLine,
+  type CitationEvidence,
+} from '@/utils/codeAmendments';
 import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/utils/automation/inspectionResultToScheduleWork';
 import { InspectionResultReviewSheet } from '@/components/automation/InspectionResultReviewSheet';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
@@ -375,6 +399,17 @@ function ConstructionAIScreenInner() {
   // the contractor has since edited — the same trap the estimate chip fell into
   // (AI-F4 / review B1).
   const [resultGrounding, setResultGrounding] = useState<JurisdictionGrounding | null>(null);
+  // The inspection-history grounding SENT with this result, snapshotted for the
+  // same reason `resultGrounding` is: the chip on the answer must describe the
+  // run, not whatever the form says now.
+  const [resultInspectionGrounding, setResultInspectionGrounding] =
+    useState<InspectionHistoryGrounding | null>(null);
+  // The RESOLVED jurisdiction that went with `result`, snapshotted for the
+  // same reason `resultGrounding` is: the per-citation ladder must describe
+  // the address the check actually ran against, not one the contractor has
+  // since retyped. A stale rung is a false claim about evidence.
+  const [resultJurisdiction, setResultJurisdiction] =
+    useState<ResolvedCodeJurisdiction | null>(null);
   const [resultOpen, setResultOpen] = useState(false);
   const [overLimit, setOverLimit] = useState(false);
 
@@ -383,6 +418,11 @@ function ConstructionAIScreenInner() {
   // ── Roadmap state ────────────────────────────────────────────────────
   const {
     projects,
+    // The contractor's own permit + inspection file. Until now the AI on this
+    // screen had never seen it: `grep -rln PermitInspection` returned exactly
+    // one file, app/permits.tsx. It is the one body of evidence no chatbot and
+    // no code-lookup subscription can have.
+    permits,
     updateProject,
     getPermitRoadmapForProject,
     savePermitRoadmap,
@@ -463,6 +503,26 @@ function ConstructionAIScreenInner() {
   );
   const grounding = useMemo(() => groundingFactsFor(jurisdiction), [jurisdiction]);
 
+  // WHO issues the permits at the address on screen. `null` when MAGE has no
+  // verified adoption record — and null is a real answer here: without an
+  // authority there is no way to say WHICH of his inspections are relevant, and
+  // the chip says exactly that rather than matching on a street address.
+  const codeCheckAuthority = useMemo(
+    () => issuingAuthorityForAddress({ city, county, state: stateCode }),
+    [city, county, stateCode],
+  );
+
+  // THE CONTRACTOR'S OWN INSPECTION RECORD, for this authority and this
+  // category. Same shape as `grounding` above and for the same reason: the
+  // chip text and the prompt block are built together, from the same counts,
+  // so the chip can never claim a record the model was not handed. Below the
+  // sample floor it reports raw counts and quotes the note, and states no
+  // pattern — see utils/permitInspectionFacts.ts.
+  const inspectionGrounding = useMemo(
+    () => inspectionHistoryFactsFor(permits, codeCheckAuthority, category),
+    [permits, codeCheckAuthority, category],
+  );
+
   const [roadmapProjectId, setRoadmapProjectId] = useState<string | null>(projects[0]?.id ?? null);
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [roadmapOverLimit, setRoadmapOverLimit] = useState(false);
@@ -490,7 +550,61 @@ function ConstructionAIScreenInner() {
   const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;
   const roadmapTasks = roadmapProject?.schedule?.tasks ?? [];
   const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
-  const flags = roadmap ? roadmapFlags(roadmap, roadmapTasks, roadmapStartDate) : [];
+  // ── The Roadmap's provenance layer ──────────────────────────────────
+  //
+  // Everything below exists because this tab rendered `{permit.leadTimeDays}d
+  // lead` — an integer a language model sized from free text — as a bare
+  // number, then as a calendar "Book by:" date, then as a red severity:'high'
+  // "book-by date passed" banner. The schedule-commit path had been honest
+  // about exactly this number since v1 (roadmapToScheduleWork stamps it
+  // 'ai_estimate'/'low' and the review sheet chips it). The screen was not.
+  //
+  // PERMIT rows now resolve through utils/automation/learnedLeadTime.ts, which
+  // finally produces the union's long-empty 'learned' member from the
+  // contractor's own dated appliedDate → approvedDate records. INSPECTION rows
+  // do NOT get a learned lead, because nothing in the record measures one — see
+  // resolveInspectionLead's docblock. Both carry provenance either way.
+  //
+  // BE PRECISE ABOUT WHAT THAT BUYS. A permit row renders a CHIP and no date;
+  // the only book-by DATE on this tab is on an inspection row, and that lead
+  // can never be 'learned'. So every book-by date here is still the model's
+  // integer or the seeded default — now tilde'd, chipped and barred from
+  // raising a red banner, which is the honest version of the same guess, not a
+  // measurement. 'learned' improves the permit CHIP only.
+  const roadmapLeadFor = useCallback(
+    (permitType: PermitType | null | undefined, authoredDays: number | null | undefined) =>
+      resolvePermitReviewLead({
+        permits,
+        authority: roadmapAuthority,
+        permitType: permitType ?? null,
+        authoredDays: authoredDays ?? null,
+      }),
+    [permits, roadmapAuthority],
+  );
+  const roadmapInspectionLeadFor = useCallback(
+    (authoredDays: number | null | undefined): ResolvedRoadmapLead =>
+      resolveInspectionLead({ authority: roadmapAuthority, authoredDays: authoredDays ?? null }),
+    [roadmapAuthority],
+  );
+  /** The RoadmapLead the pure flag/date helpers take, from the resolution the
+   *  rows render. One resolution, one date, one flag — they cannot disagree. */
+  const inspectionRoadmapLead = useCallback(
+    (insp: RoadmapInspection): RoadmapLead => {
+      const r = roadmapInspectionLeadFor(insp.leadTimeDays);
+      return { days: r.lead.days, hardDate: r.hardDate, sourceLabel: r.sourceLabel };
+    },
+    [roadmapInspectionLeadFor],
+  );
+
+  // The contractor's own inspection record with THIS authority, across every
+  // trade (the roadmap is not asked about one category). Same renderer as Code
+  // Check, so the two tabs cannot describe his file differently.
+  const roadmapInspectionGrounding = useMemo(
+    () => inspectionHistoryFactsFor(permits, roadmapAuthority, null),
+    [permits, roadmapAuthority],
+  );
+
+  const flags = roadmap ? roadmapFlags(roadmap, roadmapTasks, roadmapStartDate, inspectionRoadmapLead) : [];
   const scopeStale = roadmap && roadmapProject ? roadmap.scopeHash !== scopeHashOf(roadmapProject) : false;
 
   // ── Auto-schedule (inspections → schedule) surface ──────────────────
@@ -748,7 +862,26 @@ function ConstructionAIScreenInner() {
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRoadmapLoading(true);
-    const res = await generateRoadmap(roadmapProject, { forceFresh: isRegen });
+    // The prompt used to carry `project.location` as raw free text and nothing
+    // else. It now carries the verified adoption record, the contractor's own
+    // inspection history and his measured permit-review range — the same three
+    // strings the chips on this tab show him.
+    const roadmapGroundingBlocks = [
+      groundingFactsFor(resolveCodeJurisdiction({
+        city: roadmapJobsite.city,
+        county: roadmapJobsite.county,
+        state: roadmapJobsite.state,
+      })).promptBlock,
+      roadmapInspectionGrounding.promptBlock,
+      leadTimeFactsFor(permits, roadmapAuthority).promptBlock,
+    ];
+    const res = await generateRoadmap(roadmapProject, {
+      forceFresh: isRegen,
+      grounding: {
+        blocks: roadmapGroundingBlocks,
+        key: `${roadmapAuthority ?? 'no-ahj'}::${roadmapInspectionGrounding.cacheKey}::${leadTimeFactsFor(permits, roadmapAuthority).grounded ? 'lead-learned' : 'lead-unlearned'}`,
+      },
+    });
     setRoadmapLoading(false);
     if (!res.ok) {
       showAlert('Roadmap failed', res.error);
@@ -774,7 +907,7 @@ function ConstructionAIScreenInner() {
     savePermitRoadmap(newRoadmap);
     if (!res.cached) void bumpRoadmapTodayUsage(user?.id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap]);
+  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap, permits, roadmapAuthority, roadmapJobsite, roadmapInspectionGrounding]);
 
   const onAddToPermits = useCallback((p: RoadmapPermit) => {
     if (!roadmapProject || !roadmap || p.linkedPermitId) return;
@@ -824,6 +957,8 @@ function ConstructionAIScreenInner() {
     setLoading(true);
     setResult(null);
     setResultGrounding(null);
+    setResultInspectionGrounding(null);
+    setResultJurisdiction(null);
     setResultOpen(false);
 
     const categoryLabel = CATEGORIES.find((c) => c.key === category)?.label ?? category;
@@ -839,6 +974,7 @@ function ConstructionAIScreenInner() {
 
 ${projectContextBlock}Address: ${addressLine || `${city.trim()}, ${stateCode.trim()}`}
 ${grounding.promptBlock}
+${inspectionGrounding.promptBlock}
 Category: ${categoryLabel}
 Scenario: ${scenario.trim()}
 
@@ -855,7 +991,7 @@ Never invent a section number you are unsure of — leave section empty and desc
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
-    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
+    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
 
     try {
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey);
@@ -867,6 +1003,8 @@ Never invent a section number you are unsure of — leave section empty and desc
       setResult(res.data as CodeCheckResult);
       // Snapshot the grounding that went WITH this prompt.
       setResultGrounding(grounding);
+      setResultInspectionGrounding(inspectionGrounding);
+      setResultJurisdiction(jurisdiction);
       if (!res.cached) await bumpTodayUsage(user?.id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // iOS can't present two Modals at once. Dismiss the loading modal
@@ -880,7 +1018,7 @@ Never invent a section number you are unsure of — leave section empty and desc
       setLoading(false);
       showAlert('Code check failed', err instanceof Error ? err.message : 'Unknown error.');
     }
-  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, codeCheckProject, codeCheckProjectId, scenario, user?.id]);
+  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id]);
 
   const presets = PRESET_QUESTIONS[category];
 
@@ -1148,19 +1286,32 @@ Never invent a section number you are unsure of — leave section empty and desc
                 so the contractor knows what they are about to get. Same wording
                 as the chip on the result — both come from groundingFactsFor. */}
             {city.trim() && stateCode.trim() ? (
-              <View
-                style={[styles.jurisdictionChip, !grounding.grounded && styles.jurisdictionChipUnknown]}
-                testID="code-check-jurisdiction-chip"
-              >
-                {grounding.grounded
-                  ? <ShieldCheck size={12} color={Colors.primary} strokeWidth={2} />
-                  : <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />}
-                <Text
-                  style={[styles.jurisdictionChipText, !grounding.grounded && styles.jurisdictionChipTextUnknown]}
+              <>
+                <View
+                  style={[styles.jurisdictionChip, !grounding.grounded && styles.jurisdictionChipUnknown]}
+                  testID="code-check-jurisdiction-chip"
                 >
-                  {grounding.chipLabel}
-                </Text>
-              </View>
+                  {grounding.grounded
+                    ? <ShieldCheck size={12} color={Colors.primary} strokeWidth={2} />
+                    : <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />}
+                  <Text
+                    style={[styles.jurisdictionChipText, !grounding.grounded && styles.jurisdictionChipTextUnknown]}
+                  >
+                    {grounding.chipLabel}
+                  </Text>
+                </View>
+                <ViewerLinks links={grounding.viewerLinks} testID="code-check-viewer-links" />
+              </>
+            ) : null}
+            {/* And what of HIS OWN record goes into it. Verbatim from
+                inspectionHistoryFactsFor — the same string the prompt carries.
+                Shown before the run so he knows whether this answer has any of
+                his evidence in it, and it says "none" plainly when it does not. */}
+            {city.trim() && stateCode.trim() ? (
+              <InspectionHistoryChip
+                grounding={inspectionGrounding}
+                testID="code-check-inspection-history-chip"
+              />
             ) : null}
 
             <Text style={styles.label}>Category</Text>
@@ -1293,6 +1444,19 @@ Never invent a section number you are unsure of — leave section empty and desc
               </ScrollView>
             )}
 
+            {/* What this roadmap stands on. The Roadmap tab had NO grounding
+                chip and NO recall chip of any kind — the three on this screen
+                all belong to the code-check form, the plan review and the
+                code-check result — while it rendered model-invented lead times
+                as dates. Same renderer as Code Check, so his file cannot be
+                described two ways on one screen. */}
+            {roadmapProject ? (
+              <InspectionHistoryChip
+                grounding={roadmapInspectionGrounding}
+                testID="roadmap-inspection-history-chip"
+              />
+            ) : null}
+
             {roadmapProject && !roadmap ? (
               /* Generate button (no roadmap yet) */
               <>
@@ -1388,6 +1552,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                       <RoadmapPermitRow
                         key={p.id}
                         permit={p}
+                        lead={roadmapLeadFor(toPermitType(p.type), p.leadTimeDays)}
                         onCycleStatus={() => {
                           const next: RoadmapPermit['status'][] = ['needed', 'applied', 'approved'];
                           const idx = next.indexOf(p.status);
@@ -1447,13 +1612,19 @@ Never invent a section number you are unsure of — leave section empty and desc
                         ? roadmapTasks.find((t) => t.id === insp.gatesTaskId)
                         : null;
                       const gatingLabel = gatingTask?.title ?? insp.gatesTaskHint ?? '—';
-                      const bookBy = bookByDate(insp, roadmapTasks, roadmapStartDate);
+                      const inspLead = roadmapInspectionLeadFor(insp.leadTimeDays);
+                      const bookBy = bookByDate(insp, roadmapTasks, roadmapStartDate, {
+                        days: inspLead.lead.days,
+                        hardDate: inspLead.hardDate,
+                        sourceLabel: inspLead.sourceLabel,
+                      });
                       return (
                         <RoadmapInspectionRow
                           key={insp.id}
                           inspection={insp}
                           gatingLabel={gatingLabel}
                           bookBy={bookBy}
+                          lead={inspLead}
                           canRecordResult={!!roadmapProject?.schedule}
                           onCycleStatus={() => {
                             // Cycle only the pre-result states (pending ↔ scheduled).
@@ -1546,6 +1717,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                 it was not grounded in the first place. Rendered only once a
                 project is chosen, since the jurisdiction comes from it. */}
             {planProject ? (
+              <>
               <View
                 style={[styles.jurisdictionChip, !planGrounding.grounded && styles.jurisdictionChipUnknown]}
                 testID="plan-review-jurisdiction-chip"
@@ -1559,6 +1731,8 @@ Never invent a section number you are unsure of — leave section empty and desc
                   {planGrounding.chipLabel}
                 </Text>
               </View>
+              <ViewerLinks links={planGrounding.viewerLinks} testID="plan-review-viewer-links" />
+              </>
             ) : null}
 
             {/* Project picker */}
@@ -1697,7 +1871,206 @@ Never invent a section number you are unsure of — leave section empty and desc
         location={addressLine}
         scenario={scenario}
         grounding={resultGrounding}
+        jurisdiction={resultJurisdiction}
+        inspectionGrounding={resultInspectionGrounding}
       />
+    </View>
+  );
+}
+
+/**
+ * "Open the governing code" — one tap from the chip to the edition that
+ * actually governs this address, in ICC's free, no-account viewer.
+ *
+ * This is the whole of the rung-3 upgrade and it is deliberately small. It
+ * makes no new factual claim: the link is built from a volume id that was
+ * fetched and whose title was recorded (utils/codeJurisdiction.ts,
+ * `iccVolumeId`), and it points at the VOLUME, never at a section. The label
+ * is ICC's own title for that volume, so the words on the button are the words
+ * on the page it opens.
+ *
+ * It does NOT say "look up the section" and it must never be made to: the
+ * section numbers on this screen are model recall, /content/<id>/<anything>
+ * returns HTTP 200 whether the chapter exists or not, and a section-level link
+ * built from recall is the "real URL beside a recalled claim" failure that
+ * utils/codeJurisdiction.ts's header is a monument to.
+ */
+function ViewerLinks({ links, testID }: { links: { label: string; url: string }[]; testID: string }) {
+  const styles = useThemedStyles(makeStyles);
+  if (links.length === 0) return null;
+  return (
+    <View style={styles.viewerLinkWrap} testID={testID}>
+      {links.map((l) => (
+        <TouchableOpacity
+          key={l.url}
+          style={styles.viewerLinkBtn}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${l.label} in the free ICC code viewer`}
+          onPress={() => {
+            // EVERY viewer tap goes through viewerUrlToOpen, which re-parses
+            // the URL and rebuilds it from the volume id. A section or chapter
+            // appended anywhere upstream cannot survive that, and a refused
+            // URL opens nothing rather than opening the wrong thing.
+            const href = viewerUrlToOpen(l.url);
+            if (!href) {
+              showAlert('Cannot open', 'This code link could not be opened.');
+              return;
+            }
+            void Linking.openURL(href).catch(() =>
+              showAlert('Cannot open', 'This code link could not be opened.'),
+            );
+          }}
+        >
+          <ExternalLink size={11} color={Colors.primary} strokeWidth={2} />
+          <Text style={styles.viewerLinkText} numberOfLines={2}>Open {l.label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The rung ONE citation is standing on, rendered so it reads at a glance.
+ *
+ * Colour carries the rung and the words repeat it, because colour alone is not
+ * an accessible signal and a contractor reading this in the sun is not reading
+ * carefully: green = MAGE holds the government's own text, blue = a government
+ * document names the section, amber = recall. Amber is the same warning tone
+ * the model-recall chip above the list already uses, on purpose — the two are
+ * making the same admission and must not look like different severities.
+ */
+function RungBadge({ ev, testID }: { ev: CitationEvidence; testID: string }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
+  const tone =
+    ev.rung === 'amended' ? styles.rungAmended
+      : ev.rung === 'named' ? styles.rungNamed
+        : styles.rungRecall;
+  const textTone =
+    ev.rung === 'amended' ? styles.rungAmendedText
+      : ev.rung === 'named' ? styles.rungNamedText
+        : styles.rungRecallText;
+  const iconColor =
+    ev.rung === 'amended' ? themeColors.successLabel
+      : ev.rung === 'named' ? Colors.primary
+        : themeColors.warningLabel;
+  const Icon = ev.rung === 'amended' ? Landmark : ev.rung === 'named' ? ShieldCheck : AlertTriangle;
+
+  return (
+    <View style={styles.rungWrap} testID={testID}>
+      <View style={[styles.rungBadge, tone]}>
+        <Icon size={10} color={iconColor} strokeWidth={2.25} />
+        <Text style={[styles.rungBadgeText, textTone]}>{ev.badge}</Text>
+      </View>
+      <Text style={styles.rungDetail}>{ev.detail}</Text>
+
+      {ev.quote ? (
+        <View style={styles.rungQuote}>
+          <Text style={styles.rungQuoteText}>{ev.quote}</Text>
+          {/* A cut quote must never be able to pass for the whole amendment. */}
+          <Text style={styles.rungQuoteNote}>
+            {ev.quoteComplete
+              ? `\u2014 ${ev.sourceLabel}, in full.`
+              : `\u2014 ${ev.sourceLabel}. This is the opening of the amendment, not all of it \u2014 open the register for the rest.`}
+          </Text>
+        </View>
+      ) : null}
+
+      {ev.sourceUrl ? (
+        <TouchableOpacity
+          style={styles.rungSourceBtn}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${ev.sourceLabel} on the authority's own site`}
+          onPress={() => {
+            void Linking.openURL(ev.sourceUrl as string).catch(() =>
+              showAlert('Cannot open', 'This citation link could not be opened.'),
+            );
+          }}
+        >
+          <ExternalLink size={11} color={Colors.primary} strokeWidth={2} />
+          <Text style={styles.rungSourceText}>Read {ev.sourceLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+// ── Provenance chips ───────────────────────────────────────────────────
+
+/**
+ * The contractor's OWN inspection record, said out loud.
+ *
+ * `chipLabel` is taken VERBATIM from inspectionHistoryFactsFor — the same
+ * counts the prompt block carries — so the chip physically cannot claim a
+ * record the model was never handed. `showQuotes` prints the inspectors' words
+ * unedited, in quotation marks, with the date and permit number: a correction
+ * note is evidence, and paraphrasing it into a "requirement" is the one thing
+ * this feature must never do.
+ *
+ * This is ADDED disclosure. It sits beside the jurisdiction chip and the
+ * model-recall chip and replaces neither.
+ */
+function InspectionHistoryChip({
+  grounding,
+  testID,
+  showQuotes,
+}: {
+  grounding: InspectionHistoryGrounding;
+  testID: string;
+  showQuotes?: boolean;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
+  const grounded = grounding.grounded;
+  return (
+    <View style={styles.historyChipWrap} testID={testID}>
+      <View style={[styles.historyChip, !grounded && styles.historyChipEmpty]}>
+        {grounded
+          ? <ClipboardList size={12} color={Colors.primary} strokeWidth={2} />
+          : <FileQuestion size={12} color={themeColors.textMuted} strokeWidth={2} />}
+        <Text style={[styles.historyChipText, !grounded && styles.historyChipTextEmpty]}>
+          {grounding.chipLabel}
+        </Text>
+      </View>
+      {showQuotes && grounding.quotes.length > 0 ? (
+        <View style={styles.historyQuotes} testID={`${testID}-quotes`}>
+          {grounding.quotes.map((q) => (
+            <View key={q.line} style={styles.historyQuoteRow}>
+              <Quote size={11} color={Colors.primary} strokeWidth={2} />
+              <Text style={styles.historyQuote}>{q.line}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * A lead time with its provenance attached. NEVER a bare integer.
+ *
+ * The text comes from leadTimeChipText in utils/automation/leadTimeLibrary.ts,
+ * which is the same function components/automation/AutoScheduleReviewSheet.tsx
+ * renders, so "AI estimate · confirm" means the identical thing on both
+ * screens. The warning treatment is reserved for `ai_estimate` — the same
+ * `isAiEstimate` distinction that sheet already draws.
+ */
+function LeadProvenanceChip({
+  resolved,
+  testID,
+}: {
+  resolved: ResolvedRoadmapLead;
+  testID: string;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const isAiEstimate = resolved.lead.source === 'ai_estimate';
+  return (
+    <View style={[styles.leadChip, isAiEstimate && styles.leadChipEstimate]} testID={testID}>
+      <Text style={[styles.leadChipText, isAiEstimate && styles.leadChipTextEstimate]}>
+        {resolved.chipLabel}
+      </Text>
     </View>
   );
 }
@@ -1712,11 +2085,16 @@ const PERMIT_STATUS_COLORS: Record<RoadmapPermit['status'], string> = {
 
 function RoadmapPermitRow({
   permit,
+  lead,
   onCycleStatus,
   onAddToPermits,
   onOpenInTracker,
 }: {
   permit: RoadmapPermit;
+  /** Resolved, never `permit.leadTimeDays` read raw. The row prints the number
+   *  from `lead`, so the figure on screen and its provenance chip are the same
+   *  value — the model's authored integer cannot leak past the resolution. */
+  lead: ResolvedRoadmapLead;
   onCycleStatus: () => void;
   onAddToPermits: () => void;
   onOpenInTracker: () => void;
@@ -1728,8 +2106,9 @@ function RoadmapPermitRow({
         <View style={{ flex: 1 }}>
           <Text style={styles.roadmapRowTitle}>{permit.title}</Text>
           <Text style={styles.roadmapRowMeta}>
-            {permit.whoPulls.toUpperCase()} pulls · {permit.leadTimeDays}d lead
+            {permit.whoPulls.toUpperCase()} pulls
           </Text>
+          <LeadProvenanceChip resolved={lead} testID={`permit-lead-${permit.id}`} />
         </View>
         <TouchableOpacity
           onPress={onCycleStatus}
@@ -1784,6 +2163,7 @@ function RoadmapInspectionRow({
   inspection,
   gatingLabel,
   bookBy,
+  lead,
   canRecordResult,
   onCycleStatus,
   onMarkPassed,
@@ -1792,14 +2172,20 @@ function RoadmapInspectionRow({
   inspection: RoadmapInspection;
   gatingLabel: string;
   bookBy: Date | null;
+  /** The lead `bookBy` was computed from. Rendered beside the date so a
+   *  book-by day can never appear without saying where its lead came from. */
+  lead: ResolvedRoadmapLead;
   canRecordResult: boolean;
   onCycleStatus: () => void;
   onMarkPassed: () => void;
   onMarkFailed: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+  // An `ai_estimate` lead gets a tilde on the DATE too, not only on the chip.
+  // "Book by: Sep 20" and "Book by: ~Sep 20" are different promises, and the
+  // second one is the true one when the lead behind it is a guess.
   const bookByStr = bookBy
-    ? bookBy.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    ? `${lead.hardDate ? '' : '~'}${bookBy.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : '—';
   // Pass/FAIL result buttons appear once the inspection is scheduled (there is a
   // committed schedule task to release / keep blocked). Marking a result opens
@@ -1814,6 +2200,7 @@ function RoadmapInspectionRow({
           <Text style={styles.roadmapRowMeta}>
             Gates: {gatingLabel} · Book by: {bookByStr}
           </Text>
+          <LeadProvenanceChip resolved={lead} testID={`insp-lead-${inspection.id}`} />
         </View>
         <TouchableOpacity
           onPress={onCycleStatus}
@@ -1951,7 +2338,7 @@ function LoadingModal({ visible, subject }: { visible: boolean; subject?: string
 type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 
 function ResultModal({
-  visible, result, onClose, location, scenario, grounding,
+  visible, result, onClose, location, scenario, grounding, jurisdiction, inspectionGrounding,
 }: {
   visible: boolean;
   result: CodeCheckResult | null;
@@ -1964,11 +2351,34 @@ function ResultModal({
    *  so the detail is answered against the same edition as the summary, and
    *  the chip describes the run rather than the current form state. */
   grounding: JurisdictionGrounding | null;
+  /** The resolved jurisdiction SENT with this result, for the per-citation
+   *  ladder. Snapshotted for the same reason `grounding` is. */
+  jurisdiction: ResolvedCodeJurisdiction | null;
+  /** The contractor's own inspection record SENT with this result. Snapshotted
+   *  for the same reason, and rendered WITH the inspectors' verbatim notes:
+   *  the answer above may reason about them, and he has to be able to read the
+   *  words themselves rather than the model's account of them. */
+  inspectionGrounding: InspectionHistoryGrounding | null;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<SectionKey | null>('codes');
+  /**
+   * The rung each citation stands on, computed from the jurisdiction that was
+   * SENT with this result. Index-aligned with result.applicableCodes.
+   *
+   * citationEvidenceFor never contradicts the model and never confirms it
+   * beyond the evidence: no matching government record means "MAGE has no
+   * record of this section", not "this section does not exist".
+   */
+  const evidence = useMemo<CitationEvidence[]>(() => {
+    if (!result || !jurisdiction) return [];
+    return result.applicableCodes.map((c) =>
+      citationEvidenceFor(jurisdiction, c.code, c.section ?? ''),
+    );
+  }, [result, jurisdiction]);
+  const rungSummary = useMemo(() => rungSummaryLine(evidence), [evidence]);
   /** Which code row is open, plus its lazily-fetched detail. Rendered INLINE:
    *  iOS refuses to present a second Modal over this one (see the openDelay
    *  workaround in runCodeCheck), so a detail sheet would silently never
@@ -2065,6 +2475,16 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               </Text>
             </View>
           ) : null}
+          {grounding ? (
+            <ViewerLinks links={grounding.viewerLinks} testID="code-check-viewer-links-result" />
+          ) : null}
+          {inspectionGrounding ? (
+            <InspectionHistoryChip
+              grounding={inspectionGrounding}
+              testID="code-check-inspection-history-result-chip"
+              showQuotes
+            />
+          ) : null}
 
           {result.summary ? (
             <View style={[styles.resultCard, styles.resultSummaryCard]}>
@@ -2095,11 +2515,19 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                   From model recall — verify with your AHJ before relying on a section number
                 </Text>
               </View>
+              {/* The ladder's headline count. It sits BELOW the recall chip and
+                  never replaces it: some citations are now backed by a
+                  government document and most still are not, and the chip is
+                  the one that tells the truth about the rest. */}
+              {rungSummary ? (
+                <Text style={styles.rungSummary} testID="code-check-rung-summary">{rungSummary}</Text>
+              ) : null}
               <Text style={styles.codeTapHint}>Tap a code for what it requires and what the inspector checks.</Text>
               {result.applicableCodes.map((c, i) => {
                 const key = codeDetailKey(c);
                 const isOpen = openCode === key;
                 const st = details[key];
+                const ev = evidence[i];
                 return (
                   <View key={i} style={styles.codeRow}>
                     <TouchableOpacity
@@ -2117,6 +2545,11 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                       </View>
                       <Text style={styles.codeReq}>{c.requirement}</Text>
                     </TouchableOpacity>
+
+                    {/* WHICH RUNG THIS ONE CITATION IS ON. Always rendered —
+                        including for plain recall — because a ladder you can
+                        only see when the news is good is not a ladder. */}
+                    {ev ? <RungBadge ev={ev} testID={`code-check-rung-${i}`} /> : null}
 
                     {isOpen && (
                       <View style={styles.codeDetail}>
@@ -2347,6 +2780,35 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     ...Type.caption1, fontWeight: '600' as const, color: themeColors.text, flex: 1, lineHeight: 16,
   },
   jurisdictionChipTextUnknown: { color: themeColors.warningLabel },
+  // The contractor's OWN record. Visually a sibling of jurisdictionChip and
+  // never a replacement for it: this screen's honesty layer only ever grows.
+  // The empty state is muted, not warning-coloured — "you have no record here"
+  // is a neutral fact about his file, not a hazard.
+  historyChipWrap: { gap: 6, marginTop: 10 },
+  historyChip: {
+    ...cardSurface(themeColors, { radius: 'md', pad: 'none' }),
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8,
+  },
+  historyChipEmpty: { backgroundColor: themeColors.surface, borderStyle: 'dashed' as const },
+  historyChipText: {
+    ...Type.caption1, fontWeight: '600' as const, color: themeColors.text, flex: 1, lineHeight: 16,
+  },
+  historyChipTextEmpty: { color: themeColors.textMuted, fontWeight: '500' as const },
+  historyQuotes: { gap: 6, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: Colors.primary },
+  historyQuoteRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 6 },
+  historyQuote: {
+    ...Type.caption1, color: themeColors.text, flex: 1, lineHeight: 17, fontStyle: 'italic' as const,
+  },
+  // A lead time, never bare. Mirrors the auto-schedule review sheet's chip.
+  leadChip: {
+    ...cardSurface(themeColors, { radius: 'sm', pad: 'none' }),
+    alignSelf: 'flex-start' as const, marginTop: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  leadChipEstimate: { backgroundColor: themeColors.warningSoft, borderColor: 'transparent' },
+  leadChipText: { ...Type.caption2, fontWeight: '600' as const, color: themeColors.textMuted },
+  leadChipTextEstimate: { color: themeColors.warningLabel },
   chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
@@ -2489,6 +2951,59 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
   // AI-F3 recall chip — warning tone (theme tokens), never the primary blue
   // the code rows use, so "from model recall" cannot read as a citation.
+  // ── THE LADDER ────────────────────────────────────────────────────
+  // Green = MAGE holds the government's own amendment text. Primary = a
+  // government document names the section. Amber = model recall, and it is
+  // the SAME amber as the recall chip above the list on purpose: the two are
+  // making the same admission and must not look like different severities.
+  viewerLinkWrap: {
+    flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: 6,
+  },
+  viewerLinkBtn: {
+    ...cardSurface(themeColors, { radius: 'sm', pad: 'none' }),
+    borderColor: Colors.primary + '40',
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5,
+    paddingHorizontal: 9, paddingVertical: 6,
+    flexShrink: 1,
+  },
+  viewerLinkText: {
+    ...Type.caption2, fontWeight: '700' as const, color: Colors.primary, flexShrink: 1,
+  },
+  rungWrap: { marginTop: 8, gap: 6 },
+  rungBadge: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5,
+    alignSelf: 'flex-start' as const,
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: Tokens.radius.sm,
+  },
+  rungAmended: { backgroundColor: themeColors.successSoft },
+  rungNamed: { backgroundColor: themeColors.surfaceAlt },
+  rungRecall: { backgroundColor: themeColors.warningSoft },
+  rungBadgeText: { ...Type.caption2, fontWeight: '700' as const, letterSpacing: 0.3 },
+  rungAmendedText: { color: themeColors.successLabel },
+  rungNamedText: { color: Colors.primary },
+  rungRecallText: { color: themeColors.warningLabel },
+  rungDetail: {
+    ...Type.caption2, color: themeColors.textMuted, lineHeight: 15,
+  },
+  rungQuote: {
+    borderLeftWidth: 2, borderLeftColor: themeColors.successLabel,
+    paddingLeft: 9, gap: 4,
+  },
+  rungQuoteText: {
+    fontSize: Type.caption1.fontSize, color: themeColors.text, lineHeight: 17,
+  },
+  rungQuoteNote: {
+    ...Type.caption2, color: themeColors.textMuted, fontStyle: 'italic' as const, lineHeight: 14,
+  },
+  rungSourceBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5,
+    alignSelf: 'flex-start' as const,
+  },
+  rungSourceText: { ...Type.caption2, fontWeight: '700' as const, color: Colors.primary },
+  rungSummary: {
+    ...Type.caption2, color: themeColors.textMuted, marginBottom: 10, lineHeight: 15,
+  },
   recallChip: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
     paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10,

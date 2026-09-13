@@ -24,6 +24,8 @@
 //
 // Run: bun run scripts/validate-field-capture.ts
 
+import * as permitCodec from '../utils/permitInspectionHistory';
+
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -306,7 +308,12 @@ interface Inspection {
   id: string; name: string; scheduledFor: string; result: Result;
   notes?: string; inspectorName?: string; recordedAt: string;
 }
-interface PermitFns {
+// The codec used to be extracted from between sentinels in app/permits.tsx and
+// transpiled. It now lives in a PURE module (utils/permitInspectionHistory.ts)
+// and is IMPORTED, which is strictly stronger: this guard exercises the exact
+// bytes the app ships instead of a re-transpiled slice of a route file, and a
+// rename breaks the build here rather than reporting a missing sentinel.
+const permit = permitCodec as unknown as {
   decodePermitInspectionNotes: (raw: string | undefined | null) => { notes: string; inspections: Inspection[] };
   encodePermitInspectionNotes: (notes: string, rows: Inspection[]) => string | undefined;
   foldCurrentInspection: (args: {
@@ -315,11 +322,7 @@ interface PermitFns {
   }) => Inspection[];
   sortPermitInspections: (rows: Inspection[]) => Inspection[];
   inspectionHistorySummary: (rows: Inspection[]) => string | null;
-}
-const permit = loadRegion<PermitFns>(
-  'app/permits.tsx', 'permitInspectionCodec',
-  '{ decodePermitInspectionNotes, encodePermitInspectionNotes, foldCurrentInspection, sortPermitInspections, inspectionHistorySummary }',
-);
+};
 
 const insp = (over: Partial<Inspection> = {}): Inspection => ({
   id: 'i1', name: 'Footing', scheduledFor: '2026-05-04', result: 'failed',
@@ -396,7 +399,7 @@ eq('notes with no history are stored as plain text',
 console.log('\npermits — booking the next inspection cannot erase the last:');
 
 const NEW_ID = () => 'generated-id';
-const fold = (over: Partial<Parameters<PermitFns['foldCurrentInspection']>[0]> = {}) =>
+const fold = (over: Partial<Parameters<typeof permit['foldCurrentInspection']>[0]> = {}) =>
   permit.foldCurrentInspection({
     inspections: [], status: 'inspection_failed', inspectionDate: '2026-05-04',
     inspectionNotes: 'Rebar clearance short at the NE corner.', phase: 'Foundation',

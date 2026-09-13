@@ -116,3 +116,54 @@ export const LEAD_TIME_KINDS: LeadTimeKind[] = [
   'rfi_response',
   'material_lead',
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// ONE chip idiom, so two surfaces cannot describe the same lead differently
+// ─────────────────────────────────────────────────────────────────────
+//
+// components/automation/AutoScheduleReviewSheet.tsx got here first and owned
+// these three pieces privately. Then the Construction AI Roadmap tab had to
+// render provenance too (it had been printing `{permit.leadTimeDays}d lead`
+// bare, and turning that same unlabelled integer into a red "book-by date
+// passed" banner). Copying the sheet's wording would have been a SECOND idiom
+// for one concept — a contractor seeing "AI estimate · confirm" on one screen
+// and something else on the other cannot tell whether they mean the same
+// thing. So the wording moved down here, into the module that owns the
+// provenance union itself, and both surfaces read it.
+
+export const LEAD_TIME_SOURCE_LABEL: Record<LeadTimeSource, string> = {
+  default: 'Typical',
+  jurisdiction: 'Jurisdiction',
+  // Produced by utils/automation/learnedLeadTime.ts from the contractor's own
+  // dated appliedDate → approvedDate records. The ONLY source in this union
+  // that is his.
+  learned: 'Your record',
+  // An AI-sized guess grounded only in free-text location — NOT a jurisdiction
+  // fact. The chip says so and asks the contractor to confirm it.
+  ai_estimate: 'AI estimate',
+};
+
+export const LEAD_TIME_CONFIDENCE_LABEL: Record<LeadTimeConfidence, string> = {
+  low: 'low confidence',
+  med: 'medium confidence',
+  high: 'high confidence',
+};
+
+/**
+ * The lead, said out loud, with its provenance attached. NEVER a bare number.
+ *
+ * An `ai_estimate` renders with a tilde and an explicit "confirm" tail instead
+ * of a confidence phrase, because "low confidence" reads as a measurement that
+ * came out fuzzy and this is not a measurement at all.
+ *
+ * `detail` is an optional trailing clause the caller has EARNED — e.g. the
+ * observed range behind a learned value. It is appended, never substituted, so
+ * the source can never be dropped from the line.
+ */
+export function leadTimeChipText(lead: LeadTime, detail?: string): string {
+  const head = lead.source === 'ai_estimate'
+    ? `~${lead.days}d lead · ${LEAD_TIME_SOURCE_LABEL[lead.source]} · confirm`
+    : `${lead.days}d lead · ${LEAD_TIME_SOURCE_LABEL[lead.source]} · ${LEAD_TIME_CONFIDENCE_LABEL[lead.confidence]}`;
+  const tail = (detail ?? '').trim();
+  return tail ? `${head} · ${tail}` : head;
+}

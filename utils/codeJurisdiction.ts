@@ -50,6 +50,17 @@
 //   department". That is a shippable answer. The table is deliberately SMALL
 //   and cited; it is never padded for coverage.
 //
+// WHAT SITS ON TOP OF THIS TABLE
+//   utils/codeAmendments.ts turns a row here into the RUNG a single Code Check
+//   citation is standing on: whether MAGE holds the state's own amendment text
+//   for that section, merely has a government document naming it, knows only
+//   the edition, or knows nothing. This table is the floor of that ladder —
+//   rung 3, "we know which edition governs" — and `iccVolumeId` below is what
+//   turns rung 3 from advice into a link. Read that module's header before
+//   adding anything that serves code TEXT: the licensing analysis lives there,
+//   and the short version is that a state regulation may be reproduced and a
+//   model code may not.
+//
 // ONE RENDERER, SO THE CHIP AND THE PROMPT CANNOT DRIFT
 //   groundingFactsFor is the ONLY place the facts are worded. It returns the
 //   exact `promptBlock` that goes to the model AND the exact `chipLabel` the
@@ -95,6 +106,76 @@ export interface AdoptedCode {
    * makes it.
    */
   sourceUrl?: string;
+  /**
+   * The volume id of this code in ICC's FREE Digital Codes viewer, so the app
+   * can hand a contractor a one-tap link to the edition that actually governs
+   * his address instead of telling him to go and find it.
+   *
+   * THE RULES, ALL THREE OF THEM LOAD-BEARING.
+   *
+   * 1. VOLUME LEVEL ONLY. Never a chapter, never a section. The /content/
+   *    route validates the volume id and NOTHING below it — re-measured
+   *    2026-09-13, /content/IBC2021P1/chapter-99-not-a-real-chapter returns
+   *    HTTP 200 AND the real volume's title, "2021 International Building
+   *    Code (IBC)" — so a link built from a recalled section number opens
+   *    cleanly, passes the title oracle in rule 2, and points at nothing.
+   *    NEITHER CHECK IN THIS FILE CAN CATCH THAT ONE; only the id itself can.
+   *    `iccViewerUrl` below refuses anything that is not a bare volume id —
+   *    no slash, no dot, no space — and that regex is the only thing standing
+   *    between this feature and a fabrication machine. Do not route around it,
+   *    and do not add a sibling that takes a section number.
+   *
+   * 2. THE ID MUST HAVE BEEN FETCHED, LIKE EVERY OTHER FACT IN THIS FILE.
+   *    /content/<id> serves a server-rendered <title> naming the volume, and
+   *    an id that does not resolve serves the generic "Digital Codes" shell.
+   *    Measured 2026-09-13 (curl, Safari UA): IECC2021P1 → 200 "2021
+   *    International Energy Conservation Code (IECC)"; IECC2015P1 → 404
+   *    "Digital Codes"; the invented NOTACODE9999 → 404 "Digital Codes".
+   *    An earlier pass recorded that a wrong id answers 200 rather than 404;
+   *    it does not today, and BOTH signals are therefore checked — a 404 is a
+   *    dead link and the generic title is a dead id. The title is the one
+   *    recorded, because it also catches the far worse case: an id that
+   *    resolves to a REAL volume of the wrong edition, which no status code
+   *    can distinguish from a right one. `iccVolumeTitle` holds what came
+   *    back, verbatim, and verify-code-sources.ts re-fetches and re-compares
+   *    it. Do not assume the shape of an id either: every I-Code volume here
+   *    ends `P1`, and Georgia's 2015 IECC is the bare `IECC2015` — the P1
+   *    form of it 404s. Fetch, do not pattern-match.
+   *
+   *    Every id in this table was fetched by hand on 2026-09-13 and answered
+   *    200 with a title naming the row's edition: 15 distinct volumes. (It was
+   *    16 until Florida's FLBC2023P1 was withdrawn under rule 3 below.)
+   *
+   * 3. ONLY WHERE THE VOLUME IS THIS ROW'S CLAIM, AND ONLY WHERE THE CLAIM IS
+   *    ONE BOOK. An entry with no `name` is claiming the model code itself
+   *    ("IBC 2021"), and the ICC volume IS that claim. An entry WITH a `name`
+   *    is claiming a locally-titled code, and it may only carry a volume when
+   *    ICC publishes THAT NAME as ONE VOLUME. New York's RCNYS does: ICC's
+   *    own title is "2025 Residential Code of New York State (2025 RCNYS)",
+   *    the row's name and the book are the same object.
+   *
+   *    FLORIDA DOES NOT, AND THIS RULE PREVIOUSLY CITED IT AS THE EXAMPLE OF
+   *    BEING SATISFIED. That was wrong and it shipped a wrong-book link. ICC
+   *    publishes the FBC as a FAMILY — measured 2026-09-13 (curl, Safari UA):
+   *    FLBC2023P1 "…, Building, Eighth Edition" (200), FLRC2023P1 "…,
+   *    Residential, …" (200), FLEC2023P1 "…, Energy Conservation, …" (200),
+   *    FLEBC2023P1 "…, Existing Building, …" (200), FLBC2023P2 (200). The
+   *    row's name, "Florida Building Code, 8th Edition (2023)", is an umbrella
+   *    over all of them, so no single id is what the row claims and the row
+   *    now carries none. This is the same treatment New York's Uniform Code
+   *    umbrella already got. An umbrella gets no link; the way to give Florida
+   *    a link is to split the row into the volumes the state actually adopts,
+   *    each read off a page that says so.
+   *
+   *    Ohio's "2024 Ohio Building Code" and Denver's "2025 Denver Building and
+   *    Fire Code" are not the 2021/2024 IBC and must not be linked to it.
+   *    Linking a contractor to the model code while the chip names his local
+   *    code would be the edition error this table exists to prevent, wearing
+   *    a URL.
+   */
+  iccVolumeId?: string;
+  /** The <title> ICC's viewer returned for `iccVolumeId`, verbatim. */
+  iccVolumeTitle?: string;
 }
 
 interface BaseEntry {
@@ -252,7 +333,7 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
       // when it does, re-find it from dos.ny.gov's laws-and-regulations page
       // rather than deleting the claim.
       { family: 'LOCAL', edition: '2025', name: '2025 Uniform Fire Prevention and Building Code of New York State (built on the 2024 I-Codes)', sourceUrl: 'https://dos.ny.gov/19-nycrr-part-1219' },
-      { family: 'LOCAL', edition: '2025', name: '2025 Energy Conservation Construction Code of New York State', sourceUrl: 'https://dos.ny.gov/system/files/documents/2026/02/19-nycrr-part-1240.pdf' },
+      { family: 'LOCAL', edition: '2025', name: '2025 Energy Conservation Construction Code of New York State', sourceUrl: 'https://dos.ny.gov/system/files/documents/2026/02/19-nycrr-part-1240.pdf', iccVolumeId: 'NYSECC2025P1', iccVolumeTitle: '2025 Energy Conservation Construction Code of New York State (2025 ECCCNYS)' },
       // THE RESIDENTIAL VOLUME, added 2026-09-12. The note below used to say the
       // state "does not publish separate IBC/IRC/IECC edition years" and left it
       // there, which read as "New York publishes nothing but the Uniform Code
@@ -275,7 +356,7 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
       // reference. It is an ARCHIVE page — it also carries the 2020 and earlier
       // notices, so read the section headed by the 25 July 2025 adoption, not
       // the first match for "Residential Code of New York State" on the page.
-      { family: 'LOCAL', edition: '2025', name: '2025 Residential Code of New York State', sourceUrl: 'https://dos.ny.gov/notice-adoption' },
+      { family: 'LOCAL', edition: '2025', name: '2025 Residential Code of New York State', sourceUrl: 'https://dos.ny.gov/notice-adoption', iccVolumeId: 'NYSRC2025P1', iccVolumeTitle: '2025 Residential Code of New York State (2025 RCNYS)' },
     ],
     notes: 'The 2025 Uniform Code replaced the 2020 edition on 31 December 2025. The state states its basis as the 2024 ICC books collectively and does not publish separate IBC/IRC/IECC edition years, so none are claimed here — but it DOES publish separately-titled New York volumes under that umbrella, and the one a one- or two-family job is built to is the 2025 Residential Code of New York State (19 NYCRR § 1220.2(a); § 1219.2(a)(8) names the publication, July 2025). Which IRC edition sits under the RCNYS is still not stated by the state, so it is not claimed. NEW YORK CITY IS A PARTIAL, NOT A TOTAL, EXEMPTION: it writes its own Construction Codes in place of the Uniform Code, but the Energy Code is statewide and NYC enforces an approved, more-restrictive LOCAL version of it rather than being outside it. ONE LARGE PROVISION IS ON THE BOOKS BUT UNENFORCEABLE: the 2025 prohibition on fossil-fuel equipment and building systems in new buildings (19 NYCRR § 1240.6 and Subpart 1229-2) is suspended by court order and is neither effective nor enforceable — do not price a new build all-electric on the assumption that it applies.',
     sourceUrl: 'https://dos.ny.gov/division-building-standards-and-codes-frequently-asked-questions',
@@ -291,10 +372,10 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     stateName: 'Pennsylvania',
     authorityName: 'Pennsylvania Department of Labor and Industry, Bureau of Occupational and Industrial Safety (Uniform Construction Code)',
     codes: [
-      { family: 'IBC', edition: '2021' },
-      { family: 'IRC', edition: '2021' },
-      { family: 'IECC', edition: '2021' },
-      { family: 'IEBC', edition: '2021' },
+      { family: 'IBC', edition: '2021', iccVolumeId: 'IBC2021P1', iccVolumeTitle: '2021 International Building Code (IBC)' },
+      { family: 'IRC', edition: '2021', iccVolumeId: 'IRC2021P1', iccVolumeTitle: '2021 International Residential Code (IRC)' },
+      { family: 'IECC', edition: '2021', iccVolumeId: 'IECC2021P1', iccVolumeTitle: '2021 International Energy Conservation Code (IECC)' },
+      { family: 'IEBC', edition: '2021', iccVolumeId: 'IEBC2021P1', iccVolumeTitle: '2021 International Existing Building Code (IEBC)' },
     ],
     notes: "Pennsylvania's Uniform Construction Code moved to the 2021 I-Codes on 1 January 2026. Verified against the binding regulation (34 Pa. Code § 403.21) because the department's own landing page still describes the superseded 2018 adoption. No NEC edition is claimed — the state reaches it through the adopted I-Codes rather than listing one.",
     sourceUrl: 'https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/034/chapter403/s403.21.html',
@@ -305,8 +386,8 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     stateName: 'Washington',
     authorityName: 'Washington State Building Code Council (SBCC)',
     codes: [
-      { family: 'IBC', edition: '2021' },
-      { family: 'IRC', edition: '2021', sourceUrl: 'https://app.leg.wa.gov/WAC/default.aspx?cite=51-51-003' },
+      { family: 'IBC', edition: '2021', iccVolumeId: 'IBC2021P1', iccVolumeTitle: '2021 International Building Code (IBC)' },
+      { family: 'IRC', edition: '2021', sourceUrl: 'https://app.leg.wa.gov/WAC/default.aspx?cite=51-51-003', iccVolumeId: 'IRC2021P1', iccVolumeTitle: '2021 International Residential Code (IRC)' },
       // The SECTION text (WAC 51-11C-10100) only ever says "Washington State
       // Energy Code" — the words "International Energy Conservation Code"
       // appear in the CHAPTER heading, which is why this cites the chapter and
@@ -324,6 +405,18 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     stateName: 'Florida',
     authorityName: 'Florida Building Commission',
     codes: [
+      // NO VOLUME ID, DELIBERATELY. See rule 3 below. "Florida Building Code,
+      // 8th Edition (2023)" is an umbrella over at least five separately
+      // published ICC volumes, not one book — re-measured 2026-09-13 (curl,
+      // Safari UA): FLBC2023P1 → 200 "2023 Florida Building Code, Building,
+      // Eighth Edition"; FLRC2023P1 → 200 "… Residential …"; FLEC2023P1 → 200
+      // "… Energy Conservation …"; FLEBC2023P1 → 200 "… Existing Building …";
+      // FLBC2023P2 → 200 (a second Building part). This row carried
+      // FLBC2023P1, the COMMERCIAL building volume, so a Florida residential
+      // remodeler tapping an R310 egress citation landed in the wrong book
+      // under a green badge. Splitting this into per-volume entries is the
+      // right answer, but each one is an ADOPTION claim and must be read off a
+      // page that makes it; until somebody does that, no link.
       { family: 'LOCAL', edition: '8th Edition (2023)', name: 'Florida Building Code, 8th Edition (2023)' },
     ],
     notes: 'Statewide code — local jurisdictions enforce it rather than writing their own. Effective 31 December 2023.',
@@ -363,9 +456,24 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     stateName: 'Georgia',
     authorityName: 'Georgia Department of Community Affairs, Office of Construction Codes and Industrialized Buildings',
     codes: [
-      { family: 'IBC', edition: '2024' },
-      { family: 'IRC', edition: '2024' },
-      { family: 'IECC', edition: '2015' },
+      { family: 'IBC', edition: '2024', iccVolumeId: 'IBC2024P1', iccVolumeTitle: '2024 International Building Code (IBC)' },
+      { family: 'IRC', edition: '2024', iccVolumeId: 'IRC2024P1', iccVolumeTitle: '2024 International Residential Code (IRC)' },
+      // THE ID HAS NO `P1`, AND THAT IS THE POINT OF FETCHING IT. Every other
+      // I-Code volume in this table ends P1, so recall writes `IECC2015P1` —
+      // which returns HTTP 404 and the generic "Digital Codes" shell (measured
+      // 2026-09-13). The volume Georgia's energy code actually lives in is the
+      // bare `IECC2015`, HTTP 200, title "2015 International Energy
+      // Conservation Code (IECC)". A recalled id that merely LOOKS like its
+      // neighbours is exactly the failure this field's rule 2 is about, and it
+      // is the row a Georgia contractor most needs — the energy code is the
+      // one that is nine years behind everything else on his job.
+      { family: 'IECC', edition: '2015', iccVolumeId: 'IECC2015', iccVolumeTitle: '2015 International Energy Conservation Code (IECC)' },
+      // NO VOLUME FOR THE NEC, HERE OR ANYWHERE IN THIS TABLE. The National
+      // Electrical Code is NFPA's, not ICC's, and ICC's viewer does not carry
+      // it: /content/NEC2023P1 and /content/NFPA70P1 both 404 (measured
+      // 2026-09-13). Thirteen entries in this table claim an NEC edition and
+      // not one can be linked. Leave them so rather than pointing an
+      // electrician at a book that is not the one he is inspected against.
       { family: 'NEC', edition: '2023' },
     ],
     notes: 'The energy code is NINE YEARS behind the rest of the family: Georgia\'s mandatory state minimum codes are the 2024 I-Codes and the 2023 NEC, but the energy code is still the 2015 IECC with Georgia supplements and amendments. The International Existing Building Code is PERMISSIVE in Georgia (2018 edition) rather than mandatory, so whether it applies to your renovation depends on the local jurisdiction adopting it.',
@@ -392,11 +500,11 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     stateName: 'New Jersey',
     authorityName: 'New Jersey Department of Community Affairs, Division of Codes and Standards (Uniform Construction Code)',
     codes: [
-      { family: 'IBC', edition: '2024' },
-      { family: 'IRC', edition: '2024' },
-      { family: 'IECC', edition: '2024' },
-      { family: 'IMC', edition: '2024' },
-      { family: 'IFGC', edition: '2024' },
+      { family: 'IBC', edition: '2024', iccVolumeId: 'IBC2024P1', iccVolumeTitle: '2024 International Building Code (IBC)' },
+      { family: 'IRC', edition: '2024', iccVolumeId: 'IRC2024P1', iccVolumeTitle: '2024 International Residential Code (IRC)' },
+      { family: 'IECC', edition: '2024', iccVolumeId: 'IECC2024P1', iccVolumeTitle: '2024 International Energy Conservation Code (IECC)' },
+      { family: 'IMC', edition: '2024', iccVolumeId: 'IMC2024P1', iccVolumeTitle: '2024 International Mechanical Code (IMC)' },
+      { family: 'IFGC', edition: '2024', iccVolumeId: 'IFGC2024P1', iccVolumeTitle: '2024 International Fuel Gas Code (IFGC)' },
       { family: 'NEC', edition: '2023' },
     ],
     notes: 'The 2024 I-Codes and the 2023 NEC became effective in the New Jersey Uniform Construction Code on 17 August 2026 — a very recent turnover, so a job permitted before that date is on the previous adoption. New Jersey does NOT use the International Plumbing Code: plumbing is the National Standard Plumbing Code (2024). The 2024 IECC governs low-rise residential only; commercial and other residential go to ASHRAE 90.1-2022.',
@@ -482,9 +590,9 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     matchCounty: ['philadelphia'],
     authorityName: 'Philadelphia Department of Licenses and Inspections (L&I)',
     codes: [
-      { family: 'IBC', edition: '2021' },
-      { family: 'IRC', edition: '2021' },
-      { family: 'IECC', edition: '2021' },
+      { family: 'IBC', edition: '2021', iccVolumeId: 'IBC2021P1', iccVolumeTitle: '2021 International Building Code (IBC)' },
+      { family: 'IRC', edition: '2021', iccVolumeId: 'IRC2021P1', iccVolumeTitle: '2021 International Residential Code (IRC)' },
+      { family: 'IECC', edition: '2021', iccVolumeId: 'IECC2021P1', iccVolumeTitle: '2021 International Energy Conservation Code (IECC)' },
       { family: 'NEC', edition: '2020', name: 'Philadelphia Electrical Code' },
       { family: 'IFC', edition: '2018', name: 'Philadelphia Fire Code' },
     ],
@@ -500,9 +608,9 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     codes: [
       { family: 'IBC', edition: '2021', name: '2021 Houston Construction Code' },
       { family: 'IRC', edition: '2021', name: '2021 Houston Construction Code' },
-      { family: 'IECC', edition: '2021' },
-      { family: 'IEBC', edition: '2021' },
-      { family: 'IFC', edition: '2021' },
+      { family: 'IECC', edition: '2021', iccVolumeId: 'IECC2021P1', iccVolumeTitle: '2021 International Energy Conservation Code (IECC)' },
+      { family: 'IEBC', edition: '2021', iccVolumeId: 'IEBC2021P1', iccVolumeTitle: '2021 International Existing Building Code (IEBC)' },
+      { family: 'IFC', edition: '2021', iccVolumeId: 'IFC2021P1', iccVolumeTitle: '2021 International Fire Code (IFC)' },
       { family: 'NEC', edition: '2023' },
     ],
     notes: 'Houston takes its mechanical and plumbing codes from IAPMO — the 2021 Uniform Mechanical Code and Uniform Plumbing Code with Houston amendments — NOT the ICC\'s IMC/IPC. The 2021 Houston Construction Code took effect 1 January 2024 (Ord. No. 2023-907). THE ELECTRICAL CODE IS A CYCLE AHEAD OF THE REST and is not Houston\'s choice: the 2023 NEC applies as a Texas state mandate from 1 September 2023, and the city publishes only administrative amendments to it.',
@@ -517,7 +625,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     codes: [
       { family: 'IBC', edition: '2024', name: '2024 Phoenix Building Construction Code' },
       { family: 'IRC', edition: '2024', name: '2024 Phoenix Building Construction Code' },
-      { family: 'IECC', edition: '2024' },
+      { family: 'IECC', edition: '2024', iccVolumeId: 'IECC2024P1', iccVolumeTitle: '2024 International Energy Conservation Code (IECC)' },
       { family: 'NEC', edition: '2023' },
     ],
     notes: 'Phoenix adopts BOTH the 2024 IPC and the 2024 UPC, so confirm which plumbing code your reviewer is working from. The 2024 Phoenix Building Construction Code took effect 1 August 2025 — a full cycle ahead of most large cities.',
@@ -533,7 +641,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     codes: [
       { family: 'IBC', edition: '2024', name: '2025 Denver Building and Fire Code' },
       { family: 'IRC', edition: '2024', name: '2025 Denver Building and Fire Code' },
-      { family: 'IECC', edition: '2021' },
+      { family: 'IECC', edition: '2021', iccVolumeId: 'IECC2021P1', iccVolumeTitle: '2021 International Energy Conservation Code (IECC)' },
     ],
     notes: 'The 2025 Denver Building and Fire Code is built on the 2024 I-Codes, except the energy code, which stays on the 2021 IECC.',
     sourceUrl: 'https://www.denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Community-Planning-and-Development/Building-Codes-Policies-and-Guides',
@@ -546,6 +654,8 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     matchCounty: ['miami-dade', 'miami dade', 'dade'],
     authorityName: 'Miami-Dade County Department of Regulatory and Economic Resources — Construction, Permitting and Building Code Division',
     codes: [
+      // No volume id — the same umbrella problem as the Florida state row
+      // above, verified the same way on 2026-09-13.
       { family: 'LOCAL', edition: '8th Edition (2023)', name: 'Florida Building Code, 8th Edition (2023)' },
     ],
     notes: "The county's Product Control Section must approve building-envelope products before use — windows, exterior glazing, wall cladding, roofing, exterior doors, skylights, glass block, siding and shutters.",
@@ -676,7 +786,7 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
       // Municode, and the only Austin fire ordinance that does open is a
       // pre-adoption draft headed "ORDINANCE NO. 1" — the Dallas trap, so it
       // is not cited. Austin Fire's own page states the adoption instead.
-      { family: 'IFC', edition: '2024', sourceUrl: 'https://www.austintexas.gov/fire/fire-building-code' },
+      { family: 'IFC', edition: '2024', sourceUrl: 'https://www.austintexas.gov/fire/fire-building-code', iccVolumeId: 'IFC2024P1', iccVolumeTitle: '2024 International Fire Code (IFC)' },
     ],
     notes: 'Austin\'s technical codes are Chapter 25-12 of the City Code; the 2024 I-Codes took effect 10 July 2025. Like Houston, Austin takes plumbing and mechanical from IAPMO — the 2024 Uniform Plumbing Code and Uniform Mechanical Code — NOT the ICC\'s IPC/IMC. MAGE claims no electrical edition for Austin: the city\'s own code page lists the 2023 NEC as current while also stating the 2026 NEC is effective 1 September 2026 — a date that has now passed with the page left unchanged, so the page implies both editions at once. Confirm the electrical edition with Development Services.',
     sourceUrl: 'https://www.austintexas.gov/development-services/building-technical-codes',
@@ -688,10 +798,10 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     matchCity: ['san antonio'],
     authorityName: 'City of San Antonio Development Services Department',
     codes: [
-      { family: 'IBC', edition: '2024' },
-      { family: 'IRC', edition: '2024' },
-      { family: 'IEBC', edition: '2024' },
-      { family: 'IECC', edition: '2021' },
+      { family: 'IBC', edition: '2024', iccVolumeId: 'IBC2024P1', iccVolumeTitle: '2024 International Building Code (IBC)' },
+      { family: 'IRC', edition: '2024', iccVolumeId: 'IRC2024P1', iccVolumeTitle: '2024 International Residential Code (IRC)' },
+      { family: 'IEBC', edition: '2024', iccVolumeId: 'IEBC2024P1', iccVolumeTitle: '2024 International Existing Building Code (IEBC)' },
+      { family: 'IECC', edition: '2021', iccVolumeId: 'IECC2021P1', iccVolumeTitle: '2021 International Energy Conservation Code (IECC)' },
       // NOT the row's Chapter 10 PDF: that document's Article VI is STALE. It
       // still prints "Sec. 10-51. Adoption of National Electrical Code (2020)"
       // and "The 2020 edition of the National Electrical Code … is adopted",
@@ -711,11 +821,11 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     matchCity: ['dallas'],
     authorityName: 'City of Dallas Planning and Development, Permitting and Inspections',
     codes: [
-      { family: 'IBC', edition: '2021' },
-      { family: 'IRC', edition: '2021' },
-      { family: 'IEBC', edition: '2021' },
-      { family: 'IECC', edition: '2021' },
-      { family: 'IFC', edition: '2021' },
+      { family: 'IBC', edition: '2021', iccVolumeId: 'IBC2021P1', iccVolumeTitle: '2021 International Building Code (IBC)' },
+      { family: 'IRC', edition: '2021', iccVolumeId: 'IRC2021P1', iccVolumeTitle: '2021 International Residential Code (IRC)' },
+      { family: 'IEBC', edition: '2021', iccVolumeId: 'IEBC2021P1', iccVolumeTitle: '2021 International Existing Building Code (IEBC)' },
+      { family: 'IECC', edition: '2021', iccVolumeId: 'IECC2021P1', iccVolumeTitle: '2021 International Energy Conservation Code (IECC)' },
+      { family: 'IFC', edition: '2021', iccVolumeId: 'IFC2021P1', iccVolumeTitle: '2021 International Fire Code (IFC)' },
       // NOT the row's know_code landing page: that page is STALE on this one
       // family. Sixteen months after the 2023 NEC took effect it still prints
       // "CHAPTER 56: 2020 National Electrical Code with Dallas Amendments
@@ -1087,6 +1197,151 @@ export function codesSummary(codes: readonly AdoptedCode[]): string {
   return out.join(', ');
 }
 
+export const ICC_VIEWER_BASE = 'https://codes.iccsafe.org/content/';
+
+/**
+ * A link to ONE VOLUME in ICC's free, anonymous, no-account Digital Codes
+ * viewer — the code a contractor can open on a jobsite phone in ten seconds.
+ *
+ * WHY LINKING IS ALLOWED WHERE HOLDING THE TEXT IS NOT. Loading
+ * codes.iccsafe.org/content/NYSRC2025P1 logged-out renders the volume with no
+ * paywall interstitial and no sign-in gate (verified 2026-09-13). ICC's Terms
+ * of Use were read in full the same day and grepped for "link", "hyperlink",
+ * "frame" and "deep link": there is NO anti-linking clause — the only linking
+ * section governs ICC linking outward. `/content/` is also not among the paths
+ * codes.iccsafe.org/robots.txt disallows (`/lookup` is). Pointing a contractor
+ * at the publisher's own free page is not copying, not crawling, and not
+ * addressed by those terms. Holding the text IS addressed by them, which is
+ * why this app links and does not hold.
+ *
+ * THE GUARD IS THE WHOLE FUNCTION. `volumeId` must be a bare volume id:
+ * uppercase, alphanumeric, no slash, no dot, no space. That makes it
+ * structurally impossible to build /content/IBC2021P1/chapter-99-not-a-real-
+ * chapter, which returns HTTP 200 while pointing at nothing (verified
+ * 2026-09-13). There is deliberately no sibling that takes a section number,
+ * and there must never be one while section numbers come from model recall.
+ */
+export function iccViewerUrl(volumeId: string | undefined | null): string | null {
+  const id = (volumeId ?? '').trim();
+  if (!/^[A-Z][A-Z0-9]{3,23}$/.test(id)) return null;
+  return `${ICC_VIEWER_BASE}${id}`;
+}
+
+/**
+ * THE LAST GATE BEFORE Linking.openURL. Nothing else may open a viewer link.
+ *
+ * `iccViewerUrl` guards id → URL. It does not, and cannot, guard URL → URL
+ * plus a path, and that is the hole a reviewer walked through on 2026-09-13:
+ * changing the screen's opener from `Linking.openURL(l.url)` to
+ * `Linking.openURL(`${l.url}/chapter-${citedSectionNumber}`)` produced a live,
+ * tappable, fabricated section link — the exact machine the scope limit exists
+ * to prevent — and the whole suite stayed green at 1798/0, because the guard
+ * watching for it was two regexes over the screen's source text and neither
+ * regex could see an interpolation that does not sit immediately after the
+ * literal host string.
+ *
+ * So the check moved to where it can be executed. This function takes whatever
+ * URL reached the opener, re-parses it, and REBUILDS the URL from the volume
+ * id it captured — so a path, a query, a fragment or a section slug cannot
+ * ride along even if one was appended a line earlier. Refusing returns null
+ * and the tap does nothing, which is the correct behaviour: /content/<id>/
+ * <anything> returns HTTP 200 whether the chapter exists or not, so an
+ * unopenable link is strictly better than a confident one pointing at nothing.
+ */
+export function viewerUrlToOpen(url: string | null | undefined): string | null {
+  const m = /^https:\/\/codes\.iccsafe\.org\/content\/([A-Z][A-Z0-9]{3,23})$/.exec(
+    (url ?? '').trim(),
+  );
+  return m ? iccViewerUrl(m[1]) : null;
+}
+
+/** What a re-check of one ICC volume concluded. `unreachable` is the ONLY
+ *  verdict the committed receipt is allowed to carry forward. */
+export type IccVolumeCheck =
+  | { verdict: 'ok' }
+  | { verdict: 'wrong'; why: string }
+  | { verdict: 'unreachable'; why: string };
+
+/**
+ * Judge one re-fetch of /content/<id>. Pure, so the rule can be tested without
+ * the network — scripts/verify-code-sources.ts does the fetching and hands the
+ * result here, and scripts/validate-code-jurisdiction.ts drives it directly.
+ *
+ * WHY A 4xx IS `wrong` AND NOT `unreachable`. The two verdicts are not
+ * synonyms: `unreachable` is forgiven by the committed receipt (a host that
+ * blocks scripts, a timeout on a 44 MB PDF), and `wrong` never is. ICC answers
+ * a volume id that no longer exists with HTTP 404 — measured 2026-09-13 on
+ * IECC2015P1, which is the real id IECC2015 plus the two-character suffix every
+ * OTHER volume in this table carries. Classifying that as
+ * `unreachable` would let a DEAD LINK ride forever behind a receipt written
+ * when the id still resolved, which is the whole failure mode this file's
+ * header calls "a real URL beside a recalled claim". A 5xx or a transport
+ * error is genuinely the network's fault and stays `unreachable`.
+ *
+ * The title checks are the other half, and they catch what a status code
+ * cannot: the generic "Digital Codes" shell (the id resolved to no volume) and
+ * a real volume of the WRONG edition (200, perfect title, wrong book).
+ */
+export function iccVolumeVerdict(input: {
+  volumeId: string | undefined | null;
+  /** The `iccVolumeTitle` the table recorded when the id was first read. */
+  recordedTitle: string | undefined | null;
+  /** The row's edition string — '2021', '8th Edition (2023)'. */
+  edition: string;
+  /** HTTP status, or null when no response arrived at all. */
+  status: number | null;
+  /** The page as text. '' when the fetch failed. */
+  text: string;
+  /** Transport failure detail, when there was one. */
+  why?: string;
+}): IccVolumeCheck {
+  if (!iccViewerUrl(input.volumeId)) {
+    return { verdict: 'wrong', why: 'refused by iccViewerUrl — not a bare volume id' };
+  }
+  const status = input.status;
+  if (status !== null && status >= 400 && status < 500) {
+    return { verdict: 'wrong', why: `HTTP ${status} — this volume id does not resolve; the link is dead` };
+  }
+  if (status === null || status < 200 || status >= 300) {
+    return { verdict: 'unreachable', why: input.why ?? (status === null ? 'no response' : `HTTP ${status}`) };
+  }
+  const head = (input.text ?? '').replace(/\s+/g, ' ').trim();
+  if (/^digital codes\b/i.test(head)) {
+    return { verdict: 'wrong', why: 'generic fallback title — this id does not resolve to a volume' };
+  }
+  const year = input.edition.match(/\b(19|20)\d{2}\b/)?.[0] ?? null;
+  if (!year || !head.slice(0, 200).includes(year)) {
+    return { verdict: 'wrong', why: `title does not carry the edition year ${year ?? '(none in the edition string)'}` };
+  }
+  const recorded = (input.recordedTitle ?? '').replace(/\s+/g, ' ').trim();
+  if (!recorded || !head.startsWith(recorded)) {
+    return { verdict: 'wrong', why: 'the recorded iccVolumeTitle no longer matches what ICC returns' };
+  }
+  return { verdict: 'ok' };
+}
+
+/** One openable volume: ICC's own title for it, and the link. */
+export interface CodeViewerLink {
+  label: string;
+  url: string;
+  /** The AdoptedCode this came from, so the UI can say which code it is. */
+  code: AdoptedCode;
+}
+
+/** Every adopted code at this address that MAGE can open in ICC's viewer. */
+export function viewerLinksFor(resolved: ResolvedCodeJurisdiction): CodeViewerLink[] {
+  if (resolved.kind === 'unknown') return [];
+  const out: CodeViewerLink[] = [];
+  const seen = new Set<string>();
+  for (const c of resolved.entry.codes) {
+    const url = iccViewerUrl(c.iccVolumeId);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push({ label: c.iccVolumeTitle ?? codeLine(c), url, code: c });
+  }
+  return out;
+}
+
 /**
  * What ONE code check is grounded on. `promptBlock` is inserted into the model
  * prompt verbatim and `chipLabel` is shown to the contractor verbatim — both
@@ -1104,6 +1359,13 @@ export interface JurisdictionGrounding {
   /** Stable fragment identifying this jurisdiction for a cache key. Two
    *  different cities can never collide on it. */
   cacheKey: string;
+  /**
+   * The governing volumes the contractor can OPEN, produced here so the link
+   * and the chip come from the same resolved value — the same reason
+   * promptBlock and chipLabel do. Deliberately absent from `promptBlock`: the
+   * model is never handed a URL, because a model handed a URL cites URLs.
+   */
+  viewerLinks: CodeViewerLink[];
 }
 
 const UNKNOWN_INSTRUCTION =
@@ -1129,6 +1391,7 @@ export function groundingFactsFor(resolved: ResolvedCodeJurisdiction): Jurisdict
       chipLabel: `No adoption record for this jurisdiction — this answer is model recall, not a code lookup. Verify the governing edition with the local building department.`,
       grounded: false,
       cacheKey: 'unknown',
+      viewerLinks: [],
     };
   }
 
@@ -1158,5 +1421,6 @@ export function groundingFactsFor(resolved: ResolvedCodeJurisdiction): Jurisdict
     chipLabel: `Grounded on ${entry.authorityName} — ${codes}. Adoption checked ${entry.checkedOn}. Code sections below are still model recall.`,
     grounded: true,
     cacheKey: `${resolved.kind}:${entry.state}:${normalizePlace(scope)}`,
+    viewerLinks: viewerLinksFor(resolved),
   };
 }
