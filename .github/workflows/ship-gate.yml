@@ -1,0 +1,187 @@
+# .github/workflows/ship-gate.yml
+#
+# The ship gate, on every pull request. This repo went to 449-file, +76,770-line
+# pull requests with nothing but three Netlify deploy previews attached; the 246
+# validators, the typecheck and the lint ran only where a human remembered to
+# run them.
+#
+# WHAT THIS RUNS: every link of the `ship-check` chain in package.json, via
+# scripts/ci-ship-check.ts. It does NOT call `bun run ship-check` directly —
+# that chain is joined with `&&`, whose first link is a guard that is red by
+# design, so the job would exit in two seconds having run nothing. The runner's
+# header explains it in full; the short version is that `&&` gives you one
+# failure per push and, here, zero checks per push.
+#
+# WHAT IT DOES NOT RUN: no EAS build, no deploy, no Supabase, no simulator, no
+# secret of any kind — deliberately, so this workflow runs on a fork PR.
+#
+# WHAT IT DOES NEED: OUTBOUND NETWORK, in exactly one place. An earlier draft of
+# this header claimed "every check in the chain is a pure local process", and
+# that was false. `test:edge-typecheck` runs `deno check` over 62 Supabase edge
+# functions whose imports are URLs — deno.land/std, esm.sh/@supabase/supabase-js
+# (four pinned versions), esm.sh/xlsx, esm.sh/pdf-lib, npm:@anthropic-ai/sdk.
+# Measured with a fresh DENO_DIR: 20 MB fetched. So deno.land and esm.sh being
+# reachable is a merge gate here, which is worth knowing before it is worth
+# debugging; the cache step below is what stops CI paying for it every run.
+#
+# TOOLCHAIN IS PINNED. Local is bun 1.3.14 / node 24. package.json has no
+# `engines` and there is no .nvmrc, so nothing else pins it — an unpinned CI
+# that disagrees with the laptop is its own category of lie, and the one that
+# bites hardest here is Node's Intl/ICU behaviour, which several date and money
+# validators assert against.
+
+name: ship gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Manual re-run, for when you want to see the current state of main without
+  # pushing to it (e.g. after the RevenueCat key lands).
+  workflow_dispatch:
+
+# A second push to the same PR cancels the first. On main, never cancel — the
+# run for a merged commit is the record of whether that commit was sound.
+concurrency:
+  group: ship-gate-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  ship-check:
+    # 246 validators + typecheck + lint + jest + the CPM suite. Counted, not
+    # guessed: an earlier version of this line said "247 validators" when there
+    # were 245 on disk, and the check NAME is the thing a reviewer reads first.
+    name: ship-check — 250 checks (246 validators, typecheck, lint, jest)
+    runs-on: ubuntu-latest
+    # Measured at 4 jobs on an M-series laptop across several runs: 185-223s
+    # end to end, of which test:smoke alone was 33-146s — it runs EXCLUSIVE, so
+    # its time is fully serialised and it has been up to 68% of the wall clock.
+    # A 4-vCPU runner with a cold lint (30.6s, see the ESLint cache note) will
+    # be slower again. 30 minutes is a hang detector, not a budget.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # validate-import-tracking.ts shells out to `git ls-files`. It needs a
+          # real work tree, which a depth-1 checkout is; it does not need history.
+          fetch-depth: 1
+
+      - name: Set up Bun 1.3.14
+        uses: oven-sh/setup-bun@v2
+        with:
+          # Exact, not a range. `latest` would let a Bun release change how the
+          # validators parse or transpile without a single line of this repo
+          # changing.
+          bun-version: 1.3.14
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Set up Deno 2.x
+        # NOT optional, and NOT a "nice to have". validate-edge-typecheck.ts
+        # hard-fails when deno is absent (deliberately — see its header: a guard
+        # that skips itself when a tool is missing is a dark guard). Without this
+        # step the whole run is red for a reason that has nothing to do with the
+        # code under review, which is the training-to-ignore-red failure mode
+        # this workflow exists to avoid.
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Cache Bun's global module store
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-cache-${{ runner.os }}-
+
+      - name: Install dependencies
+        # --frozen-lockfile: CI must install exactly what bun.lock says. If the
+        # lockfile and package.json disagree, that is a finding, not something
+        # for CI to resolve on the fly.
+        #
+        # postinstall (scripts/patch-ios-space-paths.sh) runs here. It is
+        # Linux-safe and always exits 0 by construction — it was `sed -i ''`
+        # once, which is BSD-only, and it killed every Netlify install from
+        # 2026-09-06 on. If this step ever fails, read that script first.
+        run: bun install --frozen-lockfile
+
+      - name: Generate the type files a fresh checkout does not have
+        # expo-env.d.ts and .expo/types/router.d.ts are BOTH generated and BOTH
+        # gitignored. Without the first, `tsc --noEmit` fails on main with two
+        # errors nobody can reproduce locally; without the second it silently
+        # stops type-checking every route string. Measured, both directions —
+        # see the script's header. It exits non-zero rather than continuing
+        # without them.
+        #
+        # THIS STEP IS A HARD GATE BEFORE A SINGLE CHECK RUNS, and that is the
+        # riskiest thing in this file. It starts `npx expo start --offline` on
+        # :18081 and waits up to 120s for Metro to write the typed routes. It
+        # has been measured on macOS with no TTY and CI=1 — 4s, and both files
+        # byte-identical to the originals (md5-verified) — but it has never run
+        # on a headless Linux runner. If Metro cannot bind or does not write in
+        # the window, this job is red on main having executed ZERO checks, which
+        # is the permanently-red outcome the whole design exists to avoid. Read
+        # the tailed dev-server log it prints before assuming the code is at
+        # fault.
+        #
+        # Deleting the step is NOT the fix, and it is not even possible to do
+        # quietly: scripts/ci-ship-check.ts refuses to start when either file is
+        # missing, precisely so a skipped typegen fails loudly instead of
+        # producing a green run over unchecked route strings.
+        run: sh scripts/ci-generate-expo-types.sh
+
+      - name: Cache Deno's remote-module store
+        # test:edge-typecheck fetches 20 MB of https:// and npm: imports on a
+        # cold cache (measured with a fresh DENO_DIR). Without this the gate
+        # pays for it on every run AND inherits deno.land / esm.sh uptime as a
+        # merge gate. The key is the edge-function sources, because that is what
+        # determines the import set; a miss still restores the previous store
+        # via the prefix and only re-fetches what changed.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ hashFiles('supabase/functions/**/*.ts') }}
+          restore-keys: deno-${{ runner.os }}-
+
+      - name: Cache ESLint
+        # PATH MATTERS AND THE OBVIOUS ONE IS WRONG. `.eslintcache` does not
+        # exist in this repo and never will: @expo/cli passes its own
+        # --cache-location=<projectRoot>/.expo/cache/eslint/ (see
+        # node_modules/@expo/cli/build/src/lint/lintAsync.js). Caching
+        # `.eslintcache` made actions/cache fail path validation and save
+        # nothing, so lint was cold on EVERY run — measured here at 30.6s wall
+        # / 41.6s CPU cold against 1.1s warm.
+        #
+        # The github.sha in the key is deliberate, not a bug: it guarantees a
+        # key MISS, which is what makes actions/cache save a fresh entry at the
+        # end of the job. The restore-keys prefix is what actually produces the
+        # hit. A cache keyed only on the config would hit exactly, and then
+        # never be updated with the newly-linted files. ESLint validates each
+        # cached entry against the file's own metadata, so a stale restore is
+        # safe — it just re-lints what changed.
+        uses: actions/cache@v4
+        with:
+          path: .expo/cache/eslint
+          key: eslint-${{ runner.os }}-${{ github.sha }}
+          restore-keys: eslint-${{ runner.os }}-
+
+      - name: Run the ship gate
+        # No `continue-on-error`. No `|| true`. This step's exit code IS the
+        # check's verdict; anything that softens it turns the whole workflow
+        # into decoration.
+        #
+        # CI_JOBS=4 matches the 4 vCPUs on a GitHub-hosted ubuntu runner. The
+        # runner buffers each check's output and prints results in chain order,
+        # so the log reads identically to a serial run.
+        env:
+          CI_JOBS: 4
+        run: bun run ci
